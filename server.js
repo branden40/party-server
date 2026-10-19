@@ -1,8 +1,10 @@
+
 const express = require("express");
 const http = require("http");
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const multer = require("multer");
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { Server } = require("socket.io");
 
 const PORT = process.env.PORT || 3000;
@@ -28,6 +30,38 @@ function cleanRoomName(room) {
 const players = new Map();
 // socket.id -> recent chat timestamps (spam protection)
 const chatTimes = new Map();
+
+// ---------------------------------------------------------------------------
+// Voice (walkie-talkie) signaling + floor control.
+// Channels: "room:<room>" for public voice rooms (Chaos Room),
+// "dm:<idA>:<idB>" (ids sorted) for matched-player talk.
+// Floor: one talker per channel at a time. Matches are session-scoped.
+// ---------------------------------------------------------------------------
+const voiceFloors = new Map(); // channel -> socket.id holding the floor
+const matches = new Set(); // "idA:idB" sorted, mutual matches
+
+function dmKey(a, b) {
+  return [String(a), String(b)].sort().join(":");
+}
+function channelMembers(channel) {
+  if (channel.startsWith("room:")) {
+    const room = channel.slice(5);
+    return [...players.values()].filter((p) => p.room === room).map((p) => p.id);
+  }
+  if (channel.startsWith("dm:")) {
+    return channel.slice(3).split(":");
+  }
+  return [];
+}
+function releaseFloorsHeldBy(socketId) {
+  for (const [ch, holder] of voiceFloors) {
+    if (holder !== socketId) continue;
+    voiceFloors.delete(ch);
+    const members = channelMembers(ch).filter((id) => id !== socketId);
+    if (members.length)
+      io.to(members).emit("voice-floor-released", { channel: ch, by: socketId });
+  }
+}
 
 // Simple profanity filter. Extend this list as needed.
 const BANNED_WORDS = [
@@ -65,31 +99,28 @@ function roomState(room) {
 }
 
 // ---------------------------------------------------------------------------
-// Profile photos: upload -> cloud storage -> auto-moderation -> live URL
+// Profile photos: upload -> Railway Volume (disk) -> auto-moderation -> URL
 //
-// Setup (all in Railway > Variables):
-//   S3_ENDPOINT    e.g. https://<accountid>.r2.cloudflarestorage.com (Cloudflare R2, free tier)
-//   S3_BUCKET      e.g. profile-photos
-//   S3_ACCESS_KEY / S3_SECRET_KEY   from your R2 API token
-//   S3_PUBLIC_URL  e.g. https://pub-<hash>.r2.dev  (R2 public bucket URL)
+// Setup (all in Railway):
+//   1. party-server service -> Volumes -> New Volume, mount path: /data
+//      (Without a volume, photos vanish on every redeploy.)
+//   2. Variables -> PHOTO_DIR = /data/photos
 //   HIVE_API_KEY   optional; free tier at thehive.ai for auto-moderation.
 //                  Without it, uploads are accepted but logged as UNREVIEWED
 //                  — point the report system somewhere you check.
 // ---------------------------------------------------------------------------
-const s3 =
-  process.env.S3_BUCKET && process.env.S3_ACCESS_KEY
-    ? new S3Client({
-        region: "auto",
-        endpoint: process.env.S3_ENDPOINT,
-        credentials: {
-          accessKeyId: process.env.S3_ACCESS_KEY,
-          secretAccessKey: process.env.S3_SECRET_KEY,
-        },
-      })
-    : null;
+const PHOTO_DIR = process.env.PHOTO_DIR || path.join(__dirname, "photos");
+fs.mkdirSync(PHOTO_DIR, { recursive: true });
+app.use("/photos", express.static(PHOTO_DIR));
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, PHOTO_DIR),
+    filename: (req, file, cb) => {
+      const name = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${extFor(file.mimetype)}`;
+      cb(null, name);
+    },
+  }),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
   fileFilter: (req, file, cb) => {
     if (file.mimetype && file.mimetype.startsWith("image/")) cb(null, true);
@@ -135,37 +166,21 @@ async function moderateImage(publicUrl) {
 // broadcast to everyone in their room.
 app.post("/api/profile-photo", upload.single("photo"), async (req, res) => {
   try {
-    if (!s3) {
-      return res.status(503).json({
-        error: "Photo uploads are not configured on this server yet.",
-      });
-    }
     const player = players.get(String(req.body.playerId || ""));
     if (!player) {
+      if (req.file) fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: "Join the party before uploading a photo." });
     }
     if (!req.file) {
       return res.status(400).json({ error: "No image file received." });
     }
 
-    const key = `photos/${player.id}-${Date.now()}-${crypto
-      .randomBytes(4)
-      .toString("hex")}.${extFor(req.file.mimetype)}`;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.S3_BUCKET,
-        Key: key,
-        Body: req.file.buffer,
-        ContentType: req.file.mimetype,
-      })
-    );
-    const publicUrl = `${process.env.S3_PUBLIC_URL}/${key}`;
+    // Railway always serves public domains over HTTPS.
+    const publicUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
 
     const mod = await moderateImage(publicUrl);
     if (!mod.ok) {
-      await s3.send(
-        new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key })
-      ).catch(() => {});
+      fs.unlink(req.file.path, () => {});
       console.log("PHOTO REJECTED:", player.name, mod.reason);
       return res.status(422).json({
         error: "That photo didn't pass our safety check. Please try a different one.",
@@ -286,7 +301,77 @@ io.on("connection", (socket) => {
     socket.emit("report-received", { ok: true });
   });
 
+  // Two players became a mutual match (client-verified). Session-scoped.
+  socket.on("match-made", (data = {}) => {
+    const other = players.get(String(data.withId || ""));
+    if (!other || other.id === socket.id) return;
+    matches.add(dmKey(socket.id, other.id));
+  });
+
+  // Walkie-talkie floor: one talker per channel at a time.
+  socket.on("voice-request-floor", (data = {}) => {
+    const channel = String(data.channel || "").slice(0, 80);
+    const members = channelMembers(channel);
+    if (!members.includes(socket.id)) {
+      return socket.emit("voice-floor-denied", { channel, reason: "not-a-member" });
+    }
+    if (channel.startsWith("dm:") && !matches.has(channel.slice(3))) {
+      return socket.emit("voice-floor-denied", { channel, reason: "not-matched" });
+    }
+    const holder = voiceFloors.get(channel);
+    if (holder && holder !== socket.id) {
+      const hp = players.get(holder);
+      return socket.emit("voice-floor-denied", {
+        channel,
+        reason: "busy",
+        by: holder,
+        byName: hp ? hp.name : "Someone",
+      });
+    }
+    voiceFloors.set(channel, socket.id);
+    const me = players.get(socket.id);
+    const others = members.filter((id) => id !== socket.id);
+    if (others.length)
+      io.to(others).emit("voice-floor-granted", {
+        channel,
+        by: socket.id,
+        byName: me ? me.name : "Someone",
+      });
+    socket.emit("voice-floor-granted", { channel, by: socket.id, self: true });
+  });
+
+  socket.on("voice-release-floor", (data = {}) => {
+    const channel = String(data.channel || "").slice(0, 80);
+    if (voiceFloors.get(channel) === socket.id) {
+      voiceFloors.delete(channel);
+      const others = channelMembers(channel).filter((id) => id !== socket.id);
+      if (others.length)
+        io.to(others).emit("voice-floor-released", { channel, by: socket.id });
+    }
+  });
+
+  // WebRTC signaling relay. Allowed only within the same room or between
+  // matched players.
+  socket.on("voice-signal", (data = {}) => {
+    const target = players.get(String(data.to || ""));
+    const me = players.get(socket.id);
+    if (!target || !me) return;
+    const sameRoom = target.room === me.room;
+    const matched = matches.has(dmKey(socket.id, target.id));
+    if (!sameRoom && !matched) return;
+    io.to(target.id).emit("voice-signal", {
+      from: socket.id,
+      fromName: me.name,
+      type: String(data.type || ""),
+      payload: data.payload || null,
+    });
+  });
+
   socket.on("disconnect", () => {
+    releaseFloorsHeldBy(socket.id);
+    for (const m of [...matches]) {
+      if (m.split(":").includes(socket.id)) matches.delete(m);
+    }
     const p = players.get(socket.id);
     if (p) {
       socket.to(p.room).emit("player-left", { id: p.id });
