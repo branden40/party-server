@@ -1682,6 +1682,44 @@
       .lv-more-list { display: flex; flex-direction: column; gap: 9px; margin-top: 8px; }
       .lv-more-list .btn-mini, .lv-more-list .follow-btn { width: 100%; padding: 12px; font-size: 15px; box-sizing: border-box; }
 
+      /* ---------- the host's auction, pinned inside their own live ----------
+         A compact selling card over the bottom of the stage: the LIVE
+         HOST's own running auction + any Buy Now items they've pinned
+         for sale in this room. Like the hearts / gift / share rail, it
+         does NOT fade with the rest of the live chrome — the pin is the
+         point of the live for a seller, so it stays put. */
+      .lv-aucpin {
+        position: absolute; left: 10px; right: 76px; bottom: 10px; z-index: 8;
+        background: rgba(10,10,18,.86); border: 1.5px solid rgba(224,36,94,.8); border-radius: 14px;
+        color: #fff; padding: 9px 11px 8px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        box-shadow: 0 12px 28px rgba(0,0,0,.5);
+      }
+      .lv-aucpin[hidden] { display: none !important; }
+      #livePanel.live-fs .lv-aucpin { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+      #livePanel.pin-on .lv-comments { bottom: 128px; }
+      #livePanel.live-fs.pin-on .lv-comments { bottom: calc(158px + env(safe-area-inset-bottom, 0px)); }
+      .lv-aucpin .auc-clock { position: static; flex: none; font-size: 13px; padding: 3px 9px; }
+      .lv-aucpin .ap-head { display: flex; align-items: center; gap: 7px; }
+      .lv-aucpin .ap-thumb { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; flex: none; }
+      .lv-aucpin .ap-thumbph { width: 38px; height: 38px; border-radius: 9px; background: rgba(255,255,255,.13); display: flex; align-items: center; justify-content: center; font-size: 19px; flex: none; }
+      .lv-aucpin .ap-tag { background: #e0245e; color: #fff; font-size: 10.5px; font-weight: 900; letter-spacing: .05em; border-radius: 999px; padding: 3px 8px; flex: none; white-space: nowrap; }
+      .lv-aucpin .ap-title { flex: 1; min-width: 0; font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .lv-aucpin .ap-bidrow { display: flex; align-items: center; gap: 9px; margin-top: 7px; }
+      .lv-aucpin .ap-amt { font-size: 23px; font-weight: 900; color: var(--gold); line-height: 1; font-variant-numeric: tabular-nums; flex: none; }
+      .lv-aucpin .ap-who { font-size: 12px; font-weight: 800; color: rgba(255,255,255,.88); flex: 1; min-width: 0; }
+      .lv-aucpin .ap-bid { margin-left: auto; flex: none; background: linear-gradient(120deg, #e0245e, #ff7847); color: #fff; border: none; font-weight: 900; font-size: 14.5px; border-radius: 999px; padding: 9px 16px; cursor: pointer; font-family: inherit; white-space: nowrap; box-shadow: 0 6px 16px rgba(224,36,94,.45); }
+      .lv-aucpin .ap-bid:active { transform: scale(.96); }
+      .lv-aucpin .ap-bid.winning { background: linear-gradient(120deg, #12805c, #1fa87a); box-shadow: none; cursor: default; }
+      .lv-aucpin .ap-note { margin-left: auto; flex: none; font-size: 12px; font-weight: 800; color: var(--gold); text-align: right; }
+      .lv-aucpin .ap-offer { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.16); font-size: 13px; font-weight: 800; }
+      .lv-aucpin .ap-offer .ap-thumb, .lv-aucpin .ap-offer .ap-thumbph { width: 30px; height: 30px; font-size: 15px; border-radius: 7px; }
+      .lv-aucpin .ap-offer .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .lv-aucpin .ap-buy { flex: none; background: linear-gradient(120deg, #12805c, #1fa87a); color: #fff; border: none; font-weight: 900; border-radius: 999px; padding: 7px 13px; font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+      .lv-aucpin .ap-buy:active { transform: scale(.96); }
+      .lv-aucpin .ap-openrow { margin-top: 7px; text-align: right; }
+      .lv-aucpin .ap-open { background: none; border: none; color: #ffd9e4; font-weight: 800; font-size: 12px; cursor: pointer; font-family: inherit; text-decoration: underline; padding: 0; }
+      @media (prefers-reduced-motion: reduce) { .lv-aucpin .auc-clock.urgent { animation: none; } }
+
       /* ---------- Earn announcement card ---------- */
       .earn-card {
         position: fixed; right: 14px; bottom: 14px; z-index: 60; width: min(330px, calc(100vw - 28px));
@@ -2172,7 +2210,7 @@
         <div class="online-card" style="margin-top:12px;" data-adult>
           <div>
             <h3>🔨 Live Auctions</h3>
-            <p>Real items, live bidding — in their own section, away from the Live Stage. Bid in a seller's auction, or open your selling desk: list items with photos, category, condition and shipping, queue them up, then run each one live or pin it at a Buy Now price. Auction earnings are tracked separately in Earn.</p>
+            <p>Real items, live bidding — in their own section, and pinned inside a host's own live while they sell on camera. Bid in a seller's auction, or open your selling desk: list items with photos, category, condition and shipping, queue them up, then run each one live or pin it at a Buy Now price. Auction earnings are tracked separately in Earn.</p>
           </div>
           <button class="speed-btn" id="btnAuctionsHome">🔨 Open auctions</button>
         </div>
@@ -2354,6 +2392,7 @@
               <button type="button" id="lvRailInvite" aria-label="Invite the room to watch">📣<span>Invite</span></button>
               <button type="button" id="lvRailShare" aria-label="Share this live">🔗<span>Share</span></button>
             </div>
+            <div class="lv-aucpin" id="liveAucPin" hidden></div>
             <button type="button" class="lv-morebtn" id="lvMoreBtn" aria-label="More live options">•••</button>
           </div>
           <div class="lv-commentbar" id="liveCommentBar" hidden>
@@ -7910,6 +7949,7 @@
         renderLiveRequests();
         renderLiveOverlay();
         renderLiveDir();
+        renderLiveAucPin();
       }
       /* The lobby directory: every live we know about, tap one to watch.
          Only shown in the shared Live Stage lobby while no live is on —
@@ -8021,7 +8061,7 @@
           mkBtn(Live.camOn ? "📷 Camera on" : "📷 Camera off", "btn-mini live-toggle" + (Live.camOn ? "" : " off"), liveToggleCam);
           mkBtn(Live.micOn ? "🎙 Mic on" : "🎙 Mic off", "btn-mini live-toggle" + (Live.micOn ? "" : " off"), liveToggleMic);
         }
-        if (iAmHost()) { mkBtn("🛠 Host tools", "btn-mini", openLiveHostTools); mkBtn("⏹ End Live", "btn-mini", liveEndMine); }
+        if (iAmHost()) { mkBtn("🔨 Sell", "btn-mini", function () { openAuctions(); }); mkBtn("🛠 Host tools", "btn-mini", openLiveHostTools); mkBtn("⏹ End Live", "btn-mini", liveEndMine); }
         else if (iAmOnStage()) mkBtn("Leave the stage", "btn-mini", liveLeaveStage);
         else {
           var rq = mkBtn(Live.myPendingReq ? "⏳ Request sent — waiting for the host…" : "🙋 Request to Join", "btn-primary", liveRequestJoin);
@@ -8758,6 +8798,18 @@
           Live.directory[Online.myId] = { room: myRoom, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: Online.myPhotoUrl || null, n: 1, seen: Date.now(), city: me.city || "", state: me.state || "", ints: (me.interests || []).slice(0, 8) };
           protoSend({ k: "live-on", room: myRoom, at: at, title: (Live.title || "").slice(0, 30), topic: Live.topic || "Chatting" });
           sendLiveMeta();
+          // PINNED IN MY LIVE: if my auction is already running (started
+          // from the selling desk before I went live), re-announce it in
+          // this live room so it pins inside my live for every viewer —
+          // and re-share my pinned Buy Now offers here too.
+          if (typeof Auc !== "undefined" && Auc.cur && !Auc.cur.ended && Auc.cur.hostId === Online.myId) {
+            var ca = Auc.cur;
+            protoSend({ k: "auc-new", id: ca.id, t: ca.title.slice(0, 36), s: ca.start, d: Math.max(1, Math.round((ca.endsAt - Date.now()) / 1000)), e: ca.endsAt, sh: ca.ship.slice(0, 40), h: ca.high, hn: (ca.highName || "").slice(0, 16), hid: ca.highId || "", n: ca.bids });
+            aucSendInfo(ca);
+          }
+          if (typeof Auc !== "undefined") Auc.listings.forEach(function (L) {
+            if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty });
+          });
           startLiveHeartbeat();
           addChatSystem("🔴 You're LIVE — this is your own live room, and viewers join you from 🔴 Live Now!");
           emojiBurst("🔴", 8);
@@ -8784,6 +8836,18 @@
         var seq = Live.stateSeq;
         protoSend({ k: "live-state", host: Live.hostId, at: Live.startedAt, title: (Live.title || "").slice(0, 30), topic: Live.topic || "Chatting", n: Live.stage.length, s: seq, er: Math.round(engRateOf(EngLog[Live.hostId] || [], Date.now())) });
         if (seq % 4 === 1) sendLiveMeta(); // re-announce my home + interests every ~32s so late joiners' ✨ For You lists can place me
+        // my pinned selling rides the heartbeat too: a running auction
+        // re-states itself so a viewer who joins my live late still sees
+        // it pinned (adopters with a running copy ignore the re-state),
+        // and my pinned Buy Now offers re-share on the slow cadence
+        if (typeof Auc !== "undefined" && Auc.cur && !Auc.cur.ended && Auc.cur.hostId === Online.myId) {
+          var ca2 = Auc.cur;
+          protoSend({ k: "auc-state", id: ca2.id, t: ca2.title.slice(0, 36), s: ca2.start, sh: ca2.ship.slice(0, 40), e: ca2.endsAt, h: ca2.high, hn: (ca2.highName || "").slice(0, 16), hid: ca2.highId || "", n: ca2.bids });
+          aucSendInfo(ca2);
+        }
+        if (seq % 4 === 1 && typeof Auc !== "undefined") Auc.listings.forEach(function (L) {
+          if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty });
+        });
         var chunks = Math.max(1, Math.ceil(Live.stage.length / LIVE_STAGE_CHUNK));
         for (var i = 0; i < chunks; i++) {
           protoSend({ k: "live-stage", s: seq, i: i, of: chunks, ids: Live.stage.slice(i * LIVE_STAGE_CHUNK, (i + 1) * LIVE_STAGE_CHUNK) });
@@ -9059,6 +9123,7 @@
           html += '<button type="button" class="btn-mini" id="lvMoreReport">🚩 Report ' + escHtml(Live.hostName || "host") + '</button>';
           html += '<button type="button" class="btn-mini" id="lvMoreHide">🚫 Mute &amp; Hide ' + escHtml(Live.hostName || "host") + '</button>';
         }
+        if (host) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>';
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreEnd">⏹ End Live</button>';
         else if (onStage) html += '<button type="button" class="btn-mini" id="lvMoreLeave">Leave the stage</button>';
         if (!host) html += '<button type="button" class="btn-mini" id="lvMoreClose">✕ Close this live</button>';
@@ -9081,6 +9146,7 @@
         });
         wire("lvMoreReport", function () { closeSheet(); openOnlineReport(Online.players[Live.hostId] || { id: Live.hostId, name: Live.hostName || "Host" }); });
         wire("lvMoreHide", function () { closeSheet(); liveMuteHide(Live.hostId); });
+        wire("lvMoreSell", function () { closeSheet(); openAuctions(); });
         wire("lvMoreEnd", function () { closeSheet(); liveEndMine(); });
         wire("lvMoreLeave", function () { closeSheet(); liveLeaveStage(); });
         wire("lvMoreLike", function () { closeSheet(); sendLiveHeart(); });
@@ -11827,15 +11893,91 @@
       }
       function aucFindListing(lid) { for (var i = 0; i < Auc.listings.length; i++) if (Auc.listings[i].lid === lid) return Auc.listings[i]; return null; }
       function aucScreenOpen() { var s = $("screen-auctions"); return !!(s && s.classList.contains("active")); }
-      /* Auction news lives ONLY on the Auctions screen — nothing about
-         auctions is posted into room chat, the live comment feed, or the
-         Live Stage. The latest headline shows at the top of this screen. */
+      /* Auction news is never posted into room chat or the live comment
+         feed, and auctions never appear in the 🔴 Live Now list — the
+         headlines live on the Auctions screen. The ONE place selling
+         shows outside this screen is pinned inside the live HOST's own
+         live (renderLiveAucPin below): Branden asked for his auction
+         pinned inside his own live, so the host's viewers can bid
+         without leaving the broadcast. */
       function aucAnnounce(text) {
         Auc.lastNews = text;
         if (aucScreenOpen()) renderAuctions();
+        renderLiveAucPin();
       }
       function aucNewsHtml() {
         return Auc.lastNews ? '<div class="auc-hostnote" style="margin:0 0 14px;">' + escHtml(Auc.lastNews) + '</div>' : '';
+      }
+      /* ---------- the host's selling, pinned inside their own live ----------
+         While a live is on air, the LIVE HOST's own selling pins to the
+         bottom of the stage: their running auction (item, high bid,
+         countdown via the shared data-auc-clock tick, one-tap BID for
+         viewers) plus any Buy Now items they've pinned for sale in this
+         room. It rides the same room-scoped auction state as the
+         Auctions screen — only the host's own selling pins, and only
+         while their live is on, so nobody else's auction can hijack a
+         live that isn't theirs. */
+      function livePinAuction() {
+        if (typeof Live === "undefined" || !Live.active || !Live.hostId) return null;
+        var a = Auc.cur;
+        if (!a || a.ended) return null;
+        return a.hostId === Live.hostId ? a : null;
+      }
+      function livePinOffers() {
+        if (typeof Live === "undefined" || !Live.active || !Live.hostId) return [];
+        if (Live.hostId === Online.myId) {
+          return Auc.listings.filter(function (L) { return L.pinned && L.offerId && L.qty > 0; }).map(function (L) {
+            return { id: L.offerId, title: L.title, price: L.price, shipCents: L.shipCents || 0, mine: true, photo: (L.photos && L.photos[0]) || null };
+          });
+        }
+        return Object.keys(Auc.offers).map(function (id) { return Auc.offers[id]; }).filter(function (o) {
+          return o && o.hostId === Live.hostId && o.qty > 0;
+        }).map(function (o) {
+          return { id: o.id, title: o.title, price: o.price, shipCents: o.shipCents || 0, mine: false, photo: null };
+        });
+      }
+      function renderLiveAucPin() {
+        var pin = $("liveAucPin"); if (!pin) return;
+        var panel = $("livePanel");
+        var show = false, html = "";
+        if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) {
+          var a = livePinAuction();
+          if (a) {
+            show = true;
+            var mine = aucMine(a);
+            var iWin = !!a.highId && a.highId === Online.myId;
+            var min = aucMinNext(a);
+            var thumb = a.photo ? '<img class="ap-thumb" src="' + a.photo + '" alt=""/>' : '<span class="ap-thumbph" aria-hidden="true">🔨</span>';
+            var bidLine = a.high > 0
+              ? '<span class="ap-amt">' + moneyLabel(a.high) + '</span><span class="ap-who">' + (iWin ? "🎉 You're the high bidder!" : "High bid · " + escHtml(a.highName)) + '</span>'
+              : '<span class="ap-amt">' + moneyLabel(a.start) + '</span><span class="ap-who">Opening bid · no bids yet</span>';
+            var act = mine
+              ? '<span class="ap-note">🎤 Your auction — bids land here live</span>'
+              : (iWin
+                ? '<button type="button" class="ap-bid winning" disabled>🎉 Winning</button>'
+                : '<button type="button" class="ap-bid" id="lvAucBid">🔨 BID ' + moneyLabel(min) + '</button>');
+            html += '<div class="ap-head">' + thumb + '<span class="ap-tag">📌 LIVE AUCTION</span><span class="ap-title">' + escHtml(a.title) + '</span><span class="auc-clock" data-auc-clock>⏱ ' + aucClock(a.endsAt - Date.now()) + '</span></div>' +
+              '<div class="ap-bidrow">' + bidLine + act + '</div>';
+          }
+          livePinOffers().slice(0, 2).forEach(function (o) {
+            show = true;
+            var oth = o.photo ? '<img class="ap-thumb" src="' + o.photo + '" alt=""/>' : '<span class="ap-thumbph" aria-hidden="true">🛍️</span>';
+            html += '<div class="ap-offer">' + oth + '<span class="t">📌 ' + escHtml(o.title) + ' · ' + moneyLabel(o.price) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : '') + '</span>' +
+              (o.mine ? '<span class="ap-note">Pinned by you</span>' : '<button type="button" class="ap-buy" data-lvbuy="' + escHtml(o.id) + '">Buy ' + moneyLabel(o.price + (o.shipCents || 0)) + '</button>') + '</div>';
+          });
+          if (show) html += '<div class="ap-openrow"><button type="button" class="ap-open" id="lvAucOpen">Open the full auction →</button></div>';
+        }
+        pin.hidden = !show;
+        if (panel) panel.classList.toggle("pin-on", show);
+        if (!show) { pin.innerHTML = ""; return; }
+        pin.innerHTML = html;
+        var bb = $("lvAucBid");
+        if (bb) bb.addEventListener("click", function () { var a2 = livePinAuction(); if (a2) aucPlaceBid(aucMinNext(a2)); });
+        var op = $("lvAucOpen");
+        if (op) op.addEventListener("click", function () { openAuctions(); });
+        pin.querySelectorAll("[data-lvbuy]").forEach(function (b) {
+          b.addEventListener("click", function () { aucBuyOffer(b.getAttribute("data-lvbuy")); });
+        });
       }
       function openAuctions() {
         if (isTeen()) { openTeenGateAll("Live Auctions"); return; }
@@ -12293,7 +12435,7 @@
         aucSendInfo(a);
         Auc.draftBid = "";
         aucAnnounce("🔨 " + a.hostName + " started a LIVE AUCTION: \"" + a.title + "\" — opens at " + moneyLabel(a.start) + ", " + aucClock((L.dur || 120) * 1000) + " on the clock. Head to 🔨 Live Auctions to bid!");
-        toast("🔨 Your auction is LIVE in this room — good luck, seller!", 3600);
+        toast(typeof Live !== "undefined" && Live.active && typeof iAmHost === "function" && iAmHost() ? "🔨 Your auction is LIVE — and pinned inside your live, so every viewer sees it and can bid right there!" : "🔨 Your auction is LIVE in this room — good luck, seller!", 3600);
         aucStartTick();
         if (aucScreenOpen()) renderAuctions();
       }
@@ -12319,6 +12461,7 @@
         if (L.offerId) protoSend({ k: "auc-shop-gone", id: L.offerId });
         L.pinned = false; L.offerId = "";
         if (tellRoom) { toast("📌 Unpinned — \"" + L.title + "\" is off the room\u2019s sale shelf."); renderAuctions(); }
+        renderLiveAucPin();
       }
       /* A buyer taps Buy on a pinned offer: Stripe-style checkout sheet,
          then the sale signal goes to the seller, who banks it. */
@@ -12380,6 +12523,7 @@
         toast("🔨 You're the high bidder at " + moneyLabel(amtCents) + (extended ? " — and your bid just added 5 seconds to the clock!" : "!"), 3200);
         Auc.draftBid = "";
         if (aucScreenOpen()) renderAuctions();
+        renderLiveAucPin();
       }
       function aucAdopt(o, fromId, fromName, quiet) {
         Auc.cur = {
@@ -12450,18 +12594,19 @@
               qty: (typeof o.q === "number" && o.q > 0) ? o.q : 1
             };
             if (aucScreenOpen()) renderAuctions();
+            renderLiveAucPin();
             break;
           }
           case "auc-shop-gone": {
             if (fromId === Online.myId) return;
-            if (Auc.offers[o.id]) { delete Auc.offers[o.id]; if (aucScreenOpen()) renderAuctions(); }
+            if (Auc.offers[o.id]) { delete Auc.offers[o.id]; if (aucScreenOpen()) renderAuctions(); renderLiveAucPin(); }
             break;
           }
           case "auc-sold": {
             if (fromId === Online.myId) return;
             var soldMine = null;
             Auc.listings.forEach(function (L) { if (L.offerId && L.offerId === o.id) soldMine = L; });
-            if (Auc.offers[o.id]) { delete Auc.offers[o.id]; if (aucScreenOpen()) renderAuctions(); }
+            if (Auc.offers[o.id]) { delete Auc.offers[o.id]; if (aucScreenOpen()) renderAuctions(); renderLiveAucPin(); }
             if (soldMine) {
               var buyerName = String(o.w || fromName || "A buyer").slice(0, 24);
               var total = soldMine.price + (soldMine.shipCents || 0);
@@ -12489,6 +12634,7 @@
             }
             aucDirectorySync();
             if (aucScreenOpen()) renderAuctions();
+            renderLiveAucPin();
             break;
           }
           case "auc-end": {
@@ -12536,6 +12682,7 @@
             Auc.pendingWin = { id: a.id, title: a.title, amt: a.high, ship: a.shipCents || 0, hostName: a.hostName };
             confettiBurst();
             if (aucScreenOpen()) { renderAuctions(); aucWinSheet(); }
+            else if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) aucWinSheet(); // won it while watching the live it was pinned in — pay right here
             return;
           }
         } else {
