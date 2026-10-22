@@ -10325,6 +10325,7 @@
         if (now.getMonth() < m - 1 || (now.getMonth() === m - 1 && now.getDate() < d)) age--;
         if (age < 0 || age > 120) { fail("That date doesn't look right — please check it and try again."); return; }
         err.hidden = true;
+        try { localStorage.setItem("rpDob.v1", v); } catch (e) { }
         if (age >= 18) {
           me.ageRange = ageRangeOf(age).id;
           if (!me.lookingFor) me.lookingFor = me.ageRange;
@@ -17164,6 +17165,344 @@ body.wp-video-on #rpWallC { visibility: hidden; }
 
   /* debug/test handle */
   window.rp613 = { state: S, observe: observe, top: top, reset: reset };
+})();
+</script>
+<style>
+/* ============ RP-V7.0: server accounts + reminders ============ */
+#suPass, #suDob, #liEmail, #liPass {
+  width: 100%; box-sizing: border-box; border: 2px solid var(--line); background: var(--bg); color: var(--ink);
+  border-radius: 14px; padding: 12px 14px; font-weight: 700; font-size: 17px; font-family: inherit;
+}
+#suPass:focus, #suDob:focus, #liEmail:focus, #liPass:focus { outline: none; border-color: var(--teal); }
+#rpBell { position: relative; }
+#rpBellBadge { position: absolute; top: -5px; right: -5px; background: #fe2c55; color: #fff; font-size: 10.5px; font-weight: 900; border-radius: 99px; padding: 1px 6px; display: none; }
+#rpBellBadge.on { display: block; }
+.rp-rem-row { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px dashed rgba(255,255,255,.12); align-items: flex-start; }
+.rp-rem-row .rp-rem-txt { flex: 1; min-width: 0; }
+.rp-rem-row.unread .rp-rem-txt { font-weight: 800; }
+.rp-rem-when { color: #9a9aad; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+</style>
+<script>
+/* ================= RP-V7.0: real server accounts + reminders ================= */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function toast2(m, t) { try { if (window.toast) window.toast(m, t || 3800); } catch (e) { } }
+  var ACCT_KEY = "rpAcct.v1", DOB_KEY = "rpDob.v1";
+  var acct = null;
+  try { var a0 = JSON.parse(localStorage.getItem(ACCT_KEY) || "null"); if (a0 && a0.token) acct = a0; } catch (e) { }
+  var reminders = [], unread = 0, acctBusy = false;
+
+  function saveAcct() { try { if (acct) localStorage.setItem(ACCT_KEY, JSON.stringify(acct)); else localStorage.removeItem(ACCT_KEY); } catch (e) { } }
+  function api(path, method, body) {
+    return new Promise(function (resolve) {
+      var ctrl = ("AbortController" in window) ? new AbortController() : null;
+      var to = setTimeout(function () { if (ctrl) { try { ctrl.abort(); } catch (e) { } } }, 9000);
+      var headers = { "Content-Type": "application/json" };
+      if (acct && acct.token) headers["Authorization"] = "Bearer " + acct.token;
+      fetch(path, { method: method || "GET", headers: headers, body: body ? JSON.stringify(body) : undefined, signal: ctrl ? ctrl.signal : undefined })
+        .then(function (r) {
+          clearTimeout(to);
+          return r.text().then(function (txt) {
+            var j = null; try { j = JSON.parse(txt); } catch (e) { }
+            resolve({ status: r.status, json: j, reachable: !!j });
+          });
+        })
+        .catch(function () { clearTimeout(to); resolve({ status: 0, json: null, reachable: false }); });
+    });
+  }
+  function setUnread(n) {
+    unread = n;
+    var b = $("rpBellBadge");
+    if (b) { b.textContent = n > 99 ? "99+" : String(n); b.classList.toggle("on", n > 0); }
+  }
+  function applyReminders(list) {
+    reminders = Array.isArray(list) ? list : [];
+    setUnread(reminders.filter(function (r) { return !r.read; }).length);
+  }
+  function fetchReminders() {
+    if (!acct) return Promise.resolve(false);
+    return api("/api/account/reminders", "GET").then(function (r) {
+      if (r.json && r.json.ok) { applyReminders(r.json.reminders); return true; }
+      if (r.status === 401) signOutLocal();
+      return false;
+    });
+  }
+  function refreshSession() {
+    if (!acct) return;
+    api("/api/account/me", "GET").then(function (r) {
+      if (r.json && r.json.ok) {
+        acct.name = r.json.user.name; acct.email = r.json.user.email; acct.userId = r.json.user.id;
+        saveAcct(); setUnread(r.json.unread || 0); fetchReminders();
+      } else if (r.status === 401) {
+        signOutLocal();
+        toast2("You're signed out — log in again from the sign-up sheet.", 3600);
+      }
+      renderAcctBox();
+    });
+  }
+  function signOutLocal() { acct = null; saveAcct(); reminders = []; setUnread(0); acctBoxSig = "x"; renderAcctBox(); }
+  function profileName() {
+    try { var P = JSON.parse(localStorage.getItem("datingGameProfile.v1") || "{}"); return (P.name || "").trim(); } catch (e) { return ""; }
+  }
+  function dobOnFile() {
+    var d = "";
+    try { d = localStorage.getItem(DOB_KEY) || ""; } catch (e) { }
+    if (!d) { var di = $("dobInput"); if (di && di.value) d = di.value; }
+    if (!d) { var sd = $("suDob"); if (sd && sd.value) d = sd.value; }
+    return d;
+  }
+  function localSeed() {
+    var now = new Date().toISOString(), nm = acct ? acct.name : "friend";
+    reminders = [
+      { id: "local-welcome", kind: "welcome", text: "🎉 Welcome to Rizz Plaza, " + nm + "!", at: now, read: false },
+      { id: "local-profile", kind: "profile", text: "📸 Finish your profile — add a photo so people can find you", at: now, read: false }
+    ];
+    setUnread(2);
+  }
+  function showAcctErr(msg) {
+    var e1 = $("suAcctErr");
+    if (e1) { e1.textContent = msg; e1.hidden = false; }
+    toast2(msg, 4600);
+  }
+
+  /* ---------- sign-up sheet: password field, login mode ---------- */
+  var uiBuilt = false;
+  function buildSignupUI() {
+    var card = document.querySelector("#screen-signup .agegate-card");
+    var phoneInput = $("suPhone"), goBtn = $("btnSignupGo"), skipBtn = $("btnSignupSkip");
+    if (!card || !phoneInput || !goBtn || !skipBtn || uiBuilt) return;
+    uiBuilt = true;
+    var phoneField = phoneInput.closest(".field") || phoneInput.parentNode;
+    var passWrap = document.createElement("div");
+    passWrap.className = "field";
+    passWrap.innerHTML = '<label for="suPass">Password</label><input type="password" id="suPass" autocomplete="new-password" placeholder="8+ characters" /><p class="age-note su-err" id="suPassErr" hidden></p>';
+    phoneField.parentNode.insertBefore(passWrap, phoneField.nextSibling);
+    var dobWrap = document.createElement("div");
+    dobWrap.className = "field"; dobWrap.id = "suDobWrap"; dobWrap.hidden = true;
+    dobWrap.innerHTML = '<label for="suDob">Date of birth (one time, for your account)</label><input type="date" id="suDob" />';
+    passWrap.parentNode.insertBefore(dobWrap, passWrap.nextSibling);
+    var err = document.createElement("p");
+    err.className = "age-note su-err"; err.id = "suAcctErr"; err.hidden = true;
+    goBtn.parentNode.insertBefore(err, goBtn);
+    var loginLink = document.createElement("button");
+    loginLink.type = "button"; loginLink.className = "btn-mini"; loginLink.id = "suLoginLink";
+    loginLink.style.cssText = "width:100%; padding:12px; margin-top:8px;";
+    loginLink.textContent = "Already have an account? Log in";
+    skipBtn.parentNode.insertBefore(loginLink, skipBtn.nextSibling);
+    var panel = document.createElement("div");
+    panel.id = "suLoginPanel"; panel.hidden = true;
+    panel.innerHTML = '<h3 style="margin:14px 0 6px;">👋 Welcome back — log in</h3>' +
+      '<div class="field"><label for="liEmail">Email address</label><input type="email" id="liEmail" autocomplete="email" placeholder="you@example.com" /></div>' +
+      '<div class="field"><label for="liPass">Password</label><input type="password" id="liPass" autocomplete="current-password" placeholder="Your password" /></div>' +
+      '<p class="age-note su-err" id="liErr" hidden></p>' +
+      '<button class="btn-primary" id="btnLoginGo" type="button" style="width:100%; padding:13px;">Log in</button>' +
+      '<button class="btn-mini" id="btnLoginBack" type="button" style="width:100%; padding:12px; margin-top:8px;">← Back to sign up</button>';
+    card.appendChild(panel);
+    $("suPass").addEventListener("input", gateSignupBtn);
+    ["suEmail", "suPhone"].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener("input", function () { setTimeout(gateSignupBtn, 0); });
+    });
+    var cons = $("suConsent");
+    if (cons) cons.addEventListener("change", function () { setTimeout(gateSignupBtn, 0); });
+    $("suLoginLink").addEventListener("click", function () { setLoginMode(true); });
+    $("btnLoginBack").addEventListener("click", function () { setLoginMode(false); });
+    $("btnLoginGo").addEventListener("click", doLogin);
+    syncDobWrap();
+  }
+  function syncDobWrap() {
+    var w = $("suDobWrap"); if (!w) return;
+    var have = "";
+    try { have = localStorage.getItem(DOB_KEY) || ""; } catch (e) { }
+    var di = $("dobInput");
+    w.hidden = !!have || !!(di && di.value);
+  }
+  function passOk() { var p = $("suPass"); return !p || p.value.length >= 8; }
+  function gateSignupBtn() {
+    var go = $("btnSignupGo"), p = $("suPass"), e = $("suPassErr");
+    if (!go || !p) return;
+    var bad = p.value.length > 0 && p.value.length < 8;
+    if (e) { e.hidden = !bad; if (bad) e.textContent = "Password needs at least 8 characters."; }
+    if (!passOk()) go.disabled = true;
+  }
+  function setLoginMode(on) {
+    var card = document.querySelector("#screen-signup .agegate-card");
+    var panel = $("suLoginPanel");
+    if (!card || !panel) return;
+    panel.hidden = !on;
+    ["btnGoogle", "btnApple", "btnSignupGo", "btnSignupSkip", "suLoginLink"].forEach(function (id) {
+      var el = $(id); if (el) el.style.display = on ? "none" : "";
+    });
+    var div = card.querySelector(".su-divider"); if (div) div.style.display = on ? "none" : "";
+    var cl = card.querySelector(".su-consent"); if (cl) cl.style.display = on ? "none" : "";
+    ["suEmail", "suPhone", "suPass", "suDob"].forEach(function (id) {
+      var el = $(id); var f = el ? (el.closest(".field") || el) : null;
+      if (f) f.style.display = on ? "none" : "";
+    });
+    var h = card.querySelector("h2");
+    if (h) h.textContent = on ? "👋 Log in" : "📝 Create your account";
+    if (on) { var le = $("liEmail"), se = $("suEmail"); if (le && se && !le.value) le.value = se.value; }
+    syncDobWrap();
+  }
+  document.addEventListener("click", function (e) {
+    if (!e.isTrusted) return;
+    var t = e.target;
+    if (!t || t.id !== "btnSignupGo") return;
+    var panel = $("suLoginPanel");
+    if (panel && !panel.hidden) return;
+    var p = $("suPass");
+    if (p && p.value.length < 8) {
+      e.preventDefault(); e.stopPropagation();
+      var er = $("suPassErr");
+      if (er) { er.textContent = "Add a password (8+ characters) to create your account."; er.hidden = false; }
+      try { p.focus(); } catch (e2) { }
+      return;
+    }
+    if (acctBusy || acct) return;
+    doSignup();
+  }, true);
+  function doSignup() {
+    var em = $("suEmail") ? $("suEmail").value.trim().toLowerCase() : "";
+    var ph = $("suPhone") ? $("suPhone").value.replace(/\D/g, "").slice(-10) : "";
+    var pw = $("suPass") ? $("suPass").value : "";
+    acctBusy = true;
+    api("/api/account/signup", "POST", { name: profileName(), email: em, phone: ph, password: pw, dob: dobOnFile() }).then(function (r) {
+      acctBusy = false;
+      if (r.json && r.json.ok) {
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name };
+        saveAcct(); localSeed();
+        toast2("✅ You're in — check your reminders 🔔", 4200);
+        fetchReminders(); renderAcctBox();
+      } else if (r.reachable && r.json) {
+        showAcctErr(r.json.error || "Sign-up didn't go through.");
+      } else {
+        toast2("Accounts need the live site — you're in as a guest for now", 4600);
+      }
+    });
+  }
+  function doLogin() {
+    var em = $("liEmail") ? $("liEmail").value.trim().toLowerCase() : "";
+    var pw = $("liPass") ? $("liPass").value : "";
+    var er = $("liErr");
+    if (!em || !pw) { if (er) { er.textContent = "Enter your email and password."; er.hidden = false; } return; }
+    if (acctBusy) return;
+    acctBusy = true;
+    api("/api/account/login", "POST", { email: em, password: pw }).then(function (r) {
+      acctBusy = false;
+      if (r.json && r.json.ok) {
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name };
+        saveAcct();
+        if (er) er.hidden = true;
+        toast2("👋 Welcome back, " + r.json.user.name + "!", 3600);
+        fetchReminders(); renderAcctBox();
+        finishLoginIntoApp(r.json.user, pw);
+      } else if (r.reachable && r.json) {
+        if (er) { er.textContent = r.json.error || "Login didn't go through."; er.hidden = false; }
+      } else {
+        if (er) { er.textContent = "Accounts need the live site — you're in as a guest for now"; er.hidden = false; }
+      }
+    });
+  }
+  function finishLoginIntoApp(user, pw) {
+    var se = $("suEmail"), sp = $("suPhone"), sc = $("suConsent"), pass = $("suPass");
+    if (se) { se.value = user.email || ""; se.dispatchEvent(new Event("input", { bubbles: true })); }
+    if (sp && user.phone) { sp.value = user.phone; sp.dispatchEvent(new Event("input", { bubbles: true })); }
+    if (pass) { pass.value = pw; pass.dispatchEvent(new Event("input", { bubbles: true })); }
+    if (sc && !sc.checked) { sc.checked = true; sc.dispatchEvent(new Event("change", { bubbles: true })); }
+    setLoginMode(false);
+    var go = $("btnSignupGo");
+    setTimeout(function () { if (go && !go.disabled) go.click(); }, 80);
+  }
+
+  /* ---------- 🔔 bell in the app bar + reminders sheet ---------- */
+  function buildBell() {
+    var actions = document.querySelector("#ttbar .tt-actions");
+    if (!actions || $("rpBell")) return;
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "tt-pill"; b.id = "rpBell";
+    b.innerHTML = '🔔<span id="rpBellBadge"></span>';
+    actions.appendChild(b);
+    b.addEventListener("click", openReminders);
+    setUnread(unread);
+  }
+  function whenText(iso) {
+    var t = new Date(iso).getTime();
+    if (!t) return "";
+    var s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 90) return "just now";
+    if (s < 3600) return Math.round(s / 60) + "m ago";
+    if (s < 86400) return Math.round(s / 3600) + "h ago";
+    return Math.round(s / 86400) + "d ago";
+  }
+  function openReminders() {
+    if (!acct) { toast2("Sign up or log in to get reminders 🔔", 3400); return; }
+    if (typeof window.openSheet !== "function") { toast2("Reminders live in your Profile 🔔", 3000); return; }
+    renderRemSheet();
+    fetchReminders().then(function () { renderRemSheet(); });
+  }
+  function renderRemSheet() {
+    if (typeof window.openSheet !== "function") return;
+    var html = '<h3 style="margin:4px 0">🔔 Reminders</h3>';
+    if (!reminders.length) html += '<p class="age-note" style="margin-top:8px">You\'re all caught up 🎉</p>';
+    else html += reminders.map(function (r) {
+      return '<div class="rp-rem-row' + (r.read ? "" : " unread") + '"><div class="rp-rem-txt">' + esc(r.text) + '</div><span class="rp-rem-when">' + esc(whenText(r.at)) + '</span></div>';
+    }).join("");
+    html += '<div class="btn-row" style="margin-top:14px;"><button class="btn-mini" id="rpRemRead" type="button">Mark all read</button><button class="btn-mini" id="rpRemResend" type="button">🎉 Resend my welcome</button></div>';
+    window.openSheet(html);
+    var rd = $("rpRemRead"), rs = $("rpRemResend");
+    if (rd) rd.addEventListener("click", function () {
+      var ids = reminders.filter(function (r) { return !r.read; }).map(function (r) { return r.id; });
+      if (!ids.length) return;
+      api("/api/account/reminders/read", "POST", { ids: ids }).then(function (r) {
+        if (r.json && r.json.ok) { reminders.forEach(function (x) { x.read = true; }); setUnread(0); renderRemSheet(); }
+      });
+    });
+    if (rs) rs.addEventListener("click", function () {
+      api("/api/account/welcome-resend", "POST", {}).then(function () { fetchReminders().then(function () { renderRemSheet(); }); });
+    });
+  }
+
+  /* ---------- Profile: account status ---------- */
+  var acctBoxSig = "";
+  function renderAcctBox() {
+    var info = $("pfContactInfo"); if (!info) return;
+    var box = $("rpAcctBox");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "rpAcctBox";
+      info.parentNode.insertBefore(box, info.nextSibling);
+    }
+    var sig = acct ? "in:" + acct.email : "guest";
+    if (sig === acctBoxSig) return;
+    acctBoxSig = sig;
+    if (acct) {
+      box.innerHTML = '<p class="age-note" style="margin:0 0 8px;">✅ Signed in as <b>' + esc(acct.name) + '</b> (' + esc(acct.email) + ')</p>' +
+        '<div class="btn-row"><button class="btn-mini" id="rpAcctRem" type="button">🔔 Reminders</button><button class="btn-mini" id="rpAcctOut" type="button">Log out</button></div>';
+      var rb = $("rpAcctRem"), ob = $("rpAcctOut");
+      if (rb) rb.addEventListener("click", openReminders);
+      if (ob) ob.addEventListener("click", function () {
+        api("/api/account/logout", "POST", {});
+        signOutLocal();
+        toast2("Logged out — see you soon 👋", 3000);
+      });
+    } else {
+      box.innerHTML = '<p class="age-note" style="margin:0;">👤 Guest — sign up or log in (via “Add email + phone”) for a server account + reminders.</p>';
+    }
+  }
+
+  function tick() { buildSignupUI(); buildBell(); renderAcctBox(); syncDobWrap(); }
+  tick();
+  setInterval(tick, 1300);
+  if (acct) refreshSession();
+  window.rpAcct = {
+    state: function () { return acct; },
+    reminders: function () { return reminders; },
+    unread: function () { return unread; },
+    refresh: refreshSession,
+    open: openReminders
+  };
 })();
 </script>
 </body>
