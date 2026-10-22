@@ -1,7 +1,9 @@
-/* Rizz Plaza service worker — offline app shell.
-   Cache-first for the app shell and icons, network-first for page
-   navigations so a fresh build always wins when online. */
-var CACHE = "dating-game-v1";
+/* Rizz Plaza service worker v2 — offline app shell + fast repeat opens.
+   - Navigations: network-first, so a fresh build always wins when online.
+   - Everything else (icons, audio, photos): stale-while-revalidate —
+     instant from cache, refreshed quietly in the background.
+   - Live traffic is NEVER cached: Socket.io and /api/ always hit network. */
+var CACHE = "dating-game-v2";
 var CORE = [
   "../",
   "../index.html",
@@ -40,6 +42,9 @@ self.addEventListener("fetch", function (event) {
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // Live traffic: never intercept (realtime must stay realtime).
+  if (url.pathname.indexOf("/socket.io/") === 0 || url.pathname.indexOf("/api/") === 0) return;
+
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req).then(function (res) {
@@ -54,16 +59,17 @@ self.addEventListener("fetch", function (event) {
     return;
   }
 
+  // Stale-while-revalidate for static assets, audio and photos.
   event.respondWith(
     caches.match(req, { ignoreSearch: true }).then(function (hit) {
-      if (hit) return hit;
-      return fetch(req).then(function (res) {
+      var network = fetch(req).then(function (res) {
         if (res && res.ok) {
           var copy = res.clone();
           caches.open(CACHE).then(function (cache) { cache.put(req, copy); });
         }
         return res;
-      });
+      }).catch(function () { return hit; });
+      return hit || network;
     })
   );
 });
