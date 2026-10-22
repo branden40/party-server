@@ -174,6 +174,71 @@ app.post("/api/subscribe", (req, res) => {
   writeSubscribers(list);
   res.json({ ok: true });
 });
+
+// ---------------------------------------------------------------------------
+// Help & Support messages from the in-app support sheet.
+// Stored as JSON next to the subscribers file (same volume, survives
+// redeploys) and mirrored to the server log, so the owner can read them in
+// the Railway logs. The game also opens the sender's own email app addressed
+// to the owner, so the message lands in the owner's inbox directly — this
+// endpoint is the server-side copy of record.
+// ---------------------------------------------------------------------------
+const SUPPORT_FILE =
+  process.env.SUPPORT_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "support-messages.json");
+function readSupport() {
+  try {
+    const arr = JSON.parse(fs.readFileSync(SUPPORT_FILE, "utf8"));
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+app.post("/api/support", (req, res) => {
+  const { name, email, category, message } = req.body || {};
+  const nm = String(name || "").trim().slice(0, 80);
+  const em = String(email || "").trim().toLowerCase().slice(0, 120);
+  const cats = [
+    "Question",
+    "Something's broken",
+    "Auction or store issue",
+    "Account help",
+    "Other",
+  ];
+  const cat = cats.includes(category) ? category : "Other";
+  const msg = String(message || "").trim().slice(0, 2000);
+  if (msg.length < 3)
+    return res.status(400).json({ ok: false, error: "Message too short" });
+  if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+    return res.status(400).json({ ok: false, error: "Invalid email" });
+  const entry = {
+    name: nm,
+    email: em,
+    category: cat,
+    message: msg,
+    createdAt: new Date().toISOString(),
+  };
+  const list = readSupport();
+  list.push(entry);
+  while (list.length > 500) list.shift();
+  try {
+    fs.writeFileSync(SUPPORT_FILE, JSON.stringify(list, null, 2));
+  } catch (e) {
+    console.error("support save failed", e);
+  }
+  console.log(
+    "[support]",
+    entry.category,
+    "|",
+    entry.name || "(no name)",
+    "|",
+    entry.email || "(no email)",
+    "|",
+    entry.message.slice(0, 300)
+  );
+  res.json({ ok: true });
+});
+
 app.post("/api/unsubscribe", (req, res) => {
   const { email, phone } = req.body || {};
   const em = String(email || "").trim().toLowerCase();
