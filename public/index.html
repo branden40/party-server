@@ -874,6 +874,7 @@
       .fx-chip { flex: none; width: 64px; padding: 0; background: none; border: none; cursor: pointer; font-family: inherit; color: var(--ink); display: flex; flex-direction: column; align-items: center; gap: 5px; }
       .fx-chip:active { transform: scale(.94); }
       .fx-swatch { width: 54px; height: 54px; border-radius: 50%; border: 2.5px solid transparent; box-sizing: border-box; background: radial-gradient(circle at 32% 28%, #3d3358, #241d3d 75%); box-shadow: inset 0 0 0 2px rgba(255,255,255,.18), 0 2px 7px rgba(0,0,0,.22); display: flex; align-items: center; justify-content: center; font-size: 25px; line-height: 1; }
+      .fx-swatch img.fx-thumb { width: 48px; height: 48px; display: block; }
       .fx-chip.sel .fx-swatch { border-color: var(--rose); box-shadow: 0 0 0 2.5px rgba(254,44,85,.4), inset 0 0 0 2px rgba(255,255,255,.35); }
       .fx-chip .fx-name { font-size: 11px; font-weight: 800; line-height: 1.12; text-align: center; }
       .fx-chip.sel .fx-name { color: var(--rose-deep); }
@@ -2884,6 +2885,17 @@
               <label>Your profile card · how it looks</label>
               <p class="age-note" style="margin:0 0 12px;">This is your card the way it shows at the party — photos, prompts, details and your voice, all in one scroll.</p>
               <div class="pcard-stack" id="pfCardStack"></div>
+            </div>
+            <div class="field" id="pfSecWall">
+              <label>🎨 Background</label>
+              <div class="rpwall-picker" id="rpWallPicker">
+                <button type="button" class="rpwall-opt" data-wall="auto">🔀 Auto Mix</button>
+                <button type="button" class="rpwall-opt" data-wall="city">🌃 Neon City</button>
+                <button type="button" class="rpwall-opt" data-wall="ocean">🌊 Ocean Waves</button>
+                <button type="button" class="rpwall-opt" data-wall="sunset">🌅 Sunset Clouds</button>
+                <button type="button" class="rpwall-opt" data-wall="aurora">✨ Aurora Stars</button>
+              </div>
+              <p class="age-note">Live wallpapers drift behind the whole Plaza. Auto Mix slowly blends all four scenes on its own, or lock your favorite. Just for looks — saved on this device only.</p>
             </div>
             <div class="btn-row">
               <button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnSaveProfile">Save profile</button>
@@ -5408,7 +5420,7 @@
           return '<button class="live-now-chip" data-lnroom="' + escHtml(it.room) + '">🔴 ' + it.label + (it.n ? ' · <b>' + it.n + ' here</b>' : '') + '</button>';
         }).join("");
         if (!html) {
-          list.innerHTML = '<div class="live-now-empty"><span>No one\u2019s live yet — be the first!</span><button class="speed-btn" id="btnLiveNowGo" type="button">🔴 Go Live</button></div>';
+          list.innerHTML = '<div class="live-now-empty"><span>No one\u2019s live yet.</span></div>';
           var g = $("btnLiveNowGo"); if (g) g.addEventListener("click", function () { if (typeof startOwnLiveEntry === "function") startOwnLiveEntry(); else enterLiveStageCard(); });
           return;
         }
@@ -8394,71 +8406,153 @@
          position, scale (fw/fh = face width/height in px) and tilt all
          follow the tracked head. Landmarks are MediaPipe indices. */
       function fxHeadFrame(ctx, anchor, ang) { ctx.translate(anchor.x, anchor.y); ctx.rotate(ang); }
+      /* Tiny 4-point glint used across effects (crowns, stars, halos). */
+      function fxSparkle(ctx, x, y, r, a) {
+        ctx.save();
+        ctx.globalAlpha = (a == null ? 0.9 : a);
+        ctx.beginPath();
+        ctx.moveTo(x, y - r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.quadraticCurveTo(x, y, x, y + r);
+        ctx.quadraticCurveTo(x, y, x - r, y);
+        ctx.quadraticCurveTo(x, y, x, y - r);
+        ctx.fillStyle = "#ffffff"; ctx.fill();
+        ctx.restore();
+      }
       var FUN_DRAW = {
         partyhat: function (ctx, G) {
           fxHeadFrame(ctx, G.top, G.ang);
           var w = G.fw, h = G.fh;
-          ctx.beginPath();
-          ctx.moveTo(-0.36 * w, 0.05 * h); ctx.lineTo(0.03 * w, -0.66 * h); ctx.lineTo(0.38 * w, 0.05 * h); ctx.closePath();
-          ctx.fillStyle = "#e8437c"; ctx.fill();
-          ctx.save(); ctx.clip();
-          ctx.fillStyle = "#f5b73f";
+          function cone() {
+            ctx.beginPath();
+            ctx.moveTo(-0.36 * w, 0.05 * h); ctx.lineTo(0.03 * w, -0.66 * h); ctx.lineTo(0.38 * w, 0.05 * h); ctx.closePath();
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(24,10,20,.35)"; ctx.shadowBlur = Math.min(16, 0.045 * w); ctx.shadowOffsetY = 0.025 * h;
+          cone();
+          var cg = ctx.createLinearGradient(0, -0.66 * h, 0, 0.05 * h);
+          cg.addColorStop(0, "#ff6fa5"); cg.addColorStop(0.55, "#e8437c"); cg.addColorStop(1, "#c2245c");
+          ctx.fillStyle = cg; ctx.fill();
+          ctx.restore();
+          ctx.save();
+          cone(); ctx.clip();
+          var sg = ctx.createLinearGradient(0, -0.66 * h, 0, 0.05 * h);
+          sg.addColorStop(0, "#ffd97a"); sg.addColorStop(1, "#f0a12c");
+          ctx.fillStyle = sg;
           [-0.52, -0.28, -0.04, 0.2].forEach(function (t) {
             ctx.beginPath(); ctx.moveTo(t * w - 0.1 * w, 0.08 * h); ctx.lineTo(t * w + 0.14 * w, 0.08 * h); ctx.lineTo(t * w + 0.3 * w, -0.7 * h); ctx.lineTo(t * w + 0.06 * w, -0.7 * h); ctx.closePath(); ctx.fill();
           });
+          ctx.fillStyle = "rgba(255,255,255,.18)";
+          ctx.beginPath(); ctx.moveTo(-0.3 * w, 0.08 * h); ctx.lineTo(-0.03 * w, -0.62 * h); ctx.lineTo(0.05 * w, -0.62 * h); ctx.lineTo(0.1 * w, 0.08 * h); ctx.closePath(); ctx.fill();
           ctx.restore();
+          cone(); ctx.strokeStyle = "rgba(120,10,50,.30)"; ctx.lineWidth = 0.012 * w; ctx.stroke();
           ctx.beginPath(); ctx.ellipse(0.01 * w, 0.05 * h, 0.4 * w, 0.07 * h, 0, 0, Math.PI * 2);
-          ctx.fillStyle = "#25f4ee"; ctx.fill();
+          var bg = ctx.createLinearGradient(-0.4 * w, 0, 0.4 * w, 0);
+          bg.addColorStop(0, "#25d4ee"); bg.addColorStop(0.5, "#9ff8f1"); bg.addColorStop(1, "#25d4ee");
+          ctx.fillStyle = bg; ctx.fill();
           ctx.beginPath(); ctx.arc(0.03 * w, -0.66 * h, 0.075 * w, 0, Math.PI * 2);
-          ctx.fillStyle = "#ffd23c"; ctx.fill();
+          var pg = ctx.createRadialGradient(0.005 * w, -0.685 * h, 0.01 * w, 0.03 * w, -0.66 * h, 0.085 * w);
+          pg.addColorStop(0, "#fff3b0"); pg.addColorStop(0.6, "#ffd23c"); pg.addColorStop(1, "#f0a12c");
+          ctx.fillStyle = pg; ctx.fill();
+          fxSparkle(ctx, 0.14 * w, -0.5 * h, 0.045 * w, 0.8);
         },
         crown: function (ctx, G) {
           fxHeadFrame(ctx, G.top, G.ang);
           var w = G.fw, h = G.fh;
-          ctx.beginPath();
-          ctx.moveTo(-0.42 * w, 0.02 * h);
-          ctx.lineTo(-0.42 * w, -0.3 * h); ctx.lineTo(-0.21 * w, -0.12 * h);
-          ctx.lineTo(0, -0.36 * h); ctx.lineTo(0.21 * w, -0.12 * h);
-          ctx.lineTo(0.42 * w, -0.3 * h); ctx.lineTo(0.42 * w, 0.02 * h); ctx.closePath();
-          ctx.fillStyle = "#f5b73f"; ctx.fill();
-          ctx.strokeStyle = "#c78f1d"; ctx.lineWidth = 0.02 * w; ctx.stroke();
+          function body() {
+            ctx.beginPath();
+            ctx.moveTo(-0.42 * w, 0.02 * h);
+            ctx.lineTo(-0.42 * w, -0.3 * h); ctx.lineTo(-0.21 * w, -0.12 * h);
+            ctx.lineTo(0, -0.36 * h); ctx.lineTo(0.21 * w, -0.12 * h);
+            ctx.lineTo(0.42 * w, -0.3 * h); ctx.lineTo(0.42 * w, 0.02 * h); ctx.closePath();
+          }
+          function jewel(cx, cy, rx, ry, c1, c2) {
+            var jg = ctx.createRadialGradient(cx - rx * 0.35, cy - ry * 0.4, rx * 0.15, cx, cy, rx);
+            jg.addColorStop(0, c1); jg.addColorStop(1, c2);
+            ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fillStyle = jg; ctx.fill();
+            ctx.beginPath(); ctx.arc(cx - rx * 0.3, cy - ry * 0.35, rx * 0.2, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fill();
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(24,10,20,.35)"; ctx.shadowBlur = Math.min(16, 0.045 * w); ctx.shadowOffsetY = 0.025 * h;
+          body();
+          var gg = ctx.createLinearGradient(0, -0.36 * h, 0, 0.02 * h);
+          gg.addColorStop(0, "#ffe082"); gg.addColorStop(0.5, "#f7bc45"); gg.addColorStop(1, "#dd9412");
+          ctx.fillStyle = gg; ctx.fill();
+          ctx.restore();
+          body(); ctx.strokeStyle = "#b57a0e"; ctx.lineWidth = 0.02 * w; ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(-0.42 * w, -0.055 * h); ctx.lineTo(0.42 * w, -0.055 * h);
+          ctx.strokeStyle = "rgba(146,90,4,.45)"; ctx.lineWidth = 0.014 * w; ctx.stroke();
           [[-0.42, -0.3], [0, -0.36], [0.42, -0.3]].forEach(function (p) {
-            ctx.beginPath(); ctx.arc(p[0] * w, p[1] * h, 0.045 * w, 0, Math.PI * 2); ctx.fillStyle = "#ffd97a"; ctx.fill();
+            var og = ctx.createRadialGradient(p[0] * w - 0.015 * w, p[1] * h - 0.015 * w, 0.008 * w, p[0] * w, p[1] * h, 0.05 * w);
+            og.addColorStop(0, "#fff3c4"); og.addColorStop(1, "#f0a12c");
+            ctx.beginPath(); ctx.arc(p[0] * w, p[1] * h, 0.045 * w, 0, Math.PI * 2); ctx.fillStyle = og; ctx.fill();
           });
-          ctx.beginPath(); ctx.ellipse(0, -0.09 * h, 0.06 * w, 0.045 * w, 0, 0, Math.PI * 2);
-          ctx.fillStyle = "#e8437c"; ctx.fill();
+          jewel(0, -0.09 * h, 0.06 * w, 0.045 * w, "#ff8fb8", "#d81b60");
+          jewel(-0.25 * w, -0.088 * h, 0.036 * w, 0.028 * w, "#8ff7f1", "#0e9bb5");
+          jewel(0.25 * w, -0.088 * h, 0.036 * w, 0.028 * w, "#d3a6ff", "#7c3aed");
+          fxSparkle(ctx, -0.31 * w, -0.31 * h, 0.05 * w, 0.85);
+          fxSparkle(ctx, 0.35 * w, -0.17 * h, 0.036 * w, 0.65);
         },
         flowercrown: function (ctx, G) {
           fxHeadFrame(ctx, G.top, G.ang);
           var w = G.fw, h = G.fh;
           var cols = ["#ff7a9c", "#ffd23c", "#c084fc", "#ff9ec4", "#fff3f8"];
+          var lite = ["#ffb9cd", "#ffe97a", "#dec7ff", "#ffcfe0", "#ffffff"];
+          for (var li = 0; li < 6; li++) {
+            var lt = (li + 0.5) / 6, la = Math.PI * (1 - lt);
+            var lx = Math.cos(la) * 0.44 * w, ly = 0.115 * h - Math.sin(la) * 0.14 * h;
+            ctx.save(); ctx.translate(lx, ly); ctx.rotate((lt - 0.5) * 1.5);
+            var lg = ctx.createLinearGradient(0, -0.022 * w, 0, 0.022 * w);
+            lg.addColorStop(0, "#86dd8a"); lg.addColorStop(1, "#37934a");
+            ctx.beginPath(); ctx.ellipse(0, 0, 0.05 * w, 0.021 * w, 0, 0, Math.PI * 2); ctx.fillStyle = lg; ctx.fill();
+            ctx.restore();
+          }
           for (var i = 0; i < 7; i++) {
             var t = i / 6, a = Math.PI * (1 - t); // arc over the forehead
             var fx2 = Math.cos(a) * 0.44 * w, fy2 = 0.1 * h - Math.sin(a) * 0.14 * h;
             var r = 0.05 * w, col = cols[i % cols.length];
-            ctx.fillStyle = col;
+            var fg = ctx.createRadialGradient(fx2, fy2, r * 0.15, fx2, fy2, r * 1.75);
+            fg.addColorStop(0, lite[i % lite.length]); fg.addColorStop(1, col);
+            ctx.fillStyle = fg;
             for (var p = 0; p < 5; p++) {
               var pa = p / 5 * Math.PI * 2;
               ctx.beginPath(); ctx.arc(fx2 + Math.cos(pa) * r, fy2 + Math.sin(pa) * r, r * 0.72, 0, Math.PI * 2); ctx.fill();
             }
-            ctx.beginPath(); ctx.arc(fx2, fy2, r * 0.55, 0, Math.PI * 2); ctx.fillStyle = "#ffb45e"; ctx.fill();
+            var cg2 = ctx.createRadialGradient(fx2 - r * 0.2, fy2 - r * 0.2, r * 0.1, fx2, fy2, r * 0.6);
+            cg2.addColorStop(0, "#ffe9a8"); cg2.addColorStop(1, "#f59e0b");
+            ctx.beginPath(); ctx.arc(fx2, fy2, r * 0.55, 0, Math.PI * 2); ctx.fillStyle = cg2; ctx.fill();
           }
+          fxSparkle(ctx, 0, -0.04 * h, 0.04 * w, 0.7);
         },
         sunglasses: function (ctx, G) {
           fxHeadFrame(ctx, G.eyeMid, G.ang);
           var w = G.fw, h = G.fh, d = G.eyeDist;
-          ctx.fillStyle = "#14100e";
-          ctx.strokeStyle = "#14100e"; ctx.lineWidth = 0.045 * h;
+          ctx.strokeStyle = "#0c0a09"; ctx.lineWidth = 0.045 * h;
           ctx.beginPath(); ctx.moveTo(-0.56 * w, -0.05 * h); ctx.lineTo(-d / 2 - 0.17 * w, -0.02 * h); ctx.stroke();
           ctx.beginPath(); ctx.moveTo(0.56 * w, -0.05 * h); ctx.lineTo(d / 2 + 0.17 * w, -0.02 * h); ctx.stroke();
           [-d / 2, d / 2].forEach(function (cx) {
-            ctx.beginPath();
-            if (ctx.roundRect) ctx.roundRect(cx - 0.185 * w, -0.13 * h, 0.37 * w, 0.3 * h, 0.09 * w); else ctx.rect(cx - 0.185 * w, -0.13 * h, 0.37 * w, 0.3 * h);
-            ctx.fillStyle = "#14100e"; ctx.fill();
-            ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 0.018 * w;
-            ctx.beginPath(); ctx.moveTo(cx - 0.1 * w, 0.1 * h); ctx.lineTo(cx + 0.02 * w, -0.08 * h); ctx.stroke();
+            function lens() {
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(cx - 0.185 * w, -0.13 * h, 0.37 * w, 0.3 * h, 0.09 * w); else ctx.rect(cx - 0.185 * w, -0.13 * h, 0.37 * w, 0.3 * h);
+            }
+            ctx.save();
+            ctx.shadowColor = "rgba(0,0,0,.4)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.02 * h;
+            lens();
+            var lg = ctx.createLinearGradient(0, -0.13 * h, 0, 0.17 * h);
+            lg.addColorStop(0, "#454b58"); lg.addColorStop(0.45, "#171a21"); lg.addColorStop(1, "#05060a");
+            ctx.fillStyle = lg; ctx.fill();
+            ctx.restore();
+            ctx.save();
+            lens(); ctx.clip();
+            ctx.fillStyle = "rgba(255,255,255,.30)";
+            ctx.beginPath(); ctx.moveTo(cx - 0.13 * w, 0.17 * h); ctx.lineTo(cx - 0.02 * w, -0.13 * h); ctx.lineTo(cx + 0.05 * w, -0.13 * h); ctx.lineTo(cx - 0.04 * w, 0.17 * h); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = "rgba(255,255,255,.13)";
+            ctx.beginPath(); ctx.moveTo(cx + 0.07 * w, 0.17 * h); ctx.lineTo(cx + 0.135 * w, -0.13 * h); ctx.lineTo(cx + 0.165 * w, -0.13 * h); ctx.lineTo(cx + 0.105 * w, 0.17 * h); ctx.closePath(); ctx.fill();
+            ctx.restore();
+            lens(); ctx.strokeStyle = "#000000"; ctx.lineWidth = 0.02 * w; ctx.stroke();
           });
-          ctx.fillStyle = "#14100e"; ctx.fillRect(-0.05 * w, -0.06 * h, 0.1 * w, 0.045 * h);
+          ctx.fillStyle = "#0c0a09"; ctx.fillRect(-0.05 * w, -0.06 * h, 0.1 * w, 0.045 * h);
+          ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.fillRect(-0.05 * w, -0.06 * h, 0.1 * w, 0.014 * h);
         },
         starshades: function (ctx, G) {
           fxHeadFrame(ctx, G.eyeMid, G.ang);
@@ -8473,22 +8567,40 @@
             ctx.closePath();
           }
           [-d / 2, d / 2].forEach(function (cx) {
+            ctx.save();
+            ctx.shadowColor = "rgba(24,10,20,.35)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.02 * w;
             star(cx, 0, 0.21 * w);
-            ctx.fillStyle = "#ffd23c"; ctx.fill();
-            ctx.strokeStyle = "#c78f1d"; ctx.lineWidth = 0.016 * w; ctx.stroke();
+            var gg = ctx.createRadialGradient(cx - 0.05 * w, -0.06 * w, 0.02 * w, cx, 0, 0.22 * w);
+            gg.addColorStop(0, "#ffe97a"); gg.addColorStop(0.55, "#ffd23c"); gg.addColorStop(1, "#f0a12c");
+            ctx.fillStyle = gg; ctx.fill();
+            ctx.restore();
+            star(cx, 0, 0.21 * w);
+            ctx.strokeStyle = "#b57a0e"; ctx.lineWidth = 0.016 * w; ctx.stroke();
+            star(cx, 0, 0.105 * w);
+            ctx.fillStyle = "rgba(255,255,255,.20)"; ctx.fill();
+            fxSparkle(ctx, cx - 0.14 * w, -0.14 * w, 0.034 * w, 0.8);
           });
-          ctx.fillStyle = "#c78f1d"; ctx.fillRect(-0.04 * w, -0.02 * w, 0.08 * w, 0.035 * w);
+          var bg = ctx.createLinearGradient(0, -0.02 * w, 0, 0.015 * w);
+          bg.addColorStop(0, "#e9b64c"); bg.addColorStop(1, "#b57a0e");
+          ctx.fillStyle = bg; ctx.fillRect(-0.04 * w, -0.02 * w, 0.08 * w, 0.035 * w);
         },
         dogears: function (ctx, G) {
           fxHeadFrame(ctx, G.top, G.ang);
           var w = G.fw, h = G.fh;
           [[-1, 0.5], [1, -0.5]].forEach(function (s) {
+            ctx.save();
+            ctx.shadowColor = "rgba(24,10,20,.3)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.02 * h;
             ctx.beginPath();
             ctx.ellipse(s[0] * 0.37 * w, -0.04 * h, 0.15 * w, 0.3 * h, s[1], 0, Math.PI * 2);
-            ctx.fillStyle = "#8a5a2b"; ctx.fill();
+            var og = ctx.createRadialGradient(s[0] * 0.33 * w, -0.22 * h, 0.05 * w, s[0] * 0.37 * w, -0.04 * h, 0.34 * h);
+            og.addColorStop(0, "#a9713a"); og.addColorStop(1, "#74461f");
+            ctx.fillStyle = og; ctx.fill();
+            ctx.restore();
             ctx.beginPath();
             ctx.ellipse(s[0] * 0.37 * w, -0.02 * h, 0.085 * w, 0.2 * h, s[1], 0, Math.PI * 2);
-            ctx.fillStyle = "#d9a066"; ctx.fill();
+            var ig = ctx.createRadialGradient(s[0] * 0.35 * w, -0.12 * h, 0.03 * w, s[0] * 0.37 * w, -0.02 * h, 0.22 * h);
+            ig.addColorStop(0, "#f2d0a0"); ig.addColorStop(1, "#cf9257");
+            ctx.fillStyle = ig; ctx.fill();
           });
         },
         catears: function (ctx, G) {
@@ -8496,25 +8608,45 @@
           var w = G.fw, h = G.fh;
           [-1, 1].forEach(function (s) {
             var bx = s * 0.29 * w;
-            ctx.beginPath();
-            ctx.moveTo(bx - 0.12 * w, -0.08 * h); ctx.lineTo(bx - s * 0.03 * w, -0.38 * h); ctx.lineTo(bx + 0.13 * w, -0.1 * h); ctx.closePath();
-            ctx.fillStyle = "#3a3340"; ctx.fill();
+            function outer() {
+              ctx.beginPath();
+              ctx.moveTo(bx - 0.12 * w, -0.08 * h); ctx.lineTo(bx - s * 0.03 * w, -0.38 * h); ctx.lineTo(bx + 0.13 * w, -0.1 * h); ctx.closePath();
+            }
+            ctx.save();
+            ctx.shadowColor = "rgba(24,10,20,.3)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.02 * h;
+            outer();
+            var og = ctx.createLinearGradient(bx, -0.38 * h, bx, -0.08 * h);
+            og.addColorStop(0, "#574e68"); og.addColorStop(1, "#2e2837");
+            ctx.fillStyle = og; ctx.fill();
+            ctx.restore();
+            outer(); ctx.strokeStyle = "rgba(255,255,255,.16)"; ctx.lineWidth = 0.012 * w; ctx.stroke();
             ctx.beginPath();
             ctx.moveTo(bx - 0.06 * w, -0.11 * h); ctx.lineTo(bx - s * 0.02 * w, -0.29 * h); ctx.lineTo(bx + 0.07 * w, -0.12 * h); ctx.closePath();
-            ctx.fillStyle = "#ff9ec4"; ctx.fill();
+            var ig = ctx.createLinearGradient(bx, -0.29 * h, bx, -0.11 * h);
+            ig.addColorStop(0, "#ffc7dd"); ig.addColorStop(1, "#ff8fb8");
+            ctx.fillStyle = ig; ctx.fill();
           });
         },
         bunnyears: function (ctx, G) {
           fxHeadFrame(ctx, G.top, G.ang);
           var w = G.fw, h = G.fh;
           [-1, 1].forEach(function (s) {
+            ctx.save();
+            ctx.shadowColor = "rgba(24,10,20,.25)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.02 * h;
             ctx.beginPath();
             ctx.ellipse(s * 0.19 * w, -0.4 * h, 0.095 * w, 0.33 * h, s * 0.13, 0, Math.PI * 2);
-            ctx.fillStyle = "#f2f2f5"; ctx.fill();
+            var og = ctx.createLinearGradient(0, -0.73 * h, 0, -0.07 * h);
+            og.addColorStop(0, "#ffffff"); og.addColorStop(1, "#d8d8e3");
+            ctx.fillStyle = og; ctx.fill();
+            ctx.restore();
+            ctx.beginPath();
+            ctx.ellipse(s * 0.19 * w, -0.4 * h, 0.095 * w, 0.33 * h, s * 0.13, 0, Math.PI * 2);
             ctx.strokeStyle = "#c9c9d4"; ctx.lineWidth = 0.012 * w; ctx.stroke();
             ctx.beginPath();
             ctx.ellipse(s * 0.19 * w, -0.4 * h, 0.05 * w, 0.22 * h, s * 0.13, 0, Math.PI * 2);
-            ctx.fillStyle = "#ff9ec4"; ctx.fill();
+            var ig = ctx.createLinearGradient(0, -0.62 * h, 0, -0.18 * h);
+            ig.addColorStop(0, "#ffc7dd"); ig.addColorStop(1, "#ff8fb8");
+            ctx.fillStyle = ig; ctx.fill();
           });
         },
         halo: function (ctx, G) {
@@ -8522,53 +8654,145 @@
           fxHeadFrame(ctx, { x: G.top.x, y: G.top.y - 0.34 * G.fh + bob }, G.ang);
           ctx.beginPath();
           ctx.ellipse(0, 0, 0.3 * G.fw, 0.07 * G.fw, 0, 0, Math.PI * 2);
-          ctx.strokeStyle = "#ffd23c"; ctx.lineWidth = 0.032 * G.fw;
+          ctx.strokeStyle = "rgba(255,205,60,.20)"; ctx.lineWidth = 0.085 * G.fw;
+          ctx.stroke();
+          var gg = ctx.createLinearGradient(-0.3 * G.fw, 0, 0.3 * G.fw, 0);
+          gg.addColorStop(0, "#ffb52e"); gg.addColorStop(0.5, "#ffe97a"); gg.addColorStop(1, "#ffb52e");
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 0.3 * G.fw, 0.07 * G.fw, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = gg; ctx.lineWidth = 0.032 * G.fw;
           ctx.shadowColor = "rgba(255,210,60,.85)"; ctx.shadowBlur = 18;
           ctx.stroke();
           ctx.shadowBlur = 0;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 0.3 * G.fw, 0.07 * G.fw, 0, Math.PI * 1.18, Math.PI * 1.82);
+          ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 0.012 * G.fw;
+          ctx.stroke();
+          fxSparkle(ctx, 0.31 * G.fw, -0.04 * G.fw, 0.045 * G.fw, 0.8);
         },
         mustache: function (ctx, G) {
           var anchor = { x: (G.noseBot.x + G.lipTop.x) / 2, y: (G.noseBot.y + G.lipTop.y) / 2 };
           fxHeadFrame(ctx, anchor, G.ang);
           var w = G.fw, h = G.fh;
-          ctx.fillStyle = "#4a2f22";
-          [-1, 1].forEach(function (s) {
+          function shape() {
             ctx.beginPath();
-            ctx.moveTo(0, -0.01 * h);
-            ctx.bezierCurveTo(s * 0.07 * w, -0.055 * h, s * 0.2 * w, -0.05 * h, s * 0.23 * w, 0.005 * h);
-            ctx.bezierCurveTo(s * 0.24 * w, 0.05 * h, s * 0.12 * w, 0.075 * h, s * 0.05 * w, 0.045 * h);
-            ctx.bezierCurveTo(s * 0.02 * w, 0.03 * h, 0, 0.02 * h, 0, -0.01 * h);
-            ctx.fill();
+            [-1, 1].forEach(function (s) {
+              ctx.moveTo(0, -0.01 * h);
+              ctx.bezierCurveTo(s * 0.07 * w, -0.055 * h, s * 0.2 * w, -0.05 * h, s * 0.23 * w, 0.005 * h);
+              ctx.bezierCurveTo(s * 0.24 * w, 0.05 * h, s * 0.12 * w, 0.075 * h, s * 0.05 * w, 0.045 * h);
+              ctx.bezierCurveTo(s * 0.02 * w, 0.03 * h, 0, 0.02 * h, 0, -0.01 * h);
+            });
+            ctx.closePath();
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(24,10,20,.3)"; ctx.shadowBlur = Math.min(12, 0.03 * w); ctx.shadowOffsetY = 0.015 * h;
+          shape();
+          var mg = ctx.createLinearGradient(0, -0.055 * h, 0, 0.075 * h);
+          mg.addColorStop(0, "#684631"); mg.addColorStop(1, "#38220f");
+          ctx.fillStyle = mg; ctx.fill();
+          ctx.restore();
+          ctx.save();
+          shape(); ctx.clip();
+          ctx.lineWidth = Math.max(1, 0.008 * w);
+          [-0.19, -0.12, -0.055, 0.055, 0.12, 0.19].forEach(function (sx) {
+            ctx.beginPath();
+            ctx.moveTo(sx * w * 0.55, -0.032 * h);
+            ctx.quadraticCurveTo(sx * w * 0.95, 0.005 * h, sx * w * 1.18, 0.052 * h);
+            ctx.strokeStyle = "rgba(24,13,6,.45)"; ctx.stroke();
           });
+          [-0.085, 0.085].forEach(function (sx) {
+            ctx.beginPath();
+            ctx.moveTo(sx * w * 0.5, -0.036 * h);
+            ctx.quadraticCurveTo(sx * w * 0.9, -0.002 * h, sx * w * 1.1, 0.04 * h);
+            ctx.strokeStyle = "rgba(158,116,78,.35)"; ctx.stroke();
+          });
+          ctx.restore();
         },
         beard: function (ctx, G) {
           var idx = [234, 93, 132, 58, 172, 136, 150, 149, 176, 152, 377, 400, 378, 379, 365, 397, 288, 361, 323, 454];
-          ctx.beginPath();
-          idx.forEach(function (i, n) { var p = G.P(i); if (n) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
-          // close across just under the lower lip, so the mouth stays clear
-          var mr = { x: G.mouthR.x, y: G.mouthR.y + 0.09 * G.fh };
-          var ml = { x: G.mouthL.x, y: G.mouthL.y + 0.09 * G.fh };
-          var dip = { x: (ml.x + mr.x) / 2, y: G.lipBot.y + 0.13 * G.fh };
-          ctx.lineTo(mr.x, mr.y);
-          ctx.quadraticCurveTo(dip.x, dip.y, ml.x, ml.y);
-          ctx.closePath();
-          ctx.fillStyle = "rgba(74,47,34,.96)"; ctx.fill();
+          function shape() {
+            ctx.beginPath();
+            idx.forEach(function (i, n) { var p = G.P(i); if (n) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+            // close across just under the lower lip, so the mouth stays clear
+            var mr = { x: G.mouthR.x, y: G.mouthR.y + 0.09 * G.fh };
+            var ml = { x: G.mouthL.x, y: G.mouthL.y + 0.09 * G.fh };
+            var dip = { x: (ml.x + mr.x) / 2, y: G.lipBot.y + 0.13 * G.fh };
+            ctx.lineTo(mr.x, mr.y);
+            ctx.quadraticCurveTo(dip.x, dip.y, ml.x, ml.y);
+            ctx.closePath();
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(24,10,20,.3)"; ctx.shadowBlur = Math.min(14, 0.04 * G.fw); ctx.shadowOffsetY = 0.02 * G.fh;
+          shape();
+          var bg = ctx.createLinearGradient(0, G.mouthL.y, 0, G.chin.y + 0.12 * G.fh);
+          bg.addColorStop(0, "#684631"); bg.addColorStop(1, "#33200f");
+          ctx.fillStyle = bg; ctx.fill();
+          ctx.restore();
+          ctx.save();
+          shape(); ctx.clip();
+          ctx.lineWidth = Math.max(1, 0.006 * G.fw);
+          var x0 = G.eyeMid.x - 0.52 * G.fw, x1 = G.eyeMid.x + 0.52 * G.fw;
+          for (var sx = x0; sx <= x1; sx += 0.05 * G.fw) {
+            var sway = Math.sin(sx * 0.35) * 0.018 * G.fw;
+            ctx.beginPath();
+            ctx.moveTo(sx, G.lipBot.y + 0.03 * G.fh);
+            ctx.quadraticCurveTo(sx + sway, (G.lipBot.y + G.chin.y) / 2, sx + sway * 1.7, G.chin.y + 0.05 * G.fh);
+            ctx.strokeStyle = "rgba(24,13,6,.32)"; ctx.stroke();
+          }
+          for (var sx2 = x0 + 0.025 * G.fw; sx2 <= x1; sx2 += 0.1 * G.fw) {
+            ctx.beginPath();
+            ctx.moveTo(sx2, G.lipBot.y + 0.05 * G.fh);
+            ctx.quadraticCurveTo(sx2 + 0.01 * G.fw, (G.lipBot.y + G.chin.y) / 2, sx2 + 0.016 * G.fw, G.chin.y - 0.04 * G.fh);
+            ctx.strokeStyle = "rgba(158,116,78,.20)"; ctx.stroke();
+          }
+          ctx.restore();
         },
         clownnose: function (ctx, G) {
           var r = 0.135 * G.fw;
-          var gr = ctx.createRadialGradient(G.nose.x - r * 0.35, G.nose.y - r * 0.4, r * 0.15, G.nose.x, G.nose.y, r);
-          gr.addColorStop(0, "#ff8a8a"); gr.addColorStop(0.55, "#e02424"); gr.addColorStop(1, "#b30d0d");
+          ctx.save();
+          ctx.shadowColor = "rgba(60,0,0,.35)"; ctx.shadowBlur = r * 0.55; ctx.shadowOffsetY = r * 0.22;
+          var gr = ctx.createRadialGradient(G.nose.x - r * 0.35, G.nose.y - r * 0.4, r * 0.12, G.nose.x, G.nose.y, r);
+          gr.addColorStop(0, "#ffb1a8"); gr.addColorStop(0.35, "#ff5a4d"); gr.addColorStop(0.7, "#e02424"); gr.addColorStop(1, "#a30d0d");
           ctx.beginPath(); ctx.arc(G.nose.x, G.nose.y, r, 0, Math.PI * 2);
           ctx.fillStyle = gr; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.arc(G.nose.x, G.nose.y, r * 0.92, Math.PI * 0.25, Math.PI * 0.75);
+          ctx.strokeStyle = "rgba(255,140,130,.55)"; ctx.lineWidth = r * 0.1; ctx.stroke();
           ctx.beginPath(); ctx.arc(G.nose.x - r * 0.35, G.nose.y - r * 0.4, r * 0.22, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.fill();
+          ctx.fillStyle = "rgba(255,255,255,.8)"; ctx.fill();
+          ctx.beginPath(); ctx.arc(G.nose.x - r * 0.17, G.nose.y - r * 0.56, r * 0.09, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,.65)"; ctx.fill();
         }
       };
+      /* Landmarks that get smoothed: the face anchors + the beard outline.
+         Detection lands ~14x/sec but the painter runs at ~30fps, so raw
+         landmarks visibly step and jitter. fx.smooth lerps the tracked
+         points toward each new detection on every painted frame (about
+         0.35 per 33ms frame, frame-rate tolerant) and resets once the
+         face has been gone for more than 600ms. */
+      var FX_SMOOTH_IDX = [10, 152, 234, 454, 33, 133, 263, 362, 1, 2, 61, 291, 13, 14, 93, 132, 58, 172, 136, 150, 149, 176, 377, 400, 378, 379, 365, 397, 288, 361, 323];
       function fxDrawFun(ctx, w, h) {
         var fx = Live.fx; if (!fx || !fx.face) return;
-        if (Date.now() - fx.faceAt > 450) return; // stale tracking: draw nothing rather than a floating sticker
+        var nowMs = Date.now();
+        if (nowMs - fx.faceAt > 450) { fx.smooth = null; return; } // stale tracking: draw nothing rather than a floating sticker
         var lm = fx.face;
-        function P(i) { var p = lm[i]; return p ? { x: p.x * w, y: p.y * h } : { x: 0, y: 0 }; }
+        var S = fx.smooth;
+        if (S && nowMs - S.at > 600) S = fx.smooth = null;
+        if (!S) {
+          S = fx.smooth = { at: nowMs, pts: {} };
+          FX_SMOOTH_IDX.forEach(function (i) { var p = lm[i]; if (p) S.pts[i] = { x: p.x, y: p.y }; });
+        } else {
+          var dt = Math.max(1, Math.min(100, nowMs - S.at));
+          var k = 1 - Math.pow(0.65, dt / 33.3);
+          FX_SMOOTH_IDX.forEach(function (i) {
+            var p = lm[i]; if (!p) return;
+            var s = S.pts[i];
+            if (!s) { S.pts[i] = { x: p.x, y: p.y }; return; }
+            s.x += (p.x - s.x) * k; s.y += (p.y - s.y) * k;
+          });
+          S.at = nowMs;
+        }
+        function P(i) { var s = S.pts[i]; if (s) return { x: s.x * w, y: s.y * h }; var p = lm[i]; return p ? { x: p.x * w, y: p.y * h } : { x: 0, y: 0 }; }
         var top = P(10), chin = P(152), sideL = P(234), sideR = P(454);
         var eL = { x: (P(33).x + P(133).x) / 2, y: (P(33).y + P(133).y) / 2 };
         var eR = { x: (P(263).x + P(362).x) / 2, y: (P(263).y + P(362).y) / 2 };
@@ -8584,8 +8808,7 @@
         };
         var draw = FUN_DRAW[Live.filterId];
         if (draw) draw(ctx, G);
-      }
-      function fxStopPipeline() {
+      }      function fxStopPipeline() {
         var fx = Live.fx; if (!fx) return;
         Live.fx = null;
         if (fx.raf) cancelAnimationFrame(fx.raf);
@@ -8600,7 +8823,7 @@
         video.srcObject = srcStream;
         var canvas = document.createElement("canvas");
         var ctx = canvas.getContext("2d");
-        var fx = Live.fx = { mode: mode, src: srcStream, video: video, canvas: canvas, ctx: ctx, stream: null, raf: 0, last: 0, face: null, faceAt: 0, detectBusy: false, lastDetect: 0, detCanvas: null, detCtx: null };
+        var fx = Live.fx = { mode: mode, src: srcStream, video: video, canvas: canvas, ctx: ctx, stream: null, raf: 0, last: 0, face: null, faceAt: 0, smooth: null, detectBusy: false, lastDetect: 0, detCanvas: null, detCtx: null };
         function size() {
           var vw = video.videoWidth || 640, vh = video.videoHeight || 480;
           var s = Math.min(1, 640 / Math.max(vw, vh)); // processing cap: 640px long edge
@@ -8692,13 +8915,63 @@
           if (typeof syncAucVideo === "function") syncAucVideo();
         }
       }
+      /* ---------- filter picker thumbnails ----------
+         Each picker's swatch renders the effect's REAL artwork once into
+         a 96px canvas (over a simple drawn head, so dark effects like the
+         beard still read on the dark swatch) and caches the data URL.
+         If anything fails, the picker falls back to the emoji icon. */
+      var FxThumbCache = {};
+      function fxThumbURL(id) {
+        if (Object.prototype.hasOwnProperty.call(FxThumbCache, id)) return FxThumbCache[id];
+        var url = null;
+        try {
+          var draw = FUN_DRAW[id];
+          if (draw) {
+            var cv = document.createElement("canvas"); cv.width = 96; cv.height = 96;
+            var tc = cv.getContext("2d");
+            if (tc) {
+              var hg = tc.createRadialGradient(40, 44, 6, 48, 58, 46);
+              hg.addColorStop(0, "#f6cf9f"); hg.addColorStop(1, "#da9f63");
+              tc.beginPath(); tc.ellipse(48, 60, 25, 27, 0, 0, Math.PI * 2); tc.fillStyle = hg; tc.fill();
+              tc.fillStyle = "rgba(70,42,20,.55)";
+              tc.beginPath(); tc.arc(35, 57, 1.7, 0, Math.PI * 2); tc.fill();
+              tc.beginPath(); tc.arc(61, 57, 1.7, 0, Math.PI * 2); tc.fill();
+              var BIDX = [234, 93, 132, 58, 172, 136, 150, 149, 176, 152, 377, 400, 378, 379, 365, 397, 288, 361, 323, 454];
+              var TG = {
+                fw: 48, fh: 48, ang: 0,
+                top: { x: 48, y: 38 }, chin: { x: 48, y: 86 },
+                eyeMid: { x: 48, y: 58 }, eyeDist: 26,
+                nose: { x: 48, y: 56 }, noseBot: { x: 48, y: 66 },
+                mouthL: { x: 40, y: 72 }, mouthR: { x: 56, y: 72 },
+                lipTop: { x: 48, y: 71 }, lipBot: { x: 48, y: 74 },
+                P: function (i) {
+                  var n = BIDX.indexOf(i); if (n < 0) n = 0;
+                  var th = (170 - 160 * n / (BIDX.length - 1)) * Math.PI / 180;
+                  return { x: 48 + Math.cos(th) * 24, y: 62 + Math.sin(th) * 22 };
+                }
+              };
+              tc.save(); draw(tc, TG); tc.restore();
+              url = cv.toDataURL("image/png");
+            }
+          }
+        } catch (e) { url = null; }
+        FxThumbCache[id] = url;
+        return url;
+      }
+      function fxSwatchInner(f) {
+        if (f && f.fun) {
+          var u = fxThumbURL(f.id);
+          if (u) return '<img class="fx-thumb" alt="" src="' + u + '">';
+        }
+        return (f && f.icon) || "✨";
+      }
       function filterRailHTML() {
         var html = '<div class="fx-wrap"><p class="fx-label">✨ Filters <span class="fx-cur" data-fxcur>' + escHtml(fxRecipe(Live.filterId).name) + '</span></p>';
         [["Fun", "🎉 Fun effects"]].forEach(function (g) {
           html += '<p class="fx-group">' + g[1] + '</p><div class="fx-rail">';
           LIVE_FILTERS.forEach(function (f) {
             if (f.group !== g[0]) return;
-            html += '<button type="button" class="fx-chip' + (f.id === Live.filterId ? " sel" : "") + '" data-fx="' + f.id + '"><span class="fx-swatch">' + (f.icon || "✨") + '</span><span class="fx-name">' + f.name + '</span></button>';
+            html += '<button type="button" class="fx-chip' + (f.id === Live.filterId ? " sel" : "") + '" data-fx="' + f.id + '"><span class="fx-swatch">' + fxSwatchInner(f) + '</span><span class="fx-name">' + f.name + '</span></button>';
           });
           html += "</div>";
         });
@@ -8910,7 +9183,7 @@
             aucSendInfo(ca);
           }
           if (typeof Auc !== "undefined") Auc.listings.forEach(function (L) {
-            if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0 });
+            if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0, tq: L.tq || L.qty || 0 });
           });
           startLiveHeartbeat();
           addChatSystem("🔴 You're LIVE — this is your own live room, and viewers join you from 🔴 Live Now!");
@@ -8948,7 +9221,7 @@
           aucSendInfo(ca2);
         }
         if (seq % 4 === 1 && typeof Auc !== "undefined") Auc.listings.forEach(function (L) {
-          if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0 });
+          if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0, tq: L.tq || L.qty || 0 });
         });
         var chunks = Math.max(1, Math.ceil(Live.stage.length / LIVE_STAGE_CHUNK));
         for (var i = 0; i < chunks; i++) {
@@ -12109,13 +12382,13 @@
         if (typeof Live === "undefined" || !Live.active || !Live.hostId) return [];
         if (Live.hostId === Online.myId) {
           return Auc.listings.filter(function (L) { return L.pinned && L.offerId && L.qty > 0; }).map(function (L) {
-            return { id: L.offerId, title: L.title, price: L.price, shipCents: L.shipCents || 0, mine: true, photo: (L.photos && L.photos[0]) || null, fmt: L.fmt || "buy", oprice: L.oprice || 0, bundle: !!L.bundle, lid: L.lid };
+            return { id: L.offerId, title: L.title, price: L.price, shipCents: L.shipCents || 0, mine: true, photo: (L.photos && L.photos[0]) || null, fmt: L.fmt || "buy", oprice: L.oprice || 0, bundle: !!L.bundle, lid: L.lid, tq: L.tq || L.qty || 0, qty: L.qty };
           });
         }
         return Object.keys(Auc.offers).map(function (id) { return Auc.offers[id]; }).filter(function (o) {
           return o && o.hostId === Live.hostId && o.qty > 0;
         }).map(function (o) {
-          return { id: o.id, title: o.title, price: o.price, shipCents: o.shipCents || 0, mine: false, photo: null, fmt: o.fmt || "buy", oprice: o.oprice || 0, bundle: !!o.bundle, lid: o.lid || "" };
+          return { id: o.id, title: o.title, price: o.price, shipCents: o.shipCents || 0, mine: false, photo: null, fmt: o.fmt || "buy", oprice: o.oprice || 0, bundle: !!o.bundle, lid: o.lid || "", tq: o.tq || o.qty || 0, qty: o.qty };
         });
       }
       function renderLiveAucPin() {
@@ -12152,8 +12425,8 @@
           livePinOffers().slice(0, 2).forEach(function (o) {
             show = true;
             var oth = o.photo ? '<img class="ap-thumb" src="' + o.photo + '" alt=""/>' : '<span class="ap-thumbph" aria-hidden="true">🛍️</span>';
-            html += '<div class="ap-offer">' + oth + '<span class="t">' + (o.fmt === "give" ? '🎁 ' : o.fmt === "flash" ? '⚡ ' : '📌 ') + escHtml(o.title) + ' · ' + (o.fmt === "give" ? 'FREE giveaway' : (o.fmt === "flash" && o.oprice > o.price ? '<s>' + moneyLabel(o.oprice) + '</s> ' : '') + moneyLabel(o.price)) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : '') + (o.bundle ? ' · 📦 bundle' : '') + '</span>' +
-              (o.mine ? '<span class="ap-note">Pinned by you</span>' : (o.fmt === "give" ? '<button type="button" class="ap-buy" data-lvgive="' + escHtml(o.id) + '" data-lid="' + escHtml(o.lid || "") + '">🎁 Enter</button>' : '<button type="button" class="ap-buy" data-lvbuy="' + escHtml(o.id) + '">Buy ' + moneyLabel(o.price + (o.shipCents || 0)) + '</button>')) + '</div>';
+            html += '<div class="ap-offer">' + oth + '<span class="t">' + (o.fmt === "give" ? '🎁 ' : o.fmt === "break" ? '🎲 ' : o.fmt === "party" ? '🎉 ' : o.fmt === "flash" ? '⚡ ' : '📌 ') + escHtml(o.title) + ' · ' + (o.fmt === "give" ? 'FREE giveaway' : (o.fmt === "flash" && o.oprice > o.price ? '<s>' + moneyLabel(o.oprice) + '</s> ' : '') + moneyLabel(o.price) + (o.fmt === "break" ? ' per spot · ' + (o.qty || 0) + ' left' : o.fmt === "party" ? ' · party goal ' + (o.tq || o.qty || 0) + ' · ' + (o.qty || 0) + ' left' : '')) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : '') + (o.bundle ? ' · 📦 bundle' : '') + '</span>' +
+              (o.mine ? '<span class="ap-note">Pinned by you</span>' : (o.fmt === "give" ? '<button type="button" class="ap-buy" data-lvgive="' + escHtml(o.id) + '" data-lid="' + escHtml(o.lid || "") + '">🎁 Enter</button>' : '<button type="button" class="ap-buy" data-lvbuy="' + escHtml(o.id) + '">' + (o.fmt === "break" ? '🎲 Claim spot ' : o.fmt === "party" ? '🎉 Party buy ' : 'Buy ') + moneyLabel(o.price + (o.shipCents || 0)) + '</button>')) + '</div>';
           });
           if (show) html += '<div class="ap-openrow"><button type="button" class="ap-open" id="lvAucOpen">Open the full auction →</button></div>';
         }
@@ -12332,14 +12605,14 @@
         return '<div class="auc-card"><div class="auc-body"><h3 style="font-size:17px;">🛍️ For sale in this room</h3>' +
           ids.map(function (id) {
             var o = Auc.offers[id];
-            var wnIc = o.fmt === "give" ? "🎁" : o.fmt === "flash" ? "⚡" : "🛍️";
-            var wnPrice = o.fmt === "give" ? 'FREE — giveaway, tap Enter to join' : (o.fmt === "flash" && o.oprice > o.price ? '<s>' + moneyLabel(o.oprice) + '</s> ' : '') + moneyLabel(o.price) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : ' · free shipping') + (o.bundle ? ' · 📦 bundle shipping' : '');
+            var wnIc = o.fmt === "give" ? "🎁" : o.fmt === "break" ? "🎲" : o.fmt === "party" ? "🎉" : o.fmt === "flash" ? "⚡" : "🛍️";
+            var wnPrice = o.fmt === "give" ? 'FREE — giveaway, tap Enter to join' : o.fmt === "break" ? moneyLabel(o.price) + ' per spot · ' + o.qty + (o.qty === 1 ? ' spot' : ' spots') + ' left' + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : ' · free shipping') : o.fmt === "party" ? moneyLabel(o.price) + ' · 🎉 party goal ' + (o.tq || o.qty) + ' · ' + o.qty + ' left to sell out' + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : ' · free shipping') : (o.fmt === "flash" && o.oprice > o.price ? '<s>' + moneyLabel(o.oprice) + '</s> ' : '') + moneyLabel(o.price) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : ' · free shipping') + (o.bundle ? ' · 📦 bundle shipping' : '');
             return '<div class="auc-list-row"><span class="thumb-ph" aria-hidden="true">' + wnIc + '</span><div class="meta"><b>' + escHtml(o.title) + '</b>' +
               '<span>Sold by ' + escHtml(o.hostName) + ' · ' + escHtml(aucCatName(o.cat)) + ' · ' + escHtml(aucCondName(o.cond)) + (o.qty > 1 ? ' · ×' + o.qty + ' available' : '') + '</span>' +
               '<span>' + wnPrice + '</span></div>' +
               (o.fmt === "give"
                 ? '<button type="button" class="auc-shop-buy" data-giveoffer="' + escHtml(o.id) + '" data-lid="' + escHtml(o.lid || "") + '">🎁 Enter</button></div>'
-                : '<button type="button" class="auc-shop-buy" data-buyoffer="' + escHtml(o.id) + '">Buy ' + moneyLabel(o.price + (o.shipCents || 0)) + '</button></div>');
+                : '<button type="button" class="auc-shop-buy" data-buyoffer="' + escHtml(o.id) + '">' + (o.fmt === "break" ? '🎲 Claim a spot ' : o.fmt === "party" ? '🎉 Party buy ' : 'Buy ') + moneyLabel(o.price + (o.shipCents || 0)) + '</button></div>');
           }).join("") +
           '<p class="auc-fine">Buy Now pays the seller through Stripe right away — they ship once you\u2019re paid up. All sales are final.</p></div></div>';
       }
@@ -12352,7 +12625,7 @@
           else if (L.pinned) { st = "📌 PINNED FOR SALE"; stCls = "pinned"; }
           else if (L.qty <= 0) { st = "SOLD OUT"; stCls = "out"; }
           else { st = "READY"; stCls = "ready"; }
-          var priceLine = L.fmt === "buy" ? moneyLabel(L.price) + " Buy Now" : L.fmt === "flash" ? "⚡ " + moneyLabel(L.price) + (L.oprice > L.price ? " (was " + moneyLabel(L.oprice) + ")" : "") + " Flash Sale" : L.fmt === "give" ? "🎁 Giveaway — free entry" : "Starts at " + moneyLabel(L.price) + " · " + aucClock(L.dur * 1000) + (L.sd ? " · ⚡ sudden death" : "");
+          var priceLine = L.fmt === "party" ? "🎉 " + moneyLabel(L.price) + " · party goal " + (L.tq || L.qty) + " · " + L.qty + " left" : L.fmt === "break" ? "🎲 " + moneyLabel(L.price) + " per spot · " + L.qty + (L.qty === 1 ? " spot left" : " spots left") : L.fmt === "buy" ? moneyLabel(L.price) + " Buy Now" : L.fmt === "flash" ? "⚡ " + moneyLabel(L.price) + (L.oprice > L.price ? " (was " + moneyLabel(L.oprice) + ")" : "") + " Flash Sale" : L.fmt === "give" ? "🎁 Giveaway — free entry" : "Starts at " + moneyLabel(L.price) + " · " + aucClock(L.dur * 1000) + (L.sd ? " · ⚡ sudden death" : "");
           var acts = "";
           if (L.qty > 0) {
             if (L.fmt !== "auc") acts += L.pinned
@@ -12388,7 +12661,7 @@
           return '<span class="ph"><img src="' + p + '" alt="Item photo ' + (i + 1) + '"/>' + (i === 0 ? '<span class="cover">COVER</span>' : '') + '<button type="button" class="rm" data-rmphoto="' + i + '" aria-label="Remove photo">✕</button></span>';
         }).join("") +
           (Auc.draftPhotos.length < 4 ? '<button type="button" class="addph" id="aucPickPhoto"><span>＋</span>Photo</button>' : '') + '</div>';
-        var wnFmt = Auc.draftFmt, wnFlash = wnFmt === "flash", wnGive = wnFmt === "give";
+        var wnFmt = Auc.draftFmt, wnFlash = wnFmt === "flash", wnGive = wnFmt === "give", wnBreak = wnFmt === "break", wnParty = wnFmt === "party";
         var isBuy = wnFmt !== "auc";
         return '<div class="auc-card" id="aucComposer"><div class="auc-body"><h3>' + (Auc.editingLid ? "✏️ Edit listing" : "🔨 Sell an item — create a listing") + '</h3>' +
           '<p style="margin:0 0 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px;">The full listing, the way live sellers do it: photos, category, condition, quantity and shipping up front — then run it as a live auction or pin it at a Buy Now price. One auction at a time per room.</p>' +
@@ -12399,10 +12672,10 @@
           '<div class="field"><label for="aucCond">Condition</label><select id="aucCond">' + condOpts + '</select></div></div>' +
           '<div class="field"><label for="aucDesc">Description</label><textarea id="aucDesc" rows="3" maxlength="140" placeholder="Size, brand, flaws, what\u2019s in the box — the details buyers ask about" style="width:100%; box-sizing:border-box; border-radius:12px; border:1.5px solid var(--line); background:var(--chip); color:var(--ink); padding:10px 12px; font:inherit; font-size:15px; resize:vertical;">' + escHtml(Auc.draftDesc) + '</textarea></div>' +
           '<label style="display:block; font-weight:800; font-size:13px; margin-bottom:6px;">How are you selling it?</label>' +
-          '<div class="auc-fmt" style="flex-wrap:wrap;"><button type="button" id="aucFmtAuc" class="' + (wnFmt === "auc" ? "on" : "") + '">🔨 Live auction</button><button type="button" id="aucFmtBuy" class="' + (wnFmt === "buy" ? "on" : "") + '">🛍️ Buy Now</button><button type="button" id="aucFmtFlash" class="' + (wnFlash ? "on" : "") + '">⚡ Flash Sale</button><button type="button" id="aucFmtGive" class="' + (wnGive ? "on" : "") + '">🎁 Giveaway</button></div>' +
+          '<div class="auc-fmt" style="flex-wrap:wrap;"><button type="button" id="aucFmtAuc" class="' + (wnFmt === "auc" ? "on" : "") + '">🔨 Live auction</button><button type="button" id="aucFmtBuy" class="' + (wnFmt === "buy" ? "on" : "") + '">🛍️ Buy Now</button><button type="button" id="aucFmtFlash" class="' + (wnFlash ? "on" : "") + '">⚡ Flash Sale</button><button type="button" id="aucFmtGive" class="' + (wnGive ? "on" : "") + '">🎁 Giveaway</button><button type="button" id="aucFmtBreak" class="' + (wnBreak ? "on" : "") + '">🎲 Break</button><button type="button" id="aucFmtParty" class="' + (wnParty ? "on" : "") + '">🎉 Party</button></div>' +
           '<div class="auc-2col">' +
-          '<div class="field"><label for="aucStart">' + (wnGive ? "Prize value (USD — entry is free)" : wnFlash ? "Sale price (USD)" : isBuy ? "Buy Now price (USD)" : "Starting bid (USD)") + '</label><input class="online-input-full" id="aucStart" type="number" min="1" step="1" inputmode="numeric" placeholder="10" value="' + escHtml(Auc.draftStart) + '"/></div>' +
-          '<div class="field"><label for="aucQty">Quantity</label><input class="online-input-full" id="aucQty" type="number" min="1" max="99" step="1" inputmode="numeric" value="' + escHtml(Auc.draftQty || "1") + '"/></div></div>' +
+          '<div class="field"><label for="aucStart">' + (wnGive ? "Prize value (USD — entry is free)" : wnBreak ? "Price per spot (USD)" : wnParty ? "Party price (USD)" : wnFlash ? "Sale price (USD)" : isBuy ? "Buy Now price (USD)" : "Starting bid (USD)") + '</label><input class="online-input-full" id="aucStart" type="number" min="1" step="1" inputmode="numeric" placeholder="10" value="' + escHtml(Auc.draftStart) + '"/></div>' +
+          '<div class="field"><label for="aucQty">' + (wnBreak ? "Spots in the break" : wnParty ? "Party goal (items to sell out)" : "Quantity") + '</label><input class="online-input-full" id="aucQty" type="number" min="1" max="99" step="1" inputmode="numeric" value="' + escHtml(Auc.draftQty || "1") + '"/></div></div>' +
           (wnFlash ? '<div class="field"><label for="aucOStart">Original price (USD) — shown struck through</label><input class="online-input-full" id="aucOStart" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 48" value="' + escHtml(Auc.draftOStart) + '"/></div>' : '') +
           '<label class="auc-sd"><input type="checkbox" id="aucBundle"' + (Auc.draftBundle ? " checked" : "") + '/><span>📦 Bundle shipping<small>Bundle shipping: win more items in this show and they ship together — one box, one trip.</small></span></label>' +
           (isBuy ? '' :
@@ -12412,7 +12685,11 @@
           '<div class="field"><label for="aucShipCost">Shipping charged to buyer (USD)</label><input class="online-input-full" id="aucShipCost" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 = free shipping" value="' + escHtml(Auc.draftShipCost) + '"/></div>' +
           '<div class="field"><label for="aucShip">Shipping note (optional)</label><input id="aucShip" type="text" maxlength="60" placeholder="e.g. Ships in 2 days, US only" value="' + escHtml(Auc.draftShip) + '" autocomplete="off"/></div></div>' +
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
-          (wnGive
+          (wnParty
+            ? '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="aucStartBtn" type="button">🎉 Pin the party now</button>'
+            : wnBreak
+            ? '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="aucStartBtn" type="button">🎲 Pin the break now</button>'
+            : wnGive
             ? '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="aucStartBtn" type="button">🎁 Pin the giveaway now</button>'
             : isBuy
             ? '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="aucStartBtn" type="button">📌 Pin it for sale now</button>'
@@ -12435,17 +12712,17 @@
         if (Auc.draftFmt === "give") { if (!(priceD >= 0)) priceD = 0; }
         else if (!(priceD >= 1)) { toast(Auc.draftFmt === "auc" ? "Set a starting bid of at least $1." : "Set a price of at least $1."); return null; }
         if (!(shipD >= 0)) shipD = 0;
-        if (!(qty >= 1)) qty = 1; if (qty > 99) qty = 99;
+        if (!(qty >= 1)) qty = 1; var qtyCap = Auc.draftFmt === "break" ? 250 : 99; if (qty > qtyCap) qty = qtyCap;
         if ([30, 60, 120, 180, 300, 600].indexOf(dur) < 0) dur = 120;
         return {
           lid: Auc.editingLid || ("L" + (++Auc.lidSeq) + Date.now().toString(36).slice(-4)),
           photos: Auc.draftPhotos.slice(), title: title,
           cat: parseInt(Auc.draftCat, 10) || 0, cond: parseInt(Auc.draftCond, 10) || 0,
           desc: (($("aucDesc") && $("aucDesc").value) || "").trim().slice(0, 140),
-          fmt: ["buy", "flash", "give"].indexOf(Auc.draftFmt) >= 0 ? Auc.draftFmt : "auc",
+          fmt: ["buy", "flash", "give", "break", "party"].indexOf(Auc.draftFmt) >= 0 ? Auc.draftFmt : "auc",
           price: Math.round(priceD * 100), oprice: Math.round((parseFloat(($("aucOStart") && $("aucOStart").value) || "0") || 0) * 100), bundle: !!($("aucBundle") && $("aucBundle").checked), shipCents: Math.round(shipD * 100),
           ship: (($("aucShip") && $("aucShip").value) || "").trim(),
-          qty: qty, dur: dur, sd: !!($("aucSd") && $("aucSd").checked), pinned: false
+          qty: qty, tq: (Auc.draftFmt === "break" || Auc.draftFmt === "party") ? qty : 0, dur: dur, sd: !!($("aucSd") && $("aucSd").checked), pinned: false
         };
       }
       function aucResetComposer() {
@@ -12510,7 +12787,7 @@
             '<div class="auc-card"><div class="auc-body auc-offline">' +
             '<div class="big">🔌</div><h3>Connect to sell &amp; bid live</h3>' +
             '<p>Auctions happen live, with real people bidding in real time — there\'s no offline version. But your selling desk works right now: build listings below, line them up in your queue, and they\u2019re ready to run the moment you connect.</p>' +
-            '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" type="button" id="aucConnect">⭐ Connect — join the party</button></div>' +
+            
             '<p style="font-size:12.5px; color:var(--ink-soft); font-weight:700;">Once you\u2019re in an online room, any auction started in that room appears here the moment it goes live.</p></div></div>' +
             aucListingsHtml() + aucCreateHtml() + aucSalesHtml();
           bindAuctionControls(body);
@@ -12542,6 +12819,8 @@
         var fB = $("aucFmtBuy"); if (fB) fB.addEventListener("click", function () { aucSyncDrafts(); Auc.draftFmt = "buy"; renderAuctions(); });
         var fF = $("aucFmtFlash"); if (fF) fF.addEventListener("click", function () { aucSyncDrafts(); Auc.draftFmt = "flash"; renderAuctions(); });
         var fG = $("aucFmtGive"); if (fG) fG.addEventListener("click", function () { aucSyncDrafts(); Auc.draftFmt = "give"; renderAuctions(); });
+        var fBr = $("aucFmtBreak"); if (fBr) fBr.addEventListener("click", function () { aucSyncDrafts(); Auc.draftFmt = "break"; renderAuctions(); });
+        var fPa = $("aucFmtParty"); if (fPa) fPa.addEventListener("click", function () { aucSyncDrafts(); Auc.draftFmt = "party"; renderAuctions(); });
         body.querySelectorAll("[data-rmphoto]").forEach(function (b) {
           b.addEventListener("click", function () {
             aucSyncDrafts();
@@ -12680,10 +12959,10 @@
         if (!aucOnline()) { toast("Connect first — Buy Now offers are pinned live to the room you\u2019re in. Your listing stays saved."); renderAuctions(); return; }
         if (L.qty <= 0) { toast("That listing is sold out — bump the quantity in Edit if you have more."); return; }
         var oid = "b" + (++Auc.offerSeq) + Date.now().toString(36).slice(-4);
-        var sent = protoSend({ k: "auc-shop", id: oid, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0 });
+        var sent = protoSend({ k: "auc-shop", id: oid, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0, tq: L.tq || L.qty || 0 });
         if (!sent) { toast("Couldn't pin that — shorten the title and try again."); return; }
         L.pinned = true; L.offerId = oid;
-        aucAnnounce(L.fmt === "give" ? "🎁 " + (Online.name || "You") + " pinned a GIVEAWAY: \"" + L.title + "\" — free to enter, right here in 🔨 Live Auctions." : L.fmt === "flash" ? "⚡ " + (Online.name || "You") + " pinned a FLASH SALE: \"" + L.title + "\" at " + moneyLabel(L.price) + (L.oprice > L.price ? " (was " + moneyLabel(L.oprice) + ")" : "") + " — right here in 🔨 Live Auctions." : "🛍️ " + (Online.name || "You") + " pinned \"" + L.title + "\" for sale at " + moneyLabel(L.price) + " — Buy Now, right here in 🔨 Live Auctions.");
+        aucAnnounce(L.fmt === "party" ? "🎉 " + (Online.name || "You") + " pinned a PARTY DROP: \"" + L.title + "\" — " + moneyLabel(L.price) + ", party goal " + (L.tq || L.qty) + ". Every buy counts toward the goal, party perks unlock as it fills, and a sellout unlocks a buyers-only appreciation draw — right here in 🔨 Live Auctions." : L.fmt === "break" ? "🎲 " + (Online.name || "You") + " pinned a BREAK: \"" + L.title + "\" — " + moneyLabel(L.price) + " per spot, " + L.qty + " spots. Claim yours before it fills, right here in 🔨 Live Auctions." : L.fmt === "give" ? "🎁 " + (Online.name || "You") + " pinned a GIVEAWAY: \"" + L.title + "\" — free to enter, right here in 🔨 Live Auctions." : L.fmt === "flash" ? "⚡ " + (Online.name || "You") + " pinned a FLASH SALE: \"" + L.title + "\" at " + moneyLabel(L.price) + (L.oprice > L.price ? " (was " + moneyLabel(L.oprice) + ")" : "") + " — right here in 🔨 Live Auctions." : "🛍️ " + (Online.name || "You") + " pinned \"" + L.title + "\" for sale at " + moneyLabel(L.price) + " — Buy Now, right here in 🔨 Live Auctions.");
         toast("📌 \"" + L.title + "\" is pinned for sale in this room.", 3200);
         renderAuctions();
       }
@@ -12703,11 +12982,11 @@
         var total = o.price + (o.shipCents || 0);
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
-          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">🛍️ Buy it now</h3>' +
+          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">' + (o.fmt === "break" ? '🎲 Claim a spot in the break' : o.fmt === "party" ? '🎉 Party buy — counts toward the goal' : '🛍️ Buy it now') + '</h3>' +
           '<p style="text-align:center;">You\u2019re buying <b>"' + escHtml(o.title) + '"</b> from ' + escHtml(o.hostName) + ' — ' + escHtml(aucCatName(o.cat)) + ', ' + escHtml(aucCondName(o.cond)) + '. They ship once you\u2019re paid up; all sales are final.</p>' +
           '<div class="stripe-box"><span class="stripe-brand">stripe · Secure checkout</span>' +
-          '<div class="pack-row" style="border-bottom:none; padding:12px 0 2px;"><span class="pi">🛍️</span><div class="pt"><b>' + escHtml(o.title) + '</b><span>Buy Now · sold by ' + escHtml(o.hostName) + '</span></div><b>' + moneyLabel(o.price) + '</b></div>' +
-          '<p style="margin:8px 0 0; font-size:13px;">Shipping: <b>' + (o.shipCents > 0 ? moneyLabel(o.shipCents) : "Free") + '</b> · Total due today: <b>' + moneyLabel(total) + '</b></p>' + (o.bundle ? '<p style="margin:6px 0 0; font-size:13px;">📦 <b>Bundle shipping:</b> win more items in this show and they ship together.</p>' : '') + '</div>' +
+          '<div class="pack-row" style="border-bottom:none; padding:12px 0 2px;"><span class="pi">🛍️</span><div class="pt"><b>' + escHtml(o.title) + '</b><span>' + (o.fmt === "break" ? 'Break spot · sold by ' : o.fmt === "party" ? 'Party drop · sold by ' : 'Buy Now · sold by ') + escHtml(o.hostName) + '</span></div><b>' + moneyLabel(o.price) + '</b></div>' +
+          '<p style="margin:8px 0 0; font-size:13px;">Shipping: <b>' + (o.shipCents > 0 ? moneyLabel(o.shipCents) : "Free") + '</b> · Total due today: <b>' + moneyLabel(total) + '</b></p>' + (o.fmt === "party" ? '<p style="margin:6px 0 0; font-size:13px;">🎉 <b>Party drop:</b> your buy counts toward the shared party goal on this listing. Party perks unlock as the group sells through the goal, and if it sells out the host pulls a buyers-only appreciation draw from the party buyers.</p>' : '') + (o.fmt === "break" ? '<p style="margin:6px 0 0; font-size:13px;">🎲 <b>Break spot:</b> you\u2019re claiming one spot. When every spot is claimed, the host opens the break live and your pull ships to you.</p>' : '') + (o.bundle ? '<p style="margin:6px 0 0; font-size:13px;">📦 <b>Bundle shipping:</b> win more items in this show and they ship together.</p>' : '') + '</div>' +
           '<div class="btn-row" style="justify-content:center; margin-top:14px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnOfferPay">Pay ' + moneyLabel(total) + ' with Stripe</button><button class="btn-mini" data-act="close2">Not now</button></div></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -12724,8 +13003,8 @@
         confettiBurst();
         aucAnnounce("🛍️ SOLD! \"" + o.title + "\" went to " + (Online.name || "you") + " at Buy Now — " + o.hostName + " ships it next. 📦");
         openSheet(
-          '<div class="game-box" style="text-align:center;"><h3>✅ It\u2019s yours!</h3>' +
-          '<p>You paid <b>' + moneyLabel(o.price + (o.shipCents || 0)) + '</b> for <b>"' + escHtml(o.title) + '"</b>. ' + escHtml(o.hostName) + ' has the sale in their earnings and ships your item next — say hi in the room chat to swap delivery details. 📦</p>' +
+          '<div class="game-box" style="text-align:center;"><h3>' + (o.fmt === "break" ? '🎲 Spot claimed!' : o.fmt === "party" ? '🎉 Party buy counted!' : '✅ It\u2019s yours!') + '</h3>' +
+          '<p>You paid <b>' + moneyLabel(o.price + (o.shipCents || 0)) + '</b> for <b>"' + escHtml(o.title) + '"</b>. ' + escHtml(o.hostName) + ' has the sale in their earnings and ships your item next — say hi in the room chat to swap delivery details.' + (o.fmt === "break" ? ' 🎲 Your spot is locked in — watch the live for your pull when the break fills!' : o.fmt === "party" ? ' 🎉 Your buy moved the party toward its goal — if it sells out, you are in the buyers-only appreciation draw.' : '') + ' 📦</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnOfferDone">Done</button></div></div>'
         );
         $("btnOfferDone").addEventListener("click", function () { closeSheet(); if (aucScreenOpen()) renderAuctions(); });
@@ -12798,7 +13077,7 @@
             }
             // re-share my pinned Buy Now offers so a newcomer sees the shelf
             Auc.listings.forEach(function (L) {
-              if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0 });
+              if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0, tq: L.tq || L.qty || 0 });
             });
             break;
           }
@@ -12822,9 +13101,10 @@
               price: (typeof o.p === "number" && o.p > 0) ? o.p : 100,
               shipCents: (typeof o.sp === "number" && o.sp >= 0) ? o.sp : 0,
               cat: (typeof o.c === "number") ? o.c : 10, cond: (typeof o.o === "number") ? o.o : 0,
-              fmt: (typeof o.f === "string" && ["buy", "flash", "give"].indexOf(o.f) >= 0) ? o.f : "buy",
+              fmt: (typeof o.f === "string" && ["buy", "flash", "give", "break", "party"].indexOf(o.f) >= 0) ? o.f : "buy",
               oprice: (typeof o.op === "number" && o.op > 0) ? o.op : 0, bundle: !!o.b,
-              qty: (typeof o.q === "number" && o.q > 0) ? o.q : 1
+              qty: (typeof o.q === "number" && o.q > 0) ? o.q : 1,
+              tq: (typeof o.tq === "number" && o.tq > 0) ? o.tq : 0
             };
             if (aucScreenOpen()) renderAuctions();
             renderLiveAucPin();
@@ -12847,7 +13127,7 @@
               bankAuctionSale(total, buyerName, soldMine.title);
               soldMine.qty = Math.max(0, soldMine.qty - 1);
               if (soldMine.qty <= 0) { soldMine.pinned = false; soldMine.offerId = ""; }
-              else protoSend({ k: "auc-shop", id: soldMine.offerId, lid: soldMine.lid, t: soldMine.title.slice(0, 30), p: soldMine.price, sp: soldMine.shipCents || 0, c: soldMine.cat, o: soldMine.cond, q: soldMine.qty });
+              else protoSend({ k: "auc-shop", id: soldMine.offerId, lid: soldMine.lid, t: soldMine.title.slice(0, 30), p: soldMine.price, sp: soldMine.shipCents || 0, c: soldMine.cat, o: soldMine.cond, q: soldMine.qty, f: soldMine.fmt || "buy", op: soldMine.oprice || 0, b: soldMine.bundle ? 1 : 0, tq: soldMine.tq || 0 });
               aucAnnounce("🛍️ SOLD! \"" + soldMine.title + "\" went to " + buyerName + " at Buy Now for " + moneyLabel(total) + " — banked in your earnings at the 10% cut. Time to ship it! 📦");
               toast("🛍️ SOLD! " + buyerName + " bought \"" + soldMine.title + "\" for " + moneyLabel(total) + " — banked in your earnings. Time to ship it! 📦", 5200);
               if (aucScreenOpen()) renderAuctions();
@@ -13462,7 +13742,7 @@
       var row = feed.querySelector(".lgf-row:not([data-rp])");
       if (row) { row.setAttribute("data-rp", "1"); var gi = row.querySelector(".gi"); if (gi) gi.innerHTML = rpArt(NAME2ID[o.g] || "gift", o.ic); }
     }, 90);
-    try { rpBatOnGift(o); } catch (e) { }
+    try { rpBatOnGift(o, fromId, fromName); } catch (e) { }
   };
 
   /* ================= LIVE BATTLE (PK) ================= */
@@ -13474,7 +13754,8 @@
   function batSyncProto() {
     if (!window.rpProtoSend) return;
     var payload = { k: "bat", a: Bat.aId, an: String(Bat.aName || "").slice(0, 12), b: Bat.bId, bn: String(Bat.bName || "").slice(0, 12), ap: ptsOf(Bat.aId), bp: ptsOf(Bat.bId), e: Bat.endsAt };
-    if (!window.rpProtoSend(payload)) { payload.an = ""; payload.bn = ""; window.rpProtoSend(payload); }
+    try { var x65 = window.rpBat65Sync ? window.rpBat65Sync({ aId: Bat.aId, bId: Bat.bId, me: myId() }) : null; if (x65) { payload.ts = x65.ts; if (x65.sw) payload.sw = x65.sw; if (x65.tm) payload.tm = x65.tm; } } catch (e) { }
+    if (!window.rpProtoSend(payload)) { payload.an = ""; payload.bn = ""; if (!window.rpProtoSend(payload)) { delete payload.tm; delete payload.ts; window.rpProtoSend(payload); } }
   }
   window.rpBatProto = function (o) {
     if (!o) return;
@@ -13488,10 +13769,12 @@
       Bat.known = null;
     }
   };
-  function rpBatOnGift(o) {
+  function rpBatOnGift(o, fromId, fromName) {
     if (!Bat.active || !Bat.iAm) return;
     if (o.to === myId()) {
-      Bat.myPts += o.v || 0;
+      var add65 = o.v || 0;
+      try { if (window.rpBat65Score) add65 = window.rpBat65Score(o, fromId, fromName, { me: myId(), aId: Bat.aId, bId: Bat.bId, endsAt: Bat.endsAt }) || 0; } catch (e) { }
+      Bat.myPts += add65;
       var s = sock(); if (s) s.emit("battle", { t: "score", to: Bat.oppId, pts: Bat.myPts });
       batSyncProto(); rpBatRender();
     }
@@ -13724,11 +14007,6 @@
 #rpBatBar .bb-time{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:#17171f; border:1px solid rgba(255,255,255,.3); padding:2px 11px; border-radius:99px; font-size:11.5px; white-space:nowrap; margin-top:0; box-shadow:0 4px 14px rgba(0,0,0,.5); }
 #rpBatBar .bb-time::before{ content:"◆ "; color:#fe2c55; }
 .rp-no1{ background:#e0113c; color:#fff; font-weight:900; font-size:10.5px; border-radius:99px; padding:2px 7px; flex:none; }
-#rpReacts{ position:fixed; left:10px; bottom:118px; z-index:45; display:flex; gap:6px; }
-#rpReacts button{ width:38px; height:38px; border-radius:50%; border:1px solid rgba(255,255,255,.22); background:rgba(10,10,16,.66); backdrop-filter:blur(8px); font-size:18px; cursor:pointer; padding:0; }
-#rpReacts button:active{ transform:scale(1.18); }
-.rp-react-float{ position:absolute; bottom:96px; pointer-events:none; font-size:24px; animation:rpFloatUp 2.6s ease-out forwards; z-index:5; }
-@keyframes rpFloatUp{ 0%{ transform:translateY(0) scale(.7); opacity:0;} 12%{ opacity:1; transform:translateY(-20px) scale(1.1);} 100%{ transform:translateY(-42vh) scale(1) rotate(8deg); opacity:0;} }
 </style>
 <script>
 /* ================= RP-V5.3: No.1 gifter tracking + quick reactions ================= */
@@ -13762,40 +14040,7 @@
       }
     });
   }, 600);
-  /* --- quick reactions above the comment bar (rotating sets, TikTok-style) --- */
-  var SETS = [["👏", "🌸", "🎉", "👍", "❤️"], ["🙌", "👀", "✌️", "🌹", "☕"]];
-  var setIdx = 0;
-  var box = document.createElement("div");
-  box.id = "rpReacts";
-  box.hidden = true;
-  document.body.appendChild(box);
-  function renderSet() {
-    box.innerHTML = "";
-    SETS[setIdx].forEach(function (em) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.textContent = em;
-      b.addEventListener("click", function () { spawnFloat(em); });
-      box.appendChild(b);
-    });
-  }
-  function spawnFloat(em) {
-    var layer = document.querySelector(".live-hearts");
-    if (!layer) return;
-    var s = document.createElement("span");
-    s.className = "rp-react-float";
-    s.textContent = em;
-    s.style.right = (10 + Math.random() * 46) + "px";
-    layer.appendChild(s);
-    setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 2700);
-  }
-  renderSet();
-  setInterval(function () { setIdx = (setIdx + 1) % SETS.length; if (!box.hidden) renderSet(); }, 25000);
-  setInterval(function () {
-    var L = null;
-    try { L = window.rpLive ? window.rpLive() : null; } catch (e) { }
-    box.hidden = !(L && L.active);
-  }, 900);
+  
 })();
 </script>
 
@@ -13817,6 +14062,20 @@
 
 <style>
 /* ================= RP-V6: Whatnot Mode — shows, shop panel, raids ================= */
+/* RP-V6.12: Party Drops — a listing can run as a collective party: every
+   purchase counts toward one shared goal, a progress bar + perk ladder
+   (party perks unlock as the group sells through the goal), and selling
+   out unlocks a buyers-only appreciation draw the host pulls live. Rides
+   the pinned-offer flow (fmt "party") plus the tq (party goal) field.
+/* RP-V6.7: Breaks — a listing can sell SPOTS instead of a product: viewers
+   claim spots at a per-spot price, the shop shows a filling progress bar
+   (percent full + spots left), and when the last spot goes the break is
+   full and the host opens it live. Rides the existing pinned-offer flow
+   (fmt "break") plus a tq (total spots) field on the shop/queue protos. */
+/* RP-V6.1: readable form fields in the white shop panel; tap the show name to join */
+.wn-shop input, .wn-shop select, .wn-shop textarea { background: #ffffff !important; color: #17171f !important; color-scheme: light; border-color: #cfcfe0 !important; }
+.wn-shop input::placeholder { color: #8a8a99 !important; }
+.wn-show-card .wn-show-meta { cursor: pointer; }
 #liveAucPin .auc-clock, .auc-bidstrip .auc-clock { color: #ff3b30 !important; font-weight: 900; }
 #liveAucPin .ap-winning { display: flex; align-items: center; gap: 7px; background: rgba(255,214,10,.16); border: 1.5px solid rgba(255,214,10,.65); border-radius: 10px; padding: 5px 9px; margin-bottom: 7px; font-weight: 900; font-size: 13.5px; }
 #liveAucPin .ap-wav { width: 22px; height: 22px; border-radius: 50%; background: #ffd60a; color: #17171f; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; flex: none; }
@@ -13869,6 +14128,8 @@
 .wn-bmk { border: none; background: none; font-size: 17px; cursor: pointer; padding: 4px; }
 .wn-sold { font-size: 13px; font-weight: 700; color: #3c3c4d; }
 .wn-sold b { color: #d11a2a; }
+.wn-prog { height: 9px; border-radius: 999px; background: #ececf1; overflow: hidden; margin: 7px 0 5px; }
+.wn-prog i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #ffd60a, #ff7847); transition: width .5s ease; }
 .wn-overlay { position: fixed; inset: 0; z-index: 9990; display: none; align-items: center; justify-content: center; background: rgba(5,5,12,.55); pointer-events: none; }
 .wn-overlay.on { display: flex; }
 .wn-overlay .wn-ocard { background: #fff; color: #17171f; border-radius: 20px; padding: 22px 26px; text-align: center; max-width: min(420px, 88vw); box-shadow: 0 24px 60px rgba(0,0,0,.5); animation: wnPop .28s ease; }
@@ -13905,10 +14166,23 @@
   function catName(i) { var f = G("aucCatName"); if (f) return f(i); var c = cats(); return c[(typeof i === "number" && c[i]) ? i : c.length - 1]; }
   function condName(i) { var f = G("aucCondName"); if (f) return f(i); var C = G("AUC_CONDS") || ["Brand New", "Like New", "Lightly Used", "Used", "For Parts"]; return C[(typeof i === "number" && C[i]) ? i : 0]; }
   function initial(n) { return String(n || "?").charAt(0).toUpperCase() || "?"; }
-  function fmtIcon(f) { return f === "give" ? "🎁" : f === "flash" ? "⚡" : f === "auc" ? "🔨" : "🛍️"; }
+  function fmtIcon(f) { return f === "give" ? "🎁" : f === "break" ? "🎲" : f === "party" ? "🎉" : f === "flash" ? "⚡" : f === "auc" ? "🔨" : "🛍️"; }
 
   /* ---------- pure helpers (unit-tested) ---------- */
   function wnNextBid(high, start) { return high > 0 ? high + 100 : start; }
+  function wnBreakPct(claimed, total) {
+    if (!(total > 0)) return 0;
+    var p = Math.round((Math.max(0, claimed) / total) * 100);
+    return p < 0 ? 0 : p > 100 ? 100 : p;
+  }
+  function wnPartyTier(sold, total) {
+    if (!(total > 0)) return { pct: 0, tier: 0, label: "Party just started — every buy counts toward the goal" };
+    var pct = wnBreakPct(sold, total);
+    if (sold >= total) return { pct: 100, tier: 3, label: "🎉 SOLD OUT — buyers-only appreciation draw unlocked! The host pulls one party buyer live." };
+    if (pct >= 70) return { pct: pct, tier: 2, label: "🔓 Party perk 2 unlocked — the group is at " + pct + "% of the goal" };
+    if (pct >= 40) return { pct: pct, tier: 1, label: "🔓 Party perk 1 unlocked — the group is at " + pct + "% of the goal" };
+    return { pct: pct, tier: 0, label: "🎉 Party filling — " + pct + "% of the goal · perk 1 unlocks at 40%" };
+  }
   function wnTopPre(list) {
     var best = null;
     (list || []).forEach(function (p) { if (!best || p.a > best.a || (p.a === best.a && (p.t || 0) < (best.t || 0))) best = p; });
@@ -13948,7 +14222,7 @@
   /* ---------- host: queue broadcast ---------- */
   function queueLine(L) {
     var pre = PreRecv[L.lid];
-    var o = { k: "shop-queue", lid: L.lid, t: String(L.title || "Item").slice(0, 24), f: L.fmt || "auc", p: L.price || 0, op: L.oprice || 0, q: L.qty || 1, c: (typeof L.cat === "number" ? L.cat : 10), o: (typeof L.cond === "number" ? L.cond : 0), sp: L.shipCents || 0, pin: L.pinned ? 1 : 0, pb: pre && pre.top ? pre.top.a : 0, pn: pre ? Object.keys(pre.ids).length : 0, gn: L.fmt === "give" ? giveCountFor(myId(), L.lid) : 0, b: L.bundle ? 1 : 0 };
+    var o = { k: "shop-queue", lid: L.lid, t: String(L.title || "Item").slice(0, 24), f: L.fmt || "auc", p: L.price || 0, op: L.oprice || 0, q: L.qty || 1, c: (typeof L.cat === "number" ? L.cat : 10), o: (typeof L.cond === "number" ? L.cond : 0), sp: L.shipCents || 0, pin: L.pinned ? 1 : 0, pb: pre && pre.top ? pre.top.a : 0, pn: pre ? Object.keys(pre.ids).length : 0, gn: L.fmt === "give" ? giveCountFor(myId(), L.lid) : 0, b: L.bundle ? 1 : 0, tq: (L.fmt === "break" || L.fmt === "party") ? (L.tq || L.qty || 0) : 0 };
     if (!send(o)) { o.t = o.t.slice(0, 13); send(o); }
   }
   function iAmSellerHere() {
@@ -13975,7 +14249,7 @@
         if (!o.lid) return;
         var R = Remote[fromId] || (Remote[fromId] = { name: fromName || "A seller", items: {}, seen: 0 });
         R.name = fromName || R.name; R.seen = Date.now();
-        R.items[String(o.lid)] = { lid: String(o.lid), t: String(o.t || "Item").slice(0, 40), f: ["auc", "buy", "flash", "give"].indexOf(o.f) >= 0 ? o.f : "buy", p: (typeof o.p === "number" && o.p >= 0) ? o.p : 0, op: (typeof o.op === "number" && o.op > 0) ? o.op : 0, q: (typeof o.q === "number" && o.q > 0) ? o.q : 1, c: (typeof o.c === "number") ? o.c : 10, o: (typeof o.o === "number") ? o.o : 0, sp: (typeof o.sp === "number" && o.sp >= 0) ? o.sp : 0, pin: !!o.pin, pb: (typeof o.pb === "number") ? o.pb : 0, pn: (typeof o.pn === "number") ? o.pn : 0, gn: (typeof o.gn === "number") ? o.gn : 0, b: !!o.b };
+        R.items[String(o.lid)] = { lid: String(o.lid), t: String(o.t || "Item").slice(0, 40), f: ["auc", "buy", "flash", "give", "break", "party"].indexOf(o.f) >= 0 ? o.f : "buy", p: (typeof o.p === "number" && o.p >= 0) ? o.p : 0, op: (typeof o.op === "number" && o.op > 0) ? o.op : 0, q: (typeof o.q === "number" && o.q > 0) ? o.q : 1, c: (typeof o.c === "number") ? o.c : 10, o: (typeof o.o === "number") ? o.o : 0, sp: (typeof o.sp === "number" && o.sp >= 0) ? o.sp : 0, pin: !!o.pin, pb: (typeof o.pb === "number") ? o.pb : 0, pn: (typeof o.pn === "number") ? o.pn : 0, gn: (typeof o.gn === "number") ? o.gn : 0, b: !!o.b, tq: (typeof o.tq === "number" && o.tq > 0) ? o.tq : 0 };
         if (typeof o.gn === "number") GiveCounts[String(o.lid)] = o.gn;
         refreshShopSoon(); markShowsDirty();
         break;
@@ -14079,14 +14353,14 @@
   }
 
   /* ---------- shop panel ---------- */
-  var TAB_DEFS = [["auc", "🔨 Auction"], ["buy", "🛍️ Buy Now"], ["flash", "⚡ Flash Sales"], ["give", "🎁 Giveaway"], ["sold", "✓ Sold"]];
+  var TAB_DEFS = [["auc", "🔨 Auction"], ["buy", "🛍️ Buy Now"], ["flash", "⚡ Flash Sales"], ["give", "🎁 Giveaway"], ["break", "🎲 Breaks"], ["party", "🎉 Party"], ["sold", "✓ Sold"]];
   function shopItems(hostId) {
     var out = [], A = auc();
     if (hostId === myId()) {
       if (!A || !A.listings) return out;
       A.listings.forEach(function (L) {
         var pre = PreRecv[L.lid];
-        out.push({ lid: L.lid, t: L.title, f: L.fmt || "auc", p: L.price || 0, op: L.oprice || 0, q: L.qty, c: L.cat, o: L.cond, sp: L.shipCents || 0, pin: !!L.pinned, photo: (L.photos && L.photos[0]) || null, offerId: L.offerId || "", pb: pre && pre.top ? pre.top.a : 0, pn: pre ? Object.keys(pre.ids).length : 0, gn: giveCountFor(hostId, L.lid), b: !!L.bundle, mine: true });
+        out.push({ lid: L.lid, t: L.title, f: L.fmt || "auc", p: L.price || 0, op: L.oprice || 0, q: L.qty, c: L.cat, o: L.cond, sp: L.shipCents || 0, pin: !!L.pinned, photo: (L.photos && L.photos[0]) || null, offerId: L.offerId || "", pb: pre && pre.top ? pre.top.a : 0, pn: pre ? Object.keys(pre.ids).length : 0, gn: giveCountFor(hostId, L.lid), b: !!L.bundle, tq: L.tq || 0, mine: true });
       });
       return out;
     }
@@ -14097,8 +14371,8 @@
       if (!o || o.hostId !== hostId) return;
       var found = null;
       out.forEach(function (it) { if (it.lid === o.lid) found = it; });
-      if (found) { found.pin = true; found.offerId = o.id; found.f = o.fmt || found.f; found.op = o.oprice || found.op; }
-      else out.push({ lid: o.lid || o.id, t: o.title, f: o.fmt || "buy", p: o.price, op: o.oprice || 0, q: o.qty, c: o.cat, o: o.cond, sp: o.shipCents || 0, pin: true, photo: null, offerId: o.id, pb: 0, pn: 0, gn: giveCountFor(hostId, o.lid || ""), b: !!o.bundle, mine: false });
+      if (found) { found.pin = true; found.offerId = o.id; found.f = o.fmt || found.f; found.op = o.oprice || found.op; if (o.tq) found.tq = o.tq; }
+      else out.push({ lid: o.lid || o.id, t: o.title, f: o.fmt || "buy", p: o.price, op: o.oprice || 0, q: o.qty, c: o.cat, o: o.cond, sp: o.shipCents || 0, pin: true, photo: null, offerId: o.id, pb: 0, pn: 0, gn: giveCountFor(hostId, o.lid || ""), b: !!o.bundle, tq: o.tq || 0, mine: false });
     });
     return out;
   }
@@ -14132,6 +14406,29 @@
       if (hostId === myId()) acts = '<span class="wn-sold">' + (it.pin ? "📌 Pinned in your show" : "Not pinned — pin it from 📦 My listings") + '</span>';
       else if (it.offerId) acts = '<button type="button" class="wn-act dark" data-shopact="buy" data-oid="' + esc(it.offerId) + '">Buy ' + money(it.p + (it.sp || 0)) + '</button>';
       else acts = '<span class="wn-sold">In the queue — the host pins it to sell</span>';
+    } else if (it.f === "break") {
+      var bTotal = (it.tq && it.tq > 0) ? it.tq : (it.q || 0);
+      var bLeft = Math.max(0, Math.min(it.q || 0, bTotal));
+      var bPct = wnBreakPct(bTotal - bLeft, bTotal);
+      price = '<span class="price">' + money(it.p) + ' per spot' + (it.sp > 0 ? " + " + money(it.sp) + " shipping" : " · free shipping") + '</span>' +
+        '<div class="wn-prog" role="progressbar" aria-valuenow="' + bPct + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + bPct + '%"></i></div>' +
+        '<span class="wn-sold">' + (bLeft > 0 ? '⏳ Break filling — ' + bPct + '% full · ' + bLeft + ' of ' + bTotal + ' spots left' : '🎉 Break full — the host opens it live!') + '</span>';
+      if (hostId === myId()) acts = '<span class="wn-sold">' + (it.pin ? (bLeft > 0 ? '📌 Pinned — viewers claim spots from here' : '🎉 Full! Open it on your live and call each pull out in chat.') : 'Not pinned — pin it from 📦 My listings') + '</span>';
+      else if (it.offerId && bLeft > 0) acts = '<button type="button" class="wn-act dark" data-shopact="buy" data-oid="' + esc(it.offerId) + '">🎲 Claim a spot ' + money(it.p + (it.sp || 0)) + '</button>';
+      else if (bLeft <= 0) acts = '<span class="wn-sold">🎉 This break is full</span>';
+      else acts = '<span class="wn-sold">In the queue — the host pins it so spots can be claimed</span>';
+    } else if (it.f === "party") {
+      var pTotal = (it.tq && it.tq > 0) ? it.tq : (it.q || 0);
+      var pLeft = Math.max(0, Math.min(it.q || 0, pTotal));
+      var pSold = Math.max(0, pTotal - pLeft);
+      var pTier = wnPartyTier(pSold, pTotal);
+      price = '<span class="price">' + money(it.p) + (it.sp > 0 ? " + " + money(it.sp) + " shipping" : " · free shipping") + '</span>' +
+        '<div class="wn-prog" role="progressbar" aria-valuenow="' + pTier.pct + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + pTier.pct + '%"></i></div>' +
+        '<span class="wn-sold">' + pTier.label + ' · ' + pSold + ' of ' + pTotal + ' party buys so far</span>';
+      if (hostId === myId()) acts = '<span class="wn-sold">' + (it.pin ? (pLeft > 0 ? '📌 Pinned — every buy counts toward the party goal' : '🎉 Sold out! Pull one party buyer for the appreciation draw on your live and announce it in chat.') : 'Not pinned — pin it from 📦 My listings') + '</span>';
+      else if (it.offerId && pLeft > 0) acts = '<button type="button" class="wn-act dark" data-shopact="buy" data-oid="' + esc(it.offerId) + '">🎉 Party buy ' + money(it.p + (it.sp || 0)) + '</button>';
+      else if (pLeft <= 0) acts = '<span class="wn-sold">🎉 This party sold out — draw unlocked</span>';
+      else acts = '<span class="wn-sold">In the queue — the host pins it so party buys can count</span>';
     } else if (it.f === "give") {
       var n = it.gn !== undefined ? it.gn : giveCountFor(hostId, it.lid);
       price = '<span class="price">FREE · 🎁 ' + n + (n === 1 ? " entry" : " entries") + ' so far</span>';
@@ -14151,7 +14448,7 @@
       return sold.map(function (r) { return '<div class="wn-row"><span class="thumb-ph" aria-hidden="true">✓</span><div class="meta"><span class="wn-sold">' + esc(r.plain || wnSoldLine(r)) + '</span></div></div>'; }).join("");
     }
     var rows = items.filter(function (it) { return it.f === tab; });
-    if (!rows.length) return '<p class="wn-empty">' + (tab === "auc" ? "No auction items queued in this show." : tab === "buy" ? "No Buy Now items in this show." : tab === "flash" ? "No flash sales in this show." : "No giveaway running in this show.") + (hostId !== myId() && !Remote[hostId] ? " Join the show to load the full shop." : "") + '</p>';
+    if (!rows.length) return '<p class="wn-empty">' + (tab === "auc" ? "No auction items queued in this show." : tab === "buy" ? "No Buy Now items in this show." : tab === "flash" ? "No flash sales in this show." : tab === "give" ? "No giveaway running in this show." : tab === "party" ? "No party drop in this show — a party drop counts every buy toward one shared goal, unlocks perks as it fills, and a sellout unlocks a buyers-only draw." : "No breaks in this show — a break sells spots that fill up, then the host opens it live.") + (hostId !== myId() && !Remote[hostId] ? " Join the show to load the full shop." : "") + '</p>';
     return rows.map(function (it) { return shopRow(it, hostId); }).join("");
   }
   var shopSig = "";
@@ -14160,7 +14457,7 @@
     shop = { hostId: hostId, tab: tab || "auc" };
     var name = hostId === myId() ? myName() : ((Remote[hostId] && Remote[hostId].name) || (live() && live().hostId === hostId ? "The host" : "Seller"));
     var items = shopItems(hostId);
-    var counts = { auc: 0, buy: 0, flash: 0, give: 0 };
+    var counts = { auc: 0, buy: 0, flash: 0, give: 0, break: 0, party: 0 };
     items.forEach(function (it) { if (counts[it.f] !== undefined) counts[it.f]++; });
     var tabs = TAB_DEFS.map(function (d) {
       return '<button type="button" class="wn-tab' + (shop.tab === d[0] ? " on" : "") + '" data-shoptab="' + d[0] + '">' + d[1] + (d[0] !== "sold" && counts[d[0]] ? " (" + counts[d[0]] + ")" : "") + '</button>';
@@ -14287,9 +14584,9 @@
     var liveHtml = live.length ? live.map(function (e) {
       var qc = queueCount(e.hostId);
       var b = S.showBmk[e.hostId];
-      return '<div class="wn-show-card"><span class="wn-av">' + esc(initial(e.name)) + '</span><div class="wn-show-meta"><b>' + esc(e.name) + (e.mine ? " · You" : "") + ' <span style="color:#ff3b30;">● LIVE</span></b>' +
+      return '<div class="wn-show-card"><span class="wn-av">' + esc(initial(e.name)) + '</span><div class="wn-show-meta" data-wnjoin="' + esc(e.hostId) + '" data-room="' + esc(e.room) + '" data-name="' + esc(e.name) + '"><b>' + esc(e.name) + (e.mine ? " · You" : "") + ' <span style="color:#ff3b30;">● LIVE</span></b>' +
         '<span>' + esc(e.title || e.topic || "Live show") + ' · 👁 ' + (e.n || 1) + ' watching' + (qc ? ' · 🛍 ' + qc + (qc === 1 ? " item" : " items") + ' in the shop' : '') + '</span>' +
-        '<div class="wn-show-acts"><button type="button" class="btn-mini go" data-wnjoin="' + esc(e.hostId) + '" data-room="' + esc(e.room) + '" data-name="' + esc(e.name) + '">▶ Join show</button>' +
+        '<div class="wn-show-acts">' +
         '<button type="button" class="btn-mini" data-wnshop="' + esc(e.hostId) + '">🛍 Shop</button>' +
         '<button type="button" class="btn-mini" data-wnbmk="' + esc(e.hostId) + '">' + (b && b.mine ? "🔖 Bookmarked" : "🔖 Bookmark this show") + ' · ' + showBmkCount(e.hostId) + '</button></div></div></div>';
     }).join("") : '<p class="wn-empty">No live shows right now — when a seller goes live, their show lands here. (Connect and hang out in the rooms so shows can find you.)</p>';
@@ -14606,9 +14903,2268 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
-  window.RPWN = { nextBid: wnNextBid, topPre: wnTopPre, soldLine: wnSoldLine, state: S };
+  window.RPWN = { nextBid: wnNextBid, topPre: wnTopPre, soldLine: wnSoldLine, breakPct: wnBreakPct, partyTier: wnPartyTier, state: S };
 })();
 </script>
 
+<style>
+/* ============ RP-V6.5: battle tiles, victory lap, Boost Bolt, fan clubs, series ============ */
+#rp65Bar{ margin-top:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+#rp65Bar[hidden]{ display:none; }
+.rp65-sup{ font-size:12.5px; font-weight:700; color:#9a9aad; }
+.rp65-bolt{ background:linear-gradient(135deg,#ffd23c,#ff922b); color:#17171f; border:none; font:800 13px inherit; border-radius:999px; padding:8px 14px; cursor:pointer; }
+.rp65-bolt.armed{ animation:rp65Pulse .85s ease-in-out infinite alternate; box-shadow:0 0 14px rgba(255,210,60,.65); }
+@keyframes rp65Pulse{ from{ transform:scale(1); } to{ transform:scale(1.08); } }
+.rp65-free{ background:linear-gradient(135deg,#fe2c55,#ff7a45); color:#fff; border:none; font:800 13px inherit; border-radius:999px; padding:8px 14px; cursor:pointer; }
+.rp65-chalbtn{ background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:999px; padding:8px 14px; font:800 13px inherit; cursor:pointer; }
+.rp65-chal{ flex:1 1 100%; font-size:12.5px; font-weight:700; color:#e8e8f2; }
+.rp65-chaltrack{ height:8px; background:rgba(127,127,140,.35); border-radius:99px; overflow:hidden; margin-top:4px; }
+.rp65-chalfill{ height:100%; background:linear-gradient(90deg,#fe2c55,#ff7a45); border-radius:99px; transition:width .4s ease; }
+.live-tile{ position:relative; }
+.rp65-tilepts{ position:absolute; top:6px; right:6px; z-index:5; background:rgba(8,8,14,.8); color:#ffd23c; border:1px solid rgba(255,210,60,.55); font-size:11.5px; font-weight:900; border-radius:999px; padding:2px 8px; pointer-events:none; white-space:nowrap; }
+.rp65-tilepts.win{ background:#ffd23c; color:#17171f; }
+.live-tile.rp65-seltile{ outline:3px solid #ffd23c; outline-offset:-3px; }
+#rp65Series, #rp65How{ position:fixed; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:43; text-align:center; color:#fff; background:rgba(8,8,14,.72); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:4px 10px; font-size:12.5px; font-weight:700; box-sizing:border-box; }
+#rp65Series{ top:122px; }
+#rp65How{ top:152px; font-weight:600; color:#cfcfe0; }
+#rp65Series[hidden], #rp65How[hidden]{ display:none; }
+#rp65LapBtns{ position:fixed; top:152px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; display:flex; gap:8px; justify-content:center; }
+#rp65LapBtns[hidden]{ display:none; }
+#rpBatBar.rp65-lap{ border-color:#ffd23c; box-shadow:0 0 0 1.5px #ffd23c, 0 8px 30px rgba(255,210,60,.28); }
+.rp65-win{ background:#ffd23c; color:#17171f; border-radius:6px; padding:1px 6px; font-size:10.5px; font-weight:900; }
+.rp65-lose{ background:#26262e; color:#9a9aad; border:1px solid rgba(255,255,255,.25); border-radius:6px; padding:1px 6px; font-size:10.5px; font-weight:900; }
+.rp65-spark{ position:absolute; top:2px; font-size:13px; pointer-events:none; animation:rp65Spark 2.2s ease-out forwards; }
+@keyframes rp65Spark{ 0%{ transform:translateY(8px) scale(.6); opacity:0; } 25%{ opacity:1; } 100%{ transform:translateY(-26px) scale(1.15); opacity:0; } }
+#rp65SeriesWin{ position:fixed; inset:0; z-index:85; display:flex; align-items:center; justify-content:center; background:rgba(4,4,10,.55); }
+#rp65SeriesWin .card{ background:#17171f; color:#fff; border:1.5px solid #ffd23c; border-radius:18px; padding:22px; text-align:center; max-width:min(420px,90vw); }
+#rp65SeriesWin .crown{ font-size:44px; }
+.rp65-fansec{ margin-top:10px; background:rgba(255,210,60,.12); border:1px solid rgba(255,210,60,.4); border-radius:12px; padding:9px 12px; font-size:13.5px; font-weight:700; }
+.rp65-chips{ display:flex; gap:6px; flex-wrap:wrap; }
+.rp65-chips .on{ background:#fe2c55 !important; color:#fff !important; }
+.rp65-fanbtn{ margin-left:8px; }
+</style>
+<script>
+/* ================= RP-V6.5: per-tile battle scoring, victory lap, Boost Bolt, fan clubs, series =================
+   Layers onto the RP-V5 battle without replacing it:
+   - V5's rpBatOnGift calls window.rpBat65Score (this layer) for the points a
+     gift adds, so the bar total IS the sum of the tiles below.
+   - V5's batSyncProto asks window.rpBat65Sync for a compact tile map + the
+     series score, which ride the same 'bat' proto to the battler's room.
+   - Everyone in a battle room also computes the room side's tile map locally
+     from the same gift protos (giftObserved -> rpGiftSeen), so all clients
+     converge; the host's broadcast map heals late joiners.
+   - New room protos (own chat listener): batm, bat-sup, bat-boost,
+     fan-join, fan-count, fan-chal, fan-done. Core handleProto ignores them. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function myId() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function myName() { try { return window.rpMyName ? window.rpMyName() : "You"; } catch (e) { return "You"; } }
+  function live() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function sock() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function send(o) { try { return window.rpProtoSend ? !!window.rpProtoSend(o) : false; } catch (e) { return false; } }
+  function toast2(m, t) { try { if (window.toast) window.toast(m, t || 3200); } catch (e) { } }
+  var PX = "✦PX✦";
+
+  /* ---------------- persistent stores ---------------- */
+  var fan = { fanOf: {}, my: { count: 0, members: {}, chalDone: 0 }, free: {} };
+  try {
+    var fj = JSON.parse(localStorage.getItem("rpFan.v1") || "null");
+    if (fj && typeof fj === "object") {
+      fan.fanOf = fj.fanOf || {};
+      if (fj.my && typeof fj.my === "object") { fan.my.count = fj.my.count || 0; fan.my.members = fj.my.members || {}; fan.my.chalDone = fj.my.chalDone || 0; }
+      fan.free = fj.free || {};
+    }
+  } catch (e) { }
+  function saveFan() { try { localStorage.setItem("rpFan.v1", JSON.stringify(fan)); } catch (e) { } }
+  var series = {};
+  try { var sj = JSON.parse(localStorage.getItem("rpSeries.v1") || "{}"); if (sj && typeof sj === "object") series = sj; } catch (e) { }
+  function saveSeries() { try { localStorage.setItem("rpSeries.v1", JSON.stringify(series)); } catch (e) { } }
+  function pairKey(a, b) { return [String(a), String(b)].sort().join("|"); }
+  function seriesOf(a, b) { var k = pairKey(a, b); if (!series[k]) series[k] = { w: {}, justWon: null }; return series[k]; }
+  function seriesPeek(a, b) { return series[pairKey(a, b)] || null; }
+
+  /* ---------------- live state ---------------- */
+  var S = {
+    B: null, tiles: {}, sup: {}, mySup: "",
+    gifters: {}, earned: {}, used: {}, pending: {},
+    myBolt: { earned: false, armed: false, used: false },
+    roster: [], rosterHost: "", idName: {},
+    asm: null, lap: null, chal: null,
+    doneChals: {}, fanCountSeen: {}, seriesSeen: {},
+    joinSentFor: "", boundSock: null,
+    lastBatmAt: 0, lastChalHealAt: 0, lastBoostEmitAt: 0, barSig: "_"
+  };
+  function sideHost() { var L = live(); return (L && L.active) ? (L.hostId || "") : ""; }
+  function battleKey(a, b, e) { return a + "|" + b + "|" + (e || 0); }
+  function inBattleRoom() {
+    var h = sideHost();
+    return !!(S.B && h && (h === S.B.aId || h === S.B.bId));
+  }
+  function battleActiveHere() {
+    if (!inBattleRoom() || !S.B || S.B.ended) return false;
+    return Date.now() <= (S.B.endsAt || 0) + 2500;
+  }
+  function hostNameOf(id) {
+    if (!id) return "the host";
+    if (S.idName[id]) return S.idName[id];
+    if (id === myId()) return myName();
+    return "the host";
+  }
+  function feedLine(text) {
+    try {
+      var log = $("onlineChatLog");
+      if (log) {
+        var r = document.createElement("div");
+        r.className = "chat-sys"; r.textContent = text;
+        log.appendChild(r);
+        while (log.children.length > 80) log.removeChild(log.firstChild);
+        log.scrollTop = log.scrollHeight;
+      }
+      var L = live();
+      var box = $("liveComments");
+      if (box && L && L.active) {
+        var row = document.createElement("div");
+        row.className = "lv-comment sys"; row.textContent = text;
+        box.appendChild(row);
+        while (box.children.length > 40) box.removeChild(box.firstChild);
+      }
+    } catch (e) { }
+  }
+
+  /* ---------------- battle lifecycle ---------------- */
+  function startBattle(aId, bId, aName, bName, endsAt, battler) {
+    if (!aId || !bId) return;
+    var key = battleKey(aId, bId, endsAt);
+    if (S.B && S.B.key === key && !S.B.ended) {
+      if (battler) S.B.battler = true;
+      if (aName && (!S.B.aName || S.B.aName === "Host")) S.B.aName = aName;
+      if (bName && (!S.B.bName || S.B.bName === "Host")) S.B.bName = bName;
+      return;
+    }
+    endLap();
+    S.B = { key: key, aId: aId, bId: bId, aName: aName || "Host", bName: bName || "Host", endsAt: endsAt || 0, battler: !!battler, ended: false };
+    S.tiles = {}; S.sup = {}; S.gifters = {}; S.earned = {}; S.used = {}; S.pending = {};
+    S.myBolt = { earned: false, armed: false, used: false };
+    S.mySup = sideHost() || "";
+    refreshBar65(); renderSeriesLine(); renderBadges();
+  }
+  function onBattleSock(m) {
+    if (!m || !m.t) return;
+    var me = myId();
+    if (m.t === "accept") startBattle(me, m.from, myName(), m.fromName || "Host", m.endsAt, true);
+    else if (m.t === "start") startBattle(m.from, me, m.fromName || "Host", myName(), m.endsAt, true);
+  }
+
+  /* ---------------- tile scoring core ---------------- */
+  function creditBattle(o, fromId, fromName) {
+    if (!o || o.fan || typeof o.v !== "number" || o.v <= 0) return 0;
+    if (!battleActiveHere()) return 0;
+    var host = sideHost(); if (!host) return 0;
+    if (o.to !== host) return 0;
+    if (!fromId || fromId === host) return 0;
+    var tgt = S.sup[fromId] || host;
+    if (tgt !== host && S.roster.indexOf(tgt) < 0 && typeof S.tiles[tgt] !== "number") tgt = host;
+    var mult = 1;
+    if (S.pending[fromId] && Date.now() - S.pending[fromId] < 120000) {
+      mult = ((S.B.endsAt || 0) - Date.now() <= 60000) ? 3 : 2;
+      delete S.pending[fromId];
+      S.used[fromId] = 1;
+      if (fromId === myId()) { S.myBolt.used = true; S.myBolt.armed = false; }
+      feedLine("⚡ " + (fromName || "A fan") + "'s Boost Bolt gift scored ×" + mult + "!");
+    }
+    var pts = o.v * mult;
+    S.tiles[tgt] = (S.tiles[tgt] || 0) + pts;
+    var g = S.gifters[fromId] || (S.gifters[fromId] = { v: 0, name: fromName || "" });
+    g.v += o.v; if (fromName) g.name = fromName;
+    checkEarn(fromId, host);
+    renderBadges(); refreshBar65();
+    return pts;
+  }
+  function checkEarn(fromId, host) {
+    if (S.earned[fromId]) return;
+    var ids = Object.keys(S.gifters).filter(function (id) { return id !== host && S.gifters[id].v > 0; });
+    ids.sort(function (a, b) { return S.gifters[b].v - S.gifters[a].v; });
+    if (ids.slice(0, 3).indexOf(fromId) < 0) return;
+    S.earned[fromId] = 1;
+    feedLine("⚡ " + (S.gifters[fromId].name || "A fan") + " earned a Boost Bolt!");
+    if (fromId === myId()) {
+      S.myBolt.earned = true;
+      toast2("⚡ You earned a Boost Bolt! Tap ⚡ by the gift button, then send a gift — it scores double (triple in the last minute).", 4600);
+      refreshBar65();
+    }
+  }
+  /* V5 hook: the battler's own points come from here, so bar == tile sum. */
+  window.rpBat65Score = function (o, fromId, fromName, ctx) {
+    try {
+      if (o) { o.__rp65 = o.__rp65 || {}; o.__rp65.bat = 1; o.__rp65.chal = 1; }
+      challengeObserve(o, fromId);
+      if (ctx && ctx.aId && ctx.bId && (!S.B || S.B.aId !== ctx.aId || S.B.bId !== ctx.bId)) startBattle(ctx.aId, ctx.bId, "", "", ctx.endsAt, true);
+      if (S.B && ctx && ctx.endsAt && !S.B.endsAt) S.B.endsAt = ctx.endsAt;
+      return creditBattle(o, fromId, fromName);
+    } catch (e) { return (o && typeof o.v === "number") ? o.v : 0; }
+  };
+  /* compact tile map for the 'bat' proto: host key "h", others 6-char id prefix */
+  function tileStr(side, limit) {
+    var ids = Object.keys(S.tiles).filter(function (id) { return S.tiles[id] > 0; });
+    ids.sort(function (x, y) { return S.tiles[y] - S.tiles[x]; });
+    var s = ids.map(function (id) { return (id === side ? "h" : String(id).slice(0, 6)) + ":" + S.tiles[id]; }).join(",");
+    if (limit && s.length > limit) return null;
+    return s;
+  }
+  window.rpBat65Sync = function (ctx) {
+    try {
+      if (!S.B || !ctx || S.B.aId !== ctx.aId || S.B.bId !== ctx.bId) return null;
+      var out = { ts: ctx.me };
+      var rec = seriesPeek(ctx.aId, ctx.bId);
+      if (rec) out.sw = (rec.w[ctx.aId] || 0) + "-" + (rec.w[ctx.bId] || 0);
+      var tm = tileStr(ctx.me, 55);
+      if (tm) out.tm = tm; else batmHeal(false);
+      return out;
+    } catch (e) { return null; }
+  };
+  function batmHeal(force) {
+    if (!(S.B && S.B.battler) || !inBattleRoom()) return;
+    var now = Date.now();
+    if (!force && now - S.lastBatmAt < 1500) return;
+    S.lastBatmAt = now;
+    var side = myId();
+    var full = tileStr(side, 0);
+    if (!full) return;
+    var entries = full.split(","), chunk = "";
+    function flush() { if (chunk) { send({ k: "batm", s: side, tm: chunk }); chunk = ""; } }
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      if (chunk && chunk.length + e.length + 1 > 120) flush();
+      chunk = chunk ? chunk + "," + e : e;
+    }
+    flush();
+  }
+  function resolvePrefix(p) {
+    var pool = S.roster.concat(Object.keys(S.tiles));
+    for (var i = 0; i < pool.length; i++) if (pool[i] && String(pool[i]).indexOf(p) === 0) return pool[i];
+    return "p:" + p;
+  }
+  function applyTileMap(side, tmStr, replace) {
+    if (!tmStr) return;
+    var map = replace ? {} : null;
+    String(tmStr).split(",").forEach(function (pair) {
+      var kv = pair.split(":");
+      if (kv.length !== 2) return;
+      var pts = parseInt(kv[1], 10) || 0;
+      var id = kv[0] === "h" ? side : resolvePrefix(kv[0]);
+      if (replace) map[id] = pts; else S.tiles[id] = pts;
+    });
+    if (replace) S.tiles = map;
+    renderBadges();
+  }
+
+  /* ---------------- wrapped gift hooks ---------------- */
+  var prevGiftSeen = window.rpGiftSeen;
+  window.rpGiftSeen = function (o, fromId, fromName) {
+    if (prevGiftSeen) prevGiftSeen(o, fromId, fromName);
+    try { myGiftSeen(o, fromId, fromName); } catch (e) { }
+  };
+  function myGiftSeen(o, fromId, fromName) {
+    if (!o) return;
+    if (o.fan && o.to) feedLine("🎁 " + (fromName || "A fan") + " sent a Fan Club free gift: " + (o.g || "gift") + "!");
+    var flagged = o.__rp65 || {};
+    if (!flagged.chal) challengeObserve(o, fromId);
+    if (!flagged.bat) creditBattle(o, fromId, fromName);
+  }
+  var prevGiftFx = window.rpGiftFx;
+  window.rpGiftFx = function (g, fromName, toName) {
+    try {
+      if (S.myBolt.armed && !S.myBolt.used && battleActiveHere() && fromName && fromName === myName()) {
+        send({ k: "bat-boost" });
+        S.lastBoostEmitAt = Date.now();
+      }
+    } catch (e) { }
+    return prevGiftFx ? prevGiftFx(g, fromName, toName) : false;
+  };
+
+  /* ---------------- wrapped battle proto: tiles in, lap + series out ---------------- */
+  var prevBatProto = window.rpBatProto;
+  window.rpBatProto = function (o) {
+    if (prevBatProto) prevBatProto(o);
+    try { myBatProto(o); } catch (e) { }
+  };
+  function myBatProto(o) {
+    if (!o) return;
+    if (o.k === "bat") {
+      var battler = !!(S.B && S.B.battler && S.B.aId === o.a && S.B.bId === o.b);
+      startBattle(o.a, o.b, o.an || "", o.bn || "", o.e || 0, battler);
+      if (o.sw) adoptSeries(o.a, o.b, o.sw);
+      var L = live();
+      if (o.tm && o.ts && L && L.hostId === o.ts) applyTileMap(o.ts, o.tm, true);
+      renderSeriesLine();
+    } else if (o.k === "bat-end") {
+      onBatEnd(o);
+    }
+  }
+  function adoptSeries(a, b, sw) {
+    var parts = String(sw || "").split("-");
+    var wa = parseInt(parts[0], 10) || 0, wb = parseInt(parts[1], 10) || 0;
+    var rec = seriesPeek(a, b);
+    var cur = rec ? (rec.w[a] || 0) + (rec.w[b] || 0) : 0;
+    if (wa + wb < cur) return;
+    var r2 = seriesOf(a, b);
+    r2.w[a] = wa; r2.w[b] = wb;
+    saveSeries();
+  }
+  function onBatEnd(o) {
+    var B = S.B;
+    var aId = B ? B.aId : "", bId = B ? B.bId : "";
+    var ap = o.ap || 0, bp = o.bp || 0;
+    var winnerId = "";
+    if (aId && bId) winnerId = ap > bp ? aId : (bp > ap ? bId : "");
+    var winnerName = o.w || "";
+    if (!winnerName && winnerId && B) winnerName = winnerId === aId ? B.aName : B.bName;
+    if (B) {
+      B.ended = true;
+      if (winnerId && !S.seriesSeen[B.key]) {
+        S.seriesSeen[B.key] = 1;
+        recordSeries(aId, bId, winnerId, winnerName, B);
+      }
+    }
+    S.lap = {
+      key: B ? B.key : ("lap" + Date.now()), aId: aId, bId: bId,
+      ap: ap, bp: bp, an: o.an || (B ? B.aName : "Host"), bn: o.bn || (B ? B.bName : "Host"),
+      winnerId: winnerId, winnerName: winnerName, until: Date.now() + 180000
+    };
+    renderLap();
+    sparkleBar();
+    renderBadges();
+    refreshBar65();
+  }
+  function recordSeries(aId, bId, winnerId, winnerName, B) {
+    var rec = seriesOf(aId, bId);
+    rec.w[winnerId] = (rec.w[winnerId] || 0) + 1;
+    var wa = rec.w[aId] || 0, wb = rec.w[bId] || 0;
+    var champ = wa >= 5 ? aId : (wb >= 5 ? bId : "");
+    if (champ) {
+      var cname = champ === aId ? (B ? B.aName : winnerName) : (B ? B.bName : winnerName);
+      showSeriesWin(cname || winnerName, champ === aId ? wa : wb, champ === aId ? wb : wa);
+      series[pairKey(aId, bId)] = { w: {}, justWon: { name: cname || winnerName || "Champion", at: Date.now() } };
+    }
+    saveSeries();
+    renderSeriesLine();
+  }
+  function showSeriesWin(name, wa, wb) {
+    var old = $("rp65SeriesWin"); if (old) old.remove();
+    var ov = document.createElement("div");
+    ov.id = "rp65SeriesWin";
+    ov.innerHTML = '<div class="card"><div class="crown">🏆</div><h3>' + esc(name || "Champion") + " WINS THE SERIES " + wa + "–" + wb + '!</h3><p>First to 5 takes it — the series resets, and a new one starts with the next battle.</p><button class="btn-mini" id="rp65SeriesWinX" type="button" style="padding:10px 18px">Nice!</button></div>';
+    document.body.appendChild(ov);
+    var x = $("rp65SeriesWinX");
+    if (x) x.addEventListener("click", function () { ov.remove(); });
+    setTimeout(function () { if (ov.parentNode) ov.remove(); }, 9000);
+  }
+
+  /* ---------------- victory lap ---------------- */
+  function lapLeftStr() {
+    var left = Math.max(0, Math.round(((S.lap ? S.lap.until : 0) - Date.now()) / 1000));
+    return Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+  }
+  function renderLap() {
+    var lap = S.lap; if (!lap) return;
+    var bar = $("rpBatBar"); if (!bar) { renderSeriesLine(); return; }
+    bar.hidden = false;
+    bar.classList.add("rp65-lap");
+    var avA = $("bbAvA"), avB = $("bbAvB"), nmA = $("bbNmA"), nmB = $("bbNmB"), ptA = $("bbPtA"), ptB = $("bbPtB"), fA = $("bbFillA"), fB = $("bbFillB"), tm = $("bbTime");
+    if (avA) avA.textContent = (lap.an || "A").slice(0, 1).toUpperCase();
+    if (avB) avB.textContent = (lap.bn || "B").slice(0, 1).toUpperCase();
+    if (nmA) nmA.innerHTML = esc(lap.an || "Host") + (lap.winnerId ? (lap.winnerId === lap.aId ? ' <span class="rp65-win">🏆 WIN</span>' : ' <span class="rp65-lose">LOSE</span>') : "");
+    if (nmB) nmB.innerHTML = esc(lap.bn || "Host") + (lap.winnerId ? (lap.winnerId === lap.bId ? ' <span class="rp65-win">🏆 WIN</span>' : ' <span class="rp65-lose">LOSE</span>') : "");
+    if (ptA) ptA.textContent = Number(lap.ap || 0).toLocaleString();
+    if (ptB) ptB.textContent = Number(lap.bp || 0).toLocaleString();
+    var tot = (lap.ap || 0) + (lap.bp || 0), share = tot ? (lap.ap / tot) * 100 : 50;
+    share = Math.max(6, Math.min(94, share));
+    if (fA) fA.style.width = share + "%";
+    if (fB) fB.style.width = (100 - share) + "%";
+    if (tm) { tm.textContent = "🏁 " + lapLeftStr(); tm.className = "bb-time"; }
+    var btns = $("rp65LapBtns");
+    if (!btns) {
+      btns = document.createElement("div");
+      btns.id = "rp65LapBtns";
+      if (bar.parentNode) bar.parentNode.insertBefore(btns, bar.nextSibling);
+    }
+    var rec = seriesPeek(lap.aId, lap.bId);
+    var newSeries = !!(rec && rec.justWon && !(rec.w[lap.aId] || rec.w[lap.bId]));
+    var html = "";
+    if (S.B && S.B.battler) html += '<button type="button" id="rp65Rematch" class="btn-primary" style="padding:10px 18px">⚔️ Rematch' + (newSeries ? " · New series!" : "") + "</button>";
+    html += '<button type="button" id="rp65LapDismiss" class="btn-mini" style="padding:10px 18px">Dismiss</button>';
+    btns.innerHTML = html;
+    btns.hidden = false;
+    var rm = $("rp65Rematch");
+    if (rm) rm.addEventListener("click", function () {
+      var opp = lap.aId === myId() ? lap.bId : lap.aId;
+      var s = sock();
+      if (s && opp) { s.emit("battle", { t: "invite", to: opp, mins: 5 }); toast2("⚔️ Rematch sent!", 2400); }
+      endLap();
+    });
+    var dm = $("rp65LapDismiss");
+    if (dm) dm.addEventListener("click", function () { endLap(); });
+    renderSeriesLine();
+  }
+  function endLap() {
+    if (!S.lap) return;
+    S.lap = null;
+    var bar = $("rpBatBar");
+    if (bar) { bar.hidden = true; bar.classList.remove("rp65-lap"); }
+    var btns = $("rp65LapBtns");
+    if (btns) { btns.hidden = true; btns.innerHTML = ""; }
+    renderSeriesLine();
+    renderBadges();
+  }
+  function sparkleBar() {
+    var bar = $("rpBatBar"); if (!bar) return;
+    for (var i = 0; i < 10; i++) {
+      var s = document.createElement("span");
+      s.className = "rp65-spark";
+      s.textContent = "✨";
+      s.style.left = (5 + Math.random() * 90) + "%";
+      s.style.animationDelay = (i * 0.06) + "s";
+      bar.appendChild(s);
+      (function (el) { setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 2500); })(s);
+    }
+  }
+  setInterval(function () {
+    try {
+      if (!S.lap) return;
+      var L = live();
+      if (!L || !L.active || Date.now() > S.lap.until) { endLap(); return; }
+      var bar = $("rpBatBar");
+      if (bar && bar.hidden) renderLap();
+      var tm = $("bbTime");
+      if (tm && S.lap) tm.textContent = "🏁 " + lapLeftStr();
+    } catch (e) { }
+  }, 500);
+
+  /* ---------------- series + how-to lines under the battle bar ---------------- */
+  function ensureBarExtras() {
+    var bar = $("rpBatBar");
+    if (!bar || !bar.parentNode) return;
+    if (!$("rp65Series")) {
+      var d = document.createElement("div");
+      d.id = "rp65Series"; d.hidden = true;
+      bar.parentNode.insertBefore(d, bar.nextSibling);
+    }
+    if (!$("rp65How")) {
+      var h = document.createElement("div");
+      h.id = "rp65How"; h.hidden = true;
+      h.textContent = "Top 3 gifters earn a ⚡ Boost Bolt — tap it, then send a gift: that gift scores double (triple in the last minute).";
+      var anchor = $("rp65LapBtns") || $("rp65Series");
+      bar.parentNode.insertBefore(h, anchor ? anchor.nextSibling : bar.nextSibling);
+    }
+  }
+  function renderSeriesLine() {
+    var el = $("rp65Series"); if (!el) return;
+    var show = false, html = "";
+    if (S.lap) {
+      var rec = seriesPeek(S.lap.aId, S.lap.bId);
+      var wa = rec ? (rec.w[S.lap.aId] || 0) : 0, wb = rec ? (rec.w[S.lap.bId] || 0) : 0;
+      html = (S.lap.winnerName ? "🏆 <b>" + esc(S.lap.winnerName) + "</b> won " + S.lap.ap + "–" + S.lap.bp + " · " : "🤝 Draw " + S.lap.ap + "–" + S.lap.bp + " · ") + "Series " + wa + "–" + wb + " · First to 5";
+      show = true;
+    } else if (S.B && inBattleRoom()) {
+      var rec2 = seriesPeek(S.B.aId, S.B.bId);
+      var wa2 = rec2 ? (rec2.w[S.B.aId] || 0) : 0, wb2 = rec2 ? (rec2.w[S.B.bId] || 0) : 0;
+      html = "Series " + wa2 + "–" + wb2 + " · First to 5";
+      if (rec2 && rec2.justWon && !wa2 && !wb2) html = "🏆 " + esc(rec2.justWon.name || "Last champion") + " took the last series · <b>New series!</b> · " + html;
+      show = true;
+    }
+    if (el.innerHTML !== html) el.innerHTML = html;
+    el.hidden = !show;
+    var how = $("rp65How");
+    if (how) how.hidden = !(S.B && battleActiveHere() && !S.lap);
+  }
+
+  /* ---------------- tile badges + support selection ---------------- */
+  function tilePts(pid) {
+    if (typeof S.tiles[pid] === "number") return S.tiles[pid];
+    return S.tiles["p:" + String(pid).slice(0, 6)] || 0;
+  }
+  function pidForTile(idx, tilesCount) {
+    if (S.roster.length === tilesCount && S.roster[idx]) return S.roster[idx];
+    if (S.roster[idx] && S.roster.length >= tilesCount) return S.roster[idx];
+    if (idx === 0) return sideHost();
+    return S.roster[idx] || "";
+  }
+  function renderBadges() {
+    var grid = $("liveGrid"); if (!grid) return;
+    var tiles = grid.querySelectorAll(".live-tile");
+    if (!tiles || !tiles.length) return;
+    var showPts = battleActiveHere() || !!S.lap;
+    var roomSide = sideHost();
+    var lapWinSide = S.lap ? (S.lap.winnerId && S.lap.winnerId === roomSide) : false;
+    var lapHasWinner = !!(S.lap && S.lap.winnerId);
+    for (var i = 0; i < tiles.length; i++) {
+      var tile = tiles[i];
+      var pid = pidForTile(i, tiles.length);
+      var nmEl = tile.querySelector(".lt-name");
+      if (pid && nmEl) {
+        var nm = nmEl.textContent.replace("HOST", "").replace("· You", "").trim();
+        if (nm) S.idName[pid] = nm;
+      }
+      var badge = tile.querySelector(".rp65-tilepts");
+      var pts = pid ? tilePts(pid) : 0;
+      var want = showPts && !!pid && (pts > 0 || !!S.lap);
+      if (!want) {
+        if (badge) badge.remove();
+        tile.classList.remove("rp65-seltile");
+        continue;
+      }
+      if (!badge) {
+        badge = document.createElement("div");
+        badge.className = "rp65-tilepts";
+        tile.appendChild(badge);
+      }
+      var txt = "⚔️ " + pts;
+      if (S.lap && lapHasWinner) txt += lapWinSide ? " · 🏆 WIN" : " · LOSE";
+      if (badge.textContent !== txt) badge.textContent = txt;
+      badge.classList.toggle("win", !!(S.lap && lapHasWinner && lapWinSide));
+      tile.classList.toggle("rp65-seltile", !S.lap && battleActiveHere() && !!pid && pid === S.mySup);
+    }
+  }
+  function setMySup(pid) {
+    if (!pid) return;
+    S.mySup = pid;
+    S.sup[myId()] = pid;
+    send({ k: "bat-sup", t: pid });
+    toast2("🎯 You're supporting " + hostNameOf(pid) + " — your gifts score for their tile!", 2600);
+    renderBadges(); refreshBar65();
+  }
+  function bindGrid() {
+    var grid = $("liveGrid");
+    if (!grid || grid.__rp65) return;
+    grid.__rp65 = 1;
+    grid.addEventListener("click", function (ev) {
+      if (!battleActiveHere()) return;
+      var t = ev.target;
+      if (t && t.closest && t.closest("button")) return;
+      var tile = t && t.closest ? t.closest(".live-tile") : null;
+      if (!tile) return;
+      var tiles = grid.querySelectorAll(".live-tile");
+      var idx = -1;
+      for (var i = 0; i < tiles.length; i++) if (tiles[i] === tile) idx = i;
+      if (idx < 0) return;
+      var pid = pidForTile(idx, tiles.length);
+      if (pid) setMySup(pid);
+    });
+  }
+
+  /* ---------------- live bar: support label, bolt, challenge, free gift, host tools ---------------- */
+  function ensureBar() {
+    var panel = $("livePanel"), anchor = $("liveControls");
+    if (!panel || !anchor || !anchor.parentNode) return;
+    if (!$("rp65Bar")) {
+      var d = document.createElement("div");
+      d.id = "rp65Bar";
+      d.hidden = true;
+      anchor.parentNode.insertBefore(d, anchor.nextSibling);
+    }
+  }
+  function refreshBar65() {
+    var bar = $("rp65Bar"); if (!bar) return;
+    var L = live();
+    var host = sideHost();
+    var parts = [];
+    if (battleActiveHere()) {
+      var supNm = S.mySup ? hostNameOf(S.mySup) : hostNameOf(host);
+      parts.push('<span class="rp65-sup">🎯 Supporting <b>' + esc(supNm) + "</b> — tap a tile to switch</span>");
+      if (S.myBolt.earned && !S.myBolt.used) parts.push('<button type="button" id="rp65Bolt" class="rp65-bolt' + (S.myBolt.armed ? " armed" : "") + '">' + (S.myBolt.armed ? "⚡ ARMED — send a gift!" : "⚡ Boost Bolt — tap to arm") + "</button>");
+      else if (S.myBolt.used) parts.push('<span class="rp65-sup">⚡ Boost Bolt used this battle</span>');
+    }
+    if (S.chal && host && S.chal.host === host) {
+      if (!S.chal.done) {
+        var pct = S.chal.target ? Math.min(100, Math.round((S.chal.cur / S.chal.target) * 100)) : 0;
+        parts.push('<div class="rp65-chal">🎉 Fan Club Challenge: ' + S.chal.cur + "/" + S.chal.target + " — unlock: " + esc(S.chal.gift) + ' for all fans<div class="rp65-chaltrack"><div class="rp65-chalfill" style="width:' + pct + '%"></div></div></div>');
+      } else {
+        parts.push('<span class="rp65-sup">🎉 Fan Club Challenge complete — fans unlocked a free ' + esc(S.chal.gift) + "!</span>");
+      }
+    }
+    if (host && fan.free[host]) parts.push('<button type="button" id="rp65Free" class="rp65-free">🎁 Send FREE ' + esc(fan.free[host].g) + " (Fan Club)</button>");
+    if (L && L.active && L.mine && !(S.chal && !S.chal.done && S.chal.host === myId())) parts.push('<button type="button" id="rp65ChalBtn" class="rp65-chalbtn">🎉 Fan Club Challenge</button>');
+    var html = parts.join("");
+    var sig = html;
+    if (sig === S.barSig) { bar.hidden = !parts.length; return; }
+    S.barSig = sig;
+    bar.innerHTML = html;
+    bar.hidden = !parts.length;
+    var bolt = $("rp65Bolt");
+    if (bolt) bolt.addEventListener("click", function () {
+      if (S.myBolt.used || S.myBolt.armed) return;
+      S.myBolt.armed = true;
+      send({ k: "bat-boost" });
+      S.lastBoostEmitAt = Date.now();
+      toast2("⚡ Boost Bolt armed — your next gift scores double (triple in the last minute)!", 3000);
+      refreshBar65();
+    });
+    var free = $("rp65Free");
+    if (free) free.addEventListener("click", function () { sendFanFree(sideHost()); });
+    var chb = $("rp65ChalBtn");
+    if (chb) chb.addEventListener("click", function () { openChalSheet(); });
+  }
+  function sendFanFree(hostId) {
+    var f = hostId ? fan.free[hostId] : null;
+    if (!f) return;
+    var ok = send({ k: "gift", to: hostId, tn: hostNameOf(hostId), g: f.g, ic: f.ic, v: 0, fan: 1 });
+    delete fan.free[hostId];
+    saveFan();
+    toast2(ok ? "🎁 Free " + f.g + " sent — Fan Club perk!" : "🎁 Free gifts fly while you're in the live.", 3400);
+    refreshBar65();
+  }
+
+  /* ---------------- fan clubs ---------------- */
+  function joinFan(hostId, name) {
+    if (!hostId || hostId === myId() || fan.fanOf[hostId]) return;
+    fan.fanOf[hostId] = { n: null, name: name || "" };
+    saveFan();
+    var ok = send({ k: "fan-join", h: hostId });
+    toast2(ok ? "🎉 You joined " + (name || "the host") + "'s Fan Club!" : "🎉 Fan Club joined — your fan number arrives in their live!", 3400);
+    syncFanChip();
+    syncCardFanButtons(true);
+  }
+  function hostFanJoin(memberId, memberName) {
+    if (!memberId || memberId === myId()) return;
+    var n = fan.my.members[memberId];
+    if (!n) {
+      fan.my.count = (fan.my.count || 0) + 1;
+      n = fan.my.count;
+      fan.my.members[memberId] = n;
+      saveFan();
+    }
+    send({ k: "fan-count", h: myId(), m: memberId, mn: String(memberName || "A fan").slice(0, 16), n: n, hn: String(myName()).slice(0, 16) });
+    renderProfileFan();
+  }
+  function onFanCount(o) {
+    if (!o || !o.h || !o.m) return;
+    var key = o.h + "|" + o.m + "|" + o.n;
+    if (!S.fanCountSeen[key]) {
+      S.fanCountSeen[key] = 1;
+      var L = live();
+      if ((L && L.active && L.hostId === o.h) || o.h === myId()) feedLine("🎉 " + (o.mn || "A fan") + " became the No. " + o.n + " fan of " + (o.hn || "the host"));
+    }
+    if (o.m === myId()) {
+      var cur = fan.fanOf[o.h];
+      fan.fanOf[o.h] = { n: o.n, name: o.hn || (cur ? cur.name : "") || "" };
+      saveFan();
+      toast2("🎉 You're fan No. " + o.n + " of " + (o.hn || "the host") + "!", 3600);
+      syncFanChip();
+    }
+  }
+  function syncFanChip() {
+    var chip = $("liveHostChip"); if (!chip) return;
+    var L = live();
+    var existing = chip.querySelector(".rp65-fanbtn");
+    if (!L || !L.active || !L.hostId || L.hostId === myId()) { if (existing) existing.remove(); return; }
+    var hostId = L.hostId;
+    var joined = fan.fanOf[hostId];
+    var b = existing;
+    if (!b) {
+      b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn-mini rp65-fanbtn";
+      b.addEventListener("click", function () {
+        var L2 = live();
+        if (L2 && L2.hostId) joinFan(L2.hostId, chipName());
+      });
+      chip.appendChild(b);
+    }
+    var txt = joined ? (joined.n ? "🎉 Fan No. " + joined.n : "🎉 Fan Club ✓") : "🎉 Join Fan Club";
+    if (b.textContent !== txt) b.textContent = txt;
+    b.disabled = !!joined;
+  }
+  function chipName() {
+    var chip = $("liveHostChip");
+    var b = chip ? chip.querySelector("b") : null;
+    return b ? b.textContent : "the host";
+  }
+  function syncCardFanButtons(force) {
+    var L = live();
+    if (!L || !L.active || !L.hostId || L.hostId === myId()) return;
+    var hostName = S.idName[L.hostId] || chipName();
+    if (!hostName || hostName === "the host") return;
+    var btns = document.querySelectorAll("[data-follow]");
+    for (var i = 0; i < btns.length; i++) {
+      var fb = btns[i];
+      if (fb.getAttribute("data-follow") !== hostName) continue;
+      var next = fb.nextElementSibling;
+      if (next && next.classList && next.classList.contains("rp65-fanjoin") && !force) continue;
+      if (next && next.classList && next.classList.contains("rp65-fanjoin")) next.remove();
+      var joined = fan.fanOf[L.hostId];
+      var jb = document.createElement("button");
+      jb.type = "button";
+      jb.className = "follow-btn rp65-fanjoin" + (joined ? " on" : "");
+      jb.textContent = joined ? (joined.n ? "🎉 Fan No. " + joined.n : "🎉 Fan Club ✓") : "🎉 Join Fan Club";
+      (function (hid, hn) {
+        jb.addEventListener("click", function () { joinFan(hid, hn); });
+      })(L.hostId, hostName);
+      if (fb.parentNode) fb.parentNode.insertBefore(jb, fb.nextSibling);
+    }
+  }
+  function renderProfileFan() {
+    var fn = $("pfFollowingN"); if (!fn) return;
+    var sec = $("rp65FanSec");
+    if (!sec) {
+      var host = fn.parentNode, hops = 0;
+      while (host && hops < 6 && !(host.querySelector && host.querySelector("#pfFollowersN"))) { host = host.parentNode; hops++; }
+      if (!host || !host.parentNode) return;
+      sec = document.createElement("div");
+      sec.id = "rp65FanSec";
+      sec.className = "rp65-fansec";
+      host.parentNode.insertBefore(sec, host.nextSibling);
+    }
+    var txt = "🎉 My Fan Club — <b>" + (fan.my.count || 0) + "</b> fans · <b>" + (fan.my.chalDone || 0) + "</b> challenges completed";
+    if (sec.innerHTML !== txt) sec.innerHTML = txt;
+  }
+
+  /* ---------------- fan club challenges ---------------- */
+  var CHAL_TARGETS = [200, 500, 1000, 2500];
+  var CHAL_GIFTS = [{ n: "Donut", ic: "🍩" }, { n: "Finger Heart", ic: "🫰" }, { n: "Love Balloon", ic: "🎈" }];
+  var chalSel = { t: 500, g: "Donut", ic: "🍩" };
+  function openChalSheet() {
+    if (typeof window.openSheet !== "function") { toast2("Open the live panel to start a Fan Club Challenge.", 2800); return; }
+    var html = '<h3 style="margin:4px 0">🎉 Fan Club Challenge</h3><p class="age-note">Pick a gift target for this live. When gifts to you reach it, every Fan Club member watching unlocks ONE free gift — on the house.</p><h4 style="margin:10px 0 4px">Target (coins worth of gifts)</h4><div class="rp65-chips">' +
+      CHAL_TARGETS.map(function (t) { return '<button type="button" class="btn-mini rp65-cht" data-t="' + t + '">' + t + "</button>"; }).join("") +
+      '</div><h4 style="margin:12px 0 4px">Unlock gift for all fans</h4><div class="rp65-chips">' +
+      CHAL_GIFTS.map(function (g) { return '<button type="button" class="btn-mini rp65-chg" data-g="' + g.n + '" data-ic="' + g.ic + '">' + g.ic + " " + g.n + "</button>"; }).join("") +
+      '</div><button class="btn-primary" id="rp65ChalStart" type="button" style="width:100%;padding:13px;margin-top:14px">🚀 Start challenge</button>';
+    try { window.openSheet(html); } catch (e) { return; }
+    setTimeout(function () {
+      function mark(sel, attr, val) {
+        document.querySelectorAll(sel).forEach(function (b) { b.classList.toggle("on", b.getAttribute(attr) === String(val)); });
+      }
+      mark(".rp65-cht", "data-t", chalSel.t);
+      mark(".rp65-chg", "data-g", chalSel.g);
+      document.querySelectorAll(".rp65-cht").forEach(function (b) {
+        b.addEventListener("click", function () { chalSel.t = parseInt(b.getAttribute("data-t"), 10) || 500; mark(".rp65-cht", "data-t", chalSel.t); });
+      });
+      document.querySelectorAll(".rp65-chg").forEach(function (b) {
+        b.addEventListener("click", function () { chalSel.g = b.getAttribute("data-g"); chalSel.ic = b.getAttribute("data-ic"); mark(".rp65-chg", "data-g", chalSel.g); });
+      });
+      var st = $("rp65ChalStart");
+      if (st) st.addEventListener("click", function () {
+        try { if (window.closeSheet) window.closeSheet(); } catch (e) { }
+        startFanChal();
+      });
+    }, 40);
+  }
+  function startFanChal() {
+    var me = myId(); if (!me) return;
+    if (S.chal && !S.chal.done && S.chal.host === me) { toast2("A Fan Club Challenge is already running!", 2600); return; }
+    var ci = me + "-" + Date.now();
+    S.chal = { ci: ci, host: me, target: chalSel.t, gift: chalSel.g, icon: chalSel.ic, cur: 0, done: false, counted: false };
+    send({ k: "fan-chal", h: me, t: chalSel.t, g: chalSel.g, ic: chalSel.ic, ci: ci, cur: 0 });
+    feedLine("🎉 Fan Club Challenge started: " + chalSel.t + " coins of gifts unlocks a free " + chalSel.g + " for all fans!");
+    refreshBar65();
+  }
+  function adoptChal(o) {
+    if (!o || !o.h || !o.ci) return;
+    var L = live();
+    if (!L || !L.active || L.hostId !== o.h) return;
+    if (!S.chal || S.chal.ci !== o.ci) {
+      S.chal = { ci: o.ci, host: o.h, target: o.t || 0, gift: o.g || "Donut", icon: o.ic || "🎁", cur: 0, done: false, counted: false };
+      feedLine("🎉 Fan Club Challenge! " + (o.t || 0) + " coins of gifts unlocks a free " + (o.g || "gift") + " for all fans of " + hostNameOf(o.h) + "!");
+    }
+    if (typeof o.cur === "number" && o.cur > S.chal.cur) S.chal.cur = o.cur;
+    refreshBar65();
+  }
+  function challengeObserve(o, fromId) {
+    var c = S.chal;
+    if (!c || c.done) return;
+    var L = live();
+    if (!L || !L.active || L.hostId !== c.host) return;
+    if (!o || o.fan || typeof o.v !== "number" || o.v <= 0) return;
+    if (o.to !== c.host || !fromId || fromId === c.host) return;
+    c.cur += o.v;
+    if (c.cur >= c.target) {
+      c.done = true;
+      if (c.host === myId()) {
+        if (!c.counted) { c.counted = true; fan.my.chalDone = (fan.my.chalDone || 0) + 1; saveFan(); renderProfileFan(); }
+        send({ k: "fan-done", h: c.host, g: c.gift, ic: c.icon, ci: c.ci });
+        onFanDone({ h: c.host, g: c.gift, ic: c.icon, ci: c.ci });
+      }
+    }
+    refreshBar65();
+  }
+  function onFanDone(o) {
+    if (!o || !o.h) return;
+    var key = o.ci || (o.h + "|" + o.g);
+    if (S.doneChals[key]) return;
+    S.doneChals[key] = 1;
+    if (S.chal && S.chal.host === o.h) S.chal.done = true;
+    feedLine("🎉 Fan Club Challenge COMPLETE — every fan of " + hostNameOf(o.h) + " unlocked a free " + (o.g || "gift") + "!");
+    if (fan.fanOf[o.h]) {
+      fan.free[o.h] = { g: o.g || "Donut", ic: o.ic || "🎁" };
+      saveFan();
+      toast2("🎁 You unlocked a FREE " + (o.g || "gift") + " — send it from the live bar!", 4600);
+    }
+    refreshBar65();
+  }
+
+  /* ---------------- own socket listeners (chat protos + roster + battle) ---------------- */
+  function routeProto(o, fromId, fromName) {
+    if (fromId && fromName) S.idName[fromId] = fromName;
+    switch (o.k) {
+      case "live-stage": {
+        if (!S.asm || S.asm.host !== fromId || S.asm.seq !== o.s) S.asm = { host: fromId, seq: o.s, of: o.of || 1, parts: {} };
+        S.asm.parts[o.i] = o.ids || [];
+        if (Object.keys(S.asm.parts).length >= S.asm.of) {
+          var full = [];
+          for (var ci = 0; ci < S.asm.of; ci++) full = full.concat(S.asm.parts[ci] || []);
+          S.roster = full;
+          S.rosterHost = fromId;
+          S.asm = null;
+          renderBadges();
+        }
+        break;
+      }
+      case "batm": {
+        if (o.s && o.s === sideHost()) applyTileMap(o.s, o.tm, false);
+        break;
+      }
+      case "bat-sup": {
+        if (S.B && inBattleRoom() && o.t) {
+          S.sup[fromId] = o.t;
+          if (fromId === myId()) S.mySup = o.t;
+          renderBadges(); refreshBar65();
+        }
+        break;
+      }
+      case "bat-boost": {
+        if (S.B && fromId) S.pending[fromId] = Date.now();
+        break;
+      }
+      case "fan-join": {
+        if (o.h && o.h === myId()) hostFanJoin(fromId, fromName);
+        break;
+      }
+      case "fan-count": onFanCount(o); break;
+      case "fan-chal": adoptChal(o); break;
+      case "fan-done": onFanDone(o); break;
+    }
+  }
+  function bindSocket() {
+    var s = sock();
+    if (!s || S.boundSock === s) return;
+    S.boundSock = s;
+    try { s.on("battle", function (m) { try { onBattleSock(m); } catch (e) { } }); } catch (e) { }
+    var seenChat = {}, seenN = 0;
+    function onChat(d) {
+      if (!d || typeof d.text !== "string" || d.text.indexOf(PX) !== 0) return;
+      var key = (d.id || "") + "|" + (d.at || "") + "|" + d.text.length + "|" + d.text.slice(0, 28);
+      if (seenChat[key]) return;
+      seenChat[key] = 1;
+      if (++seenN > 400) { seenChat = {}; seenN = 0; }
+      var o;
+      try { o = JSON.parse(d.text.slice(PX.length)); } catch (e) { return; }
+      if (!o || !o.k) return;
+      try { routeProto(o, d.id || "", d.name || ""); } catch (e) { }
+    }
+    try { s.on("chat-message", onChat); } catch (e) { }
+    try { s.on("chat", onChat); } catch (e) { }
+  }
+
+  /* ---------------- main loop ---------------- */
+  setInterval(function () {
+    try {
+      bindSocket();
+      ensureBar();
+      ensureBarExtras();
+      bindGrid();
+      var L = live();
+      if (L && L.active && L.hostId && L.hostId !== myId()) {
+        var hj = L.hostId;
+        if (fan.fanOf[hj] && fan.fanOf[hj].n == null && S.joinSentFor !== hj) {
+          S.joinSentFor = hj;
+          send({ k: "fan-join", h: hj });
+        }
+      }
+      syncFanChip();
+      syncCardFanButtons(false);
+      renderProfileFan();
+      renderBadges();
+      refreshBar65();
+      renderSeriesLine();
+      if (S.myBolt.armed && !S.myBolt.used && battleActiveHere() && Date.now() - S.lastBoostEmitAt > 20000) {
+        send({ k: "bat-boost" });
+        S.lastBoostEmitAt = Date.now();
+      }
+      if (S.chal && !S.chal.done && S.chal.host === myId() && Date.now() - S.lastChalHealAt > 8000) {
+        S.lastChalHealAt = Date.now();
+        send({ k: "fan-chal", h: S.chal.host, t: S.chal.target, g: S.chal.gift, ic: S.chal.icon, ci: S.chal.ci, cur: S.chal.cur });
+      }
+      if (S.B && S.B.battler && battleActiveHere()) batmHeal(false);
+      if (S.B && !S.lap && Date.now() > (S.B.endsAt || 0) + 30000) {
+        S.B = null;
+        S.tiles = {};
+        renderBadges(); renderSeriesLine(); refreshBar65();
+      }
+    } catch (e) { }
+  }, 900);
+
+  /* debug/test handle */
+  window.rpBat65 = {
+    state: S, fan: fan, series: series,
+    bind: bindSocket, credit: creditBattle, setSup: setMySup,
+    joinFan: joinFan, startChal: startFanChal,
+    setChalSel: function (t, g, ic) { chalSel.t = t; chalSel.g = g; chalSel.ic = ic; },
+    armBolt: function () { if (S.myBolt.earned && !S.myBolt.used) { S.myBolt.armed = true; send({ k: "bat-boost" }); S.lastBoostEmitAt = Date.now(); } }
+  };
+})();
+</script>
+
+<style>
+/* ============ RP-V6.6: Bonus Box + Live Goal pin ============ */
+#rp66Bar{ margin-top:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+#rp66Bar[hidden]{ display:none; }
+.rp66-btn{ background:linear-gradient(135deg,#ffd23c,#ff922b); color:#17171f; border:none; font:800 13px inherit; border-radius:999px; padding:8px 14px; cursor:pointer; }
+.rp66-btn.ghost{ background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.25); }
+.rp66-note{ font-size:12.5px; font-weight:700; color:#9a9aad; }
+.rp66-goal{ flex:1 1 100%; background:rgba(255,210,60,.1); border:1px solid rgba(255,210,60,.45); border-radius:12px; padding:9px 12px; color:#fff; }
+.rp66-goal b{ font-size:14px; }
+.rp66-goal .sub{ font-size:12px; font-weight:700; color:#cfcfe0; margin-top:2px; }
+.rp66-track{ height:9px; background:rgba(127,127,140,.35); border-radius:99px; overflow:hidden; margin-top:6px; }
+.rp66-fill{ height:100%; background:linear-gradient(90deg,#ffd23c,#ff7a45); border-radius:99px; transition:width .4s ease; }
+.rp66-goal.done{ border-color:#ffd23c; box-shadow:0 0 14px rgba(255,210,60,.35); }
+#rp66Box{ position:fixed; right:10px; bottom:196px; width:216px; z-index:46; background:rgba(8,8,14,.9); backdrop-filter:blur(8px); border:1.5px solid rgba(255,210,60,.65); border-radius:16px; padding:11px 12px; color:#fff; box-shadow:0 10px 30px rgba(0,0,0,.45); box-sizing:border-box; }
+#rp66Box[hidden]{ display:none; }
+#rp66Box .bx-head{ font-size:15px; font-weight:900; display:flex; align-items:center; gap:6px; }
+#rp66Box .bx-sub{ font-size:12px; font-weight:700; color:#cfcfe0; margin-top:3px; }
+#rp66Box .bx-count{ font-size:26px; font-weight:900; color:#ffd23c; text-align:center; margin:4px 0 2px; }
+#rp66Box .bx-open{ width:100%; background:linear-gradient(135deg,#fe2c55,#ff7a45); color:#fff; border:none; font:900 14px inherit; border-radius:999px; padding:10px; cursor:pointer; animation:rp66Pulse .8s ease-in-out infinite alternate; }
+#rp66Box .bx-open:disabled{ background:#3c3c4d; color:#9a9aad; animation:none; cursor:default; }
+@keyframes rp66Pulse{ from{ transform:scale(1); } to{ transform:scale(1.045); } }
+#rp66Box .bx-names{ font-size:11.5px; font-weight:700; color:#ffd23c; margin-top:5px; word-break:break-word; }
+.rp66-spark{ position:absolute; top:6px; font-size:14px; pointer-events:none; animation:rp66Spark 2s ease-out forwards; }
+@keyframes rp66Spark{ 0%{ transform:translateY(10px) scale(.6); opacity:0; } 25%{ opacity:1; } 100%{ transform:translateY(-30px) scale(1.2); opacity:0; } }
+.rp66-chips{ display:flex; gap:6px; flex-wrap:wrap; }
+.rp66-chips .on{ background:#fe2c55 !important; color:#fff !important; }
+</style>
+<script>
+/* ================= RP-V6.6: Plaza Bonus Box + Live Goal pin =================
+   Built from the Oct 22 TikTok LIVE watch (two mechanics NOT in the catalog):
+   - Treasure/Bonus Box: a timed box appears in a live; when its countdown
+     ends, the first few viewers to tap claim a spot before it empties.
+   - LIVE Goal: the host pins a support goal on the live — label, target and
+     live progress, with a per-supporter breakdown riding the same pin.
+   Our own take, client-side only, riding the existing room proto relay:
+   - protos: bbox-drop, bbox-claim, bbox-sync (host heal), lgoal, lgoal-end.
+   - Gift progress is computed locally from observed gift protos (same
+     convergence trick as RP-V6.5 tiles); the host's heal carries its total
+     + top supporters so late joiners catch up.
+   - Rewards are sparkles + a local Bonus Star count — no hearts (hearts are
+     tap-only here), no economy changes, nothing auction-related. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function myId() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function myName() { try { return window.rpMyName ? window.rpMyName() : "You"; } catch (e) { return "You"; } }
+  function live() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function sock() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function send(o) { try { return window.rpProtoSend ? !!window.rpProtoSend(o) : false; } catch (e) { return false; } }
+  function toast2(m, t) { try { if (window.toast) window.toast(m, t || 3200); } catch (e) { } }
+  var PX = "✦PX✦";
+  var CLAIM_MS = 45000;
+
+  var store = { stars: 0 };
+  try { var bj = JSON.parse(localStorage.getItem("rpBox.v1") || "null"); if (bj && typeof bj.stars === "number") store.stars = bj.stars; } catch (e) { }
+  function saveStore() { try { localStorage.setItem("rpBox.v1", JSON.stringify(store)); } catch (e) { } }
+
+  var S = { box: null, goal: null, supporters: {}, boundSock: null, lastBoxHeal: 0, lastGoalHeal: 0, barSig: "_", boxSig: "_" };
+  var boxSel = { dur: 60, slots: 5 };
+  var goalSel = { t: 250 };
+
+  function sideHost() { var L = live(); return (L && L.active) ? (L.hostId || "") : ""; }
+  function feedLine(text) {
+    try {
+      var log = $("onlineChatLog");
+      if (log) { var r = document.createElement("div"); r.className = "chat-sys"; r.textContent = text; log.appendChild(r); while (log.children.length > 80) log.removeChild(log.firstChild); log.scrollTop = log.scrollHeight; }
+      var L = live(); var box = $("liveComments");
+      if (box && L && L.active) { var row = document.createElement("div"); row.className = "lv-comment sys"; row.textContent = text; box.appendChild(row); while (box.children.length > 40) box.removeChild(box.firstChild); }
+    } catch (e) { }
+  }
+
+  /* ---------------- Bonus Box ---------------- */
+  function boxPhase(b) {
+    if (!b) return "none";
+    var n = Object.keys(b.claims).length;
+    if (n >= b.slots) return "done";
+    var now = Date.now();
+    if (now < b.opensAt) return "wait";
+    if (now <= b.opensAt + CLAIM_MS) return "open";
+    return "done";
+  }
+  function dropBox(dur, slots) {
+    var L = live(); if (!L || !L.active || !L.mine) return false;
+    if (S.box && boxPhase(S.box) !== "done") { toast2("A Bonus Box is already out in this live!", 2600); return false; }
+    var me = myId(); if (!me) return false;
+    var b = { bid: me + "-" + Date.now(), host: me, hostName: myName(), opensAt: Date.now() + (dur || 60) * 1000, slots: slots || 5, claims: {}, doneAt: 0 };
+    S.box = b; S.boxSig = "_";
+    send({ k: "bbox-drop", bid: b.bid, h: me, dur: Math.round((b.opensAt - Date.now()) / 1000), slots: b.slots });
+    feedLine("🎁 " + b.hostName + " dropped a Bonus Box — it opens soon, first " + b.slots + " tappers claim a spot!");
+    toast2("🎁 Bonus Box dropped! Your viewers race to claim it when the countdown ends.", 3400);
+    renderBox(); renderBar();
+    return true;
+  }
+  function applyClaim(id, name) {
+    var b = S.box; if (!b || !id || b.claims[id]) return false;
+    if (Object.keys(b.claims).length >= b.slots) return false;
+    b.claims[id] = name || "";
+    if (Object.keys(b.claims).length >= b.slots && !b.doneAt) b.doneAt = Date.now();
+    S.boxSig = "_";
+    return true;
+  }
+  function claimBox() {
+    var b = S.box; if (!b) return false;
+    var me = myId(); if (!me) return false;
+    if (b.host !== sideHost()) return false;
+    if (me === b.host) { toast2("It's your Bonus Box — your viewers claim the spots!", 2600); return false; }
+    var ph = boxPhase(b);
+    if (ph === "wait") { toast2("🎁 Not yet — the box opens when the countdown hits zero!", 2400); return false; }
+    if (ph !== "open") { toast2("🎁 This Bonus Box is finished.", 2400); return false; }
+    if (b.claims[me]) { toast2("🎁 You already claimed a spot in this box!", 2400); return false; }
+    if (!applyClaim(me, myName())) return false;
+    store.stars++; saveStore();
+    send({ k: "bbox-claim", bid: b.bid });
+    feedLine("🎁 " + myName() + " claimed a Bonus Box spot! (" + Object.keys(b.claims).length + "/" + b.slots + ")");
+    toast2("🎁 Spot claimed! ⭐ Bonus Stars: " + store.stars, 3400);
+    sparkleBox();
+    renderBox();
+    return true;
+  }
+  function sparkleBox() {
+    var el = $("rp66Box"); if (!el) return;
+    try {
+      for (var i = 0; i < 8; i++) {
+        var s = document.createElement("span");
+        s.className = "rp66-spark"; s.textContent = "✨";
+        s.style.left = (12 + i * 12) + "%"; s.style.animationDelay = (i * 0.09) + "s";
+        el.appendChild(s);
+        (function (n) { setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, 2300); })(s);
+      }
+    } catch (e) { }
+  }
+  function adoptBox(bid, host, hostName, opensAt, slots, claimsCsv) {
+    if (!bid || !host || host !== sideHost()) return;
+    if (S.box && S.box.bid === bid) {
+      if (claimsCsv) mergeClaimPrefixes(claimsCsv);
+      return;
+    }
+    if (S.box && boxPhase(S.box) !== "done") return;
+    S.box = { bid: bid, host: host, hostName: hostName || "", opensAt: opensAt || Date.now() + 60000, slots: slots || 5, claims: {}, doneAt: 0 };
+    if (claimsCsv) mergeClaimPrefixes(claimsCsv);
+    S.boxSig = "_";
+    renderBox();
+  }
+  function mergeClaimPrefixes(csv) {
+    var b = S.box; if (!b || !csv) return;
+    String(csv).split(",").forEach(function (p) {
+      p = String(p || "").trim(); if (!p) return;
+      var me = myId();
+      if (me && me.indexOf(p) === 0) return;
+      var found = false;
+      Object.keys(b.claims).forEach(function (id) { if (id.indexOf(p) === 0) found = true; });
+      if (!found && Object.keys(b.claims).length < b.slots) b.claims["p:" + p] = "";
+    });
+  }
+  function boxHeal() {
+    var b = S.box; if (!b || b.host !== myId()) return;
+    var ph = boxPhase(b);
+    if (ph === "done") return;
+    var csv = Object.keys(b.claims).map(function (id) { return String(id).slice(0, 8); }).join(",");
+    send({ k: "bbox-sync", bid: b.bid, h: b.host, dur: Math.max(1, Math.round((b.opensAt - Date.now()) / 1000)), slots: b.slots, at: b.opensAt, c: csv });
+  }
+
+  /* ---------------- Live Goal ---------------- */
+  function setGoal(target, label) {
+    var L = live(); if (!L || !L.active || !L.mine) return false;
+    var me = myId(); if (!me) return false;
+    S.goal = { host: me, target: target || 250, label: String(label || "Live Goal").slice(0, 40), cur: 0, done: false, topSync: null };
+    S.supporters = {};
+    send({ k: "lgoal", h: me, t: S.goal.target, lb: S.goal.label, cur: 0 });
+    feedLine("🎯 " + myName() + " pinned a Live Goal: " + S.goal.label + " — " + S.goal.target + " points of gifts!");
+    toast2("🎯 Live Goal pinned on your live!", 2800);
+    renderBar();
+    return true;
+  }
+  function endGoal(broadcast) {
+    if (!S.goal) return false;
+    var wasMine = S.goal.host === myId();
+    S.goal = null; S.supporters = {}; S.barSig = "_";
+    if (broadcast && wasMine) send({ k: "lgoal-end", h: myId() });
+    renderBar();
+    return true;
+  }
+  function goalObserve(o, fromId, fromName) {
+    if (!S.goal || !o) return 0;
+    if (S.goal.host !== sideHost()) return 0;
+    if (typeof o.v !== "number" || o.v <= 0) return 0;
+    if (o.to !== S.goal.host) return 0;
+    if (!fromId || fromId === S.goal.host) return 0;
+    var s = S.supporters[fromId] || (S.supporters[fromId] = { name: fromName || "", v: 0 });
+    s.v += o.v; if (fromName) s.name = fromName;
+    S.goal.cur += o.v;
+    S.goal.topSync = null;
+    if (!S.goal.done && S.goal.cur >= S.goal.target) {
+      S.goal.done = true;
+      feedLine("🎉 LIVE GOAL SMASHED! " + S.goal.label + " reached " + S.goal.cur + "/" + S.goal.target + " — thank you, supporters!");
+      if (S.goal.host === myId()) toast2("🎉 Your Live Goal was smashed!", 4200);
+      else if (S.supporters[myId()]) toast2("🎉 The Live Goal you backed was smashed!", 4200);
+    }
+    if (S.goal.host === myId()) S.lastGoalHeal = 0;
+    S.barSig = "_"; renderBar();
+    return o.v;
+  }
+  function topSupporters() {
+    var ids = Object.keys(S.supporters);
+    if (ids.length) {
+      return ids.map(function (id) { return { name: S.supporters[id].name || "A fan", v: S.supporters[id].v }; })
+        .sort(function (a, b) { return b.v - a.v; }).slice(0, 3);
+    }
+    if (S.goal && S.goal.topSync) return S.goal.topSync;
+    return [];
+  }
+  function goalHeal() {
+    var g = S.goal; if (!g || g.host !== myId()) return;
+    var top = topSupporters().map(function (t) { return String(t.name).slice(0, 16) + "=" + t.v; }).join("|");
+    send({ k: "lgoal", h: g.host, t: g.target, lb: g.label, cur: g.cur, top: top });
+  }
+  function adoptGoal(o, fromId) {
+    if (!o || !o.h || o.h !== sideHost()) return;
+    if (o.h === myId()) return;
+    if (fromId && fromId !== o.h) return;
+    if (!S.goal || S.goal.host !== o.h || S.goal.target !== (o.t || 0)) {
+      S.goal = { host: o.h, target: o.t || 250, label: String(o.lb || "Live Goal").slice(0, 40), cur: 0, done: false, topSync: null };
+      S.supporters = {};
+    }
+    if (typeof o.cur === "number" && o.cur > S.goal.cur) S.goal.cur = o.cur;
+    if (S.goal.cur >= S.goal.target) S.goal.done = true;
+    if (o.top) {
+      S.goal.topSync = String(o.top).split("|").map(function (p) {
+        var kv = p.split("="); return { name: kv[0] || "A fan", v: parseInt(kv[1], 10) || 0 };
+      }).filter(function (t) { return t.v > 0; }).slice(0, 3);
+    }
+    S.barSig = "_"; renderBar();
+  }
+
+  /* ---------------- proto routing ---------------- */
+  function routeProto(o, fromId, fromName) {
+    if (!o || !o.k) return;
+    switch (o.k) {
+      case "bbox-drop":
+        if (fromId && o.h && fromId !== o.h) return;
+        adoptBox(o.bid, o.h, fromName, Date.now() + (o.dur || 60) * 1000, o.slots, "");
+        break;
+      case "bbox-sync":
+        if (fromId && o.h && fromId !== o.h) return;
+        adoptBox(o.bid, o.h, fromName, o.at || (Date.now() + (o.dur || 60) * 1000), o.slots, o.c || "");
+        break;
+      case "bbox-claim":
+        if (S.box && o.bid === S.box.bid && fromId && fromId !== S.box.host) {
+          if (Date.now() >= S.box.opensAt - 2500) { applyClaim(fromId, fromName); renderBox(); }
+        }
+        break;
+      case "lgoal": adoptGoal(o, fromId); break;
+      case "lgoal-end":
+        if (S.goal && o.h === S.goal.host && o.h !== myId()) endGoal(false);
+        break;
+    }
+  }
+  function bindSocket() {
+    var s = sock();
+    if (!s || S.boundSock === s) return;
+    S.boundSock = s;
+    var seen = {}, n = 0;
+    function onChat(d) {
+      if (!d || typeof d.text !== "string" || d.text.indexOf(PX) !== 0) return;
+      var key = (d.id || "") + "|" + (d.at || "") + "|" + d.text.length + "|" + d.text.slice(0, 28);
+      if (seen[key]) return;
+      seen[key] = 1;
+      if (++n > 400) { seen = {}; n = 0; }
+      var o;
+      try { o = JSON.parse(d.text.slice(PX.length)); } catch (e) { return; }
+      if (!o || !o.k) return;
+      try { routeProto(o, d.id || "", d.name || ""); } catch (e) { }
+    }
+    try { s.on("chat-message", onChat); } catch (e) { }
+    try { s.on("chat", onChat); } catch (e) { }
+  }
+
+  /* ---------------- gift hook ---------------- */
+  var prevGiftSeen = window.rpGiftSeen;
+  window.rpGiftSeen = function (o, fromId, fromName) {
+    if (prevGiftSeen) prevGiftSeen(o, fromId, fromName);
+    try { goalObserve(o, fromId, fromName); } catch (e) { }
+  };
+
+  /* ---------------- rendering ---------------- */
+  function ensureUI() {
+    var panel = $("livePanel"), anchor = $("liveControls");
+    if (panel && anchor && anchor.parentNode && !$("rp66Bar")) {
+      var d = document.createElement("div");
+      d.id = "rp66Bar"; d.hidden = true;
+      anchor.parentNode.insertBefore(d, anchor.nextSibling);
+    }
+    if (!$("rp66Box")) {
+      var b = document.createElement("div");
+      b.id = "rp66Box"; b.hidden = true;
+      document.body.appendChild(b);
+    }
+  }
+  function renderBar() {
+    var bar = $("rp66Bar"); if (!bar) return;
+    var L = live(), host = sideHost(), parts = [];
+    if (S.goal && host && S.goal.host === host) {
+      var g = S.goal;
+      var pct = g.target ? Math.min(100, Math.round((g.cur / g.target) * 100)) : 0;
+      var tops = topSupporters();
+      var topHtml = tops.length ? '<div class="sub">Top supporters: ' + tops.map(function (t) { return esc(t.name) + " · " + t.v; }).join(" &nbsp;|&nbsp; ") + "</div>" : "";
+      parts.push('<div class="rp66-goal' + (g.done ? " done" : "") + '">🎯 <b>' + esc(g.label) + "</b> — " + g.cur + "/" + g.target + " pts (" + pct + "%)" + (g.done ? " &nbsp;🎉 <b>Goal smashed!</b>" : "") + '<div class="rp66-track"><div class="rp66-fill" style="width:' + pct + '%"></div></div>' + topHtml + "</div>");
+    }
+    if (L && L.active && L.mine) {
+      if (!S.box || boxPhase(S.box) === "done") parts.push('<button type="button" id="rp66BoxBtn" class="rp66-btn">🎁 Drop Bonus Box</button>');
+      else parts.push('<span class="rp66-note">🎁 Bonus Box is live…</span>');
+      if (!S.goal) parts.push('<button type="button" id="rp66GoalBtn" class="rp66-btn ghost">🎯 Set Live Goal</button>');
+      else parts.push('<button type="button" id="rp66GoalEnd" class="rp66-btn ghost">🎯 End Goal</button>');
+    }
+    var html = parts.join("");
+    if (html === S.barSig) { bar.hidden = !parts.length; return; }
+    S.barSig = html;
+    bar.innerHTML = html;
+    bar.hidden = !parts.length;
+    var bb = $("rp66BoxBtn"); if (bb) bb.addEventListener("click", openBoxSheet);
+    var gb = $("rp66GoalBtn"); if (gb) gb.addEventListener("click", openGoalSheet);
+    var ge = $("rp66GoalEnd"); if (ge) ge.addEventListener("click", function () { endGoal(true); toast2("🎯 Live Goal ended.", 2200); });
+  }
+  function renderBox() {
+    var el = $("rp66Box"); if (!el) return;
+    var b = S.box, host = sideHost();
+    if (!b || !host || b.host !== host || !live() || !live().active) { el.hidden = true; S.boxSig = "_"; return; }
+    var ph = boxPhase(b);
+    if (ph === "done" && b.doneAt && Date.now() - b.doneAt > 25000) { S.box = null; el.hidden = true; S.boxSig = "_"; renderBar(); return; }
+    if (ph === "done" && !b.doneAt) b.doneAt = Math.min(b.opensAt + CLAIM_MS, Date.now());
+    var n = Object.keys(b.claims).length;
+    var secs = ph === "wait" ? Math.max(0, Math.ceil((b.opensAt - Date.now()) / 1000)) : (ph === "open" ? Math.max(0, Math.ceil((b.opensAt + CLAIM_MS - Date.now()) / 1000)) : 0);
+    var sig = ph + "|" + n + "|" + secs + "|" + (b.claims[myId()] ? 1 : 0) + "|" + store.stars;
+    if (sig === S.boxSig) { el.hidden = false; return; }
+    S.boxSig = sig;
+    var names = Object.keys(b.claims).map(function (id) { return b.claims[id]; }).filter(Boolean);
+    var html = '<div class="bx-head">🎁 Bonus Box</div>';
+    if (ph === "wait") {
+      html += '<div class="bx-sub">Dropped by ' + esc(b.hostName || "the host") + " · first " + b.slots + " tappers win a spot</div>" + '<div class="bx-count">' + secs + "s</div>" + '<div class="bx-sub" style="text-align:center">Get ready to tap…</div>';
+    } else if (ph === "open") {
+      var mine = !!b.claims[myId()];
+      var isHost = b.host === myId();
+      html += '<div class="bx-sub">' + n + "/" + b.slots + " spots claimed · " + secs + "s left</div>";
+      if (isHost) html += '<button type="button" class="bx-open" disabled>Your box — viewers are claiming!</button>';
+      else if (mine) html += '<button type="button" class="bx-open" disabled>✓ Spot claimed! ⭐ ' + store.stars + "</button>";
+      else html += '<button type="button" class="bx-open" id="rp66Claim">TAP TO CLAIM!</button>';
+      if (names.length) html += '<div class="bx-names">🎉 ' + esc(names.join(", ")) + "</div>";
+    } else {
+      html += '<div class="bx-sub">' + (n >= b.slots ? "Box emptied — all " + b.slots + " spots went fast!" : "Time's up — " + n + " of " + b.slots + " spots were claimed.") + "</div>";
+      if (names.length) html += '<div class="bx-names">🎉 ' + esc(names.join(", ")) + "</div>";
+      if (b.claims[myId()]) html += '<div class="bx-sub">You got a spot! ⭐ Bonus Stars: ' + store.stars + "</div>";
+    }
+    el.innerHTML = html;
+    el.hidden = false;
+    el.style.position = "fixed";
+    var c = $("rp66Claim"); if (c) c.addEventListener("click", claimBox);
+  }
+
+  /* ---------------- sheets ---------------- */
+  function openBoxSheet() {
+    if (typeof window.openSheet !== "function") { dropBox(boxSel.dur, boxSel.slots); return; }
+    var html = '<h3 style="margin:4px 0">🎁 Drop a Bonus Box</h3><p class="age-note">A box floats on your live with a countdown. When it hits zero, the first viewers to tap claim a spot and earn a ⭐ Bonus Star. Sparkles only — no cost to anyone.</p><h4 style="margin:10px 0 4px">Opens in</h4><div class="rp66-chips">' +
+      [30, 60, 90].map(function (t) { return '<button type="button" class="btn-mini rp66-bd' + (boxSel.dur === t ? " on" : "") + '" data-t="' + t + '">' + t + "s</button>"; }).join("") +
+      '</div><h4 style="margin:12px 0 4px">Spots</h4><div class="rp66-chips">' +
+      [3, 5, 10].map(function (t) { return '<button type="button" class="btn-mini rp66-bs' + (boxSel.slots === t ? " on" : "") + '" data-t="' + t + '">' + t + " winners</button>"; }).join("") +
+      '</div><button class="btn-primary" id="rp66BoxDrop" type="button" style="width:100%;padding:13px;margin-top:14px">🎁 Drop it</button>';
+    try { window.openSheet(html); } catch (e) { return; }
+    setTimeout(function () {
+      document.querySelectorAll(".rp66-bd").forEach(function (b) { b.addEventListener("click", function () { boxSel.dur = parseInt(b.getAttribute("data-t"), 10) || 60; document.querySelectorAll(".rp66-bd").forEach(function (x) { x.classList.toggle("on", x === b); }); }); });
+      document.querySelectorAll(".rp66-bs").forEach(function (b) { b.addEventListener("click", function () { boxSel.slots = parseInt(b.getAttribute("data-t"), 10) || 5; document.querySelectorAll(".rp66-bs").forEach(function (x) { x.classList.toggle("on", x === b); }); }); });
+      var st = $("rp66BoxDrop");
+      if (st) st.addEventListener("click", function () { try { if (window.closeSheet) window.closeSheet(); } catch (e) { } dropBox(boxSel.dur, boxSel.slots); });
+    }, 40);
+  }
+  function openGoalSheet() {
+    if (typeof window.openSheet !== "function") { toast2("Open the live panel to set a Live Goal.", 2800); return; }
+    var html = '<h3 style="margin:4px 0">🎯 Set a Live Goal</h3><p class="age-note">Pin a goal on your live. Every gift you receive adds its points, the pin shows live progress, and your top supporters are listed right on it.</p><input class="online-input-full" id="rp66GoalLabel" type="text" maxlength="40" placeholder="Goal name — e.g. New mic fund" style="margin:8px 0;text-align:left;"/><h4 style="margin:8px 0 4px">Target (gift points)</h4><div class="rp66-chips">' +
+      [100, 250, 500, 1000].map(function (t) { return '<button type="button" class="btn-mini rp66-gt' + (goalSel.t === t ? " on" : "") + '" data-t="' + t + '">' + t + "</button>"; }).join("") +
+      '</div><button class="btn-primary" id="rp66GoalStart" type="button" style="width:100%;padding:13px;margin-top:14px">📌 Pin the goal</button>';
+    try { window.openSheet(html); } catch (e) { return; }
+    setTimeout(function () {
+      document.querySelectorAll(".rp66-gt").forEach(function (b) { b.addEventListener("click", function () { goalSel.t = parseInt(b.getAttribute("data-t"), 10) || 250; document.querySelectorAll(".rp66-gt").forEach(function (x) { x.classList.toggle("on", x === b); }); }); });
+      var st = $("rp66GoalStart");
+      if (st) st.addEventListener("click", function () {
+        var lb = $("rp66GoalLabel"); var label = lb && lb.value.trim() ? lb.value.trim() : "Live Goal";
+        try { if (window.closeSheet) window.closeSheet(); } catch (e) { }
+        setGoal(goalSel.t, label);
+      });
+    }, 40);
+  }
+
+  /* ---------------- main loop ---------------- */
+  setInterval(function () {
+    try {
+      bindSocket();
+      ensureUI();
+      var host = sideHost();
+      if (S.box && host && S.box.host !== host) { S.box = null; S.boxSig = "_"; }
+      if (S.goal && host && S.goal.host !== host) { S.goal = null; S.supporters = {}; S.barSig = "_"; }
+      if (!host) { if (S.box) { S.box = null; S.boxSig = "_"; } if (S.goal) { S.goal = null; S.supporters = {}; S.barSig = "_"; } }
+      renderBar();
+      renderBox();
+      var now = Date.now();
+      if (S.box && S.box.host === myId() && now - S.lastBoxHeal > 8000) { S.lastBoxHeal = now; boxHeal(); }
+      if (S.goal && S.goal.host === myId() && now - S.lastGoalHeal > 8000) { S.lastGoalHeal = now; goalHeal(); }
+    } catch (e) { }
+  }, 700);
+
+  /* debug/test handle */
+  window.rp66 = {
+    state: S, store: store,
+    drop: dropBox, claim: claimBox, applyClaim: applyClaim, phase: boxPhase,
+    setGoal: setGoal, endGoal: endGoal, observe: goalObserve, route: routeProto,
+    top: topSupporters
+  };
+})();
+</script>
+
+<style>
+/* ================= RP-V6.8 mixed live wallpapers =================
+   One fixed canvas behind everything renders one of four animated
+   scenes (Ocean Waves, Sunset Clouds, Neon City, Aurora Stars) or
+   crossfades through them all in Auto Mix. A translucent wash above
+   the canvas tints the whole UI toward the active scene; --wp-accent
+   vars follow body[data-scene]. Original canvas art, no assets. */
+#rpWallC { position: fixed; inset: 0; z-index: -3; pointer-events: none; }
+#rpWallWash { position: fixed; inset: 0; z-index: -2; pointer-events: none; transition: background-color 2.5s linear; background-color: rgba(16, 70, 95, .14); }
+body[data-scene="ocean"] #rpWallWash { background-color: rgba(16, 70, 95, .14); }
+body[data-scene="sunset"] #rpWallWash { background-color: rgba(140, 52, 64, .13); }
+body[data-scene="city"] #rpWallWash { background-color: rgba(84, 18, 84, .15); }
+body[data-scene="aurora"] #rpWallWash { background-color: rgba(18, 74, 62, .13); }
+body[data-scene="ocean"] { --wp-accent: #37c8d9; --wp-accent2: #2e7fd9; --wp-glow: rgba(55, 200, 217, .12); }
+body[data-scene="sunset"] { --wp-accent: #ff8a5c; --wp-accent2: #e8437c; --wp-glow: rgba(255, 138, 92, .12); }
+body[data-scene="city"] { --wp-accent: #fe2c55; --wp-accent2: #2ee6c8; --wp-glow: rgba(254, 44, 85, .12); }
+body[data-scene="aurora"] { --wp-accent: #52ffa8; --wp-accent2: #8a7bff; --wp-glow: rgba(82, 255, 168, .10); }
+body[data-scene] .wrap { background: radial-gradient(120% 60% at 50% -10%, var(--wp-glow), rgba(0, 0, 0, 0) 60%); }
+body[data-scene] .btn-primary { box-shadow: 0 8px 26px -8px var(--wp-accent); }
+/* the old 4D gradient + bokeh backdrop retires: the wallpaper supersedes it */
+#bg4d { display: none !important; }
+/* Profile background picker */
+.rpwall-picker { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px; }
+.rpwall-opt { border: 1.5px solid var(--line); background: rgba(255, 255, 255, .05); color: #fff; border-radius: 999px; padding: 9px 14px; font-weight: 700; font-size: 13.5px; cursor: pointer; }
+.rpwall-opt.on { border-color: var(--wp-accent, #fe2c55); background: rgba(255, 255, 255, .12); box-shadow: 0 0 0 1px var(--wp-accent, #fe2c55) inset, 0 4px 16px -6px var(--wp-accent, #fe2c55); }
+@media (prefers-reduced-motion: reduce) { #rpWallWash { transition: none; } }
+</style>
+<script>
+/* ================= RP-V6.8 mixed live wallpapers =================
+   Four hand-drawn canvas scenes (Neon City, Ocean Waves, Sunset
+   Clouds, Aurora Stars) behind the whole app. Auto Mix (default)
+   holds each scene ~30s and crossfades ~2.5s in the order
+   Ocean -> Sunset -> Neon City -> Aurora. A Profile picker locks a
+   scene or picks Auto; choice persists in localStorage rpWall.v1.
+   Cheap by design: DPR capped at 1.5, ~30fps, pauses when the tab
+   is hidden or a live stage is fullscreen, static frame when the
+   user prefers reduced motion. Original code/art only. */
+(function () {
+  "use strict";
+  var KEY = "rpWall.v1";
+  var ORDER = ["ocean", "sunset", "city", "aurora"];
+  var HOLD_MS = 30000, FADE_MS = 2500, QUICK_FADE_MS = 900, FRAME_MS = 33;
+  var META = {
+    ocean:  { label: "Ocean Waves" },
+    sunset: { label: "Sunset Clouds" },
+    city:   { label: "Neon City" },
+    aurora: { label: "Aurora Stars" }
+  };
+  function fadeP(elapsed, dur) {
+    if (dur <= 0) return 1;
+    if (elapsed <= 0) return 0;
+    if (elapsed >= dur) return 1;
+    return elapsed / dur;
+  }
+  function loadMode() {
+    try {
+      var m = window.localStorage.getItem(KEY);
+      if (m === "auto" || META[m]) return m;
+    } catch (e) { }
+    return "auto";
+  }
+  function saveMode(m) {
+    try { window.localStorage.setItem(KEY, m); } catch (e) { }
+  }
+  function rng(seed) {
+    var s = seed >>> 0;
+    return function () {
+      s = (s + 0x6D2B79F5) >>> 0;
+      var t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hash1(n) { var s = Math.sin(n) * 43758.5453; return s - Math.floor(s); }
+
+  var mode = loadMode();
+  var cur = (mode === "auto") ? "ocean" : mode;
+  var nxt = null, fadeStart = 0, fadeDur = FADE_MS, sceneStart = 0;
+  var reduced = false;
+  try { reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { }
+
+  var canvas = document.createElement("canvas");
+  canvas.id = "rpWallC";
+  canvas.setAttribute("aria-hidden", "true");
+  var wash = document.createElement("div");
+  wash.id = "rpWallWash";
+  wash.setAttribute("aria-hidden", "true");
+  if (document.body) {
+    document.body.insertBefore(wash, document.body.firstChild);
+    document.body.insertBefore(canvas, document.body.firstChild);
+    document.body.setAttribute("data-scene", cur);
+  }
+  var ctx = canvas.getContext("2d");
+  var W = 0, H = 0, DPR = 1;
+
+  /* ---------- pre-rendered scene assets (rebuilt on resize) ---------- */
+  var A = { stars: [], cityLayers: [], cloudSprites: [], clouds: [] };
+  function buildStars() {
+    var r = rng(1234567), out = [], i;
+    for (i = 0; i < 140; i++) out.push({ x: r() * W, y: r() * H * 0.72, rad: 0.5 + r() * 1.3, a: 0.25 + r() * 0.65, ph: r() * 6.283 });
+    return out;
+  }
+  function buildCityLayer(seed, hFrac, color, winCols, withSigns) {
+    var lh = Math.max(60, Math.round(H * hFrac));
+    var c = document.createElement("canvas");
+    c.width = Math.max(2, Math.round(W)); c.height = lh;
+    var g = c.getContext("2d"), r = rng(seed);
+    g.fillStyle = color;
+    var wins = [], signs = [], x = -4;
+    while (x < W + 8) {
+      var bw = 22 + r() * 48, bh = lh * (0.34 + r() * 0.62), by = lh - bh;
+      g.fillRect(x, by, bw, bh);
+      if (r() < 0.3) g.fillRect(x + bw * 0.3, by - 5, bw * 0.4, 5);
+      var gx, gy;
+      for (gx = x + 4; gx < x + bw - 4; gx += 9) {
+        for (gy = by + 6; gy < lh - 6; gy += 13) {
+          if (r() < 0.30) {
+            var wc = winCols[Math.floor(r() * winCols.length)];
+            wins.push({ x: gx, y: gy, c: wc });
+            g.fillStyle = wc; g.globalAlpha = 0.5 + r() * 0.5;
+            g.fillRect(gx, gy, 3.4, 5);
+            g.globalAlpha = 1; g.fillStyle = color;
+          }
+        }
+      }
+      if (withSigns && signs.length < 3 && bw > 34 && r() < 0.5) {
+        signs.push({ x: x + bw / 2, y: by + 16, c: signs.length % 2 ? "#2ee6c8" : "#ff5c8a" });
+      }
+      x += bw + 2 + r() * 7;
+    }
+    return { canvas: c, h: lh, wins: wins, signs: signs };
+  }
+  function buildCloudSprite(seed, base, hi) {
+    var c = document.createElement("canvas");
+    c.width = 300; c.height = 140;
+    var g = c.getContext("2d"), r = rng(seed), i;
+    for (i = 0; i < 16; i++) {
+      var cx = 40 + r() * 220, cy = 62 + r() * 36, rx = 26 + r() * 46, ry = 13 + r() * 17;
+      g.fillStyle = base;
+      g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, 6.2832); g.fill();
+    }
+    for (i = 0; i < 9; i++) {
+      var hx = 50 + r() * 200, hy = 44 + r() * 22, hrx = 18 + r() * 30, hry = 8 + r() * 9;
+      g.fillStyle = hi;
+      g.beginPath(); g.ellipse(hx, hy, hrx, hry, 0, 0, 6.2832); g.fill();
+    }
+    return c;
+  }
+  function buildAssets() {
+    A.stars = buildStars();
+    A.cityLayers = [
+      buildCityLayer(777, 0.46, "#141b3d", ["#ffe9b0", "#bfe6ff"], false),
+      buildCityLayer(4242, 0.56, "#0d1330", ["#ffe9b0", "#ffd2e2", "#c8fff2"], false),
+      buildCityLayer(90210, 0.68, "#05070f", ["#fff3c4", "#ffc2d9", "#b8fff0", "#cfe4ff"], true)
+    ];
+    A.cloudSprites = [
+      buildCloudSprite(5150, "rgba(255,166,138,0.50)", "rgba(255,224,196,0.45)"),
+      buildCloudSprite(6160, "rgba(112,52,104,0.55)", "rgba(255,170,160,0.32)")
+    ];
+    var r = rng(31337);
+    A.clouds = [];
+    for (var i = 0; i < 8; i++) {
+      A.clouds.push({ spr: i % 2, y: 0.06 + r() * 0.5, s: 0.7 + r() * 1.1, sp: 4 + r() * 7, off: r() * 1600, a: 0.5 + r() * 0.35 });
+    }
+  }
+
+  /* ---------- scene painters ---------- */
+  function drawOcean(t) {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#07293d"); g.addColorStop(0.45, "#0a4258"); g.addColorStop(1, "#051c2c");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    var glow = ctx.createRadialGradient(W * 0.78, H * 0.08, 0, W * 0.78, H * 0.08, W * 0.5);
+    glow.addColorStop(0, "rgba(90,210,225,0.14)"); glow.addColorStop(1, "rgba(90,210,225,0)");
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+    var cols = [
+      ["rgba(23,107,133,0.55)", "rgba(120,220,235,0.30)"],
+      ["rgba(17,90,116,0.65)", "rgba(110,205,225,0.34)"],
+      ["rgba(12,72,98,0.80)", "rgba(95,190,215,0.40)"],
+      ["rgba(8,54,78,0.94)", "rgba(80,175,205,0.46)"]
+    ], i, x, k;
+    for (i = 0; i < 4; i++) {
+      var baseY = H * (0.52 + i * 0.115), amp = 9 + i * 5, wl = 270 - i * 32, sp = 0.22 + i * 0.11, ph = i * 1.7;
+      ctx.beginPath(); ctx.moveTo(0, H);
+      for (x = 0; x <= W; x += 10) {
+        var y = baseY + Math.sin(x / wl * 6.2832 + t * sp + ph) * amp + Math.sin(x * 0.021 - t * 0.5 + ph * 2) * 3.5;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H); ctx.closePath();
+      ctx.fillStyle = cols[i][0]; ctx.fill();
+      ctx.beginPath();
+      for (x = 0; x <= W; x += 10) {
+        var y2 = baseY + Math.sin(x / wl * 6.2832 + t * sp + ph) * amp + Math.sin(x * 0.021 - t * 0.5 + ph * 2) * 3.5;
+        if (x === 0) ctx.moveTo(x, y2); else ctx.lineTo(x, y2);
+      }
+      ctx.strokeStyle = cols[i][1]; ctx.lineWidth = 1.6; ctx.stroke();
+      for (k = 0; k < 10; k++) {
+        var fx = hash1(i * 91.7 + k * 57.3 + Math.floor(t * 1.5) * 131.7) * W;
+        var fy = baseY + Math.sin(fx / wl * 6.2832 + t * sp + ph) * amp + Math.sin(fx * 0.021 - t * 0.5 + ph * 2) * 3.5;
+        ctx.globalAlpha = 0.25 + 0.5 * Math.abs(Math.sin(t * 2 + k * 1.3 + i));
+        ctx.fillStyle = "#cfeeff";
+        ctx.fillRect(fx, fy - 1, 2.2, 2.2);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  function drawSunset(t) {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#2b1847"); g.addColorStop(0.34, "#6e2a5c"); g.addColorStop(0.56, "#c94f6d");
+    g.addColorStop(0.74, "#ff8a5c"); g.addColorStop(0.88, "#ffc46b"); g.addColorStop(1, "#8a3a5e");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    var sx = W * 0.5, sy = H * 0.76;
+    var glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, W * 0.55);
+    glow.addColorStop(0, "rgba(255,214,150,0.55)"); glow.addColorStop(0.25, "rgba(255,170,110,0.22)"); glow.addColorStop(1, "rgba(255,170,110,0)");
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+    ctx.beginPath(); ctx.arc(sx, sy, Math.min(W, H) * 0.085, 0, 6.2832);
+    ctx.fillStyle = "#ffdfae"; ctx.fill();
+    var i, cl;
+    for (i = 0; i < A.clouds.length; i++) {
+      cl = A.clouds[i];
+      var spr = A.cloudSprites[cl.spr], sw = 300 * cl.s, sh = 140 * cl.s;
+      var span = W + sw, cxp = ((cl.off + t * cl.sp) % span) - sw;
+      ctx.globalAlpha = cl.a;
+      ctx.drawImage(spr, cxp, cl.y * H, sw, sh);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawCity(t) {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#04050e"); g.addColorStop(0.6, "#0a0f2c"); g.addColorStop(1, "#181031");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    var i, s;
+    for (i = 0; i < A.stars.length; i++) {
+      s = A.stars[i];
+      ctx.globalAlpha = s.a * 0.45;
+      ctx.fillStyle = "#dfe8ff"; ctx.fillRect(s.x, s.y, s.rad, s.rad);
+    }
+    ctx.globalAlpha = 1;
+    var mx = W * 0.82, my = H * 0.13;
+    var halo = ctx.createRadialGradient(mx, my, 0, mx, my, 60);
+    halo.addColorStop(0, "rgba(220,232,255,0.30)"); halo.addColorStop(1, "rgba(220,232,255,0)");
+    ctx.fillStyle = halo; ctx.fillRect(mx - 60, my - 60, 120, 120);
+    ctx.beginPath(); ctx.arc(mx, my, 14, 0, 6.2832); ctx.fillStyle = "#e8efff"; ctx.fill();
+    var haze1 = ctx.createRadialGradient(W * (0.24 + 0.04 * Math.sin(t * 0.05)), H * 0.55, 0, W * 0.24, H * 0.55, W * 0.5);
+    haze1.addColorStop(0, "rgba(254,44,85,0.07)"); haze1.addColorStop(1, "rgba(254,44,85,0)");
+    ctx.fillStyle = haze1; ctx.fillRect(0, 0, W, H);
+    var haze2 = ctx.createRadialGradient(W * (0.78 + 0.04 * Math.cos(t * 0.04)), H * 0.62, 0, W * 0.78, H * 0.62, W * 0.45);
+    haze2.addColorStop(0, "rgba(46,230,200,0.06)"); haze2.addColorStop(1, "rgba(46,230,200,0)");
+    ctx.fillStyle = haze2; ctx.fillRect(0, 0, W, H);
+    for (i = 0; i < A.cityLayers.length; i++) {
+      var L = A.cityLayers[i], topY = H - L.h;
+      ctx.drawImage(L.canvas, 0, topY);
+      var step = Math.floor(t * 2), k;
+      ctx.fillStyle = "#0a0d1c";
+      for (k = 0; k < 5; k++) {
+        var wn = L.wins[Math.floor(hash1(step * 7.1 + i * 131.3 + k * 17.7) * L.wins.length)];
+        if (wn) ctx.fillRect(wn.x, topY + wn.y, 3.4, 5);
+      }
+      if (L.signs) {
+        for (k = 0; k < L.signs.length; k++) {
+          var sg = L.signs[k], pulse = 0.15 + 0.05 * Math.sin(t * 2 + k * 2.1);
+          var rg = ctx.createRadialGradient(sg.x, topY + sg.y, 0, sg.x, topY + sg.y, 30);
+          rg.addColorStop(0, sg.c); rg.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.globalAlpha = pulse; ctx.fillStyle = rg;
+          ctx.fillRect(sg.x - 30, topY + sg.y - 30, 60, 60);
+          ctx.globalAlpha = 0.9; ctx.fillStyle = sg.c;
+          ctx.fillRect(sg.x - 7, topY + sg.y - 1.5, 14, 3);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+    var fg = ctx.createLinearGradient(0, H * 0.94, 0, H);
+    fg.addColorStop(0, "rgba(0,0,0,0)"); fg.addColorStop(1, "rgba(0,0,0,0.35)");
+    ctx.fillStyle = fg; ctx.fillRect(0, H * 0.94, W, H * 0.06);
+  }
+  function drawAurora(t) {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#01040a"); g.addColorStop(0.55, "#04101f"); g.addColorStop(1, "#071a26");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    var i, s;
+    for (i = 0; i < A.stars.length; i++) {
+      s = A.stars[i];
+      ctx.globalAlpha = s.a * (0.55 + 0.45 * Math.sin(t * 1.3 + s.ph));
+      ctx.fillStyle = "#eaf4ff"; ctx.fillRect(s.x, s.y, s.rad, s.rad);
+    }
+    ctx.globalAlpha = 1;
+    var bands = [
+      { base: 0.26, amp: 26, thick: 54, c0: "rgba(90,255,175,0.30)", c1: "rgba(90,255,175,0.03)", sp: 0.20, ph: 0.0 },
+      { base: 0.34, amp: 32, thick: 64, c0: "rgba(64,220,255,0.20)", c1: "rgba(64,220,255,0.02)", sp: 0.15, ph: 2.2 },
+      { base: 0.20, amp: 20, thick: 44, c0: "rgba(168,130,255,0.18)", c1: "rgba(168,130,255,0.02)", sp: 0.11, ph: 4.1 }
+    ];
+    ctx.globalCompositeOperation = "lighter";
+    for (i = 0; i < bands.length; i++) {
+      var b = bands[i], x, y1;
+      ctx.beginPath();
+      for (x = 0; x <= W; x += 14) {
+        y1 = H * b.base + Math.sin(x * 0.0035 + t * b.sp + b.ph) * b.amp + Math.sin(x * 0.009 - t * 0.13 + b.ph) * 10;
+        if (x === 0) ctx.moveTo(x, y1); else ctx.lineTo(x, y1);
+      }
+      for (x = W; x >= 0; x -= 14) {
+        y1 = H * b.base + Math.sin(x * 0.0035 + t * b.sp + b.ph) * b.amp + Math.sin(x * 0.009 - t * 0.13 + b.ph) * 10;
+        ctx.lineTo(x, y1 + b.thick + 16 * Math.sin(x * 0.005 + t * 0.1 + b.ph));
+      }
+      ctx.closePath();
+      var bg2 = ctx.createLinearGradient(0, H * b.base - b.amp, 0, H * b.base + b.thick + 30);
+      bg2.addColorStop(0, b.c0); bg2.addColorStop(0.6, b.c1); bg2.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = bg2; ctx.fill();
+    }
+    ctx.globalCompositeOperation = "source-over";
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (var hx = 0; hx <= W; hx += 16) ctx.lineTo(hx, H * 0.93 + Math.sin(hx * 0.006 + 1.2) * 8);
+    ctx.lineTo(W, H); ctx.closePath();
+    ctx.fillStyle = "#020608"; ctx.fill();
+  }
+  var PAINTERS = { ocean: drawOcean, sunset: drawSunset, city: drawCity, aurora: drawAurora };
+  function paintScene(name, t) { var p = PAINTERS[name]; if (p) p(t); }
+
+  /* ---------- engine ---------- */
+  function nowMs() { return (window.performance && window.performance.now) ? window.performance.now() : Date.now(); }
+  function setDataScene(name) { if (document.body) document.body.setAttribute("data-scene", name); }
+  function beginFade(to, dur) {
+    if (!META[to] || to === cur) { nxt = null; return; }
+    nxt = to; fadeStart = nowMs(); fadeDur = dur;
+    setDataScene(to);
+  }
+  function nextInOrder(name) {
+    var i = ORDER.indexOf(name);
+    return ORDER[(i + 1) % ORDER.length];
+  }
+  function drawFrame() {
+    var t = nowMs() / 1000;
+    ctx.clearRect(0, 0, W, H);
+    if (nxt) {
+      var p = fadeP(nowMs() - fadeStart, fadeDur);
+      paintScene(cur, t);
+      if (p >= 1) {
+        cur = nxt; nxt = null; sceneStart = nowMs();
+        paintScene(cur, t);
+      } else {
+        ctx.save(); ctx.globalAlpha = p;
+        paintScene(nxt, t);
+        ctx.restore();
+      }
+    } else {
+      paintScene(cur, t);
+      if (mode === "auto" && nowMs() - sceneStart >= HOLD_MS) beginFade(nextInOrder(cur), FADE_MS);
+    }
+  }
+  var rafId = 0, lastFrame = 0, running = false;
+  function tick() {
+    rafId = window.requestAnimationFrame(tick);
+    var n = nowMs();
+    if (n - lastFrame < FRAME_MS) return;
+    lastFrame = n;
+    if (document.hidden) return;
+    if (document.body && document.body.classList) {
+      if (document.body.classList.contains("bg-paused")) return;
+      if (document.body.classList.contains("live-fs")) return;
+    }
+    drawFrame();
+  }
+  function start() {
+    if (running || reduced) return;
+    running = true;
+    rafId = window.requestAnimationFrame(tick);
+  }
+  function stop() {
+    running = false;
+    if (rafId && window.cancelAnimationFrame) window.cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+  function drawStatic() {
+    if (!W) return;
+    ctx.clearRect(0, 0, W, H);
+    paintScene(cur, 8);
+  }
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+    W = window.innerWidth || 360; H = window.innerHeight || 640;
+    canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + "px"; canvas.style.height = H + "px";
+    if (ctx.setTransform) ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    buildAssets();
+    if (reduced) drawStatic();
+  }
+  var resizeTimer = 0;
+  if (window.addEventListener) {
+    window.addEventListener("resize", function () {
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(resize, 180);
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) stop(); else start();
+    });
+  }
+
+  /* ---------- picker + public API ---------- */
+  var picker = document.getElementById("rpWallPicker");
+  function paintPicker() {
+    if (!picker) return;
+    var btns = picker.querySelectorAll(".rpwall-opt"), i;
+    for (i = 0; i < btns.length; i++) {
+      if (btns[i].classList) btns[i].classList.toggle("on", btns[i].getAttribute("data-wall") === mode);
+    }
+  }
+  function setMode(m) {
+    if (m !== "auto" && !META[m]) return;
+    mode = m; saveMode(m); paintPicker();
+    if (m === "auto") {
+      sceneStart = nowMs();
+      if (reduced) drawStatic();
+      return;
+    }
+    if (nxt !== m && cur !== m) beginFade(m, QUICK_FADE_MS);
+    if (reduced) { cur = m; nxt = null; setDataScene(m); drawStatic(); }
+  }
+  if (picker && picker.addEventListener) {
+    picker.addEventListener("click", function (ev) {
+      var b = ev.target;
+      while (b && b !== picker && !(b.getAttribute && b.getAttribute("data-wall"))) b = b.parentNode;
+      if (!b || b === picker) return;
+      setMode(b.getAttribute("data-wall"));
+    });
+  }
+  window.rpWall = {
+    KEY: KEY, ORDER: ORDER.slice(), META: META, fadeP: fadeP,
+    getMode: function () { return mode; },
+    setMode: setMode,
+    current: function () { return nxt || cur; },
+    nextInOrder: nextInOrder
+  };
+
+  sceneStart = nowMs();
+  resize();
+  paintPicker();
+  if (reduced) drawStatic(); else start();
+})();
+</script>
+<style>
+/* ================= RP-V6.10 real motion video wallpapers + depth =================
+   Real looping footage sits between the RP-V6.8 canvas (fallback, below)
+   and its wash (restacked above the video so the scene tint still
+   applies). A fine sparkle layer floats above both for tilt depth. */
+#rpVidWrap { position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden; will-change: transform; }
+#rpVidWrap video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 2.5s linear; background: transparent; }
+#rpVidWrap video.quick { transition-duration: .9s; }
+#rpVidWrap video.on { opacity: 1; }
+#rpWallWash { z-index: -1; }
+#rpDepthFx { position: fixed; inset: -30px; z-index: -1; pointer-events: none; will-change: transform; }
+body.wp-video-on #rpWallC { visibility: hidden; }
+#rpWallC { will-change: transform; }
+.rpwall-opt.rp-tilt { border-style: dashed; }
+@media (prefers-reduced-motion: reduce) { #rpVidWrap video { transition: none; } }
+</style>
+<script>
+/* ================= RP-V6.10 real motion video wallpapers + 4D depth =================
+   Real looping footage (ocean / sunset / neon city / aurora, served from
+   video/) layered over the RP-V6.8 canvas engine, which stays as the
+   fallback whenever a video is missing or fails (e.g. the GitHub preview,
+   where video/ does not exist). Scene choice, Auto Mix rotation and the
+   wash/accent system are driven by the existing RP-V6.8 state machine
+   (window.rpWall); this layer only watches rpWall.current().
+   Depth ("4D"): gyroscope tilt parallax — the video shifts a few px,
+   the fallback canvas a little less, and a foreground sparkle layer
+   about twice as much, so the Plaza feels like it pops out of the
+   screen. The tilt choice persists in localStorage rpWallTilt.v1
+   (rpWall.v1 keeps RP-V6.8's plain-string format untouched).
+   Battery/perf: videos pause when the tab is hidden or a live stage
+   is fullscreen; only one video decodes at a time outside crossfades;
+   tilt/particles ride one rAF loop and stop with reduced motion. */
+(function () {
+  "use strict";
+  var SRC = {
+    ocean: "video/wall-ocean.mp4",
+    sunset: "video/wall-sunset.mp4",
+    city: "video/wall-city.mp4",
+    aurora: "video/wall-aurora.mp4"
+  };
+  var TILT_KEY = "rpWallTilt.v1";
+  var reduced = false;
+  try { reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { }
+  if (reduced || !document.body) return; /* static canvas frame stays the reduced-motion experience */
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { } }
+  function isPaused() {
+    if (document.hidden) return true;
+    var cl = document.body && document.body.classList;
+    return !!(cl && (cl.contains("live-fs") || cl.contains("bg-paused")));
+  }
+
+  /* ---------- video layer ---------- */
+  var wrap = document.createElement("div");
+  wrap.id = "rpVidWrap";
+  wrap.setAttribute("aria-hidden", "true");
+  var vidA = document.createElement("video"), vidB = document.createElement("video");
+  [vidA, vidB].forEach(function (v) {
+    v.muted = true;
+    v.loop = true;
+    v.preload = "auto";
+    v.setAttribute("playsinline", "");
+    v.setAttribute("muted", "");
+    v.setAttribute("aria-hidden", "true");
+    wrap.appendChild(v);
+  });
+  document.body.appendChild(wrap);
+  var front = vidA, back = vidB;
+  var videoDead = false, shownScene = null, pendingScene = null, pendingTimer = 0;
+
+  function vidFail() {
+    if (videoDead) return;
+    videoDead = true;
+    pendingScene = null;
+    try { vidA.pause(); vidB.pause(); } catch (e) { }
+    document.body.classList.remove("wp-video-on");
+    wrap.style.display = "none"; /* RP-V6.8 canvas underneath is the fallback */
+  }
+  vidA.addEventListener("error", vidFail);
+  vidB.addEventListener("error", vidFail);
+
+  function showScene(name, quick) {
+    if (videoDead || !SRC[name] || name === shownScene || name === pendingScene) return;
+    pendingScene = name;
+    var v = back;
+    v.classList.toggle("quick", !!quick);
+    try { v.pause(); } catch (e) { }
+    v.src = SRC[name];
+    try { v.load(); } catch (e) { }
+    var onCan = function () {
+      v.removeEventListener("canplay", onCan);
+      if (pendingScene !== name || videoDead) return;
+      pendingScene = null;
+      if (pendingTimer) { window.clearTimeout(pendingTimer); pendingTimer = 0; }
+      var pr = null;
+      try { pr = v.play(); } catch (e) { }
+      if (pr && pr.catch) pr.catch(function () { });
+      front.classList.remove("on");
+      v.classList.add("on");
+      var old = front; front = v; back = old;
+      shownScene = name;
+      document.body.classList.add("wp-video-on");
+      window.setTimeout(function () { if (back === old && front !== old) { try { back.pause(); } catch (e) { } } }, quick ? 1100 : 2700);
+    };
+    v.addEventListener("canplay", onCan);
+    if (pendingTimer) window.clearTimeout(pendingTimer);
+    pendingTimer = window.setTimeout(function () {
+      if (pendingScene === name) { pendingScene = null; if (!shownScene) vidFail(); }
+    }, 7000);
+  }
+
+  /* scene watching: user picks (mode change / locked scene) fade quick,
+     Auto Mix rotation keeps the slow 2.5s house crossfade */
+  var lastScene = null, lastMode = null;
+  function pollWall() {
+    if (!window.rpWall || videoDead) return;
+    var c = window.rpWall.current(), m = window.rpWall.getMode();
+    if (c && c !== lastScene) {
+      var quick = (m !== "auto") || (lastMode !== null && m !== lastMode);
+      lastScene = c;
+      showScene(c, quick);
+    }
+    lastMode = m;
+  }
+
+  var wasPaused = null;
+  function applyPause() {
+    var p = isPaused();
+    if (p === wasPaused) return;
+    wasPaused = p;
+    [vidA, vidB].forEach(function (v) {
+      if (p) { try { v.pause(); } catch (e) { } }
+      else if (v === front && shownScene && !videoDead) {
+        var pr = null;
+        try { pr = v.play(); } catch (e) { }
+        if (pr && pr.catch) pr.catch(function () { });
+      }
+    });
+  }
+  document.addEventListener("visibilitychange", function () { wasPaused = null; applyPause(); });
+
+  /* ---------- depth: foreground sparkle layer ---------- */
+  var fx = document.createElement("canvas");
+  fx.id = "rpDepthFx";
+  fx.setAttribute("aria-hidden", "true");
+  document.body.appendChild(fx);
+  var fctx = fx.getContext("2d");
+  var FW = 0, FH = 0, specks = [];
+  var sprite = document.createElement("canvas");
+  sprite.width = 32; sprite.height = 32;
+  (function () {
+    var sg = sprite.getContext("2d");
+    var gr = sg.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, "rgba(255,255,255,0.9)");
+    gr.addColorStop(0.4, "rgba(255,255,255,0.26)");
+    gr.addColorStop(1, "rgba(255,255,255,0)");
+    sg.fillStyle = gr; sg.fillRect(0, 0, 32, 32);
+  })();
+  function fxResize() {
+    FW = (window.innerWidth || 360) + 60;
+    FH = (window.innerHeight || 640) + 60;
+    fx.width = FW; fx.height = FH;
+    specks = [];
+    for (var i = 0; i < 26; i++) {
+      specks.push({
+        x: Math.random() * FW, y: Math.random() * FH,
+        r: 3 + Math.random() * 7, s: 0.05 + Math.random() * 0.12,
+        ph: Math.random() * 6.283, a: 0.10 + Math.random() * 0.16
+      });
+    }
+  }
+  function drawSpecks(t) {
+    if (!fctx || !FW) return;
+    fctx.clearRect(0, 0, FW, FH);
+    for (var i = 0; i < specks.length; i++) {
+      var s = specks[i];
+      s.y -= s.s;
+      s.x += Math.sin(t * 0.3 + s.ph) * 0.08;
+      if (s.y < -12) { s.y = FH + 12; s.x = Math.random() * FW; }
+      fctx.globalAlpha = s.a * (0.7 + 0.3 * Math.sin(t * 0.9 + s.ph));
+      fctx.drawImage(sprite, s.x - s.r, s.y - s.r, s.r * 2, s.r * 2);
+    }
+    fctx.globalAlpha = 1;
+  }
+
+  /* ---------- depth: gyroscope tilt parallax ---------- */
+  var tiltOn = lsGet(TILT_KEY) !== "0"; /* default on; the stored choice wins */
+  var tX = 0, tY = 0, cX = 0, cY = 0, listening = false;
+  function clampT(v) { return v > 1 ? 1 : (v < -1 ? -1 : v); }
+  function onOrient(e) {
+    if (!e || e.gamma == null || e.beta == null) return;
+    tX = clampT(e.gamma / 16) * 10;         /* video: up to 10px */
+    tY = clampT((e.beta - 42) / 16) * 10;
+  }
+  var needPerm = (typeof window.DeviceOrientationEvent !== "undefined" &&
+    typeof window.DeviceOrientationEvent.requestPermission === "function");
+  function listen() {
+    if (listening || !tiltOn) return;
+    if (typeof window.DeviceOrientationEvent === "undefined") return;
+    window.addEventListener("deviceorientation", onOrient, true);
+    listening = true;
+  }
+  if (!needPerm) listen(); /* Android & desktop browsers: no gesture needed */
+
+  var picker = document.getElementById("rpWallPicker");
+  var tiltBtn = null;
+  function paintTiltBtn() {
+    if (!tiltBtn) return;
+    tiltBtn.textContent = (needPerm && !listening) ? "📱 Enable 3D tilt" : (tiltOn ? "📱 3D tilt: On" : "📱 3D tilt: Off");
+    tiltBtn.classList.toggle("on", !!tiltOn && (!needPerm || listening));
+  }
+  if (picker) {
+    tiltBtn = document.createElement("button");
+    tiltBtn.type = "button";
+    tiltBtn.className = "rpwall-opt rp-tilt";
+    picker.appendChild(tiltBtn);
+    paintTiltBtn();
+    tiltBtn.addEventListener("click", function () {
+      if (needPerm && !listening) {
+        window.DeviceOrientationEvent.requestPermission().then(function (res) {
+          if (res === "granted") { tiltOn = true; lsSet(TILT_KEY, "1"); listen(); }
+          paintTiltBtn();
+        }).catch(function () { paintTiltBtn(); });
+        return;
+      }
+      tiltOn = !tiltOn;
+      lsSet(TILT_KEY, tiltOn ? "1" : "0");
+      if (tiltOn) listen(); else { tX = 0; tY = 0; }
+      paintTiltBtn();
+    });
+  }
+
+  /* ---------- shared rAF loop: poll, pause, tilt, sparkles ---------- */
+  var wallC = document.getElementById("rpWallC");
+  var lastTf = "";
+  function applyTilt() {
+    cX += (tX - cX) * 0.06;
+    cY += (tY - cY) * 0.06;
+    var key = cX.toFixed(1) + "," + cY.toFixed(1);
+    if (key === lastTf) return;
+    lastTf = key;
+    wrap.style.transform = "translate3d(" + (-cX).toFixed(1) + "px," + (-cY).toFixed(1) + "px,0) scale(1.09)";
+    fx.style.transform = "translate3d(" + (-cX * 2).toFixed(1) + "px," + (-cY * 2).toFixed(1) + "px,0)";
+    if (wallC) wallC.style.transform = "translate3d(" + (-cX * 0.7).toFixed(1) + "px," + (-cY * 0.7).toFixed(1) + "px,0) scale(1.06)";
+  }
+  function loop() {
+    window.requestAnimationFrame(loop);
+    pollWall();
+    applyPause();
+    if (isPaused()) return;
+    applyTilt();
+    drawSpecks(((window.performance && window.performance.now) ? window.performance.now() : Date.now()) / 1000);
+  }
+  var rsT = 0;
+  window.addEventListener("resize", function () {
+    if (rsT) window.clearTimeout(rsT);
+    rsT = window.setTimeout(fxResize, 180);
+  });
+  fxResize();
+  pollWall();
+  window.requestAnimationFrame(loop);
+  window.rpWallVideo = { scenes: SRC, shown: function () { return shownScene; }, dead: function () { return videoDead; } };
+})();
+</script>
+<!-- ================= RP-V6.11: app-bar Music/Scenes cycle (RP-V6.9 re-implemented on the V6.10 engine) ================= -->
+<style>
+/* ================= RP-V6.11: Music/Scenes cycle face on the app-bar Music button ================= */
+#rpCycleFace { display: none; }
+#btnMusic.rp-cyc-scenes #rpCycleFace { display: inline; }
+#btnMusic.rp-cyc-scenes #musicName { display: none; }
+#btnMusic.rp-cyc-scenes > svg { display: none; }
+</style>
+<script>
+/* ================= RP-V6.11: app-bar Music/Scenes cycle =================
+   The HUD Music button (btnMusic) becomes a two-mode cycle control.
+   Face in Music mode is exactly today's (note icon + track name, and a
+   tap that returns here opens the music picker exactly as before).
+   First tap switches to Scenes mode (face: palette + scene name) and
+   steps the wallpaper; further taps step Ocean -> Sunset -> Neon City
+   -> Aurora -> Auto Mix; the next tap after Auto Mix returns to Music
+   mode (and that tap DOES open the music picker, today's behavior).
+   Stepping drives the existing RP-V6.8 state machine (rpWall.setMode),
+   so the RP-V6.10 video layer, canvas fallback, wash and Profile
+   picker all stay in sync; no parallel state machine.
+   Persistence: the app-bar choice lives in localStorage rpWallpaper
+   (a scene id or 'auto'). On load, rpWallpaper wins over the Profile
+   picker's rpWall.v1; when unset, rpWall.v1 applies. Most recent touch
+   wins: the Profile picker ALSO writes rpWallpaper (the picker's own
+   handler still writes rpWall.v1 via rpWall.setMode), so the two
+   controls can never disagree about the last choice. rpWallTilt.v1
+   (RP-V6.10) is never touched. Scripted clicks (Home "Choose music"
+   and friends call btnMusic.click()) are ignored, so those paths keep
+   today's behavior byte-for-byte. Original code only. */
+(function () {
+  "use strict";
+  var AB_KEY = "rpWallpaper";
+  var STEPS = ["ocean", "sunset", "city", "aurora", "auto"];
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { } }
+  function valid(m) { return STEPS.indexOf(m) >= 0; }
+  var btn = document.getElementById("btnMusic");
+  if (!btn || !window.rpWall) return;
+  var face = document.createElement("span");
+  face.id = "rpCycleFace";
+  face.setAttribute("aria-hidden", "true");
+  btn.appendChild(face);
+  var origTitle = btn.getAttribute("title") || "";
+  var btnMode = "music";
+  function choice() {
+    var v = lsGet(AB_KEY);
+    if (valid(v)) return v;
+    return window.rpWall.getMode();
+  }
+  function labelFor(m) {
+    if (m === "auto") return "Auto Mix";
+    var meta = window.rpWall.META && window.rpWall.META[m];
+    return meta ? meta.label : m;
+  }
+  function paintFace() {
+    if (btnMode === "scenes") {
+      face.textContent = "\uD83C\uDFA8 " + labelFor(choice());
+      btn.classList.add("rp-cyc-scenes");
+      btn.setAttribute("title", "Background: " + labelFor(choice()) + " \u2014 tap for the next scene");
+    } else {
+      btn.classList.remove("rp-cyc-scenes");
+      btn.setAttribute("title", origTitle);
+    }
+  }
+  function applyChoice(m) {
+    window.rpWall.setMode(m);
+    lsSet(AB_KEY, m);
+  }
+  function nextStep(m) {
+    var i = STEPS.indexOf(m);
+    return STEPS[(i + 1) % STEPS.length];
+  }
+  function inBtn(t) {
+    var n = t;
+    while (n && n !== btn) n = n.parentNode;
+    return n === btn;
+  }
+  function onTap(ev) {
+    if (!ev || ev.isTrusted === false) return;
+    if (!inBtn(ev.target)) return;
+    if (btnMode === "music") {
+      btnMode = "scenes";
+      applyChoice(nextStep(choice()));
+      paintFace();
+      ev.stopPropagation();
+      if (ev.preventDefault) ev.preventDefault();
+    } else if (choice() === "auto") {
+      btnMode = "music";
+      paintFace();
+      /* no stopPropagation: the button's own listener opens the music picker, exactly as today */
+    } else {
+      applyChoice(nextStep(choice()));
+      paintFace();
+      ev.stopPropagation();
+      if (ev.preventDefault) ev.preventDefault();
+    }
+  }
+  document.addEventListener("click", onTap, true);
+  var picker = document.getElementById("rpWallPicker");
+  if (picker && picker.addEventListener) {
+    picker.addEventListener("click", function (ev) {
+      var b = ev.target;
+      while (b && b !== picker && !(b.getAttribute && b.getAttribute("data-wall"))) b = b.parentNode;
+      if (!b || b === picker) return;
+      var v = b.getAttribute("data-wall");
+      if (!valid(v)) return;
+      lsSet(AB_KEY, v);
+      if (btnMode === "scenes") paintFace();
+    });
+  }
+  var pre = lsGet(AB_KEY);
+  if (valid(pre)) window.rpWall.setMode(pre);
+  paintFace();
+  window.rpWallCycle = {
+    KEY: AB_KEY,
+    steps: STEPS.slice(),
+    btnMode: function () { return btnMode; },
+    choice: choice
+  };
+})();
+</script>
+<!-- ================= RP-V6.13: Most Sent gift pill ================= -->
+<style>
+/* ================= RP-V6.13: Most Sent gift pill ================= */
+#rp613Pill{ display:inline-flex; align-items:center; gap:5px; background:rgba(8,8,14,.72); border:1.5px solid rgba(255,210,60,.75); color:#fff; font:800 12px inherit; border-radius:999px; padding:4px 10px; margin-left:6px; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); white-space:nowrap; }
+#rp613Pill[hidden]{ display:none; }
+#rp613Pill .ms-n{ color:#ffd23c; font-weight:900; }
+</style>
+<script>
+/* ================= RP-V6.13: Most Sent gift pill =================
+   Built from the Oct 22 TikTok LIVE watch, Rooms 3-11 addendum: in a big
+   panel live (@special_ravon), a pill under the Viewers header read
+   "Most sent 11 x28" -- the room's most-sent gift and how many times it
+   had been sent, kept live for everyone in the room.
+   Our own take, client-side only:
+   - Counts are computed on every client from the same observed gift
+     protos (o.g name / o.ic icon / o.to host) via the rpGiftSeen chain
+     -- the same convergence trick as RP-V6.5 tiles and the RP-V6.6 Live
+     Goal -- so the whole room agrees with no new proto and no server
+     change. Late joiners start counting from when they arrive.
+   - Only gifts sent TO the current live's host count. Counts reset
+     when the host changes or the live ends.
+   - The pill rides in the live top bar next to the viewer row (our
+     equivalent of TikTok's under-Viewers placement) and appears once
+     the leading gift has been sent at least twice. Ties keep the gift
+     that reached the count first.
+   - Display only: no economy change, no hearts (hearts stay tap-only),
+     nothing auction-related. Original code and wording only. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function myId() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function live() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function sideHost() { var L = live(); return (L && L.active) ? (L.hostId || "") : ""; }
+
+  var S = { host: "", counts: {}, seq: 0, sig: "_" };
+
+  function reset(host) {
+    S.host = host || "";
+    S.counts = {};
+    S.seq = 0;
+    S.sig = "_";
+  }
+  function observe(o, fromId, fromName) {
+    if (!o) return 0;
+    if (o.k && o.k !== "gift") return 0;
+    var host = sideHost();
+    if (!host) return 0;
+    if (S.host !== host) reset(host);
+    if (!o.to || o.to !== host) return 0;
+    var name = String(o.g || "Gift").slice(0, 40);
+    var c = S.counts[name] || (S.counts[name] = { n: 0, ic: o.ic || "🎁", first: 0 });
+    c.n++;
+    if (!c.first) c.first = ++S.seq;
+    if (o.ic) c.ic = o.ic;
+    S.sig = "_";
+    render();
+    return c.n;
+  }
+  function top() {
+    var best = null;
+    Object.keys(S.counts).forEach(function (name) {
+      var c = S.counts[name];
+      if (!best || c.n > best.n || (c.n === best.n && c.first < best.first)) {
+        best = { name: name, n: c.n, ic: c.ic, first: c.first };
+      }
+    });
+    return best;
+  }
+
+  var prevGiftSeen = window.rpGiftSeen;
+  window.rpGiftSeen = function (o, fromId, fromName) {
+    if (prevGiftSeen) prevGiftSeen(o, fromId, fromName);
+    try { observe(o, fromId, fromName); } catch (e) { }
+  };
+
+  function ensurePill() {
+    if ($("rp613Pill")) return;
+    var vrow = $("liveViewerRow");
+    var bar = vrow && vrow.parentNode ? vrow.parentNode : null;
+    if (!bar) return;
+    var s = document.createElement("span");
+    s.id = "rp613Pill";
+    s.hidden = true;
+    bar.appendChild(s);
+  }
+  function render() {
+    ensurePill();
+    var el = $("rp613Pill"); if (!el) return;
+    var host = sideHost();
+    if (!host) { if (S.host) reset(""); el.hidden = true; return; }
+    if (S.host !== host) reset(host);
+    var t = top();
+    if (!t || t.n < 2) { el.hidden = true; S.sig = "_"; return; }
+    var sig = t.name + "|" + t.n + "|" + t.ic;
+    if (sig === S.sig) { el.hidden = false; return; }
+    S.sig = sig;
+    el.innerHTML = "🔥 Most sent: " + esc(t.ic) + " " + esc(t.name) + ' <span class="ms-n">×' + t.n + "</span>";
+    el.hidden = false;
+  }
+
+  setInterval(function () { try { render(); } catch (e) { } }, 900);
+
+  /* debug/test handle */
+  window.rp613 = { state: S, observe: observe, top: top, reset: reset };
+})();
+</script>
 </body>
 </html>
