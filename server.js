@@ -128,6 +128,7 @@ app.use(express.static(path.join(__dirname, "public")));
 // Sending itself is done separately (email/SMS provider) — this only collects.
 // ---------------------------------------------------------------------------
 app.use(express.json({ limit: "16kb" }));
+app.use(express.urlencoded({ extended: false }));
 const SUBSCRIBERS_FILE =
   process.env.SUBSCRIBERS_FILE ||
   path.join(path.dirname(PHOTO_DIR), "subscribers.json");
@@ -342,6 +343,74 @@ app.post("/api/profile-photo", upload.single("photo"), async (req, res) => {
   }
 });
 
+
+// ---------------------------------------------------------------------------
+// Social sign-in (Google / Apple). Inert until the owner sets env keys on the
+// server: GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET (free, Google Cloud) and
+// APPLE_CLIENT_ID + APPLE_CLIENT_SECRET (Apple Developer). Without keys the
+// routes bounce back with ?auth=off and the game explains + falls back to
+// email + phone sign-up. Success returns /?auth=google|apple&name=&email=.
+// ---------------------------------------------------------------------------
+function siteOrigin(req) {
+  const proto = String(req.headers["x-forwarded-proto"] || "https").split(",")[0].trim();
+  return proto + "://" + req.headers.host;
+}
+app.get("/auth/google", (req, res) => {
+  const cid = process.env.GOOGLE_CLIENT_ID;
+  if (!cid) return res.redirect("/?auth=off");
+  const ru = siteOrigin(req) + "/auth/google/callback";
+  res.redirect("https://accounts.google.com/o/oauth2/v2/auth?client_id=" + encodeURIComponent(cid) +
+    "&redirect_uri=" + encodeURIComponent(ru) + "&response_type=code&scope=" + encodeURIComponent("openid email profile") +
+    "&prompt=select_account");
+});
+app.get("/auth/google/callback", async (req, res) => {
+  try {
+    const cid = process.env.GOOGLE_CLIENT_ID, sec = process.env.GOOGLE_CLIENT_SECRET;
+    if (!cid || !sec || !req.query.code) return res.redirect("/?auth=err");
+    const ru = siteOrigin(req) + "/auth/google/callback";
+    const tokRes = await fetch("https://oauth2.googleapis.com/token", { method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ code: String(req.query.code), client_id: cid, client_secret: sec, redirect_uri: ru, grant_type: "authorization_code" }) });
+    const tok = await tokRes.json();
+    if (!tok.id_token) return res.redirect("/?auth=err");
+    const infoRes = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(tok.id_token));
+    const info = await infoRes.json();
+    if (!info || info.aud !== cid || !info.email) return res.redirect("/?auth=err");
+    res.redirect("/?auth=google&name=" + encodeURIComponent(info.name || "") + "&email=" + encodeURIComponent(info.email));
+  } catch (e) { res.redirect("/?auth=err"); }
+});
+app.get("/auth/apple", (req, res) => {
+  const cid = process.env.APPLE_CLIENT_ID;
+  if (!cid) return res.redirect("/?auth=off");
+  const ru = siteOrigin(req) + "/auth/apple/callback";
+  res.redirect("https://appleid.apple.com/auth/authorize?client_id=" + encodeURIComponent(cid) +
+    "&redirect_uri=" + encodeURIComponent(ru) + "&response_type=" + encodeURIComponent("code id_token") +
+    "&response_mode=form_post&scope=" + encodeURIComponent("name email"));
+});
+app.post("/auth/apple/callback", async (req, res) => {
+  try {
+    const cid = process.env.APPLE_CLIENT_ID;
+    const idt = (req.body || {}).id_token;
+    if (!cid || !idt) return res.redirect("/?auth=err");
+    const parts = String(idt).split(".");
+    if (parts.length !== 3) return res.redirect("/?auth=err");
+    const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+    const keysRes = await fetch("https://appleid.apple.com/auth/keys");
+    const keys = await keysRes.json();
+    const jwk = (keys.keys || []).find((k) => k.kid === header.kid);
+    if (!jwk) return res.redirect("/?auth=err");
+    const key = crypto.createPublicKey({ key: jwk, format: "jwk" });
+    const okSig = crypto.verify("RSA-SHA256", Buffer.from(parts[0] + "." + parts[1]), key, Buffer.from(parts[2], "base64url"));
+    if (!okSig) return res.redirect("/?auth=err");
+    const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    if (claims.iss !== "https://appleid.apple.com" || claims.aud !== cid || !claims.email || claims.exp * 1000 < Date.now())
+      return res.redirect("/?auth=err");
+    let name = "";
+    try { const u = JSON.parse((req.body || {}).user || "{}"); name = (((u.name || {}).firstName || "") + " " + ((u.name || {}).lastName || "")).trim(); } catch (e) {}
+    res.redirect("/?auth=apple&name=" + encodeURIComponent(name) + "&email=" + encodeURIComponent(claims.email));
+  } catch (e) { res.redirect("/?auth=err"); }
+});
+
 app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
@@ -449,6 +518,35 @@ io.on("connection", (socket) => {
     const other = players.get(String(data.withId || ""));
     if (!other || other.id === socket.id) return;
     matches.add(dmKey(socket.id, other.id));
+  });
+
+  // Live Battle (PK): thin relay between two live hosts + a live-host
+  // registry so a host can find opponents. The server only routes messages
+  // and stamps the battle end time — scoring lives on the clients, driven
+  // by the same gift events their rooms already see.
+  socket.on("battle", (data = {}) => {
+    const p = players.get(socket.id);
+    if (!p) return;
+    const t = String(data.t || "");
+    if (t === "reg") { p.live = data.on ? { name: p.name, at: Date.now() } : null; return; }
+    if (t === "who") {
+      const list = [];
+      players.forEach((pl) => { if (pl.live && pl.id !== socket.id) list.push({ id: pl.id, name: pl.live.name }); });
+      socket.emit("battle", { t: "who-list", list });
+      return;
+    }
+    const other = players.get(String(data.to || ""));
+    if (!other) { socket.emit("battle", { t: "gone" }); return; }
+    const mins = Math.min(10, Math.max(1, parseInt(data.mins, 10) || 5));
+    if (t === "invite") io.to(other.id).emit("battle", { t: "invite", from: socket.id, fromName: p.name, mins });
+    else if (t === "decline") io.to(other.id).emit("battle", { t: "decline", from: socket.id, fromName: p.name });
+    else if (t === "score") io.to(other.id).emit("battle", { t: "score", from: socket.id, pts: Math.max(0, parseInt(data.pts, 10) || 0) });
+    else if (t === "end") io.to(other.id).emit("battle", { t: "end", from: socket.id });
+    else if (t === "accept") {
+      const endsAt = Date.now() + mins * 60000;
+      io.to(other.id).emit("battle", { t: "accept", from: socket.id, fromName: p.name, endsAt });
+      socket.emit("battle", { t: "start", from: other.id, fromName: other.name, endsAt });
+    }
   });
 
   // Walkie-talkie floor: one talker per channel at a time.
