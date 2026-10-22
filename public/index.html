@@ -2337,9 +2337,12 @@
       <section class="screen" id="screen-signup">
         <div class="agegate-wrap">
           <div class="controls-card agegate-card">
-            <h2>📬 Never miss a party</h2>
-            <p class="sub">One quick sign-up and Rizz Plaza will send you reminders, special-event invites and offers — the big nights are better with a crowd, and this is how everyone hears about them.</p>
-            <div class="field">
+            <h2>📝 Create your account</h2>
+            <p class="sub">Everyone signs up with an <b>email</b> and a <b>mobile number</b> — or jump in with Google or Apple. We'll send reminders, special-event invites and offers — the big nights are better with a crowd.</p>
+            <button class="btn-social" id="btnGoogle" type="button"><span class="g-badge">G</span> Continue with Google</button>
+              <button class="btn-social" id="btnApple" type="button"><span class="a-badge"></span> Continue with Apple</button>
+              <div class="su-divider"><span>or sign up with email + phone</span></div>
+              <div class="field">
               <label for="suEmail">Email address</label>
               <input type="email" id="suEmail" autocomplete="email" placeholder="you@example.com" />
               <p class="age-note su-err" id="suEmailErr" hidden></p>
@@ -2354,6 +2357,8 @@
               <span>Text and email me reminders, special events, and offers. Msg &amp; data rates may apply. Reply STOP to opt out of texts anytime.</span>
             </label>
             <button class="btn-primary" id="btnSignupGo" style="width:100%; padding:13px;" disabled>Continue</button>
+              <button class="btn-mini" id="btnSignupSkip" type="button" style="width:100%; padding:12px; margin-top:10px;">Skip for now →</button>
+              <p class="age-note" style="text-align:center; margin-top:6px;">No account needed to look around — add an email + phone later in your Profile if you want reminders.</p>
             <p class="age-note" style="margin-top:10px;">Your email and number are only for party reminders, event invites and offers, and they're saved with your profile on this device. Unsubscribe anytime from your profile.</p>
           </div>
         </div>
@@ -7594,8 +7599,8 @@
          came from that heartbeat — converge on the same score. */
       var ENG_WIN = 10 * 60000;   // rolling window: engagement older than this counts for nothing
       var ENG_TAU = 5 * 60000;    // decay time constant inside the window
-      var ENG_W = { heart: 1, comment: 4, share: 25, follow: 30, stage: 20 };
-      var ENG_CAP = { heart: 60, comment: 20, share: 3, follow: 1, stage: 2, gift: 150 };
+      var ENG_W = { heart: 1, comment: 4, share: 25, follow: 30, stage: 20, watch: 3 };
+      var ENG_CAP = { heart: 60, comment: 20, share: 3, follow: 1, stage: 2, gift: 150, watch: 20 };
       var ENG_RISING_MIN = 120;   // engagement points a live needs to wear 🔥 Rising
       var EngLog = {};            // hostId -> [ { t, w, by, kind, c } ] weighted engagement events I've witnessed
       function engGiftWeight(cents) {
@@ -7744,8 +7749,22 @@
       }
       /* ctx: { city, state, interests, isFollowing(name),
                 affinityFor(name), giftHeatFor(hostId), engFor(entry) } */
-      function fyScore(e, ctx) {
-        var parts = { follow: 0, loc: 0, ints: 0, aff: 0, heat: 0, fresh: 0, eng: 0 };
+      var FyFirstSeen = {};   // hostId -> when this device first saw the live (test-push clock)
+        var FyRot = {};         // hostId -> { n, at } consecutive top-3 renders (diversity rotation)
+        /* Cold-start test push (TikTok-style): every live gets a strong but
+           brief ranking push in its first 10 minutes in the feed, so a new
+           host is shown to a test audience; real engagement takes over from
+           there. Decays linearly to zero at 10 minutes. */
+        function fyPushScore(e) {
+          if (!e || !e.hostId) return 0;
+          var t = FyFirstSeen[e.hostId];
+          if (!t) { t = Date.now(); FyFirstSeen[e.hostId] = t; }
+          var age = Date.now() - t;
+          if (age >= 600000) return 0;
+          return Math.round(160 * (1 - age / 600000));
+        }
+        function fyScore(e, ctx) {
+        var parts = { follow: 0, loc: 0, ints: 0, aff: 0, heat: 0, fresh: 0, eng: 0, push: 0 };
         if (!e.mine && ctx.isFollowing(e.name)) parts.follow = 1000;
         parts.loc = fyLocScore(ctx, e);
         parts.ints = fyInterestScore(ctx.interests, e);
@@ -7753,8 +7772,9 @@
         parts.heat = fyHeatScore(e, ctx.giftHeatFor(e.hostId));
         parts.fresh = fyFreshScore(e);
         parts.eng = ctx.engFor ? ctx.engFor(e) : 0; // 🔥 engagement: the algorithmic push, above raw headcount
+          parts.push = fyPushScore(e); // cold-start test push, first 10 minutes
         return {
-          total: parts.follow + parts.loc + parts.ints + parts.aff + parts.heat + parts.fresh + parts.eng,
+          total: parts.follow + parts.loc + parts.ints + parts.aff + parts.heat + parts.fresh + parts.eng + parts.push,
           parts: parts,
           personal: parts.loc + parts.ints + parts.aff + parts.fresh
         };
@@ -7762,10 +7782,43 @@
       function fyRankEntries(list, ctx) {
         var scored = list.map(function (e) {
           var r = fyScore(e, ctx);
-          e.fyScore = r.total; e.fyParts = r.parts; e.fyPersonal = r.personal; e.forYou = false; e.rising = false;
+          e.fyScore = r.total; e.fyParts = r.parts; e.fyPersonal = r.personal; e.forYou = false; e.rising = false; e.testPush = r.parts.push > 40;
           return e;
         });
-        scored.sort(function (a, b) { return ((b.mine ? 1 : 0) - (a.mine ? 1 : 0)) || (b.fyScore - a.fyScore) || (b.n - a.n) || (b.seen - a.seen); });
+        // diversity rotation: a host camped in the top 3 render after
+          // render bleeds score (up to ~30%), so fresh faces rotate in.
+          // Followed hosts and your own live are never rotated down.
+          scored.forEach(function (e) {
+            if (e.mine || (e.fyParts && e.fyParts.follow > 0)) return;
+            var r0 = FyRot[e.hostId];
+            if (r0 && r0.n >= 2) e.fyScore -= e.fyScore * 0.06 * Math.min(r0.n - 1, 5);
+          });
+          scored.sort(function (a, b) { return ((b.mine ? 1 : 0) - (a.mine ? 1 : 0)) || (b.fyScore - a.fyScore) || (b.n - a.n) || (b.seen - a.seen); });
+          (function () {
+            var nowR = Date.now(), present = {};
+            scored.forEach(function (e) { present[e.hostId] = true; });
+            Object.keys(FyRot).forEach(function (k) { if (!present[k]) delete FyRot[k]; });
+            Object.keys(FyFirstSeen).forEach(function (k) { if (!present[k]) delete FyFirstSeen[k]; });
+            var top3 = scored.filter(function (e) { return !e.mine; }).slice(0, 3);
+            scored.forEach(function (e) {
+              if (e.mine) return;
+              var r0 = FyRot[e.hostId] || (FyRot[e.hostId] = { n: 0, at: 0 });
+              var inTop = top3.indexOf(e) >= 0;
+              if (inTop && nowR - r0.at > 20000) { r0.n++; r0.at = nowR; }
+              else if (!inTop && r0.n > 0) r0.n--;
+            });
+            // a leader parked on top for 4+ counted renders while a close
+            // challenger waits: swap them once so the crowd sees the other
+            var a0 = scored.filter(function (e) { return !e.mine; });
+            if (a0.length >= 2 && !(a0[0].fyParts && a0[0].fyParts.follow > 0) && !(a0[1].fyParts && a0[1].fyParts.follow > 0)) {
+              var lead = FyRot[a0[0].hostId];
+              if (lead && lead.n >= 4 && a0[1].fyScore >= a0[0].fyScore * 0.8) {
+                var i0 = scored.indexOf(a0[0]), i1 = scored.indexOf(a0[1]);
+                scored[i0] = a0[1]; scored[i1] = a0[0];
+                lead.n = 1;
+              }
+            }
+          })();
         var picks = 0;
         scored.forEach(function (e) {
           if (e.mine || picks >= 3) return;
@@ -7953,8 +8006,9 @@
         var folBadge = (!e.mine && isFollowingName(e.name)) ? ' <span class="lnr-follow">⭐ Following</span>' : "";
         var fyBadge = (!e.mine && e.forYou) ? ' <span class="lnr-fy">✨ For You</span>' : "";
         var riseBadge = (!e.mine && e.rising) ? ' <span class="lnr-rising">🔥 Rising</span>' : "";
+        var pushBadge = (!e.mine && e.testPush) ? ' <span class="lnr-fy">🆕 New</span>' : "";
         return '<button class="live-now-row" data-lnroom="' + escHtml(e.room) + '">' + av +
-          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + fyBadge + riseBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i></span>' +
+          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + fyBadge + riseBadge + pushBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i></span>' +
           '<span class="lnr-n">👁 ' + (e.n || 1) + " watching</span></button>";
       }
       /* Tap a 🔴 Live Now / lobby entry: join that host's live room. */
@@ -8856,7 +8910,7 @@
             aucSendInfo(ca);
           }
           if (typeof Auc !== "undefined") Auc.listings.forEach(function (L) {
-            if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty });
+            if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0 });
           });
           startLiveHeartbeat();
           addChatSystem("🔴 You're LIVE — this is your own live room, and viewers join you from 🔴 Live Now!");
@@ -8894,7 +8948,7 @@
           aucSendInfo(ca2);
         }
         if (seq % 4 === 1 && typeof Auc !== "undefined") Auc.listings.forEach(function (L) {
-          if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty });
+          if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0 });
         });
         var chunks = Math.max(1, Math.ceil(Live.stage.length / LIVE_STAGE_CHUNK));
         for (var i = 0; i < chunks; i++) {
@@ -9683,6 +9737,7 @@
             break;
           }
           case "live-ping": {
+            if (Live.active && Live.hostId) engRecord(Live.hostId, fromId, "watch", 1);
             if (iAmHost() && Live.active && Date.now() - Live.lastStateAt > 3000) liveSendState();
             break;
           }
@@ -9930,7 +9985,7 @@
           '· <b>Popular hosts:</b> $1,000–5,000+/month — big rooms, big gift moments<br>' +
           'There\u2019s no guaranteed paycheck: earnings grow with your audience, your schedule, and how much your fans love the show.</p>' +
           '<p><b>✨ Picked for you.</b> Your 🔴 Live Now list is ranked just for you, right on your device: people you follow first, then hosts near you and into the things you love — and brand-new hosts get a discovery boost, so everybody gets found and nobody broadcasts to an empty room. The top picks wear an <b>✨ For You</b> badge.</p>' +
-          '<p>🔥 Streams with lots of hearts, gifts, comments and shares get pushed to more viewers.</p>' +
+          '<p>🔥 Streams with lots of hearts, gifts, comments and shares get pushed to more viewers — and the longer people stay and watch, the higher it climbs. Every new live also gets a fair first push so new hosts get seen.</p>' +
           '<p>🎉 ' + holidayEarnLine() + '</p>' +
           '<p><b>🚫 Keep it clean — and keep earning.</b> Nudity and sexual content are <b>banned</b> on live: violations end your live immediately and can get you permanently banned. Creators here earn by being entertaining, not explicit.</p>' +
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;"><button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnEarnGoLive">⭐ Take me to the Live Stage</button><button class="btn-mini" id="btnEarnBalance">💰 My earnings &amp; cash out</button><button class="btn-mini" id="btnEarnShop">🎁 Gift shop &amp; charms</button><button class="btn-mini" id="btnEarnMoments">📸 Moments feed</button><button class="btn-mini" id="btnEarnAuctions">🔨 Live Auctions</button><button class="btn-mini" data-act="close2">Keep partying</button></div></div>'
@@ -10005,7 +10060,7 @@
           me.ageLocked = true;
         }
         startGuide();
-        if (!contactOnFile()) { prefillSignup(); show("screen-signup"); }
+        if (!contactOnFile() && !(window.rpSkipSignup && window.rpSkipSignup())) { prefillSignup(); show("screen-signup"); }
         else enterProfileSetup();
         if (age >= 18) toast("You're 18+ — welcome in! Next up: your photo profile. 👇");
         else openTeenGateAll("The whole party");
@@ -10611,20 +10666,26 @@
         { id: "rose", name: "Rose", icon: "🌹", cents: 5, tier: "penny", fx: "float" },
         { id: "coffee", name: "Coffee", icon: "☕", cents: 10, tier: "penny", fx: "float" },
         { id: "icecream", name: "Ice Cream", icon: "🍦", cents: 25, tier: "small", fx: "float" },
+        { id: "donut", name: "Donut", icon: "🍩", cents: 30, tier: "small", fx: "float" },
         { id: "clap", name: "Clap", icon: "👏", cents: 50, tier: "small", fx: "float" },
+        { id: "fingerheart", name: "Finger Heart", icon: "🫰", cents: 99, tier: "small", fx: "float" },
         { id: "kiss", name: "Kiss", icon: "💋", cents: 100, tier: "small", fx: "float" },
         { id: "fireworks", name: "Fireworks", icon: "🎆", cents: 200, tier: "medium", fx: "burst" },
         { id: "motorcycle", name: "Motorcycle", icon: "🏍️", cents: 300, tier: "medium", fx: "across" },
         { id: "sportscar", name: "Sports Car", icon: "🏎️", cents: 500, tier: "medium", fx: "across" },
+        { id: "loveballoon", name: "Love Balloon", icon: "🎈", cents: 600, tier: "medium", fx: "rise" },
         { id: "airplane", name: "Airplane", icon: "✈️", cents: 800, tier: "medium", fx: "across" },
+        { id: "moneygun", name: "Money Gun", icon: "💸", cents: 999, tier: "medium", fx: "across" },
         { id: "castle", name: "Castle", icon: "🏰", cents: 1000, tier: "medium", fx: "rise" },
         { id: "volcano", name: "Volcano", icon: "🌋", cents: 2000, tier: "big", fx: "volcano" },
         { id: "lion", name: "Golden Lion", icon: "🦁", cents: 2500, tier: "big", fx: "lion" },
         { id: "dragon", name: "Dragon", icon: "🐉", cents: 3000, tier: "big", fx: "across" },
         { id: "meteor", name: "Meteor Shower", icon: "☄️", cents: 4000, tier: "big", fx: "meteor" },
+        { id: "whale", name: "Whale Dive", icon: "🐋", cents: 4500, tier: "big", fx: "burst" },
         { id: "galaxy", name: "Galaxy", icon: "🌌", cents: 5000, tier: "big", fx: "galaxy" },
         { id: "diamonds", name: "Diamond Shower", icon: "💎", cents: 6000, tier: "big", fx: "rain" },
         { id: "rocket", name: "Rocket", icon: "🚀", cents: 7500, tier: "big", fx: "launch" },
+        { id: "ferriswheel", name: "Ferris Wheel", icon: "🎡", cents: 9900, tier: "big", fx: "rise" },
         { id: "jet", name: "Private Jet", icon: "🛩️", cents: 10000, tier: "prestige", fx: "across" },
         { id: "yacht", name: "Golden Yacht", icon: "🛥️", cents: 15000, tier: "prestige", fx: "across" },
         { id: "phoenix", name: "Phoenix Rising", icon: "🦅", cents: 25000, tier: "prestige", fx: "phoenix" },
@@ -10714,6 +10775,7 @@
         }
       }
       function giftObserved(o, fromId, fromName) {
+        try { if (window.rpGiftSeen) window.rpGiftSeen(o, fromId, fromName); } catch (e) { }
         if (!o || !o.to || typeof o.v !== "number") return;
         var bonus = Math.round(o.v * giftBonusNow());
         var map = giftEarnedMap(); map[o.to] = (map[o.to] || 0) + o.v + bonus;
@@ -10802,7 +10864,26 @@
         Online.socket.emit("chat", { text: t });
         return true;
       }
-      function statBump(kind, id, name) {
+      window.rpProtoSend = protoSend;
+        window.rpSocket = function () { try { return Online.socket; } catch (e) { return null; } };
+        window.rpMyId = function () { try { return Online.myId; } catch (e) { return ""; } };
+        window.rpLiveInvite = liveInvite;
+        window.rpSkipSignup = function () { try { return !!me.contactSkipped; } catch (e) { return false; } };
+        window.rpHasContact = function () { try { return contactOnFile(); } catch (e) { return false; } };
+        window.rpDoSkipSignup = function () { try { me.contactSkipped = true; saveProfile(); enterProfileSetup(); } catch (e) { } };
+        window.rpOpenSignup = function () { try { prefillSignup(); show("screen-signup"); } catch (e) { } };
+        window.rpStageCount = function () { try { return Live.stage.length; } catch (e) { return 0; } };
+        window.rpRequests = function () { try { return Object.keys(Live.requests || {}).map(function (id) { return { id: id, name: Live.requests[id] }; }); } catch (e) { return []; } };
+        window.rpViewers = function () { try { return Object.keys(Online.players).filter(function (id) { return Live.stage.indexOf(id) < 0 && id !== Online.myId; }).map(function (id) { return { id: id, name: liveName(id) }; }); } catch (e) { return []; } };
+        window.rpLive = function () { try { return { active: !!(typeof Live !== "undefined" && Live.active), hostId: (typeof Live !== "undefined" ? Live.hostId : ""), mine: (typeof Live !== "undefined" && Live.hostId === Online.myId) }; } catch (e) { return null; } };
+        window.rpDirectory = function () { try { return Object.keys(Live.directory || {}).map(function (id) { var e = Live.directory[id]; return { hostId: id, room: e.room, name: e.name || "A host", title: e.title || "", topic: e.topic || "", n: e.n || 1, photo: e.photo || null, mine: id === Online.myId, seen: e.seen || 0 }; }); } catch (e) { return []; } };
+        window.rpJoinLive = function (room) { try { joinOnlineRoomFromHome(room); return true; } catch (e) { return false; } };
+        window.rpMyName = function () { try { return Online.name || me.name || "You"; } catch (e) { return "You"; } };
+        window.rpRoom = function () { try { return Online.room || ""; } catch (e) { return ""; } };
+        window.rpOnlineOn = function () { try { return Online.state === "on"; } catch (e) { return false; } };
+        window.rpAuc = function () { try { return Auc; } catch (e) { return null; } };
+        window.rpOpenAuctions = function () { try { openAuctions(); return true; } catch (e) { return false; } };
+        function statBump(kind, id, name) {
         if (!id) return;
         if (name) Party.names[id] = name;
         Party.stats[kind][id] = (Party.stats[kind][id] || 0) + 1;
@@ -10851,8 +10932,10 @@
           if (o.to === Online.myId && fromId && fromId !== Online.myId) declareMatch(fromId, fromName);
         }
         else if (o.k === "gift") giftObserved(o, fromId, fromName);
+        else if (o.k === "bat" || o.k === "bat-end") { try { if (window.rpBatProto) window.rpBatProto(o); } catch (e) { } }
         else if (typeof o.k === "string" && o.k.indexOf("live-") === 0) liveProto(o, fromId, fromName);
         else if (typeof o.k === "string" && o.k.indexOf("auc-") === 0) aucProto(o, fromId, fromName);
+        else if (typeof o.k === "string" && o.k.indexOf("shop-") === 0) { try { if (window.rpShopProto) window.rpShopProto(o, fromId, fromName); } catch (e) { } }
       }
       /* ---------- reactions & big moments ---------- */
       function emojiBurst(emoji, n) {
@@ -11387,6 +11470,7 @@
         return ov;
       }
       function playGiftFx(g, fromName, toName) {
+        try { if (window.rpGiftFx && window.rpGiftFx(g, fromName, toName)) return; } catch (e) { }
         if (!g) return;
         var tier = g.tier || "small";
         if ((tier === "big" || tier === "prestige") && !giftFxReduced()) {
@@ -11969,7 +12053,7 @@
       var AUC_CONDS = ["Brand New", "Like New", "Lightly Used", "Used", "For Parts"];
       var Auc = { cur: null, draftPhoto: null, draftTitle: "", draftShip: "", draftStart: "", draftDur: "120", draftBid: "", timer: null, pendingWin: null, results: [],
         listings: [], lidSeq: 0, offers: {}, offerSeq: 0, editingLid: "", lastNews: "",
-        draftPhotos: [], draftCat: "0", draftDesc: "", draftCond: "0", draftQty: "1", draftFmt: "auc", draftShipCost: "", draftSd: false };
+        draftPhotos: [], draftCat: "0", draftDesc: "", draftCond: "0", draftQty: "1", draftFmt: "auc", draftShipCost: "", draftSd: false, draftOStart: "", draftBundle: false };
       function aucOnline() { return Online.state === "on"; }
       function aucMine(a) { return !!a && a.hostId === Online.myId; }
       function aucMinNext(a) { return a.high > 0 ? a.high + AUC_MIN_STEP : a.start; }
@@ -11986,6 +12070,7 @@
         if (typeof a.cond === "number") b += '<span class="auc-badge">' + escHtml(aucCondName(a.cond)) + '</span>';
         if (typeof a.qty === "number" && a.qty > 1) b += '<span class="auc-badge">×' + a.qty + ' available</span>';
         if (a.sd) b += '<span class="auc-badge" style="border-color:#e0245e; color:#ff7d9c;">⚡ SUDDEN DEATH</span>';
+        if (a.bundle) b += '<span class="auc-badge">📦 Bundle shipping</span>';
         return b ? '<div class="auc-badges">' + b + '</div>' : '';
       }
       function aucFindListing(lid) { for (var i = 0; i < Auc.listings.length; i++) if (Auc.listings[i].lid === lid) return Auc.listings[i]; return null; }
@@ -12024,13 +12109,13 @@
         if (typeof Live === "undefined" || !Live.active || !Live.hostId) return [];
         if (Live.hostId === Online.myId) {
           return Auc.listings.filter(function (L) { return L.pinned && L.offerId && L.qty > 0; }).map(function (L) {
-            return { id: L.offerId, title: L.title, price: L.price, shipCents: L.shipCents || 0, mine: true, photo: (L.photos && L.photos[0]) || null };
+            return { id: L.offerId, title: L.title, price: L.price, shipCents: L.shipCents || 0, mine: true, photo: (L.photos && L.photos[0]) || null, fmt: L.fmt || "buy", oprice: L.oprice || 0, bundle: !!L.bundle, lid: L.lid };
           });
         }
         return Object.keys(Auc.offers).map(function (id) { return Auc.offers[id]; }).filter(function (o) {
           return o && o.hostId === Live.hostId && o.qty > 0;
         }).map(function (o) {
-          return { id: o.id, title: o.title, price: o.price, shipCents: o.shipCents || 0, mine: false, photo: null };
+          return { id: o.id, title: o.title, price: o.price, shipCents: o.shipCents || 0, mine: false, photo: null, fmt: o.fmt || "buy", oprice: o.oprice || 0, bundle: !!o.bundle, lid: o.lid || "" };
         });
       }
       function renderLiveAucPin() {
@@ -12039,6 +12124,7 @@
         var show = false, html = "";
         if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) {
           var a = livePinAuction();
+          var ea = (!a && Auc.cur && Auc.cur.ended && Auc.cur.hostId === Live.hostId && Auc.cur.endedAt && (Date.now() - Auc.cur.endedAt) < 600000) ? Auc.cur : null;
           if (a) {
             show = true;
             var mine = aucMine(a);
@@ -12052,15 +12138,22 @@
               ? '<span class="ap-note">🎤 Your auction — bids land here live</span>'
               : (iWin
                 ? '<button type="button" class="ap-bid winning" disabled>🎉 Winning</button>'
-                : '<button type="button" class="ap-bid" id="lvAucBid">🔨 BID ' + moneyLabel(min) + '</button>');
-            html += '<div class="ap-head">' + thumb + '<span class="ap-tag">📌 LIVE AUCTION</span><span class="ap-title">' + escHtml(a.title) + '</span><span class="auc-clock" data-auc-clock>⏱ ' + aucClock(a.endsAt - Date.now()) + '</span></div>' +
-              '<div class="ap-bidrow">' + bidLine + act + '</div>';
+                : '<span class="ap-bidwrap"><button type="button" class="ap-bid wn-ybid" id="lvAucBid">Bid: ' + moneyLabel(min) + '</button><button type="button" class="ap-custom" id="lvAucCustom">Custom</button></span>');
+            html += (a.high > 0 ? '<div class="ap-winning"><span class="ap-wav">' + escHtml((a.highName || "?").charAt(0).toUpperCase()) + '</span><span>' + escHtml(a.highName) + ' is Winning!</span></div>' : '') +
+              '<div class="ap-head">' + thumb + '<span class="ap-tag">📌 LIVE AUCTION</span><span class="ap-title">' + escHtml(a.title) + '</span><span class="auc-clock" data-auc-clock>⏱ ' + aucClock(a.endsAt - Date.now()) + '</span></div>' +
+              '<div class="ap-bidrow">' + bidLine + act + '</div>' +
+              '<div class="ap-ticker" data-wn-ticker></div>';
+          }
+          if (ea) {
+            show = true;
+            html += '<div class="ap-head"><span class="ap-thumbph" aria-hidden="true">🔨</span><span class="ap-tag" style="background:#3c3c4d;">✓ ENDED</span><span class="ap-title">' + escHtml(ea.title) + '</span></div>' +
+              '<div class="ap-bidrow"><span class="ap-who">' + (ea.high > 0 ? '🔨 Sold to ' + escHtml(ea.highName) + ' for ' + moneyLabel(ea.high) : 'Ended — no bids this time') + '</span><button type="button" class="ap-bid wn-await" disabled>Awaiting next item</button></div>';
           }
           livePinOffers().slice(0, 2).forEach(function (o) {
             show = true;
             var oth = o.photo ? '<img class="ap-thumb" src="' + o.photo + '" alt=""/>' : '<span class="ap-thumbph" aria-hidden="true">🛍️</span>';
-            html += '<div class="ap-offer">' + oth + '<span class="t">📌 ' + escHtml(o.title) + ' · ' + moneyLabel(o.price) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : '') + '</span>' +
-              (o.mine ? '<span class="ap-note">Pinned by you</span>' : '<button type="button" class="ap-buy" data-lvbuy="' + escHtml(o.id) + '">Buy ' + moneyLabel(o.price + (o.shipCents || 0)) + '</button>') + '</div>';
+            html += '<div class="ap-offer">' + oth + '<span class="t">' + (o.fmt === "give" ? '🎁 ' : o.fmt === "flash" ? '⚡ ' : '📌 ') + escHtml(o.title) + ' · ' + (o.fmt === "give" ? 'FREE giveaway' : (o.fmt === "flash" && o.oprice > o.price ? '<s>' + moneyLabel(o.oprice) + '</s> ' : '') + moneyLabel(o.price)) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : '') + (o.bundle ? ' · 📦 bundle' : '') + '</span>' +
+              (o.mine ? '<span class="ap-note">Pinned by you</span>' : (o.fmt === "give" ? '<button type="button" class="ap-buy" data-lvgive="' + escHtml(o.id) + '" data-lid="' + escHtml(o.lid || "") + '">🎁 Enter</button>' : '<button type="button" class="ap-buy" data-lvbuy="' + escHtml(o.id) + '">Buy ' + moneyLabel(o.price + (o.shipCents || 0)) + '</button>')) + '</div>';
           });
           if (show) html += '<div class="ap-openrow"><button type="button" class="ap-open" id="lvAucOpen">Open the full auction →</button></div>';
         }
@@ -12070,10 +12163,33 @@
         pin.innerHTML = html;
         var bb = $("lvAucBid");
         if (bb) bb.addEventListener("click", function () { var a2 = livePinAuction(); if (a2) aucPlaceBid(aucMinNext(a2)); });
+        var cb = $("lvAucCustom");
+        if (cb) cb.addEventListener("click", function () {
+          var a3 = livePinAuction(); if (!a3) return;
+          var mn = aucMinNext(a3);
+          openSheet(
+            '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+            '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">🔨 Custom bid</h3>' +
+            '<p style="text-align:center;">Current bid: <b>' + (a3.high > 0 ? moneyLabel(a3.high) : moneyLabel(a3.start) + ' (opening)') + '</b> — your bid must be at least <b>' + moneyLabel(mn) + '</b>.</p>' +
+            '<div class="field"><label for="lvCustomAmt">Your bid (USD)</label><input class="online-input-full" id="lvCustomAmt" type="number" min="' + (mn / 100) + '" step="1" inputmode="numeric" placeholder="' + (mn / 100) + '"/></div>' +
+            '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="lvCustomGo" type="button">🔨 Place bid</button><button class="btn-mini" data-act="close2">Cancel</button></div></div>'
+          );
+          $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
+          $("sheet").querySelector("[data-act=close2]").addEventListener("click", function () { closeSheet(); });
+          $("lvCustomGo").addEventListener("click", function () {
+            var v = parseFloat(($("lvCustomAmt") && $("lvCustomAmt").value) || "");
+            if (!(v > 0)) { toast("Type your bid amount first."); return; }
+            closeSheet();
+            aucPlaceBid(Math.round(v * 100));
+          });
+        });
         var op = $("lvAucOpen");
         if (op) op.addEventListener("click", function () { openAuctions(); });
         pin.querySelectorAll("[data-lvbuy]").forEach(function (b) {
           b.addEventListener("click", function () { aucBuyOffer(b.getAttribute("data-lvbuy")); });
+        });
+        pin.querySelectorAll("[data-lvgive]").forEach(function (b) {
+          b.addEventListener("click", function () { if (window.rpWnEnterGive) window.rpWnEnterGive(b.getAttribute("data-lvgive"), b.getAttribute("data-lid") || ""); });
         });
       }
       function openAuctions() {
@@ -12213,13 +12329,17 @@
       function aucOffersHtml() {
         var ids = Object.keys(Auc.offers).filter(function (id) { var o = Auc.offers[id]; return o && o.hostId !== Online.myId && o.qty > 0; });
         if (!ids.length) return "";
-        return '<div class="auc-card"><div class="auc-body"><h3 style="font-size:17px;">🛍️ For sale in this room — Buy Now</h3>' +
+        return '<div class="auc-card"><div class="auc-body"><h3 style="font-size:17px;">🛍️ For sale in this room</h3>' +
           ids.map(function (id) {
             var o = Auc.offers[id];
-            return '<div class="auc-list-row"><span class="thumb-ph" aria-hidden="true">🛍️</span><div class="meta"><b>' + escHtml(o.title) + '</b>' +
+            var wnIc = o.fmt === "give" ? "🎁" : o.fmt === "flash" ? "⚡" : "🛍️";
+            var wnPrice = o.fmt === "give" ? 'FREE — giveaway, tap Enter to join' : (o.fmt === "flash" && o.oprice > o.price ? '<s>' + moneyLabel(o.oprice) + '</s> ' : '') + moneyLabel(o.price) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : ' · free shipping') + (o.bundle ? ' · 📦 bundle shipping' : '');
+            return '<div class="auc-list-row"><span class="thumb-ph" aria-hidden="true">' + wnIc + '</span><div class="meta"><b>' + escHtml(o.title) + '</b>' +
               '<span>Sold by ' + escHtml(o.hostName) + ' · ' + escHtml(aucCatName(o.cat)) + ' · ' + escHtml(aucCondName(o.cond)) + (o.qty > 1 ? ' · ×' + o.qty + ' available' : '') + '</span>' +
-              '<span>' + moneyLabel(o.price) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : ' · free shipping') + '</span></div>' +
-              '<button type="button" class="auc-shop-buy" data-buyoffer="' + escHtml(o.id) + '">Buy ' + moneyLabel(o.price + (o.shipCents || 0)) + '</button></div>';
+              '<span>' + wnPrice + '</span></div>' +
+              (o.fmt === "give"
+                ? '<button type="button" class="auc-shop-buy" data-giveoffer="' + escHtml(o.id) + '" data-lid="' + escHtml(o.lid || "") + '">🎁 Enter</button></div>'
+                : '<button type="button" class="auc-shop-buy" data-buyoffer="' + escHtml(o.id) + '">Buy ' + moneyLabel(o.price + (o.shipCents || 0)) + '</button></div>');
           }).join("") +
           '<p class="auc-fine">Buy Now pays the seller through Stripe right away — they ship once you\u2019re paid up. All sales are final.</p></div></div>';
       }
@@ -12232,10 +12352,10 @@
           else if (L.pinned) { st = "📌 PINNED FOR SALE"; stCls = "pinned"; }
           else if (L.qty <= 0) { st = "SOLD OUT"; stCls = "out"; }
           else { st = "READY"; stCls = "ready"; }
-          var priceLine = L.fmt === "buy" ? moneyLabel(L.price) + " Buy Now" : "Starts at " + moneyLabel(L.price) + " · " + aucClock(L.dur * 1000) + (L.sd ? " · ⚡ sudden death" : "");
+          var priceLine = L.fmt === "buy" ? moneyLabel(L.price) + " Buy Now" : L.fmt === "flash" ? "⚡ " + moneyLabel(L.price) + (L.oprice > L.price ? " (was " + moneyLabel(L.oprice) + ")" : "") + " Flash Sale" : L.fmt === "give" ? "🎁 Giveaway — free entry" : "Starts at " + moneyLabel(L.price) + " · " + aucClock(L.dur * 1000) + (L.sd ? " · ⚡ sudden death" : "");
           var acts = "";
           if (L.qty > 0) {
-            if (L.fmt === "buy") acts += L.pinned
+            if (L.fmt !== "auc") acts += L.pinned
               ? '<button type="button" class="btn-mini" data-lunpin="' + L.lid + '">Unpin</button>'
               : '<button type="button" class="btn-mini go" data-lpin="' + L.lid + '">📌 Pin for sale</button>';
             else if (!(Auc.cur && !Auc.cur.ended)) acts += '<button type="button" class="btn-mini go" data-lrun="' + L.lid + '">🔨 Start auction</button>';
@@ -12246,7 +12366,7 @@
             (L.photos && L.photos[0] ? '<img class="thumb" src="' + L.photos[0] + '" alt=""/>' : '<span class="thumb-ph" aria-hidden="true">🔨</span>') +
             '<div class="meta"><b>' + escHtml(L.title) + ' <span class="auc-st ' + stCls + '">' + st + '</span></b>' +
             '<span>' + escHtml(aucCatName(L.cat)) + ' · ' + escHtml(aucCondName(L.cond)) + ' · ×' + L.qty + ' in stock</span>' +
-            '<span>' + priceLine + ' · ' + (L.shipCents > 0 ? "+" + moneyLabel(L.shipCents) + " shipping" : "free shipping") + '</span>' +
+            '<span>' + priceLine + ' · ' + (L.shipCents > 0 ? "+" + moneyLabel(L.shipCents) + " shipping" : "free shipping") + (L.bundle ? " · 📦 bundle shipping" : "") + '</span>' +
             '<div class="acts">' + acts + '</div></div></div>';
         }).join("");
         return '<div class="auc-card" id="aucListingsCard"><div class="auc-body"><h3 style="font-size:17px;">📦 My listings</h3>' +
@@ -12268,7 +12388,8 @@
           return '<span class="ph"><img src="' + p + '" alt="Item photo ' + (i + 1) + '"/>' + (i === 0 ? '<span class="cover">COVER</span>' : '') + '<button type="button" class="rm" data-rmphoto="' + i + '" aria-label="Remove photo">✕</button></span>';
         }).join("") +
           (Auc.draftPhotos.length < 4 ? '<button type="button" class="addph" id="aucPickPhoto"><span>＋</span>Photo</button>' : '') + '</div>';
-        var isBuy = Auc.draftFmt === "buy";
+        var wnFmt = Auc.draftFmt, wnFlash = wnFmt === "flash", wnGive = wnFmt === "give";
+        var isBuy = wnFmt !== "auc";
         return '<div class="auc-card" id="aucComposer"><div class="auc-body"><h3>' + (Auc.editingLid ? "✏️ Edit listing" : "🔨 Sell an item — create a listing") + '</h3>' +
           '<p style="margin:0 0 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px;">The full listing, the way live sellers do it: photos, category, condition, quantity and shipping up front — then run it as a live auction or pin it at a Buy Now price. One auction at a time per room.</p>' +
           '<label style="display:block; font-weight:800; font-size:13px; margin-bottom:6px;">Photos · up to 4 (the first is the cover)</label>' + photos +
@@ -12278,10 +12399,12 @@
           '<div class="field"><label for="aucCond">Condition</label><select id="aucCond">' + condOpts + '</select></div></div>' +
           '<div class="field"><label for="aucDesc">Description</label><textarea id="aucDesc" rows="3" maxlength="140" placeholder="Size, brand, flaws, what\u2019s in the box — the details buyers ask about" style="width:100%; box-sizing:border-box; border-radius:12px; border:1.5px solid var(--line); background:var(--chip); color:var(--ink); padding:10px 12px; font:inherit; font-size:15px; resize:vertical;">' + escHtml(Auc.draftDesc) + '</textarea></div>' +
           '<label style="display:block; font-weight:800; font-size:13px; margin-bottom:6px;">How are you selling it?</label>' +
-          '<div class="auc-fmt"><button type="button" id="aucFmtAuc" class="' + (isBuy ? "" : "on") + '">🔨 Live auction</button><button type="button" id="aucFmtBuy" class="' + (isBuy ? "on" : "") + '">🛍️ Buy Now</button></div>' +
+          '<div class="auc-fmt" style="flex-wrap:wrap;"><button type="button" id="aucFmtAuc" class="' + (wnFmt === "auc" ? "on" : "") + '">🔨 Live auction</button><button type="button" id="aucFmtBuy" class="' + (wnFmt === "buy" ? "on" : "") + '">🛍️ Buy Now</button><button type="button" id="aucFmtFlash" class="' + (wnFlash ? "on" : "") + '">⚡ Flash Sale</button><button type="button" id="aucFmtGive" class="' + (wnGive ? "on" : "") + '">🎁 Giveaway</button></div>' +
           '<div class="auc-2col">' +
-          '<div class="field"><label for="aucStart">' + (isBuy ? "Buy Now price (USD)" : "Starting bid (USD)") + '</label><input class="online-input-full" id="aucStart" type="number" min="1" step="1" inputmode="numeric" placeholder="10" value="' + escHtml(Auc.draftStart) + '"/></div>' +
+          '<div class="field"><label for="aucStart">' + (wnGive ? "Prize value (USD — entry is free)" : wnFlash ? "Sale price (USD)" : isBuy ? "Buy Now price (USD)" : "Starting bid (USD)") + '</label><input class="online-input-full" id="aucStart" type="number" min="1" step="1" inputmode="numeric" placeholder="10" value="' + escHtml(Auc.draftStart) + '"/></div>' +
           '<div class="field"><label for="aucQty">Quantity</label><input class="online-input-full" id="aucQty" type="number" min="1" max="99" step="1" inputmode="numeric" value="' + escHtml(Auc.draftQty || "1") + '"/></div></div>' +
+          (wnFlash ? '<div class="field"><label for="aucOStart">Original price (USD) — shown struck through</label><input class="online-input-full" id="aucOStart" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 48" value="' + escHtml(Auc.draftOStart) + '"/></div>' : '') +
+          '<label class="auc-sd"><input type="checkbox" id="aucBundle"' + (Auc.draftBundle ? " checked" : "") + '/><span>📦 Bundle shipping<small>Bundle shipping: win more items in this show and they ship together — one box, one trip.</small></span></label>' +
           (isBuy ? '' :
             '<div class="field"><label for="aucDur">Auction duration</label><select id="aucDur">' + durOpts + '</select></div>' +
             '<label class="auc-sd"><input type="checkbox" id="aucSd"' + (Auc.draftSd ? " checked" : "") + '/><span>⚡ Sudden Death<small>The clock never extends — a late bid doesn\u2019t add time, so the last bid standing when it hits zero wins it.</small></span></label>') +
@@ -12289,7 +12412,9 @@
           '<div class="field"><label for="aucShipCost">Shipping charged to buyer (USD)</label><input class="online-input-full" id="aucShipCost" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 = free shipping" value="' + escHtml(Auc.draftShipCost) + '"/></div>' +
           '<div class="field"><label for="aucShip">Shipping note (optional)</label><input id="aucShip" type="text" maxlength="60" placeholder="e.g. Ships in 2 days, US only" value="' + escHtml(Auc.draftShip) + '" autocomplete="off"/></div></div>' +
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
-          (isBuy
+          (wnGive
+            ? '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="aucStartBtn" type="button">🎁 Pin the giveaway now</button>'
+            : isBuy
             ? '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="aucStartBtn" type="button">📌 Pin it for sale now</button>'
             : '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="aucStartBtn" type="button">🔨 Start the auction now</button>') +
           '<button class="btn-mini" id="aucSaveBtn" type="button">' + (Auc.editingLid ? "💾 Save changes" : "💾 Save to my listings") + '</button>' +
@@ -12307,7 +12432,8 @@
         var dur = parseInt(($("aucDur") && $("aucDur").value) || Auc.draftDur || "120", 10);
         if (!title) { toast("Give your item a title first!"); return null; }
         if (!Auc.draftPhotos.length) { toast("Add at least one photo — buyers bid on what they can see!"); return null; }
-        if (!(priceD >= 1)) { toast(Auc.draftFmt === "buy" ? "Set a Buy Now price of at least $1." : "Set a starting bid of at least $1."); return null; }
+        if (Auc.draftFmt === "give") { if (!(priceD >= 0)) priceD = 0; }
+        else if (!(priceD >= 1)) { toast(Auc.draftFmt === "auc" ? "Set a starting bid of at least $1." : "Set a price of at least $1."); return null; }
         if (!(shipD >= 0)) shipD = 0;
         if (!(qty >= 1)) qty = 1; if (qty > 99) qty = 99;
         if ([30, 60, 120, 180, 300, 600].indexOf(dur) < 0) dur = 120;
@@ -12316,8 +12442,8 @@
           photos: Auc.draftPhotos.slice(), title: title,
           cat: parseInt(Auc.draftCat, 10) || 0, cond: parseInt(Auc.draftCond, 10) || 0,
           desc: (($("aucDesc") && $("aucDesc").value) || "").trim().slice(0, 140),
-          fmt: Auc.draftFmt === "buy" ? "buy" : "auc",
-          price: Math.round(priceD * 100), shipCents: Math.round(shipD * 100),
+          fmt: ["buy", "flash", "give"].indexOf(Auc.draftFmt) >= 0 ? Auc.draftFmt : "auc",
+          price: Math.round(priceD * 100), oprice: Math.round((parseFloat(($("aucOStart") && $("aucOStart").value) || "0") || 0) * 100), bundle: !!($("aucBundle") && $("aucBundle").checked), shipCents: Math.round(shipD * 100),
           ship: (($("aucShip") && $("aucShip").value) || "").trim(),
           qty: qty, dur: dur, sd: !!($("aucSd") && $("aucSd").checked), pinned: false
         };
@@ -12325,7 +12451,7 @@
       function aucResetComposer() {
         Auc.editingLid = ""; Auc.draftPhotos = []; Auc.draftPhoto = null;
         Auc.draftTitle = ""; Auc.draftDesc = ""; Auc.draftShip = ""; Auc.draftStart = "";
-        Auc.draftQty = "1"; Auc.draftShipCost = ""; Auc.draftSd = false; Auc.draftBid = "";
+        Auc.draftQty = "1"; Auc.draftShipCost = ""; Auc.draftSd = false; Auc.draftBid = ""; Auc.draftOStart = ""; Auc.draftBundle = false;
       }
       function aucLoadComposer(L) {
         Auc.editingLid = L.lid;
@@ -12334,7 +12460,7 @@
         Auc.draftStart = String(L.price / 100); Auc.draftQty = String(L.qty);
         Auc.draftCat = String(L.cat); Auc.draftCond = String(L.cond);
         Auc.draftFmt = L.fmt; Auc.draftShipCost = L.shipCents ? String(L.shipCents / 100) : "";
-        Auc.draftDur = String(L.dur || 120); Auc.draftSd = !!L.sd;
+        Auc.draftDur = String(L.dur || 120); Auc.draftSd = !!L.sd; Auc.draftOStart = L.oprice ? String(L.oprice / 100) : ""; Auc.draftBundle = !!L.bundle;
       }
       function aucPendingWinHtml() {
         var w = Auc.pendingWin;
@@ -12373,6 +12499,8 @@
         var qEl = $("aucQty"); if (qEl) Auc.draftQty = qEl.value;
         var pEl = $("aucShipCost"); if (pEl) Auc.draftShipCost = pEl.value;
         var sdEl = $("aucSd"); if (sdEl) Auc.draftSd = sdEl.checked;
+        var obEl = $("aucOStart"); if (obEl) Auc.draftOStart = obEl.value;
+        var buEl = $("aucBundle"); if (buEl) Auc.draftBundle = buEl.checked;
       }
       function renderAuctions() {
         var body = $("aucBody"); if (!body) return;
@@ -12412,6 +12540,8 @@
         var ec = $("aucEditCancel"); if (ec) ec.addEventListener("click", function () { aucResetComposer(); renderAuctions(); });
         var fA = $("aucFmtAuc"); if (fA) fA.addEventListener("click", function () { aucSyncDrafts(); Auc.draftFmt = "auc"; renderAuctions(); });
         var fB = $("aucFmtBuy"); if (fB) fB.addEventListener("click", function () { aucSyncDrafts(); Auc.draftFmt = "buy"; renderAuctions(); });
+        var fF = $("aucFmtFlash"); if (fF) fF.addEventListener("click", function () { aucSyncDrafts(); Auc.draftFmt = "flash"; renderAuctions(); });
+        var fG = $("aucFmtGive"); if (fG) fG.addEventListener("click", function () { aucSyncDrafts(); Auc.draftFmt = "give"; renderAuctions(); });
         body.querySelectorAll("[data-rmphoto]").forEach(function (b) {
           b.addEventListener("click", function () {
             aucSyncDrafts();
@@ -12448,6 +12578,9 @@
         });
         body.querySelectorAll("[data-buyoffer]").forEach(function (b) {
           b.addEventListener("click", function () { aucBuyOffer(b.getAttribute("data-buyoffer")); });
+        });
+        body.querySelectorAll("[data-giveoffer]").forEach(function (b) {
+          b.addEventListener("click", function () { if (window.rpWnEnterGive) window.rpWnEnterGive(b.getAttribute("data-giveoffer"), b.getAttribute("data-lid") || ""); });
         });
         var big = $("aucBigBid");
         if (big) big.addEventListener("click", function () { var a2 = Auc.cur; if (a2 && !a2.ended) aucPlaceBid(aucMinNext(a2)); });
@@ -12500,7 +12633,7 @@
         if (existing) { var keepQty = existing.qty, keepPinned = existing.pinned; for (var k in L) existing[k] = L[k]; existing.qty = keepQty; existing.pinned = keepPinned; L = existing; }
         else Auc.listings.push(L);
         aucResetComposer();
-        if (L.fmt === "buy") { aucPinOffer(L); return; }
+        if (L.fmt !== "auc") { aucPinOffer(L); return; }
         aucStartFromListing(L);
       }
       function aucSaveListing() {
@@ -12522,7 +12655,7 @@
           id: "a" + Date.now().toString(36).slice(-5) + Math.floor(Math.random() * 1296).toString(36),
           hostId: Online.myId, hostName: Online.name || me.name || "You",
           title: L.title, ship: L.ship || "", photo: (L.photos && L.photos[0]) || null,
-          cat: L.cat, cond: L.cond, desc: L.desc || "", qty: L.qty, shipCents: L.shipCents || 0, sd: !!L.sd, lid: L.lid,
+          cat: L.cat, cond: L.cond, desc: L.desc || "", qty: L.qty, shipCents: L.shipCents || 0, sd: !!L.sd, lid: L.lid, bundle: !!L.bundle,
           start: L.price, endsAt: Date.now() + (L.dur || 120) * 1000,
           high: 0, highId: "", highName: "", bids: 0, ended: false, paid: false, cancelled: false
         };
@@ -12540,17 +12673,17 @@
          in a follow-up auc-info signal (and are re-sent when a newcomer
          pings for the current state). */
       function aucSendInfo(a) {
-        protoSend({ k: "auc-info", id: a.id, c: (typeof a.cat === "number" ? a.cat : 10), o: (typeof a.cond === "number" ? a.cond : 0), q: a.qty || 1, sp: a.shipCents || 0, sd: a.sd ? 1 : 0, x: (a.desc || "").slice(0, 100) });
+        protoSend({ k: "auc-info", id: a.id, c: (typeof a.cat === "number" ? a.cat : 10), o: (typeof a.cond === "number" ? a.cond : 0), q: a.qty || 1, sp: a.shipCents || 0, sd: a.sd ? 1 : 0, b: a.bundle ? 1 : 0, x: (a.desc || "").slice(0, 100) });
       }
       /* Pin one of my Buy Now listings for sale in this room. */
       function aucPinOffer(L) {
         if (!aucOnline()) { toast("Connect first — Buy Now offers are pinned live to the room you\u2019re in. Your listing stays saved."); renderAuctions(); return; }
         if (L.qty <= 0) { toast("That listing is sold out — bump the quantity in Edit if you have more."); return; }
         var oid = "b" + (++Auc.offerSeq) + Date.now().toString(36).slice(-4);
-        var sent = protoSend({ k: "auc-shop", id: oid, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty });
+        var sent = protoSend({ k: "auc-shop", id: oid, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0 });
         if (!sent) { toast("Couldn't pin that — shorten the title and try again."); return; }
         L.pinned = true; L.offerId = oid;
-        aucAnnounce("🛍️ " + (Online.name || "You") + " pinned \"" + L.title + "\" for sale at " + moneyLabel(L.price) + " — Buy Now, right here in 🔨 Live Auctions.");
+        aucAnnounce(L.fmt === "give" ? "🎁 " + (Online.name || "You") + " pinned a GIVEAWAY: \"" + L.title + "\" — free to enter, right here in 🔨 Live Auctions." : L.fmt === "flash" ? "⚡ " + (Online.name || "You") + " pinned a FLASH SALE: \"" + L.title + "\" at " + moneyLabel(L.price) + (L.oprice > L.price ? " (was " + moneyLabel(L.oprice) + ")" : "") + " — right here in 🔨 Live Auctions." : "🛍️ " + (Online.name || "You") + " pinned \"" + L.title + "\" for sale at " + moneyLabel(L.price) + " — Buy Now, right here in 🔨 Live Auctions.");
         toast("📌 \"" + L.title + "\" is pinned for sale in this room.", 3200);
         renderAuctions();
       }
@@ -12565,6 +12698,7 @@
       function aucBuyOffer(oid) {
         var o = Auc.offers[oid];
         if (!o) { toast("That item just sold or was unpinned."); return; }
+        if (o.fmt === "give") { if (window.rpWnEnterGive) window.rpWnEnterGive(oid, o.lid || ""); return; }
         if (o.hostId === Online.myId) { toast("That\u2019s your own listing!"); return; }
         var total = o.price + (o.shipCents || 0);
         openSheet(
@@ -12573,7 +12707,7 @@
           '<p style="text-align:center;">You\u2019re buying <b>"' + escHtml(o.title) + '"</b> from ' + escHtml(o.hostName) + ' — ' + escHtml(aucCatName(o.cat)) + ', ' + escHtml(aucCondName(o.cond)) + '. They ship once you\u2019re paid up; all sales are final.</p>' +
           '<div class="stripe-box"><span class="stripe-brand">stripe · Secure checkout</span>' +
           '<div class="pack-row" style="border-bottom:none; padding:12px 0 2px;"><span class="pi">🛍️</span><div class="pt"><b>' + escHtml(o.title) + '</b><span>Buy Now · sold by ' + escHtml(o.hostName) + '</span></div><b>' + moneyLabel(o.price) + '</b></div>' +
-          '<p style="margin:8px 0 0; font-size:13px;">Shipping: <b>' + (o.shipCents > 0 ? moneyLabel(o.shipCents) : "Free") + '</b> · Total due today: <b>' + moneyLabel(total) + '</b></p></div>' +
+          '<p style="margin:8px 0 0; font-size:13px;">Shipping: <b>' + (o.shipCents > 0 ? moneyLabel(o.shipCents) : "Free") + '</b> · Total due today: <b>' + moneyLabel(total) + '</b></p>' + (o.bundle ? '<p style="margin:6px 0 0; font-size:13px;">📦 <b>Bundle shipping:</b> win more items in this show and they ship together.</p>' : '') + '</div>' +
           '<div class="btn-row" style="justify-content:center; margin-top:14px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnOfferPay">Pay ' + moneyLabel(total) + ' with Stripe</button><button class="btn-mini" data-act="close2">Not now</button></div></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -12627,7 +12761,7 @@
           id: String(o.id || ""), hostId: fromId, hostName: fromName || "A host",
           title: String(o.t || "Auction item").slice(0, 60), ship: String(o.sh || "").slice(0, 60),
           photo: null, start: (typeof o.s === "number" && o.s > 0) ? o.s : 100,
-          cat: null, cond: null, desc: "", qty: 1, shipCents: 0, sd: false, lid: "",
+          cat: null, cond: null, desc: "", qty: 1, shipCents: 0, sd: false, lid: "", bundle: false,
           endsAt: (typeof o.e === "number" && o.e > 0) ? o.e : (Date.now() + (o.d || 120) * 1000),
           high: (typeof o.h === "number") ? o.h : 0, highId: o.hid || "", highName: o.hn || "",
           bids: (typeof o.n === "number") ? o.n : 0, ended: false, paid: false, cancelled: false
@@ -12664,7 +12798,7 @@
             }
             // re-share my pinned Buy Now offers so a newcomer sees the shelf
             Auc.listings.forEach(function (L) {
-              if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty });
+              if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0 });
             });
             break;
           }
@@ -12675,7 +12809,7 @@
             if (typeof o.o === "number") a.cond = o.o;
             if (typeof o.q === "number" && o.q > 0) a.qty = o.q;
             if (typeof o.sp === "number" && o.sp >= 0) a.shipCents = o.sp;
-            a.sd = !!o.sd;
+            a.sd = !!o.sd; a.bundle = !!o.b;
             if (typeof o.x === "string") a.desc = o.x.slice(0, 140);
             if (aucScreenOpen()) renderAuctions();
             break;
@@ -12688,6 +12822,8 @@
               price: (typeof o.p === "number" && o.p > 0) ? o.p : 100,
               shipCents: (typeof o.sp === "number" && o.sp >= 0) ? o.sp : 0,
               cat: (typeof o.c === "number") ? o.c : 10, cond: (typeof o.o === "number") ? o.o : 0,
+              fmt: (typeof o.f === "string" && ["buy", "flash", "give"].indexOf(o.f) >= 0) ? o.f : "buy",
+              oprice: (typeof o.op === "number" && o.op > 0) ? o.op : 0, bundle: !!o.b,
               qty: (typeof o.q === "number" && o.q > 0) ? o.q : 1
             };
             if (aucScreenOpen()) renderAuctions();
@@ -12761,7 +12897,7 @@
       function aucFinish() {
         var a = Auc.cur;
         if (!a || a.ended) return;
-        a.ended = true;
+        a.ended = true; a.endedAt = Date.now();
         aucStopTick();
         aucDirectoryClear(a.hostId);
         Auc.results.unshift({ title: a.title, hostName: a.hostName, amt: a.high, winnerName: a.highName, paid: a.paid });
@@ -12776,7 +12912,7 @@
           }
           aucAnnounce("🔨 SOLD! \"" + a.title + "\" goes to " + a.highName + " for " + moneyLabel(a.high) + (a.highId === Online.myId ? " — that's YOU! Head to 🔨 Live Auctions to pay." : ""));
           if (a.highId === Online.myId) {
-            Auc.pendingWin = { id: a.id, title: a.title, amt: a.high, ship: a.shipCents || 0, hostName: a.hostName };
+            Auc.pendingWin = { id: a.id, title: a.title, amt: a.high, ship: a.shipCents || 0, hostName: a.hostName, bundle: !!a.bundle };
             confettiBurst();
             if (aucScreenOpen()) { renderAuctions(); aucWinSheet(); }
             else if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) aucWinSheet(); // won it while watching the live it was pinned in — pay right here
@@ -12797,7 +12933,7 @@
           '<p style="text-align:center;">You took <b>"' + escHtml(w.title) + '"</b> at <b>' + moneyLabel(w.amt) + '</b> from ' + escHtml(w.hostName) + '. Pay now and they\'ll ship it to you — all auction sales are final.</p>' +
           '<div class="stripe-box"><span class="stripe-brand">stripe · Secure checkout</span>' +
           '<div class="pack-row" style="border-bottom:none; padding:12px 0 2px;"><span class="pi">🔨</span><div class="pt"><b>' + escHtml(w.title) + '</b><span>Auction win · sold by ' + escHtml(w.hostName) + '</span></div><b>' + moneyLabel(w.amt) + '</b></div>' +
-          '<p style="margin:8px 0 0; font-size:13px;">Shipping: <b>' + (w.ship ? moneyLabel(w.ship) : "Free") + '</b> · Total due today: <b>' + moneyLabel(wTotal) + '</b>. The seller ships your item once the payment clears.</p></div>' +
+          '<p style="margin:8px 0 0; font-size:13px;">Shipping: <b>' + (w.ship ? moneyLabel(w.ship) : "Free") + '</b> · Total due today: <b>' + moneyLabel(wTotal) + '</b>. The seller ships your item once the payment clears.</p>' + (w.bundle ? '<p style="margin:6px 0 0; font-size:13px;">📦 <b>Bundle shipping:</b> win more items in this show and they ship together.</p>' : '') + '</div>' +
           '<div class="btn-row" style="justify-content:center; margin-top:14px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnAucPay">Pay ' + moneyLabel(wTotal) + ' with Stripe</button><button class="btn-mini" data-act="later">Pay later</button></div></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -13139,5 +13275,1340 @@
     wire("ttSell", "btnAuctionsHome");
   })();
   </script>
+<style>
+/* ============ RP-V5: social sign-in, gift visuals, live battle ============ */
+.btn-social{ display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:12px; margin:0 0 10px; border-radius:10px; border:1px solid rgba(255,255,255,.16); background:#ffffff; color:#111; font:600 15px inherit; cursor:pointer; }
+.btn-social:active{ transform:scale(.985); }
+#btnApple{ background:#16161d; color:#fff; }
+.btn-social .g-badge{ font-weight:800; font-size:17px; color:#4285F4; }
+.btn-social .a-badge{ font-size:17px; }
+.su-divider{ display:flex; align-items:center; gap:10px; margin:12px 0 14px; color:#9a9aad; font-size:12px; }
+.su-divider::before,.su-divider::after{ content:""; flex:1; height:1px; background:rgba(255,255,255,.14); }
+.gift-cell .gi svg{ width:36px; height:36px; }
+.lgf-row .gi svg{ width:22px; height:22px; vertical-align:-6px; }
+#rpBanners{ position:fixed; left:10px; bottom:172px; z-index:46; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
+.rp-banner{ display:flex; align-items:center; gap:8px; background:rgba(10,10,16,.72); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:5px 12px 5px 6px; color:#fff; font-size:12.5px; animation:rpBannerIn .35s cubic-bezier(.2,1.4,.4,1); max-width:82vw; }
+.rp-banner.out{ opacity:0; transform:translateX(-14px); transition:all .3s; }
+.rp-banner .av{ width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,#fe2c55,#ff7a45); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; flex:none; }
+.rp-banner svg{ width:26px; height:26px; flex:none; }
+.rp-combo{ color:#f5b93f; font-weight:900; font-size:15px; }
+.rp-combo.pop{ animation:rpPop .3s cubic-bezier(.2,2.2,.4,1); }
+@keyframes rpBannerIn{ from{ opacity:0; transform:translateX(-18px) scale(.92);} to{ opacity:1; transform:none;} }
+@keyframes rpPop{ 0%{ transform:scale(1);} 40%{ transform:scale(1.45);} 100%{ transform:scale(1);} }
+#rpStage{ position:fixed; inset:0; z-index:68; pointer-events:none; display:flex; align-items:center; justify-content:center; }
+#rpStage .rp-stage-bg{ position:absolute; inset:0; background:radial-gradient(ellipse at center, rgba(0,0,0,.12) 30%, rgba(0,0,0,.55) 100%); animation:rpFade 3.5s forwards; }
+.rp-stage-art{ position:relative; width:min(48vw,215px); height:min(48vw,215px); filter:drop-shadow(0 18px 42px rgba(0,0,0,.6)); }
+.rp-stage-art svg{ width:100%; height:100%; }
+.rp-stage-art.pop{ animation:rpStagePop 3.5s cubic-bezier(.2,1.3,.3,1) forwards; }
+.rp-stage-art.rise{ animation:rpStageRise 3.5s cubic-bezier(.2,1.1,.3,1) forwards; }
+.rp-stage-art.spin{ animation:rpStageSpin 3.5s cubic-bezier(.2,1.1,.3,1) forwards; }
+@keyframes rpStagePop{ 0%{ transform:scale(.2); opacity:0;} 12%{ transform:scale(1.12); opacity:1;} 20%{ transform:scale(1);} 82%{ transform:scale(1.04); opacity:1;} 100%{ transform:scale(1.15) translateY(-16px); opacity:0;} }
+@keyframes rpStageRise{ 0%{ transform:translateY(46vh) scale(.7); opacity:0;} 16%{ transform:translateY(0) scale(1.05); opacity:1;} 24%{ transform:scale(1);} 82%{ transform:scale(1.03); opacity:1;} 100%{ transform:translateY(-20px) scale(1.1); opacity:0;} }
+@keyframes rpStageSpin{ 0%{ transform:scale(.2) rotate(-160deg); opacity:0;} 14%{ transform:scale(1.1) rotate(6deg); opacity:1;} 22%{ transform:scale(1) rotate(0);} 82%{ transform:scale(1.04); opacity:1;} 100%{ transform:scale(1.14) translateY(-16px); opacity:0;} }
+@keyframes rpFade{ 0%{ opacity:0;} 10%{ opacity:1;} 84%{ opacity:1;} 100%{ opacity:0;} }
+.rp-spark{ position:absolute; width:7px; height:7px; border-radius:50%; background:radial-gradient(circle,#ffe9a8,#f5b93f 60%,transparent 70%); animation:rpSpark 1.5s ease-out forwards; }
+@keyframes rpSpark{ from{ transform:translate(0,0) scale(1); opacity:1;} to{ transform:translate(var(--dx),var(--dy)) scale(.2); opacity:0;} }
+.rp-stage-plate{ position:absolute; left:50%; bottom:19%; transform:translateX(-50%); background:rgba(8,8,14,.78); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.18); color:#fff; border-radius:14px; padding:10px 18px; text-align:center; font-size:14px; animation:rpFade 3.5s forwards; max-width:88vw; }
+.rp-stage-plate .gp{ color:#f5b93f; font-weight:900; }
+#rpBatBtn{ position:fixed; right:12px; top:132px; z-index:44; background:linear-gradient(135deg,#fe2c55,#d91f43); color:#fff; border:none; border-radius:999px; padding:10px 15px; font:800 13.5px inherit; box-shadow:0 8px 22px rgba(254,44,85,.45); cursor:pointer; }
+#rpBatBar{ position:fixed; top:64px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; background:rgba(8,8,14,.82); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px 12px; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; color:#fff; }
+#rpBatBar .bb-side{ display:flex; align-items:center; gap:7px; min-width:0; }
+#rpBatBar .bb-side.r{ justify-content:flex-end; }
+.bb-av{ width:30px; height:30px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; background:linear-gradient(135deg,#fe2c55,#ff7a45); border:2px solid rgba(255,255,255,.35); }
+.bb-av.b{ background:linear-gradient(135deg,#2563eb,#25d8d0); }
+.bb-nm{ font-weight:700; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bb-nm.lead{ color:#f5b93f; }
+.bb-pts{ font-weight:900; font-size:16px; }
+.bb-mid{ width:min(200px,30vw); text-align:center; }
+.bb-tug{ display:flex; height:10px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.14); }
+.bb-fill{ height:100%; transition:width .5s cubic-bezier(.3,1,.3,1); }
+.bb-fill.a{ background:linear-gradient(90deg,#fe2c55,#ff7a45); }
+.bb-fill.b{ background:linear-gradient(90deg,#25d8d0,#2563eb); margin-left:auto; }
+.bb-time{ font-size:11.5px; font-weight:800; margin-top:3px; letter-spacing:.4px; }
+.bb-time.hot{ color:#ff5c39; }
+#rpBatResult{ position:fixed; inset:0; z-index:69; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; }
+#rpBatResult .card{ background:#101016; border:1px solid rgba(255,255,255,.16); border-radius:20px; padding:26px 24px; text-align:center; color:#fff; width:min(400px,90vw); animation:rpBannerIn .35s cubic-bezier(.2,1.4,.4,1); }
+#rpBatResult .crown{ font-size:52px; }
+#rpBatResult h3{ margin:6px 0 4px; font-size:21px; }
+#rpBatResult .score{ color:#f5b93f; font-weight:900; font-size:17px; margin:6px 0; }
+#rpBatResult button{ margin:8px 4px 0; }
+@media (prefers-reduced-motion: reduce){ .rp-stage-art.pop,.rp-stage-art.rise,.rp-stage-art.spin{ animation:rpFade 3.5s forwards; } }
+</style>
+<script>
+/* ================= RP-V5: gift visuals, live battle, social sign-in ================= */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function myProfileName() { try { var P = JSON.parse(localStorage.getItem("datingGameProfile.v1") || "{}"); return P.name || "You"; } catch (e) { return "You"; } }
+  function priceLabel(c) { c = c || 0; return c >= 100 ? "$" + (c / 100).toFixed(2).replace(/\.?0+$/, "") : c + "¢"; }
+  function toast2(m, t) { try { if (window.toast) window.toast(m, t); } catch (e) { } }
+
+  /* ---------- rendered gift artwork (original SVG, TikTok-grade shine) ---------- */
+  function orb(icon, p) {
+    return '<svg viewBox="0 0 64 64"><defs><radialGradient id="' + p + 'o" cx=".35" cy=".3" r="1.1"><stop offset="0" stop-color="#45455e"/><stop offset="1" stop-color="#13131e"/></radialGradient></defs><circle cx="32" cy="32" r="29" fill="url(#' + p + 'o)" stroke="rgba(255,255,255,.28)"/><text x="32" y="43" font-size="29" text-anchor="middle">' + esc(icon || "🎁") + "</text></svg>";
+  }
+  var ART = {
+    heart: function (p) { return '<svg viewBox="0 0 64 64"><defs><linearGradient id="' + p + 'g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8fab"/><stop offset="1" stop-color="#e0113c"/></linearGradient></defs><path d="M32 57C14 45 5 33 5 21 5 12 12 5 21 5c5 0 9 3 11 7 2-4 6-7 11-7 9 0 16 7 16 16 0 12-9 24-27 36z" fill="url(#' + p + 'g)"/><ellipse cx="20" cy="16" rx="6.5" ry="4" fill="#fff" opacity=".55"/></svg>'; },
+    rose: function (p) { return '<svg viewBox="0 0 64 64"><path d="M32 34c0 10-1 18-3 25" stroke="#2f9e44" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M29 48c-6 1-10-2-12-7 5-1 10 1 12 5z" fill="#37b24d"/><circle cx="32" cy="22" r="14" fill="#c2255c"/><circle cx="32" cy="22" r="10" fill="#e64980"/><circle cx="32" cy="22" r="6" fill="#f783ac"/><path d="M27 20a5 5 0 0 1 7-3" stroke="#c2255c" stroke-width="2.4" fill="none" stroke-linecap="round"/><ellipse cx="26" cy="14" rx="4" ry="2.4" fill="#fff" opacity=".35"/></svg>'; },
+    coffee: function (p) { return '<svg viewBox="0 0 64 64"><ellipse cx="30" cy="52" rx="20" ry="4" fill="rgba(255,255,255,.18)"/><path d="M12 22h36l-3 26a6 6 0 0 1-6 5H21a6 6 0 0 1-6-5z" fill="#f1f3f5"/><path d="M48 26c6-2 10 2 9 7-1 6-7 8-12 6" fill="none" stroke="#f1f3f5" stroke-width="4"/><ellipse cx="30" cy="22" rx="18" ry="4" fill="#8a5a2b"/><ellipse cx="30" cy="22" rx="13" ry="2.6" fill="#a9713a"/><path d="M22 12c0-3 3-3 3-6M32 12c0-3 3-3 3-6M42 12c0-3 3-3 3-6" stroke="rgba(255,255,255,.65)" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>'; },
+    icecream: function (p) { return '<svg viewBox="0 0 64 64"><path d="M20 30h24l-12 28z" fill="#e8a558"/><path d="M22 36h20M25 44h14" stroke="#c47f35" stroke-width="2"/><circle cx="24" cy="24" r="10" fill="#ffd8e8"/><circle cx="40" cy="24" r="10" fill="#fff3d6"/><circle cx="32" cy="16" r="11" fill="#ff8fab"/><circle cx="40" cy="6" r="4" fill="#e0113c"/><path d="M40 2v4" stroke="#2f9e44" stroke-width="2"/></svg>'; },
+    donut: function (p) { return '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="24" fill="#eda94f"/><path d="M10 26c4-10 14-16 24-14 12 2 20 12 19 22-8 3-12-2-18 1s-9 6-16 3-11-6-9-12z" fill="#ff6b9d"/><circle cx="32" cy="32" r="8" fill="#191922"/><rect x="20" y="18" width="6" height="2.4" rx="1.2" fill="#25d8d0" transform="rotate(24 23 19)"/><rect x="38" y="14" width="6" height="2.4" rx="1.2" fill="#f5b93f" transform="rotate(-18 41 15)"/><rect x="42" y="28" width="6" height="2.4" rx="1.2" fill="#fff" transform="rotate(40 45 29)"/><rect x="16" y="32" width="6" height="2.4" rx="1.2" fill="#8ce99a" transform="rotate(-30 19 33)"/></svg>'; },
+    kiss: function (p) { return '<svg viewBox="0 0 64 64"><defs><linearGradient id="' + p + 'g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5c7a"/><stop offset="1" stop-color="#c20e33"/></linearGradient></defs><path d="M6 30c7-11 14-5 18-9 3-3 5-3 8 0 4 4 11-2 18 9-3 12-11 19-18 19S9 42 6 30z" fill="url(#' + p + 'g)"/><path d="M12 33c6 2 13 3 20 3s14-1 20-3" stroke="#8f0a26" stroke-width="2.4" fill="none" stroke-linecap="round"/><ellipse cx="22" cy="26" rx="6" ry="2.6" fill="#fff" opacity=".4"/></svg>'; },
+    fireworks: function (p) { return '<svg viewBox="0 0 64 64"><g stroke-linecap="round" stroke-width="3"><path d="M32 6v12" stroke="#f5b93f"/><path d="M32 46v12" stroke="#f5b93f"/><path d="M6 32h12" stroke="#fe2c55"/><path d="M46 32h12" stroke="#fe2c55"/><path d="M14 14l8 8" stroke="#25d8d0"/><path d="M42 42l8 8" stroke="#25d8d0"/><path d="M50 14l-8 8" stroke="#b197fc"/><path d="M22 42l-8 8" stroke="#b197fc"/></g><circle cx="32" cy="32" r="5" fill="#fff"/><circle cx="32" cy="6" r="2.6" fill="#f5b93f"/><circle cx="32" cy="58" r="2.6" fill="#f5b93f"/><circle cx="6" cy="32" r="2.6" fill="#fe2c55"/><circle cx="58" cy="32" r="2.6" fill="#fe2c55"/></svg>'; },
+    loveballoon: function (p) { return '<svg viewBox="0 0 64 64"><path d="M32 36C20 28 14 20 14 13 14 7 18 3 24 3c3 0 6 2 8 5 2-3 5-5 8-5 6 0 10 4 10 10 0 7-6 15-18 23z" fill="#fe2c55"/><ellipse cx="23" cy="10" rx="4" ry="2.4" fill="#fff" opacity=".5"/><path d="M32 36v5M28 41l-3 10M36 41l3 10" stroke="rgba(255,255,255,.7)" stroke-width="1.8" fill="none"/><rect x="24" y="51" width="16" height="9" rx="2" fill="#c47f35"/></svg>'; },
+    moneygun: function (p) { return '<svg viewBox="0 0 64 64"><rect x="36" y="8" width="20" height="12" rx="2" fill="#37b24d" transform="rotate(18 46 14)"/><text x="41" y="19" font-size="11" fill="#fff" font-weight="900" transform="rotate(18 46 14)">$</text><rect x="44" y="24" width="18" height="11" rx="2" fill="#51cf66" transform="rotate(-8 53 29)"/><text x="50" y="33" font-size="10" fill="#fff" font-weight="900" transform="rotate(-8 53 29)">$</text><rect x="4" y="24" width="30" height="13" rx="5" fill="#1864ab"/><rect x="30" y="28" width="14" height="6" rx="3" fill="#1864ab"/><path d="M12 37l4 14a4 4 0 0 0 8-1l-2-13z" fill="#0b3c63"/><rect x="8" y="18" width="12" height="7" rx="3" fill="#228be6"/></svg>'; },
+    sportscar: function (p) { return '<svg viewBox="0 0 64 64"><path d="M4 40c8-2 12-3 16-9 3-5 7-8 13-8s10 3 14 7c5 4 9 5 13 7v5c0 2-2 3-4 3H8c-2 0-4-1-4-3z" fill="#e0113c"/><path d="M22 30c3-4 6-6 11-6s9 2 12 6z" fill="#a5d8ff"/><circle cx="17" cy="45" r="6.5" fill="#14141c" stroke="#ced4da" stroke-width="2"/><circle cx="47" cy="45" r="6.5" fill="#14141c" stroke="#ced4da" stroke-width="2"/><rect x="4" y="36" width="56" height="3" fill="#ff8fab" opacity=".7"/></svg>'; },
+    airplane: function (p) { return '<svg viewBox="0 0 64 64"><path d="M6 36c14-2 30-8 40-16 3-2 7-1 7 2 0 8-8 16-16 19l4 9c1 2-1 4-3 3l-9-4c-5 1-10 1-15 0l-6 5c-2 1-4-1-3-3l3-8c-3-2-4-6-2-7z" fill="#e7f5ff"/><path d="M20 31l16-5-3 5-14 4z" fill="#228be6"/><circle cx="42" cy="24" r="1.8" fill="#1864ab"/><circle cx="36" cy="27" r="1.8" fill="#1864ab"/><circle cx="30" cy="30" r="1.8" fill="#1864ab"/></svg>'; },
+    castle: function (p) { return '<svg viewBox="0 0 64 64"><path d="M10 58V26h5v-6h6v6h4V20h6v-5h4v5h6v6h4v-6h6v6h5v32z" fill="#868e96"/><path d="M27 58V46a5 5 0 0 1 10 0v12z" fill="#343a40"/><path d="M32 15V6" stroke="#ced4da" stroke-width="2"/><path d="M32 6l9 3-9 3z" fill="#fe2c55"/><rect x="16" y="34" width="5" height="8" rx="2.5" fill="#ffe066"/><rect x="43" y="34" width="5" height="8" rx="2.5" fill="#ffe066"/></svg>'; },
+    volcano: function (p) { return '<svg viewBox="0 0 64 64"><circle cx="24" cy="10" r="5" fill="rgba(255,255,255,.35)"/><circle cx="36" cy="6" r="4" fill="rgba(255,255,255,.25)"/><path d="M14 58L28 20h8l14 38z" fill="#5c4a3d"/><path d="M28 20h8l3 10c-3 4-5 1-7 5s-4 1-6-2-1-8 2-13z" fill="#ff5c39"/><path d="M31 22c1 6-1 9-2 13" stroke="#f5b93f" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>'; },
+    lion: function (p) { var petals = ""; for (var i = 0; i < 12; i++) { var a = i * 30 * Math.PI / 180; petals += '<circle cx="' + (32 + 21 * Math.cos(a)).toFixed(1) + '" cy="' + (32 + 21 * Math.sin(a)).toFixed(1) + '" r="7.5" fill="#e8890c"/>'; } return '<svg viewBox="0 0 64 64">' + petals + '<circle cx="32" cy="32" r="17" fill="#f7b733"/><circle cx="25" cy="29" r="2.2" fill="#3d2c00"/><circle cx="39" cy="29" r="2.2" fill="#3d2c00"/><path d="M28 38c2 2 6 2 8 0" stroke="#3d2c00" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="32" cy="34" rx="3.4" ry="2.4" fill="#c2255c"/></svg>'; },
+    meteor: function (p) { return '<svg viewBox="0 0 64 64"><path d="M14 8l22 22M24 6l24 24M8 22l20 20" stroke="#74c0fc" stroke-width="3" stroke-linecap="round" opacity=".75"/><circle cx="44" cy="44" r="11" fill="#ffe066"/><circle cx="44" cy="44" r="7" fill="#fff3bf"/><path d="M12 46l3 3M54 10l3 3M50 50l3 3" stroke="#f5b93f" stroke-width="2" stroke-linecap="round"/></svg>'; },
+    galaxy: function (p) { return '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="5" fill="#fff"/><path d="M32 32c2-8 12-12 19-8 8 5 8 16 1 22" stroke="#b197fc" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M32 32c-2 8-12 12-19 8-8-5-8-16-1-22" stroke="#f783ac" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="48" cy="18" r="1.8" fill="#fff"/><circle cx="14" cy="46" r="1.8" fill="#fff"/><circle cx="52" cy="44" r="1.4" fill="#fff"/><circle cx="12" cy="16" r="1.4" fill="#fff"/></svg>'; },
+    diamond: function (p) { return '<svg viewBox="0 0 64 64"><defs><linearGradient id="' + p + 'g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a5f3fc"/><stop offset="1" stop-color="#228be6"/></linearGradient></defs><path d="M14 24l8-12h20l8 12-18 32z" fill="url(#' + p + 'g)"/><path d="M14 24h36M22 12l6 12 4-12 4 12 6-12M28 24l4 32 4-32" stroke="rgba(255,255,255,.75)" stroke-width="1.6" fill="none"/></svg>'; },
+    rocket: function (p) { return '<svg viewBox="0 0 64 64"><path d="M32 3c7 7 10 16 10 27l-5 12H27l-5-12c0-11 3-20 10-27z" fill="#f1f3f5"/><circle cx="32" cy="20" r="5.5" fill="#4dabf7" stroke="#1864ab" stroke-width="2"/><path d="M22 32l-7 12c-1 2 1 4 3 3l6-3zM42 32l7 12c1 2-1 4-3 3l-6-3z" fill="#e0113c"/><path d="M28 45c0 6 2 10 4 14 2-4 4-8 4-14z" fill="#ff922b"/><path d="M30 45c0 4 1 6 2 9 1-3 2-5 2-9z" fill="#ffe066"/></svg>'; },
+    universe: function (p) { return '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="15" fill="#7048e8"/><circle cx="27" cy="27" r="5" fill="#9775fa" opacity=".8"/><ellipse cx="32" cy="34" rx="27" ry="8" fill="none" stroke="#f5b93f" stroke-width="3" transform="rotate(-16 32 34)"/><circle cx="52" cy="12" r="2" fill="#fff"/><circle cx="10" cy="18" r="1.6" fill="#fff"/><circle cx="14" cy="50" r="1.8" fill="#fff"/></svg>'; }
+  };
+  function rpArt(id, icon) {
+    var f = ART[id];
+    if (f) return f("g" + id + "-");
+    return orb(icon, "g" + (id || "gift") + "-");
+  }
+  window.rpArt = rpArt;
+  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel" };
+
+  /* ---------- gift panel: swap emoji for rendered art ---------- */
+  function swapCell(c) {
+    if (!c || c.getAttribute("data-rp")) return;
+    c.setAttribute("data-rp", "1");
+    var gi = c.querySelector(".gi");
+    if (gi) gi.innerHTML = rpArt(c.getAttribute("data-gid"), gi.textContent);
+  }
+  try {
+    new MutationObserver(function (muts) {
+      muts.forEach(function (mu) {
+        mu.addedNodes.forEach(function (n) {
+          if (n.nodeType !== 1) return;
+          if (n.classList && n.classList.contains("gift-cell")) swapCell(n);
+          if (n.querySelectorAll) n.querySelectorAll(".gift-cell[data-gid]").forEach(swapCell);
+        });
+      });
+    }).observe(document.body, { childList: true, subtree: true });
+  } catch (e) { }
+  document.querySelectorAll(".gift-cell[data-gid]").forEach(swapCell);
+
+  /* ---------- TikTok-style gift banners with combo streaks ---------- */
+  var combos = {};
+  function rpBanner(fromName, g) {
+    var box = $("rpBanners");
+    if (!box) { box = document.createElement("div"); box.id = "rpBanners"; document.body.appendChild(box); }
+    var key = (fromName || "Someone") + "|" + (g.id || g.name || "");
+    var now = Date.now(), c = combos[key];
+    if (c && now - c.at < 5000) {
+      c.n++; c.at = now;
+      var cb = c.row.querySelector(".rp-combo");
+      if (cb) { cb.textContent = "×" + c.n; cb.style.display = ""; cb.classList.remove("pop"); void cb.offsetWidth; cb.classList.add("pop"); }
+      clearTimeout(c.timer); c.timer = setTimeout(function () { hideBanner(key); }, 4200);
+      return;
+    }
+    var row = document.createElement("div");
+    row.className = "rp-banner";
+    row.innerHTML = '<span class="av">' + esc((fromName || "S").slice(0, 1).toUpperCase()) + "</span>" + rpArt(g.id || NAME2ID[g.name] || "gift", g.icon) + "<span><b>" + esc(fromName || "Someone") + "</b> sent <b>" + esc(g.name || "Gift") + '</b></span><span class="rp-combo" style="display:none"></span>';
+    box.appendChild(row);
+    while (box.children.length > 3) box.removeChild(box.firstChild);
+    combos[key] = { n: 1, at: now, row: row, timer: setTimeout(function () { hideBanner(key); }, 4200) };
+  }
+  function hideBanner(key) {
+    var c = combos[key]; if (!c) return;
+    c.row.classList.add("out");
+    setTimeout(function () { if (c.row.parentNode) c.row.parentNode.removeChild(c.row); }, 320);
+    delete combos[key];
+  }
+
+  /* ---------- big-gift full-screen stage ---------- */
+  var stageQ = [], stageBusy = false;
+  function rpBigStage(g, fromName, toName) { stageQ.push({ g: g, f: fromName, t: toName }); pumpStage(); }
+  function pumpStage() {
+    if (stageBusy || !stageQ.length) return;
+    stageBusy = true;
+    var it = stageQ.shift(), g = it.g;
+    var old = $("rpStage"); if (old) old.remove();
+    var ov = document.createElement("div");
+    ov.id = "rpStage";
+    var motion = g.tier === "prestige" ? "spin" : (g.fx === "rise" || g.fx === "launch" ? "rise" : "pop");
+    var sparks = "";
+    for (var i = 0; i < 18; i++) {
+      var ang = (i / 18) * 6.283, dist = 90 + (i % 5) * 26;
+      sparks += '<span class="rp-spark" style="left:50%;top:44%;--dx:' + Math.round(Math.cos(ang) * dist) + "px;--dy:" + Math.round(Math.sin(ang) * dist) + 'px;animation-delay:' + (i * 0.03) + 's"></span>';
+    }
+    ov.innerHTML = '<div class="rp-stage-bg"></div>' + sparks + '<div class="rp-stage-art ' + motion + '">' + rpArt(g.id || NAME2ID[g.name] || "gift", g.icon) + '</div><div class="rp-stage-plate"><b>' + esc(it.f || "Someone") + "</b> sent <b>" + esc(it.t || "the host") + '</b><br><span style="font-size:16px;font-weight:800">' + esc(g.name || "Gift") + '</span> · <span class="gp">' + priceLabel(g.cents) + "</span></div>";
+    document.body.appendChild(ov);
+    setTimeout(function () { var o2 = $("rpStage"); if (o2) o2.remove(); stageBusy = false; pumpStage(); }, 3560);
+  }
+
+  /* ---------- playGiftFx hook: banner always; stage replaces big shows ---------- */
+  window.rpGiftFx = function (g, fromName, toName) {
+    if (!g) return false;
+    try { rpBanner(fromName || "Someone", g); } catch (e) { }
+    if (g.tier === "big" || g.tier === "prestige") { try { rpBigStage(g, fromName, toName); } catch (e) { } return true; }
+    return false;
+  };
+
+  /* ---------- giftObserved hook: feed art swap + battle scoring ---------- */
+  window.rpGiftSeen = function (o, fromId, fromName) {
+    if (!o) return;
+    setTimeout(function () {
+      var feed = $("liveGiftFeed"); if (!feed) return;
+      var row = feed.querySelector(".lgf-row:not([data-rp])");
+      if (row) { row.setAttribute("data-rp", "1"); var gi = row.querySelector(".gi"); if (gi) gi.innerHTML = rpArt(NAME2ID[o.g] || "gift", o.ic); }
+    }, 90);
+    try { rpBatOnGift(o); } catch (e) { }
+  };
+
+  /* ================= LIVE BATTLE (PK) ================= */
+  var Bat = { active: false, iAm: false, oppId: "", oppName: "", endsAt: 0, myPts: 0, oppPts: 0, aId: "", bId: "", aName: "", bName: "", known: null, bound: false, regState: null, pending: null, lastOpp: null };
+  function sock() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function myId() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function liveInfo() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function ptsOf(id) { if (!Bat.iAm) return id === Bat.aId ? (Bat.known ? Bat.known.ap : 0) : (Bat.known ? Bat.known.bp : 0); return id === myId() ? Bat.myPts : Bat.oppPts; }
+  function batSyncProto() {
+    if (!window.rpProtoSend) return;
+    var payload = { k: "bat", a: Bat.aId, an: String(Bat.aName || "").slice(0, 12), b: Bat.bId, bn: String(Bat.bName || "").slice(0, 12), ap: ptsOf(Bat.aId), bp: ptsOf(Bat.bId), e: Bat.endsAt };
+    if (!window.rpProtoSend(payload)) { payload.an = ""; payload.bn = ""; window.rpProtoSend(payload); }
+  }
+  window.rpBatProto = function (o) {
+    if (!o) return;
+    if (o.k === "bat") {
+      Bat.known = { aId: o.a, aName: o.an || "Host", bId: o.b, bName: o.bn || "Host", ap: o.ap || 0, bp: o.bp || 0, endsAt: o.e || 0 };
+      if (!Bat.iAm) { Bat.aId = o.a; Bat.bId = o.b; Bat.aName = o.an; Bat.bName = o.bn; Bat.endsAt = o.e || 0; }
+      rpBatRender();
+    } else if (o.k === "bat-end") {
+      rpBatShowResult(o.w || "", o.ap || 0, o.bp || 0, o.an || "", o.bn || "", false);
+      var bar = $("rpBatBar"); if (bar) bar.hidden = true;
+      Bat.known = null;
+    }
+  };
+  function rpBatOnGift(o) {
+    if (!Bat.active || !Bat.iAm) return;
+    if (o.to === myId()) {
+      Bat.myPts += o.v || 0;
+      var s = sock(); if (s) s.emit("battle", { t: "score", to: Bat.oppId, pts: Bat.myPts });
+      batSyncProto(); rpBatRender();
+    }
+  }
+  function rpBatBegin(oppId, oppName, endsAt, iChallenged) {
+    var me = myId(), myName = myProfileName();
+    Bat.active = true; Bat.iAm = true; Bat.oppId = oppId; Bat.oppName = oppName; Bat.endsAt = endsAt; Bat.myPts = 0; Bat.oppPts = 0;
+    Bat.lastOpp = { id: oppId, name: oppName };
+    if (iChallenged) { Bat.aId = me; Bat.aName = myName; Bat.bId = oppId; Bat.bName = oppName; }
+    else { Bat.aId = oppId; Bat.aName = oppName; Bat.bId = me; Bat.bName = myName; }
+    toast2("⚔️ BATTLE STARTED vs " + oppName + " — most gift points wins!", 3600);
+    batSyncProto(); rpBatRender();
+  }
+  function rpBatFinalize(fromRemote) {
+    if (!Bat.active) return;
+    Bat.active = false;
+    var winnerId = Bat.myPts > Bat.oppPts ? myId() : (Bat.oppPts > Bat.myPts ? Bat.oppId : "");
+    var winnerName = winnerId ? (winnerId === myId() ? Bat.bName === myProfileName() || winnerId === Bat.bId ? Bat.bName : Bat.aName : "") : "";
+    winnerName = winnerId === "" ? "" : (winnerId === Bat.aId ? Bat.aName : Bat.bName);
+    var st = { s: 0, w: 0 };
+    try { st = JSON.parse(localStorage.getItem("rpBatStreak") || '{"s":0,"w":0}'); } catch (e) { }
+    if (winnerId === myId()) { st.s = (st.s || 0) + 1; st.w = (st.w || 0) + 1; }
+    else if (winnerId) { st.s = 0; }
+    try { localStorage.setItem("rpBatStreak", JSON.stringify(st)); } catch (e) { }
+    if (window.rpProtoSend) window.rpProtoSend({ k: "bat-end", w: winnerName, ap: ptsOf(Bat.aId), bp: ptsOf(Bat.bId), an: String(Bat.aName || "").slice(0, 12), bn: String(Bat.bName || "").slice(0, 12) });
+    if (!fromRemote) { var s = sock(); if (s && Bat.oppId) s.emit("battle", { t: "end", to: Bat.oppId }); }
+    rpBatShowResult(winnerName, ptsOf(Bat.aId), ptsOf(Bat.bId), Bat.aName, Bat.bName, true, st);
+    var bar = $("rpBatBar"); if (bar) bar.hidden = true;
+    Bat.known = null;
+  }
+  function rpBatShowResult(winnerName, ap, bp, an, bn, battler, st) {
+    var old = $("rpBatResult"); if (old) old.remove();
+    var ov = document.createElement("div");
+    ov.id = "rpBatResult";
+    var streakLine = "";
+    if (battler && st) streakLine = winnerName && winnerName === myProfileName() ? '<p style="margin:2px 0;color:#ff922b;font-weight:800">🔥 WIN streak: ' + (st.s || 0) + " · Total wins: " + (st.w || 0) + "</p>" : '<p style="margin:2px 0;color:#9a9aad">Your WIN streak resets — run it back!</p>';
+    ov.innerHTML = '<div class="card"><div class="crown">' + (winnerName ? "👑" : "🤝") + "</div><h3>" + (winnerName ? esc(winnerName) + " WINS THE BATTLE!" : "IT'S A DRAW!") + '</h3><div class="score">' + esc(an || "Host") + " " + Number(ap || 0).toLocaleString() + " — " + Number(bp || 0).toLocaleString() + " " + esc(bn || "Host") + "</div>" + streakLine + '<div>' + (battler && Bat.lastOpp ? '<button class="btn-primary" id="rpRematch" style="padding:11px 18px">⚔️ Rematch</button>' : "") + '<button class="btn-mini" id="rpBatClose" style="padding:11px 18px;margin-left:6px">Close</button></div></div>';
+    document.body.appendChild(ov);
+    $("rpBatClose").addEventListener("click", function () { ov.remove(); });
+    var rm = $("rpRematch");
+    if (rm) rm.addEventListener("click", function () { ov.remove(); var s = sock(); if (s && Bat.lastOpp) { s.emit("battle", { t: "invite", to: Bat.lastOpp.id, mins: 5 }); toast2("⚔️ Rematch sent to " + Bat.lastOpp.name + "!", 2600); } });
+    setTimeout(function () { if (ov.parentNode) ov.remove(); }, 12000);
+  }
+  function rpBatRender() {
+    var bar = $("rpBatBar");
+    var show = false, aId, bId, aN, bN, ap, bp, ends;
+    if (Bat.active && Bat.iAm) { show = true; aId = Bat.aId; bId = Bat.bId; aN = Bat.aName; bN = Bat.bName; ap = ptsOf(aId); bp = ptsOf(bId); ends = Bat.endsAt; }
+    else if (Bat.known && Bat.known.endsAt > Date.now() - 4000) { show = true; aId = Bat.known.aId; bId = Bat.known.bId; aN = Bat.known.aName; bN = Bat.known.bName; ap = Bat.known.ap; bp = Bat.known.bp; ends = Bat.known.endsAt; }
+    var L = liveInfo();
+    if (show && !(L && L.active)) show = false;
+    if (!show) { if (bar) bar.hidden = true; return; }
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "rpBatBar";
+      bar.innerHTML = '<div class="bb-side"><span class="bb-av" id="bbAvA">A</span><span class="bb-nm" id="bbNmA"></span><span class="bb-pts" id="bbPtA">0</span></div><div class="bb-mid"><div class="bb-tug"><div class="bb-fill a" id="bbFillA"></div><div class="bb-fill b" id="bbFillB"></div></div><div class="bb-time" id="bbTime">⚔️ 5:00</div></div><div class="bb-side r"><span class="bb-pts" id="bbPtB">0</span><span class="bb-nm" id="bbNmB"></span><span class="bb-av b" id="bbAvB">B</span></div>';
+      document.body.appendChild(bar);
+    }
+    bar.hidden = false;
+    $("bbAvA").textContent = (aN || "A").slice(0, 1).toUpperCase();
+    $("bbAvB").textContent = (bN || "B").slice(0, 1).toUpperCase();
+    var nmA = $("bbNmA"), nmB = $("bbNmB");
+    nmA.textContent = (ap > bp ? "👑 " : "") + (aN || "Host");
+    nmB.textContent = (bp > ap ? "👑 " : "") + (bN || "Host");
+    nmA.className = "bb-nm" + (ap > bp ? " lead" : "");
+    nmB.className = "bb-nm" + (bp > ap ? " lead" : "");
+    $("bbPtA").textContent = Number(ap || 0).toLocaleString();
+    $("bbPtB").textContent = Number(bp || 0).toLocaleString();
+    var tot = (ap || 0) + (bp || 0), share = tot ? (ap / tot) * 100 : 50;
+    share = Math.max(6, Math.min(94, share));
+    $("bbFillA").style.width = share + "%";
+    $("bbFillB").style.width = (100 - share) + "%";
+    var left = Math.max(0, Math.round((ends - Date.now()) / 1000));
+    var tm = $("bbTime");
+    tm.textContent = "⚔️ " + Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+    tm.className = "bb-time" + (left <= 30 ? " hot" : "");
+  }
+  function rpBatMsg(m) {
+    if (!m || !m.t) return;
+    if (m.t === "who-list") {
+      var list = $("rpBatList");
+      if (!list) return;
+      if (!m.list || !m.list.length) { list.innerHTML = '<p class="age-note">No other hosts are live right now. Battles need two live hosts — try again when someone else is on air.</p>'; return; }
+      list.innerHTML = m.list.map(function (h) { return '<button class="btn-mini" data-opp="' + esc(h.id) + '" data-nm="' + esc(h.name || "Host") + '" style="display:block;width:100%;margin:6px 0;padding:12px;text-align:left">⚔️ Battle <b>' + esc(h.name || "Host") + "</b></button>"; }).join("");
+      list.querySelectorAll("[data-opp]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var s = sock(); if (s) s.emit("battle", { t: "invite", to: b.getAttribute("data-opp"), mins: 5 });
+          try { window.closeSheet && window.closeSheet(); } catch (e) { }
+          toast2("⚔️ Battle invite sent to " + b.getAttribute("data-nm") + "!", 2800);
+        });
+      });
+    } else if (m.t === "invite") {
+      if (Bat.active) { var s2 = sock(); if (s2) s2.emit("battle", { t: "decline", to: m.from }); return; }
+      Bat.pending = m;
+      try {
+        window.openSheet('<h3 style="margin:4px 0">⚔️ Battle challenge!</h3><p><b>' + esc(m.fromName || "A host") + "</b> challenges you to a LIVE Battle — " + (m.mins || 5) + ' minutes, most gift points wins the crown 👑</p><button class="btn-primary" id="rpBatAccept" style="width:100%;padding:13px">⚔️ Accept battle</button><button class="btn-mini" id="rpBatDecline" style="width:100%;padding:11px;margin-top:8px">Not now</button>');
+        $("rpBatAccept").addEventListener("click", function () { try { window.closeSheet && window.closeSheet(); } catch (e) { } var s3 = sock(); if (s3 && Bat.pending) s3.emit("battle", { t: "accept", to: Bat.pending.from, mins: Bat.pending.mins || 5 }); });
+        $("rpBatDecline").addEventListener("click", function () { try { window.closeSheet && window.closeSheet(); } catch (e) { } var s4 = sock(); if (s4 && Bat.pending) s4.emit("battle", { t: "decline", to: Bat.pending.from }); });
+      } catch (e) { }
+    } else if (m.t === "decline") { toast2((m.fromName || "That host") + " declined the battle.", 2600); }
+    else if (m.t === "gone") { toast2("That host is no longer live.", 2600); }
+    else if (m.t === "accept") { rpBatBegin(m.from, m.fromName || "Host", m.endsAt, true); }
+    else if (m.t === "start") { rpBatBegin(m.from, m.fromName || "Host", m.endsAt, false); }
+    else if (m.t === "score") { if (Bat.active && m.from === Bat.oppId) { Bat.oppPts = m.pts || 0; batSyncProto(); rpBatRender(); } }
+    else if (m.t === "end") { if (Bat.active) rpBatFinalize(true); }
+  }
+  /* ⚔️ button + socket binder + heartbeat */
+  var batBtn = document.createElement("button");
+  batBtn.id = "rpBatBtn";
+  batBtn.textContent = "⚔️ Battle";
+  batBtn.hidden = true;
+  document.body.appendChild(batBtn);
+  batBtn.addEventListener("click", function () {
+    try { window.openSheet('<h3 style="margin:4px 0">⚔️ Live Battle</h3><p class="age-note">Challenge another live host: 5 minutes, gifts score points, most points takes the crown 👑</p><div id="rpBatList"><p class="age-note">Finding live hosts…</p></div>'); } catch (e) { }
+    var s = sock(); if (s) s.emit("battle", { t: "who" });
+  });
+  setInterval(function () {
+    var s = sock();
+    if (s && !Bat.bound) { Bat.bound = true; s.on("battle", rpBatMsg); }
+    var L = liveInfo();
+    var hosting = !!(L && L.active && L.mine);
+    if (hosting !== Bat.regState) { Bat.regState = hosting; if (s) s.emit("battle", { t: "reg", on: hosting }); }
+    batBtn.hidden = !(hosting && !Bat.active);
+    if (Bat.active && Date.now() >= Bat.endsAt) rpBatFinalize(false);
+    if (Bat.active || Bat.known) rpBatRender();
+  }, 700);
+
+  /* ================= social sign-in ================= */
+  function rpSocial(w) {
+    if (/^https?:$/.test(location.protocol)) { location.href = "/auth/" + w; }
+    else toast2("Social sign-in switches on at rizzplaza.com — email + phone works everywhere.", 3600);
+  }
+  var bg = $("btnGoogle"), ba = $("btnApple");
+  if (bg) bg.addEventListener("click", function () { rpSocial("google"); });
+  if (ba) ba.addEventListener("click", function () { rpSocial("apple"); });
+  var q = null;
+  try { q = new URLSearchParams(location.search); } catch (e) { }
+  var auth = q ? q.get("auth") : null;
+  if (auth) {
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch (e) { }
+    setTimeout(function () {
+      if (auth === "off") toast2("Google/Apple sign-in isn't switched on yet — sign up with email + phone below 👇", 4400);
+      else if (auth === "err") toast2("That sign-in didn't finish — try again, or use email + phone.", 4400);
+      else if (auth === "google" || auth === "apple") {
+        var em = q.get("email") || "", nm = q.get("name") || "";
+        var ei = $("suEmail");
+        if (ei && em) { ei.value = em; ei.dispatchEvent(new Event("input", { bubbles: true })); }
+        if (nm) { try { var P = JSON.parse(localStorage.getItem("datingGameProfile.v1") || "{}"); if (P && !P.name) { P.name = nm; localStorage.setItem("datingGameProfile.v1", JSON.stringify(P)); } } catch (e) { } }
+        toast2("✔ Signed in with " + (auth === "google" ? "Google" : "Apple") + " — email's filled in! Add your mobile number, tick the box, tap Continue.", 5600);
+      }
+    }, 700);
+  }
+})();
+</script>
+
+<style>
+#rpAddBtn{ position:fixed; right:12px; top:182px; z-index:44; background:rgba(16,16,24,.88); backdrop-filter:blur(8px); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:999px; padding:10px 15px; font:800 13.5px inherit; cursor:pointer; }
+.rp-add-row{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px dashed rgba(255,255,255,.12); }
+.rp-add-row .who{ flex:1; min-width:0; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+</style>
+<script>
+/* ================= RP-V5.1: Add People panel (TikTok multi-guest) ================= */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function toast2(m, t) { try { if (window.toast) window.toast(m, t); } catch (e) { } }
+  var invited = {};
+  var btn = document.createElement("button");
+  btn.id = "rpAddBtn";
+  btn.textContent = "＋ Add people";
+  btn.hidden = true;
+  document.body.appendChild(btn);
+  btn.addEventListener("click", function () {
+    var reqs = (window.rpRequests ? window.rpRequests() : []).filter(function (r) { return !invited[r.id]; });
+    var viewers = (window.rpViewers ? window.rpViewers() : []).filter(function (v) { return !invited[v.id]; });
+    var stage = window.rpStageCount ? window.rpStageCount() : 0;
+    function row(p, tag) {
+      return '<div class="rp-add-row"><span class="who">' + esc(p.name || "Guest") + '</span><span style="font-size:11.5px;color:#9a9aad;font-weight:700">' + tag + '</span><button class="btn-primary" data-inv="' + esc(p.id) + '" style="width:auto;padding:8px 14px">＋ Add</button></div>';
+    }
+    var html = '<h3 style="margin:4px 0">＋ Add people to your live</h3><p class="age-note">Stage: ' + stage + '/12 on camera. Invited guests get a camera consent sheet — their camera turns on only if they accept.</p>';
+    if (reqs.length) html += '<h4 style="margin:12px 0 2px">🙋 Asked to join</h4>' + reqs.map(function (r) { return row(r, "requested"); }).join("");
+    if (viewers.length) html += '<h4 style="margin:12px 0 2px">👥 Watching now</h4>' + viewers.map(function (v) { return row(v, "viewer"); }).join("");
+    if (!reqs.length && !viewers.length) html += '<p class="age-note" style="margin-top:10px">Nobody else is in the room yet — share your live and they\'ll show up here.</p>';
+    try { window.openSheet(html); } catch (e) { return; }
+    document.querySelectorAll("[data-inv]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-inv");
+        invited[id] = true;
+        b.textContent = "Invited ✓"; b.disabled = true;
+        try { window.rpLiveInvite && window.rpLiveInvite(id); } catch (e) { }
+      });
+    });
+  });
+  setInterval(function () {
+    var L = null;
+    try { L = window.rpLive ? window.rpLive() : null; } catch (e) { }
+    btn.hidden = !(L && L.active && L.mine);
+  }, 700);
+})();
+</script>
+
+<script>
+/* ================= RP-V5.2: skip sign-up ================= */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  var sk = $("btnSignupSkip");
+  if (sk) sk.addEventListener("click", function () { if (window.rpDoSkipSignup) window.rpDoSkipSignup(); });
+  /* Profile: offer the sign-up again to anyone who skipped / has no contact */
+  setInterval(function () {
+    try {
+      if (!window.rpHasContact || window.rpHasContact()) return;
+      var info = $("pfContactInfo");
+      if (!info || $("rpAddContactBtn")) return;
+      var b = document.createElement("button");
+      b.id = "rpAddContactBtn";
+      b.className = "btn-mini";
+      b.textContent = "📬 Add email + phone";
+      b.style.marginTop = "8px";
+      b.addEventListener("click", function () { if (window.rpOpenSignup) window.rpOpenSignup(); });
+      info.parentNode.appendChild(b);
+    } catch (e) { }
+  }, 1200);
+})();
+</script>
+
+<style>
+/* ============ RP-V5.3: catalog polish (timer pill, No.1 gifter, quick reactions) ============ */
+#rpBatBar .bb-mid{ position:relative; }
+#rpBatBar .bb-time{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:#17171f; border:1px solid rgba(255,255,255,.3); padding:2px 11px; border-radius:99px; font-size:11.5px; white-space:nowrap; margin-top:0; box-shadow:0 4px 14px rgba(0,0,0,.5); }
+#rpBatBar .bb-time::before{ content:"◆ "; color:#fe2c55; }
+.rp-no1{ background:#e0113c; color:#fff; font-weight:900; font-size:10.5px; border-radius:99px; padding:2px 7px; flex:none; }
+#rpReacts{ position:fixed; left:10px; bottom:118px; z-index:45; display:flex; gap:6px; }
+#rpReacts button{ width:38px; height:38px; border-radius:50%; border:1px solid rgba(255,255,255,.22); background:rgba(10,10,16,.66); backdrop-filter:blur(8px); font-size:18px; cursor:pointer; padding:0; }
+#rpReacts button:active{ transform:scale(1.18); }
+.rp-react-float{ position:absolute; bottom:96px; pointer-events:none; font-size:24px; animation:rpFloatUp 2.6s ease-out forwards; z-index:5; }
+@keyframes rpFloatUp{ 0%{ transform:translateY(0) scale(.7); opacity:0;} 12%{ opacity:1; transform:translateY(-20px) scale(1.1);} 100%{ transform:translateY(-42vh) scale(1) rotate(8deg); opacity:0;} }
+</style>
+<script>
+/* ================= RP-V5.3: No.1 gifter tracking + quick reactions ================= */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  /* --- No. 1 gifter (session): track observed gift totals per sender --- */
+  var totals = {}, topName = "", topVal = 0;
+  var prevSeen = window.rpGiftSeen;
+  window.rpGiftSeen = function (o, fromId, fromName) {
+    if (prevSeen) prevSeen(o, fromId, fromName);
+    try {
+      var myId = window.rpMyId ? window.rpMyId() : "";
+      if (o && fromId && fromId !== myId && typeof o.v === "number" && fromName) {
+        totals[fromName] = (totals[fromName] || 0) + o.v;
+        if (totals[fromName] > topVal) { topVal = totals[fromName]; topName = fromName; }
+      }
+    } catch (e) { }
+  };
+  /* banners: stamp No. 1 pill for the current top gifter */
+  setInterval(function () {
+    if (!topName) return;
+    document.querySelectorAll(".rp-banner:not([data-n1])").forEach(function (row) {
+      row.setAttribute("data-n1", "1");
+      var b = row.querySelector("b");
+      if (b && b.textContent === topName) {
+        var pill = document.createElement("span");
+        pill.className = "rp-no1";
+        pill.textContent = "No. 1";
+        row.appendChild(pill);
+      }
+    });
+  }, 600);
+  /* --- quick reactions above the comment bar (rotating sets, TikTok-style) --- */
+  var SETS = [["👏", "🌸", "🎉", "👍", "❤️"], ["🙌", "👀", "✌️", "🌹", "☕"]];
+  var setIdx = 0;
+  var box = document.createElement("div");
+  box.id = "rpReacts";
+  box.hidden = true;
+  document.body.appendChild(box);
+  function renderSet() {
+    box.innerHTML = "";
+    SETS[setIdx].forEach(function (em) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = em;
+      b.addEventListener("click", function () { spawnFloat(em); });
+      box.appendChild(b);
+    });
+  }
+  function spawnFloat(em) {
+    var layer = document.querySelector(".live-hearts");
+    if (!layer) return;
+    var s = document.createElement("span");
+    s.className = "rp-react-float";
+    s.textContent = em;
+    s.style.right = (10 + Math.random() * 46) + "px";
+    layer.appendChild(s);
+    setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 2700);
+  }
+  renderSet();
+  setInterval(function () { setIdx = (setIdx + 1) % SETS.length; if (!box.hidden) renderSet(); }, 25000);
+  setInterval(function () {
+    var L = null;
+    try { L = window.rpLive ? window.rpLive() : null; } catch (e) { }
+    box.hidden = !(L && L.active);
+  }, 900);
+})();
+</script>
+
+<script>
+/* ================= RP-V5.4: watch-time heartbeat =================
+   While watching a live, this device pings every 30s; every client in the
+   room records each ping as watch time for the host (the algorithm's
+   heaviest signal). Hosts never ping their own live. */
+(function () {
+  "use strict";
+  setInterval(function () {
+    try {
+      var L = window.rpLive ? window.rpLive() : null;
+      if (L && L.active && !L.mine && window.rpProtoSend) window.rpProtoSend({ k: "live-ping" });
+    } catch (e) { }
+  }, 30000);
+})();
+</script>
+
+<style>
+/* ================= RP-V6: Whatnot Mode — shows, shop panel, raids ================= */
+#liveAucPin .auc-clock, .auc-bidstrip .auc-clock { color: #ff3b30 !important; font-weight: 900; }
+#liveAucPin .ap-winning { display: flex; align-items: center; gap: 7px; background: rgba(255,214,10,.16); border: 1.5px solid rgba(255,214,10,.65); border-radius: 10px; padding: 5px 9px; margin-bottom: 7px; font-weight: 900; font-size: 13.5px; }
+#liveAucPin .ap-wav { width: 22px; height: 22px; border-radius: 50%; background: #ffd60a; color: #17171f; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; flex: none; }
+#liveAucPin .ap-ticker { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin-top: 6px; min-height: 0; }
+#liveAucPin .ap-bidwrap { display: inline-flex; gap: 7px; align-items: stretch; }
+#liveAucPin .ap-bid.wn-ybid { background: #ffd60a; color: #17171f; box-shadow: 0 8px 22px rgba(255,214,10,.4); }
+#liveAucPin .ap-custom { border: 1.5px solid var(--line); background: #fff; color: #17171f; border-radius: 12px; padding: 0 13px; font-family: inherit; font-weight: 900; font-size: 13.5px; cursor: pointer; }
+#liveAucPin .ap-bid.wn-await { background: #3c3c4d; color: #b9b9c9; box-shadow: none; cursor: default; }
+.wn-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.wn-bar button { border: 1.5px solid var(--line); background: rgba(255,255,255,.08); color: inherit; border-radius: 999px; padding: 8px 14px; font-family: inherit; font-weight: 900; font-size: 13.5px; cursor: pointer; }
+.wn-shows { background: var(--panel); border: 2px solid rgba(255,214,10,.55); border-radius: 18px; padding: 14px 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
+.wn-shows h3 { margin: 0; font-size: 18px; }
+.wn-shows h4 { margin: 14px 0 8px; font-size: 15px; }
+.wn-shows-head { display: flex; align-items: center; gap: 10px; }
+.wn-shows-head h3 { flex: 1; }
+.wn-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.wn-chip { border: 1.5px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 999px; padding: 6px 11px; font-family: inherit; font-weight: 800; font-size: 12.5px; cursor: pointer; }
+.wn-chip.on { background: #ffd60a; border-color: #ffd60a; color: #17171f; }
+.wn-show-card { display: flex; gap: 11px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid rgba(127,127,140,.22); }
+.wn-show-card:last-child { border-bottom: none; }
+.wn-av { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #ffd60a, #ff7847); color: #17171f; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 18px; flex: none; }
+.wn-show-meta { flex: 1; min-width: 0; }
+.wn-show-meta b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wn-show-meta span { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.wn-show-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.wn-empty { font-size: 13.5px; font-weight: 700; color: var(--ink-soft); margin: 4px 0 2px; }
+.wn-shop { background: #fff; color: #17171f; border-radius: 18px; padding: 16px; text-align: left; }
+.wn-shop-head { display: flex; gap: 11px; align-items: center; }
+.wn-shop-head .wn-av { width: 40px; height: 40px; font-size: 16px; }
+.wn-shop-head b { font-size: 17px; display: block; }
+.wn-shop-head i { font-style: normal; font-size: 12.5px; color: #6b6b7a; font-weight: 700; display: block; }
+.wn-shop-head .close-x { margin-left: auto; position: static; }
+.wn-tabs { display: flex; gap: 6px; margin: 13px 0 6px; border-bottom: 2px solid #ececf1; padding-bottom: 9px; flex-wrap: wrap; }
+.wn-tab { border: none; background: #f1f1f6; color: #17171f; border-radius: 999px; padding: 7px 12px; font-family: inherit; font-weight: 900; font-size: 13px; cursor: pointer; }
+.wn-tab.on { background: #17171f; color: #fff; }
+.wn-row { display: flex; gap: 11px; padding: 11px 0; border-bottom: 1px solid #ececf1; align-items: flex-start; }
+.wn-row:last-child { border-bottom: none; }
+.wn-row img.thumb { width: 54px; height: 54px; border-radius: 10px; object-fit: cover; flex: none; }
+.wn-row .thumb-ph { width: 54px; height: 54px; border-radius: 10px; background: #f1f1f6; display: flex; align-items: center; justify-content: center; font-size: 25px; flex: none; }
+.wn-row .meta { flex: 1; min-width: 0; }
+.wn-row .meta b { font-size: 14.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wn-row .meta span { display: block; font-size: 12.5px; font-weight: 700; color: #6b6b7a; }
+.wn-row .meta span.price { color: #17171f; font-weight: 900; font-size: 13.5px; }
+.wn-row .meta span.price s { color: #9a9aa8; font-weight: 700; }
+.wn-row .acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.wn-act { border: none; border-radius: 10px; padding: 8px 13px; font-family: inherit; font-weight: 900; font-size: 13px; cursor: pointer; background: #ffd60a; color: #17171f; }
+.wn-act.dark { background: #17171f; color: #fff; }
+.wn-act.ghost { background: #f1f1f6; color: #17171f; }
+.wn-act:disabled { background: #e4e4ec; color: #9a9aa8; cursor: default; }
+.wn-bmk { border: none; background: none; font-size: 17px; cursor: pointer; padding: 4px; }
+.wn-sold { font-size: 13px; font-weight: 700; color: #3c3c4d; }
+.wn-sold b { color: #d11a2a; }
+.wn-overlay { position: fixed; inset: 0; z-index: 9990; display: none; align-items: center; justify-content: center; background: rgba(5,5,12,.55); pointer-events: none; }
+.wn-overlay.on { display: flex; }
+.wn-overlay .wn-ocard { background: #fff; color: #17171f; border-radius: 20px; padding: 22px 26px; text-align: center; max-width: min(420px, 88vw); box-shadow: 0 24px 60px rgba(0,0,0,.5); animation: wnPop .28s ease; }
+.wn-overlay .wn-oav { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(135deg, #ffd60a, #ff7847); color: #17171f; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 27px; margin: 0 auto 9px; }
+.wn-overlay h3 { margin: 0 0 5px; font-size: 21px; }
+.wn-overlay p { margin: 3px 0; font-weight: 700; color: #3c3c4d; font-size: 14px; }
+.wn-overlay .wn-big { font-size: 54px; font-weight: 900; }
+@keyframes wnPop { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+</style>
+<script>
+/* ================= RP-V6: Whatnot Mode — shows, shop panel, giveaways, raids =================
+   Turns the Auctions section into a full live-shopping platform in the
+   Whatnot arrangement (our own code and branding): show discovery with
+   schedules and bookmarks, a white shop panel with Auction / Buy Now /
+   Flash Sales / Giveaway / Sold tabs, pre-bids that convert when an item
+   runs, in-show giveaways with a live entry count and a 3-2-1 winner
+   pull, and raids that carry a host's viewers into another show.
+   Sync rides the room proto bus with "shop-" kinds (see rpShopProto);
+   bookmarks, schedules I've only heard announced, my pre-bids and my
+   giveaway entries persist locally. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function G(n) { try { return window[n]; } catch (e) { return undefined; } }
+  function money(c) { var f = G("moneyLabel"); return f ? f(c || 0) : "$" + ((c || 0) / 100); }
+  function myId() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function myName() { try { return window.rpMyName ? window.rpMyName() : "You"; } catch (e) { return "You"; } }
+  function toast(m, t) { var f = G("toast"); if (f) f(m, t); }
+  function live() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function auc() { try { return window.rpAuc ? window.rpAuc() : null; } catch (e) { return null; } }
+  function send(o) { try { return !!(window.rpProtoSend && window.rpProtoSend(o)); } catch (e) { return false; } }
+  function cats() { return G("AUC_CATS") || ["Sneakers", "Streetwear & Fashion", "Trading Cards", "Collectibles", "Electronics", "Jewelry & Watches", "Bags & Accessories", "Toys & Hobbies", "Beauty", "Home Goods", "Other"]; }
+  function catName(i) { var f = G("aucCatName"); if (f) return f(i); var c = cats(); return c[(typeof i === "number" && c[i]) ? i : c.length - 1]; }
+  function condName(i) { var f = G("aucCondName"); if (f) return f(i); var C = G("AUC_CONDS") || ["Brand New", "Like New", "Lightly Used", "Used", "For Parts"]; return C[(typeof i === "number" && C[i]) ? i : 0]; }
+  function initial(n) { return String(n || "?").charAt(0).toUpperCase() || "?"; }
+  function fmtIcon(f) { return f === "give" ? "🎁" : f === "flash" ? "⚡" : f === "auc" ? "🔨" : "🛍️"; }
+
+  /* ---------- pure helpers (unit-tested) ---------- */
+  function wnNextBid(high, start) { return high > 0 ? high + 100 : start; }
+  function wnTopPre(list) {
+    var best = null;
+    (list || []).forEach(function (p) { if (!best || p.a > best.a || (p.a === best.a && (p.t || 0) < (best.t || 0))) best = p; });
+    return best;
+  }
+  function wnSoldLine(r) {
+    return r.winner + " won! · " + r.title + " · " + r.cond + " · " + r.bids + (r.bids === 1 ? " Bid" : " Bids") + " · " + money(r.amt) + " Sold · " + (r.ship > 0 ? "+" + money(r.ship) + " Shipping + Taxes" : "Free shipping");
+  }
+
+  /* ---------- persisted local state ---------- */
+  var LS = "rpWn.v1";
+  var S = { myShows: [], knownShows: {}, showBmk: {}, itemBmk: {}, myPre: {}, entered: {}, cat: -1 };
+  try { var raw = JSON.parse(localStorage.getItem(LS) || "null"); if (raw && typeof raw === "object") { for (var k in S) if (raw[k] !== undefined) S[k] = raw[k]; } } catch (e) { }
+  function save() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) { } }
+
+  /* ---------- volatile state ---------- */
+  var Remote = {};       // hostId -> { name, items: {lid: item}, seen }
+  var PreRecv = {};      // my lid -> { top: {a,id,name,t}, ids: {} }
+  var GiveHost = {};     // my lid -> { ids: {}, names: {}, n }
+  var GiveCounts = {};   // lid -> last host-broadcast entry count (as viewer)
+  var SoldBy = {};       // hostId -> [sold records]
+  var shop = null;       // { hostId, tab } while the shop sheet is open
+  var pendingRaid = null;
+  var lastQResp = 0, lastGiveSent = {};
+
+  function giveCountFor(hostId, lid) {
+    if (hostId === myId()) { var g = GiveHost[lid]; return g ? Object.keys(g.ids).length : 0; }
+    return GiveCounts[lid] || 0;
+  }
+  function offerFor(hostId, lid) {
+    var A = auc(); if (!A || !A.offers) return null;
+    var ids = Object.keys(A.offers);
+    for (var i = 0; i < ids.length; i++) { var o = A.offers[ids[i]]; if (o && o.hostId === hostId && o.lid === lid) return o; }
+    return null;
+  }
+
+  /* ---------- host: queue broadcast ---------- */
+  function queueLine(L) {
+    var pre = PreRecv[L.lid];
+    var o = { k: "shop-queue", lid: L.lid, t: String(L.title || "Item").slice(0, 24), f: L.fmt || "auc", p: L.price || 0, op: L.oprice || 0, q: L.qty || 1, c: (typeof L.cat === "number" ? L.cat : 10), o: (typeof L.cond === "number" ? L.cond : 0), sp: L.shipCents || 0, pin: L.pinned ? 1 : 0, pb: pre && pre.top ? pre.top.a : 0, pn: pre ? Object.keys(pre.ids).length : 0, gn: L.fmt === "give" ? giveCountFor(myId(), L.lid) : 0, b: L.bundle ? 1 : 0 };
+    if (!send(o)) { o.t = o.t.slice(0, 13); send(o); }
+  }
+  function iAmSellerHere() {
+    var A = auc(); if (!A || !A.listings || !A.listings.length) return false;
+    var L = live();
+    if (L && L.active && L.mine) return true;
+    return A.listings.some(function (x) { return x.pinned && x.qty > 0; });
+  }
+  function broadcastQueue() {
+    var A = auc(); if (!A || !A.listings) return;
+    A.listings.forEach(function (L) { if (L.qty > 0) queueLine(L); });
+  }
+  function announceSched() {
+    var now = Date.now();
+    var next = S.myShows.filter(function (s) { return s.at > now - 3600000; }).sort(function (a, b) { return a.at - b.at; })[0];
+    if (next) send({ k: "shop-sched", t: String(next.title || "Live show").slice(0, 24), at: next.at });
+  }
+
+  /* ---------- proto handling ---------- */
+  window.rpShopProto = function (o, fromId, fromName) {
+    if (!o || !o.k || !fromId || fromId === myId()) return;
+    switch (o.k) {
+      case "shop-queue": {
+        if (!o.lid) return;
+        var R = Remote[fromId] || (Remote[fromId] = { name: fromName || "A seller", items: {}, seen: 0 });
+        R.name = fromName || R.name; R.seen = Date.now();
+        R.items[String(o.lid)] = { lid: String(o.lid), t: String(o.t || "Item").slice(0, 40), f: ["auc", "buy", "flash", "give"].indexOf(o.f) >= 0 ? o.f : "buy", p: (typeof o.p === "number" && o.p >= 0) ? o.p : 0, op: (typeof o.op === "number" && o.op > 0) ? o.op : 0, q: (typeof o.q === "number" && o.q > 0) ? o.q : 1, c: (typeof o.c === "number") ? o.c : 10, o: (typeof o.o === "number") ? o.o : 0, sp: (typeof o.sp === "number" && o.sp >= 0) ? o.sp : 0, pin: !!o.pin, pb: (typeof o.pb === "number") ? o.pb : 0, pn: (typeof o.pn === "number") ? o.pn : 0, gn: (typeof o.gn === "number") ? o.gn : 0, b: !!o.b };
+        if (typeof o.gn === "number") GiveCounts[String(o.lid)] = o.gn;
+        refreshShopSoon(); markShowsDirty();
+        break;
+      }
+      case "shop-qping": {
+        if (Date.now() - lastQResp < 2500) return;
+        if (iAmSellerHere()) { lastQResp = Date.now(); broadcastQueue(); announceSched(); }
+        break;
+      }
+      case "shop-pre": {
+        var A = auc(); if (!A) return;
+        var L = null;
+        A.listings.forEach(function (x) { if (x.lid === o.lid) L = x; });
+        if (!L || L.fmt !== "auc" || typeof o.a !== "number" || !(o.a > 0)) return;
+        var rec = PreRecv[L.lid] || (PreRecv[L.lid] = { top: null, ids: {} });
+        rec.ids[fromId] = true;
+        if (!rec.top || o.a > rec.top.a) rec.top = { a: o.a, id: fromId, name: fromName || "A bidder", t: Date.now() };
+        queueLine(L);
+        toast("🔔 Pre-bid on \"" + L.title + "\": " + money(o.a) + " from " + (fromName || "a viewer") + " — it counts the moment you run the item.", 3600);
+        refreshShopSoon();
+        break;
+      }
+      case "shop-give": {
+        var A2 = auc(); if (!A2) return;
+        var L2 = null;
+        A2.listings.forEach(function (x) { if (x.lid === o.lid) L2 = x; });
+        if (!L2 || L2.fmt !== "give") return;
+        var g = GiveHost[L2.lid] || (GiveHost[L2.lid] = { ids: {}, names: {} });
+        if (!g.ids[fromId]) { g.ids[fromId] = true; g.names[fromId] = fromName || "A viewer"; }
+        var n = Object.keys(g.ids).length;
+        var last = lastGiveSent[L2.lid] || 0;
+        if (Date.now() - last > 800) { lastGiveSent[L2.lid] = Date.now(); send({ k: "shop-give-n", lid: L2.lid, n: n }); queueLine(L2); }
+        refreshShopSoon();
+        break;
+      }
+      case "shop-give-n": {
+        if (typeof o.lid === "string" && typeof o.n === "number") { GiveCounts[o.lid] = o.n; refreshShopSoon(); }
+        break;
+      }
+      case "shop-give-win": {
+        var title = lookupTitle(fromId, o.lid);
+        showOverlay('<div class="wn-oav">🎁</div><h3>🎉 ' + esc(o.wn || "Someone") + ' won the giveaway!</h3><p>' + esc(title) + '</p><p>Free — courtesy of ' + esc(fromName || "the host") + '.</p>', 4600);
+        delete S.entered[fromId + "|" + o.lid]; save();
+        if (GiveCounts[o.lid] !== undefined) GiveCounts[o.lid] = 0;
+        refreshShopSoon();
+        break;
+      }
+      case "shop-sched": {
+        if (typeof o.at === "number" && o.at > 0) {
+          S.knownShows[fromId] = { name: fromName || "A seller", title: String(o.t || "Live show").slice(0, 40), at: o.at, seen: Date.now() };
+          save(); markShowsDirty();
+        }
+        break;
+      }
+      case "shop-bkm": {
+        if (o.h) { var b = S.showBmk[o.h] || (S.showBmk[o.h] = { n: 0, mine: false }); b.n++; save(); markShowsDirty(); }
+        break;
+      }
+      case "shop-raid": {
+        if (!o.room) return;
+        pendingRaid = { room: String(o.room), hn: fromName || "The host", tn: String(o.tn || "another show").slice(0, 24), at: Date.now() };
+        toast("🚀 " + pendingRaid.hn + " is raiding this show into " + pendingRaid.tn + "'s show — you'll be carried over when this live ends!", 4600);
+        break;
+      }
+    }
+  };
+  function lookupTitle(hostId, lid) {
+    var A = auc();
+    if (A && A.listings) { for (var i = 0; i < A.listings.length; i++) if (A.listings[i].lid === lid) return A.listings[i].title; }
+    var R = Remote[hostId];
+    if (R && R.items[lid]) return R.items[lid].t;
+    var of = offerFor(hostId, lid);
+    return of ? of.title : "the giveaway prize";
+  }
+
+  /* ---------- giveaway entry (shared with the pinned card) ---------- */
+  window.rpWnEnterGive = function (oid, lid) {
+    var A = auc();
+    var hostId = "", title = "";
+    if (A && oid && A.offers && A.offers[oid]) { hostId = A.offers[oid].hostId; title = A.offers[oid].title; lid = A.offers[oid].lid || lid; }
+    if (!hostId) { var L = live(); if (L && L.hostId) hostId = L.hostId; }
+    if (!lid) { toast("That giveaway just closed."); return; }
+    if (hostId === myId()) { toast("It's your giveaway — viewers enter from the pinned card or your shop. 🎁"); return; }
+    var key = hostId + "|" + lid;
+    if (S.entered[key]) { toast("🎁 You're already in this giveaway — good luck!"); return; }
+    S.entered[key] = 1; save();
+    send({ k: "shop-give", lid: lid });
+    if (GiveCounts[lid] !== undefined) GiveCounts[lid] = GiveCounts[lid] + 1;
+    toast("🎁 You're in!" + (title ? " \"" + title + "\"" : "") + " — the winner gets pulled live, right here.", 3200);
+    refreshShopSoon();
+  };
+
+  /* ---------- overlay ---------- */
+  var ovEl = null, ovTimer = null;
+  function showOverlay(html, ms) {
+    if (!ovEl) { ovEl = document.createElement("div"); ovEl.className = "wn-overlay"; document.body.appendChild(ovEl); }
+    ovEl.innerHTML = '<div class="wn-ocard">' + html + '</div>';
+    ovEl.classList.add("on");
+    if (ovTimer) clearTimeout(ovTimer);
+    ovTimer = setTimeout(function () { ovEl.classList.remove("on"); }, ms || 4000);
+  }
+
+  /* ---------- shop panel ---------- */
+  var TAB_DEFS = [["auc", "🔨 Auction"], ["buy", "🛍️ Buy Now"], ["flash", "⚡ Flash Sales"], ["give", "🎁 Giveaway"], ["sold", "✓ Sold"]];
+  function shopItems(hostId) {
+    var out = [], A = auc();
+    if (hostId === myId()) {
+      if (!A || !A.listings) return out;
+      A.listings.forEach(function (L) {
+        var pre = PreRecv[L.lid];
+        out.push({ lid: L.lid, t: L.title, f: L.fmt || "auc", p: L.price || 0, op: L.oprice || 0, q: L.qty, c: L.cat, o: L.cond, sp: L.shipCents || 0, pin: !!L.pinned, photo: (L.photos && L.photos[0]) || null, offerId: L.offerId || "", pb: pre && pre.top ? pre.top.a : 0, pn: pre ? Object.keys(pre.ids).length : 0, gn: giveCountFor(hostId, L.lid), b: !!L.bundle, mine: true });
+      });
+      return out;
+    }
+    var R = Remote[hostId];
+    if (R) Object.keys(R.items).forEach(function (lid) { var it = R.items[lid]; it = Object.assign({}, it); it.photo = null; it.offerId = ""; out.push(it); });
+    if (A && A.offers) Object.keys(A.offers).forEach(function (oid) {
+      var o = A.offers[oid];
+      if (!o || o.hostId !== hostId) return;
+      var found = null;
+      out.forEach(function (it) { if (it.lid === o.lid) found = it; });
+      if (found) { found.pin = true; found.offerId = o.id; found.f = o.fmt || found.f; found.op = o.oprice || found.op; }
+      else out.push({ lid: o.lid || o.id, t: o.title, f: o.fmt || "buy", p: o.price, op: o.oprice || 0, q: o.qty, c: o.cat, o: o.cond, sp: o.shipCents || 0, pin: true, photo: null, offerId: o.id, pb: 0, pn: 0, gn: giveCountFor(hostId, o.lid || ""), b: !!o.bundle, mine: false });
+    });
+    return out;
+  }
+  function soldItems(hostId) {
+    var out = (SoldBy[hostId] || []).slice();
+    var A = auc();
+    if (A && A.results) A.results.forEach(function (r) {
+      // room results carry host names; include any not already recorded richer
+      if (hostId === myId() || r.hostName) out.push({ title: r.title, cond: "", bids: 0, amt: r.amt, ship: 0, winner: r.winnerName || "", plain: r.amt > 0 ? ("🔨 " + r.title + " — sold to " + (r.winnerName || "someone") + " · " + money(r.amt)) : ("🔨 " + r.title + " — no bids") });
+    });
+    return out.slice(0, 8);
+  }
+  function shopRow(it, hostId) {
+    var A = auc();
+    var running = !!(A && A.cur && !A.cur.ended && A.cur.lid === it.lid && it.f === "auc");
+    var thumb = it.photo ? '<img class="thumb" src="' + it.photo + '" alt=""/>' : '<span class="thumb-ph" aria-hidden="true">' + fmtIcon(it.f) + '</span>';
+    var price = "", acts = "";
+    var bmk = S.itemBmk[hostId + "|" + it.lid] ? "★" : "☆";
+    if (it.f === "auc") {
+      if (running) {
+        price = '<span class="price">🔴 LIVE NOW — current bid ' + money(A.cur.high > 0 ? A.cur.high : A.cur.start) + ' · ' + A.cur.bids + (A.cur.bids === 1 ? " bid" : " bids") + '</span>';
+        acts = hostId === myId() ? '<span class="wn-sold">🎤 Running in your show</span>' : '<button type="button" class="wn-act dark" data-shopact="openauc">Open the full auction →</button>';
+      } else {
+        price = '<span class="price">' + (it.pb > 0 ? "Pre-bid at " + money(it.pb) : "Starts at " + money(it.p)) + (it.pn > 0 ? " · " + it.pn + (it.pn === 1 ? " pre-bid" : " pre-bids") : "") + '</span>';
+        acts = '<span class="wn-sold">Auction hasn\'t started</span>' + (hostId === myId()
+          ? '<button type="button" class="wn-act" data-shopact="run" data-lid="' + esc(it.lid) + '">🔨 Run it</button>'
+          : '<button type="button" class="wn-act" data-shopact="prebid" data-lid="' + esc(it.lid) + '">' + (S.myPre[hostId + "|" + it.lid] ? "Pre-bid: " + money(S.myPre[hostId + "|" + it.lid].a) + " ✓" : "Pre-bid") + '</button>');
+      }
+    } else if (it.f === "buy" || it.f === "flash") {
+      price = '<span class="price">' + (it.f === "flash" && it.op > it.p ? "<s>" + money(it.op) + "</s> " : "") + money(it.p) + (it.sp > 0 ? " + " + money(it.sp) + " shipping" : " · free shipping") + (it.q > 1 ? " · ×" + it.q + " left" : "") + '</span>';
+      if (hostId === myId()) acts = '<span class="wn-sold">' + (it.pin ? "📌 Pinned in your show" : "Not pinned — pin it from 📦 My listings") + '</span>';
+      else if (it.offerId) acts = '<button type="button" class="wn-act dark" data-shopact="buy" data-oid="' + esc(it.offerId) + '">Buy ' + money(it.p + (it.sp || 0)) + '</button>';
+      else acts = '<span class="wn-sold">In the queue — the host pins it to sell</span>';
+    } else if (it.f === "give") {
+      var n = it.gn !== undefined ? it.gn : giveCountFor(hostId, it.lid);
+      price = '<span class="price">FREE · 🎁 ' + n + (n === 1 ? " entry" : " entries") + ' so far</span>';
+      if (hostId === myId()) acts = '<button type="button" class="wn-act" data-shopact="pull" data-lid="' + esc(it.lid) + '"' + (n < 1 ? " disabled" : "") + '>🎉 Pull winner</button><span class="wn-sold">Entries land live as viewers tap Enter</span>';
+      else acts = S.entered[hostId + "|" + it.lid] ? '<span class="wn-sold">✓ You\'re in — good luck!</span>' : '<button type="button" class="wn-act" data-shopact="enter" data-lid="' + esc(it.lid) + '" data-oid="' + esc(it.offerId || "") + '">🎁 Enter</button>';
+    }
+    return '<div class="wn-row">' + thumb + '<div class="meta"><b>' + esc(it.t) + '</b>' +
+      '<span>' + esc(catName(it.c)) + ' · ' + esc(condName(it.o)) + (it.q > 1 && it.f === "auc" ? ' · ×' + it.q + ' available' : '') + (it.b ? ' · 📦 bundle shipping' : '') + '</span>' +
+      price + '<div class="acts">' + acts + '<button type="button" class="wn-bmk" data-shopact="bmk" data-lid="' + esc(it.lid) + '" aria-label="Bookmark item">' + bmk + '</button></div></div></div>';
+  }
+  function shopBodyHtml(hostId, tab) {
+    var items = shopItems(hostId);
+    if (S.cat >= 0 && tab !== "sold") items = items.filter(function (it) { return it.c === S.cat; });
+    if (tab === "sold") {
+      var sold = soldItems(hostId);
+      if (!sold.length) return '<p class="wn-empty">Nothing sold in this show yet — sold items land here with the full summary.</p>';
+      return sold.map(function (r) { return '<div class="wn-row"><span class="thumb-ph" aria-hidden="true">✓</span><div class="meta"><span class="wn-sold">' + esc(r.plain || wnSoldLine(r)) + '</span></div></div>'; }).join("");
+    }
+    var rows = items.filter(function (it) { return it.f === tab; });
+    if (!rows.length) return '<p class="wn-empty">' + (tab === "auc" ? "No auction items queued in this show." : tab === "buy" ? "No Buy Now items in this show." : tab === "flash" ? "No flash sales in this show." : "No giveaway running in this show.") + (hostId !== myId() && !Remote[hostId] ? " Join the show to load the full shop." : "") + '</p>';
+    return rows.map(function (it) { return shopRow(it, hostId); }).join("");
+  }
+  var shopSig = "";
+  function openShop(hostId, tab) {
+    var os = G("openSheet"); if (!os) return;
+    shop = { hostId: hostId, tab: tab || "auc" };
+    var name = hostId === myId() ? myName() : ((Remote[hostId] && Remote[hostId].name) || (live() && live().hostId === hostId ? "The host" : "Seller"));
+    var items = shopItems(hostId);
+    var counts = { auc: 0, buy: 0, flash: 0, give: 0 };
+    items.forEach(function (it) { if (counts[it.f] !== undefined) counts[it.f]++; });
+    var tabs = TAB_DEFS.map(function (d) {
+      return '<button type="button" class="wn-tab' + (shop.tab === d[0] ? " on" : "") + '" data-shoptab="' + d[0] + '">' + d[1] + (d[0] !== "sold" && counts[d[0]] ? " (" + counts[d[0]] + ")" : "") + '</button>';
+    }).join("");
+    os('<div class="wn-shop"><div class="wn-shop-head"><span class="wn-av">' + esc(initial(name)) + '</span><div><b>' + esc(name) + '\'s Shop</b><i>' + (hostId === myId() ? "Your show shop — what your viewers see" : "Everything in this show, in one panel") + '</i></div><button class="close-x" id="wnShopX" aria-label="Close">✕</button></div>' +
+      '<div class="wn-tabs">' + tabs + '</div><div id="wnShopBody">' + shopBodyHtml(hostId, shop.tab) + '</div>' +
+      (hostId !== myId() ? '<p class="wn-empty" style="margin-top:10px;">Bids are real dollars with a $1 minimum step; the winner pays the bid plus the shipping on the listing. All sales are final.</p>' : '') + '</div>');
+    shopSig = shopSigOf();
+    var x = $("wnShopX"); if (x) x.addEventListener("click", function () { var cs = G("closeSheet"); if (cs) cs(); shop = null; });
+    document.querySelectorAll("[data-shoptab]").forEach(function (b) {
+      b.addEventListener("click", function () { openShop(hostId, b.getAttribute("data-shoptab")); });
+    });
+    bindShopBody(hostId);
+  }
+  function shopSigOf() {
+    if (!shop) return "";
+    var A = auc();
+    return shop.hostId + "|" + shop.tab + "|" + shopItems(shop.hostId).map(function (it) { return it.lid + ":" + it.q + ":" + (it.pb || 0) + ":" + (it.pn || 0) + ":" + (it.gn || 0) + ":" + (it.pin ? 1 : 0); }).join(",") + "|" + (A && A.cur ? A.cur.id + A.cur.bids + A.cur.high + (A.cur.ended ? 1 : 0) : "") + "|" + (SoldBy[shop.hostId] || []).length;
+  }
+  function refreshShopSoon() { /* the 1.2s shop poll picks changes up via signature */ }
+  function bindShopBody(hostId) {
+    var body = $("wnShopBody"); if (!body) return;
+    body.querySelectorAll("[data-shopact]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var act = b.getAttribute("data-shopact"), lid = b.getAttribute("data-lid") || "", oid = b.getAttribute("data-oid") || "";
+        if (act === "bmk") {
+          var key = hostId + "|" + lid;
+          if (S.itemBmk[key]) delete S.itemBmk[key]; else S.itemBmk[key] = 1;
+          save(); rerenderShopBody();
+        } else if (act === "buy") {
+          var buy = G("aucBuyOffer"); if (buy) buy(oid);
+        } else if (act === "enter") {
+          if (window.rpWnEnterGive) window.rpWnEnterGive(oid, lid);
+          setTimeout(rerenderShopBody, 150);
+        } else if (act === "openauc") {
+          var cs = G("closeSheet"); if (cs) cs(); shop = null;
+          var oa = G("rpOpenAuctions"); if (oa) oa();
+        } else if (act === "run") {
+          var A = auc(); if (!A) return;
+          var L = null;
+          A.listings.forEach(function (x) { if (x.lid === lid) L = x; });
+          var run = G("aucStartFromListing");
+          if (L && run) { var cs2 = G("closeSheet"); if (cs2) cs2(); shop = null; run(L); }
+        } else if (act === "prebid") {
+          openPrebid(hostId, lid);
+        } else if (act === "pull") {
+          pullWinner(lid);
+        }
+      });
+    });
+  }
+  function rerenderShopBody() {
+    if (!shop) return;
+    var body = $("wnShopBody"); if (!body) { shop = null; return; }
+    body.innerHTML = shopBodyHtml(shop.hostId, shop.tab);
+    bindShopBody(shop.hostId);
+    shopSig = shopSigOf();
+  }
+
+  /* ---------- pre-bids ---------- */
+  function openPrebid(hostId, lid) {
+    var os = G("openSheet"); if (!os) return;
+    var it = null;
+    shopItems(hostId).forEach(function (x) { if (x.lid === lid) it = x; });
+    if (!it) return;
+    var min = wnNextBid(it.pb || 0, it.p);
+    os('<div class="wn-shop"><div class="wn-shop-head"><span class="wn-av">' + esc(fmtIcon("auc")) + '</span><div><b>Pre-bid</b><i>' + esc(it.t) + '</i></div><button class="close-x" id="wnPreX" aria-label="Close">✕</button></div>' +
+      '<p class="wn-sold" style="margin:12px 0;">A pre-bid waits in line and <b>counts the moment the host runs this item</b> — the highest pre-bid becomes the opening bid with that bidder winning. Current top pre-bid: <b>' + (it.pb > 0 ? money(it.pb) : "none yet") + '</b>. Your pre-bid must be at least <b>' + money(min) + '</b>.</p>' +
+      '<div class="field"><label for="wnPreAmt">Your pre-bid (USD)</label><input class="online-input-full" id="wnPreAmt" type="number" min="' + (min / 100) + '" step="1" inputmode="numeric" placeholder="' + (min / 100) + '"/></div>' +
+      '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="wnPreGo" type="button">🔨 Place pre-bid</button></div></div>');
+    var x = $("wnPreX"); if (x) x.addEventListener("click", function () { openShop(hostId, "auc"); });
+    var go = $("wnPreGo");
+    if (go) go.addEventListener("click", function () {
+      var v = parseFloat(($("wnPreAmt") && $("wnPreAmt").value) || "");
+      if (!(v > 0)) { toast("Type your pre-bid amount first."); return; }
+      var amt = Math.round(v * 100);
+      if (amt < min) { toast("That pre-bid needs to be at least " + money(min) + "."); return; }
+      S.myPre[hostId + "|" + lid] = { a: amt, t: Date.now() }; save();
+      send({ k: "shop-pre", lid: lid, a: amt });
+      toast("🔔 Pre-bid placed: " + money(amt) + " on \"" + it.t + "\" — it fires automatically when the item runs.", 3600);
+      openShop(hostId, "auc");
+    });
+  }
+
+  /* ---------- giveaway pull (host) ---------- */
+  function pullWinner(lid) {
+    var g = GiveHost[lid];
+    var ids = g ? Object.keys(g.ids) : [];
+    if (!ids.length) { toast("No entries yet — viewers enter from the pinned card or your shop."); return; }
+    var cs = G("closeSheet"); if (cs) cs(); shop = null;
+    var title = lookupTitle(myId(), lid);
+    var steps = ["3", "2", "1"];
+    var i = 0;
+    showOverlay('<div class="wn-big">' + steps[0] + '</div><p>Pulling the winner of "' + esc(title) + '"…</p>', 700);
+    var iv = setInterval(function () {
+      i++;
+      if (i < steps.length) { showOverlay('<div class="wn-big">' + steps[i] + '</div><p>Pulling the winner of "' + esc(title) + '"…</p>', 700); return; }
+      clearInterval(iv);
+      var wid = ids[Math.floor(Math.random() * ids.length)];
+      var wname = (g.names && g.names[wid]) || "A viewer";
+      send({ k: "shop-give-win", lid: lid, wn: String(wname).slice(0, 16), w: wid });
+      showOverlay('<div class="wn-oav">🎁</div><h3>🎉 ' + esc(wname) + ' won the giveaway!</h3><p>' + esc(title) + '</p><p>Free — congratulations!</p>', 4600);
+      GiveHost[lid] = { ids: {}, names: {} };
+      send({ k: "shop-give-n", lid: lid, n: 0 });
+      var A = auc();
+      if (A && A.listings) A.listings.forEach(function (L) { if (L.lid === lid) queueLine(L); });
+    }, 720);
+  }
+
+  /* ---------- shows discovery (Auctions home) ---------- */
+  var showsDirty = true;
+  function markShowsDirty() { showsDirty = true; }
+  function directory() { try { return window.rpDirectory ? window.rpDirectory() : []; } catch (e) { return []; } }
+  function showBmkCount(hostId) { var b = S.showBmk[hostId]; return (b ? b.n : 0) + (b && b.mine ? 1 : 0); }
+  function queueCount(hostId) { var R = Remote[hostId]; return R ? Object.keys(R.items).length : 0; }
+  function showsHtml() {
+    var dir = directory().filter(function (e) { return e.room; });
+    var live = dir.filter(function (e) {
+      if (S.cat < 0) return true;
+      var R = Remote[e.hostId];
+      if (!R) return true;
+      return Object.keys(R.items).some(function (lid) { return R.items[lid].c === S.cat; });
+    });
+    var liveHtml = live.length ? live.map(function (e) {
+      var qc = queueCount(e.hostId);
+      var b = S.showBmk[e.hostId];
+      return '<div class="wn-show-card"><span class="wn-av">' + esc(initial(e.name)) + '</span><div class="wn-show-meta"><b>' + esc(e.name) + (e.mine ? " · You" : "") + ' <span style="color:#ff3b30;">● LIVE</span></b>' +
+        '<span>' + esc(e.title || e.topic || "Live show") + ' · 👁 ' + (e.n || 1) + ' watching' + (qc ? ' · 🛍 ' + qc + (qc === 1 ? " item" : " items") + ' in the shop' : '') + '</span>' +
+        '<div class="wn-show-acts"><button type="button" class="btn-mini go" data-wnjoin="' + esc(e.hostId) + '" data-room="' + esc(e.room) + '" data-name="' + esc(e.name) + '">▶ Join show</button>' +
+        '<button type="button" class="btn-mini" data-wnshop="' + esc(e.hostId) + '">🛍 Shop</button>' +
+        '<button type="button" class="btn-mini" data-wnbmk="' + esc(e.hostId) + '">' + (b && b.mine ? "🔖 Bookmarked" : "🔖 Bookmark this show") + ' · ' + showBmkCount(e.hostId) + '</button></div></div></div>';
+    }).join("") : '<p class="wn-empty">No live shows right now — when a seller goes live, their show lands here. (Connect and hang out in the rooms so shows can find you.)</p>';
+    var now = Date.now();
+    var ups = [];
+    Object.keys(S.knownShows).forEach(function (hid) { var s = S.knownShows[hid]; if (s.at > now - 1800000) ups.push({ hostId: hid, name: s.name, title: s.title, at: s.at }); });
+    S.myShows.forEach(function (s) { if (s.at > now - 1800000) ups.push({ hostId: myId(), name: myName() + " (you)", title: s.title, at: s.at, mineShow: s.id }); });
+    ups.sort(function (a, b2) { return a.at - b2.at; });
+    var upHtml = ups.length ? ups.map(function (u) {
+      var b = S.showBmk[u.hostId];
+      var when = new Date(u.at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
+      return '<div class="wn-show-card"><span class="wn-av">🗓</span><div class="wn-show-meta"><b>' + esc(u.title) + '</b><span>by ' + esc(u.name) + ' · ' + esc(when) + '</span>' +
+        '<div class="wn-show-acts">' + (u.mineShow ? '<button type="button" class="btn-mini" data-wndelshow="' + esc(u.mineShow) + '">🗑 Remove</button>' : '<button type="button" class="btn-mini" data-wnbmk="' + esc(u.hostId) + '">' + (b && b.mine ? "🔖 Bookmarked" : "🔖 Bookmark this show") + ' · ' + showBmkCount(u.hostId) + '</button>') + '</div></div></div>';
+    }).join("") : '<p class="wn-empty">No upcoming shows announced yet — schedule yours and it appears here for everyone who hears it.</p>';
+    var chips = ['<button type="button" class="wn-chip' + (S.cat < 0 ? " on" : "") + '" data-wncat="-1">All</button>'].concat(cats().map(function (c, i) {
+      return '<button type="button" class="wn-chip' + (S.cat === i ? " on" : "") + '" data-wncat="' + i + '">' + esc(c) + '</button>';
+    })).join("");
+    var A = auc();
+    var myShopBtn = (A && A.listings && A.listings.length) ? '<button type="button" class="btn-mini" data-wnmyshop="1">🛍 View my shop panel</button>' : "";
+    return '<div class="wn-shows-head"><h3>🎪 Shows</h3>' + myShopBtn + '<button type="button" class="btn-mini go" id="wnSchedBtn">🗓 Schedule a show</button></div>' +
+      '<div class="wn-chips">' + chips + '</div>' +
+      '<h4>🔴 Live Shows</h4>' + liveHtml +
+      '<h4>🗓 Upcoming Shows</h4>' + upHtml;
+  }
+  function injectShows() {
+    var body = $("aucBody"); if (!body) return;
+    var s = document.querySelector(".screen.active");
+    if (!s || s.id !== "screen-auctions") return;
+    var ex = $("wnShows");
+    if (ex) { if (showsDirty) { ex.innerHTML = showsHtml(); bindShows(ex); showsDirty = false; } return; }
+    var d = document.createElement("div");
+    d.className = "wn-shows"; d.id = "wnShows";
+    d.innerHTML = showsHtml();
+    body.insertBefore(d, body.firstChild);
+    bindShows(d);
+    showsDirty = false;
+  }
+  function bindShows(root) {
+    root.querySelectorAll("[data-wncat]").forEach(function (b) {
+      b.addEventListener("click", function () { S.cat = parseInt(b.getAttribute("data-wncat"), 10); save(); showsDirty = true; injectShows(); });
+    });
+    root.querySelectorAll("[data-wnjoin]").forEach(function (b) {
+      b.addEventListener("click", function () { welcomeShow(b.getAttribute("data-wnjoin"), b.getAttribute("data-room"), b.getAttribute("data-name")); });
+    });
+    root.querySelectorAll("[data-wnshop]").forEach(function (b) {
+      b.addEventListener("click", function () { openShop(b.getAttribute("data-wnshop"), "auc"); });
+    });
+    root.querySelectorAll("[data-wnbmk]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var hid = b.getAttribute("data-wnbmk");
+        var rec = S.showBmk[hid] || (S.showBmk[hid] = { n: 0, mine: false });
+        rec.mine = !rec.mine; save();
+        var L = live();
+        if (rec.mine && L && L.hostId === hid) send({ k: "shop-bkm", h: hid });
+        toast(rec.mine ? "🔖 Show bookmarked — find it under 🗓 Upcoming & 🔴 Live Shows." : "Bookmark removed.");
+        showsDirty = true; injectShows();
+      });
+    });
+    root.querySelectorAll("[data-wndelshow]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-wndelshow");
+        S.myShows = S.myShows.filter(function (x) { return x.id !== id; });
+        save(); announceSched(); showsDirty = true; injectShows();
+      });
+    });
+    var mb = root.querySelector("[data-wnmyshop]");
+    if (mb) mb.addEventListener("click", function () { openShop(myId(), "auc"); });
+    var sb = $("wnSchedBtn");
+    if (sb) sb.addEventListener("click", scheduleSheet);
+  }
+  function welcomeShow(hostId, room, name) {
+    var os = G("openSheet"); if (!os) return;
+    var qc = queueCount(hostId);
+    var dir = directory();
+    var e = null;
+    dir.forEach(function (x) { if (x.hostId === hostId) e = x; });
+    os('<div class="wn-shop" style="text-align:center;"><span class="wn-av" style="margin:0 auto 10px; width:56px; height:56px; font-size:23px;">' + esc(initial(name)) + '</span>' +
+      '<h3 style="margin:0 0 6px;">Welcome! You\'re joining a show by ' + esc(name) + '</h3>' +
+      '<p class="wn-sold">' + esc((e && (e.title || e.topic)) || "Live show") + (qc ? ' · 🛍 ' + qc + (qc === 1 ? " item" : " items") + ' in their shop' : '') + ' · 👁 ' + ((e && e.n) || 1) + ' watching</p>' +
+      '<p class="wn-sold">Bid live, enter giveaways, and check out right from the show. All sales are final.</p>' +
+      '<div class="btn-row" style="justify-content:center; margin-top:14px;"><button class="btn-primary" style="width:auto; padding:13px 30px; background:#ffd60a; color:#17171f;" id="wnLetsGo" type="button">Let\'s Go</button></div></div>');
+    var go = $("wnLetsGo");
+    if (go) go.addEventListener("click", function () {
+      var cs = G("closeSheet"); if (cs) cs();
+      var j = G("rpJoinLive"); if (j) j(room);
+      var sh = G("show"); if (sh) sh("screen-online");
+    });
+  }
+  function scheduleSheet() {
+    var os = G("openSheet"); if (!os) return;
+    var mine = S.myShows.filter(function (s) { return s.at > Date.now() - 1800000; }).map(function (s) {
+      return '<div class="wn-row"><span class="thumb-ph" aria-hidden="true">🗓</span><div class="meta"><b>' + esc(s.title) + '</b><span>' + esc(new Date(s.at).toLocaleString()) + '</span></div></div>';
+    }).join("");
+    os('<div class="wn-shop"><div class="wn-shop-head"><span class="wn-av">🗓</span><div><b>Schedule a show</b><i>Announced to everyone in your rooms while you\'re online</i></div><button class="close-x" id="wnSchX" aria-label="Close">✕</button></div>' +
+      (mine || "") +
+      '<div class="field" style="margin-top:10px;"><label for="wnSchTitle">Show title</label><input class="online-input-full" id="wnSchTitle" type="text" maxlength="40" placeholder="e.g. Friday night sneaker drop"/></div>' +
+      '<div class="field"><label for="wnSchAt">Date &amp; time</label><input class="online-input-full" id="wnSchAt" type="datetime-local"/></div>' +
+      '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="wnSchGo" type="button">🗓 Save &amp; announce</button></div></div>');
+    var x = $("wnSchX"); if (x) x.addEventListener("click", function () { var cs = G("closeSheet"); if (cs) cs(); });
+    var go = $("wnSchGo");
+    if (go) go.addEventListener("click", function () {
+      var t = (($("wnSchTitle") && $("wnSchTitle").value) || "").trim();
+      var at = Date.parse(($("wnSchAt") && $("wnSchAt").value) || "");
+      if (!t) { toast("Give your show a title first!"); return; }
+      if (!(at > 0)) { toast("Pick a date and time for the show."); return; }
+      S.myShows.push({ id: "s" + Date.now().toString(36), title: t, at: at });
+      save(); announceSched();
+      var cs = G("closeSheet"); if (cs) cs();
+      toast("🗓 Show scheduled: \"" + t + "\" — it's in 🗓 Upcoming Shows and announced while you're online.", 3600);
+      showsDirty = true; injectShows();
+    });
+  }
+
+  /* ---------- raids ---------- */
+  function raidSheet() {
+    var os = G("openSheet"); if (!os) return;
+    var others = directory().filter(function (e) { return e.room && !e.mine; });
+    var rows = others.length ? others.map(function (e) {
+      return '<div class="wn-row"><span class="wn-av">' + esc(initial(e.name)) + '</span><div class="meta"><b>' + esc(e.name) + '</b><span>' + esc(e.title || e.topic || "Live show") + ' · 👁 ' + (e.n || 1) + ' watching</span><div class="acts"><button type="button" class="wn-act" data-wnraid="' + esc(e.room) + '" data-tn="' + esc(e.name) + '">🚀 Raid this show</button></div></div></div>';
+    }).join("") : '<p class="wn-empty">No other live shows to raid right now.</p>';
+    os('<div class="wn-shop"><div class="wn-shop-head"><span class="wn-av">🚀</span><div><b>Raid another show</b><i>Your viewers are carried into the show you pick when you end yours</i></div><button class="close-x" id="wnRaidX" aria-label="Close">✕</button></div>' + rows + '</div>');
+    var x = $("wnRaidX"); if (x) x.addEventListener("click", function () { var cs = G("closeSheet"); if (cs) cs(); });
+    document.querySelectorAll("[data-wnraid]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var room = b.getAttribute("data-wnraid"), tn = b.getAttribute("data-tn");
+        send({ k: "shop-raid", room: room, tn: String(tn || "another show").slice(0, 16) });
+        os('<div class="wn-shop" style="text-align:center;"><h3 style="margin:4px 0 6px;">🚀 Raid is set!</h3><p class="wn-sold">Your viewers know they\'re heading to ' + esc(tn) + '\'s show. End your live and they land there automatically.</p>' +
+          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 22px; background:#ffd60a; color:#17171f;" id="wnRaidEnd" type="button">End my live &amp; raid now</button><button class="btn-mini" id="wnRaidLater" type="button">I\'ll end in a moment</button></div></div>');
+        var later = $("wnRaidLater"); if (later) later.addEventListener("click", function () { var cs = G("closeSheet"); if (cs) cs(); });
+        var end = $("wnRaidEnd");
+        if (end) end.addEventListener("click", function () {
+          var cs = G("closeSheet"); if (cs) cs();
+          setTimeout(function () { var f = G("liveEndMine"); if (f) f(); }, 700);
+        });
+      });
+    });
+  }
+
+  /* ---------- the in-live bar (shop / giveaways / raid) ---------- */
+  var barEl = null, barSig = "";
+  function ensureBar() {
+    var panel = $("livePanel"); if (!panel) return null;
+    if (!barEl || !document.contains(barEl)) {
+      barEl = document.createElement("div");
+      barEl.className = "wn-bar"; barEl.id = "wnBar";
+      var pin = $("liveAucPin");
+      if (pin && pin.parentNode === panel) panel.insertBefore(barEl, pin.nextSibling);
+      else panel.appendChild(barEl);
+    }
+    return barEl;
+  }
+  function tickBar() {
+    var L = live();
+    var bar = ensureBar(); if (!bar) return;
+    var sig = "", html = "";
+    if (L && L.active && L.hostId) {
+      var A = auc();
+      if (L.mine) {
+        sig = "mine";
+        html = '<button type="button" data-wnbar="myshop">🛍 My Shop</button><button type="button" data-wnbar="raid">🚀 Raid another show</button>';
+        if (A && A.listings && A.listings.some(function (x) { return x.fmt === "give" && x.qty > 0; })) html += '<button type="button" data-wnbar="mygive">🎁 Giveaways</button>';
+      } else {
+        var R = Remote[L.hostId];
+        var hasGive = false, giveLid = "", giveOid = "";
+        if (R) Object.keys(R.items).forEach(function (lid) { if (R.items[lid].f === "give") { hasGive = true; giveLid = lid; } });
+        if (A && A.offers) Object.keys(A.offers).forEach(function (oid) { var o = A.offers[oid]; if (o && o.hostId === L.hostId && o.fmt === "give") { hasGive = true; giveLid = o.lid || giveLid; giveOid = oid; } });
+        sig = "view|" + L.hostId + "|" + (hasGive ? giveCountFor(L.hostId, giveLid) : -1) + "|" + (S.entered[L.hostId + "|" + giveLid] ? 1 : 0);
+        html = '<button type="button" data-wnbar="shop">🛍 ' + esc((R && R.name) || "Host") + '\'s Shop</button>';
+        if (hasGive) html += S.entered[L.hostId + "|" + giveLid]
+          ? '<button type="button" data-wnbar="entered">🎁 You\'re in the giveaway · ' + giveCountFor(L.hostId, giveLid) + ' in</button>'
+          : '<button type="button" data-wnbar="give" data-lid="' + esc(giveLid) + '" data-oid="' + esc(giveOid) + '">🎁 Enter giveaway · ' + giveCountFor(L.hostId, giveLid) + ' in</button>';
+      }
+    }
+    if (sig !== barSig) {
+      barSig = sig;
+      bar.innerHTML = html;
+      bar.style.display = html ? "" : "none";
+      bar.querySelectorAll("[data-wnbar]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var act = b.getAttribute("data-wnbar");
+          var L2 = live(); if (!L2) return;
+          if (act === "myshop") openShop(myId(), "auc");
+          else if (act === "mygive") openShop(myId(), "give");
+          else if (act === "shop") openShop(L2.hostId, "auc");
+          else if (act === "raid") raidSheet();
+          else if (act === "give") { if (window.rpWnEnterGive) window.rpWnEnterGive(b.getAttribute("data-oid") || "", b.getAttribute("data-lid") || ""); }
+        });
+      });
+    }
+  }
+
+  /* ---------- auction watcher: ticker, win overlay, pre-bid conversion, sold records ---------- */
+  var lastAucId = "", lastBids = -1, lastEnded = false, tickHist = [], soldSeen = {};
+  function tickAuction() {
+    var A = auc(); if (!A) return;
+    var a = A.cur;
+    // ticker fill (the pin card re-renders often; refill from history)
+    var tEl = document.querySelector("#liveAucPin [data-wn-ticker]");
+    if (a && !a.ended && tickHist.length && a.id === lastAucId) {
+      var th = tickHist.slice(-3).map(function (x) { return esc(x); }).join(" · ");
+      if (tEl && tEl.getAttribute("data-v") !== th) { tEl.setAttribute("data-v", th); tEl.innerHTML = "🕘 " + th; }
+    }
+    if (!a) { lastAucId = ""; lastBids = -1; lastEnded = false; return; }
+    if (a.id !== lastAucId) {
+      // a new auction started
+      lastAucId = a.id; lastBids = a.bids; lastEnded = !!a.ended; tickHist = [];
+      var key = a.hostId + "|" + (a.lid || "");
+      var pre = S.myPre[key];
+      if (pre && a.hostId !== myId() && !a.ended) {
+        var amt = pre.a, aid = a.id;
+        setTimeout(function () {
+          var A2 = auc(); if (!A2 || !A2.cur || A2.cur.id !== aid || A2.cur.ended) return;
+          if (A2.cur.highId === myId()) return;
+          var place = G("aucPlaceBid");
+          if (place) place(amt);
+          delete S.myPre[key]; save();
+        }, 900);
+      }
+      return;
+    }
+    if (a.bids > lastBids && !a.ended) {
+      lastBids = a.bids;
+      if (a.high > 0 && a.highName) tickHist.push(initial(a.highName) + " bid " + money(a.high));
+    }
+    if (a.ended && !lastEnded) {
+      lastEnded = true;
+      var key2 = a.hostId + "|" + (a.lid || "");
+      if (S.myPre[key2]) { delete S.myPre[key2]; save(); }
+      if (a.high > 0 && a.highId && !soldSeen[a.id]) {
+        soldSeen[a.id] = 1;
+        var rec = { title: a.title, cond: condName(typeof a.cond === "number" ? a.cond : 0), bids: a.bids, amt: a.high, ship: a.shipCents || 0, winner: a.highName || "The winner", t: Date.now() };
+        (SoldBy[a.hostId] || (SoldBy[a.hostId] = [])).unshift(rec);
+        if (SoldBy[a.hostId].length > 8) SoldBy[a.hostId].pop();
+        var scr = document.querySelector(".screen.active");
+        if (scr && (scr.id === "screen-online" || scr.id === "screen-auctions")) {
+          showOverlay('<div class="wn-oav">' + esc(initial(rec.winner)) + '</div><h3>' + esc(rec.winner) + ' won the auction!</h3><p>' + esc(rec.title) + '</p><p>' + esc(wnSoldLine(rec)) + '</p>', 4400);
+          var cf = G("confettiBurst"); if (cf) try { cf(); } catch (e) { }
+        }
+      }
+      refreshShopSoon();
+    }
+  }
+
+  /* ---------- raid execution (viewer side) ---------- */
+  function tickRaid() {
+    if (!pendingRaid) return;
+    if (Date.now() - pendingRaid.at > 120000) { pendingRaid = null; return; }
+    var L = live();
+    if (!L || !L.active) {
+      var r = pendingRaid; pendingRaid = null;
+      var j = G("rpJoinLive");
+      if (j && j(r.room)) {
+        var sh = G("show"); if (sh) sh("screen-online");
+        toast("🚀 You were raided in by " + r.hn + " — welcome to " + r.tn + "'s show!", 4200);
+      }
+    }
+  }
+
+  /* ---------- host duties + room watcher ---------- */
+  var lastRoom = "", lastMineLive = false, lastListSig = "", lastQpingAt = 0;
+  function tickHost() {
+    var room = "";
+    try { room = window.rpRoom ? window.rpRoom() : ""; } catch (e) { }
+    var L = live();
+    var mineLive = !!(L && L.active && L.mine);
+    if (room && room !== lastRoom) {
+      lastRoom = room;
+      if (G("rpOnlineOn") && window.rpOnlineOn()) { send({ k: "shop-qping" }); lastQpingAt = Date.now(); }
+    }
+    if (mineLive && !lastMineLive) { broadcastQueue(); announceSched(); }
+    lastMineLive = mineLive;
+    var A = auc();
+    if (A && A.listings) {
+      var sig = A.listings.map(function (x) { return x.lid + x.fmt + x.qty + (x.pinned ? 1 : 0); }).join(",");
+      if (sig !== lastListSig) {
+        var first = lastListSig === "";
+        lastListSig = sig;
+        if (!first && iAmSellerHere()) broadcastQueue();
+      }
+    }
+  }
+
+  /* ---------- boot + polls ---------- */
+  var bodyObs = null;
+  function boot() {
+    var body = $("aucBody");
+    if (body && window.MutationObserver) {
+      bodyObs = new MutationObserver(function () { if (!$("wnShows")) { showsDirty = true; injectShows(); } });
+      bodyObs.observe(body, { childList: true });
+    }
+    injectShows();
+    setInterval(function () {
+      try { tickAuction(); } catch (e) { }
+      try { tickBar(); } catch (e) { }
+      try { tickRaid(); } catch (e) { }
+    }, 600);
+    setInterval(function () {
+      try { tickHost(); } catch (e) { }
+      try { injectShows(); } catch (e) { }
+      if (shop) {
+        var bodyEl = $("wnShopBody");
+        if (!bodyEl) shop = null;
+        else if (shopSigOf() !== shopSig) rerenderShopBody();
+      }
+      // keep queue knowledge fresh while browsing the Auctions home
+      var scr = document.querySelector(".screen.active");
+      if (scr && scr.id === "screen-auctions" && Date.now() - lastQpingAt > 30000) {
+        lastQpingAt = Date.now();
+        send({ k: "shop-qping" });
+      }
+    }, 1500);
+    setInterval(function () { showsDirty = true; }, 20000);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+
+  window.RPWN = { nextBid: wnNextBid, topPre: wnTopPre, soldLine: wnSoldLine, state: S };
+})();
+</script>
+
 </body>
 </html>
