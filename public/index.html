@@ -2196,6 +2196,88 @@
       .room-card:active { transform: scale(.98); }
       .match-row, .lv-people-row, .auc-list-row { content-visibility: auto; contain-intrinsic-size: auto 64px; }
       body.bg-paused [class*="bg4d"] { animation-play-state: paused !important; }
+    
+      /* ================= TIKTOK MODE (v4) — whole-game design language =================
+         Rizz Plaza's own features and branding, arranged the TikTok way:
+         pure black, bold white type, solid pink primary, floating media UI. */
+      h2, h3 { letter-spacing: -.2px; }
+      .btn-primary {
+        background: #fe2c55; border-radius: 10px; box-shadow: none;
+        font-weight: 800; letter-spacing: .1px;
+      }
+      .btn-mini { background: #26262e; border: 1px solid rgba(255,255,255,.10); border-radius: 999px; font-weight: 700; }
+      .sheet { background: #101016; border-radius: 16px 16px 0 0; }
+      .sheet::before {
+        content: ""; display: block; width: 38px; height: 4px; border-radius: 2px;
+        background: rgba(255,255,255,.28); margin: -6px auto 14px;
+      }
+      #tabbar { background: #000000; border-top: 1px solid rgba(255,255,255,.08); backdrop-filter: none; -webkit-backdrop-filter: none; }
+      .tab-btn { color: #8f8f9d; }
+      .tab-btn.on { color: #ffffff; }
+      /* ---- Plaza home: sticky app bar + feed cards ---- */
+      #ttbar {
+        position: sticky; top: 0; z-index: 30;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 2px 10px; margin: 0 0 6px;
+        background: rgba(0,0,0,.88); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+        border-bottom: 1px solid rgba(255,255,255,.07);
+      }
+      #ttbar .tt-word { font-size: 21px; font-weight: 900; letter-spacing: -.3px; color: #fff; }
+      #ttbar .tt-word span { color: var(--rose); }
+      #ttbar .tt-actions { display: flex; gap: 8px; }
+      #ttbar .tt-pill {
+        border: none; cursor: pointer; font-family: inherit; font-weight: 800; font-size: 13px;
+        border-radius: 999px; padding: 8px 14px; color: #fff; background: #26262e;
+      }
+      #ttbar .tt-pill.live { background: #fe2c55; }
+      .live-now-box { background: #0c0c12; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; }
+      .plaza-card { border-radius: 18px; }
+      .plaza-card h3 { font-size: 17px; font-weight: 800; letter-spacing: -.1px; }
+      .chat-log > * { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+      .chat-row input { border-radius: 999px; background: #1c1c24; border: none; padding: 12px 16px; }
+      /* ---- Live: TikTok arrangement ---- */
+      .lv-hostchip { background: rgba(0,0,0,.45); border: none; padding: 3px 12px 3px 4px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+      .lv-livepill { background: #fe2c55; border: none; border-radius: 4px; padding: 3px 7px; font-weight: 800; letter-spacing: .6px; }
+      .lv-viewers { background: rgba(0,0,0,.45); border: none; border-radius: 999px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+      .lv-comments { width: min(320px, 74%); bottom: 76px; }
+      .lv-comment {
+        background: rgba(0,0,0,.30); border-radius: 14px; padding: 5px 10px;
+        backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        align-self: flex-start; max-width: 100%;
+      }
+      .lv-commentbar input { border-radius: 999px; background: rgba(255,255,255,.14); border: none; color: #fff; }
+      .lv-rail button { background: rgba(0,0,0,.45); border: none; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+      .lv-wall { gap: 6px; }
+      .lv-wall video, .lv-wall img { border-radius: 14px; }
+      /* ---- Moments: TikTok feed (author + caption over media, right action rail) ---- */
+      .mom-top {
+        position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+        background: linear-gradient(180deg, rgba(0,0,0,.50), rgba(0,0,0,0));
+        color: #fff; padding: 12px;
+      }
+      .mom-top .who-av img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+      .mom-cap {
+        position: absolute; left: 0; right: 66px; bottom: 0; z-index: 2;
+        padding: 36px 12px 12px; color: #fff;
+        background: linear-gradient(0deg, rgba(0,0,0,.58), rgba(0,0,0,0));
+      }
+      .mom-acts {
+        position: absolute; right: 8px; bottom: 84px; z-index: 3;
+        flex-direction: column; gap: 14px; padding: 0;
+      }
+      .mom-act {
+        flex-direction: column; gap: 1px; width: 47px; min-height: 47px;
+        border-radius: 999px; border: none; padding: 7px 0 5px;
+        background: rgba(0,0,0,.45); color: #fff; font-size: 10.5px; font-weight: 700;
+        backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        align-items: center; justify-content: center;
+      }
+      .mom-act.gift { margin-left: 0; color: var(--gold); }
+      .mom-act.liked { color: #ff7d9c; }
+      /* ---- Profile: TikTok stats + tight grid ---- */
+      .pf-social { display: flex; justify-content: center; gap: 30px; text-align: center; }
+      .pf-grid { gap: 3px; }
+      .pf-tile { border-radius: 4px; overflow: hidden; }
     </style>
   </head>
   <body>
@@ -13033,6 +13115,28 @@
       });
       mo.observe(document.body, { childList: true, subtree: true });
     }
+  })();
+  </script>
+
+  <script>
+  /* RP-TIKTOK-MODE: sticky app bar on the Plaza home */
+  (function () {
+    var plaza = document.getElementById("screen-plaza");
+    if (!plaza || document.getElementById("ttbar")) return;
+    var bar = document.createElement("div");
+    bar.id = "ttbar";
+    bar.innerHTML = '<div class="tt-word">Rizz<span>Plaza</span></div>' +
+      '<div class="tt-actions">' +
+      '<button class="tt-pill live" type="button" id="ttLive">🔴 Live</button>' +
+      '<button class="tt-pill" type="button" id="ttSell">🔨 Sell</button>' +
+      '</div>';
+    plaza.insertBefore(bar, plaza.firstChild);
+    function wire(id, target) {
+      var b = document.getElementById(id);
+      if (b) b.addEventListener("click", function () { var t = document.getElementById(target); if (t) t.click(); });
+    }
+    wire("ttLive", "btnOnlineHome");
+    wire("ttSell", "btnAuctionsHome");
   })();
   </script>
 </body>
