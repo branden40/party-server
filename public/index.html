@@ -423,15 +423,6 @@
       .opt-btn.wrong { border-color: #c0392b; background: rgba(192,57,43,.1); }
       .opt-btn:disabled { cursor: default; opacity: .9; }
 
-      /* ---------- Speed dating ---------- */
-      .speed-card {
-        display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-        border-radius: 20px; padding: 20px 22px; margin-bottom: 16px; color: #fff;
-        background: linear-gradient(120deg, var(--rose-deep), var(--coral));
-        box-shadow: var(--shadow);
-      }
-      .speed-card h3 { margin: 0 0 4px; font-size: 24px; }
-      .speed-card p { margin: 0; font-weight: 600; opacity: .95; max-width: 560px; font-size: 14px; }
       .speed-btn {
         background: #fff; color: var(--rose-deep); border: none; border-radius: 999px;
         padding: 12px 20px; font-weight: 800; font-size: 15px; margin-left: auto;
@@ -2098,6 +2089,113 @@
       .vc-btns { justify-content: center; margin-top: 8px; flex-wrap: wrap; }
       .vc-end { background: var(--rose) !important; color: #fff !important; border-color: var(--rose) !important; }
       @media (prefers-reduced-motion: reduce) { .sheet { animation: none !important; } .arc-card:hover, .plaza-card:hover { transform: none; } }
+    
+      /* ================= SOCIAL-APP + OLED UPGRADE (v2) =================
+         True-black OLED base, brighter accents, glass depth, native-app feel.
+         Appended last so it refines the base theme without rewriting it. */
+      :root {
+        --bg: #000000;
+        --panel: #0a0a10;
+        --panel-2: #10101a;
+        --line: rgba(255, 255, 255, 0.16);
+        --rose: #ff2e63;
+        --coral: #ff6a3d;
+        --gold: #ffc53d;
+        --teal: #2ee6df;
+      }
+      html { -webkit-tap-highlight-color: transparent; }
+      body {
+        background: #000000;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        overscroll-behavior-y: none;
+      }
+      button { touch-action: manipulation; }
+      input, select, textarea { font-size: 16px; } /* stops iOS focus-zoom, like native apps */
+      ::selection { background: rgba(255, 46, 99, .45); }
+      .plaza-card {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+        backdrop-filter: blur(14px) saturate(150%);
+        -webkit-backdrop-filter: blur(14px) saturate(150%);
+        content-visibility: auto;
+        contain-intrinsic-size: auto 128px;
+      }
+      .plaza-card h3 { letter-spacing: .2px; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5); }
+      .game-box {
+        background: linear-gradient(180deg, #11111a, #0a0a10);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 18px 44px rgba(0, 0, 0, 0.6);
+      }
+      .btn-primary {
+        background: linear-gradient(90deg, var(--rose), var(--coral));
+        box-shadow: 0 8px 26px rgba(255, 46, 99, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+      }
+      .btn-primary, .btn-mini, .speed-btn, .scene-btn, .ghost, .tab-btn { transition: transform .12s ease, filter .12s ease; }
+      .btn-primary:active, .btn-mini:active, .speed-btn:active, .scene-btn:active, .ghost:active { transform: scale(.965); }
+      .sheet { scrollbar-width: none; }
+      .sheet::-webkit-scrollbar { display: none; }
+      img { image-rendering: -webkit-optimize-contrast; }
+      /* ---------- Bottom tab bar (social-app shell) ---------- */
+      #tabbar {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+        display: none;
+        background: rgba(6, 6, 10, 0.84);
+        backdrop-filter: blur(20px) saturate(160%);
+        -webkit-backdrop-filter: blur(20px) saturate(160%);
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+      }
+      body.has-tabs #tabbar { display: flex; }
+      body.has-tabs .screen.active { padding-bottom: 98px; }
+      .tab-btn {
+        flex: 1; background: none; border: none; cursor: pointer;
+        color: #a7a7ba; display: flex; flex-direction: column; align-items: center; gap: 2px;
+        font-size: 10.5px; font-weight: 700; letter-spacing: .2px;
+        padding: 6px 0 3px; border-radius: 12px; font-family: inherit;
+      }
+      .tab-btn .ti { font-size: 21px; line-height: 1.1; filter: saturate(.35) brightness(.85); transition: transform .15s ease, filter .15s ease; }
+      .tab-btn.on { color: #ffffff; }
+      .tab-btn.on .ti { filter: none; transform: scale(1.14); }
+      .tab-btn:active .ti { transform: scale(.92); }
+      @media (prefers-reduced-motion: reduce) {
+        .screen.active { animation: none; }
+        .tab-btn .ti { transition: none; }
+      }
+    
+      /* ================= FULL UPGRADE (v3): feeds, live, lists ================= */
+      .mom-card {
+        background: linear-gradient(180deg, #0d0d15, #07070c);
+        content-visibility: auto;
+        contain-intrinsic-size: auto 540px;
+      }
+      .mom-photo img {
+        width: 100%; height: 100%; object-fit: cover; display: block;
+        animation: momImgIn .55s ease both;
+      }
+      @keyframes momImgIn { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+      .mom-feed { scroll-behavior: smooth; }
+      .dt-heart {
+        position: absolute; z-index: 6; pointer-events: none;
+        font-size: 84px; line-height: 1;
+        transform: translate(-50%, -50%) scale(.3); opacity: 0;
+        filter: drop-shadow(0 10px 24px rgba(0,0,0,.55));
+        animation: dtPop .72s cubic-bezier(.2,.9,.3,1) forwards;
+      }
+      @keyframes dtPop {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(-8deg); }
+        25% { opacity: 1; transform: translate(-50%, -56%) scale(1.15) rotate(3deg); }
+        60% { opacity: 1; transform: translate(-50%, -68%) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, -92%) scale(1.04); }
+      }
+      .lv-comment { animation: lvIn .3s cubic-bezier(.2,.9,.3,1) both; }
+      @keyframes lvIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+      .lv-livepill, .live-badge, .auc-live-tag { animation: livePulse 1.6s ease-in-out infinite; }
+      @keyframes livePulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.4); } }
+      .room-card { transition: transform .15s ease, box-shadow .15s ease; }
+      .room-card:active { transform: scale(.98); }
+      .match-row, .lv-people-row, .auc-list-row { content-visibility: auto; contain-intrinsic-size: auto 64px; }
+      body.bg-paused [class*="bg4d"] { animation-play-state: paused !important; }
     </style>
   </head>
   <body>
@@ -2226,13 +2324,6 @@
           <h3 style="margin: 26px 0 4px; font-size: 22px;">Your matches</h3>
           <div class="matches-list" id="matchesList"></div>
         </div>
-        <div class="speed-card" style="margin-top:16px;" data-adult>
-          <div>
-            <h3>⚡ Speed Dating — Find real people</h3>
-            <p>Speed dating is a real-people thing — no bot dates, ever. It runs live in the online rooms, where real people chat, mingle and match. Adults only, like everything at this party.</p>
-          </div>
-          <button class="speed-btn" id="btnSpeed">Find real people</button>
-        </div>
         <div class="plaza-card" style="margin-top:16px; background: linear-gradient(120deg, #57124a, #b03060 55%, #f2a93b);" data-adult>
           <div>
             <h3>📸 Moments — the photo feed</h3>
@@ -2276,6 +2367,13 @@
             <p>Your photos, prompts and party card — how everyone at the party knows you. Keep it fresh and the matches follow.</p>
           </div>
           <button class="speed-btn" id="btnProfileHome">Open my profile</button>
+        </div>
+        <div class="plaza-card" style="margin-top:16px; background: linear-gradient(120deg, #123a5c, #2a7a8c 55%, #57c7a3);">
+          <div>
+            <h3>🆘 Help &amp; Support</h3>
+            <p>Questions, quick answers, and a straight line to the team — if something's not working, tell us here and we'll get it fixed.</p>
+          </div>
+          <button class="speed-btn" id="btnSupportHome">Get help</button>
         </div>
       </section>
 
@@ -2677,7 +2775,7 @@
             <div class="field" id="pfStatusFilterField">
               <label>Match me only with · dating side</label>
               <div class="chips" id="pfStatusFilter"></div>
-              <p class="age-note">Pick the relationship statuses you'll be matched with in speed dating and Dating Questions. Leave all off to match with any status.</p>
+              <p class="age-note">Pick the relationship statuses you'll be matched with in Dating Questions. Leave all off to match with any status.</p>
             </div>
             <div class="field">
               <label>Where you're based</label>
@@ -2702,6 +2800,7 @@
             </div>
             <div class="btn-row">
               <button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnSaveProfile">Save profile</button>
+              <button class="btn-mini" id="btnSupportPf" type="button">🆘 Help &amp; Support</button>
               <button class="btn-mini" id="btnProfileBack">Back to the plaza</button>
             </div>
           </div>
@@ -3544,12 +3643,12 @@
          is for all ages. EVERY Meet & Greet room is adults-only (18+) — the
          social rooms (Friends Hangout, Music Lovers, Comedy Corner…) and the
          dating rooms (Love Lounge, Serious Singles) alike — and every guest
-         in them is an adult. Speed dating and the Dating Questions matchmaker
-         are 18+ too. Under-18 players stay on the social side: no rooms, no
+         in them is an adult. The Dating Questions matchmaker
+         is 18+ too. Under-18 players stay on the social side: no rooms, no
          matchmaker, no matches. */
       var AGE_OPTIONS = [{ id: "under18", label: "Under 18" }].concat(AGE_RANGES);
       /* Relationship status — a dating-side (18+) concept only. It shows in
-         dating rooms, guest profiles opened there, speed dating and the
+         dating rooms, guest profiles opened there, and the
          Dating Questions matchmaker, and nowhere on the social side. */
       var REL_STATUSES = [
         { id: "single", label: "Single" },
@@ -4782,7 +4881,7 @@
       $("btnLeave").addEventListener("click", function () { closeSheet(); show("screen-plaza"); });
       /* ================= Guest sheet ================= */
       function openSheet(html) { $("sheet").innerHTML = html; $("overlay").classList.add("open"); }
-      function closeSheet() { cancelSpeedDating(); $("overlay").classList.remove("open"); currentGuest = null; AudioFX.setArcade(false); }
+      function closeSheet() { $("overlay").classList.remove("open"); currentGuest = null; AudioFX.setArcade(false); }
       $("overlay").addEventListener("click", function (e) { if (e.target === $("overlay")) closeSheet(); });
 
       function chemBar(g) {
@@ -5135,141 +5234,6 @@
         renderDQ();
       }
 
-      /* ================= Speed dating ================= */
-      var sd = null;
-      function cancelSpeedDating() {
-        if (!sd) return;
-        sd.active = false;
-        if (sd.raf) cancelAnimationFrame(sd.raf);
-        if (sd.delay) clearTimeout(sd.delay);
-        sd = null;
-      }
-      function bumpChemCapped(g, amt, cap) {
-        g.chem = Math.max(0, Math.min(cap, g.chem + amt));
-        if (amt > 0) charms += Math.max(1, Math.round(amt / 3));
-        updateHUD();
-      }
-      $("btnSpeed").addEventListener("click", function () {
-        cancelSpeedDating();
-        if (isTeen()) { openTeenGateAll("Speed Dating"); return; }
-        openLiveGuide("Speed dating");
-      });
-      function runSpeedDate() {
-        if (!sd || !sd.active) return;
-        var d = sd.dates[sd.idx];
-        var g = d.g;
-        g.met = true;
-        currentGuest = g;
-        sd.qs = shuffled(QUESTIONS).slice(0, 3);
-        sd.qi = 0; sd.total = 0; sd.locked = false;
-        renderSpeedQ();
-      }
-      function renderSpeedQ() {
-        if (!sd || !sd.active) return;
-        var d = sd.dates[sd.idx], g = d.g, q = sd.qs[sd.qi];
-        sd.locked = false;
-        openSheet(
-          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
-          '<div class="sheet-head">' + personFace(g) +
-          '<div><h3>' + g.name + '</h3><p class="trait">Date ' + (sd.idx + 1) + ' of ' + sd.dates.length + ' · ' + d.room + ' · ' + (g.gender === "male" ? "Male" : "Female") + ', ' + g.age + ' · ' + statusLabel(g.relStatus) + (sharedText(g) ? ' · Shares: ' + sharedText(g) : '') + ' · Question ' + (sd.qi + 1) + ' of 3</p>' +
-          sparkBar("Tonight's spark", sd.qi ? Math.round(sd.total / sd.qi) : 0) + '<div class="follow-row" style="justify-content:flex-start; margin:8px 0 0;">' + followBtnHTML(g.name) + '</div></div></div>' +
-          '<div class="game-box" style="text-align:left;">' +
-          '<p style="color:var(--ink); font-size:17px; font-weight:700; margin-bottom:10px;">' + g.name + ' asks: “' + q.q + '”</p>' +
-          '<div class="q-timer"><i id="sdBar"></i></div>' +
-          '<div class="opt-list">' +
-          q.a.map(function (ans, i) { return '<button class="opt-btn" data-i="' + i + '">' + ans.t + '</button>'; }).join("") +
-          '</div><div id="sdReact"></div></div>'
-        );
-        $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
-        $("sheet").querySelectorAll(".opt-btn").forEach(function (b) {
-          b.addEventListener("click", function () { answerSpeed(parseInt(b.getAttribute("data-i"), 10), false); });
-        });
-        var start = performance.now(), limit = 12000;
-        function tick(now) {
-          if (!sd || !sd.active || sd.locked) return;
-          var left = 1 - (now - start) / limit;
-          var bar = $("sdBar"); if (!bar) return;
-          bar.style.width = Math.max(0, left * 100) + "%";
-          if (left <= 0) { answerSpeed(Math.floor(Math.random() * q.a.length), true); return; }
-          sd.raf = requestAnimationFrame(tick);
-        }
-        sd.raf = requestAnimationFrame(tick);
-      }
-      function answerSpeed(i, timedOut) {
-        if (!sd || !sd.active || sd.locked) return;
-        sd.locked = true;
-        if (sd.raf) cancelAnimationFrame(sd.raf);
-        var d = sd.dates[sd.idx], g = d.g, q = sd.qs[sd.qi];
-        var ans = q.a[i];
-        var sc = timedOut ? Math.min(scoreAnswer(g, ans), 45) : scoreAnswer(g, ans);
-        sd.total += sc;
-        var btns = $("sheet").querySelectorAll(".opt-btn");
-        btns.forEach(function (x) { x.disabled = true; });
-        if (btns[i]) btns[i].classList.add(sc >= 55 ? "right" : "wrong");
-        var react = $("sdReact");
-        if (react) react.innerHTML = '<div class="reaction">' + (timedOut ? "Too slow — " + g.name + " answers for you: “" + ans.t + "” …yikes. " : g.name + ': “' + reactionFor(sc) + '” ') + '<b>(' + sc + '% match)</b></div>';
-        sd.delay = setTimeout(function () {
-          if (!sd || !sd.active) return;
-          sd.qi++;
-          if (sd.qi < sd.qs.length) renderSpeedQ();
-          else endSpeedDate();
-        }, 1500);
-      }
-      function endSpeedDate() {
-        if (!sd || !sd.active) return;
-        var d = sd.dates[sd.idx], g = d.g;
-        var compat = Math.round(sd.total / sd.qs.length);
-        sd.results.push({ g: g, room: d.room, compat: compat });
-        bumpChemCapped(g, Math.round(compat / 7), 99);
-        sd.idx++;
-        if (sd.idx < sd.dates.length) {
-          openSheet(
-            '<div class="game-box"><h3>Ding ding ding!</h3>' +
-            '<p>Time with ' + g.name + ': <b>' + compat + '% compatible</b>. ' + (compat >= 70 ? "That's match territory…" : "On to the next table!") + '</p></div>'
-          );
-          sd.delay = setTimeout(function () { runSpeedDate(); }, 1400);
-        } else {
-          showSpeedResults();
-        }
-      }
-      function showSpeedResults() {
-        if (!sd) return;
-        var results = sd.results.slice().sort(function (a, b) { return b.compat - a.compat; });
-        var newMatches = 0;
-        results.forEach(function (r) {
-          r.isMatch = r.compat >= 70;
-          if (r.isMatch && !r.g.matched) {
-            r.g.matched = true; r.g.chem = 100;
-            matches.push({ guest: r.g, room: "Speed Dating night" });
-            charms += 10; newMatches++;
-          }
-        });
-        updateHUD(); renderMatches();
-        var rows = results.map(function (r) {
-          return '<div class="match-row">' + personFace(r.g) +
-            '<div><b>' + r.g.name + '</b>' + (r.isMatch ? '<span class="match-tag">MATCH</span>' : '') +
-            '<span>' + r.room + ' · Age ' + r.g.age + (sharedText(r.g) ? ' · Shares ' + sharedText(r.g) : '') + ' · ' + r.g.trait + '</span></div>' +
-            '<span class="compat-badge">' + r.compat + '%</span></div>';
-        }).join("");
-        var top = results[0];
-        openSheet(
-          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
-          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">Speed Dating Results</h3>' +
-          '<p style="text-align:center;">' + (newMatches ? "You matched with " + newMatches + (newMatches === 1 ? " person" : " people") + " tonight!" : "No 70% matches this round — but chemistry grew with everyone you met. Another round, another crowd.") + '</p>' +
-          '<div class="matches-list">' + rows + '</div>' +
-          '<div class="btn-row" style="justify-content:center; margin-top:16px;">' +
-          '<button class="btn-mini" data-act="hi">Say hi to ' + top.g.name + '</button>' +
-          '<button class="btn-mini" data-act="again">Another round</button>' +
-          '<button class="btn-mini" data-act="lobby">Back to the party</button></div></div>'
-        );
-        $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); refreshFloor(); });
-        $("sheet").querySelector("[data-act=lobby]").addEventListener("click", function () { closeSheet(); refreshFloor(); show("screen-plaza"); });
-        $("sheet").querySelector("[data-act=again]").addEventListener("click", function () { closeSheet(); $("btnSpeed").click(); });
-        $("sheet").querySelector("[data-act=hi]").addEventListener("click", function () { cancelSpeedDating(); openGuest(top.g); });
-        if (newMatches) confettiBurst();
-        sd.active = false;
-      }
-
       /* ================= Grand Plaza ================= */
       var plazaGuests = [];
       var plazaWanderTimer = null;
@@ -5309,6 +5273,8 @@
       $("btnOnlineHome").addEventListener("click", enterLiveStageCard);
       $("btnAuctionsHome").addEventListener("click", openAuctions);
       $("btnEarnHome").addEventListener("click", openEarnSheet);
+      $("btnSupportHome").addEventListener("click", openSupportSheet);
+      $("btnSupportPf").addEventListener("click", openSupportSheet);
       $("btnProfileHome").addEventListener("click", openProfile);
       $("btnFellowshipHome").addEventListener("click", function () {
         var f = null; ROOMS.forEach(function (r) { if (r.id === "faith") f = r; });
@@ -9817,6 +9783,55 @@
         setTimeout(function () { var c = $("earnCard"); if (c) c.classList.add("show"); }, 700);
       }
       function hideEarnCard() { var c = $("earnCard"); if (c) c.classList.remove("show"); }
+      var SUPPORT_EMAIL = "support@rizzplaza.com";
+      function openSupportSheet() {
+        openSheet(
+          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">🆘 Help &amp; Support</h3>' +
+          '<p style="text-align:center;">Questions? Something not working? You\u2019re in the right place — check the quick answers, or send the team a message and we\u2019ll get back to you.</p>' +
+          '<h4 style="margin:14px 0 4px;">❓ Quick answers</h4>' +
+          '<details style="margin:4px 0;"><summary><b>How do I go live?</b></summary><p style="margin:6px 0;">Open the 🔴 Live Stage and tap Go LIVE — every 18+ player gets their own broadcast. No waiting, no follower minimum.</p></details>' +
+          '<details style="margin:4px 0;"><summary><b>How do auctions work?</b></summary><p style="margin:6px 0;">In 🔨 Live Auction you can bid on live items, or tap ＋ Sell an item to list your own. Winners pay bid + shipping, sellers ship the item. All sales are final unless an item never ships — and counterfeits are never allowed.</p></details>' +
+          '<details style="margin:4px 0;"><summary><b>How do I earn and cash out?</b></summary><p style="margin:6px 0;">Hosts earn charms from gifts, and sellers keep 90% of auction sales. When your balance reaches $20 you can cash out once a day through Stripe — see the 💰 Earn card.</p></details>' +
+          '<details style="margin:4px 0;"><summary><b>Is Rizz Plaza free?</b></summary><p style="margin:6px 0;">Yes — joining, the rooms, going live, and the fellowship room are all free. Gift charm packs and Premium are optional extras.</p></details>' +
+          '<details style="margin:4px 0;"><summary><b>Who can use the prayer room?</b></summary><p style="margin:6px 0;">Everyone — the Christian Fellowship room is our one all-ages room: chapel, prayer wall, and Bible study. Everything else in the Plaza is 18+.</p></details>' +
+          '<details style="margin:4px 0;"><summary><b>How do I report a player?</b></summary><p style="margin:6px 0;">Tap the ⚠️ Report button on their card — it hides them from you right away and flags them for the team. Nudity is never tolerated here.</p></details>' +
+          '<h4 style="margin:16px 0 4px;">✉️ Message the team</h4>' +
+          '<label style="display:block; margin:8px 0;">Your name<input type="text" id="supName" maxlength="80" autocomplete="name" placeholder="Your name" style="width:100%;" /></label>' +
+          '<label style="display:block; margin:8px 0;">Your email (so we can reply)<input type="email" id="supEmail" maxlength="120" autocomplete="email" placeholder="you@example.com" style="width:100%;" /></label>' +
+          '<label style="display:block; margin:8px 0;">What\u2019s it about?<select id="supCat" style="width:100%;"><option>Question</option><option>Something\u2019s broken</option><option>Auction or store issue</option><option>Account help</option><option>Other</option></select></label>' +
+          '<label style="display:block; margin:8px 0;">Your message<textarea id="supMsg" rows="4" maxlength="2000" placeholder="Tell us what happened — the more detail, the faster we can fix it." style="width:100%;"></textarea></label>' +
+          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="btnSupSend">Send message</button></div>' +
+          '<p class="age-note" style="margin-top:10px; text-align:center;">Sending opens your email app with the message ready to go — just tap Send there. We usually reply within a day. 🙏</p>' +
+          '</div>'
+        );
+        $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
+        try { if (typeof me !== "undefined" && me && me.name) $("supName").value = String(me.name); } catch (e) {}
+        $("btnSupSend").addEventListener("click", submitSupport);
+      }
+      function submitSupport() {
+        var name = ($("supName").value || "").trim();
+        var email = ($("supEmail").value || "").trim();
+        var cat = $("supCat").value;
+        var msg = ($("supMsg").value || "").trim();
+        if (msg.length < 3) { toast("Write a few words about what you need — then hit Send. 💬"); return; }
+        try {
+          var payload = { name: name, email: email, category: cat, message: msg };
+          if (navigator.sendBeacon) navigator.sendBeacon("/api/support", new Blob([JSON.stringify(payload)], { type: "application/json" }));
+        } catch (e) {}
+        var body = "Name: " + (name || "—") + "\nReply-to email: " + (email || "—") + "\nAbout: " + cat + "\n\n" + msg + "\n\n— sent from Rizz Plaza Help & Support";
+        var a = document.createElement("a");
+        a.href = "mailto:" + SUPPORT_EMAIL + "?subject=" + encodeURIComponent("[Rizz Plaza Support] " + cat) + "&body=" + encodeURIComponent(body);
+        document.body.appendChild(a); a.click(); a.remove();
+        openSheet(
+          '<div class="game-box" style="text-align:center;"><h3>💌 Almost there!</h3>' +
+          '<p>Your email app should be opening with your message ready — just tap <b>Send</b> there and it lands straight in our inbox.</p>' +
+          '<p class="age-note">No email app opened? Write to us at <b>' + SUPPORT_EMAIL + '</b> and we\u2019ll take care of you.</p>' +
+          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="btnSupDone">Done</button></div></div>'
+        );
+        $("btnSupDone").addEventListener("click", function () { closeSheet(); });
+      }
+
       function openEarnSheet() {
         hideEarnCard();
         if (isTeen()) { openTeenGateAll("Earning & gifts"); return; }
@@ -9996,7 +10011,7 @@
 
       /* ================= FOLLOWERS =================
          Follow any player from their profile card, the room people list,
-         the swipe / speed-dating cards, or the host chip while they're
+         the swipe cards, or the host chip while they're
          live. Your Following list is saved with your profile (see
          profileSnapshot below) and survives reloads; people are matched
          by party name, and their photo refreshes whenever you see them.
@@ -12876,5 +12891,149 @@
         }
       })();
     </script>
-  </body>
+  
+  <nav id="tabbar" aria-label="Main navigation">
+    <button class="tab-btn" data-tab="home" type="button"><span class="ti">🏠</span>Home</button>
+    <button class="tab-btn" data-tab="live" type="button"><span class="ti">🔴</span>Live</button>
+    <button class="tab-btn" data-tab="auctions" type="button"><span class="ti">🔨</span>Auctions</button>
+    <button class="tab-btn" data-tab="moments" type="button"><span class="ti">📸</span>Moments</button>
+    <button class="tab-btn" data-tab="profile" type="button"><span class="ti">👤</span>Profile</button>
+  </nav>
+  <script>
+  (function () {
+    var TABS = { "screen-plaza": "home", "screen-online": "live", "screen-auctions": "auctions", "screen-moments": "moments", "screen-profile": "profile" };
+    var SHOWABLE = { "screen-plaza": 1, "screen-auctions": 1, "screen-moments": 1, "screen-profile": 1 };
+    var bar = document.getElementById("tabbar");
+    if (!bar) return;
+    function activeScreen() { var s = document.querySelectorAll(".screen.active"); return s.length ? s[s.length - 1].id : null; }
+    function vis(el) { return !!el && el.offsetParent !== null; }
+    function sync() {
+      var id = activeScreen();
+      var ov = document.getElementById("overlay");
+      var overlayOpen = ov && ov.classList.contains("open");
+      var showBar = !!(id && SHOWABLE[id] && !overlayOpen && !document.fullscreenElement);
+      document.body.classList.toggle("has-tabs", showBar);
+      var cur = TABS[id];
+      var btns = bar.querySelectorAll(".tab-btn");
+      for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("on", btns[i].getAttribute("data-tab") === cur);
+    }
+    function clickId(id) { var el = document.getElementById(id); if (el) { el.click(); return true; } return false; }
+    function goHome() {
+      if (activeScreen() === "screen-plaza") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+      if (typeof window.show === "function") { try { window.show("screen-plaza"); return; } catch (e) {} }
+      var backs = ["btnProfileBack", "btnMomentsBack", "btnAuctionsBack", "btnOnlineLeave", "btnLeave"];
+      for (var i = 0; i < backs.length; i++) { var el = document.getElementById(backs[i]); if (vis(el)) { el.click(); return; } }
+    }
+    var actions = {
+      home: goHome,
+      live: function () { clickId("btnOnlineHome"); },
+      auctions: function () { clickId("btnAuctionsHome"); },
+      moments: function () { clickId("btnMomentsPlaza"); },
+      profile: function () { clickId("btnProfileHome"); }
+    };
+    var btns = bar.querySelectorAll(".tab-btn");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener("click", function () {
+        var t = this.getAttribute("data-tab");
+        if (actions[t]) actions[t]();
+        setTimeout(sync, 80);
+      });
+    }
+    var mo = new MutationObserver(sync);
+    var screens = document.querySelectorAll(".screen");
+    for (var j = 0; j < screens.length; j++) mo.observe(screens[j], { attributes: true, attributeFilter: ["class"] });
+    var ov2 = document.getElementById("overlay");
+    if (ov2) mo.observe(ov2, { attributes: true, attributeFilter: ["class"] });
+    document.addEventListener("fullscreenchange", sync);
+    sync();
+  })();
+  </script>
+
+  <script>
+  /* RP-FULL-UPGRADE: double-tap likes, touch feedback, perf helpers */
+  (function () {
+    "use strict";
+    var AC = null;
+    function pop() {
+      try {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        AC = AC || new Ctx();
+        if (AC.state === "suspended") AC.resume();
+        var t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(520, t);
+        o.frequency.exponentialRampToValueAtTime(880, t + 0.07);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.055, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+        o.connect(g); g.connect(AC.destination);
+        o.start(t); o.stop(t + 0.1);
+      } catch (e) {}
+    }
+    function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+    var tabBtns = document.querySelectorAll(".tab-btn");
+    for (var i = 0; i < tabBtns.length; i++) tabBtns[i].addEventListener("click", function () { pop(); buzz(6); });
+
+    var feed = document.getElementById("momFeed");
+    if (feed) {
+      function burst(photo, x, y) {
+        var h = document.createElement("div");
+        h.className = "dt-heart";
+        h.textContent = "❤️";
+        h.style.left = x + "px";
+        h.style.top = y + "px";
+        photo.appendChild(h);
+        setTimeout(function () { h.remove(); }, 760);
+      }
+      function doLike(photo, x, y) {
+        burst(photo, x, y);
+        var card = photo.closest ? photo.closest(".mom-card") : null;
+        if (!card) return;
+        var btn = card.querySelector(".mom-act.like");
+        if (btn && !btn.classList.contains("liked")) { btn.click(); pop(); buzz(12); }
+      }
+      var lastTap = { t: 0, photo: null };
+      feed.addEventListener("touchend", function (e) {
+        var ph = e.target && e.target.closest ? e.target.closest(".mom-photo") : null;
+        if (!ph || !e.changedTouches || !e.changedTouches[0]) return;
+        var r = ph.getBoundingClientRect();
+        var x = e.changedTouches[0].clientX - r.left, y = e.changedTouches[0].clientY - r.top;
+        var now = Date.now();
+        if (lastTap.photo === ph && now - lastTap.t < 330) { doLike(ph, x, y); lastTap = { t: 0, photo: null }; }
+        else lastTap = { t: now, photo: ph };
+      }, { passive: true });
+      feed.addEventListener("dblclick", function (e) {
+        var ph = e.target && e.target.closest ? e.target.closest(".mom-photo") : null;
+        if (!ph) return;
+        var r = ph.getBoundingClientRect();
+        doLike(ph, e.clientX - r.left, e.clientY - r.top);
+      });
+    }
+
+    document.addEventListener("visibilitychange", function () {
+      document.body.classList.toggle("bg-paused", document.hidden);
+    });
+
+    function tuneImgs(root) {
+      if (!root || !root.querySelectorAll) return;
+      var imgs = root.querySelectorAll("img");
+      for (var i = 0; i < imgs.length; i++) { try { imgs[i].decoding = "async"; } catch (e) {} }
+    }
+    tuneImgs(document);
+    if (document.body && window.MutationObserver) {
+      var mo = new MutationObserver(function (ms) {
+        for (var i = 0; i < ms.length; i++) {
+          var nodes = ms[i].addedNodes;
+          for (var j = 0; j < nodes.length; j++) {
+            var n = nodes[j];
+            if (n.nodeType === 1) tuneImgs(n);
+          }
+        }
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    }
+  })();
+  </script>
+</body>
 </html>
