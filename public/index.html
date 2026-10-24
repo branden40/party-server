@@ -1755,6 +1755,30 @@
       #livePanel.live-fs.lv-idle .live-requests { opacity: 0; pointer-events: none; }
       .lv-more-list { display: flex; flex-direction: column; gap: 9px; margin-top: 8px; }
       .lv-more-list .btn-mini, .lv-more-list .follow-btn { width: 100%; padding: 12px; font-size: 15px; box-sizing: border-box; }
+      /* [RP-V7.24] ••• tools tray: the tool bars (Rewards Club, comments
+         toggle, Fan Club, Wish List, Bonus Box / Live Goal, offers,
+         My Shop / Raid) and the rail's Viewers button live in this
+         overlay tray inside the stage — never in the panel's flex flow,
+         where they used to shrink the live to half the screen. Any bar
+         not yet collected into the tray stays hidden in full screen. */
+      body.live-fs #livePanel > :is(#rp620Bar, #rp71Bar, #rp65Bar, #rp72Bar, #rp66Bar, #rp618Bar, #wnBar) { display: none !important; }
+      #lvToolsTray { position: absolute; left: 8px; right: 8px; bottom: 76px; z-index: 30; max-height: 54%; overflow-y: auto; background: rgba(8,8,16,.9); border: 1px solid rgba(255,255,255,.18); border-radius: 16px; padding: 10px; color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+      #lvToolsTray[hidden] { display: none !important; }
+      #lvToolsTray .lv-tray-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      #lvToolsTray .lv-tray-head b { font-size: 14.5px; }
+      #lvToolsTray > * { margin-top: 8px; }
+      #lvToolsTray > .lv-tray-head { margin-top: 0; }
+      #lvToolsTray .wn-bar { margin-top: 8px; position: static; }
+      #lvToolsTray #lvRailViewers { display: flex; width: 100%; height: auto; flex-direction: row; gap: 8px; padding: 11px; border-radius: 12px; font-size: 16px; }
+      #lvToolsTray #lvRailViewers span { font-size: 13px; font-weight: 800; }
+      /* [RP-V7.24] bottom-row hygiene in full screen: the comment pill
+         always gets real width — nothing overlaps or clips it */
+      #livePanel.live-fs .lv-bottombar { flex-wrap: nowrap; }
+      #livePanel.live-fs .lv-commentbar { flex: 1 1 auto; min-width: 0; }
+      #livePanel.live-fs .lv-commentbar input { min-width: 0; }
+      #livePanel.live-fs .lv-commentbar .btn-mini { flex: none; }
+      #livePanel.live-fs .lv-rail { flex: none; }
+      #livePanel.live-fs .lv-rail button { width: 46px; height: 46px; }
 
       /* ---------- the host's auction, pinned inside their own live ----------
          A compact selling card over the bottom of the stage: the LIVE
@@ -2388,7 +2412,7 @@
           <span id="hudMatches">0</span> matches
         </span>
         <button class="ghost" id="btnOnlineHud" title="Go to the Live Stage — party online with real people"><span id="hudOnlineDot" aria-hidden="true"></span>⭐ Live Stage</button>
-        <button class="ghost" id="btnMomentsHud" title="Moments — the photo feed">📸 Moments</button>
+        <button class="ghost" id="btnMomentsHud" title="Reels — photos & short videos">🎬 Reels</button>
         <button class="ghost" id="btnEarnHud" title="Gifts, earnings and cash-out">💰 Earn</button>
         <button class="ghost" id="btnAuctionsHud" title="Live auctions — bid on real items, or sell your own">🔨 Auctions</button>
         <button class="ghost" id="btnMatches">My matches</button>
@@ -2464,7 +2488,7 @@
             <button class="scene-btn pink" id="btnToRooms">Rooms ↓</button>
           </div>
           <div class="plaza-stage">
-            <div style="font-weight:700; font-size:14px; max-width:420px;">Plaza beats are playing and the fountain's sparkling. Everything's right here on your home page — the Live Stage, every room, Moments, auctions and your earnings, one tap away.</div>
+            <div style="font-weight:700; font-size:14px; max-width:420px;">Plaza beats are playing and the fountain's sparkling. Everything's right here on your home page — the Live Stage, every room, Reels, auctions and your earnings, one tap away.</div>
           </div>
           <div class="floor plaza-floor" id="plazaFloor"></div>
           <div class="scene-note">Your home page — no wandering between hubs. Pick a room below and walk straight in, or tap ⭐ Live Stage and party with real people.</div>
@@ -2484,6 +2508,14 @@
           </div>
           <button class="speed-btn" id="btnAuctionsHome">🔨 Open auctions</button>
         </div>
+        <!-- [RP-V7.24] Reels card sits directly under the Live block -->
+        <div class="plaza-card" style="margin-top:16px; background: linear-gradient(120deg, #57124a, #b03060 55%, #f2a93b);" data-adult>
+          <div>
+            <h3>🎬 Reels — photos & short videos</h3>
+            <p>Post a photo, scroll the feed, like and comment — and when a shot deserves more than a heart, send the poster a gift right on the post. Gifts on Reels bank toward the poster's real earnings, just like live gifts.</p>
+          </div>
+          <button class="speed-btn" id="btnMomentsPlaza">Open Reels</button>
+        </div>
         <h3 id="lobbyTitle" style="margin: 26px 0 4px; font-size: 22px;">Meet &amp; Greet</h3>
         <p style="font-weight:600; color:var(--ink-soft); margin:0 0 6px;" data-adult>Every room is a meet-and-greet space built around something you love — and every room is live with <b>real people</b> on the Live Stage. Tap a room to step inside.</p>
         <div class="rooms" id="roomList"></div>
@@ -2496,13 +2528,7 @@
           <h3 style="margin: 26px 0 4px; font-size: 22px;">Your matches</h3>
           <div class="matches-list" id="matchesList"></div>
         </div>
-        <div class="plaza-card" style="margin-top:16px; background: linear-gradient(120deg, #57124a, #b03060 55%, #f2a93b);" data-adult>
-          <div>
-            <h3>📸 Moments — the photo feed</h3>
-            <p>Post a photo, scroll the feed, like and comment — and when a shot deserves more than a heart, send the poster a gift right on the post. Gifts on Moments bank toward the poster's real earnings, just like live gifts.</p>
-          </div>
-          <button class="speed-btn" id="btnMomentsPlaza">Open Moments</button>
-        </div>
+        <!-- [RP-V7.24] the Reels card moved up under the Live block -->
         <div class="plaza-card" style="margin-top:16px; background: linear-gradient(120deg, #1d3a5f, #2e6da8 55%, #7ac2ff);">
           <div>
             <h3>⛪ Christian Fellowship</h3>
@@ -2701,6 +2727,9 @@
               </div>
               <button type="button" class="lv-morebtn" id="lvMoreBtn" aria-label="More live options" hidden>•••</button>
             </div>
+            <div id="lvToolsTray" hidden>
+              <div class="lv-tray-head"><b>🧰 Live tools</b><span><button type="button" class="btn-mini" id="lvTrayMore">More options</button> <button type="button" class="btn-mini" id="lvTrayClose">✕ Close</button></span></div>
+            </div>
           </div>
           <div class="live-controls" id="liveControls"></div>
           <div class="live-dir" id="liveDir" hidden></div>
@@ -2733,7 +2762,7 @@
                 <button class="btn-mini" id="btnOnlinePhoto">Upload profile photo</button>
                 <input type="file" id="onlinePhotoInput" accept="image/*" hidden />
               </div>
-              <p class="age-note" style="margin-top:10px;">Your hosted photo is your profile photo and card picture for everyone in the room — and it's the photo you'll post with in 📸 Moments.</p>
+              <p class="age-note" style="margin-top:10px;">Your hosted photo is your profile photo and card picture for everyone in the room — and it's the photo you'll post with in 🎬 Reels.</p>
             </div>
             <div class="online-panel">
               <h3>Who's here <span id="onlinePeopleCount"></span></h3>
@@ -2757,24 +2786,11 @@
               <div class="btn-row" style="margin-top:10px;"><button class="btn-mini" id="btnEventCal">📅 Event calendar</button></div>
             </div>
           </div>
-          <div class="online-panel">
-            <h3>Room chat</h3>
-            <div class="px-poll" id="pollCard"></div>
-            <div class="chat-log" id="onlineChatLog" aria-live="polite"></div>
-            <div class="px-reacts" id="reactBar" aria-label="Send a reaction to the room">
-              <button class="px-react" type="button" data-react="❤️" aria-label="Send a heart reaction">❤️</button>
-              <button class="px-react" type="button" data-react="🔥" aria-label="Send a fire reaction">🔥</button>
-              <button class="px-react" type="button" data-react="😂" aria-label="Send a laughing reaction">😂</button>
-              <button class="px-react" type="button" data-react="🎉" aria-label="Send a party reaction">🎉</button>
-              <button class="px-react" type="button" data-react="👏" aria-label="Send applause">👏</button>
-              <button class="px-react" type="button" data-react="😮" aria-label="Send a wow reaction">😮</button>
-            </div>
-            <div class="chat-row">
-              <input class="online-input" id="onlineChatInput" type="text" maxlength="200" placeholder="Say hi to the room…" autocomplete="off" />
-              <button class="btn-primary" style="width:auto; padding:11px 20px;" id="btnOnlineChatSend">Send</button>
-            </div>
-            <p class="age-note" style="margin-top:8px;">Chat is live with real people — keep it friendly. Sending too fast gets you a short slow-down.</p>
-          </div>
+          <!-- [RP-V7.24] Room chat panel REMOVED everywhere (Branden:
+               "chat is for live online") — the live overlay's comment
+               stream + bottom type bar is the chat now. The room poll
+               card stays: it's an activity, not chat. -->
+          <div class="px-poll" id="pollCard"></div>
         </div>
       </section>
       <!-- SCREEN: MOMENTS (photo feed) -->
@@ -2782,14 +2798,14 @@
         <div class="mom-wrap">
           <div class="mom-head">
             <button class="btn-mini" id="btnMomentsBack" type="button">← Plaza</button>
-            <h2>📸 Moments</h2>
+            <h2>🎬 Reels</h2>
             <button class="btn-primary" style="width:auto; padding:10px 18px;" id="btnMomPost" type="button">＋ Post a photo</button>
             <input type="file" id="momPhotoInput" accept="image/*" hidden />
             <button class="btn-primary" style="width:auto; padding:10px 18px; display:none;" id="btnReelPost" type="button">＋ Reel</button>
             <input type="file" id="reelVideoInput" accept="video/*" hidden />
           </div>
           <p id="momIntro" style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px;">Scroll the feed, tap ❤️ to like, 💬 to comment — and hit 🎁 Gift on any post to send its poster a real gift. Gifts bank toward their earnings, same as on the Live Stage. 18+ only.</p>
-          <p id="reelIntro" style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px; display:none;">Short videos from the Plaza — tap a reel to play or pause, ❤️ to like, 💬 to comment — and 🎁 Gift sends its poster a real gift, same as photo Moments. 60 seconds max. 18+ only.</p>
+          <p id="reelIntro" style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px; display:none;">Short videos from the Plaza — tap a reel to play or pause, ❤️ to like, 💬 to comment — and 🎁 Gift sends its poster a real gift, same as Photos. 60 seconds max. 18+ only.</p>
           <div class="mom-modebar">
             <button class="mom-mode on" id="btnMomModePhotos" type="button">📸 Photos</button>
             <button class="mom-mode" id="btnMomModeReels" type="button">🎬 Reels</button>
@@ -4680,7 +4696,7 @@
 
       var TEEN_ONLY_18 = ["screen-room", "screen-online", "screen-moments", "screen-auctions"];
       function teenAreaName(id) {
-        return { "screen-plaza": "The Grand Plaza", "screen-room": "The party rooms", "screen-online": "The online rooms", "screen-moments": "Moments", "screen-auctions": "Live Auctions" }[id] || "This part of the party";
+        return { "screen-plaza": "The Grand Plaza", "screen-room": "The party rooms", "screen-online": "The online rooms", "screen-moments": "Reels", "screen-auctions": "Live Auctions" }[id] || "This part of the party";
       }
       // Everyone you can meet here is a real player now: anything that used to
       // pair you with a computer guest points at the live online rooms instead.
@@ -4957,10 +4973,9 @@
       }
       function discussQuestion(q) {
         if (Online.state === "on" && Online.room === "faith") {
-          var inp = $("onlineChatInput");
-          if (inp) { inp.value = "📖 Bible study: " + q; sendOnlineChat(); }
+          sendOnlineChat("📖 Bible study: " + q); // [RP-V7.24] sent directly — the room-chat box it used to fill is gone
           closeSheet();
-          toast("Posted to the room chat — talk it over together! 💬");
+          toast("Shared with the Fellowship room 💬");
         } else {
           chapelTalkLine("<b>📖 Bible study question:</b> " + escHtml(q));
           closeSheet();
@@ -6418,8 +6433,25 @@
         players: {}, blocked: {}, myPhotoUrl: null, dancing: false,
         meFig: null, mx: 50, my: 34, mtx: 50, mty: 34,
         lastEmit: 0, sentX: -999, sentY: -999, watchdog: null,
-        rafOn: false, lastFrame: 0, lastChatText: "", lastChatAt: 0, ioTried: false
+        rafOn: false, lastFrame: 0, lastChatText: "", lastChatAt: 0, ioTried: false, deviceKey: null
       };
+      /* [RP-V7.24] A stable per-device key (one per browser/device,
+         kept in localStorage). Live rooms are named after it — NOT the
+         socket id — so a reconnect (which always mints a new socket id)
+         lands the host back in the SAME live room, and the key rides
+         every join so the server can evict the ghost of a dead socket
+         instead of counting the same person twice. */
+      function onlineDeviceKey() {
+        if (Online.deviceKey) return Online.deviceKey;
+        var k = "";
+        try { k = localStorage.getItem("rpDeviceKey.v1") || ""; } catch (e) { }
+        if (!k) {
+          k = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+          try { localStorage.setItem("rpDeviceKey.v1", k); } catch (e) { }
+        }
+        Online.deviceKey = k;
+        return k;
+      }
       function escHtml(s) {
         return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
       }
@@ -6549,6 +6581,23 @@
         };
       }
       /* ---------- entry & connection ---------- */
+      /* [RP-V7.24] Remember the name typed at the gate — it used to
+         live only in memory, so the gate forgot it (and asked again,
+         box empty) on every launch. Guests: kept on-device. The name
+         also folds into me / the saved profile, so Profile shows it
+         and the boot restore brings it back. Signed-in users never
+         reach the gate — their account name resolves first. */
+      function rememberOnlineName(nm) {
+        nm = cleanOnlineName(nm || "");
+        if (!nm) return;
+        me.name = nm;
+        try { localStorage.setItem("rpGuestName.v1", nm); } catch (e) { }
+        try {
+          var P = JSON.parse(localStorage.getItem("datingGameProfile.v1") || "{}");
+          if (P && typeof P === "object" && !Array.isArray(P)) { P.name = nm; localStorage.setItem("datingGameProfile.v1", JSON.stringify(P)); }
+        } catch (e) { }
+        try { updateHUD(); } catch (e) { }
+      }
       function openOnlineTeenGate() { openTeenGateAll("The online rooms"); }
       /* RP-V7.16: the display-name step for the Teen Hangout — same
          shape as the regular name gate, minus the 18+ gates (the room
@@ -6557,11 +6606,14 @@
       function openTeenNameGate() {
         if (Online.state === "on" || Online.state === "reconnecting") { show("screen-online"); return; }
         if (Online.state === "connecting") { toast("Still connecting to the online party — one sec\u2026"); return; }
+        // [RP-V7.24] a name we already know is used as-is — never re-ask
+        var savedTeenNm = savedOnlineName();
+        if (savedTeenNm && !(window.rpTeen && window.rpTeen.profane && window.rpTeen.profane(savedTeenNm))) { connectOnline(savedTeenNm); return; }
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">\u2715</button>' +
           '<div class="game-box" style="text-align:center;"><h3>🛋️ One quick step — your display name</h3>' +
           '<p>Hang out live with real people in the <b>Teen Hangout</b> — chat, hearts and likes, open to all ages. House rules: no foul language, no selling, no auctions, no nudity. You\u2019ll appear with your display name:</p>' +
-          '<input class="online-input-full" id="onlineNameInput" type="text" maxlength="16" autocomplete="off" value="' + escHtml(cleanOnlineName(me.name)) + '" />' +
+          '<input class="online-input-full" id="onlineNameInput" type="text" maxlength="16" autocomplete="off" value="' + escHtml(savedOnlineName()) + '" />' +
           '<p style="margin-top:12px;">Chat is live — be kind, and keep it clean.</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnOnlineJoin">🛋️ Enter the Teen Hangout</button></div></div>'
         );
@@ -6570,6 +6622,7 @@
           var nm = cleanOnlineName($("onlineNameInput").value);
           if (!nm) { toast("Pick a display name first — keep it short and friendly."); return; }
           if (window.rpTeen && window.rpTeen.profane(nm)) { toast("That name isn\u2019t allowed in the Teen Hangout — pick a clean one."); return; }
+          rememberOnlineName(nm); // [RP-V7.24]
           closeSheet();
           connectOnline(nm);
         });
@@ -6580,11 +6633,15 @@
         if (!rpAdultOk()) { rpDoorGate("The online rooms", openOnlineGate); return; }
         if (Online.state === "on" || Online.state === "reconnecting") { show("screen-online"); return; }
         if (Online.state === "connecting") { toast("Still connecting to the online party — one sec…"); return; }
+        // [RP-V7.24] signed-in (account name) or remembered (guest
+        // name): the identity carries — never show the name sheet again
+        var savedGateNm = savedOnlineName();
+        if (savedGateNm) { connectOnline(savedGateNm); return; }
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:center;"><h3>⭐ One quick step — your display name</h3>' +
           '<p>Party live with real people — every Meet &amp; Greet room, a room for all 50 US states, plus the <b>Chaos Room</b>: a walkie-talkie free-for-all where anyone can grab the chirp button, one talker at a time. You\u2019ll land on the <b>⭐ Live Stage</b> first and can switch rooms from there. You\u2019ll appear as the avatar you built, with your display name:</p>' +
-          '<input class="online-input-full" id="onlineNameInput" type="text" maxlength="16" autocomplete="off" value="' + escHtml(cleanOnlineName(me.name)) + '" />' +
+          '<input class="online-input-full" id="onlineNameInput" type="text" maxlength="16" autocomplete="off" value="' + escHtml(savedOnlineName()) + '" />' +
           '<p style="margin-top:12px;">Online rooms are 18+ and chat is live — be kind, and keep it friendly.</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnOnlineJoin">⭐ Enter the Live Stage</button></div></div>'
         );
@@ -6592,6 +6649,7 @@
         $("btnOnlineJoin").addEventListener("click", function () {
           var nm = cleanOnlineName($("onlineNameInput").value);
           if (!nm) { toast("Pick a display name first — keep it short and friendly."); return; }
+          rememberOnlineName(nm); // [RP-V7.24]
           closeSheet();
           connectOnline(nm);
         });
@@ -6614,7 +6672,7 @@
           if (!ok) { failOnline(); return; }
           var socket;
           try {
-            socket = window.io(ONLINE_URL, { timeout: 10000, reconnection: true, reconnectionAttempts: 12, reconnectionDelay: 800, reconnectionDelayMax: 5000, transports: ["websocket"] });
+            socket = window.io(ONLINE_URL, { timeout: 10000, reconnection: true, reconnectionAttempts: 12, reconnectionDelay: 800, reconnectionDelayMax: 5000, transports: ["polling", "websocket"] }); // [RP-V7.24] polling fallback — websocket-only died silently on some mobile networks
           } catch (e) { failOnline(); return; }
           Online.socket = socket;
           Online.connectStartedAt = Date.now();
@@ -6622,7 +6680,7 @@
           Online.watchdog = setTimeout(function () { if (Online.state === "connecting") failOnline(); }, 11000);
           socket.on("connect", function () {
             Online.myId = socket.id;
-            socket.emit("join", { name: Online.name, avatar: onlineAvatarPayload(), room: Online.room, age: myAge() });
+            socket.emit("join", { name: Online.name, avatar: onlineAvatarPayload(), room: Online.room, age: myAge(), key: onlineDeviceKey() }); // [RP-V7.24] stable device key — the server evicts my ghost on re-join
           });
           socket.on("connect_error", function () {
             // Only the very first join can fail here (the watchdog is the
@@ -6651,6 +6709,17 @@
           socket.on("disconnect", function (reason) {
             if (Online.state !== "on") return; // intentional leave, or cleanup already ran
             if (reason === "io client disconnect") return;
+            if (reason === "io server disconnect") {
+              // [RP-V7.24] Socket.io does NOT auto-reconnect after a
+              // server-initiated disconnect (e.g. a Render restart on
+              // deploy) — the app used to sit in "reconnecting" limbo
+              // forever: UI present, server already forgot us. Nudge
+              // the socket back on manually.
+              var deadSock = socket;
+              setTimeout(function () {
+                if (Online.socket === deadSock && Online.state === "reconnecting") { try { deadSock.connect(); } catch (e) { } }
+              }, 1200);
+            }
             // A transport hiccup — a stall, a throttled webview, the burst of
             // activity when another player joins — is NOT a kick. Keep the
             // room, the players and the chat exactly as they are and let
@@ -6723,6 +6792,7 @@
         });
         Object.keys(Online.players).forEach(function (id) { if (!seen[id]) removeOnlinePlayer(id); });
         renderOnlineScene();
+        if (rejoin && typeof liveRekeyAfterReconnect === "function") liveRekeyAfterReconnect(); // [RP-V7.24]
         liveOnRoomEntered();
         buildOnlineFloor();
         renderOnlineMe();
@@ -6940,6 +7010,11 @@
       }
       window.rpIsQuestion = chatIsQuestion;
       function addChatLine(name, text, mine, mid) {
+        // [RP-V7.24] the Room chat panel is gone — chat lives in the
+        // LIVE overlay stream (and the Teen Hangout's bubble stream).
+        // Feed those FIRST; the old log render below is now a no-op.
+        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, ""); } catch (e) { }
+        try { if (window.rpTeenBubble) window.rpTeenBubble(name, text, false); } catch (e) { }
         var log = $("onlineChatLog"); if (!log) return;
         var isQ = chatIsQuestion(text);
         var row = document.createElement("div");
@@ -6968,9 +7043,11 @@
         log.appendChild(row);
         while (log.children.length > 80) log.removeChild(log.firstChild);
         log.scrollTop = log.scrollHeight;
-        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, ""); } catch (e) { }
       }
       function addChatSystem(text, warn) {
+        // [RP-V7.24] see addChatLine — feed the live + teen streams first
+        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment("", text, "sys"); } catch (e) { }
+        try { if (window.rpTeenBubble) window.rpTeenBubble("", text, true); } catch (e) { }
         var log = $("onlineChatLog"); if (!log) return;
         var row = document.createElement("div");
         row.className = "chat-sys" + (warn ? " warn" : "");
@@ -6978,7 +7055,6 @@
         log.appendChild(row);
         while (log.children.length > 80) log.removeChild(log.firstChild);
         log.scrollTop = log.scrollHeight;
-        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment("", text, "sys"); } catch (e) { }
       }
       function onChatMessage(d) {
         if (!d) return;
@@ -7007,21 +7083,24 @@
         addChatSystem(reason, true);
         toast(reason, 3200);
         // the blocked message was never broadcast — put the words back in the box
-        if (Online.lastChatText && Date.now() - Online.lastChatAt < 4000 && !$("onlineChatInput").value) {
-          $("onlineChatInput").value = Online.lastChatText;
+        var ocInp = $("onlineChatInput"); // [RP-V7.24] the room-chat box is gone — it may not exist
+        if (ocInp && Online.lastChatText && Date.now() - Online.lastChatAt < 4000 && !ocInp.value) {
+          ocInp.value = Online.lastChatText;
         }
       }
-      function sendOnlineChat() {
+      /* [RP-V7.24] The Room chat panel is gone (Branden: chat is for
+         LIVE online) — this sender now takes its text directly: the
+         live overlay's type bar, the Teen Hangout's own chat row and
+         the in-app posters call it with their text. */
+      function sendOnlineChat(textArg) {
         var input = $("onlineChatInput");
-        var text = input.value.trim().slice(0, 200);
+        var text = (typeof textArg === "string") ? textArg.trim().slice(0, 200) : (input ? (input.value || "").trim().slice(0, 200) : "");
         if (!text || !Online.socket || Online.state !== "on") return;
-        if (Online.room === "teen" && window.rpTeenGuardChat && !window.rpTeenGuardChat(text)) { input.value = ""; return; }
+        if (Online.room === "teen" && window.rpTeenGuardChat && !window.rpTeenGuardChat(text)) { if (input && typeof textArg !== "string") input.value = ""; return; }
         Online.lastChatText = text; Online.lastChatAt = Date.now();
-        input.value = "";
+        if (input && typeof textArg !== "string") input.value = "";
         Online.socket.emit("chat", { text: text });
       }
-      $("btnOnlineChatSend").addEventListener("click", sendOnlineChat);
-      $("onlineChatInput").addEventListener("keydown", function (e) { if (e.key === "Enter") sendOnlineChat(); });
       /* ---------- rooms ---------- */
       function openOnlineRooms() {
         if (Online.state !== "on") return;
@@ -7193,7 +7272,7 @@
             var act = b.getAttribute("data-act");
             if (act === "close" || act === "back") closeSheet();
             else if (act === "like") likePlayer(p);
-            else if (act === "chat") { closeSheet(); $("onlineChatInput").focus(); }
+            else if (act === "chat") { closeSheet(); var lci = $("liveCommentInput"); if (lci) lci.focus(); } // [RP-V7.24] room chat is gone — chat lives in the live type bar
             else if (act === "video") { closeSheet(); startVideoCall(p); }
             else if (act === "gift") { closeSheet(); openGiftSheet(p.id, p.name); }
             else if (act === "report") openOnlineReport(p);
@@ -8270,7 +8349,7 @@
         pcs: {},               // id -> { pc, pendingIce, hasMyTracks, mine }
         streams: {},           // id -> remote MediaStream
         hiddenTiles: {},       // ids whose video tile I hid (Mute & Hide)
-        hearts: 0, lastHeartAt: 0, lastStateAt: 0, heartbeat: null, watchKey: ""
+        hearts: 0, lastHeartAt: 0, lastStateAt: 0, heartbeat: null, watchKey: "", hostWasMe: false, hostGraceTimer: null // [RP-V7.24] hostWasMe: I host this live (survives socket-id changes); hostGraceTimer: viewer-side reconnect grace
       };
       /* A personal live room is named after its host's socket id, sanitized
          exactly the way the server sanitizes room names (lowercase, only
@@ -8278,6 +8357,19 @@
          "live-" + a 20-char socket id = 25 chars, safely inside the cap. */
       function liveRoomIdFor(id) {
         return ("live-" + String(id || "").toLowerCase().replace(/[^a-z0-9-]/g, "")).slice(0, 40);
+      }
+      /* [RP-V7.24] MY live room is named after my stable device key —
+         never my socket id — so it keeps the same name across
+         reconnects and viewers can always find it. */
+      function myLiveRoomId() { return liveRoomIdFor(onlineDeviceKey()); }
+      /* [RP-V7.24] One live per room in the directory: drop any other
+         host's entry pointing at this room (a re-keyed host leaves a
+         stale entry under their dead socket id otherwise). */
+      function pruneDirRoom(room, keepId) {
+        if (!room) return;
+        Object.keys(Live.directory).forEach(function (id) {
+          if (id !== keepId && Live.directory[id] && Live.directory[id].room === room) delete Live.directory[id];
+        });
       }
       function isLiveRoomId(room) { return room === LIVE_ROOM_ID || (typeof room === "string" && room.indexOf("live-") === 0); }
       function inLiveRoom() { return isLiveRoomId(Online.room) && (Online.state === "on" || Online.state === "reconnecting"); }
@@ -8352,7 +8444,7 @@
         var st = $("liveStatus"); if (!st) return;
         if (!Live.active) {
           if (Online.room === LIVE_ROOM_ID) st.textContent = "Every host has their own live now 🎥 — tap Go Live to start yours, or pick a live below to watch!";
-          else if (Online.room === liveRoomIdFor(Online.myId)) st.textContent = "This is your own live room — tap Go Live whenever you're ready!";
+          else if (Online.room === myLiveRoomId()) st.textContent = "This is your own live room — tap Go Live whenever you're ready!";
           else st.textContent = "Loading the live… the host's broadcast appears here in a moment.";
         }
         else if (iAmHost()) st.textContent = "🔴 You're LIVE! Everyone in the room can see and hear you.";
@@ -9367,6 +9459,7 @@
       }
       function liveAskGoLive() {
         if (!inLiveRoom()) return;
+        if (Online.state !== "on") { toast("Still reconnecting to the party — one sec…"); return; } // [RP-V7.24] no phantom setups mid-reconnect
         // personal lives: nobody waits for another host — if I'm watching
         // someone else's live I can still start my own (it moves me to my
         // own live room). Only my own already-running live blocks a restart.
@@ -9380,7 +9473,13 @@
       function startOwnLiveEntry() {
         if (isTeen()) { openTeenGateAll("Going live"); return; }
         if (!rpAdultOk()) { rpDoorGate("Going live", startOwnLiveEntry); return; }
-        if (Online.state === "on" || Online.state === "reconnecting") {
+        if (Online.state === "reconnecting") {
+          // [RP-V7.24] mid-reconnect a Go LIVE tap must not start a
+          // phantom live nobody can see — the session heals itself
+          if (Live.active && Live.hostWasMe) { show("screen-online"); toast("You're live — reconnecting you, one sec…"); return; }
+          toast("Still reconnecting to the party — one sec…"); return;
+        }
+        if (Online.state === "on") {
           if (iAmHost()) { show("screen-online"); toast("You're already live — your broadcast is running! 🎥"); return; }
           show("screen-online");
           if (!isLiveRoomId(Online.room)) { Live.wantSetup = true; switchOnlineRoom(LIVE_ROOM_ID); }
@@ -9449,6 +9548,9 @@
         });
       }
       function liveStartHosting() {
+        // [RP-V7.24] never start a phantom live: without a live socket
+        // every announcement is silently dropped and nobody can find it
+        if (Online.state !== "on" || !Online.socket) { toast("You're not connected to the online party right now — reconnect before going live."); return; }
         liveGetCamera(function (stream) {
           if (!stream) return;
           // PERSONAL LIVE: leave any live I'm watching or on stage in, then
@@ -9458,7 +9560,7 @@
             if (iAmOnStage()) protoSend({ k: "live-leavestage" });
             liveTeardown(true);
           }
-          var myRoom = liveRoomIdFor(Online.myId);
+          var myRoom = myLiveRoomId(); // [RP-V7.24] stable across reconnects
           var at = Date.now();
           if (Online.room !== myRoom) {
             // announce in the room I'm leaving, so the people here can find
@@ -9469,7 +9571,7 @@
           }
           Live.myStream = stream; Live.camOn = true; Live.micOn = true;
           fxLiveSync(false); // a chosen filter rides the broadcast from the first frame
-          Live.active = true; Live.broadcastKnown = true;
+          Live.active = true; Live.broadcastKnown = true; Live.hostWasMe = true; // [RP-V7.24]
           AudioFX.holdMusic("live"); // on air: music stops completely until the live ends
           Live.hostId = Online.myId; Live.hostName = Online.name || me.name || "You";
           Live.startedAt = at;
@@ -9478,6 +9580,7 @@
           Live.hearts = 0; Live.requests = {}; Live.invited = {}; Live.myPendingReq = false;
           EngLog[Online.myId] = []; // a fresh broadcast starts with a clean engagement score
           Live.directory[Online.myId] = { room: myRoom, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: Online.myPhotoUrl || null, n: 1, seen: Date.now(), city: me.city || "", state: me.state || "", ints: (me.interests || []).slice(0, 8) };
+          pruneDirRoom(myRoom, Online.myId); // [RP-V7.24]
           protoSend({ k: "live-on", room: myRoom, at: at, title: (Live.title || "").slice(0, 30), topic: Live.topic || "Chatting" });
           sendLiveMeta();
           // PINNED IN MY LIVE: if my auction is already running (started
@@ -9735,6 +9838,7 @@
         LiveFs.on = false;
         if (LiveIdle.timer) { clearInterval(LiveIdle.timer); LiveIdle.timer = null; }
         var panel = $("livePanel"); if (panel) panel.classList.remove("live-fs", "lv-idle");
+        lvToolsToggle(false); // [RP-V7.24] the tray closes with the full-screen live
         if (document.body) document.body.classList.remove("live-fs");
         try {
           if (document.fullscreenElement && document.exitFullscreen) {
@@ -9743,6 +9847,40 @@
           }
         } catch (e) { }
       }
+      /* ---------- [RP-V7.24] ••• tools tray ----------
+         The satellite tool bars are built for the panel flow; in the
+         full-screen live they used to sit in the panel's flex column
+         and squeeze the stage to half the screen. Now they live in
+         #lvToolsTray — an overlay inside the stage — and appear only
+         when the ••• button opens the tray. Collecting MOVES the bar
+         nodes (never clones): every module renders by id, and the
+         Whatnot bar's clicks are delegated from #livePanel, which
+         stays an ancestor — so all wiring survives the move. */
+      var LV_TOOL_BAR_IDS = ["rp620Bar", "rp71Bar", "rp65Bar", "rp72Bar", "rp66Bar", "rp618Bar", "wnBar"];
+      function lvToolsCollect() {
+        var tray = $("lvToolsTray"); if (!tray) return;
+        var viewers = $("lvRailViewers");
+        if (viewers && viewers.parentNode !== tray) {
+          var head = tray.querySelector(".lv-tray-head");
+          if (head && head.nextSibling) tray.insertBefore(viewers, head.nextSibling);
+          else tray.appendChild(viewers);
+        }
+        LV_TOOL_BAR_IDS.forEach(function (id) {
+          var b = document.getElementById(id);
+          if (b && b.parentNode !== tray) tray.appendChild(b);
+        });
+      }
+      function lvToolsToggle(force) {
+        var tray = $("lvToolsTray"); if (!tray) return;
+        lvToolsCollect();
+        var open = typeof force === "boolean" ? force : !!tray.hidden;
+        tray.hidden = !open;
+        if (open) lvToolsCollect();
+      }
+      setInterval(function () {
+        var p = $("livePanel");
+        if (p && p.classList.contains("live-fs")) lvToolsCollect();
+      }, 1500);
       /* ---------- full-screen declutter: the auto-fade ----------
          A watchdog ticks twice a second while a live is full screen:
          once the last touch is ~4 seconds old, the panel gets .lv-idle
@@ -9821,10 +9959,8 @@
         wire("lvMoreViewers", function () { closeSheet(); openLiveHostTools(); });
         wire("lvMoreInvite", function () {
           closeSheet();
-          var main = $("onlineChatInput"); if (!main) return;
-          main.value = "📣 Come watch " + (Live.hostName || "the host") + " LIVE on the Live Stage — hop in and say hi!";
-          sendOnlineChat();
-          toast("📣 Invite posted to the room chat.");
+          sendOnlineChat("📣 Come watch " + (Live.hostName || "the host") + " LIVE on the Live Stage — hop in and say hi!");
+          toast("📣 Invite posted to the live.");
         });
         wire("lvMoreReport", function () { closeSheet(); openOnlineReport(Online.players[Live.hostId] || { id: Live.hostId, name: Live.hostName || "Host" }); });
         wire("lvMoreHide", function () { closeSheet(); liveMuteHide(Live.hostId); });
@@ -9957,10 +10093,8 @@
       function sendLiveComment() {
         var inp = $("liveCommentInput"); if (!inp) return;
         var text = (inp.value || "").trim(); if (!text) return;
-        var main = $("onlineChatInput"); if (!main) return;
-        main.value = text;
         inp.value = "";
-        sendOnlineChat();
+        sendOnlineChat(text); // [RP-V7.24] straight to the room — the room-chat box it used to detour through is gone
       }
       /* Share this live outside the app. Two hard field lessons
          shape this sheet:
@@ -10279,10 +10413,8 @@
         var invite = $("lvRailInvite");
         if (invite) invite.addEventListener("click", function () {
           if (!Live.active) return;
-          var main = $("onlineChatInput"); if (!main) return;
-          main.value = "📣 Come watch " + (Live.hostName || "the host") + " LIVE on the Live Stage — hop in and say hi!";
-          sendOnlineChat();
-          toast("📣 Invite posted to the room chat.");
+          sendOnlineChat("📣 Come watch " + (Live.hostName || "the host") + " LIVE on the Live Stage — hop in and say hi!");
+          toast("📣 Invite posted to the live.");
         });
         var hostChip = $("liveHostChip");
         if (hostChip) hostChip.addEventListener("click", function (e) {
@@ -10294,7 +10426,23 @@
         var fsClose = $("liveFsClose");
         if (fsClose) fsClose.addEventListener("click", liveFsCloseTap);
         var moreBtn = $("lvMoreBtn");
-        if (moreBtn) moreBtn.addEventListener("click", openLiveMoreSheet);
+        if (moreBtn) moreBtn.addEventListener("click", function () {
+          // [RP-V7.24] in the full-screen live, ••• opens the tools
+          // tray (the tool bars + Viewers); the classic More sheet is
+          // one tap further, from the tray's "More options" button
+          var p = $("livePanel");
+          if (p && p.classList.contains("live-fs")) lvToolsToggle();
+          else openLiveMoreSheet();
+        });
+        var trayMore = $("lvTrayMore");
+        if (trayMore) trayMore.addEventListener("click", function () { lvToolsToggle(false); openLiveMoreSheet(); });
+        var trayClose = $("lvTrayClose");
+        if (trayClose) trayClose.addEventListener("click", function () { lvToolsToggle(false); });
+        var gridEl = $("liveGrid");
+        if (gridEl) gridEl.addEventListener("click", function (e) {
+          var tray = $("lvToolsTray");
+          if (tray && !tray.hidden && !(e.target && e.target.closest && e.target.closest("button"))) lvToolsToggle(false);
+        });
         // any touch on the live panel wakes the faded chrome and
         // restarts the 4-second fade clock (capture phase, so a tap on
         // the video itself counts even though tiles sit on top of it)
@@ -10350,7 +10498,8 @@
         Live.stage = newStage;
         var prevDir = Live.directory[host];
         Live.directory[host] = { room: Online.room, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: (Online.players[host] && Online.players[host].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), er: (typeof er === "number" ? er : (prevDir && prevDir.er) || 0), erAt: (typeof er === "number" ? Date.now() : (prevDir && prevDir.erAt) || 0) };
-        clearTimeout(Live.staleTimer);
+        pruneDirRoom(Online.room, host); // [RP-V7.24]
+        clearTimeout(Live.staleTimer); clearTimeout(Live.hostGraceTimer); Live.hostGraceTimer = null; // [RP-V7.24] host is demonstrably back
         oldStage.forEach(function (id) { if (id !== Online.myId && newStage.indexOf(id) < 0) closeLivePeer(id); });
         if (wasOnStage && newStage.indexOf(Online.myId) < 0 && Live.myStream) { liveExitStage("You were removed from the stage — you're watching as a viewer now."); return; }
         if (wasOnStage && newStage.indexOf(Online.myId) < 0) Live.myPendingReq = false;
@@ -10380,6 +10529,7 @@
               // directory so 🔴 Live Now (and the lobby list) can show it
               if (isTeen()) return;
               Live.directory[fromId] = { room: o.room, name: fromName || liveName(fromId), title: o.title || "", topic: o.topic || "Chatting", photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: 1, seen: Date.now() };
+              pruneDirRoom(o.room, fromId); // [RP-V7.24]
               // fallback location: they announced from the room I'm in —
               // if that's a state/city room, they were just partying near
               // there (their own "live-meta" home overrides this when sent)
@@ -10390,7 +10540,7 @@
               renderLiveDir();
               return;
             }
-            if (Live.active) return; // this room's live is already running — personal lives never collide or yield
+            if (Live.active && Online.players[Live.hostId]) return; // this room's live is already running — personal lives never collide or yield ([RP-V7.24] a re-announce from a re-keyed host whose old id vanished IS adopted)
             Live.active = true; Live.broadcastKnown = true;
             Live.hostId = fromId; Live.hostName = fromName || liveName(fromId);
             Live.startedAt = o.at || Date.now();
@@ -10409,7 +10559,7 @@
             // metadata only — the roster arrives in live-stage chunks (same seq)
             var host = o.host || fromId;
             if (host !== fromId || host === Online.myId) return;
-            if (Live.active && Live.hostId !== host) return; // a different live is running in this room — not ours to adopt
+            if (Live.active && Live.hostId !== host && Online.players[Live.hostId]) return; // a different live is running in this room — not ours to adopt ([RP-V7.24] unless that host is gone: then this is our host re-keyed after a reconnect)
             Live.pendingMeta = { host: host, at: o.at, title: o.title, topic: o.topic, seq: o.s, er: (typeof o.er === "number" ? o.er : null) };
             maybeApplyLiveState();
             break;
@@ -10528,14 +10678,62 @@
         }
       }
       /* ---------- lifecycle hooks (called from the online core) ---------- */
+      /* [RP-V7.24] Self-heal after a socket reconnect. A reconnect always
+         mints a NEW socket id, but a live I host was keyed to the old
+         one: iAmHost() went false, the heartbeat stopped, and my own
+         client tore the live down as "host missing". Re-key the live
+         to the new id, re-announce it in its (stable, device-key-named)
+         room, and restart the heartbeat. A stage guest instead asks
+         the host to re-seat them under the new id. */
+      function liveRekeyAfterReconnect() {
+        if (!Live.active) return;
+        if (Live.hostWasMe && Live.hostId !== Online.myId) {
+          var oldId = Live.hostId, newId = Online.myId;
+          Live.hostId = newId;
+          Live.stage = Live.stage.map(function (s) { return s === oldId ? newId : s; });
+          if (Live.directory[oldId]) { Live.directory[newId] = Live.directory[oldId]; delete Live.directory[oldId]; }
+          if (Live.hostMeta[oldId]) { Live.hostMeta[newId] = Live.hostMeta[oldId]; delete Live.hostMeta[oldId]; }
+          if (Live.names[oldId]) { Live.names[newId] = Live.names[oldId]; delete Live.names[oldId]; }
+          if (typeof EngLog !== "undefined" && EngLog[oldId]) { EngLog[newId] = EngLog[oldId]; delete EngLog[oldId]; }
+          pruneDirRoom(Live.roomId, newId);
+          if (Online.room === Live.roomId) {
+            protoSend({ k: "live-on", room: Live.roomId, at: Live.startedAt || Date.now(), title: (Live.title || "").slice(0, 30), topic: Live.topic || "Chatting" });
+            sendLiveMeta();
+            liveSendState();
+          }
+          startLiveHeartbeat();
+          addChatSystem("🔴 You're back online — your live is still running!");
+          renderLivePanel();
+          if (typeof renderLiveNow === "function") renderLiveNow();
+        } else if (!Live.hostWasMe && Live.myStream) {
+          protoSend({ k: "live-join" });
+        }
+      }
+      /* [RP-V7.24] Viewer-side grace: the server emits player-left the
+         instant a host's socket dies, and viewers used to end the live
+         on the spot. A reconnecting host gets 20s to come back (their
+         re-keyed live-state cancels this timer) before it's over. */
+      function liveHostGoneSoon() {
+        if (!Live.active || iAmHost()) return;
+        var goneHost = Live.hostId, goneName = Live.hostName || "The host";
+        clearTimeout(Live.hostGraceTimer);
+        addChatSystem("📶 " + goneName + "'s connection hiccuped — waiting a moment for them to reconnect…");
+        Live.hostGraceTimer = setTimeout(function () {
+          Live.hostGraceTimer = null;
+          if (Live.active && !iAmHost() && Live.hostId === goneHost && !Online.players[goneHost]) {
+            endLiveRemote(goneName + " left, so the live has ended — thanks for watching! 🎉");
+          }
+        }, 20000);
+      }
       function liveOnRoomEntered() {
         if (!isLiveRoomId(Online.room)) { updateLivePanel(); return; }
         guideOnLiveRoom();
         // a live belongs to its room: arriving somewhere else leaves it behind
         if (Live.active && Live.roomId && Online.room !== Live.roomId) liveTeardown(true);
         if (Live.active && !iAmHost() && Live.hostId && !Online.players[Live.hostId]) {
-          endLiveRemote("The live has ended — thanks for watching! 🎉");
-          return;
+          // [RP-V7.24] don't kill the live on the spot — the host may
+          // be mid-reconnect; their re-keyed live-state cancels this
+          liveHostGoneSoon();
         }
         updateLivePanel();
         protoSend({ k: "live-ping" });
@@ -10544,7 +10742,7 @@
         // live room, but the host isn't here — give them a few seconds to
         // arrive (they announce just before moving), then prune the listing
         clearTimeout(Live.staleTimer);
-        if (Online.room !== LIVE_ROOM_ID && Online.room !== liveRoomIdFor(Online.myId) && !Live.active) {
+        if (Online.room !== LIVE_ROOM_ID && Online.room !== myLiveRoomId() && !Live.active) {
           var entry = liveDirectoryEntryForRoom(Online.room);
           if (entry && !Online.players[entry.hostId]) {
             var entryRoom = entry.room, entryHost = entry.hostId;
@@ -10563,7 +10761,8 @@
       function liveOnPlayerLeft(id) {
         if (!Live.active) { closeLivePeer(id); return; }
         if (id === Live.hostId) {
-          if (!iAmHost()) endLiveRemote(Live.hostName + " left, so the live has ended — thanks for watching! 🎉");
+          closeLivePeer(id);
+          if (!iAmHost()) liveHostGoneSoon(); // [RP-V7.24] reconnect grace instead of an instant end
           return;
         }
         closeLivePeer(id);
@@ -10587,13 +10786,14 @@
         heartPending = 0;
         stopLiveHeartbeat();
         clearTimeout(Live.staleTimer);
+        clearTimeout(Live.hostGraceTimer); Live.hostGraceTimer = null; // [RP-V7.24]
         AudioFX.releaseMusic("live"); // off air: music may resume
         fxStopPipeline();
         if (Live.myStream) { Live.myStream.getTracks().forEach(function (t) { t.stop(); }); Live.myStream = null; }
         Object.keys(Live.pcs).forEach(closeLivePeer);
         Live.pcs = {}; Live.streams = {};
         if (Live.hostId && Live.hostId === Online.myId) delete Live.directory[Online.myId]; // my live is over — unlist it
-        Live.active = false;
+        Live.active = false; Live.hostWasMe = false; // [RP-V7.24]
         Live.hostId = null; Live.hostName = ""; Live.startedAt = 0; Live.stage = [];
         Live.roomId = null; Live.pendingMeta = null; Live.pendingStage = null; Live.stageAsm = null;
         Live.wantSetup = false;
@@ -10669,7 +10869,7 @@
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💰 Earn at Rizz Plaza</h3>' +
-          '<p><b>🎥 Go live, get gifted.</b> Broadcast on the <b>⭐ Live Stage</b> and post in <b>📸 Moments</b> — viewers and fans send you gifts from a 1¢ Heart all the way to the $500 Universe. Every gift banks its full value toward your earnings: 1 charm = 1¢.</p>' +
+          '<p><b>🎥 Go live, get gifted.</b> Broadcast on the <b>⭐ Live Stage</b> and post in <b>🎬 Reels</b> — viewers and fans send you gifts from a 1¢ Heart all the way to the $500 Universe. Every gift banks its full value toward your earnings: 1 charm = 1¢.</p>' +
           '<p><b>💸 Your balance right now: ' + moneyLabel(net) + '</b> ready to cash out (after platform cuts — 30% on gifts, 10% on auction sales). Cash out unlocks at <b>$20</b>, once a day, paid through <b>Stripe Connect</b>.</p>' +
           '<p><b>🔨 Sell real items, live.</b> In <b>Live Auctions</b> you list an item with a photo, the room bids it up in real time, and the winner checks out with Stripe. You keep 90% of the sale — sellers ship the item, and all sales are final.</p>' +
           '<p><b>📈 What hosts actually make each month</b> — it grows with your audience:<br>' +
@@ -10681,7 +10881,7 @@
           '<p>🔥 Streams with lots of hearts, gifts, comments and shares get pushed to more viewers — and the longer people stay and watch, the higher it climbs. Every new live also gets a fair first push so new hosts get seen.</p>' +
           '<p>🎉 ' + holidayEarnLine() + '</p>' +
           '<p><b>🚫 Keep it clean — and keep earning.</b> Nudity and sexual content are <b>banned</b> on live: violations end your live immediately and can get you permanently banned. Creators here earn by being entertaining, not explicit.</p>' +
-          '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;"><button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnEarnGoLive">⭐ Take me to the Live Stage</button><button class="btn-mini" id="btnEarnBalance">💰 My earnings &amp; cash out</button><button class="btn-mini" id="btnEarnShop">🎁 Gift shop &amp; charms</button><button class="btn-mini" id="btnEarnMoments">📸 Moments feed</button><button class="btn-mini" id="btnEarnAuctions">🔨 Live Auctions</button><button class="btn-mini" data-act="close2">Keep partying</button></div></div>'
+          '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;"><button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnEarnGoLive">⭐ Take me to the Live Stage</button><button class="btn-mini" id="btnEarnBalance">💰 My earnings &amp; cash out</button><button class="btn-mini" id="btnEarnShop">🎁 Gift shop &amp; charms</button><button class="btn-mini" id="btnEarnMoments">🎬 Reels feed</button><button class="btn-mini" id="btnEarnAuctions">🔨 Live Auctions</button><button class="btn-mini" data-act="close2">Keep partying</button></div></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         $("sheet").querySelector("[data-act=close2]").addEventListener("click", function () { closeSheet(); });
@@ -10705,11 +10905,28 @@
       /* The Live Stage is the front door to the whole online party: one tap
          connects with the player's saved display name (asking only when
          they have none) and lands them straight in the Live Stage room. */
+      /* [RP-V7.24] THE resolved identity — one source of truth, in
+         priority order: signed-in account name (RP-V7.17: the account
+         identity carries Plaza-wide) → this session's name → the
+         saved profile's name → the remembered guest name. The gate
+         used to end at me.name, which starts empty every boot, so it
+         asked — with an empty box — every single launch. */
       function savedOnlineName() {
+        try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a && a.token && a.name) return cleanOnlineName(a.name); } catch (e) { }
         var n = cleanOnlineName(Online.name || "") || cleanOnlineName(me.name || "");
-        if (!n) { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a && a.token && a.name) n = cleanOnlineName(a.name); } catch (e) { } }
+        if (!n) { try { var P = JSON.parse(localStorage.getItem("datingGameProfile.v1") || "{}"); if (P && P.name) n = cleanOnlineName(P.name); } catch (e) { } }
+        if (!n) { try { n = cleanOnlineName(localStorage.getItem("rpGuestName.v1") || ""); } catch (e) { } }
         return n;
       }
+      /* [RP-V7.24] core bridge: the account module calls this when the
+         session restores / refreshes, so the account name becomes the
+         identity everywhere (HUD chip, profile, online) at once. */
+      window.rpApplyAccountName = function (nm) {
+        nm = cleanOnlineName(nm || "");
+        if (!nm) return;
+        if (me.name !== nm) { me.name = nm; try { updateHUD(); } catch (e) { } }
+        if (Online.state === "off" && !Online.name) Online.name = nm;
+      };
       function joinOnlineSaved(roomId) {
         Online.room = roomId;
         noteRoomVisit(roomId);
@@ -11194,6 +11411,13 @@
          so they must wait for the full parse — the old flow only ever
          rendered after a tap, when everything was already up. */
       function rpBootHome() {
+        // [RP-V7.24] identity at boot: a signed-in account's name (the
+        // session token lives in rpAcct.v1; the account module verifies
+        // it against /api/account/me) — else the remembered guest name —
+        // becomes me.name BEFORE the HUD renders, so the home chip never
+        // reads "You" for a known user and no entry re-asks the name.
+        try { var ba = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (ba && ba.token && ba.name) me.name = cleanOnlineName(ba.name); } catch (e) { }
+        if (!me.name) { try { var gn = localStorage.getItem("rpGuestName.v1") || ""; if (gn) me.name = cleanOnlineName(gn); } catch (e) { } }
         rpHydrateAge();
         $("hud").hidden = false;
         updateHUD(); renderLobby(); renderMatches(); renderPlaza();
@@ -11615,6 +11839,7 @@
         return true;
       }
       window.rpProtoSend = protoSend;
+      window.rpSendRoomChat = function (t) { sendOnlineChat(t); }; // [RP-V7.24] bridge for the Teen Hangout's own chat row
         window.rpSocket = function () { try { return Online.socket; } catch (e) { return null; } };
         window.rpMyId = function () { try { return Online.myId; } catch (e) { return ""; } };
         window.rpLiveInvite = liveInvite;
@@ -11759,7 +11984,12 @@
           faces.appendChild(m);
         }
         var total = $("presenceTotal");
-        if (total) total.textContent = Party.totalOnline != null ? Party.totalOnline + " online in the party" : "";
+        if (total) {
+          // [RP-V7.24] the party-wide count belongs to the Live Stage
+          // only — every other room shows its OWN headcount here
+          if (typeof LIVE_ROOM_ID !== "undefined" && Online.room === LIVE_ROOM_ID) total.textContent = Party.totalOnline != null ? Party.totalOnline + " online in the party" : "";
+          else { var hereN = Object.keys(Online.players).length + 1; total.textContent = hereN === 1 ? "1 person here" : hereN + " people here"; }
+        }
       }
       var announceTimer = null;
       function partyAnnounce(html, leave) {
@@ -12221,14 +12451,7 @@
       $("btnQuickJoin").addEventListener("click", quickJoin);
       $("btnClaimDaily").addEventListener("click", claimDaily);
       $("btnEventCal").addEventListener("click", openEventCalendar);
-      $("reactBar").querySelectorAll("[data-react]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          var e = b.getAttribute("data-react");
-          emojiBurst(e, 10);
-          var now = Date.now();
-          if (Online.state === "on" && now - Party.lastReactAt > 1200) { Party.lastReactAt = now; protoSend({ k: "react", e: e }); }
-        });
-      });
+      /* [RP-V7.24] the room reaction bar went out with the Room chat panel. */
       renderDaily();
       renderPresenceStrip();
       setInterval(partyTick, 1000);
@@ -12475,7 +12698,7 @@
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💰 My earnings</h3>' +
-          '<p style="text-align:center;">Every gift you receive — on the Live Stage and in Moments — banks here at full value (1 charm = 1¢). The Plaza keeps a 30% platform cut; the rest is yours.</p>' +
+          '<p style="text-align:center;">Every gift you receive — on the Live Stage and in Reels — banks here at full value (1 charm = 1¢). The Plaza keeps a 30% platform cut; the rest is yours.</p>' +
           '<div class="earn-stats">' +
             '<div class="earn-stat"><b>' + Earn.count + '</b><span>Gifts received</span></div>' +
             '<div class="earn-stat"><b>' + moneyLabel(Earn.gross) + '</b><span>Gift value received, all time</span></div>' +
@@ -12485,7 +12708,7 @@
           '<p style="text-align:center; font-size:19px; margin:4px 0 2px;">Net earnings: <b style="color:var(--gold);">' + moneyLabel(net) + '</b></p>' +
           '<div class="earn-bar"><i style="width:' + pct + '%;"></i></div>' +
           '<p style="text-align:center; font-size:12.5px; color:var(--ink-soft); font-weight:700; margin:0 0 6px;">' + (net >= CASHOUT_MIN ? "Cash-out unlocked! 🎉" : moneyLabel(CASHOUT_MIN - net) + " more to unlock cash-out at $20") + ' · cash out once a day via Stripe Connect</p>' +
-          (donors.length ? '<p style="margin:8px 0 2px;"><b>Top supporters:</b> ' + donors.map(function (d) { return escHtml(d) + " (" + moneyLabel(Earn.donors[d]) + ")"; }).join(" · ") + '</p>' : '<p style="margin:8px 0 2px; color:var(--ink-soft); font-weight:700;">No gifts yet — go live or post a Moment and your fans can gift you from 1¢ up.</p>') +
+          (donors.length ? '<p style="margin:8px 0 2px;"><b>Top supporters:</b> ' + donors.map(function (d) { return escHtml(d) + " (" + moneyLabel(Earn.donors[d]) + ")"; }).join(" · ") + '</p>' : '<p style="margin:8px 0 2px; color:var(--ink-soft); font-weight:700;">No gifts yet — go live or post a Reel and your fans can gift you from 1¢ up.</p>') +
           (Earn.cashedTotal > 0 ? '<p style="margin:2px 0;">Paid out so far: <b>' + moneyLabel(Earn.cashedTotal) + '</b></p>' : '') +
           '<h4 style="margin:16px 0 4px;">🔨 Auction sales</h4>' +
           '<p style="margin:0 0 4px;">Auction sales take a <b>10% platform cut</b> — separate from the 30% gift cut above. Sales bank here the moment the winner pays.</p>' +
@@ -12578,7 +12801,7 @@
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">⭐ Charm packs</h3>' +
-          '<p style="text-align:center;">Your balance: <b>' + charms.toLocaleString("en-US") + ' charms</b>. Charms power every gift in the Plaza — on the Live Stage and in Moments.</p>' +
+          '<p style="text-align:center;">Your balance: <b>' + charms.toLocaleString("en-US") + ' charms</b>. Charms power every gift in the Plaza — on the Live Stage and in Reels.</p>' +
           rows +
           '<p style="font-size:12.5px; color:var(--ink-soft); font-weight:700; margin-top:10px;">Secure checkout powered by Stripe. Charms land in your wallet the moment your payment clears. 18+ only.</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-mini" id="shopEarnings">💰 My earnings &amp; cash out</button></div></div>'
@@ -12650,7 +12873,7 @@
       function renderMoments() {
         var feed = $("momFeed"); if (!feed) return;
         if (!Moments.posts.length) {
-          feed.innerHTML = '<div class="mom-empty">No Moments yet — be the first to post a photo! 📸</div>';
+          feed.innerHTML = '<div class="mom-empty">No Reels yet — be the first to post a photo! 📸</div>';
           return;
         }
         feed.innerHTML = "";
@@ -12664,7 +12887,7 @@
             ? '<img src="' + p.photo + '" alt="Photo posted by ' + escHtml(p.name) + '"/>'
             : (SCENERY[p.scene] || "");
           card.innerHTML =
-            '<div class="mom-top"><span class="who-av">' + av + '</span><div><b>' + escHtml(p.name) + '</b><span>' + escHtml(p.when || "now") + ' · Moments</span></div>' +
+            '<div class="mom-top"><span class="who-av">' + av + '</span><div><b>' + escHtml(p.name) + '</b><span>' + escHtml(p.when || "now") + ' · Reels</span></div>' +
             (p.gifts > 0 ? '<span class="mom-gifted">🎁 ' + p.gifts.toLocaleString("en-US") + ' charms gifted</span>' : '<span class="mom-gifted" hidden></span>') + '</div>' +
             '<div class="mom-photo">' + photo + '</div>' +
             '<p class="mom-cap"><b>' + escHtml(p.name) + '</b>' + escHtml(p.caption || "") + '</p>' +
@@ -12710,7 +12933,7 @@
           : '<p style="color:var(--ink-soft); font-weight:700;">No comments yet — say something nice!</p>';
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
-          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💬 Comments · ' + escHtml(p.name) + '\u2019s Moment</h3>' +
+          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💬 Comments · ' + escHtml(p.name) + '\u2019s Reel</h3>' +
           '<div id="momCommentList">' + list + '</div>' +
           '<div class="chat-row" style="margin-top:12px;"><input class="online-input" id="momCommentInput" type="text" maxlength="140" placeholder="Add a kind comment…" autocomplete="off" /><button class="btn-primary" style="width:auto; padding:11px 18px;" id="btnMomComment">Post</button></div>' +
           '<p class="age-note" style="margin-top:8px;">Comments are public — keep them kind, and follow the community guidelines.</p></div>'
@@ -12746,11 +12969,11 @@
         });
       }
       function openMomComposer() {
-        if (isTeen()) { openTeenGateAll("Moments"); return; }
+        if (isTeen()) { openTeenGateAll("Reels"); return; }
         var has = !!Moments.pendingPhoto;
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
-          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📸 Post a Moment</h3>' +
+          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📸 Post a Reel</h3>' +
           (has
             ? '<img src="' + Moments.pendingPhoto + '" alt="Your photo, ready to post" style="width:100%; border-radius:14px; display:block; margin-bottom:10px;"/>'
             : '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Pick a photo to share with the Plaza. Fans can like it, comment — and send you gifts right on the post.</p>') +
@@ -12759,7 +12982,7 @@
             (Online.myPhotoUrl ? '<button class="btn-mini" id="btnMomUseOnline">Use my online photo</button>' : "") +
           '</div>' +
           '<div class="field" style="margin-top:12px;"><label for="momCapInput">Caption</label><input class="online-input-full" id="momCapInput" type="text" maxlength="140" placeholder="Say something about this shot…" autocomplete="off" /></div>' +
-          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnMomPublish">Post to Moments</button></div>' +
+          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnMomPublish">Post to Reels</button></div>' +
           '<p class="age-note" style="margin-top:8px;">Photos follow the same community guidelines as live: no nudity or sexual content, ever.</p></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -12767,7 +12990,7 @@
         var uo = $("btnMomUseOnline");
         if (uo) uo.addEventListener("click", function () { Moments.pendingPhoto = Online.myPhotoUrl; openMomComposer(); var ci = $("momCapInput"); });
         $("btnMomPublish").addEventListener("click", function () {
-          if (!Moments.pendingPhoto) { toast("Pick a photo first — Moments are photo posts!"); return; }
+          if (!Moments.pendingPhoto) { toast("Pick a photo first — Reels posts start with a photo!"); return; }
           var cap = (($("momCapInput") && $("momCapInput").value) || "").trim();
           Moments.posts.unshift({
             id: "mine" + Date.now(), mine: true, name: Online.name || me.name || "You",
@@ -12778,12 +13001,12 @@
           closeSheet();
           renderMoments();
           var feed = $("momFeed"); if (feed) feed.scrollTop = 0;
-          toast("📸 Your Moment is live! Likes, comments and gifts will roll in here.", 3600);
+          toast("📸 Your Reel is live! Likes, comments and gifts will roll in here.", 3600);
         });
       }
       function openMoments() {
-        if (isTeen()) { openTeenGateAll("Moments"); return; }
-        if (!rpAdultOk()) { rpDoorGate("Moments", openMoments); return; }
+        if (isTeen()) { openTeenGateAll("Reels"); return; }
+        if (!rpAdultOk()) { rpDoorGate("Reels", openMoments); return; }
         closeSheet();
         seedMoments();
         renderMoments();
@@ -13371,7 +13594,7 @@
         if (tp) tp.classList.toggle("on", !reels);
         if (tr) tr.classList.toggle("on", reels);
         var h2 = document.querySelector(".mom-head h2");
-        if (h2) h2.textContent = reels ? "🎬 Reels" : "📸 Moments";
+        if (h2) h2.textContent = reels ? "🎬 Reels" : "📸 Photos";
         if (reels) { renderReels(); reelFetchFeed(); }
         else reelPauseAll();
       }
@@ -15219,7 +15442,7 @@
     <button class="tab-btn" data-tab="home" type="button"><span class="ti">🏠</span>Home</button>
     <button class="tab-btn" data-tab="live" type="button"><span class="ti">🔴</span>Live</button>
     <button class="tab-btn" data-tab="auctions" type="button"><span class="ti">🔨</span>Auctions</button>
-    <button class="tab-btn" data-tab="moments" type="button"><span class="ti">📸</span>Moments</button>
+    <button class="tab-btn" data-tab="moments" type="button"><span class="ti">🎬</span>Reels</button>
     <button class="tab-btn" data-tab="profile" type="button"><span class="ti">👤</span>Profile</button>
   </nav>
   <script>
@@ -19195,7 +19418,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
         acct.name = r.json.user.name; acct.email = r.json.user.email; acct.userId = r.json.user.id;
         if (r.json.user.username) acct.username = r.json.user.username;
         if (r.json.user.phone) acct.phone = r.json.user.phone;
-        saveAcct(); setUnread(r.json.unread || 0); fetchReminders();
+        saveAcct(); try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } setUnread(r.json.unread || 0); fetchReminders();
       } else if (r.status === 401) {
         signOutLocal();
         toast2("You're signed out — log in again from the sign-up sheet.", 3600);
@@ -19346,6 +19569,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
       if (r.json && r.json.ok) {
         acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "" };
         saveAcct();
+        try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { var d0 = dobOnFile(); if (d0) localStorage.setItem(DOB_KEY, d0); } catch (e) { }
         localSeed();
         toast2("✅ You're in — check your reminders 🔔", 4200);
@@ -19369,6 +19593,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
       if (r.json && r.json.ok) {
         acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "" };
         saveAcct();
+        try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         if (er) er.hidden = true;
         toast2("👋 Welcome back, " + r.json.user.name + "!", 3600);
         fetchReminders(); renderAcctBox();
@@ -19473,6 +19698,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
   tick();
   setInterval(tick, 1300);
   if (acct) refreshSession();
+  if (acct && acct.name) { try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } } // [RP-V7.24] identity applies at boot, before any room/live entry
   window.rpAcct = {
     state: function () { return acct; },
     reminders: function () { return reminders; },
@@ -22337,7 +22563,7 @@ button.rp72-chip{ cursor:pointer; }
     sheetOpen(
       '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
       '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">⭐ Rizz Plaza Premium</h3>' +
-      '<p style="text-align:center;">One flat membership: boosts for your lives and Moments, extra rooms, read receipts in messages — and a ⭐ badge on your profile.</p>' +
+      '<p style="text-align:center;">One flat membership: boosts for your lives and Reels, extra rooms, read receipts in messages — and a ⭐ badge on your profile.</p>' +
       '<div class="pack-row"><span class="pi">⭐</span><div class="pt"><b>Premium monthly</b><span>Renews monthly — cancel anytime</span></div><button class="btn-mini" data-rpplan="monthly">$9.99/mo</button></div>' +
       '<div class="pack-row"><span class="pi">💎</span><div class="pt"><b>Premium yearly</b><span>Two months free vs monthly</span></div><button class="btn-mini" data-rpplan="yearly">$59.99/yr</button></div>' +
       '<p style="font-size:12.5px; color:var(--ink-soft); font-weight:700; margin-top:10px;">Secure checkout powered by Stripe. Premium activates the moment your payment clears.</p></div>'
@@ -22889,6 +23115,12 @@ button.rp72-chip{ cursor:pointer; }
 .rpteen-heartbtn { width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255,255,255,.75); background: rgba(254,44,85,.88); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; box-shadow: 0 6px 18px rgba(254,44,85,.45); }
 .rpteen-heartbtn:active { transform: scale(.92); }
 .rpteen-notice { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 99999; max-width: 92vw; background: #2b0f16; color: #ffd9de; border: 1.5px solid #fe2c55; border-radius: 14px; padding: 12px 16px; font-size: 14.5px; font-weight: 700; text-align: center; box-shadow: 0 12px 32px rgba(0,0,0,.45); display: none; }
+/* [RP-V7.24] Teen Hangout's OWN chat row — the shared Room chat panel it used to type into is gone */
+.rpteen-overlay .rpteen-stream { bottom: 64px; }
+.rpteen-chatrow { position: absolute; left: 10px; right: 92px; bottom: 12px; display: flex; gap: 8px; pointer-events: auto; }
+.rpteen-chatrow input { flex: 1; min-width: 0; border-radius: 999px; border: 1px solid rgba(255,255,255,.4); background: rgba(10,12,20,.62); color: #fff; padding: 9px 14px; font-size: 13.5px; font-family: inherit; outline: none; }
+.rpteen-chatrow input::placeholder { color: rgba(255,255,255,.65); }
+.rpteen-chatrow button { border-radius: 999px; border: 1px solid rgba(255,255,255,.4); background: rgba(254,44,85,.9); color: #fff; padding: 9px 16px; font-size: 13.5px; font-weight: 800; font-family: inherit; cursor: pointer; }
 </style>
 <script>
 /* ================= RP-V7.16 — Teen Hangout =================
@@ -23143,6 +23375,9 @@ button.rp72-chip{ cursor:pointer; }
       setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 700);
     }, 13000);
   }
+  /* [RP-V7.24] the core chat functions feed this hook directly now —
+     the Room chat panel whose log this module used to mirror is gone */
+  window.rpTeenBubble = function (name, text, sys) { if (inRoom) pushBubble(name, text, sys); };
   var mirrorObs = null;
   function startMirror() {
     var log = $("onlineChatLog");
@@ -23190,9 +23425,14 @@ button.rp72-chip{ cursor:pointer; }
         '<div class="rpteen-actions">' +
         '<button type="button" class="rpteen-likepill" id="rpTeenLikeBtn" aria-label="Like this room">❤️ <span id="rpTeenLikeCount">0</span></button>' +
         '<button type="button" class="rpteen-heartbtn" id="rpTeenHeartBtn" aria-label="Send hearts to the room">❤️</button>' +
-        '</div>';
+        '</div>' +
+        '<div class="rpteen-chatrow"><input type="text" id="rpTeenChatInput" maxlength="200" placeholder="Say something kind…" autocomplete="off" /><button type="button" id="rpTeenChatSend">Send</button></div>';
       host.appendChild(overlay);
       $("rpTeenHeartBtn").addEventListener("click", function () { spawnHearts(6); send({ k: "teen-heart" }); });
+      var rpTeenInp = $("rpTeenChatInput");
+      function rpTeenSendChat() { var t = (rpTeenInp.value || "").trim(); if (!t) return; rpTeenInp.value = ""; if (window.rpSendRoomChat) window.rpSendRoomChat(t); }
+      $("rpTeenChatSend").addEventListener("click", rpTeenSendChat);
+      rpTeenInp.addEventListener("keydown", function (e) { if (e.key === "Enter") rpTeenSendChat(); });
       $("rpTeenLikeBtn").addEventListener("click", function () { likeCount++; saveLikes(); renderLikes(); send({ k: "teen-like", n: likeCount }); });
       renderLikes();
     }
