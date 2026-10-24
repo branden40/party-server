@@ -4032,15 +4032,17 @@
           setVolume: function (v) { volume = Math.max(0, Math.min(1, v)); if (au && !liveRoomSoft) au.volume = effVol(); },
           volume: function () { return volume; },
           isPlaying: function () { return !!au && !au.paused; },
-          tap: function () { if (!ready()) return; tone({ f: 620, slide: 470, t: now(), dur: 0.05, type: "triangle", vol: 0.10 }); },
-          popSfx: function () { if (!ready()) return; tone({ f: 270, slide: 72, t: now(), dur: 0.09, type: "sine", vol: 0.24 }); },
+          tap: function () { if (!ready()) return; tone({ f: 340, slide: 240, t: now(), dur: 0.03, type: "sine", vol: 0.06 }); }, // [RP-V7.34] the every-button click, de-retroed: a barely-there sine tick (was a bright triangle blip, 620→470)
+          popSfx: function () { if (!ready()) return; tone({ f: 240, slide: 90, t: now(), dur: 0.07, type: "sine", vol: 0.14 }); }, // [RP-V7.34] the UI pop, rounder + softer (was 270→72 at vol 0.24)
           jump: function () { if (!ready()) return; var t = now(); tone({ f: 285, slide: 690, t: t, dur: 0.16, type: "square", vol: 0.075 }); tone({ f: 430, slide: 980, t: t, dur: 0.15, type: "triangle", vol: 0.15 }); },
           land: function () { if (!ready()) return; var t = now(); tone({ f: 175, slide: 62, t: t, dur: 0.11, type: "sine", vol: 0.30 }); noiseS({ t: t, dur: 0.06, vol: 0.13, type: "lowpass", freq: 750 }); },
           hit: function () { if (!ready()) return; duck(); var t = now(); tone({ f: 210, slide: 55, t: t, dur: 0.13, type: "sine", vol: 0.34 }); noiseS({ t: t, dur: 0.07, vol: 0.20, freq: 1500, q: 0.7 }); tone({ f: 1180, slide: 300, t: t, dur: 0.06, type: "square", vol: 0.06 }); },
-          coin: function () { if (!ready()) return; var t = now(); tone({ f: 988, t: t, dur: 0.09, type: "square", vol: 0.075 }); tone({ f: 1319, t: t + 0.07, dur: 0.22, type: "square", vol: 0.075 }); tone({ f: 1976, t: t + 0.07, dur: 0.2, type: "sine", vol: 0.06 }); },
+          coin: function () { return; }, // [RP-V7.34] silenced at Branden's order — the 8-bit square-wave coin blip is gone app-wide; its call sites (auctions, charm awards) now run quiet. Gifts use gift()/giftBig() below.
+          gift: function () { if (!ready()) return; var t = now(); tone({ f: 420, slide: 160, t: t, dur: 0.09, type: "sine", vol: 0.22 }); tone({ f: 1568, t: t + 0.06, dur: 0.30, type: "sine", vol: 0.07 }); tone({ f: 2093, t: t + 0.12, dur: 0.38, type: "sine", vol: 0.05 }); noiseS({ t: t + 0.05, dur: 0.06, vol: 0.03, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.34] soft pop + glassy chime sparkle — the gift sound (original design, no square waves)
+          giftBig: function () { if (!ready()) return; var t = now(); api.gift(); [523, 659, 784, 1047].forEach(function (f, i) { tone({ f: f, t: t + 0.05 + i * 0.07, dur: 0.5, type: "sine", vol: 0.08 }); }); noiseS({ t: t + 0.1, dur: 0.22, vol: 0.035, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.34] big/prestige gifts: the gift sound + a warm rising arpeggio and a longer sparkle
           deal: function () { if (!ready()) return; var t = now(); noiseS({ t: t, dur: 0.07, vol: 0.16, type: "highpass", freq: 2400 }); noiseS({ t: t + 0.05, dur: 0.05, vol: 0.10, type: "bandpass", freq: 3200, q: 1.4 }); },
           chip: function () { if (!ready()) return; var t = now(); tone({ f: 2350, t: t, dur: 0.03, type: "square", vol: 0.09 }); tone({ f: 1880, t: t + 0.045, dur: 0.04, type: "square", vol: 0.10 }); noiseS({ t: t + 0.045, dur: 0.03, vol: 0.08, type: "highpass", freq: 4000 }); },
-          bump: function () { if (!ready()) return; tone({ f: 130, slide: 70, t: now(), dur: 0.08, type: "sine", vol: 0.22 }); },
+          bump: function () { if (!ready()) return; tone({ f: 130, slide: 70, t: now(), dur: 0.07, type: "sine", vol: 0.14 }); }, // [RP-V7.34] UI error/negative thud, softened (same low sine shape, quieter — was vol 0.22)
           thock: function () { if (!ready()) return; tone({ f: 150, slide: 68, t: now(), dur: 0.07, type: "sine", vol: 0.28 }); noiseS({ t: now(), dur: 0.03, vol: 0.08, type: "lowpass", freq: 900 }); },
           pew: function () { if (!ready()) return; tone({ f: 760, slide: 290, t: now(), dur: 0.08, type: "square", vol: 0.055 }); },
           zap: function () { if (!ready()) return; duck(); var t = now(); tone({ f: 940, slide: 130, t: t, dur: 0.13, type: "sawtooth", vol: 0.16, cutoff: 3800 }); noiseS({ t: t, dur: 0.06, vol: 0.10, type: "highpass", freq: 2600 }); },
@@ -6267,10 +6269,12 @@
         sc.onerror = function () { cb(false); };
         document.head.appendChild(sc);
       }
-      function connectOnline(name) {
+      function connectOnline(name, quiet) {
         Online.state = "connecting";
         Online.name = name;
-        toast("Connecting to the online party…");
+        Online.quietFail = !!quiet; // [RP-V7.34] a quiet (boot) connect fails silently — see rpBootConnect / failOnline
+        Online.quietBoot = !!quiet; // [RP-V7.34] …and its first join lands without yanking the user off Home — see onRoomState
+        if (!quiet) toast("Connecting to the online party…");
         ensureIo(function (ok) {
           if (!ok) { failOnline(); return; }
           var socket;
@@ -6346,8 +6350,9 @@
         });
       }
       function failOnline() {
+        var quietBootFail = !!Online.quietFail; Online.quietFail = false; // [RP-V7.34] boot-connect failure stays silent — the offline lobby simply remains as it was
         cleanupOnline();
-        toast("Couldn\u2019t reach the online party — check your connection. You\u2019re still in the single-player party with the guests!", 4600);
+        if (!quietBootFail) toast("Couldn\u2019t reach the online party — check your connection. You\u2019re still in the single-player party with the guests!", 4600);
         // [RP-V7.25] A Home-card direct join that couldn't connect lands
         // on the room's scenic floor instead of stranding the tap back
         // on Home — the pre-V7.25 behavior, banner and all. One-shot,
@@ -6356,6 +6361,7 @@
         if (rpFb && Online.room === rpFb.id) { try { enterRoom(rpFb); } catch (e) { } }
       }
       function cleanupOnline() {
+        Online.quietBoot = false; // [RP-V7.34] teardown spends any unconsumed quiet-boot flag
         clearTimeout(Online.watchdog);
         voiceReset();
         liveTeardown(true);
@@ -6388,6 +6394,7 @@
         var first = Online.state !== "on" && !rejoin;
         rpScenicFallback = null; // [RP-V7.25] the join landed — scenic fallback spent
         Online.state = "on";
+        Online.quietFail = false; // [RP-V7.34] the join landed — the quiet-boot failure flag is spent
         Party.roomCounts[Online.room] = { n: (list || []).length, at: Date.now() };
         if (typeof renderLiveNow === "function") renderLiveNow();
         clearTimeout(Online.watchdog);
@@ -6411,9 +6418,16 @@
         renderOnlinePeople();
         $("btnOnlineHud").classList.add("live");
         if (first) {
-          show("screen-online");
-          addChatSystem("You\u2019re in the " + onlineRoomMeta(Online.room).title + " — say hi! Tap the floor to walk around.");
-          toast("You\u2019re online! Welcome to the " + onlineRoomMeta(Online.room).title + ".");
+          // [RP-V7.34] a quiet boot join (rpBootConnect) lands in the
+          // background: the user stays on Home — no screen switch, no
+          // welcome toast. The flag is one-shot; any later manual join
+          // (quiet flag false) gets the full welcome exactly as before.
+          var quietBootJoin = !!Online.quietBoot; Online.quietBoot = false;
+          if (!quietBootJoin) {
+            show("screen-online");
+            addChatSystem("You\u2019re in the " + onlineRoomMeta(Online.room).title + " — say hi! Tap the floor to walk around.");
+            toast("You\u2019re online! Welcome to the " + onlineRoomMeta(Online.room).title + ".");
+          }
         } else if (rejoin) {
           addChatSystem("You\u2019re back online in the " + onlineRoomMeta(Online.room).title + " — welcome back!");
           toast("Back online! You\u2019re in the " + onlineRoomMeta(Online.room).title + " again.");
@@ -8230,7 +8244,7 @@
         stopRegBeat();
         Live.regBeat = setInterval(function () {
           if (!Live.active || !Live.hostWasMe || !Online.socket) { stopRegBeat(); return; }
-          // [RP-V7.32] re-assert the full registration every tick instead of
+          // [RP-V7.34] re-assert the full registration every tick instead of
           // a bare beat: if the one Go LIVE register ever missed (gate-
           // deferred room switch, player record not ready), the live used to
           // stay invisible forever — live-register is idempotent and also
@@ -10262,7 +10276,7 @@
         var gift = $("lvRailGift");
         if (gift) gift.addEventListener("click", function () {
           if (!Live.active) return;
-          if (Live.hostId) openGiftSheet(Live.hostId, Live.hostName); // [RP-V7.32] hosts get the catalog too — in their own live it opens in preview mode (see openGiftSheet); earnings stays one tap away inside the sheet
+          if (Live.hostId) openGiftSheet(Live.hostId, Live.hostName); // [RP-V7.34] hosts get the catalog too — in their own live it opens in preview mode (see openGiftSheet); earnings stays one tap away inside the sheet
         });
         var viewers = $("lvRailViewers");
         if (viewers) viewers.addEventListener("click", openLiveHostTools);
@@ -11286,6 +11300,39 @@
         updateHUD(); renderLobby(); renderMatches(); renderPlaza();
         show("screen-plaza");
         if (savedProfileAtBoot) showWelcomeBack(savedProfileAtBoot);
+        rpBootConnect(); // [RP-V7.34] Home connects quietly on open \u2014 see below
+      }
+      /* [RP-V7.34] Home connects quietly on open (Branden's ruling, Oct 24, 2026):
+         the Plaza used to open as an offline lobby \u2014 the socket only
+         connected when someone tapped into an online area \u2014 so Home's
+         \uD83D\uDD34 Live Now read "No one's live yet" while lives were
+         actually running (device-confirmed in the Oct 24 phone tests).
+         With a remembered identity AND adult verification already on
+         file, boot now joins the party in the background: the user
+         stays on Home (no sheet, no navigation, no toast \u2014 see the
+         quiet flag in connectOnline/failOnline), and lives-update
+         snapshots render straight into Home's Live Now. A failed
+         connect changes nothing: the offline lobby remains.
+         NOT auto-connected, by design:
+         \u2022 first-run visitors (no saved identity) \u2014 no connect and
+           no gate at boot; their tap-in flow is unchanged;
+         \u2022 teen profiles (isTeen) \u2014 never auto-joined anywhere;
+           their Fellowship / Teen Hangout doors stay the only entries;
+         \u2022 unverified saved names (!rpAdultOk) \u2014 the 18+ door check
+           still fires at their first tap-in, exactly where V7.15 put it.
+         The join leaves Online.room untouched: the boot default "neon",
+         the main room every existing flow lands in first. The state
+         guard makes it idempotent \u2014 a gate flow or deep entry that is
+         already connecting/on is never double-connected. */
+      function rpBootConnect() {
+        try {
+          if (Online.state !== "off") return;
+          if (isTeen()) return;
+          if (!rpAdultOk()) return;
+          var nm = savedOnlineName(); // the gate's own identity source: account session \u2192 session/profile \u2192 remembered guest name
+          if (!nm) return;
+          connectOnline(nm, true);
+        } catch (e) { }
       }
       if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", rpBootHome);
       else rpBootHome();
@@ -11574,7 +11621,7 @@
         if (isTeen()) { openTeenGateAll("Gifting"); return; }
         if (!rpAdultOk()) { rpDoorGate("Gifting", function () { openGiftSheet(targetId, targetName, opts); }); return; }
         if (!targetId) { toast("Pick someone to gift first!"); return; }
-        var selfPreview = !opts.local && targetId === Online.myId; // [RP-V7.32] my own live: the catalog opens as a preview — gifts render with art + prices, taps explain instead of sending
+        var selfPreview = !opts.local && targetId === Online.myId; // [RP-V7.34] my own live: the catalog opens as a preview — gifts render with art + prices, taps explain instead of sending
         var live = activeHoliday();
         function cell(g) {
           var cant = charms < g.cents ? " cant" : "";
@@ -11599,7 +11646,7 @@
         var sheet = $("sheet");
         sheet.querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         sheet.querySelectorAll("[data-gid]").forEach(function (b) {
-          b.addEventListener("click", function () { var g = giftById(b.getAttribute("data-gid")); if (g) { if (selfPreview) { giftSelfNote(g); return; } sendGift(targetId, targetName, g, opts); } }); // [RP-V7.32] preview taps never reach sendGift
+          b.addEventListener("click", function () { var g = giftById(b.getAttribute("data-gid")); if (g) { if (selfPreview) { giftSelfNote(g); return; } sendGift(targetId, targetName, g, opts); } }); // [RP-V7.34] preview taps never reach sendGift
         });
         sheet.querySelectorAll("[data-hol]").forEach(function (b) {
           b.addEventListener("click", function () {
@@ -11607,7 +11654,7 @@
             if (hg) { if (selfPreview) { giftSelfNote(null); return; } sendGift(targetId, targetName, { id: "hol", name: hg[0], icon: hg[1], cents: hg[2], tier: "big", fx: "burst" }, opts); }
           });
         });
-        if (selfPreview) giftSelfNote(null); // [RP-V7.32] say it up front, before any tap
+        if (selfPreview) giftSelfNote(null); // [RP-V7.34] say it up front, before any tap
         var gc = $("giftGetCharms"); if (gc) gc.addEventListener("click", function () { openCharmShop(); });
         var ge = $("giftMyEarnings"); if (ge) ge.addEventListener("click", function () { openEarnings(); });
       }
@@ -11633,7 +11680,7 @@
         n.classList.add("show");
       }
       window.rpGiftNotEnough = giftNotEnough; // [RP-V7.26.1] the money layer's insufficient-charms path calls this too
-      // [RP-V7.32] own-live preview: tapping a gift in your own live sends
+      // [RP-V7.34] own-live preview: tapping a gift in your own live sends
       // nothing — the same in-sheet notice slot explains whose catalog it is.
       function giftSelfNote(g) {
         var sheet = $("sheet"); if (!sheet) return;
@@ -11645,7 +11692,7 @@
       }
       function sendGift(targetId, targetName, g, opts) {
         opts = opts || {};
-        if (!opts.local && targetId === Online.myId) { toast("This is your own live — viewers use the gift catalog to gift you.", 3200); return; } // [RP-V7.32] self-send hard stop — no debit, no emit, no feed entry
+        if (!opts.local && targetId === Online.myId) { toast("This is your own live — viewers use the gift catalog to gift you.", 3200); return; } // [RP-V7.34] self-send hard stop — no debit, no emit, no feed entry
         var cost = g.cents;
         if (charms < cost) {
           toast("Not enough charms — the " + g.name + " costs " + cost.toLocaleString("en-US") + " and you have " + charms.toLocaleString("en-US") + ". Tap ⭐ Get charms to top up.", 3600);
@@ -11654,7 +11701,7 @@
         }
         charms -= cost; saveWallet(); updateHUD(); // [RP-V7.25] persist the gift debit
         closeSheet();
-        try { AudioFX.coin(); } catch (e) { }
+        try { if (g && (g.tier === "big" || g.tier === "prestige")) AudioFX.giftBig(); else AudioFX.gift(); } catch (e) { } // [RP-V7.34] gifts get the soft pop + glass chime (big shows get the arpeggio) — never the coin blip
         playGiftFx(g, (Online.name || me.name || "You"), targetName || "them");
         if (opts.local) {
           if (typeof opts.onSent === "function") opts.onSent(g);
@@ -12302,7 +12349,7 @@
         Online.room = room; Online.players = {};
         noteRoomVisit(room); // ✨ For You: state/city rooms I visit mark where I'm based
         Online.socket.emit("switch-room", { room: room });
-        // [RP-V7.32] landing in my own live room while hosting — including a
+        // [RP-V7.34] landing in my own live room while hosting — including a
         // door-gate-deferred switch (the gate callback re-runs this function)
         // that completes after liveStartHosting's own register already fired
         // into the wrong room — re-asserts my registry entry now that the
@@ -22828,7 +22875,7 @@ button.rp72-chip{ cursor:pointer; }
       opts = opts || {};
       var selfTarget = false;
       try { selfTarget = typeof Online !== "undefined" && !!Online && targetId === Online.myId; } catch (e) { }
-      if (moneyActive() && !opts.local && !opts.__srv && targetName && g && g.id && !selfTarget) { // [RP-V7.32] never ledger-POST a gift to yourself — the local flow's self guard answers instead
+      if (moneyActive() && !opts.local && !opts.__srv && targetName && g && g.id && !selfTarget) { // [RP-V7.34] never ledger-POST a gift to yourself — the local flow's self guard answers instead
         serverGift(targetId, targetName, g, opts);
         return;
       }
