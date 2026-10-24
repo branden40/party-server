@@ -3979,6 +3979,76 @@
       var chatHistory = {};
       var toastTimer = null;
 
+      /* ================= [RP-V7.25] Persistent charm wallet =================
+         The balance used to live in memory only, so the daily reward, game
+         wins and local pack credits vanished on refresh, on room exit (the
+         money layer re-syncs when you enter money areas) and within a
+         minute (its 60s re-sync): the server-ledger value overwrote the
+         local one, and guests stored nothing at all. Now the wallet
+         persists on-device in rpWallet.v1 as { bal, srv } — bal is the
+         spendable balance, srv the last server-ledger balance seen
+         (0 = never synced). Every mutation saves. When a fresh server
+         balance S lands, bal becomes S + (bal - srv) instead of being
+         overwritten: the local-only delta (daily reward, game wins, local
+         packs) survives every sync, and genuine server credits (Stripe
+         packs via webhook) still land in full. */
+      var WALLET_KEY = "rpWallet.v1";
+      var walletSrv = 0; // last server-ledger balance seen
+      function saveWallet() {
+        try { localStorage.setItem(WALLET_KEY, JSON.stringify({ bal: Math.max(0, Math.floor(charms || 0)), srv: walletSrv })); } catch (e) { }
+      }
+      function syncWalletFromServer(S) {
+        // S is a TRUE server-ledger balance: adopt it as the new base and
+        // keep the local-only delta riding on top. Repeating the same S
+        // is a no-op (delta is measured against the pinned srv).
+        if (typeof S !== "number" || !isFinite(S)) return;
+        S = Math.max(0, Math.floor(S));
+        var delta = Math.max(0, Math.floor(charms || 0)) - walletSrv;
+        charms = Math.max(0, S + delta);
+        walletSrv = S;
+        saveWallet();
+        updateHUD();
+      }
+      function walletPreBump(serverBal, add) {
+        // serverGift replay: the server has ALREADY debited the gift, so
+        // serverBal is the post-gift ledger truth. Pin srv to it and set
+        // the local balance one gift-cost above it, so the original
+        // sendGift flow's own debit lands exactly on serverBal — and the
+        // refresh that follows (delta now 0) keeps it there.
+        walletSrv = Math.max(0, Math.floor(serverBal || 0));
+        charms = walletSrv + Math.max(0, Math.floor(add || 0));
+        saveWallet();
+        updateHUD();
+      }
+      function walletHardSync(S) {
+        // serverGift settle ONLY: the server has just debited a gift and
+        // reported the exact resulting ledger balance, and the replayed
+        // local flow may have added its own debit/refund on top — the
+        // reported balance is the whole truth for the wallet in this
+        // moment, so bal and srv both pin to it (this is the end state
+        // the old blind-overwrite refresh always produced after a gift).
+        if (typeof S !== "number" || !isFinite(S)) return;
+        charms = Math.max(0, Math.floor(S));
+        walletSrv = charms;
+        saveWallet();
+        updateHUD();
+      }
+      window.rpWalletSave = saveWallet;
+      window.rpWalletSync = syncWalletFromServer;
+      window.rpWalletPreBump = walletPreBump;
+      window.rpWalletHardSync = walletHardSync;
+      (function restoreWallet() {
+        try {
+          var w = JSON.parse(localStorage.getItem(WALLET_KEY) || "null");
+          if (w && typeof w.bal === "number" && isFinite(w.bal)) {
+            charms = Math.max(0, Math.floor(w.bal));
+            if (typeof w.srv === "number" && isFinite(w.srv)) walletSrv = Math.max(0, Math.floor(w.srv));
+            var hc = document.getElementById("hudCharms");
+            if (hc) hc.textContent = charms;
+          }
+        } catch (e) { }
+      })();
+
       /* ================= Helpers ================= */
       function $(id) { return document.getElementById(id); }
       /* ================= RP-V7.15: age check at the 18+ doors (Branden, Oct 23 2026) =================
@@ -4021,8 +4091,9 @@
       function show(screenId) {
         var faithOk = screenId === "screen-room" && currentRoom && (currentRoom.id === "faith" || currentRoom.id === "teen");
         var teenOnlineOk = screenId === "screen-online" && typeof Online !== "undefined" && Online && Online.room === "teen";
+        var faithOnlineOk = screenId === "screen-online" && typeof Online !== "undefined" && Online && Online.room === "faith"; // [RP-V7.25] the online Fellowship is all-ages too — same door-gate exemption as the scenic prayer room above
         if (isTeen() && !faithOk && !teenOnlineOk && TEEN_ONLY_18.indexOf(screenId) >= 0) { openTeenGateAll(teenAreaName(screenId)); return; }
-        if (!faithOk && !teenOnlineOk && TEEN_ONLY_18.indexOf(screenId) >= 0 && !rpAdultOk()) { rpDoorGate(teenAreaName(screenId), function () { show(screenId); }); return; }
+        if (!faithOk && !teenOnlineOk && !faithOnlineOk && TEEN_ONLY_18.indexOf(screenId) >= 0 && !rpAdultOk()) { rpDoorGate(teenAreaName(screenId), function () { show(screenId); }); return; }
         var screens = document.querySelectorAll(".screen");
         for (var i = 0; i < screens.length; i++) screens[i].classList.remove("active");
         $(screenId).classList.add("active");
@@ -4589,7 +4660,7 @@
           setGuestExpr(g, "frown", 4200);
           toast("You and " + g.name + " get along great — but your age preferences don't line up, so a dating match can't form here. Check " + g.name + "'s profile for the details.");
         }
-        if (amt > 0) { charms += Math.max(1, Math.round(amt / 3)); }
+        if (amt > 0) { charms += Math.max(1, Math.round(amt / 3)); saveWallet(); } // [RP-V7.25] persist the chemistry charm drip
         updateHUD();
         if (g.chem >= 100 && !g.matched) {
           g.matched = true;
@@ -4674,7 +4745,7 @@
             (room.topic ? '<span class="meet-pill">Meet &amp; Greet · ' + room.topic + '</span>' : '') +
             ((room.id === "faith" || room.id === "teen") ? '<span class="meet-pill" style="background:#7ac2ff; border-color:#fff; color:#12233d;">All ages welcome</span>' : room.dating ? '<span class="meet-pill" style="background:#e8437c; border-color:#fff;">18+ · Dating room</span>' : '<span class="meet-pill">18+ only</span>') +
             '<h3>' + room.name + '</h3><p>' + room.desc + '</p>';
-          b.addEventListener("click", function () { enterRoom(room); });
+          b.addEventListener("click", function () { enterRoomOnlineFirst(room); }); // [RP-V7.25] Home room cards join ONLINE directly — no scenic-floor detour
           list.appendChild(b);
         });
       }
@@ -5621,7 +5692,7 @@
       $("btnProfileHome").addEventListener("click", openProfile);
       $("btnFellowshipHome").addEventListener("click", function () {
         var f = null; ROOMS.forEach(function (r) { if (r.id === "faith") f = r; });
-        if (f) enterRoom(f);
+        if (f) enterRoomOnlineFirst(f); // [RP-V7.25] Fellowship card joins the online Fellowship directly (all-ages, no door gate)
       });
       $("btnMusicHome").addEventListener("click", function () { var b = $("btnMusic"); if (b) b.click(); setTimeout(syncHomeMusic, 350); });
       $("btnMuteHome").addEventListener("click", function () { var b = $("btnMute"); if (b) b.click(); });
@@ -5673,10 +5744,30 @@
           b.addEventListener("click", function () { openLiveFromList(b.getAttribute("data-lnroom")); });
         });
       }
+      /* [RP-V7.25] Direct online room entry from Home. Tapping a
+         themed-room card used to land on the OFFLINE scenic floor and
+         make people detour through the Live Stage + Switch room to
+         reach the real people — Branden: "that's kind of confusing…
+         people will be confused." The cards now reuse the state chips'
+         online join (joinOnlineRoomFromHome): the same door gate at
+         18+ rooms, the same remembered verification, and Fellowship /
+         Teen Hangout stay all-ages with no gate. One exception: for a
+         teen, Fellowship is the scenic prayer room (chapel, prayer
+         wall, Bible study) — the online rooms stay Teen-Hangout-only
+         for under-18s, exactly as settled. If a fresh connection can't
+         reach the server, failOnline falls back to the scenic floor
+         (rpScenicFallback) — the old behavior, banner and all. */
+      var rpScenicFallback = null;
+      function enterRoomOnlineFirst(room) {
+        if (!room) return;
+        if (room.id === "faith" && isTeen()) { enterRoom(room); return; }
+        if (Online.state === "off" || Online.state === "connecting") rpScenicFallback = room;
+        joinOnlineRoomFromHome(room.id);
+      }
       function joinOnlineRoomFromHome(roomId) {
         if (roomId === "teen" && window.rpTeenCooldownLeft && window.rpTeenCooldownLeft() > 0) { toast("⏳ Teen Hangout cool-down — you can head back in " + Math.max(1, Math.ceil(window.rpTeenCooldownLeft() / 60000)) + " min.", 3600); return; }
         if (roomId !== "teen" && isTeen()) { openTeenGateAll("The online rooms"); return; }
-        if (roomId !== "teen" && !rpAdultOk()) { rpDoorGate("The online rooms", function () { joinOnlineRoomFromHome(roomId); }); return; }
+        if (roomId !== "teen" && roomId !== "faith" && !rpAdultOk()) { rpDoorGate("The online rooms", function () { joinOnlineRoomFromHome(roomId); }); return; } // [RP-V7.25] Fellowship is all-ages — no door gate, same exemption as Teen Hangout
         if (Online.state === "on" || Online.state === "reconnecting") {
           if (Online.room !== roomId) switchOnlineRoom(roomId);
           show("screen-online");
@@ -5701,7 +5792,7 @@
 
       /* ================= Shared mini-game helpers ================= */
       function awardCharms(n, msg) {
-        charms += n; updateHUD(); if (msg) toast(msg);
+        charms += n; saveWallet(); updateHUD(); if (msg) toast(msg); // [RP-V7.25] persist every award (daily reward, mini-games, gifts received, event payouts)
         // every charm pickup sparkles at the HUD counter and chimes a coin
         if (n > 0) {
           AudioFX.coin();
@@ -6630,20 +6721,28 @@
       function openOnlineGate() {
         if (Online.room === "teen") { openTeenNameGate(); return; }
         if (isTeen()) { openOnlineTeenGate(); return; }
-        if (!rpAdultOk()) { rpDoorGate("The online rooms", openOnlineGate); return; }
+        if (Online.room !== "faith" && !rpAdultOk()) { rpDoorGate("The online rooms", openOnlineGate); return; } // [RP-V7.25] Fellowship is all-ages — never the door gate
         if (Online.state === "on" || Online.state === "reconnecting") { show("screen-online"); return; }
         if (Online.state === "connecting") { toast("Still connecting to the online party — one sec…"); return; }
         // [RP-V7.24] signed-in (account name) or remembered (guest
         // name): the identity carries — never show the name sheet again
         var savedGateNm = savedOnlineName();
         if (savedGateNm) { connectOnline(savedGateNm); return; }
+        // [RP-V7.25] Direct room entry: the name sheet names the room
+        // you are actually entering \u2014 "you\u2019ll land on the Live Stage
+        // first" was wrong for every room tapped straight from Home.
+        var destIsStage = Online.room === "live-stage";
+        var destTitle = onlineRoomMeta(Online.room).title;
+        var destLand = destIsStage ? "You\u2019ll land on the <b>\u2B50 Live Stage</b> first and can switch rooms from there." : "You\u2019ll land right in the <b>" + escHtml(destTitle) + "</b>.";
+        var destBtn = destIsStage ? "\u2B50 Enter the Live Stage" : "\u2B50 Enter " + escHtml(destTitle);
+        var destAge = Online.room === "faith" ? "All ages welcome here \u2014 chat is live, so be kind, and keep it friendly." : "Online rooms are 18+ and chat is live \u2014 be kind, and keep it friendly.";
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:center;"><h3>⭐ One quick step — your display name</h3>' +
-          '<p>Party live with real people — every Meet &amp; Greet room, a room for all 50 US states, plus the <b>Chaos Room</b>: a walkie-talkie free-for-all where anyone can grab the chirp button, one talker at a time. You\u2019ll land on the <b>⭐ Live Stage</b> first and can switch rooms from there. You\u2019ll appear as the avatar you built, with your display name:</p>' +
+          '<p>Party live with real people — every Meet &amp; Greet room, a room for all 50 US states, plus the <b>Chaos Room</b>: a walkie-talkie free-for-all where anyone can grab the chirp button, one talker at a time. ' + destLand + ' You\u2019ll appear as the avatar you built, with your display name:</p>' +
           '<input class="online-input-full" id="onlineNameInput" type="text" maxlength="16" autocomplete="off" value="' + escHtml(savedOnlineName()) + '" />' +
-          '<p style="margin-top:12px;">Online rooms are 18+ and chat is live — be kind, and keep it friendly.</p>' +
-          '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnOnlineJoin">⭐ Enter the Live Stage</button></div></div>'
+          '<p style="margin-top:12px;">' + destAge + '</p>' +
+          '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnOnlineJoin">' + destBtn + '</button></div></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         $("btnOnlineJoin").addEventListener("click", function () {
@@ -6743,6 +6842,12 @@
       function failOnline() {
         cleanupOnline();
         toast("Couldn\u2019t reach the online party — check your connection. You\u2019re still in the single-player party with the guests!", 4600);
+        // [RP-V7.25] A Home-card direct join that couldn't connect lands
+        // on the room's scenic floor instead of stranding the tap back
+        // on Home — the pre-V7.25 behavior, banner and all. One-shot,
+        // and only when this connection was headed for that room.
+        var rpFb = rpScenicFallback; rpScenicFallback = null;
+        if (rpFb && Online.room === rpFb.id) { try { enterRoom(rpFb); } catch (e) { } }
       }
       function cleanupOnline() {
         clearTimeout(Online.watchdog);
@@ -6775,6 +6880,7 @@
       function onRoomState(list) {
         var rejoin = Online.state === "reconnecting";
         var first = Online.state !== "on" && !rejoin;
+        rpScenicFallback = null; // [RP-V7.25] the join landed — scenic fallback spent
         Online.state = "on";
         Party.roomCounts[Online.room] = { n: (list || []).length, at: Date.now() };
         if (typeof renderLiveNow === "function") renderLiveNow();
@@ -10947,7 +11053,7 @@
         joinOnlineSaved(LIVE_ROOM_ID);
       }
       var dobBackBtn = $("btnDobBack");
-      if (dobBackBtn) dobBackBtn.addEventListener("click", function () { rpDoorResume = null; show("screen-plaza"); });
+      if (dobBackBtn) dobBackBtn.addEventListener("click", function () { rpDoorResume = null; rpScenicFallback = null; show("screen-plaza"); }); // [RP-V7.25] backing out of the age check also drops any scenic-fallback intent
       var dobInputEl = $("dobInput");
       if (dobInputEl) {
         var nowD = new Date();
@@ -11726,7 +11832,7 @@
           openCharmShop();
           return;
         }
-        charms -= cost; updateHUD();
+        charms -= cost; saveWallet(); updateHUD(); // [RP-V7.25] persist the gift debit
         closeSheet();
         try { AudioFX.coin(); } catch (e) { }
         playGiftFx(g, (Online.name || me.name || "You"), targetName || "them");
@@ -11744,7 +11850,7 @@
           if (typeof inLiveRoom === "function" && inLiveRoom()) liveGiftFeedShow("You", targetName || "them", g, cost);
           toast("🎁 You sent the " + g.name + " (" + giftPriceLabel(cost) + ") to " + (targetName || "them") + "!" + (bonus ? " The event adds +" + bonus + " bonus charms for them." : ""), 3600);
         } else {
-          charms += cost; updateHUD();
+          charms += cost; saveWallet(); updateHUD(); // [RP-V7.25] persist the offline-send refund
           toast("🎁 Gifts fly when you're online — tap ⭐ Live Stage to connect, then send it for real!", 3600);
         }
       }
@@ -12828,7 +12934,7 @@
         $("btnStripePay").addEventListener("click", function () {
           var b = this; b.disabled = true; b.textContent = "Contacting Stripe…";
           setTimeout(function () {
-            charms += p.charms; updateHUD();
+            charms += p.charms; saveWallet(); updateHUD(); // [RP-V7.25] persist the local pack credit
             try { AudioFX.coin(); } catch (e) { }
             openSheet(
               '<div class="game-box" style="text-align:center;"><h3>✅ Payment confirmed</h3>' +
@@ -20930,9 +21036,17 @@ button.rp72-chip{ cursor:pointer; }
     var THEMED = { neon: 1, roof: 1, beach: 1, garden: 1, love: 1, friends: 1, faith: 1, music: 1, foodie: 1, travel: 1, movies: 1, games: 1, books: 1, comedy: 1, art: 1, wellness: 1, teen: 1 };
     var reduced = false;
     try { reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { }
+    // [RP-V7.25] Rooms without their own filmed scene borrow one:
+    // Serious Singles and Dream Builders get the city evening, the
+    // Sports Fans Zone and the Workout Room get Wellness Garden's
+    // green calm. Without this, those rooms resolved to no scene at
+    // all and the illustrated art stayed up forever.
+    var ID_ALIAS = { singles: "city", career: "city", sports: "wellness", workout: "wellness" };
+    var SCENE_ALIAS = { singles: "city", career: "city", sports: "wellness" };
     function sceneIdFor(roomId, meta) {
       if (roomId && THEMED[roomId]) return roomId;
-      if (meta && meta.scene) { var m = /^scene-(.+)$/.exec(meta.scene); if (m && THEMED[m[1]]) return m[1]; }
+      if (roomId && ID_ALIAS[roomId]) return ID_ALIAS[roomId];
+      if (meta && meta.scene) { var m = /^scene-(.+)$/.exec(meta.scene); if (m && THEMED[m[1]]) return m[1]; if (m && SCENE_ALIAS[m[1]]) return SCENE_ALIAS[m[1]]; }
       return null;
     }
     function teardown(host) {
@@ -20969,8 +21083,14 @@ button.rp72-chip{ cursor:pointer; }
       host.insertBefore(layer, host.firstChild);
       if (art) { art.style.display = "none"; art.setAttribute("data-rpsc-hidden", "1"); }
       img.onerror = function () {
-        // Poster missing: if there is also no playable video, restore the classic room art.
-        if (!vid) { teardown(host); }
+        // [RP-V7.25] Poster missing (e.g. scene-garden.jpg before its
+        // upload lands): never leave a broken-image glyph over the
+        // scene — hide the poster and drop the video's poster
+        // attribute too; the video carries on, and with no video the
+        // classic room art comes back as the last resort.
+        img.style.display = "none";
+        if (vid) { try { vid.removeAttribute("poster"); } catch (e) { } }
+        else { teardown(host); }
       };
       if (vid) {
         vid.addEventListener("canplay", function () {
@@ -20988,17 +21108,34 @@ button.rp72-chip{ cursor:pointer; }
     // screen-room (Meet & Greet room screen)
     window.rpSceneEnter = function (roomId) {
       var host = document.getElementById("scene");
-      var id = sceneIdFor(roomId, null);
+      // [RP-V7.25] Resolve through the room's own scene name as well
+      // (Workout -> scene-wellness) — passing no meta left every room
+      // outside THEMED sitting on the illustrated art.
+      var meta = null;
+      try {
+        var RL = window.ROOMS || [];
+        for (var i = 0; i < RL.length; i++) if (RL[i].id === roomId) { meta = RL[i]; break; }
+      } catch (e) { }
+      var id = sceneIdFor(roomId, meta);
       if (host && id) mount(host, id); else if (host) teardown(host);
     };
-    // screen-online (live rooms): themed ids get their scene; state rooms
-    // share one generic real city-evening scene; live/chaos rooms keep
-    // their existing backdrop (no layer).
+    // screen-online (live rooms): themed ids get their scene; state
+    // rooms share the rooftop city-evening scene; the Live Stage and
+    // personal lives idle on the filmed city scene [RP-V7.25]; the
+    // Chaos Room resolves to the neon scene through its meta, as before.
     window.rpSceneOnline = function (roomId, meta) {
       var host = document.getElementById("onlineScene");
       if (!host) return;
-      var id = sceneIdFor(roomId, meta);
-      if (!id && roomId && roomId !== "live-stage" && roomId !== "chaos-room" && String(roomId).indexOf("live-") !== 0) id = "city";
+      // [RP-V7.25] Stage rooms first: the Live Stage and personal
+      // lives idle on the filmed city-evening scene. Their room meta
+      // points at the neon club art — the illustrated skyline Branden
+      // saw — so they must resolve before sceneIdFor reads the meta.
+      // Live video itself is untouched: the scene layer sits inside
+      // the room scene, under the stage UI.
+      var id = null;
+      if (roomId === "live-stage" || String(roomId).indexOf("live-") === 0) id = "city";
+      else id = sceneIdFor(roomId, meta);
+      if (!id && roomId && roomId !== "chaos-room") id = "city";
       if (id) mount(host, id); else teardown(host);
     };
     // Any screen change away from a room tears its scene down.
@@ -22349,8 +22486,16 @@ button.rp72-chip{ cursor:pointer; }
   var PACK_IDS = ["pack100", "pack550", "pack1200", "pack2500", "pack7000"];
 
   function setLocalCharms(n) {
+    // [RP-V7.25] Both callers pass TRUE server-ledger values — refreshMoney's
+    // /api/money/me balance and the insufficient-charms correction below — so
+    // this routes through the wallet's delta reconciliation: the server value
+    // becomes the new base WITHOUT wiping local-only earnings (daily reward,
+    // game wins) the ledger has never seen. The old blind overwrite is what
+    // reset the displayed gist on every refresh / room re-entry / 60s sync.
+    // Fallback keeps the direct-set behavior if the wallet API is absent.
     try {
       if (typeof n === "number" && isFinite(n)) {
+        if (typeof window.rpWalletSync === "function") { window.rpWalletSync(n); return; }
         window.charms = Math.max(0, Math.floor(n));
         if (typeof window.updateHUD === "function") window.updateHUD();
       }
@@ -22415,9 +22560,10 @@ button.rp72-chip{ cursor:pointer; }
         // local balance pre-bumped so the original flow's own debit
         // lands exactly on the server balance; a refresh right after
         // re-syncs the HUD to the ledger either way.
-        try { window.charms = (r.json.balance || 0) + (g.cents || 0); if (typeof window.updateHUD === "function") window.updateHUD(); } catch (e) { }
+        try { if (typeof window.rpWalletPreBump === "function") window.rpWalletPreBump(r.json.balance || 0, g.cents || 0); else { window.charms = (r.json.balance || 0) + (g.cents || 0); if (typeof window.updateHUD === "function") window.updateHUD(); } } catch (e) { } // [RP-V7.25] the pre-bump also pins the wallet's server base to the post-gift ledger balance, so the replay debit lands exactly on it and the refresh after keeps it there (delta = 0)
         var o2 = {}; for (var k in opts) o2[k] = opts[k]; o2.__srv = true;
         origSendGift(targetId, targetName, g, o2);
+        try { if (typeof window.rpWalletHardSync === "function") window.rpWalletHardSync(r.json.balance || 0); } catch (e) { } // [RP-V7.25] settle exactly on the ledger balance the server reported — the replay's local debit (or its offline refund) must not leak into the wallet's local delta
         setTimeout(function () { refreshMoney(); }, 700);
         return;
       }
