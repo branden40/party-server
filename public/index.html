@@ -8230,7 +8230,12 @@
         stopRegBeat();
         Live.regBeat = setInterval(function () {
           if (!Live.active || !Live.hostWasMe || !Online.socket) { stopRegBeat(); return; }
-          try { Online.socket.emit("live-beat", {}); } catch (e) { }
+          // [RP-V7.32] re-assert the full registration every tick instead of
+          // a bare beat: if the one Go LIVE register ever missed (gate-
+          // deferred room switch, player record not ready), the live used to
+          // stay invisible forever — live-register is idempotent and also
+          // refreshes lastBeat server-side, so the entry self-heals in ≤20s.
+          try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting" }); } catch (e) { }
         }, 20000);
       }
       function stopRegBeat() { if (Live.regBeat) { clearInterval(Live.regBeat); Live.regBeat = null; } }
@@ -10257,8 +10262,7 @@
         var gift = $("lvRailGift");
         if (gift) gift.addEventListener("click", function () {
           if (!Live.active) return;
-          if (iAmHost()) openEarnings();
-          else if (Live.hostId) openGiftSheet(Live.hostId, Live.hostName);
+          if (Live.hostId) openGiftSheet(Live.hostId, Live.hostName); // [RP-V7.32] hosts get the catalog too — in their own live it opens in preview mode (see openGiftSheet); earnings stays one tap away inside the sheet
         });
         var viewers = $("lvRailViewers");
         if (viewers) viewers.addEventListener("click", openLiveHostTools);
@@ -11570,7 +11574,7 @@
         if (isTeen()) { openTeenGateAll("Gifting"); return; }
         if (!rpAdultOk()) { rpDoorGate("Gifting", function () { openGiftSheet(targetId, targetName, opts); }); return; }
         if (!targetId) { toast("Pick someone to gift first!"); return; }
-        if (targetId === Online.myId) { toast("You can't gift yourself — spread the love!"); return; }
+        var selfPreview = !opts.local && targetId === Online.myId; // [RP-V7.32] my own live: the catalog opens as a preview — gifts render with art + prices, taps explain instead of sending
         var live = activeHoliday();
         function cell(g) {
           var cant = charms < g.cents ? " cant" : "";
@@ -11595,14 +11599,15 @@
         var sheet = $("sheet");
         sheet.querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         sheet.querySelectorAll("[data-gid]").forEach(function (b) {
-          b.addEventListener("click", function () { var g = giftById(b.getAttribute("data-gid")); if (g) sendGift(targetId, targetName, g, opts); });
+          b.addEventListener("click", function () { var g = giftById(b.getAttribute("data-gid")); if (g) { if (selfPreview) { giftSelfNote(g); return; } sendGift(targetId, targetName, g, opts); } }); // [RP-V7.32] preview taps never reach sendGift
         });
         sheet.querySelectorAll("[data-hol]").forEach(function (b) {
           b.addEventListener("click", function () {
             var hg = live && live.h.gifts[parseInt(b.getAttribute("data-hol"), 10)];
-            if (hg) sendGift(targetId, targetName, { id: "hol", name: hg[0], icon: hg[1], cents: hg[2], tier: "big", fx: "burst" }, opts);
+            if (hg) { if (selfPreview) { giftSelfNote(null); return; } sendGift(targetId, targetName, { id: "hol", name: hg[0], icon: hg[1], cents: hg[2], tier: "big", fx: "burst" }, opts); }
           });
         });
+        if (selfPreview) giftSelfNote(null); // [RP-V7.32] say it up front, before any tap
         var gc = $("giftGetCharms"); if (gc) gc.addEventListener("click", function () { openCharmShop(); });
         var ge = $("giftMyEarnings"); if (ge) ge.addEventListener("click", function () { openEarnings(); });
       }
@@ -11628,8 +11633,19 @@
         n.classList.add("show");
       }
       window.rpGiftNotEnough = giftNotEnough; // [RP-V7.26.1] the money layer's insufficient-charms path calls this too
+      // [RP-V7.32] own-live preview: tapping a gift in your own live sends
+      // nothing — the same in-sheet notice slot explains whose catalog it is.
+      function giftSelfNote(g) {
+        var sheet = $("sheet"); if (!sheet) return;
+        var cell = null;
+        if (g && g.id && g.id !== "hol") cell = sheet.querySelector('[data-gid="' + g.id + '"]');
+        if (cell) { cell.classList.add("shake"); setTimeout(function () { cell.classList.remove("shake"); }, 520); }
+        var n = $("giftNotice");
+        if (n) { n.textContent = "This is your own live — viewers use this catalog to gift you. You can't send gifts to yourself."; n.classList.add("show"); }
+      }
       function sendGift(targetId, targetName, g, opts) {
         opts = opts || {};
+        if (!opts.local && targetId === Online.myId) { toast("This is your own live — viewers use the gift catalog to gift you.", 3200); return; } // [RP-V7.32] self-send hard stop — no debit, no emit, no feed entry
         var cost = g.cents;
         if (charms < cost) {
           toast("Not enough charms — the " + g.name + " costs " + cost.toLocaleString("en-US") + " and you have " + charms.toLocaleString("en-US") + ". Tap ⭐ Get charms to top up.", 3600);
@@ -12286,6 +12302,12 @@
         Online.room = room; Online.players = {};
         noteRoomVisit(room); // ✨ For You: state/city rooms I visit mark where I'm based
         Online.socket.emit("switch-room", { room: room });
+        // [RP-V7.32] landing in my own live room while hosting — including a
+        // door-gate-deferred switch (the gate callback re-runs this function)
+        // that completes after liveStartHosting's own register already fired
+        // into the wrong room — re-asserts my registry entry now that the
+        // server can see me in the live room.
+        if (Live.active && Live.hostWasMe && room === Live.roomId && typeof liveRegistrySyncHost === "function") liveRegistrySyncHost();
         AudioFX.setLiveRoom(typeof isLiveRoomId === "function" ? isLiveRoomId(room) : room === LIVE_ROOM_ID);
         updateVoiceRoomUI();
       }
@@ -22804,7 +22826,9 @@ button.rp72-chip{ cursor:pointer; }
   if (origSendGift) {
     window.sendGift = function (targetId, targetName, g, opts) {
       opts = opts || {};
-      if (moneyActive() && !opts.local && !opts.__srv && targetName && g && g.id) {
+      var selfTarget = false;
+      try { selfTarget = typeof Online !== "undefined" && !!Online && targetId === Online.myId; } catch (e) { }
+      if (moneyActive() && !opts.local && !opts.__srv && targetName && g && g.id && !selfTarget) { // [RP-V7.32] never ledger-POST a gift to yourself — the local flow's self guard answers instead
         serverGift(targetId, targetName, g, opts);
         return;
       }
