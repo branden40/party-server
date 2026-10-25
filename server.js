@@ -555,7 +555,10 @@ function accountForToken(db, req) {
 function publicAccount(u) {
   // [RP-V7.50] photo: the account record is the source of truth for the
   // profile photo — login / signup / /me all carry it back.
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null };
+  // [RP-V7.61] bio rides along too: the account record owns the whole
+  // profile (name, username, bio, profileType, photo), so any login on
+  // any device returns everything the client needs to restore it.
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "" };
 }
 // RP-V7.17: unique usernames. 3-20 chars, letters/numbers/underscore;
 // uniqueness is compared case-insensitively, ignoring surrounding spaces.
@@ -1119,6 +1122,42 @@ app.post("/api/account/profile-type", (req, res) => {
   });
 });
 
+// [RP-V7.61] Save my profile fields (display name + bio) on the ACCOUNT
+// record. Session auth only (requireAccount) — no room join, no player
+// record, no socket. This is the server half of "profile saved strong":
+// Profile setup used to write name/bio only into this device's
+// localStorage (datingGameProfile.v1), so a logout / fresh device lost
+// them even though the member had an account. Sanitization matches the
+// sign-up name rule (markup characters stripped); lengths are capped
+// (name 40, bio 160). An empty/absent name is ignored (a save can never
+// blank a member's name); a present bio string is saved as-is, so an
+// emptied bio clears deliberately.
+app.post("/api/account/profile", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  let changed = false;
+  if (typeof b.name === "string") {
+    const name = b.name.replace(/[<>&"']/g, "").trim().slice(0, 40);
+    if (name && name !== ctx.user.name) {
+      ctx.user.name = name;
+      changed = true;
+    }
+  }
+  if (typeof b.bio === "string") {
+    const bio = b.bio
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+      .trim()
+      .slice(0, 160);
+    if (bio !== (ctx.user.bio || "")) {
+      ctx.user.bio = bio;
+      changed = true;
+    }
+  }
+  if (changed) writeAccounts(ctx.db);
+  res.json({ ok: true, user: publicAccount(ctx.user) });
+});
+
 // ---------------------------------------------------------------------------
 // RP-V7.37: member-facing DELETE PROFILE with a 30-day SAFETY WINDOW
 // (Branden, Oct 24 — the TikTok model):
@@ -1582,6 +1621,66 @@ async function moderateImage(publicUrl) {
     return { ok: true, unreviewed: true };
   }
 }
+
+// [RP-V7.61] Upload a profile photo straight onto the ACCOUNT record.
+// Session auth ONLY (requireAccount / Bearer token) — no joined player,
+// no room, no socket required. This is the route Profile setup uses:
+// before V7.61 the only upload path was the legacy /api/profile-photo
+// below, which 400s ("Join the party before uploading a photo") unless
+// the uploader already holds a live player record — so a member doing
+// Profile setup from Home could end up with a photo that lived only in
+// device-local state, and logout wiped it (Branden, Oct 25). Same
+// multer storage, same 5 MB / image-only limits, same moderateImage
+// flow as the legacy route. The photo is saved on the account record
+// (user.photo) and returned in the account payload, so it restores on
+// any login on any device. If the member happens to be in a room, their
+// player record is updated + broadcast as a best-effort extra.
+app.post("/api/account/photo", upload.single("photo"), async (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return;
+  }
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: "No image file received." });
+    }
+    // Railway always serves public domains over HTTPS.
+    const publicUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
+    const mod = await moderateImage(publicUrl);
+    if (!mod.ok) {
+      fs.unlink(req.file.path, () => {});
+      console.log("ACCOUNT PHOTO REJECTED:", ctx.user.id, mod.reason);
+      return res.status(422).json({
+        ok: false,
+        error: "That photo didn't pass our safety check. Please try a different one.",
+      });
+    }
+    if (mod.unreviewed) {
+      console.log("ACCOUNT PHOTO UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, publicUrl);
+    }
+    ctx.user.photo = publicUrl;
+    writeAccounts(ctx.db);
+    // Best-effort: if this account is live in a room right now, refresh
+    // its player record + room broadcast exactly like the legacy route.
+    try {
+      const sids = acctSockets.get(ctx.user.id);
+      if (sids) {
+        for (const sid of sids) {
+          const p = players.get(sid);
+          if (p) {
+            p.photoUrl = publicUrl;
+            io.to(p.room).emit("player-photo", { id: p.id, photoUrl: publicUrl });
+          }
+        }
+      }
+    } catch (e) { /* the account save already succeeded */ }
+    return res.json({ ok: true, photoUrl: publicUrl, user: publicAccount(ctx.user) });
+  } catch (e) {
+    console.log("ACCOUNT UPLOAD ERROR:", e.message);
+    return res.status(500).json({ ok: false, error: "Upload failed. Please try again." });
+  }
+});
 
 // Upload a profile photo. The uploader must be a joined player (playerId =
 // their socket id). On success the photo URL is saved on the player and
