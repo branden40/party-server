@@ -11268,22 +11268,33 @@
           var host = iAmHost();
           var signedIn = !!liveAcctToken();
           var html = "<h3>🪙 Plaza Pot</h3>";
+          // [RP-V7.49] The seed form is offered whenever the host has
+          // NO ACTIVE pot — not only when the store has no record at
+          // all. A terminal pot (drawn/cancelled, this live or a
+          // previous one) must never mask the form: opening a fresh
+          // pot is what replaces the record server-side.
+          var potSignInNote = '<p class="pot-sub">🔐 Sign in to open a pot — pots are tied to your account so your seed and the winners\' charms land in the right place.</p>';
+          var potSeedForm = "";
+          if (host && signedIn) {
+            potSeedForm =
+              '<div class="field"><label for="potSeedAmt">Seed the pot with your charms (min 100)</label>' +
+              '<input class="online-input-full" id="potSeedAmt" type="number" min="100" step="10" inputmode="numeric" placeholder="100" value="100"/></div>' +
+              '<div class="pot-presets">' +
+              [100, 250, 500, 1000].map(function (v) { return '<button type="button" class="btn-mini" data-potpreset="' + v + '">' + v + "</button>"; }).join("") +
+              "</div>" +
+              '<div class="field"><label for="potBurstAmt">💥 Burst target (optional)</label>' +
+              '<input class="online-input-full" id="potBurstAmt" type="number" min="0" step="10" inputmode="numeric" placeholder="e.g. 400"/></div>' +
+              '<p class="age-note">Set a target and the pot BURSTS — pays out on the spot — the moment gifts grow it there. The target must be more than your seed and at most 2× your seed (gifts can grow the pot by up to your seed again in platform match).</p>' +
+              '<button type="button" class="btn-primary" id="potOpenBtn" style="width:100%; padding:13px;">🪙 Open the pot</button>';
+          }
           if (!st) {
             html += '<p class="pot-sub">No pot is open in this live yet.</p>';
             if (host && !signedIn) {
               // [RP-V7.48] a guest host learns this BEFORE the form:
               // pots pay real accounts, so opening one needs sign-in.
-              html += '<p class="pot-sub">🔐 Sign in to open a pot — pots are tied to your account so your seed and the winners\' charms land in the right place.</p>';
+              html += potSignInNote;
             } else if (host) {
-              html += '<div class="field"><label for="potSeedAmt">Seed the pot with your charms (min 100)</label>' +
-                '<input class="online-input-full" id="potSeedAmt" type="number" min="100" step="10" inputmode="numeric" placeholder="100" value="100"/></div>' +
-                '<div class="pot-presets">' +
-                [100, 250, 500, 1000].map(function (v) { return '<button type="button" class="btn-mini" data-potpreset="' + v + '">' + v + "</button>"; }).join("") +
-                "</div>" +
-                '<div class="field"><label for="potBurstAmt">💥 Burst target (optional)</label>' +
-                '<input class="online-input-full" id="potBurstAmt" type="number" min="0" step="10" inputmode="numeric" placeholder="e.g. 400"/></div>' +
-                '<p class="age-note">Set a target and the pot BURSTS — pays out on the spot — the moment gifts grow it there. The target must be more than your seed and at most 2× your seed (gifts can grow the pot by up to your seed again in platform match).</p>' +
-                '<button type="button" class="btn-primary" id="potOpenBtn" style="width:100%; padding:13px;">🪙 Open the pot</button>';
+              html += potSeedForm;
             } else {
               html += '<p class="age-note">When the host opens a pot, joining is free — one tap and you\'re in.</p>';
             }
@@ -11321,9 +11332,12 @@
               (st.winners || []).map(function (w) {
                 return '<div class="pot-winrow"><span>🏆 ' + escHtml(w.name || "Winner") + "</span><span>" + (w.amount || 0) + " charms</span></div>";
               }).join("");
-            if (host) html += '<p class="age-note">Want another round? Close this and open a fresh pot from the ••• tools.</p>';
+            if (host) html += signedIn
+              ? '<p class="age-note">Want another round? Seed a fresh pot right here:</p>' + potSeedForm // [RP-V7.49] the form lives in this sheet now — closing and reopening used to dead-end on this same view
+              : potSignInNote;
           } else {
             html += '<p class="pot-sub">This pot was cancelled and the seed went back to the host.</p>';
+            if (host) html += signedIn ? potSeedForm : potSignInNote; // [RP-V7.49] a cancelled pot is settled history — the host can seed again right here
           }
           html += '<p class="age-note" style="margin-top:12px;">' + POT_RULES + "</p>" +
             '<p class="pot-err" id="potErr"></p>' +
