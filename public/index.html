@@ -2480,7 +2480,7 @@
         <div class="agegate-wrap">
           <div class="controls-card agegate-card">
             <h2>📝 Create your account</h2>
-            <p class="sub">Everyone signs up with an <b>email</b> and a <b>mobile number</b> — or jump in with Google or Apple. We'll send reminders, special-event invites and offers — the big nights are better with a crowd.</p>
+            <p class="sub">Welcome to Rizz Plaza! <b>Sign up or log in to come in</b> — everyone joins with an <b>email</b> and a <b>mobile number</b>, or Google or Apple. We'll send reminders, special-event invites and offers — the big nights are better with a crowd.</p>
             <button class="btn-social" id="btnGoogle" type="button"><span class="g-badge">G</span> Continue with Google</button>
               <button class="btn-social" id="btnApple" type="button"><span class="a-badge"></span> Continue with Apple</button>
               <div class="su-divider"><span>or sign up with email + phone</span></div>
@@ -2499,9 +2499,7 @@
               <span>Text and email me reminders, special events, and offers. Msg &amp; data rates may apply. Reply STOP to opt out of texts anytime.</span>
             </label>
             <button class="btn-primary" id="btnSignupGo" style="width:100%; padding:13px;" disabled>Continue</button>
-              <button class="btn-mini" id="btnSignupSkip" type="button" style="width:100%; padding:12px; margin-top:10px;">Skip for now →</button>
               <p class="age-note rp-legal" style="text-align:center; margin-top:10px;">By continuing you agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>
-              <p class="age-note" style="text-align:center; margin-top:6px;">No account needed to look around — add an email + phone later in your Profile if you want reminders.</p>
             <p class="age-note" style="margin-top:10px;">Your email and number are only for party reminders, event invites and offers, and they're saved with your profile on this device. Unsubscribe anytime from your profile.</p>
           </div>
         </div>
@@ -3716,7 +3714,23 @@
         show("screen-agegate");
         toast("\uD83C\uDF82 One quick age check first — " + area + " is 18+.", 3200);
       }
+      // [RP-V7.48] STARTUP SIGN-UP WALL (Branden, Oct 24 21:59): guest
+      // browsing is retired — entering the Plaza takes an account.
+      function rpAcctSignedIn() {
+        try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return !!(a && a.token); } catch (e) { return false; }
+      }
+      function rpTeenOnFile() {
+        try {
+          var v = localStorage.getItem("rpDob.v1") || "";
+          if (!v) return false;
+          var age = rpDobAge(v);
+          return age >= 0 && age < 18;
+        } catch (e) { return false; }
+      }
       function show(screenId) {
+        // Signed-out (and not a teen-locked device profile), every
+        // screen except the wall itself routes back to the wall.
+        if (screenId !== "screen-signup" && !rpAcctSignedIn() && !rpTeenOnFile()) screenId = "screen-signup";
         var faithOk = screenId === "screen-room" && currentRoom && (currentRoom.id === "faith" || currentRoom.id === "teen");
         var teenOnlineOk = screenId === "screen-online" && typeof Online !== "undefined" && Online && Online.room === "teen";
         var faithOnlineOk = screenId === "screen-online" && typeof Online !== "undefined" && Online && Online.room === "faith"; // [RP-V7.25] the online Fellowship is all-ages too — same door-gate exemption as the scenic prayer room above
@@ -4355,6 +4369,46 @@
           ? "Welcome, " + (me.name || "friend") + "! Your photo profile is all yours, and the Christian Fellowship prayer room and the 🛋️ Teen Hangout are open to you \u2014 everything else at this party is 18+."
           : "Welcome home, " + (me.name || "friend") + "!");
       }
+      // [RP-V7.48] Wall exit after a successful sign-up / log-in (the
+      // account module calls this once a session exists): mirror the
+      // local contact sync the in-app flow did, hydrate age from the
+      // DOB on file, then enter.
+      window.rpAuthGatePass = function () {
+        try {
+          var em = $("suEmail") ? $("suEmail").value.trim().toLowerCase() : "";
+          var ph = suPhoneDigits($("suPhone") ? $("suPhone").value : "");
+          var a = null; try { a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); } catch (e) { }
+          if (a && a.email) em = String(a.email).toLowerCase();
+          if (a && a.phone) ph = suPhoneDigits(a.phone);
+          if (em && ph) me.contact = { email: em, phone: ph, consent: true };
+        } catch (e) { }
+        rpHydrateAge();
+        finishEnterParty();
+        if (isTeen()) openTeenGateAll("The whole party");
+      };
+      // [RP-V7.48] Teen pass: a teen DOB gets no account (the server
+      // refuses under-18 sign-ups) — the teen enters the teen-locked
+      // Plaza instead, driven by the local DOB, exactly as the
+      // pre-wall age flow worked. Returns true when it admitted.
+      window.rpTeenWallPass = function (dobStr) {
+        var v = String(dobStr || "");
+        if (!v) { try { v = localStorage.getItem("rpDob.v1") || ""; } catch (e) { } }
+        if (!v) return false;
+        var age = rpDobAge(v);
+        if (!(age >= 0 && age < 18)) return false;
+        try { localStorage.setItem("rpDob.v1", v); } catch (e) { }
+        rpHydrateAge();
+        finishEnterParty();
+        openTeenGateAll("The whole party");
+        return true;
+      };
+      // [RP-V7.48] Session lost / logged out -> back behind the wall.
+      window.rpEnforceWall = function () {
+        if (rpAcctSignedIn() || rpTeenOnFile()) return;
+        var hud = $("hud"); if (hud) hud.hidden = true;
+        try { prefillSignup(); } catch (e) { }
+        show("screen-signup");
+      };
       $("btnMatches").addEventListener("click", function () {
         closeSheet(); show("screen-plaza");
         setTimeout(function () { $("matchesSection").scrollIntoView({ behavior: "smooth" }); }, 60);
@@ -5330,6 +5384,26 @@
       $("btnMuteHome").addEventListener("click", function () { var b = $("btnMute"); if (b) b.click(); });
       function syncHomeMusic() { var s = $("homeMusicName"), m = $("musicName"); if (s && m) s.textContent = m.textContent; }
       /* ---------- 🔴 Live Now strip (top of the startup page) ---------- */
+      // [RP-V7.48] Room-count freshness + departure bookkeeping. The
+      // counts are a VISIT CACHE (written when you enter a room) — the
+      // ghost fix: leaving a room subtracts you again, leaving the
+      // party clears the cache, and every renderer applies the same
+      // 5-minute staleness rule renderLiveNow always had.
+      function freshRoomCount(id) {
+        var rc = Party.roomCounts[id];
+        if (!rc) return null;
+        if (id === Online.room) return rc; // my own room's stamp is current by construction
+        if (Date.now() - rc.at > 5 * 60000 || !(rc.n > 0)) return null;
+        return rc;
+      }
+      function dropSelfFromRoomCount(roomId) {
+        if (!roomId) return;
+        var rc = Party.roomCounts[roomId];
+        if (!rc) return;
+        rc.n = Math.max(0, (rc.n || 0) - 1);
+        if (rc.n <= 0) delete Party.roomCounts[roomId];
+        else rc.at = Date.now(); // re-stamp: the reduced count is fresh knowledge
+      }
       function renderLiveNow() {
         var list = $("liveNowList"); if (!list) return;
         var seen = {};
@@ -6413,8 +6487,10 @@
           Online.watchdog = setTimeout(function () { if (Online.state === "connecting") failOnline(); }, 11000);
           socket.on("connect", function () {
             Online.myId = socket.id;
+            if (typeof Voice !== "undefined") Voice.lastConnectAt = Date.now(); // [RP-V7.48]
             socket.emit("join", { name: Online.name, avatar: onlineAvatarPayload(), room: Online.room, age: myAge(), key: onlineDeviceKey() }); // [RP-V7.24] stable device key — the server evicts my ghost on re-join
             if (typeof liveRegistrySyncHost === "function") liveRegistrySyncHost(); // [RP-V7.28] a host mid-live re-registers on every (re)connect
+            if (typeof voiceReclaimFloors === "function") voiceReclaimFloors(); // [RP-V7.48] mid-talk on a channel? re-claim its floor — the server transfers it to this socket (device-keyed floors)
           });
           socket.on("connect_error", function () {
             // Only the very first join can fail here (the watchdog is the
@@ -6502,6 +6578,7 @@
           hideActCard();
           var nn = $("aloneNudge"); if (nn) nn.classList.remove("show");
           Party.aloneSince = 0;
+          Party.roomCounts = {}; // [RP-V7.48] leaving the party clears remembered room counts — no ghosts on the next visit
         }
         if (Online.socket) { try { Online.socket.removeAllListeners(); Online.socket.disconnect(); } catch (e) { } Online.socket = null; }
         Online.state = "off"; Online.myId = null; Online.players = {}; Online.dancing = false; Online.myPhotoUrl = null;
@@ -6907,17 +6984,17 @@
       function openOnlineRooms() {
         if (Online.state !== "on") return;
         var party = ROOMS.map(function (r) {
-          var rc = Party.roomCounts[r.id];
+          var rc = freshRoomCount(r.id); // [RP-V7.48] stale stamps (>5 min) no longer render as people "here"
           var cnt = rc ? ' · <b>' + rc.n + ' here</b>' : (r.id === "neon" ? ' · main room' : '');
           return '<button class="move-chip" data-oroom="' + r.id + '">' + escHtml(r.name) + cnt + '</button>';
         }).join("");
         var states = US_STATES.map(function (s) {
           return '<button class="move-chip" data-oroom="' + stateSlug(s) + '">' + s + '</button>';
         }).join("");
-        var chaosCnt = Party.roomCounts["chaos-room"];
+        var chaosCnt = freshRoomCount("chaos-room"); // [RP-V7.48]
         var chaos = '<div class="move-cat"><h4>📻 Walkie-talkie room</h4><div class="room-chip-grid">' +
           '<button class="move-chip chaos" data-oroom="chaos-room">🔥 Chaos Room — anyone can chirp-talk, one at a time · no match needed' + (chaosCnt ? ' · <b>' + chaosCnt.n + ' here</b>' : '') + '</button></div></div>';
-        var liveCnt = Party.roomCounts["live-stage"];
+        var liveCnt = freshRoomCount("live-stage"); // [RP-V7.48]
         var liveSec = '<div class="move-cat"><h4>⭐ Featured · 📺 Live video room · 18+</h4><div class="room-chip-grid">' +
           '<button class="move-chip featured" data-oroom="live-stage">⭐ 📺 Live Stage — go live on camera &amp; invite viewers on stage' + (Live.broadcastKnown ? '<span class="live-badge-sm">● LIVE</span>' : '') + (liveCnt ? ' · <b>' + liveCnt.n + ' here</b>' : '') + '</button></div></div>';
         openSheet(
@@ -6938,6 +7015,7 @@
             var room = b.getAttribute("data-oroom");
             closeSheet();
             if (room === Online.room || !Online.socket) return;
+            dropSelfFromRoomCount(Online.room); // [RP-V7.48] same departure bookkeeping as switchOnlineRoom
             Online.room = room;
             Online.players = {};
             Online.socket.emit("switch-room", { room: room });
@@ -7465,6 +7543,18 @@
         }
       }
       /* ---------- floor control ---------- */
+      // [RP-V7.48] After a (re)connect, re-claim the floor of any
+      // channel I was talking / holding / pressing on. The server keys
+      // floors to my device identity, so the re-request lands as a
+      // silent transfer (idempotent re-grant), not a fresh grab.
+      function voiceReclaimFloors() {
+        try {
+          Object.keys(Voice.talk).forEach(function (ch) {
+            var ts = Voice.talk[ch];
+            if (ts && (ts.live || ts.granted || ts.pressing) && Online.socket) Online.socket.emit("voice-request-floor", { channel: ch });
+          });
+        } catch (e) { }
+      }
       function talkState(channel) {
         return Voice.talk[channel] || (Voice.talk[channel] = { pressing: false, granted: false, stream: null, live: false, peerId: null, peersStarted: false });
       }
@@ -7474,7 +7564,7 @@
         if (fl && !fl.self) { chirp("deny"); toast(fl.byName + " is talking — one voice at a time. Wait for their roger-beep!"); refreshPTT(); return; }
         var ts = talkState(channel);
         if (ts.pressing || ts.live) return;
-        ts.pressing = true; if (peerId) ts.peerId = peerId;
+        ts.pressing = true; ts.micRetried = false; if (peerId) ts.peerId = peerId; // [RP-V7.48] fresh press — the one mic retry is re-armed
         AudioFX.holdMusic("voice"); // mic is going on: music stops completely, never louder
         chirp("on");
         Online.socket.emit("voice-request-floor", { channel: channel });
@@ -7487,7 +7577,7 @@
             if (!t2.pressing && !t2.granted) { stream.getTracks().forEach(function (tr) { tr.stop(); }); return; }
             t2.stream = stream;
             maybeGoLive(channel);
-          }).catch(function () { onMicError(channel); });
+          }).catch(function (e) { onMicError(channel, e); }); // [RP-V7.48] pass the real error — the message branches on its name
         } else {
           onMicError(channel);
         }
@@ -7497,12 +7587,31 @@
         }, 6000);
         refreshPTT();
       }
-      function onMicError(channel) {
+      function onMicError(channel, err) {
         var ts = talkState(channel);
+        // [RP-V7.48] ONE silent retry before giving anything up: a
+        // first getUserMedia can fail transiently (mic contention with
+        // another tab/app, OS still waking the device). The floor is
+        // only released when the retry also fails.
+        if (!ts.micRetried && ts.pressing && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          ts.micRetried = true;
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+            var t2 = talkState(channel);
+            if (!t2.pressing && !t2.granted) { stream.getTracks().forEach(function (tr) { tr.stop(); }); return; }
+            t2.stream = stream;
+            maybeGoLive(channel);
+          }).catch(function (e2) { onMicError(channel, e2); });
+          return;
+        }
+        ts.micRetried = false;
         ts.pressing = false;
         AudioFX.releaseMusic("voice");
         if (ts.granted && Online.socket) { Online.socket.emit("voice-release-floor", { channel: channel }); ts.granted = false; }
-        toast("🎙 Your mic is blocked — allow microphone access in your browser to use the walkie-talkie. No hard feelings, the chat still loves you!", 4600);
+        var en = (err && err.name) || "";
+        if (en === "NotAllowedError" || en === "SecurityError") toast("🎙 Mic permission is off — allow microphone access for this site in your browser settings, then hold the button again.", 5200);
+        else if (en === "NotReadableError" || en === "AbortError") toast("🎙 Your mic is busy in another app or tab right now — free it up, then hold the button again.", 5200);
+        else if (en === "NotFoundError" || en === "OverconstrainedError") toast("🎙 No microphone found on this device — the walkie-talkie needs one. The chat still loves you!", 5200);
+        else toast("🎙 Your mic is blocked — allow microphone access in your browser to use the walkie-talkie. No hard feelings, the chat still loves you!", 4600);
         refreshPTT();
       }
       function maybeGoLive(channel) {
@@ -7565,7 +7674,16 @@
         delete Voice.floors[d.channel];
         var by = d.by || (holder && holder.by);
         if (by) { setSpeaking(by, false); if (by !== Online.myId) closePeer(by); }
-        if (holder && holder.self) stopTalking(d.channel);
+        if (holder && holder.self) {
+          var ts = talkState(d.channel);
+          // [RP-V7.48] A release landing right after a reconnect while
+          // my finger is STILL down is my own reconnect echo (older
+          // servers / in-flight releases) — re-claim the floor
+          // instead of letting the talk die ~1s in.
+          if (ts.pressing && Date.now() - (Voice.lastConnectAt || 0) < 10000 && Online.socket) {
+            Online.socket.emit("voice-request-floor", { channel: d.channel });
+          } else stopTalking(d.channel);
+        }
         refreshPTT();
       }
       function onVoiceFloorDenied(d) {
@@ -7607,7 +7725,14 @@
           if (a.play) { var pr = a.play(); if (pr && pr.catch) pr.catch(function () { }); }
         };
         pc.onconnectionstatechange = function () {
-          if (pc.connectionState === "failed" || pc.connectionState === "closed") closePeer(id);
+          if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+            var wasMine = rec.mine; // [RP-V7.48] I was the talker on this peer
+            closePeer(id);
+            if (wasMine && Date.now() - (Voice.lastIceToastAt || 0) > 5000) {
+              Voice.lastIceToastAt = Date.now();
+              toast("📻 Voice connection dropped — release the button and hold again to talk.", 3800);
+            }
+          }
         };
         return rec;
       }
@@ -10081,7 +10206,7 @@
           html += '<button type="button" class="btn-mini" id="lvMoreHide">🚫 Mute &amp; Hide ' + escHtml(Live.hostName || "host") + '</button>';
         }
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>';
-        if (host) html += '<button type="button" class="btn-mini" id="lvMorePot">🪙 Plaza Pot' + (Live.pot && Live.pot.status === "open" ? " · " + (Live.pot.total || 0) + " charms · " + (Live.pot.entries || 0) + " in" : "") + "</button>"; // [RP-V7.41] host opens/manages the pot from the ••• tray
+        if (host) html += '<button type="button" class="btn-mini" id="lvMorePot">🪙 Plaza Pot' + (Live.pot && Live.pot.status === "open" ? " · " + (Live.pot.total || 0) + " charms · " + (Live.pot.entries || 0) + " in" : (liveAcctToken() ? "" : " · sign in to open")) + "</button>"; // [RP-V7.41] host opens/manages the pot from the ••• tray // [RP-V7.48] guest hosts see the sign-in requirement on the row itself
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreEnd">⏹ End Live</button>';
         else if (onStage) html += '<button type="button" class="btn-mini" id="lvMoreLeave">Leave the stage</button>';
         if (!host) html += '<button type="button" class="btn-mini" id="lvMoreClose">✕ Close this live</button>';
@@ -10781,8 +10906,14 @@
         return "";
       }
       function syncLivePot() {
+        // [RP-V7.48] Never DOWNGRADE a known pot: the directory entry
+        // is rebuilt by the host's in-room state heartbeat, and an
+        // entry that carries no pot information must not wipe a pot
+        // learned from a pot-update / HTTP state fetch. Only an entry
+        // that explicitly knows (a pot object, or null filed by a
+        // server snapshot) may set Live.pot.
         var e = livePotEntry();
-        Live.pot = e ? (e.pot || null) : null;
+        if (e && typeof e.pot !== "undefined") Live.pot = e.pot || null;
         renderLivePotChip();
       }
       function potFmt(n) { return Number(n || 0).toLocaleString("en-US"); }
@@ -11139,7 +11270,11 @@
           var html = "<h3>🪙 Plaza Pot</h3>";
           if (!st) {
             html += '<p class="pot-sub">No pot is open in this live yet.</p>';
-            if (host) {
+            if (host && !signedIn) {
+              // [RP-V7.48] a guest host learns this BEFORE the form:
+              // pots pay real accounts, so opening one needs sign-in.
+              html += '<p class="pot-sub">🔐 Sign in to open a pot — pots are tied to your account so your seed and the winners\' charms land in the right place.</p>';
+            } else if (host) {
               html += '<div class="field"><label for="potSeedAmt">Seed the pot with your charms (min 100)</label>' +
                 '<input class="online-input-full" id="potSeedAmt" type="number" min="100" step="10" inputmode="numeric" placeholder="100" value="100"/></div>' +
                 '<div class="pot-presets">' +
@@ -11316,7 +11451,7 @@
         if (topic) Live.topic = topic;
         Live.stage = newStage;
         var prevDir = Live.directory[host];
-        Live.directory[host] = { room: Online.room, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: (Online.players[host] && Online.players[host].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), er: (typeof er === "number" ? er : (prevDir && prevDir.er) || 0), erAt: (typeof er === "number" ? Date.now() : (prevDir && prevDir.erAt) || 0), hostAccountId: (prevDir && prevDir.hostAccountId) || null, reg: !!(prevDir && prevDir.reg), regKey: (prevDir && prevDir.regKey) || "" };
+        Live.directory[host] = { room: Online.room, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: (Online.players[host] && Online.players[host].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), er: (typeof er === "number" ? er : (prevDir && prevDir.er) || 0), erAt: (typeof er === "number" ? Date.now() : (prevDir && prevDir.erAt) || 0), hostAccountId: (prevDir && prevDir.hostAccountId) || null, reg: !!(prevDir && prevDir.reg), regKey: (prevDir && prevDir.regKey) || "", pot: (prevDir && prevDir.pot) || null }; // [RP-V7.48] pot rides through the 8s heartbeat rebuild — dropping it here is what hid the chip from viewers
         pruneDirRoom(Online.room, host); // [RP-V7.24]
         clearTimeout(Live.staleTimer); clearTimeout(Live.hostGraceTimer); Live.hostGraceTimer = null; // [RP-V7.24] host is demonstrably back
         oldStage.forEach(function (id) { if (id !== Online.myId && newStage.indexOf(id) < 0) closeLivePeer(id); });
@@ -11348,7 +11483,7 @@
               // a personal live starting in another room: file it in the
               // directory so 🔴 Live Now (and the lobby list) can show it
               if (isTeen()) return;
-              Live.directory[fromId] = { room: o.room, name: fromName || liveName(fromId), title: o.title || "", topic: o.topic || "Chatting", photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, reg: !!(Live.directory[fromId] && Live.directory[fromId].reg), regKey: (Live.directory[fromId] && Live.directory[fromId].regKey) || "" };
+              Live.directory[fromId] = { room: o.room, name: fromName || liveName(fromId), title: o.title || "", topic: o.topic || "Chatting", photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, reg: !!(Live.directory[fromId] && Live.directory[fromId].reg), regKey: (Live.directory[fromId] && Live.directory[fromId].regKey) || "", pot: (Live.directory[fromId] && Live.directory[fromId].pot) || null }; // [RP-V7.48] pot carried
               pruneDirRoom(o.room, fromId); // [RP-V7.24]
               // fallback location: they announced from the room I'm in —
               // if that's a state/city room, they were just partying near
@@ -11368,7 +11503,7 @@
             Live.title = o.title || ""; Live.topic = o.topic || "Chatting";
             Live.stage = [fromId]; Live.hearts = 0;
             EngLog[fromId] = []; // fresh broadcast: clean engagement log
-            Live.directory[fromId] = { room: Online.room, name: Live.hostName, title: Live.title, topic: Live.topic, photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null };
+            Live.directory[fromId] = { room: Online.room, name: Live.hostName, title: Live.title, topic: Live.topic, photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, pot: (Live.directory[fromId] && Live.directory[fromId].pot) || null }; // [RP-V7.48] pot carried
             addChatSystem("🔴 " + Live.hostName + " just went LIVE!");
             renderLivePanel();
             maybeSendWatch();
@@ -12483,6 +12618,16 @@
       }
 
       function rpBootHome() {
+        // [RP-V7.48] STARTUP WALL: no saved account session -> the
+        // app stops at the sign-up wall. Nothing Plaza-side renders,
+        // the HUD stays hidden and the quiet boot-connect stays off.
+        // A teen-locked device profile (DOB on file, no account —
+        // accounts are 18+) boots into its locked Plaza as before.
+        if (!rpAcctSignedIn() && !rpTeenOnFile()) {
+          try { prefillSignup(); } catch (e) { }
+          show("screen-signup");
+          return;
+        }
         // [RP-V7.24] identity at boot: a signed-in account's name (the
         // session token lives in rpAcct.v1; the account module verifies
         // it against /api/account/me) — else the remembered guest name —
@@ -12573,9 +12718,13 @@
         var email = $("suEmail").value, phone = $("suPhone").value, consent = $("suConsent").checked;
         var eOk = suEmailOk(email), pOk = suPhoneOk(phone);
         var eErr = $("suEmailErr"), pErr = $("suPhoneErr");
-        if (email.trim() && !eOk) { eErr.textContent = "That email doesn't look right — check for a typo (it should look like you@example.com)."; eErr.hidden = false; }
+        // [RP-V7.48] BOTH email and phone are required (startup wall):
+        // once the form is engaged, a MISSING one shows a clear
+        // required-error too — not just a malformed one.
+        var engaged = !!(email.trim() || phone.trim() || consent);
+        if (!eOk && (email.trim() || engaged)) { eErr.textContent = email.trim() ? "That email doesn't look right — check for a typo (it should look like you@example.com)." : "Email is required — everyone signs up with an email and a mobile number."; eErr.hidden = false; }
         else eErr.hidden = true;
-        if (phone.trim() && !pOk) { pErr.textContent = "Enter a 10-digit US mobile number — digits only is fine (e.g. 5551234567)."; pErr.hidden = false; }
+        if (!pOk && (phone.trim() || engaged)) { pErr.textContent = phone.trim() ? "Enter a 10-digit US mobile number — digits only is fine (e.g. 5551234567)." : "Mobile number is required — everyone signs up with an email and a mobile number."; pErr.hidden = false; }
         else pErr.hidden = true;
         var uEl = $("suUser"), uOk = true;
         if (uEl) {
@@ -12606,6 +12755,12 @@
         var email = $("suEmail").value.trim().toLowerCase();
         var phone = suPhoneDigits($("suPhone").value);
         if (!suEmailOk(email) || !suPhoneOk(phone) || !$("suConsent").checked) { syncSignupForm(); return; }
+        // [RP-V7.48] STARTUP WALL: Continue no longer admits on a
+        // local contact alone. Signed-out, the account module's
+        // capture-phase handler creates the account (doSignup) and
+        // rpAuthGatePass admits on success — a failed creation (or
+        // an unreachable server) leaves the user on the wall.
+        if (!rpAcctSignedIn()) return;
         me.contact = { email: email, phone: phone, consent: true };
         sendOrQueue("subscribe", { email: email, phone: phone, displayName: me.name || "", consent: true, ts: Date.now() });
         profileSaveSuppressed = false;
@@ -13494,7 +13649,10 @@
         }).join("");
       }
       function trendingRoomsHTML() {
-        var rows = Object.keys(Party.roomCounts).map(function (id) { return { id: id, n: Party.roomCounts[id].n, at: Party.roomCounts[id].at }; });
+        // [RP-V7.48] same 5-minute staleness rule as everywhere else;
+        // my current room is always kept (I'm provably in it).
+        var rows = Object.keys(Party.roomCounts).map(function (id) { return { id: id, n: Party.roomCounts[id].n, at: Party.roomCounts[id].at }; })
+          .filter(function (r) { return r.id === Online.room || (Date.now() - r.at <= 5 * 60000 && r.n > 0); });
         rows.sort(function (a, b) { return b.n - a.n; });
         var html = "";
         if (!rows.length) html += '<p class="empty-note">Room counts appear as you visit rooms — Neon Nights Club is where everyone lands first.</p>';
@@ -13543,6 +13701,7 @@
         if (Online.state !== "on" || room === Online.room || !Online.socket) return;
         if (room !== "teen" && isTeen()) { openTeenGateAll("The online rooms"); return; }
         if (room !== "teen" && !rpAdultOk()) { rpDoorGate("The online rooms", function () { switchOnlineRoom(room); }); return; }
+        dropSelfFromRoomCount(Online.room); // [RP-V7.48] I leave the old room's cached count when I switch away
         Online.room = room; Online.players = {};
         noteRoomVisit(room); // ✨ For You: state/city rooms I visit mark where I'm based
         Online.socket.emit("switch-room", { room: room });
@@ -20749,7 +20908,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
       renderAcctBox();
     });
   }
-  function signOutLocal() { acct = null; saveAcct(); reminders = []; setUnread(0); acctBoxSig = "x"; renderAcctBox(); }
+  function signOutLocal() { acct = null; saveAcct(); reminders = []; setUnread(0); acctBoxSig = "x"; renderAcctBox(); try { if (window.rpEnforceWall) setTimeout(window.rpEnforceWall, 0); } catch (e) { } } // [RP-V7.48] signed out -> back behind the startup wall
   function profileName() {
     try { var P = JSON.parse(localStorage.getItem("datingGameProfile.v1") || "{}"); return (P.name || "").trim(); } catch (e) { return ""; }
   }
@@ -20778,8 +20937,8 @@ body.wp-video-on #rpWallC { visibility: hidden; }
   var uiBuilt = false;
   function buildSignupUI() {
     var card = document.querySelector("#screen-signup .agegate-card");
-    var phoneInput = $("suPhone"), goBtn = $("btnSignupGo"), skipBtn = $("btnSignupSkip");
-    if (!card || !phoneInput || !goBtn || !skipBtn || uiBuilt) return;
+    var phoneInput = $("suPhone"), goBtn = $("btnSignupGo");
+    if (!card || !phoneInput || !goBtn || uiBuilt) return; // [RP-V7.48] no skip button exists anymore (startup wall)
     uiBuilt = true;
     var emailInput = $("suEmail");
     if (emailInput && !$("suUser")) {
@@ -20806,10 +20965,10 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     err.className = "age-note su-err"; err.id = "suAcctErr"; err.hidden = true;
     goBtn.parentNode.insertBefore(err, goBtn);
     var loginLink = document.createElement("button");
-    loginLink.type = "button"; loginLink.className = "btn-mini"; loginLink.id = "suLoginLink";
-    loginLink.style.cssText = "width:100%; padding:12px; margin-top:8px;";
-    loginLink.textContent = "Already have an account? Log in";
-    skipBtn.parentNode.insertBefore(loginLink, skipBtn.nextSibling);
+    loginLink.type = "button"; loginLink.className = "btn-primary"; loginLink.id = "suLoginLink"; // [RP-V7.48] a proper Log in button on the wall itself, not a buried link
+    loginLink.style.cssText = "width:100%; padding:13px; margin-top:10px;";
+    loginLink.textContent = "👋 Log in — I already have an account";
+    goBtn.parentNode.insertBefore(loginLink, goBtn.nextSibling);
     var panel = document.createElement("div");
     panel.id = "suLoginPanel"; panel.hidden = true;
     panel.innerHTML = '<h3 style="margin:14px 0 6px;">👋 Welcome back — log in</h3>' +
@@ -20900,21 +21059,28 @@ body.wp-video-on #rpWallC { visibility: hidden; }
         localSeed();
         toast2("✅ You're in — check your reminders 🔔", 4200);
         fetchReminders(); renderAcctBox();
+        try { if (window.rpAuthGatePass) window.rpAuthGatePass(); } catch (e) { } // [RP-V7.48] account created — the wall lets you into the Plaza
       } else if (r.reachable && r.json) {
+        // [RP-V7.48] Under-18 sign-ups are refused an account (403) —
+        // a teen DOB isn't a dead end: the teen pass admits them to
+        // the teen-locked Plaza (Fellowship + Teen Hangout).
+        if (r.status === 403 && window.rpTeenWallPass && window.rpTeenWallPass(dobOnFile())) return;
         showAcctErr(r.json.error || "Sign-up didn't go through.");
       } else {
-        toast2("Accounts need the live site — you're in as a guest for now", 4600);
+        // [RP-V7.48] server unreachable: stay on the wall, say so plainly
+        showAcctErr("Can't reach the Plaza right now — check your connection and tap Continue to try again.");
       }
     });
   }
-  function doLogin() {
-    var em = $("liEmail") ? $("liEmail").value.trim().toLowerCase() : "";
-    var pw = $("liPass") ? $("liPass").value : "";
-    var er = $("liErr");
-    if (!em || !pw) { if (er) { er.textContent = "Enter your username or email and password."; er.hidden = false; } return; }
+  // [RP-V7.48] ONE login submit, shared by the sign-up sheet panel
+  // and the open Profile-page form (Fix 4 — no forked auth code).
+  // onOk(user, pw) runs only on success; the sheet uses it to flow
+  // into the app via finishLoginIntoApp, the Profile form stays put.
+  function submitLogin(idv, pw, er, onOk) {
+    if (!idv || !pw) { if (er) { er.textContent = "Enter your username or email and password."; er.hidden = false; } return; }
     if (acctBusy) return;
     acctBusy = true;
-    api("/api/account/login", "POST", { id: em, username: em, email: em, password: pw }).then(function (r) {
+    api("/api/account/login", "POST", { id: idv, username: idv, email: idv, password: pw }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
         acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member" };
@@ -20926,13 +21092,18 @@ body.wp-video-on #rpWallC { visibility: hidden; }
         if (r.json.deletionCancelled) toast2("Welcome back — your scheduled deletion was cancelled.", 6000);
         else toast2("👋 Welcome back, " + r.json.user.name + "!", 3600);
         fetchReminders(); renderAcctBox();
-        finishLoginIntoApp(r.json.user, pw);
+        if (onOk) onOk(r.json.user, pw);
       } else if (r.reachable && r.json) {
         if (er) { er.textContent = r.json.error || "Login didn't go through."; er.hidden = false; }
       } else {
-        if (er) { er.textContent = "Accounts need the live site — you're in as a guest for now"; er.hidden = false; }
+        if (er) { er.textContent = "Accounts need the live site — try again in a moment."; er.hidden = false; } // [RP-V7.48] guests are retired (startup wall) — no "in as a guest" fallback copy
       }
     });
+  }
+  function doLogin() {
+    var em = $("liEmail") ? $("liEmail").value.trim().toLowerCase() : "";
+    var pw = $("liPass") ? $("liPass").value : "";
+    submitLogin(em, pw, $("liErr"), function (user, pw2) { finishLoginIntoApp(user, pw2); });
   }
   function finishLoginIntoApp(user, pw) {
     var se = $("suEmail"), sp = $("suPhone"), sc = $("suConsent"), pass = $("suPass");
@@ -21090,7 +21261,29 @@ body.wp-video-on #rpWallC { visibility: hidden; }
       var delb = $("rpAcctDel");
       if (delb) delb.addEventListener("click", openDeleteProfile);
     } else {
-      box.innerHTML = '<p class="age-note" style="margin:0;">👤 Guest — sign up or log in (via “Add email + phone”) for a server account + reminders.</p>';
+      // [RP-V7.48] Branden's ruling: the log-in form lives OPENLY on
+      // the Profile page, not hidden inside the sign-up sheet. It
+      // submits through the SAME shared login logic (submitLogin).
+      box.innerHTML = '<h3 style="margin:2px 0 6px;">👋 Welcome back — log in</h3>' +
+        '<div class="field"><label for="pfLiEmail">Username or email</label><input type="text" id="pfLiEmail" autocomplete="username" placeholder="your username or email" /></div>' +
+        '<div class="field"><label for="pfLiPass">Password</label><input type="password" id="pfLiPass" autocomplete="current-password" placeholder="Your password" /></div>' +
+        '<p class="age-note su-err" id="pfLiErr" hidden></p>' +
+        '<button class="btn-primary" id="pfLoginGo" type="button" style="width:100%; padding:13px;">Log in</button>' +
+        '<p class="age-note" style="margin:10px 0 4px;">New to the Plaza?</p>' +
+        '<button class="btn-mini" id="pfSignupGo" type="button" style="width:100%; padding:12px;">📝 Create account</button>';
+      var pfGo = $("pfLoginGo");
+      function pfSubmit() {
+        var em = $("pfLiEmail") ? $("pfLiEmail").value.trim().toLowerCase() : "";
+        var pw = $("pfLiPass") ? $("pfLiPass").value : "";
+        submitLogin(em, pw, $("pfLiErr"), null);
+      }
+      if (pfGo) pfGo.addEventListener("click", pfSubmit);
+      ["pfLiEmail", "pfLiPass"].forEach(function (id) {
+        var inp = $(id);
+        if (inp) inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); pfSubmit(); } });
+      });
+      var pfSu = $("pfSignupGo");
+      if (pfSu) pfSu.addEventListener("click", function () { if (window.rpOpenSignup) window.rpOpenSignup(); });
     }
   }
 
@@ -25447,6 +25640,49 @@ button.rp72-chip{ cursor:pointer; }
   function saveLikes() { try { localStorage.setItem(LIKE_KEY, JSON.stringify(likeMap)); } catch (e) { } }
   function renderLikes() { var el = $("rpRoomLikeCount"); if (el) el.textContent = String(likes(activeRoom)); }
 
+  /* [RP-V7.48] One tap = one like, from EITHER control — the big
+     heart (the button people actually tap) and the count pill feed
+     the SAME counter, instantly, on-device. The room-like broadcast
+     carries the ABSOLUTE count and is coalesced: an immediate send
+     at most once per 900 ms plus ONE trailing send with the final
+     total, so every tap is counted while a burst costs ~2 proto
+     messages instead of one per tap. (Per-tap sends collided with
+     the chat relay's 8-per-10s cap and lost the burst's tail — the
+     highest counts — stranding peers low.) The room-heart relay is
+     throttled the same way (leading edge, then at most 1 per
+     1.2 s); the local heart animation itself fires on every tap. */
+  var likeSentAt = 0, likeSentN = {}, likeTimer = null, likePending = {}, heartSentAt = 0;
+  function broadcastLikes(room) {
+    if (likes(room) === (likeSentN[room] || 0)) return;
+    var wait = 900 - (Date.now() - likeSentAt);
+    if (wait <= 0) {
+      likeSentAt = Date.now(); likeSentN[room] = likes(room);
+      send({ k: "room-like", r: room, n: likeSentN[room] });
+      return;
+    }
+    likePending[room] = true;
+    if (!likeTimer) {
+      likeTimer = setTimeout(function () {
+        likeTimer = null;
+        likeSentAt = Date.now();
+        Object.keys(likePending).forEach(function (r) {
+          if (likes(r) !== (likeSentN[r] || 0)) { likeSentN[r] = likes(r); send({ k: "room-like", r: r, n: likeSentN[r] }); }
+        });
+        likePending = {};
+      }, wait);
+    }
+  }
+  function tapLike(withHearts) {
+    if (!activeRoom) return;
+    likeMap[activeRoom] = likes(activeRoom) + 1;
+    saveLikes(); renderLikes();
+    if (withHearts) {
+      spawnHearts(6);
+      if (Date.now() - heartSentAt >= 1200) { heartSentAt = Date.now(); send({ k: "room-heart", r: activeRoom }); }
+    }
+    broadcastLikes(activeRoom);
+  }
+
   /* ---------------- overlay ---------------- */
   var overlay = null, activeRoom = "", syncAskedAt = 0;
   function spawnHearts(n) {
@@ -25506,12 +25742,8 @@ button.rp72-chip{ cursor:pointer; }
       '</div>' +
       '<div class="rproom-chatrow"><button type="button" class="rproom-emoji" id="rpRoomEmojiBtn" aria-label="Emoji picker">😊</button><input type="text" id="rpRoomChatInput" maxlength="200" placeholder="Say something…" autocomplete="off" /><button type="button" class="rproom-send" id="rpRoomChatSend">Send</button></div>';
     host.appendChild(overlay);
-    $("rpRoomHeartBtn").addEventListener("click", function () { spawnHearts(6); send({ k: "room-heart", r: activeRoom }); });
-    $("rpRoomLikeBtn").addEventListener("click", function () {
-      likeMap[activeRoom] = likes(activeRoom) + 1;
-      saveLikes(); renderLikes();
-      send({ k: "room-like", r: activeRoom, n: likeMap[activeRoom] });
-    });
+    $("rpRoomHeartBtn").addEventListener("click", function () { tapLike(true); });
+    $("rpRoomLikeBtn").addEventListener("click", function () { tapLike(false); });
     var inp = $("rpRoomChatInput");
     function sendChat() {
       var t = (inp.value || "").trim();
