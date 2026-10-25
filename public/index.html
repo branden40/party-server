@@ -792,6 +792,54 @@
       .lv-rankrow { flex: 0 0 100%; pointer-events: none; }
       .lv-rankpill { pointer-events: auto; border: 1px solid rgba(255,209,102,.55); background: rgba(20,16,4,.72); color: #ffd166; font-weight: 800; font-size: 12px; border-radius: 999px; padding: 4px 10px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
       .lv-rankpill[hidden] { display: none; }
+      /* [RP-V7.41] Plaza Pot chip + winner reveal overlay */
+      .lv-potrow { flex: 0 0 100%; pointer-events: none; position: relative; }
+      /* [RP-V7.41] "+N 🪙" floater when a gift grows the pot */
+      .lv-potfloat { position: absolute; left: 10px; top: -8px; z-index: 5; color: #ffd166; font-weight: 1000; font-size: 14.5px; text-shadow: 0 2px 8px rgba(0,0,0,.75), 0 0 14px rgba(255,180,40,.5); pointer-events: none; animation: lvPotFloat 1.45s ease-out forwards; }
+      @keyframes lvPotFloat { 0% { transform: translateY(8px) scale(.8); opacity: 0; } 18% { opacity: 1; transform: translateY(0) scale(1.1); } 30% { transform: translateY(-3px) scale(1); } 100% { transform: translateY(-32px) scale(1); opacity: 0; } }
+      .lv-potchip { pointer-events: auto; border: 1px solid rgba(255,190,60,.75); background: rgba(46,32,4,.82); color: #ffd166; font-weight: 900; font-size: 12.5px; border-radius: 999px; padding: 5px 12px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 2px 14px rgba(255,180,40,.35); }
+      .lv-potchip[hidden] { display: none; }
+      .lv-potwin { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; z-index: 30; pointer-events: none; background: radial-gradient(ellipse at center, rgba(20,14,2,.45) 0%, rgba(20,14,2,0) 68%); animation: lvPotPop .45s ease; }
+      .lv-potwin .pw-big { font-size: clamp(26px, 6vw, 44px); font-weight: 1000; color: #ffd166; text-shadow: 0 3px 18px rgba(0,0,0,.75), 0 0 26px rgba(255,180,40,.55); padding: 0 18px; }
+      .lv-potwin .pw-sub { font-size: clamp(15px, 3.4vw, 21px); font-weight: 900; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.8); padding: 0 18px; }
+      @keyframes lvPotPop { from { transform: scale(.82); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+      /* [RP-V7.41] pot line on Live Now / directory cards */
+      .lnr-pot { display: block; color: #ffd166; font-weight: 900; font-style: normal; font-size: 12px; margin-top: 1px; }
+      /* [RP-V7.41] The pot SWELLS as it fills: the inner span scales
+         (springy transition, so big gifts make it visibly jump) while
+         the chip itself carries the strain wobble at >=90% and the hard
+         rumble wobble — nested transforms compose, no layout shift. */
+      .lv-potinner { display: inline-block; transition: transform .5s cubic-bezier(.34, 1.45, .64, 1); will-change: transform; }
+      @keyframes lvStrain { 0%, 100% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-1.8deg) scale(1.03); } 75% { transform: rotate(1.8deg) scale(.98); } }
+      .lv-potstrain { animation: lvStrain .45s ease-in-out infinite; }
+      @keyframes lvWobble { 0%, 100% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-3.6deg) scale(1.05); } 75% { transform: rotate(3.6deg) scale(.96); } }
+      .lv-potwobble { animation: lvWobble .18s ease-in-out infinite; }
+      @keyframes lvPotBurst { 0% { transform: scale(1.6); opacity: 1; } 40% { transform: scale(2.1); opacity: 1; } 100% { transform: scale(2.7); opacity: 0; } }
+      .lv-potpop { animation: lvPotBurst .28s ease-out forwards; }
+      /* [RP-V7.41] BURST sequence stage 1: the RUMBLE — the live screen
+         shakes small at first and escalates for ~1.6s (see potBurstShow) */
+      @keyframes lvRumble { 0% { transform: translate(0, 0) rotate(0deg); } 15% { transform: translate(-1px, 1px); } 30% { transform: translate(2px, -1px) rotate(.2deg); } 45% { transform: translate(-3px, 2px) rotate(-.3deg); } 60% { transform: translate(4px, -3px) rotate(.4deg); } 75% { transform: translate(-6px, 4px) rotate(-.6deg); } 88% { transform: translate(7px, -5px) rotate(.7deg); } 100% { transform: translate(-8px, 5px) rotate(-.8deg); } }
+      .lv-rumble { animation: lvRumble 1.6s ease-in forwards; }
+      .lv-burstcanvas { position: fixed; inset: 0; z-index: 90; pointer-events: none; }
+      /* [RP-V7.42] Daily Pot — Home card + app-wide winner overlay */
+      .dpot-card { margin: 12px 0 4px; padding: 14px; border-radius: 18px; border: 2px solid rgba(255,190,60,.55); background: linear-gradient(120deg, rgba(255,170,26,.16), rgba(232,67,124,.07)); box-shadow: 0 8px 24px rgba(255,170,26,.20); }
+      .dpot-card[hidden] { display: none; }
+      .dpot-head { margin: 0 0 4px; font-size: 19px; font-weight: 800; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+      .dpot-head .dpot-when { font-size: 12.5px; font-weight: 800; color: var(--ink-soft); }
+      .dpot-potwrap { display: flex; align-items: center; justify-content: center; padding: 8px 0 0; min-height: 58px; }
+      .dpot-pot { display: inline-block; font-size: 44px; line-height: 1; transition: transform .5s cubic-bezier(.34, 1.45, .64, 1); will-change: transform; filter: drop-shadow(0 3px 10px rgba(255,180,40,.45)); }
+      .dpot-total { font-size: 32px; font-weight: 1000; color: #d18f10; text-align: center; margin: 2px 0 0; }
+      .dpot-sub { text-align: center; font-weight: 800; color: var(--ink-soft); margin: 2px 0 8px; }
+      .dpot-winrow { display: flex; justify-content: space-between; gap: 10px; font-weight: 800; padding: 5px 2px; border-bottom: 1px dashed rgba(146,94,10,.25); }
+      .dpot-join { width: 100%; padding: 13px; margin-top: 4px; }
+      .dpot-joined { text-align: center; font-weight: 900; color: #2e9e4f; margin: 6px 0 2px; }
+      .dpot-winwrap { position: fixed; z-index: 95; }
+      .pot-total { font-size: 34px; font-weight: 1000; color: #ffd166; text-align: center; margin: 2px 0 0; }
+      .pot-sub { text-align: center; font-weight: 800; color: var(--ink-soft); margin: 2px 0 8px; }
+      .pot-err { color: #ff7a7a; font-weight: 800; min-height: 18px; text-align: center; margin: 6px 0 0; }
+      .pot-winrow { display: flex; justify-content: space-between; gap: 10px; font-weight: 800; padding: 5px 2px; border-bottom: 1px dashed rgba(255,255,255,.14); }
+      .pot-presets { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 8px 0; }
+      .pot-presets .on { background: #ffd166; color: #221a02; border-color: #ffd166; }
       .lv-hostchip { display: flex; align-items: center; gap: 8px; background: rgba(10,10,18,.55); border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: 4px 12px 4px 4px; color: #fff; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); max-width: 72%; }
       .lv-hostchip .lhc-av { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex: none; background: #2a2140; display: flex; align-items: flex-end; justify-content: center; }
       .lv-hostchip .lhc-av img { width: 100%; height: 100%; object-fit: cover; }
@@ -799,6 +847,11 @@
       .lv-hostchip .lhc-meta { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
       .lv-hostchip .lhc-meta b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .lv-hostchip .lhc-meta i { font-style: normal; font-size: 11.5px; color: rgba(255,255,255,.85); font-weight: 700; }
+      /* [RP-V7.39] the host wears a crown in lives — top host chip + stage tile */
+      .lv-hostchip .lhc-nameline { display: flex; align-items: center; gap: 5px; min-width: 0; }
+      .lv-hostchip .lhc-nameline b { min-width: 0; }
+      .lv-crown { display: inline-block; flex: none; font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); }
+      .live-tile .lt-name .lv-crown { margin-right: 4px; font-size: 12px; }
       .lv-viewers { display: flex; margin-left: auto; }
       .lv-viewers .lv-vav { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; border: 2px solid rgba(255,255,255,.75); margin-left: -8px; background: #2a2140; display: flex; align-items: flex-end; justify-content: center; }
       .lv-viewers .lv-vav img { width: 100%; height: 100%; object-fit: cover; }
@@ -903,6 +956,13 @@
       .pprof-avatar .p-photo, .pprof-avatar img.p-photo { width: 108px; height: 108px; border-radius: 50%; object-fit: cover; }
       .pprof-name { margin: 8px 0 0; font-size: 21px; }
       .pprof-username { margin: 1px 0 0; color: var(--ink-soft); font-weight: 800; }
+      /* ---------- [RP-V7.39] profile-type badge + pickers ---------- */
+      .pprof-type { display: inline-block; margin: 7px 0 0; padding: 3px 11px; border-radius: 999px; background: linear-gradient(120deg, #7c4dff, #e8437c); color: #fff; font-size: 12px; font-weight: 900; }
+      .pprof-type[hidden] { display: none; }
+      .pcard-type { display: inline-block; margin: 6px 0 0; padding: 3px 11px; border-radius: 999px; background: linear-gradient(120deg, #7c4dff, #e8437c); color: #fff; font-size: 12px; font-weight: 900; }
+      .pcard-type[hidden] { display: none; }
+      .rp-type-chip.on { background: #fe2c55; border-color: #fe2c55; color: #fff; }
+      .rppl-type { color: #d3b8ff; font-weight: 800; }
       .pprof-stats { display: flex; justify-content: center; gap: 34px; margin: 14px 0 4px; }
       .pprof-stat b { display: block; font-size: 18px; }
       .pprof-stat small { color: var(--ink-soft); font-weight: 700; font-size: 12px; }
@@ -2421,6 +2481,20 @@
           <h4 class="live-now-head">🔴 Live Now</h4>
           <div id="liveNowList"></div>
         </div>
+        <!-- [RP-V7.42] Daily Pot: one whole-Plaza pot — the Plaza seeds
+             it every morning, every gift on the Plaza grows it, and it
+             bursts at 9 PM ET with 5 winners. Rendered by
+             renderDailyPotCard() from /api/dailypot/state. -->
+        <div class="dpot-card" id="dailyPotCard" data-adult hidden>
+          <h4 class="dpot-head">🌆 Daily Pot <span class="dpot-when" id="dpWhen">bursts tonight · 9 PM ET</span></h4>
+          <div class="dpot-potwrap"><span class="dpot-pot" id="dpPotVisual">🪙</span></div>
+          <div class="dpot-total" id="dpTotal">…</div>
+          <p class="dpot-sub" id="dpSub">Loading today's pot…</p>
+          <div id="dpWinners"></div>
+          <button type="button" class="btn-primary dpot-join" id="dpJoinBtn" hidden>🪙 JOIN THE DAILY POT — free</button>
+          <p class="dpot-joined" id="dpJoined" hidden>You're in ✓ — good luck tonight!</p>
+          <p class="age-note" style="text-align:center; margin-top:10px;">Free to enter once a day. The Plaza seeds it; every gift on the Plaza grows it a little. Bursts 9 PM ET — 5 winners split it.</p>
+        </div>
         <div class="scene scene-plaza">
           <div class="scene-top">
             <h2>🏠 Home</h2>
@@ -2646,6 +2720,7 @@
               <span class="lv-livepill" id="liveFsPill" hidden>● LIVE</span>
               <div class="lv-viewers" id="liveViewerRow"></div>
               <div class="lv-rankrow"><button type="button" class="lv-rankpill" id="liveRankPill" hidden></button></div>
+              <div class="lv-potrow"><button type="button" class="lv-potchip" id="livePotChip" hidden><span class="lv-potinner" id="livePotInner"></span></button></div>
               <button type="button" class="lv-fsclose" id="liveFsClose" aria-label="Close live">✕</button>
             </div>
             <div class="lv-titleline" id="liveTitleLine"></div>
@@ -4032,17 +4107,17 @@
           setVolume: function (v) { volume = Math.max(0, Math.min(1, v)); if (au && !liveRoomSoft) au.volume = effVol(); },
           volume: function () { return volume; },
           isPlaying: function () { return !!au && !au.paused; },
-          tap: function () { if (!ready()) return; tone({ f: 340, slide: 240, t: now(), dur: 0.03, type: "sine", vol: 0.06 }); }, // [RP-V7.34] the every-button click, de-retroed: a barely-there sine tick (was a bright triangle blip, 620→470)
-          popSfx: function () { if (!ready()) return; tone({ f: 240, slide: 90, t: now(), dur: 0.07, type: "sine", vol: 0.14 }); }, // [RP-V7.34] the UI pop, rounder + softer (was 270→72 at vol 0.24)
+          tap: function () { if (!ready()) return; tone({ f: 340, slide: 240, t: now(), dur: 0.03, type: "sine", vol: 0.06 }); }, // [RP-V7.39] the every-button click, de-retroed: a barely-there sine tick (was a bright triangle blip, 620→470)
+          popSfx: function () { if (!ready()) return; tone({ f: 240, slide: 90, t: now(), dur: 0.07, type: "sine", vol: 0.14 }); }, // [RP-V7.39] the UI pop, rounder + softer (was 270→72 at vol 0.24)
           jump: function () { if (!ready()) return; var t = now(); tone({ f: 285, slide: 690, t: t, dur: 0.16, type: "square", vol: 0.075 }); tone({ f: 430, slide: 980, t: t, dur: 0.15, type: "triangle", vol: 0.15 }); },
           land: function () { if (!ready()) return; var t = now(); tone({ f: 175, slide: 62, t: t, dur: 0.11, type: "sine", vol: 0.30 }); noiseS({ t: t, dur: 0.06, vol: 0.13, type: "lowpass", freq: 750 }); },
           hit: function () { if (!ready()) return; duck(); var t = now(); tone({ f: 210, slide: 55, t: t, dur: 0.13, type: "sine", vol: 0.34 }); noiseS({ t: t, dur: 0.07, vol: 0.20, freq: 1500, q: 0.7 }); tone({ f: 1180, slide: 300, t: t, dur: 0.06, type: "square", vol: 0.06 }); },
-          coin: function () { return; }, // [RP-V7.34] silenced at Branden's order — the 8-bit square-wave coin blip is gone app-wide; its call sites (auctions, charm awards) now run quiet. Gifts use gift()/giftBig() below.
-          gift: function () { if (!ready()) return; var t = now(); tone({ f: 420, slide: 160, t: t, dur: 0.09, type: "sine", vol: 0.22 }); tone({ f: 1568, t: t + 0.06, dur: 0.30, type: "sine", vol: 0.07 }); tone({ f: 2093, t: t + 0.12, dur: 0.38, type: "sine", vol: 0.05 }); noiseS({ t: t + 0.05, dur: 0.06, vol: 0.03, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.34] soft pop + glassy chime sparkle — the gift sound (original design, no square waves)
-          giftBig: function () { if (!ready()) return; var t = now(); api.gift(); [523, 659, 784, 1047].forEach(function (f, i) { tone({ f: f, t: t + 0.05 + i * 0.07, dur: 0.5, type: "sine", vol: 0.08 }); }); noiseS({ t: t + 0.1, dur: 0.22, vol: 0.035, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.34] big/prestige gifts: the gift sound + a warm rising arpeggio and a longer sparkle
+          coin: function () { return; }, // [RP-V7.39] silenced at Branden's order — the 8-bit square-wave coin blip is gone app-wide; its call sites (auctions, charm awards) now run quiet. Gifts use gift()/giftBig() below.
+          gift: function () { if (!ready()) return; var t = now(); tone({ f: 420, slide: 160, t: t, dur: 0.09, type: "sine", vol: 0.22 }); tone({ f: 1568, t: t + 0.06, dur: 0.30, type: "sine", vol: 0.07 }); tone({ f: 2093, t: t + 0.12, dur: 0.38, type: "sine", vol: 0.05 }); noiseS({ t: t + 0.05, dur: 0.06, vol: 0.03, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.39] soft pop + glassy chime sparkle — the gift sound (original design, no square waves)
+          giftBig: function () { if (!ready()) return; var t = now(); api.gift(); [523, 659, 784, 1047].forEach(function (f, i) { tone({ f: f, t: t + 0.05 + i * 0.07, dur: 0.5, type: "sine", vol: 0.08 }); }); noiseS({ t: t + 0.1, dur: 0.22, vol: 0.035, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.39] big/prestige gifts: the gift sound + a warm rising arpeggio and a longer sparkle
           deal: function () { if (!ready()) return; var t = now(); noiseS({ t: t, dur: 0.07, vol: 0.16, type: "highpass", freq: 2400 }); noiseS({ t: t + 0.05, dur: 0.05, vol: 0.10, type: "bandpass", freq: 3200, q: 1.4 }); },
           chip: function () { if (!ready()) return; var t = now(); tone({ f: 2350, t: t, dur: 0.03, type: "square", vol: 0.09 }); tone({ f: 1880, t: t + 0.045, dur: 0.04, type: "square", vol: 0.10 }); noiseS({ t: t + 0.045, dur: 0.03, vol: 0.08, type: "highpass", freq: 4000 }); },
-          bump: function () { if (!ready()) return; tone({ f: 130, slide: 70, t: now(), dur: 0.07, type: "sine", vol: 0.14 }); }, // [RP-V7.34] UI error/negative thud, softened (same low sine shape, quieter — was vol 0.22)
+          bump: function () { if (!ready()) return; tone({ f: 130, slide: 70, t: now(), dur: 0.07, type: "sine", vol: 0.14 }); }, // [RP-V7.39] UI error/negative thud, softened (same low sine shape, quieter — was vol 0.22)
           thock: function () { if (!ready()) return; tone({ f: 150, slide: 68, t: now(), dur: 0.07, type: "sine", vol: 0.28 }); noiseS({ t: now(), dur: 0.03, vol: 0.08, type: "lowpass", freq: 900 }); },
           pew: function () { if (!ready()) return; tone({ f: 760, slide: 290, t: now(), dur: 0.08, type: "square", vol: 0.055 }); },
           zap: function () { if (!ready()) return; duck(); var t = now(); tone({ f: 940, slide: 130, t: t, dur: 0.13, type: "sawtooth", vol: 0.16, cutoff: 3800 }); noiseS({ t: t, dur: 0.06, vol: 0.10, type: "highpass", freq: 2600 }); },
@@ -6272,8 +6347,8 @@
       function connectOnline(name, quiet) {
         Online.state = "connecting";
         Online.name = name;
-        Online.quietFail = !!quiet; // [RP-V7.34] a quiet (boot) connect fails silently — see rpBootConnect / failOnline
-        Online.quietBoot = !!quiet; // [RP-V7.34] …and its first join lands without yanking the user off Home — see onRoomState
+        Online.quietFail = !!quiet; // [RP-V7.39] a quiet (boot) connect fails silently — see rpBootConnect / failOnline
+        Online.quietBoot = !!quiet; // [RP-V7.39] …and its first join lands without yanking the user off Home — see onRoomState
         if (!quiet) toast("Connecting to the online party…");
         ensureIo(function (ok) {
           if (!ok) { failOnline(); return; }
@@ -6298,6 +6373,10 @@
           });
           socket.on("room-state", onRoomState);
           socket.on("lives-update", onLivesUpdate); // [RP-V7.28] server live registry snapshots
+          socket.on("pot-update", onPotUpdate); // [RP-V7.41] Plaza Pot state changes in a live
+          socket.on("pot-drawn", onPotDrawn); // [RP-V7.41] Plaza Pot draw results (winner celebration)
+          socket.on("dailypot-update", onDailyPotUpdate); // [RP-V7.42] Daily Pot state (whole-Plaza broadcast)
+          socket.on("dailypot-burst", onDailyPotBurst); // [RP-V7.42] Daily Pot 9 PM ET burst — the app-wide show
           socket.on("player-joined", onPlayerJoined);
           socket.on("player-moved", onPlayerMoved);
           socket.on("move", onPlayerMoved);
@@ -6350,7 +6429,7 @@
         });
       }
       function failOnline() {
-        var quietBootFail = !!Online.quietFail; Online.quietFail = false; // [RP-V7.34] boot-connect failure stays silent — the offline lobby simply remains as it was
+        var quietBootFail = !!Online.quietFail; Online.quietFail = false; // [RP-V7.39] boot-connect failure stays silent — the offline lobby simply remains as it was
         cleanupOnline();
         if (!quietBootFail) toast("Couldn\u2019t reach the online party — check your connection. You\u2019re still in the single-player party with the guests!", 4600);
         // [RP-V7.25] A Home-card direct join that couldn't connect lands
@@ -6361,7 +6440,7 @@
         if (rpFb && Online.room === rpFb.id) { try { enterRoom(rpFb); } catch (e) { } }
       }
       function cleanupOnline() {
-        Online.quietBoot = false; // [RP-V7.34] teardown spends any unconsumed quiet-boot flag
+        Online.quietBoot = false; // [RP-V7.39] teardown spends any unconsumed quiet-boot flag
         clearTimeout(Online.watchdog);
         voiceReset();
         liveTeardown(true);
@@ -6394,7 +6473,7 @@
         var first = Online.state !== "on" && !rejoin;
         rpScenicFallback = null; // [RP-V7.25] the join landed — scenic fallback spent
         Online.state = "on";
-        Online.quietFail = false; // [RP-V7.34] the join landed — the quiet-boot failure flag is spent
+        Online.quietFail = false; // [RP-V7.39] the join landed — the quiet-boot failure flag is spent
         Party.roomCounts[Online.room] = { n: (list || []).length, at: Date.now() };
         if (typeof renderLiveNow === "function") renderLiveNow();
         clearTimeout(Online.watchdog);
@@ -6418,7 +6497,7 @@
         renderOnlinePeople();
         $("btnOnlineHud").classList.add("live");
         if (first) {
-          // [RP-V7.34] a quiet boot join (rpBootConnect) lands in the
+          // [RP-V7.39] a quiet boot join (rpBootConnect) lands in the
           // background: the user stays on Home — no screen switch, no
           // welcome toast. The flag is one-shot; any later manual join
           // (quiet flag false) gets the full welcome exactly as before.
@@ -6689,6 +6768,9 @@
         var fromId = d.id || d.from || "";
         if (fromId && Online.blocked[fromId]) return;
         var rawText = String(d.text || "");
+        // [RP-V7.41] Server system lines (Plaza Pot open/progress
+        // announcements) render through the system-line path.
+        if (d.sys) { addChatSystem(rawText.slice(0, 200), false); return; }
         // Live-room signals (activities, votes, likes, reactions) ride the
         // chat channel with a PX prefix — handle them, never render them.
         if (rawText.indexOf(PX) === 0) { handleProto(rawText.slice(PX.length), d); return; }
@@ -6891,6 +6973,7 @@
           '<div class="pcard-avatar" data-act="profile" role="button" aria-label="Open ' + escHtml(p.name) + '\u2019s full profile">' + hero + '</div>' +
           '<h3 class="pcard-name" data-act="profile">' + escHtml(p.name) + '</h3>' +
           '<p class="pcard-username" id="pcardUser" hidden></p>' +
+          '<p class="pcard-type" id="pcardType" hidden></p>' +
           '<p>Live player · partying in the ' + escHtml(onlineRoomMeta(Online.room).title) + '</p>' +
           '<div class="pcard-badges" id="pcardBadges" hidden></div>' +
           '<p class="pcard-meta" id="pcardMeta" data-for="' + escHtml(p.name) + '" hidden></p>' +
@@ -6939,6 +7022,41 @@
          the money txlog, the reels store). A person with no account
          404s and the extra rows simply stay hidden — nothing is faked. */
       function rpAcctToken() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : null; } catch (e) { return null; } }
+      // [RP-V7.39] THE client profile-type map — one ordered list for
+      // the whole app: the badge renderers here, the Profile setup
+      // selector and the member directory all read it (the other
+      // modules reach it via window). Kept in sync with PROFILE_TYPES
+      // / PROFILE_TYPE_LABELS in server.js. Member is the unbadged
+      // default. DISPLAY SCOPE (Branden, final): ONLY streamer and
+      // creator display anything — the star badge by a name,
+      // "⭐ <Title>" (the `badge` field). Every other type renders
+      // NOTHING anywhere; its `label` is used only inside the
+      // Profile setup selector, never next to a member's name or
+      // profile. The per-type emoji lives only in `pick`, the
+      // selector label, where it helps scanning.
+      var RP_PROFILE_TYPES = [
+        { v: "member", label: "Member", badge: "", pick: "Member" },
+        { v: "creator", label: "Content Creator", badge: "⭐ Content Creator", pick: "🎬 Content Creator" },
+        { v: "influencer", label: "Influencer", badge: "", pick: "⭐ Influencer" },
+        { v: "streamer", label: "Streamer", badge: "⭐ Streamer", pick: "📺 Streamer" },
+        { v: "host", label: "Live Host", badge: "", pick: "🎤 Live Host" },
+        { v: "artist", label: "Artist", badge: "", pick: "🎨 Artist" },
+        { v: "musician", label: "Musician", badge: "", pick: "🎵 Musician" },
+        { v: "comedian", label: "Comedian", badge: "", pick: "😂 Comedian" },
+        { v: "gamer", label: "Gamer", badge: "", pick: "🎮 Gamer" },
+        { v: "podcaster", label: "Podcaster", badge: "", pick: "🎙️ Podcaster" },
+        { v: "entrepreneur", label: "Entrepreneur", badge: "", pick: "💼 Entrepreneur" },
+        { v: "model", label: "Model", badge: "", pick: "📸 Model" },
+        { v: "athlete", label: "Athlete", badge: "", pick: "🏆 Athlete" },
+        { v: "dancer", label: "Dancer", badge: "", pick: "💃 Dancer" },
+        { v: "chef", label: "Chef", badge: "", pick: "🍳 Chef" },
+        { v: "author", label: "Author", badge: "", pick: "✍️ Author" }
+      ];
+      window.RP_PROFILE_TYPES = RP_PROFILE_TYPES;
+      function rpTypeBadge(t) { // star-badge text (streamer + creator only; "" for everything else)
+        for (var i = 0; i < RP_PROFILE_TYPES.length; i++) if (RP_PROFILE_TYPES[i].v === t) return RP_PROFILE_TYPES[i].badge;
+        return "";
+      }
       function rpFetchProfile(name) {
         var tok = rpAcctToken(); if (!tok || !name) return Promise.resolve(null);
         return fetch("/api/social/profile?name=" + encodeURIComponent(name), { headers: { "Authorization": "Bearer " + tok } })
@@ -6960,6 +7078,7 @@
           var meta = $("pcardMeta"); if (!meta || meta.getAttribute("data-for") !== p.name) return; // sheet moved on
           if (!j) return;
           var u = $("pcardUser"); if (u && j.username) { u.textContent = "@" + j.username; u.hidden = false; }
+          var ptEl = $("pcardType"); if (ptEl) { var ptB = rpTypeBadge(j.profileType); if (ptB) { ptEl.textContent = ptB; ptEl.hidden = false; } } // [RP-V7.39]
           var mb = document.querySelector(".pcard-mention"); if (mb && j.username) mb.setAttribute("data-username", j.username);
           var badges = [];
           if (j.dailyRank) badges.push('<span class="pcard-badge rank">🏆 Daily No. ' + j.dailyRank + '</span>');
@@ -6998,6 +7117,7 @@
           '<div class="pprof-avatar">' + hero + '</div>' +
           '<h3 class="pprof-name">' + escHtml(p.name) + '</h3>' +
           '<p class="pprof-username" id="pprofUser" hidden></p>' +
+          '<p class="pprof-type" id="pprofType" hidden></p>' +
           '<div class="pprof-stats">' +
           '<div class="pprof-stat"><b id="pprofFollowing">–</b><small>Following</small></div>' +
           '<div class="pprof-stat"><b id="pprofFollowers">–</b><small>Followers</small></div>' +
@@ -7028,6 +7148,7 @@
           var grid = $("pprofGrid"); if (!grid) return; // sheet moved on
           if (!j) { grid.innerHTML = '<p class="age-note">' + escHtml(p.name) + ' doesn\u2019t have a Rizz Plaza account yet — profiles, follows and messages need an account.</p>'; return; }
           var u = $("pprofUser"); if (u && j.username) { u.textContent = "@" + j.username; u.hidden = false; }
+          var ptEl2 = $("pprofType"); if (ptEl2) { var ptB2 = rpTypeBadge(j.profileType); if (ptB2) { ptEl2.textContent = ptB2; ptEl2.hidden = false; } } // [RP-V7.39] star badge (streamer/creator) — the ONLY type display anywhere
           $("pprofFollowing").textContent = j.followingCount;
           $("pprofFollowers").textContent = j.followersCount;
           $("pprofReels").textContent = j.reelsCount;
@@ -8107,6 +8228,11 @@
         directory: {},         // hostId -> { room, name, title, topic, photo, n, seen } for 🔴 Live Now
         regRooms: {},          // [RP-V7.28] room -> true: rooms in the server's latest lives-update snapshot
         regAt: 0,              // [RP-V7.28] when the last lives-update snapshot arrived
+        regOrder: [],          // [RP-V7.40] room order inside the latest snapshot, when the server ranked it for my account
+        regRanked: false,      // [RP-V7.40] the latest snapshot arrived personalized for my account (server-side For You)
+        pot: null,             // [RP-V7.41] Plaza Pot state for the live I'm in ({ status, total, entries, winners? }) — from snapshots / pot events
+        potFxAt: 0,            // [RP-V7.41] when the last pot-drawn celebration ran (dedupe)
+        stayHostId: null, staySince: 0, // [RP-V7.40] live-stay signal: the host (socket id) I'm watching, and since when
         regBeat: null,         // [RP-V7.28] host registry heartbeat timer (20s)
         hostMeta: {},          // hostId -> { city, state, ints } from "live-meta" announcements — feeds the ✨ For You ranking
         stateSeq: 0,           // host-side live-state round counter (chunk assembly)
@@ -8173,6 +8299,23 @@
         // ✨ For You ranking: my own live first, then the on-device score
         // (followed → near → matched → remembered → hot → new-host boost)
         list = fyRankEntries(list, fyCtx());
+        // [RP-V7.40] When the server ranked the latest snapshot for my
+        // account (shared interest profile: the same one that ranks my
+        // Reels), registry lives present in the SERVER's order — my own
+        // live still leads, and announcement-only entries keep their
+        // on-device order after them. The fyRank pass above still ran,
+        // so the ⭐/✨/🔥 badges render exactly as before; only the
+        // order source changes. Guests never see ranked snapshots, so
+        // their list is untouched.
+        if (Live.regRanked && Live.regOrder && Live.regOrder.length) {
+          var pos = {};
+          Live.regOrder.forEach(function (room, i) { pos[room] = i; });
+          var mineL = list.filter(function (e) { return e.mine; });
+          var regL = list.filter(function (e) { return !e.mine && Object.prototype.hasOwnProperty.call(pos, e.room); })
+            .sort(function (a, b) { return pos[a.room] - pos[b.room]; });
+          var restL = list.filter(function (e) { return !e.mine && !Object.prototype.hasOwnProperty.call(pos, e.room); });
+          list = mineL.concat(regL, restL);
+        }
         Live.broadcastKnown = list.length > 0;
         return list;
       }
@@ -8202,6 +8345,11 @@
         if (!data || !Array.isArray(data.lives)) return;
         var now = Date.now();
         Live.regAt = now;
+        // [RP-V7.40] a snapshot the server ranked for my account carries
+        // ranked:true — remember its room order; the directory presents
+        // registry lives in that order (see liveDirectoryList).
+        Live.regRanked = !!data.ranked;
+        Live.regOrder = data.lives.map(function (lv) { return lv && lv.room; }).filter(Boolean);
         var rooms = {};
         data.lives.forEach(function (lv) {
           if (!lv || !lv.room) return;
@@ -8218,10 +8366,12 @@
             if (lv.title != null) e.title = lv.title;
             if (lv.topic) e.topic = lv.topic;
             if (lv.photo) e.photo = lv.photo;
+            if (lv.hostAccountId) e.hostAccountId = lv.hostAccountId; // [RP-V7.40]
+            e.pot = lv.pot || null; // [RP-V7.41] Plaza Pot state rides the snapshot
             e.seen = now; e.reg = true; e.regKey = lv.key || e.regKey || "";
             if (foundId !== key && lv.hostId) { Live.directory[key] = e; delete Live.directory[foundId]; }
           } else {
-            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "" };
+            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, pot: lv.pot || null }; // [RP-V7.41] pot rides along
           }
         });
         Live.regRooms = rooms;
@@ -8230,6 +8380,7 @@
           var e2 = Live.directory[id];
           if (e2 && e2.reg && !rooms[e2.room] && id !== Online.myId) delete Live.directory[id];
         });
+        if (typeof syncLivePot === "function") syncLivePot(); // [RP-V7.41] refresh the pot chip for the live I'm in
         if (typeof renderLiveNow === "function") renderLiveNow();
         if (typeof renderLiveDir === "function") renderLiveDir();
       }
@@ -8244,7 +8395,7 @@
         stopRegBeat();
         Live.regBeat = setInterval(function () {
           if (!Live.active || !Live.hostWasMe || !Online.socket) { stopRegBeat(); return; }
-          // [RP-V7.34] re-assert the full registration every tick instead of
+          // [RP-V7.39] re-assert the full registration every tick instead of
           // a bare beat: if the one Go LIVE register ever missed (gate-
           // deferred room switch, player record not ready), the live used to
           // stay invisible forever — live-register is idempotent and also
@@ -8263,8 +8414,15 @@
         var fyBadge = (!e.mine && e.forYou) ? ' <span class="lnr-fy">✨ For You</span>' : "";
         var riseBadge = (!e.mine && e.rising) ? ' <span class="lnr-rising">🔥 Rising</span>' : "";
         var pushBadge = (!e.mine && e.testPush) ? ' <span class="lnr-fy">🆕 New</span>' : "";
+        // [RP-V7.41] advertise an OPEN pot right on the card — guests
+        // see it too; 💥 when a burst target is set and the pot is
+        // at least 75% there
+        var potLine = (e.pot && e.pot.status === "open")
+          ? '<span class="lnr-pot">🪙 Pot: ' + Number(e.pot.total || 0).toLocaleString("en-US") + " charms" +
+            ((e.pot.burstAt && (e.pot.total || 0) >= Math.ceil(e.pot.burstAt * 0.75)) ? " 💥" : "") + "</span>"
+          : "";
         return '<button class="live-now-row" data-lnroom="' + escHtml(e.room) + '">' + av +
-          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + fyBadge + riseBadge + pushBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i></span>' +
+          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + fyBadge + riseBadge + pushBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i>' + potLine + '</span>' +
           '<span class="lnr-n">👁 ' + (e.n || 1) + " watching</span></button>";
       }
       /* Tap a 🔴 Live Now / lobby entry: join that host's live room. */
@@ -8385,7 +8543,7 @@
           }
           var label = document.createElement("span");
           label.className = "lt-name";
-          label.innerHTML = escHtml(liveName(id)) + (id === Live.hostId ? '<span class="lt-host">HOST</span>' : "") + (mine ? " · You" : "");
+          label.innerHTML = (id === Live.hostId ? '<span class="lv-crown">👑</span>' : "") + escHtml(liveName(id)) + (id === Live.hostId ? '<span class="lt-host">HOST</span>' : "") + (mine ? " · You" : ""); // [RP-V7.39] 👑 on the host's stage tile only — same id === Live.hostId source of truth as the HOST pill
           tile.appendChild(label);
           if (!mine) {
             var btns = document.createElement("div");
@@ -9816,6 +9974,7 @@
           html += '<button type="button" class="btn-mini" id="lvMoreHide">🚫 Mute &amp; Hide ' + escHtml(Live.hostName || "host") + '</button>';
         }
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>';
+        if (host) html += '<button type="button" class="btn-mini" id="lvMorePot">🪙 Plaza Pot' + (Live.pot && Live.pot.status === "open" ? " · " + (Live.pot.total || 0) + " charms · " + (Live.pot.entries || 0) + " in" : "") + "</button>"; // [RP-V7.41] host opens/manages the pot from the ••• tray
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreEnd">⏹ End Live</button>';
         else if (onStage) html += '<button type="button" class="btn-mini" id="lvMoreLeave">Leave the stage</button>';
         if (!host) html += '<button type="button" class="btn-mini" id="lvMoreClose">✕ Close this live</button>';
@@ -9837,6 +9996,7 @@
         wire("lvMoreReport", function () { closeSheet(); openOnlineReport(Online.players[Live.hostId] || { id: Live.hostId, name: Live.hostName || "Host" }); });
         wire("lvMoreHide", function () { closeSheet(); liveMuteHide(Live.hostId); });
         wire("lvMoreSell", function () { closeSheet(); openAuctions(); });
+        wire("lvMorePot", function () { closeSheet(); openPotSheet(); }); // [RP-V7.41]
         wire("lvMoreEnd", function () { closeSheet(); liveEndMine(); });
         wire("lvMoreLeave", function () { closeSheet(); liveLeaveStage(); });
         wire("lvMoreLike", function () { closeSheet(); sendLiveHeart(); });
@@ -9877,6 +10037,7 @@
         if (pill) pill.hidden = !Live.active;
         if (!Live.active) {
           if (chip) chip.hidden = true;
+          var potChipOff = $("livePotChip"); if (potChipOff) potChipOff.hidden = true; // [RP-V7.41]
           if (rail) rail.hidden = true;
           if (bar) bar.hidden = true;
           if (mbtn) mbtn.hidden = true;
@@ -9892,7 +10053,7 @@
         var n = Object.keys(Online.players).length + 1;
         if (chip) {
           chip.hidden = false;
-          chip.innerHTML = '<span class="lhc-av">' + hostAv + '</span><span class="lhc-meta"><b>' + escHtml(Live.hostName || "Host") + '</b><i>👁 ' + n + " watching · ❤️ " + Live.hearts + " · " + escHtml(Live.topic || "Chatting") + "</i></span>" +
+          chip.innerHTML = '<span class="lhc-av">' + hostAv + '</span><span class="lhc-meta"><span class="lhc-nameline">' + (Live.hostId ? '<span class="lv-crown">👑</span>' : "") + '<b>' + escHtml(Live.hostName || "Host") + '</b></span><i>👁 ' + n + " watching · ❤️ " + Live.hearts + " · " + escHtml(Live.topic || "Chatting") + "</i></span>" + // [RP-V7.39] 👑 crowns the host in the top bar — keyed off Live.hostId; the <b> stays the plain name (chipName() reads it)
             (Live.hostId && Live.hostId !== Online.myId ? followBtnHTML(Live.hostName || "Host", "lhc") : "");
         }
         if (titleEl) titleEl.textContent = Live.title ? "\u201C" + Live.title + "\u201D" : "";
@@ -9910,6 +10071,7 @@
         if (rail) rail.hidden = false;
         if (bar) bar.hidden = false;
         if (mbtn) mbtn.hidden = false;
+        if (typeof syncLivePot === "function") syncLivePot(); // [RP-V7.41] keep the pot chip in step with the live
         syncRailJoinBtn(); // [RP-V7.28]
       }
       function openLiveHostTools() {
@@ -10276,7 +10438,7 @@
         var gift = $("lvRailGift");
         if (gift) gift.addEventListener("click", function () {
           if (!Live.active) return;
-          if (Live.hostId) openGiftSheet(Live.hostId, Live.hostName); // [RP-V7.34] hosts get the catalog too — in their own live it opens in preview mode (see openGiftSheet); earnings stays one tap away inside the sheet
+          if (Live.hostId) openGiftSheet(Live.hostId, Live.hostName); // [RP-V7.39] hosts get the catalog too — in their own live it opens in preview mode (see openGiftSheet); earnings stays one tap away inside the sheet
         });
         var viewers = $("lvRailViewers");
         if (viewers) viewers.addEventListener("click", openLiveHostTools);
@@ -10299,6 +10461,8 @@
         });
         var fsClose = $("liveFsClose");
         if (fsClose) fsClose.addEventListener("click", liveFsCloseTap);
+        var potChip = $("livePotChip"); // [RP-V7.41] the Plaza Pot chip opens the pot sheet
+        if (potChip) potChip.addEventListener("click", function () { openPotSheet(); });
         var moreBtn = $("lvMoreBtn");
         if (moreBtn) moreBtn.addEventListener("click", function () {
           // [RP-V7.24] in the full-screen live, ••• opens the tools
@@ -10329,6 +10493,574 @@
       })();
 
       /* ---------- signal bus handling ---------- */
+      /* [RP-V7.40] Live-stay signal: how long I stay in a host's live
+         feeds the shared server-side interest profile (the same one
+         ranking Reels): a stay of 60s+ counts for the host, a bounce
+         under 10s counts against — the server judges the numbers.
+         Emitted when the watched host changes or the live is left. */
+      function liveAcctToken() {
+        try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a.token : ""; } catch (e) { return ""; }
+      }
+      function liveStayFlush() {
+        var hid = Live.stayHostId, since = Live.staySince;
+        Live.stayHostId = null; Live.staySince = 0;
+        if (!hid || !since || hid === Online.myId) return;
+        var tok = liveAcctToken(); if (!tok) return;
+        var e = Live.directory[hid] || {};
+        var payload = { watchedMs: Math.max(0, Date.now() - since) };
+        if (e.hostAccountId) payload.hostAccountId = e.hostAccountId;
+        if (e.name) payload.hostName = e.name;
+        if (!payload.hostAccountId && !payload.hostName) return;
+        try {
+          fetch("/api/live/signal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok },
+            body: JSON.stringify(payload),
+            keepalive: true
+          }).catch(function () { });
+        } catch (err) { }
+      }
+      function liveStayTouch() {
+        if (!Live.active || !Live.hostId || Live.hostId === Online.myId || Live.hostWasMe) return;
+        if (Live.stayHostId === Live.hostId) return;
+        liveStayFlush();
+        Live.stayHostId = Live.hostId; Live.staySince = Date.now();
+      }
+      try { window.addEventListener("pagehide", function () { liveStayFlush(); }); } catch (e) { }
+
+      /* ---------- [RP-V7.41] Plaza Pot ----------
+         A host-seeded charm pot inside a live. Entry is FREE (a tap);
+         the pot grows by a platform match on gifts; 5 lucky entrants
+         split it evenly at the draw. All money truth lives server-side
+         (pots.json + the money ledger) — this module only renders the
+         state the server hands it (snapshot `pot`, `pot-update`,
+         `pot-drawn`) and calls the /api/pot/* routes with the account
+         token, exactly like the live-stay signal above. */
+      function liveAcctId() {
+        try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.userId) || ""; } catch (e) { return ""; }
+      }
+      function potCall(path, body) {
+        var tok = liveAcctToken();
+        var headers = { "Content-Type": "application/json" };
+        if (tok) headers["Authorization"] = "Bearer " + tok;
+        return fetch(path, { method: "POST", headers: headers, body: JSON.stringify(body || {}) })
+          .then(function (r) { return r.text().then(function (t) { var j = null; try { j = JSON.parse(t); } catch (e) { } return { status: r.status, json: j }; }); })
+          .catch(function () { return { status: 0, json: null }; });
+      }
+      function potStateFetch(key) {
+        var tok = liveAcctToken();
+        var headers = {};
+        if (tok) headers["Authorization"] = "Bearer " + tok;
+        return fetch("/api/pot/state?live=" + encodeURIComponent(key), { headers: headers })
+          .then(function (r) { return r.json(); })
+          .catch(function () { return null; });
+      }
+      function livePotRoom() { return Live.roomId || Online.room || ""; }
+      function livePotEntry() {
+        var room = livePotRoom();
+        if (!room || typeof liveDirectoryEntryForRoom !== "function") return null;
+        return liveDirectoryEntryForRoom(room);
+      }
+      function livePotKey() {
+        var e = livePotEntry();
+        if (e && e.regKey) return e.regKey;
+        if (iAmHost()) return onlineDeviceKey();
+        return "";
+      }
+      function syncLivePot() {
+        var e = livePotEntry();
+        Live.pot = e ? (e.pot || null) : null;
+        renderLivePotChip();
+      }
+      function potFmt(n) { return Number(n || 0).toLocaleString("en-US"); }
+      /* The pot SWELLS as it fills: scale maps the GROWTH from the
+         seed (scale 1.0 at open) to the burst target (1.6 at 100%);
+         with no target it maps against 2x seed — the biggest a pot
+         can get (seed + full platform match). fill is that same 0..1
+         growth ratio, used for the >=90% strain wobble. */
+      function potSwell(total, seed, burstAt) {
+        total = Number(total) || 0;
+        seed = Number(seed) || 0;
+        var target = burstAt ? Number(burstAt) : 2 * seed;
+        if (!(seed > 0) || !(target > seed)) return { scale: 1, fill: 0 };
+        var fill = (total - seed) / (target - seed);
+        fill = Math.max(0, Math.min(1, fill));
+        return { scale: 1 + 0.6 * fill, fill: fill };
+      }
+      /* [RP-V7.41] SEE the money go in: when a gift grows the pot, the
+         chip floats a "+{match} 🪙" tick while the total COUNTS UP to
+         the new number — the increase is visible as it happens.
+         Detection lives here, the one render choke point every state
+         path (snapshot, pot-update, overlay render) flows through:
+         a rise in `match` since the last render is a gift landing. */
+      var potAnim = null; // { value, raf } while the count-up runs
+      var potSeenRoom = null, potSeenMatch = null, potSeenTotal = null;
+      function potFloatTick(amount) {
+        var row = document.querySelector(".lv-potrow");
+        var chip = $("livePotChip");
+        if (!row || !chip || chip.hidden || !(amount > 0)) return;
+        var el = document.createElement("span");
+        el.className = "lv-potfloat";
+        el.textContent = "+" + amount + " 🪙";
+        el.style.left = (6 + Math.floor(Math.random() * 34)) + "px";
+        row.appendChild(el);
+        setTimeout(function () { try { el.remove(); } catch (e) { } }, 1500);
+      }
+      function startPotCountUp(from, to) {
+        if (!(to > from)) return;
+        if (potAnim && potAnim.raf) cancelAnimationFrame(potAnim.raf);
+        var t0 = performance.now(), dur = 650;
+        potAnim = { value: from, raf: 0 };
+        function step(now) {
+          if (!potAnim) return;
+          var k = Math.min(1, (now - t0) / dur);
+          var e = 1 - Math.pow(1 - k, 3); // easeOutCubic
+          potAnim.value = Math.round(from + (to - from) * e);
+          renderLivePotChip();
+          if (k < 1) potAnim.raf = requestAnimationFrame(step);
+          else { potAnim = null; renderLivePotChip(); }
+        }
+        potAnim.raf = requestAnimationFrame(step);
+      }
+      function potShownTotal(p) { return potAnim ? potAnim.value : (p.total || 0); }
+      function renderLivePotChip() {
+        var chip = $("livePotChip");
+        if (!chip) return;
+        var inner = $("livePotInner");
+        var p = Live.pot;
+        function setText(t) { if (inner) inner.textContent = t; else chip.textContent = t; }
+        if (!Live.active || !p) { chip.hidden = true; chip.classList.remove("lv-potstrain"); potSeenRoom = null; potSeenMatch = null; potSeenTotal = null; return; }
+        if (p.status === "open") {
+          // gift-growth detection: match rose since the last render
+          var room = livePotRoom();
+          if (typeof p.match === "number" && potSeenRoom === room && potSeenMatch != null && p.match > potSeenMatch && !potAnim) {
+            potFloatTick(p.match - potSeenMatch);
+            startPotCountUp(potSeenTotal != null ? potSeenTotal : p.total, p.total);
+          }
+          potSeenRoom = room; potSeenMatch = (typeof p.match === "number") ? p.match : potSeenMatch; potSeenTotal = p.total;
+          var shown = potShownTotal(p);
+          setText(p.burstAt
+            ? "🪙 Plaza Pot · " + potFmt(shown) + " / " + potFmt(p.burstAt) + " 💥 · " + (p.entries || 0) + " in"
+            : "🪙 Plaza Pot · " + shown + " charms · " + (p.entries || 0) + " in");
+          var sw = potSwell(shown, p.seed, p.burstAt);
+          if (inner) inner.style.transform = "scale(" + sw.scale.toFixed(3) + ")";
+          chip.classList.toggle("lv-potstrain", sw.fill >= 0.9); // straining at the top end
+          chip.hidden = false;
+        } else if (p.status === "drawn" && p.drawnAt && Date.now() - Date.parse(p.drawnAt) < 90000) {
+          setText("🪙 Plaza Pot drawn — see the winners!");
+          if (inner) inner.style.transform = "scale(1)";
+          chip.classList.remove("lv-potstrain");
+          chip.hidden = false;
+        } else { chip.hidden = true; chip.classList.remove("lv-potstrain"); }
+      }
+      function potSheetShowing() { return !!$("potSheetBody"); }
+      function onPotUpdate(data) {
+        if (!data || data.room !== livePotRoom()) return;
+        var e = livePotEntry();
+        if (data.pot && (data.pot.status === "open" || data.pot.status === "drawn")) {
+          Live.pot = data.pot;
+          if (e) e.pot = data.pot;
+        } else {
+          Live.pot = null; // cancelled — the pot is gone
+          if (e) e.pot = null;
+        }
+        renderLivePotChip();
+        if (potSheetShowing()) renderPotSheet();
+      }
+      function onPotDrawn(data) {
+        if (!data || data.room !== livePotRoom()) return;
+        if (data.pot) {
+          Live.pot = data.pot;
+          var e = livePotEntry();
+          if (e) e.pot = data.pot;
+        }
+        renderLivePotChip();
+        if (potSheetShowing()) renderPotSheet();
+        // [RP-V7.41] A BURST draw gets the full choreography (rumble →
+        // pop → coin rain, winners revealing in the rain). A host draw
+        // or a live-end settle keeps the plain sequential reveal.
+        if (data.reason === "burst") potBurstShow(data);
+        else potCelebrate(data);
+      }
+      /* Winner reveal: one by one, sparkles (gift-show rules — never
+         hearts), the celebrate/win sounds, and a line in the live
+         comments for each name as it lands. */
+      function potCelebrate(data) {
+        if (!Live.active) return;
+        var now = Date.now();
+        if (now - (Live.potFxAt || 0) < 3000) return; // one celebration per draw
+        Live.potFxAt = now;
+        var winners = Array.isArray(data.winners) ? data.winners : [];
+        var burst = data.reason === "burst";
+        pushLiveComment("", burst
+          ? "💥 THE PLAZA POT BURST — " + (data.total || 0) + " charms split by " + winners.length + " lucky winner" + (winners.length === 1 ? "" : "s") + "!"
+          : "🪙 The Plaza Pot was drawn — " + (data.total || 0) + " charms split by " + winners.length + " lucky winner" + (winners.length === 1 ? "" : "s") + "!", "sys");
+        var wrap = document.querySelector(".live-stagewrap");
+        var myId = liveAcctId();
+        function overlay(big, sub, ms, done) {
+          if (!wrap || !Live.active) { if (done) done(); return; }
+          var el = document.createElement("div");
+          el.className = "lv-potwin";
+          el.innerHTML = '<div class="pw-big">' + big + '</div>' + (sub ? '<div class="pw-sub">' + sub + "</div>" : "");
+          wrap.appendChild(el);
+          try { if (window.Juice && Juice.sparkles) Juice.sparkles(el, 22); } catch (e) { }
+          setTimeout(function () { try { el.remove(); } catch (e) { } if (done) done(); }, ms);
+        }
+        overlay(burst ? "💥 POT BURST!" : "🪙 THE POT IS DRAWN!", (data.total || 0) + " charms · " + winners.length + " winner" + (winners.length === 1 ? "" : "s"), 1500, function () {
+          var i = 0;
+          (function next() {
+            if (i >= winners.length) return;
+            var w = winners[i++];
+            var mine = myId && w.id === myId;
+            pushLiveComment("", "🏆 " + (w.name || "Winner") + " won " + (w.amount || 0) + " charms from the Plaza Pot!", "sys");
+            try { AudioFX.celebrate(); } catch (e) { }
+            overlay("🏆 " + escHtml(w.name || "Winner"), "won " + (w.amount || 0) + " charms!" + (mine ? " — that's YOU! 🎉" : ""), 1600, function () {
+              if (mine) {
+                try { AudioFX.win(); } catch (e) { }
+                toast("🏆 You won " + (w.amount || 0) + " charms in the Plaza Pot!", 5200);
+              }
+              setTimeout(next, 120);
+            });
+          })();
+        });
+      }
+      /* ---------- [RP-V7.41] THE BURST SHOW ----------
+         One timed sequence keyed to a burst draw (reason "burst"
+         only — host draws keep the plain reveal):
+           0.0s  RUMBLE: the live screen shakes, small at first and
+                 escalating for ~1.6s, while the pot swells to max
+                 and wobbles hard.
+           1.6s  POP: the pot visual bursts away, the soft gift pop
+                 sounds (never coin() — silenced app-wide), the coin
+                 eruption + rain fires, and the winners start
+                 revealing in the rain (potCelebrate).
+           ~4.6s classes cleaned, chip restored to its drawn state. */
+      function potBurstShow(data) {
+        var panel = document.getElementById("livePanel");
+        var chip = $("livePotChip");
+        var inner = $("livePotInner");
+        try {
+          if (panel) { panel.classList.remove("lv-rumble"); void panel.offsetWidth; panel.classList.add("lv-rumble"); }
+          if (chip) chip.classList.add("lv-potwobble");
+          if (inner) inner.style.transform = "scale(1.6)"; // swells to max as it rumbles
+        } catch (e) { }
+        setTimeout(function () {
+          try {
+            if (chip) chip.classList.remove("lv-potwobble");
+            if (inner) inner.classList.add("lv-potpop"); // the pot bursts away
+          } catch (e) { }
+          try { AudioFX.gift(); } catch (e) { } // the soft gift pop + chime
+          potBurstRain();
+          potCelebrate(data); // winners reveal during the rain
+          setTimeout(function () {
+            try {
+              if (panel) panel.classList.remove("lv-rumble");
+              if (inner) inner.classList.remove("lv-potpop");
+            } catch (e) { }
+            renderLivePotChip(); // restore the drawn-state chip
+          }, 3050);
+        }, 1600);
+      }
+      /* The coin rain: REAL-looking gold coins, no emoji stickers, no
+         hearts. Sprites are generated at runtime on offscreen
+         canvases — radial-gradient face (light from upper-left),
+         darker rim, inner ring, an embossed star (shadow pass +
+         face pass). Each coin erupts from the pot chip with its own
+         upward velocity, arcs under gravity, spins like a flipping
+         coin (scaleX = cos(phase); a glint band sweeps across as it
+         turns, tracking sin(phase)), drifts, then either falls past
+         the bottom or lands with ONE soft bounce and settles before
+         fading. Three depth layers (far = small/dim/slow, near =
+         big/sharp/fast) give the rain volume. ~90 particles max,
+         transform/opacity-style canvas drawing only,
+         pointer-events: none, cleaned up after ~3.5s. */
+      function potBurstRain(originEl) { // [RP-V7.42] optional eruption origin — the Daily Pot show passes its Home-card pot; the live burst passes nothing and uses the live pot chip, exactly as before
+        var canvas = document.createElement("canvas");
+        canvas.className = "lv-burstcanvas";
+        canvas.setAttribute("aria-hidden", "true");
+        document.body.appendChild(canvas);
+        var cleaned = false;
+        function cleanup() { if (cleaned) return; cleaned = true; try { canvas.remove(); } catch (e) { } }
+        var ctx = null;
+        try { ctx = canvas.getContext && canvas.getContext("2d"); } catch (e) { }
+        if (!ctx) { setTimeout(cleanup, 3500); return; }
+        var W = window.innerWidth || 360, H = window.innerHeight || 640;
+        var dpr = Math.min(2, window.devicePixelRatio || 1);
+        canvas.width = Math.round(W * dpr);
+        canvas.height = Math.round(H * dpr);
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
+        ctx.scale(dpr, dpr);
+        // eruption origin: the pot chip's spot on screen
+        var ox = W / 2, oy = 110;
+        var chipEl = originEl || $("livePotChip");
+        if (chipEl && chipEl.getBoundingClientRect) {
+          var r0 = chipEl.getBoundingClientRect();
+          if (r0 && (r0.width || r0.height)) { ox = r0.left + r0.width / 2; oy = r0.top + r0.height / 2; }
+        }
+        function starPath(g, cx, cy, rO, rI) {
+          g.beginPath();
+          for (var i = 0; i < 10; i++) {
+            var rad = i % 2 === 0 ? rO : rI;
+            var a = -Math.PI / 2 + i * Math.PI / 5;
+            var x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad;
+            if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+          }
+          g.closePath();
+        }
+        function coinSprite(d) {
+          var c = document.createElement("canvas");
+          c.width = d; c.height = d;
+          var g = c.getContext("2d");
+          if (!g) return c;
+          var r = d / 2;
+          var grad = g.createRadialGradient(r - r * 0.35, r - r * 0.4, r * 0.1, r, r, r);
+          grad.addColorStop(0, "#ffeda6");
+          grad.addColorStop(0.45, "#ffd166");
+          grad.addColorStop(0.8, "#eda41f");
+          grad.addColorStop(1, "#b97a0e");
+          g.beginPath(); g.arc(r, r, r - 1, 0, Math.PI * 2); g.fillStyle = grad; g.fill();
+          g.lineWidth = Math.max(2, d * 0.07); g.strokeStyle = "#8a5a06"; // darker rim
+          g.beginPath(); g.arc(r, r, r - 1 - g.lineWidth / 2, 0, Math.PI * 2); g.stroke();
+          g.lineWidth = Math.max(1, d * 0.03); g.strokeStyle = "rgba(146,94,10,.8)"; // inner ring
+          g.beginPath(); g.arc(r, r, r * 0.7, 0, Math.PI * 2); g.stroke();
+          starPath(g, r, r + Math.max(1, d * 0.03), r * 0.42, r * 0.18); // embossed star: shadow pass
+          g.fillStyle = "rgba(120,72,4,.55)"; g.fill();
+          starPath(g, r, r - Math.max(1, d * 0.03), r * 0.42, r * 0.18); // ...and lit face pass
+          g.fillStyle = "#d18f10"; g.fill();
+          return c;
+        }
+        var sprites = [coinSprite(22), coinSprite(32), coinSprite(46)];
+        var RADII = [11, 16, 23];
+        var LAYERS = [
+          { n: 26, spr: 0, alpha: 0.6, sp: 0.82 },  // far: smaller, dimmer, slower
+          { n: 32, spr: 1, alpha: 0.85, sp: 1 },    // mid
+          { n: 32, spr: 2, alpha: 1, sp: 1.15 },    // near: bigger, sharp, faster
+        ];
+        var parts = [];
+        LAYERS.forEach(function (L) {
+          for (var i = 0; i < L.n; i++) {
+            var rad = RADII[L.spr];
+            parts.push({
+              spr: L.spr, alpha: L.alpha, r: rad,
+              x: ox, y: oy,
+              vx: (Math.random() * 2 - 1) * 300 * L.sp,
+              vy: -(560 + Math.random() * 460) * L.sp, // erupt UP first
+              phase: Math.random() * Math.PI * 2,
+              spin: (5 + Math.random() * 7) * (Math.random() < 0.5 ? -1 : 1),
+              floorY: Math.random() < 0.55 ? Infinity : H - rad - Math.random() * 30,
+              bounced: false, settled: false, settleT: 0, dead: false,
+            });
+          }
+        });
+        var DUR = 3500, GRAV = 1500, start = null, last = 0;
+        function frame(now) {
+          if (cleaned) return;
+          if (!start) { start = now; last = now; }
+          var t = (now - start) / 1000;
+          var dt = Math.min(0.033, Math.max(0, (now - last) / 1000));
+          last = now;
+          ctx.clearRect(0, 0, W, H);
+          var fade = t > DUR / 1000 - 0.6 ? Math.max(0, (DUR / 1000 - t) / 0.6) : 1;
+          var alive = false;
+          for (var i = 0; i < parts.length; i++) {
+            var p = parts[i];
+            if (p.dead) continue;
+            if (!p.settled) {
+              p.vy += GRAV * dt;
+              p.x += p.vx * dt;
+              p.y += p.vy * dt;
+              p.phase += p.spin * dt;
+              if (p.vy > 0 && p.y >= p.floorY) {
+                if (!p.bounced && p.vy > 240) { // ONE soft bounce, then settle
+                  p.y = p.floorY; p.vy = -p.vy * 0.34; p.vx *= 0.72; p.bounced = true;
+                } else { p.y = p.floorY; p.settled = true; p.settleT = t; }
+              }
+              if (p.floorY === Infinity && p.y - p.r > H) { p.dead = true; continue; }
+            }
+            var a = p.alpha * fade;
+            if (p.settled) {
+              a *= Math.max(0, 1 - (t - p.settleT) / 0.8);
+              if (a <= 0.02) { p.dead = true; continue; }
+            }
+            alive = true;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.scale(Math.cos(p.phase), 1); // the flip
+            ctx.globalAlpha = a;
+            ctx.drawImage(sprites[p.spr], -p.r, -p.r, p.r * 2, p.r * 2);
+            // glint: a soft white band that sweeps as the coin turns
+            ctx.beginPath(); ctx.arc(0, 0, p.r * 0.97, 0, Math.PI * 2); ctx.clip();
+            var gx = Math.sin(p.phase) * p.r * 1.5;
+            var lg = ctx.createLinearGradient(gx - p.r * 0.4, 0, gx + p.r * 0.4, 0);
+            lg.addColorStop(0, "rgba(255,255,255,0)");
+            lg.addColorStop(0.5, "rgba(255,255,255,.5)");
+            lg.addColorStop(1, "rgba(255,255,255,0)");
+            ctx.fillStyle = lg;
+            ctx.fillRect(-p.r, -p.r, p.r * 2, p.r * 2);
+            ctx.restore();
+          }
+          if (t * 1000 < DUR && alive) requestAnimationFrame(frame);
+          else cleanup();
+        }
+        requestAnimationFrame(frame);
+        setTimeout(cleanup, DUR + 500); // belt & braces
+      }
+      var POT_RULES = "Free to enter. The host puts up the pot; gifts during the live grow it. 5 winners split it evenly when the host draws.";
+      function openPotSheet() {
+        if (!Live.active) { toast("Nobody is live right now."); return; }
+        openSheet('<button class="close-x" data-act="close" aria-label="Close">✕</button><div class="game-box" id="potSheetBody"><h3>🪙 Plaza Pot</h3><p class="pot-sub">Loading the pot…</p></div>');
+        wireLiveSheetClose();
+        renderPotSheet();
+      }
+      function renderPotSheet() {
+        var body0 = $("potSheetBody");
+        if (!body0) return;
+        var key = livePotKey();
+        potStateFetch(key).then(function (r) {
+          var body = $("potSheetBody");
+          if (!body) return; // sheet moved on
+          var st = (r && r.ok) ? r.pot : null;
+          var host = iAmHost();
+          var signedIn = !!liveAcctToken();
+          var html = "<h3>🪙 Plaza Pot</h3>";
+          if (!st) {
+            html += '<p class="pot-sub">No pot is open in this live yet.</p>';
+            if (host) {
+              html += '<div class="field"><label for="potSeedAmt">Seed the pot with your charms (min 100)</label>' +
+                '<input class="online-input-full" id="potSeedAmt" type="number" min="100" step="10" inputmode="numeric" placeholder="100" value="100"/></div>' +
+                '<div class="pot-presets">' +
+                [100, 250, 500, 1000].map(function (v) { return '<button type="button" class="btn-mini" data-potpreset="' + v + '">' + v + "</button>"; }).join("") +
+                "</div>" +
+                '<div class="field"><label for="potBurstAmt">💥 Burst target (optional)</label>' +
+                '<input class="online-input-full" id="potBurstAmt" type="number" min="0" step="10" inputmode="numeric" placeholder="e.g. 400"/></div>' +
+                '<p class="age-note">Set a target and the pot BURSTS — pays out on the spot — the moment gifts grow it there. The target must be more than your seed and at most 2× your seed (gifts can grow the pot by up to your seed again in platform match).</p>' +
+                '<button type="button" class="btn-primary" id="potOpenBtn" style="width:100%; padding:13px;">🪙 Open the pot</button>';
+            } else {
+              html += '<p class="age-note">When the host opens a pot, joining is free — one tap and you\'re in.</p>';
+            }
+          } else if (st.status === "open") {
+            html += '<div class="pot-total">🪙 ' + potFmt(st.total) + " charms</div>" +
+              '<div class="pot-winrow"><span>Seed (host)</span><span>' + potFmt(st.seed) + " charms</span></div>" +
+              '<div class="pot-winrow"><span>Gift growth so far</span><span>+' + potFmt(st.match) + " charms</span></div>" +
+              '<div class="pot-winrow"><span><b>Total</b></span><span><b>' + potFmt(st.total) + " charms</b></span></div>" +
+              '<p class="pot-sub">' + st.entries + " in the pot</p>";
+            if (st.burstAt) {
+              html += '<p class="pot-sub">💥 Bursts at ' + potFmt(st.burstAt) + " charms" +
+                (st.total >= st.burstAt ? " — the pot is FULL! It bursts the moment the next member joins free." : " — " + potFmt(st.total) + " / " + potFmt(st.burstAt) + " there") + "</p>";
+            }
+            if (st.isHost) {
+              html += '<p class="pot-sub">You\'re hosting this pot — you can\'t enter your own pot.</p>' +
+                '<div class="field"><label for="potTopAmt">Top up the seed (your charms)</label>' +
+                '<input class="online-input-full" id="potTopAmt" type="number" min="1" step="10" inputmode="numeric" placeholder="100"/></div>' +
+                '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
+                '<button type="button" class="btn-mini" id="potTopBtn">➕ Top up</button>' +
+                '<button type="button" class="btn-primary" id="potDrawBtn" style="width:auto; padding:10px 18px;">🎲 Draw winners (' + st.entries + " in)</button>" +
+                '<button type="button" class="btn-mini" id="potCancelBtn">Cancel pot</button></div>';
+            } else if (!signedIn) {
+              html += '<p class="pot-sub">Sign in to join the pot — it\'s free.</p>';
+            } else if (st.joined) {
+              html += '<p class="pot-sub" style="color:#7ee787; font-weight:900;">You\'re in ✓ — good luck!</p>';
+            } else {
+              html += '<button type="button" class="btn-primary" id="potJoinBtn" style="width:100%; padding:14px;">🪙 JOIN POT — free</button>';
+            }
+          } else if (st.status === "drawn") {
+            html += '<div class="pot-total">🪙 ' + potFmt(st.total) + " charms — " + (st.reason === "burst" ? "BURST! 💥" : "drawn!") + "</div>" +
+              '<div class="pot-winrow"><span>Seed (host)</span><span>' + potFmt(st.seed) + " charms</span></div>" +
+              '<div class="pot-winrow"><span>Gift growth</span><span>+' + potFmt(st.match) + " charms</span></div>" +
+              '<div class="pot-winrow"><span><b>Total</b></span><span><b>' + potFmt(st.total) + " charms</b></span></div>" +
+              '<p class="pot-sub">The pot has been drawn. Winners:</p>' +
+              (st.winners || []).map(function (w) {
+                return '<div class="pot-winrow"><span>🏆 ' + escHtml(w.name || "Winner") + "</span><span>" + (w.amount || 0) + " charms</span></div>";
+              }).join("");
+            if (host) html += '<p class="age-note">Want another round? Close this and open a fresh pot from the ••• tools.</p>';
+          } else {
+            html += '<p class="pot-sub">This pot was cancelled and the seed went back to the host.</p>';
+          }
+          html += '<p class="age-note" style="margin-top:12px;">' + POT_RULES + "</p>" +
+            '<p class="pot-err" id="potErr"></p>' +
+            '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" data-act="close2">Done</button></div>';
+          body.innerHTML = html;
+          wireLiveSheetClose();
+          function err(msg) { var e2 = $("potErr"); if (e2) e2.textContent = msg || ""; }
+          function busy(btn, on) { if (btn) { btn.disabled = !!on; btn.style.opacity = on ? ".55" : ""; } }
+          body.querySelectorAll("[data-potpreset]").forEach(function (b) {
+            b.addEventListener("click", function () {
+              var inp = $("potSeedAmt");
+              if (inp) inp.value = b.getAttribute("data-potpreset");
+              body.querySelectorAll("[data-potpreset]").forEach(function (x) { x.classList.remove("on"); });
+              b.classList.add("on");
+            });
+          });
+          var openBtn = $("potOpenBtn");
+          if (openBtn) openBtn.addEventListener("click", function () {
+            var amt = Math.floor(Number(($("potSeedAmt") || {}).value) || 0);
+            if (!(amt >= 100)) { err("Seed at least 100 charms."); return; }
+            var payload = { live: key, seed: amt };
+            var burstRaw = String((($("potBurstAmt") || {}).value) || "").trim();
+            if (burstRaw !== "") {
+              var bv = Math.floor(Number(burstRaw) || 0);
+              if (!(bv > amt)) { err("Burst target must be more than your seed (" + amt + ")."); return; }
+              if (bv > 2 * amt) { err("Burst target can be at most 2× your seed (" + (2 * amt) + ")."); return; }
+              payload.burstAt = bv;
+            }
+            busy(openBtn, true);
+            potCall("/api/pot/open", payload).then(function (rr) {
+              busy(openBtn, false);
+              if (rr.json && rr.json.ok) {
+                Live.pot = rr.json.pot; renderLivePotChip();
+                toast("🪙 Plaza Pot is OPEN — " + amt + " charms! Everyone in the live can join free." + (payload.burstAt ? " 💥 Bursts at " + payload.burstAt + "!" : ""));
+                pushLiveComment("", "🪙 " + (Live.hostName || "The host") + " opened a Plaza Pot — " + amt + " charms! Tap the pot chip to join FREE.", "sys");
+                renderPotSheet();
+              } else err((rr.json && rr.json.error) || "Couldn't open the pot.");
+            });
+          });
+          var joinBtn = $("potJoinBtn");
+          if (joinBtn) joinBtn.addEventListener("click", function () {
+            busy(joinBtn, true);
+            potCall("/api/pot/join", { live: key }).then(function (rr) {
+              busy(joinBtn, false);
+              if (rr.json && rr.json.ok) {
+                Live.pot = rr.json.pot; renderLivePotChip();
+                toast("🪙 You're in the pot — good luck! 🍀");
+                renderPotSheet();
+              } else err((rr.json && rr.json.error) || "Couldn't join the pot.");
+            });
+          });
+          var topBtn = $("potTopBtn");
+          if (topBtn) topBtn.addEventListener("click", function () {
+            var amt = Math.floor(Number(($("potTopAmt") || {}).value) || 0);
+            if (!(amt >= 1)) { err("Enter a top-up amount."); return; }
+            busy(topBtn, true);
+            potCall("/api/pot/topup", { live: key, amount: amt }).then(function (rr) {
+              busy(topBtn, false);
+              if (rr.json && rr.json.ok) { Live.pot = rr.json.pot; renderLivePotChip(); toast("🪙 Pot topped up — now " + rr.json.pot.total + " charms!"); renderPotSheet(); }
+              else err((rr.json && rr.json.error) || "Couldn't top up the pot.");
+            });
+          });
+          var drawBtn = $("potDrawBtn");
+          if (drawBtn) drawBtn.addEventListener("click", function () {
+            busy(drawBtn, true);
+            potCall("/api/pot/draw", { live: key }).then(function (rr) {
+              busy(drawBtn, false);
+              if (rr.json && rr.json.ok) { Live.pot = rr.json.pot; renderLivePotChip(); renderPotSheet(); }
+              else err((rr.json && rr.json.error) || "Couldn't draw the pot.");
+            });
+          });
+          var cancelBtn = $("potCancelBtn");
+          if (cancelBtn) cancelBtn.addEventListener("click", function () {
+            busy(cancelBtn, true);
+            potCall("/api/pot/cancel", { live: key }).then(function (rr) {
+              busy(cancelBtn, false);
+              if (rr.json && rr.json.ok) {
+                Live.pot = null; renderLivePotChip();
+                toast("🪙 Pot cancelled — your seed went back to your balance.");
+                closeSheet();
+              } else err((rr.json && rr.json.error) || "Couldn't cancel the pot.");
+            });
+          });
+        });
+      }
       function maybeSendWatch() {
         if (!Live.active || iAmOnStage()) return;
         var key = Live.hostId + ":" + Live.stage.join(",");
@@ -10371,7 +11103,7 @@
         if (topic) Live.topic = topic;
         Live.stage = newStage;
         var prevDir = Live.directory[host];
-        Live.directory[host] = { room: Online.room, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: (Online.players[host] && Online.players[host].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), er: (typeof er === "number" ? er : (prevDir && prevDir.er) || 0), erAt: (typeof er === "number" ? Date.now() : (prevDir && prevDir.erAt) || 0) };
+        Live.directory[host] = { room: Online.room, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: (Online.players[host] && Online.players[host].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), er: (typeof er === "number" ? er : (prevDir && prevDir.er) || 0), erAt: (typeof er === "number" ? Date.now() : (prevDir && prevDir.erAt) || 0), hostAccountId: (prevDir && prevDir.hostAccountId) || null, reg: !!(prevDir && prevDir.reg), regKey: (prevDir && prevDir.regKey) || "" };
         pruneDirRoom(Online.room, host); // [RP-V7.24]
         clearTimeout(Live.staleTimer); clearTimeout(Live.hostGraceTimer); Live.hostGraceTimer = null; // [RP-V7.24] host is demonstrably back
         oldStage.forEach(function (id) { if (id !== Online.myId && newStage.indexOf(id) < 0) closeLivePeer(id); });
@@ -10380,6 +11112,7 @@
         if (rosterChanged) renderLivePanel();
         else { updateLiveCounts(); renderLiveControls(); renderLiveRequests(); }
         maybeSendWatch();
+        liveStayTouch(); // [RP-V7.40] start/refresh the stay clock for this host
         liveSyncPeers();
       }
       function liveProto(o, fromId, fromName) {
@@ -10402,7 +11135,7 @@
               // a personal live starting in another room: file it in the
               // directory so 🔴 Live Now (and the lobby list) can show it
               if (isTeen()) return;
-              Live.directory[fromId] = { room: o.room, name: fromName || liveName(fromId), title: o.title || "", topic: o.topic || "Chatting", photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: 1, seen: Date.now() };
+              Live.directory[fromId] = { room: o.room, name: fromName || liveName(fromId), title: o.title || "", topic: o.topic || "Chatting", photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, reg: !!(Live.directory[fromId] && Live.directory[fromId].reg), regKey: (Live.directory[fromId] && Live.directory[fromId].regKey) || "" };
               pruneDirRoom(o.room, fromId); // [RP-V7.24]
               // fallback location: they announced from the room I'm in —
               // if that's a state/city room, they were just partying near
@@ -10422,10 +11155,11 @@
             Live.title = o.title || ""; Live.topic = o.topic || "Chatting";
             Live.stage = [fromId]; Live.hearts = 0;
             EngLog[fromId] = []; // fresh broadcast: clean engagement log
-            Live.directory[fromId] = { room: Online.room, name: Live.hostName, title: Live.title, topic: Live.topic, photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now() };
+            Live.directory[fromId] = { room: Online.room, name: Live.hostName, title: Live.title, topic: Live.topic, photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null };
             addChatSystem("🔴 " + Live.hostName + " just went LIVE!");
             renderLivePanel();
             maybeSendWatch();
+            liveStayTouch(); // [RP-V7.40]
             liveSyncPeers();
             break;
           }
@@ -10656,6 +11390,7 @@
         updateLivePanel();
       }
       function liveTeardown(silent) {
+        liveStayFlush(); // [RP-V7.40] bank the stay with the host I'm leaving, before the state clears
         liveFsExit(); // broadcast over (or left): leave full screen, restore the normal layout
         if (heartFlushTimer) { clearTimeout(heartFlushTimer); heartFlushTimer = null; }
         heartPending = 0;
@@ -11287,6 +12022,201 @@
          script that initialize further down (e.g. the proto-bus state),
          so they must wait for the full parse — the old flow only ever
          rendered after a tap, when everything was already up. */
+      /* ---------- [RP-V7.42] Daily Pot ----------
+         One whole-Plaza pot on the Home page: the server seeds it
+         every morning (1,000 charms), EVERY gift on the Plaza grows
+         it by a 2% platform match, and it bursts at 9 PM ET with 5
+         winners splitting it. All money truth lives server-side
+         (dailypot.json + the money ledger) — this module renders
+         GET /api/dailypot/state plus the Plaza-wide dailypot-update /
+         dailypot-burst socket events, and reuses the V7.41 burst
+         machinery (potSwell, potBurstRain, the rumble) for the card
+         and the app-wide burst show — one particle system, shared. */
+      var DPOT_MATCH_CAP = 10000; // Tier-1 fallback — the live swell reference is the state's matchCap (the day's tier cap)
+      var dpot = { state: null, shownTotal: null, anim: null, cdAnchorAt: 0, cdSecs: null, burstShownFor: "", wired: false };
+      function dpotFetchState() {
+        var tok = liveAcctToken();
+        var headers = {};
+        if (tok) headers["Authorization"] = "Bearer " + tok;
+        return fetch("/api/dailypot/state", { headers: headers })
+          .then(function (r) { return r.json(); })
+          .catch(function () { return null; });
+      }
+      function dpotApply(pot) {
+        if (!pot) return;
+        // Plaza-wide pushes are viewer-agnostic (joined:false) — never
+        // let one un-join THIS member on the same day.
+        if (dpot.state && pot.date === dpot.state.date && dpot.state.joined && !pot.joined)
+          pot = Object.assign({}, pot, { joined: true });
+        dpot.state = pot;
+        if (typeof pot.nextBurstInSec === "number") { dpot.cdSecs = pot.nextBurstInSec; dpot.cdAnchorAt = Date.now(); }
+        renderDailyPotCard();
+      }
+      function dpotCountdownText() {
+        if (dpot.cdSecs == null) return "";
+        var left = Math.max(0, dpot.cdSecs - Math.floor((Date.now() - dpot.cdAnchorAt) / 1000));
+        var h = Math.floor(left / 3600), m = Math.floor((left % 3600) / 60), s = left % 60;
+        if (h > 0) return h + "h " + m + "m";
+        if (m > 0) return m + "m " + s + "s";
+        return s + "s";
+      }
+      function dpotStartCountUp(from, to) {
+        var el = $("dpTotal");
+        if (!el || !(to > from)) { if (el) el.textContent = "🪙 " + potFmt(to) + " charms"; dpot.shownTotal = to; return; }
+        if (dpot.anim) cancelAnimationFrame(dpot.anim);
+        var t0 = performance.now(), dur = 650;
+        (function step(now) {
+          var k = Math.min(1, (now - t0) / dur);
+          var e = 1 - Math.pow(1 - k, 3);
+          var v = Math.round(from + (to - from) * e);
+          var el2 = $("dpTotal");
+          if (el2) el2.textContent = "🪙 " + potFmt(v) + " charms";
+          if (k < 1) dpot.anim = requestAnimationFrame(step);
+          else { dpot.anim = null; dpot.shownTotal = to; }
+        })(t0);
+      }
+      function renderDailyPotCard() {
+        var card = $("dailyPotCard");
+        if (!card) return;
+        var p = dpot.state;
+        if (!p) { card.hidden = true; return; }
+        if (typeof isTeen === "function" && isTeen()) { card.hidden = true; return; } // 18+ surface, same rule as the Live Now box
+        card.hidden = false;
+        var visual = $("dpPotVisual");
+        var when = $("dpWhen");
+        if (when) when.textContent = "bursts tonight · 9 PM ET" + (p.tier ? " · Tier " + p.tier : ""); // [RP-V7.42] the day's launch tier, small in the head line
+        var base = (p.seedPart || 0) + (p.rolledIn || 0); // the day's starting total — swell maps the GROWTH from here
+        var sw = potSwell(p.total || 0, base, base + (p.matchCap || DPOT_MATCH_CAP)); // [RP-V7.42] swell reference = the DAY's tier cap
+        if (visual) visual.style.transform = "scale(" + sw.scale.toFixed(3) + ")";
+        if (dpot.lastTotal !== p.total) { // only a real change animates — the 1s countdown tick re-renders without restarting it
+          var fromTotal = dpot.lastTotal;
+          dpot.lastTotal = p.total;
+          if (fromTotal == null || p.total < fromTotal) { var t0 = $("dpTotal"); if (t0) t0.textContent = "🪙 " + potFmt(p.total) + " charms"; dpot.shownTotal = p.total; }
+          else dpotStartCountUp(fromTotal, p.total);
+        }
+        var sub = $("dpSub"), win = $("dpWinners"), join = $("dpJoinBtn"), joined = $("dpJoined");
+        if (win) win.innerHTML = "";
+        if (p.status === "open") {
+          if (sub) sub.textContent = "Bursts in " + dpotCountdownText() + " · " + (p.entriesCount || 0) + " in the pot" + (p.rolledIn ? " · incl. " + potFmt(p.rolledIn) + " rolled over" : "");
+          var signedIn = !!liveAcctToken();
+          if (join) join.hidden = !signedIn || !!p.joined;
+          if (joined) joined.hidden = !p.joined;
+        } else if (p.status === "burst") {
+          if (sub) sub.textContent = "🎉 Tonight's pot BURST — " + potFmt(p.total) + " charms split by " + (p.winners || []).length + " lucky winner" + ((p.winners || []).length === 1 ? "" : "s") + "! Next burst tomorrow 9 PM ET · in " + dpotCountdownText();
+          if (join) join.hidden = true;
+          if (joined) joined.hidden = true;
+          if (win) win.innerHTML = (p.winners || []).map(function (w) {
+            return '<div class="dpot-winrow"><span>🏆 ' + escHtml(w.name || "Winner") + "</span><span>" + potFmt(w.amount) + " charms</span></div>";
+          }).join("");
+        } else { // noburst — nobody entered; the whole pot rolls into tomorrow
+          if (sub) sub.textContent = "Nobody entered tonight, so no burst — the whole pot rolls into tomorrow, plus a fresh seed. Next burst tomorrow 9 PM ET · in " + dpotCountdownText();
+          if (join) join.hidden = true;
+          if (joined) joined.hidden = true;
+        }
+      }
+      function dpotTickCountdown() {
+        var p = dpot.state;
+        if (!p || !$("dailyPotCard") || $("dailyPotCard").hidden) return;
+        renderDailyPotCard(); // cheap: text + transform only; the total count-up no-ops when unchanged
+      }
+      function onDailyPotUpdate(data) {
+        if (data && data.pot) dpotApply(data.pot);
+      }
+      function dailyPotInit() {
+        if (!dpot.wired) {
+          dpot.wired = true;
+          var join = $("dpJoinBtn");
+          if (join) join.addEventListener("click", function () {
+            if (!liveAcctToken()) { toast("Sign in to join the Daily Pot — it's free."); return; }
+            join.disabled = true;
+            potCall("/api/dailypot/join", {}).then(function (rr) {
+              join.disabled = false;
+              if (rr.json && rr.json.ok) {
+                dpotApply(rr.json.pot);
+                toast("🌆 You're in the Daily Pot — good luck at 9 PM! 🍀");
+              } else {
+                toast((rr.json && rr.json.error) || "Couldn't join the Daily Pot.");
+                dpotFetchState().then(function (r) { if (r && r.ok) dpotApply(r.pot); });
+              }
+            });
+          });
+          setInterval(dpotTickCountdown, 1000); // live countdown on the card
+          setInterval(function () { dpotFetchState().then(function (r) { if (r && r.ok) dpotApply(r.pot); }); }, 30000); // resync (growth between socket pushes)
+        }
+        dpotFetchState().then(function (r) { if (r && r.ok) dpotApply(r.pot); });
+      }
+      /* ---------- [RP-V7.42] THE DAILY BURST SHOW ----------
+         The V7.41 burst sequence, app-wide: when dailypot-burst
+         lands, whatever screen is open gets the show —
+           0.0s  RUMBLE: the current screen shakes (the live panel if
+                 I'm in a live, else the active screen), escalating
+                 ~1.6s, while the Home card's pot swells to max.
+           1.6s  POP: soft gift pop (never coin()), the SAME coin rain
+                 (potBurstRain, erupting from the Daily Pot card's
+                 pot when it's on screen), winners revealing one by
+                 one in a floating overlay — sparkles, celebrate/win
+                 sounds, "that's YOU!" for a present winner. */
+      function onDailyPotBurst(data) {
+        if (!data || !data.date || dpot.burstShownFor === data.date) return;
+        dpot.burstShownFor = data.date;
+        dpotFetchState().then(function (r) { if (r && r.ok) dpotApply(r.pot); }); // card flips to the winners
+        dailyPotBurstShow(data);
+      }
+      function dailyPotBurstShow(data) {
+        var inLive = false;
+        try { inLive = !!(Live && Live.active); } catch (e) { }
+        var panel = inLive ? document.getElementById("livePanel") : document.querySelector(".screen.active");
+        var visual = $("dpPotVisual");
+        var cardVisible = false;
+        try { var cc = $("dailyPotCard"); cardVisible = !!(cc && !cc.hidden && cc.getBoundingClientRect && cc.getBoundingClientRect().width); } catch (e) { }
+        try {
+          if (panel) { panel.classList.remove("lv-rumble"); void panel.offsetWidth; panel.classList.add("lv-rumble"); }
+          if (visual) { visual.classList.add("lv-potwobble"); visual.style.transform = "scale(1.6)"; }
+        } catch (e) { }
+        setTimeout(function () {
+          try { if (visual) { visual.classList.remove("lv-potwobble"); visual.classList.add("lv-potpop"); } } catch (e) { }
+          try { AudioFX.gift(); } catch (e) { } // the soft gift pop + chime
+          potBurstRain(cardVisible ? visual : null); // the shared rain — erupts from the card's pot, else top-center
+          dailyPotWinnersShow(data);
+          setTimeout(function () {
+            try {
+              if (panel) panel.classList.remove("lv-rumble");
+              if (visual) visual.classList.remove("lv-potpop");
+            } catch (e) { }
+            renderDailyPotCard();
+          }, 3050);
+        }, 1600);
+      }
+      function dailyPotWinnersShow(data) {
+        var winners = Array.isArray(data.winners) ? data.winners : [];
+        if (!winners.length) return;
+        var wrap = document.createElement("div");
+        wrap.className = "lv-potwin dpot-winwrap";
+        document.body.appendChild(wrap);
+        var myId = liveAcctId();
+        function overlay(big, sub, ms, done) {
+          wrap.innerHTML = '<div class="pw-big">' + big + '</div>' + (sub ? '<div class="pw-sub">' + sub + "</div>" : "");
+          try { if (window.Juice && Juice.sparkles) Juice.sparkles(wrap, 22); } catch (e) { }
+          setTimeout(function () { if (done) done(); }, ms);
+        }
+        overlay("💥 THE DAILY POT BURST!", potFmt(data.total || 0) + " charms · " + winners.length + " winner" + (winners.length === 1 ? "" : "s"), 1500, function () {
+          var i = 0;
+          (function next() {
+            if (i >= winners.length) { setTimeout(function () { try { wrap.remove(); } catch (e) { } }, 400); return; }
+            var w = winners[i++];
+            var mine = myId && w.id === myId;
+            try { AudioFX.celebrate(); } catch (e) { }
+            overlay("🏆 " + escHtml(w.name || "Winner"), "won " + potFmt(w.amount || 0) + " charms!" + (mine ? " — that's YOU! 🎉" : ""), 1600, function () {
+              if (mine) {
+                try { AudioFX.win(); } catch (e) { }
+                toast("🏆 You won " + potFmt(w.amount || 0) + " charms in the Daily Pot!", 5200);
+              }
+              setTimeout(next, 120);
+            });
+          })();
+        });
+      }
+
       function rpBootHome() {
         // [RP-V7.24] identity at boot: a signed-in account's name (the
         // session token lives in rpAcct.v1; the account module verifies
@@ -11300,9 +12230,10 @@
         updateHUD(); renderLobby(); renderMatches(); renderPlaza();
         show("screen-plaza");
         if (savedProfileAtBoot) showWelcomeBack(savedProfileAtBoot);
-        rpBootConnect(); // [RP-V7.34] Home connects quietly on open \u2014 see below
+        rpBootConnect(); // [RP-V7.39] Home connects quietly on open \u2014 see below
+        try { dailyPotInit(); } catch (e) { } // [RP-V7.42] Daily Pot card: first state fetch + countdown/poll timers
       }
-      /* [RP-V7.34] Home connects quietly on open (Branden's ruling, Oct 24, 2026):
+      /* [RP-V7.39] Home connects quietly on open (Branden's ruling, Oct 24, 2026):
          the Plaza used to open as an offline lobby \u2014 the socket only
          connected when someone tapped into an online area \u2014 so Home's
          \uD83D\uDD34 Live Now read "No one's live yet" while lives were
@@ -11621,7 +12552,7 @@
         if (isTeen()) { openTeenGateAll("Gifting"); return; }
         if (!rpAdultOk()) { rpDoorGate("Gifting", function () { openGiftSheet(targetId, targetName, opts); }); return; }
         if (!targetId) { toast("Pick someone to gift first!"); return; }
-        var selfPreview = !opts.local && targetId === Online.myId; // [RP-V7.34] my own live: the catalog opens as a preview — gifts render with art + prices, taps explain instead of sending
+        var selfPreview = !opts.local && targetId === Online.myId; // [RP-V7.39] my own live: the catalog opens as a preview — gifts render with art + prices, taps explain instead of sending
         var live = activeHoliday();
         function cell(g) {
           var cant = charms < g.cents ? " cant" : "";
@@ -11646,7 +12577,7 @@
         var sheet = $("sheet");
         sheet.querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         sheet.querySelectorAll("[data-gid]").forEach(function (b) {
-          b.addEventListener("click", function () { var g = giftById(b.getAttribute("data-gid")); if (g) { if (selfPreview) { giftSelfNote(g); return; } sendGift(targetId, targetName, g, opts); } }); // [RP-V7.34] preview taps never reach sendGift
+          b.addEventListener("click", function () { var g = giftById(b.getAttribute("data-gid")); if (g) { if (selfPreview) { giftSelfNote(g); return; } sendGift(targetId, targetName, g, opts); } }); // [RP-V7.39] preview taps never reach sendGift
         });
         sheet.querySelectorAll("[data-hol]").forEach(function (b) {
           b.addEventListener("click", function () {
@@ -11654,7 +12585,7 @@
             if (hg) { if (selfPreview) { giftSelfNote(null); return; } sendGift(targetId, targetName, { id: "hol", name: hg[0], icon: hg[1], cents: hg[2], tier: "big", fx: "burst" }, opts); }
           });
         });
-        if (selfPreview) giftSelfNote(null); // [RP-V7.34] say it up front, before any tap
+        if (selfPreview) giftSelfNote(null); // [RP-V7.39] say it up front, before any tap
         var gc = $("giftGetCharms"); if (gc) gc.addEventListener("click", function () { openCharmShop(); });
         var ge = $("giftMyEarnings"); if (ge) ge.addEventListener("click", function () { openEarnings(); });
       }
@@ -11680,7 +12611,7 @@
         n.classList.add("show");
       }
       window.rpGiftNotEnough = giftNotEnough; // [RP-V7.26.1] the money layer's insufficient-charms path calls this too
-      // [RP-V7.34] own-live preview: tapping a gift in your own live sends
+      // [RP-V7.39] own-live preview: tapping a gift in your own live sends
       // nothing — the same in-sheet notice slot explains whose catalog it is.
       function giftSelfNote(g) {
         var sheet = $("sheet"); if (!sheet) return;
@@ -11692,7 +12623,7 @@
       }
       function sendGift(targetId, targetName, g, opts) {
         opts = opts || {};
-        if (!opts.local && targetId === Online.myId) { toast("This is your own live — viewers use the gift catalog to gift you.", 3200); return; } // [RP-V7.34] self-send hard stop — no debit, no emit, no feed entry
+        if (!opts.local && targetId === Online.myId) { toast("This is your own live — viewers use the gift catalog to gift you.", 3200); return; } // [RP-V7.39] self-send hard stop — no debit, no emit, no feed entry
         var cost = g.cents;
         if (charms < cost) {
           toast("Not enough charms — the " + g.name + " costs " + cost.toLocaleString("en-US") + " and you have " + charms.toLocaleString("en-US") + ". Tap ⭐ Get charms to top up.", 3600);
@@ -11701,7 +12632,7 @@
         }
         charms -= cost; saveWallet(); updateHUD(); // [RP-V7.25] persist the gift debit
         closeSheet();
-        try { if (g && (g.tier === "big" || g.tier === "prestige")) AudioFX.giftBig(); else AudioFX.gift(); } catch (e) { } // [RP-V7.34] gifts get the soft pop + glass chime (big shows get the arpeggio) — never the coin blip
+        try { if (g && (g.tier === "big" || g.tier === "prestige")) AudioFX.giftBig(); else AudioFX.gift(); } catch (e) { } // [RP-V7.39] gifts get the soft pop + glass chime (big shows get the arpeggio) — never the coin blip
         playGiftFx(g, (Online.name || me.name || "You"), targetName || "them");
         if (opts.local) {
           if (typeof opts.onSent === "function") opts.onSent(g);
@@ -12349,7 +13280,7 @@
         Online.room = room; Online.players = {};
         noteRoomVisit(room); // ✨ For You: state/city rooms I visit mark where I'm based
         Online.socket.emit("switch-room", { room: room });
-        // [RP-V7.34] landing in my own live room while hosting — including a
+        // [RP-V7.39] landing in my own live room while hosting — including a
         // door-gate-deferred switch (the gate callback re-runs this function)
         // that completes after liveStartHosting's own register already fired
         // into the wrong room — re-asserts my registry entry now that the
@@ -13082,6 +14013,7 @@
          and nothing here surfaces in the prayer room. */
       var Reels = {
         mode: "photos", server: [], serverOk: false, uploading: {},
+        ranked: false, activeView: null, /* [RP-V7.40] For You: server-ranked order + the on-screen view being timed */
         objUrls: {}, memBlobs: {}, observer: null,
         pendingBlob: null, pendingUrl: null, pendingSecs: 0, pendingCaption: "",
         maxSecs: 60, countdown: false, stage: "pick", editingDraftId: null, tagFilter: "",
@@ -13197,11 +14129,17 @@
 
       /* ---- Server sync ---- */
       function reelFetchFeed() {
-        fetch("/api/reels", { headers: { "Accept": "application/json" } })
+        // [RP-V7.40] a signed-in member sends their token so the server
+        // can answer in For You order; guests (and any failure) keep the
+        // plain newest-first list, exactly as before.
+        var fyH = { "Accept": "application/json" };
+        var fyT = reelToken(); if (fyT) fyH["Authorization"] = "Bearer " + fyT;
+        fetch("/api/reels", { headers: fyH })
           .then(function (r) { return r.json(); })
           .then(function (j) {
             if (j && j.ok && Array.isArray(j.reels)) {
               Reels.server = j.reels; Reels.serverOk = true;
+              Reels.ranked = !!j.ranked;
               // A local blob whose server copy is confirmed in the feed can
               // be freed — the server copy replaces it in the feed.
               var have = {}; j.reels.forEach(function (r) { have[r.id] = true; });
@@ -13211,8 +14149,51 @@
               reelLoadMeta().forEach(function (m) { if (!m.serverId && !m.draft) reelTryUpload(m.id); });
             }
           })
-          .catch(function () { Reels.serverOk = false; });
+          .catch(function () { Reels.serverOk = false; Reels.ranked = false; });
       }
+      /* [RP-V7.40] For You signals: fire-and-forget, signed-in only.
+         fetch with keepalive (sendBeacon cannot carry the
+         Authorization header the endpoint requires). */
+      function reelPostSignal(payload) {
+        try {
+          var tok = reelToken(); if (!tok) return;
+          fetch("/api/reels/signal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok },
+            body: JSON.stringify(payload),
+            keepalive: true
+          }).catch(function () { });
+        } catch (e) { }
+      }
+      function reelEmitView(item, trk, video) {
+        if (!item || !item.server || !trk) return;
+        var watched = trk.acc + (trk.startedAt ? Date.now() - trk.startedAt : 0);
+        if (watched < 300 && !trk.completed) return; // not a real view
+        var dur = (video && isFinite(video.duration) && video.duration > 0) ? Math.round(video.duration * 1000) : 0;
+        var payload = {
+          reelId: item.id,
+          watchedMs: Math.round(watched),
+          durationMs: dur,
+          frac: Math.round(trk.maxFrac * 1000) / 1000,
+          completed: !!trk.completed
+        };
+        trk.acc = 0; trk.startedAt = 0; trk.maxFrac = 0; trk.completed = false; trk.lastT = 0;
+        reelPostSignal(payload);
+      }
+      /* Flush the on-screen view if the page goes away mid-watch. */
+      (function () {
+        function flush() {
+          var av = Reels.activeView;
+          if (!av) return;
+          Reels.activeView = null;
+          av.stop();
+          reelEmitView(av.item, av.trk, av.video);
+        }
+        try {
+          window.addEventListener("pagehide", flush);
+          document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") flush(); });
+        } catch (e) { }
+      })();
       function reelTryUpload(localId) {
         var meta = reelMetaById(localId);
         if (!meta || meta.serverId || Reels.uploading[localId]) return;
@@ -13256,6 +14237,14 @@
           if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
           items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", createdAt: m.createdAt || "", url: "", pending: true, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, allowRemix: m.allowRemix !== false });
         });
+        if (Reels.ranked) {
+          // [RP-V7.40] the server already ordered its reels For You —
+          // keep that order untouched; my own on-device posts (which the
+          // server has never seen) ride on top, newest first.
+          var loc = items.filter(function (it) { return !it.server; });
+          loc.sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+          return loc.concat(items.filter(function (it) { return it.server; }));
+        }
         items.sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
         return items;
       }
@@ -13272,6 +14261,13 @@
       function renderReels() {
         var feed = $("reelFeed"); if (!feed) return;
         reelPauseAll();
+        // [RP-V7.40] a re-render retires the on-screen card without an
+        // observer pause — bank its view first so the watch still counts.
+        if (Reels.activeView) {
+          var avOld = Reels.activeView; Reels.activeView = null;
+          avOld.stop();
+          reelEmitView(avOld.item, avOld.trk, avOld.video);
+        }
         if (Reels.observer) { try { Reels.observer.disconnect(); } catch (e) { } Reels.observer = null; }
         for (var u in Reels.objUrls) { try { URL.revokeObjectURL(Reels.objUrls[u]); } catch (e) { } }
         Reels.objUrls = {};
@@ -13444,6 +14440,40 @@
         }
         card._rpPlay = cardPlay;
         card._rpPause = cardPause;
+        /* [RP-V7.40] For You view tracking: while this card is the
+           on-screen one (the observer drives _rpPlay/_rpPause), time
+           real playback and note how far through the reel the member
+           got; leaving the card emits ONE view event. Tap-pause calls
+           cardPause directly, so pausing by hand never emits. */
+        var viewTrk = { acc: 0, startedAt: 0, maxFrac: 0, completed: false, lastT: 0 };
+        vMine.addEventListener("timeupdate", function () {
+          if (!isFinite(vMine.duration) || !vMine.duration) return;
+          var ct = vMine.currentTime || 0;
+          if (viewTrk.lastT && ct < viewTrk.lastT - 2) viewTrk.completed = true; // looped back to the top
+          viewTrk.lastT = ct;
+          var fr = ct / vMine.duration;
+          if (fr > viewTrk.maxFrac) viewTrk.maxFrac = fr;
+          if (fr >= 0.9) viewTrk.completed = true;
+        });
+        function trkStart() { if (!viewTrk.startedAt) viewTrk.startedAt = Date.now(); }
+        function trkStopAcc() {
+          if (viewTrk.startedAt) { viewTrk.acc += Date.now() - viewTrk.startedAt; viewTrk.startedAt = 0; }
+        }
+        card._rpPlay = function () {
+          cardPlay();
+          if (item.server) {
+            trkStart();
+            Reels.activeView = { item: item, trk: viewTrk, video: vMine, stop: trkStopAcc };
+          }
+        };
+        card._rpPause = function () {
+          cardPause();
+          if (item.server) {
+            trkStopAcc();
+            reelEmitView(item, viewTrk, vMine);
+            if (Reels.activeView && Reels.activeView.item === item) Reels.activeView = null;
+          }
+        };
         /* Tap: single tap = play/pause; double-tap = like, with a heart
            burst right at the tap point (hearts only ever come from taps). */
         var lastTapAt = 0, tapTimer = null;
@@ -13547,6 +14577,10 @@
           st.liked = want;
           st.count = Math.max(0, (st.count || 0) + (want ? 1 : -1));
           m[item.id] = st; reelSaveLikes(m);
+          // [RP-V7.40] the like itself stays this-device (as it always
+          // was); a copy rides to the member's OWN For You signals so
+          // the feed can learn from it. Counts shown here do not change.
+          reelPostSignal({ reelId: item.id, kind: "like", liked: want });
           btn.classList.toggle("liked", st.liked); if (lc) lc.textContent = st.count;
         } else {
           var meta = reelMetaById(item.id); if (!meta) return;
@@ -17594,7 +18628,7 @@ img.gfx-artimg{ object-fit:cover; border-radius:14px; }
       var pid = pidForTile(i, tiles.length);
       var nmEl = tile.querySelector(".lt-name");
       if (pid && nmEl) {
-        var nm = nmEl.textContent.replace("HOST", "").replace("· You", "").trim();
+        var nm = nmEl.textContent.replace("👑", "").replace("HOST", "").replace("· You", "").trim(); // [RP-V7.39] the tile crown is role chrome, never part of the harvested name
         if (nm) S.idName[pid] = nm;
       }
       var badge = tile.querySelector(".rp65-tilepts");
@@ -19425,6 +20459,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
         acct.name = r.json.user.name; acct.email = r.json.user.email; acct.userId = r.json.user.id;
         if (r.json.user.username) acct.username = r.json.user.username;
         if (r.json.user.phone) acct.phone = r.json.user.phone;
+        if (r.json.user.profileType) acct.profileType = r.json.user.profileType; // [RP-V7.39]
         saveAcct(); try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } setUnread(r.json.unread || 0); fetchReminders();
       } else if (r.status === 401) {
         signOutLocal();
@@ -19483,6 +20518,9 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     dobWrap.className = "field"; dobWrap.id = "suDobWrap"; dobWrap.hidden = true;
     dobWrap.innerHTML = '<label for="suDob">Date of birth (one time, for your account)</label><input type="date" id="suDob" />';
     passWrap.parentNode.insertBefore(dobWrap, passWrap.nextSibling);
+    // [RP-V7.39] no profile-type UI on this form (Branden's final
+    // placement): the pick lives in the Profile setup only. New
+    // accounts default to "member" server-side.
     var err = document.createElement("p");
     err.className = "age-note su-err"; err.id = "suAcctErr"; err.hidden = true;
     goBtn.parentNode.insertBefore(err, goBtn);
@@ -19574,7 +20612,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     api("/api/account/signup", "POST", { name: profileName(), username: un, email: em, phone: ph, password: pw, dob: dobOnFile() }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "" };
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member" };
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { var d0 = dobOnFile(); if (d0) localStorage.setItem(DOB_KEY, d0); } catch (e) { }
@@ -19598,11 +20636,14 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     api("/api/account/login", "POST", { id: em, username: em, email: em, password: pw }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "" };
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member" };
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         if (er) er.hidden = true;
-        toast2("👋 Welcome back, " + r.json.user.name + "!", 3600);
+        // [RP-V7.39] Logging back in inside the 30-day window cancelled
+        // a scheduled deletion — say so once, plainly.
+        if (r.json.deletionCancelled) toast2("Welcome back — your scheduled deletion was cancelled.", 6000);
+        else toast2("👋 Welcome back, " + r.json.user.name + "!", 3600);
         fetchReminders(); renderAcctBox();
         finishLoginIntoApp(r.json.user, pw);
       } else if (r.reachable && r.json) {
@@ -19672,6 +20713,47 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     });
   }
 
+  /* ---------- [RP-V7.39] Delete profile (permanent) ---------- */
+  function openDeleteProfile() {
+    if (!acct) { toast2("You're not signed in.", 3000); return; }
+    if (typeof window.openSheet !== "function") { toast2("Open your Profile to manage your account.", 3200); return; }
+    var delDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" });
+    var html = '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+      '<h3 style="margin:4px 0">🗑️ Delete your profile?</h3>' +
+      '<p class="age-note" style="margin-top:8px">This <b>deactivates your profile right away</b> and schedules it for <b>permanent deletion in 30 days — on ' + delDate + '</b>. While you\'re deactivated, your profile is hidden everywhere and your messages show as “Deleted user”.</p>' +
+      '<p class="age-note" style="margin-top:8px">Changed your mind? Just <b>log back in before ' + delDate + '</b> — that cancels the deletion and restores everything: your <b>followers and following</b>, messages, posts and charms, all intact.</p>' +
+      '<p class="age-note" style="margin-top:8px">After ' + delDate + ' the deletion is <b>permanent</b> — there is no undo. Your profile, followers and following, posts and messages are removed, charms and earnings are lost, and only then do your email, phone number and username become available again.</p>' +
+      '<div class="field" style="margin-top:12px;"><label for="rpDelPass">Enter your password to confirm</label><input type="password" id="rpDelPass" autocomplete="current-password" placeholder="Your password" /></div>' +
+      '<p class="age-note su-err" id="rpDelErr" hidden></p>' +
+      '<button class="btn-primary" id="rpDelGo" type="button" disabled style="width:100%; padding:13px; background:#d81f45; border:none;">Delete my profile</button>' +
+      '<button class="btn-mini" id="rpDelCancel" type="button" style="width:100%; padding:12px; margin-top:8px;">Keep my profile</button>';
+    window.openSheet(html);
+    var pw = $("rpDelPass"), go = $("rpDelGo"), er = $("rpDelErr"), cx = $("rpDelCancel");
+    function closeIt() { try { if (window.closeSheet) window.closeSheet(); } catch (e) { } }
+    var xb = document.querySelector("#sheet [data-act=close]");
+    if (xb) xb.addEventListener("click", closeIt);
+    if (cx) cx.addEventListener("click", closeIt);
+    if (pw) pw.addEventListener("input", function () { if (go) go.disabled = !pw.value; if (er) er.hidden = true; });
+    if (go) go.addEventListener("click", function () {
+      if (!pw || !pw.value || acctBusy) return;
+      acctBusy = true;
+      go.disabled = true; go.textContent = "Scheduling…";
+      api("/api/account/delete", "POST", { password: pw.value }).then(function (r) {
+        acctBusy = false;
+        if (r.json && r.json.ok) {
+          try { localStorage.removeItem("rpSocialMigrated.v1"); } catch (e) { }
+          signOutLocal();
+          closeIt();
+          try { if (typeof window.show === "function") window.show("screen-plaza"); } catch (e) { }
+          toast2("Your profile is scheduled for deletion.", 4600);
+        } else {
+          go.disabled = false; go.textContent = "Delete my profile";
+          if (er) { er.textContent = (r.json && r.json.error) || "Delete didn't go through — check your connection and try again."; er.hidden = false; }
+        }
+      });
+    });
+  }
+
   /* ---------- Profile: account status ---------- */
   var acctBoxSig = "";
   function renderAcctBox() {
@@ -19682,13 +20764,41 @@ body.wp-video-on #rpWallC { visibility: hidden; }
       box.id = "rpAcctBox";
       info.parentNode.insertBefore(box, info.nextSibling);
     }
-    var sig = acct ? "in:" + acct.email + ":" + (acct.username || "") + ":" + (acct.phone || "") : "guest";
+    var sig = acct ? "in:" + acct.email + ":" + (acct.username || "") + ":" + (acct.phone || "") + ":" + (acct.profileType || "member") : "guest"; // [RP-V7.39] type in the sig so a change re-renders the selector
     if (sig === acctBoxSig) return;
     acctBoxSig = sig;
     if (acct) {
+      var curType = acct.profileType || "member"; // [RP-V7.39]
+      // The selector options come from the ONE shared client map
+      // (window.RP_PROFILE_TYPES); picker labels keep the per-type
+      // emoji for scanning. Member-only fallback if the map is absent.
+      var typeOpts = (window.RP_PROFILE_TYPES && window.RP_PROFILE_TYPES.length) ? window.RP_PROFILE_TYPES : [{ v: "member", label: "Member", badge: "", pick: "Member" }];
+      var typeChips = typeOpts.map(function (o) {
+        return '<button class="btn-mini rp-type-chip' + (curType === o.v ? " on" : "") + '" data-rptype="' + o.v + '" type="button">' + esc(o.pick || o.label) + "</button>";
+      }).join("");
       box.innerHTML = '<p class="age-note" style="margin:0 0 4px;">✅ Signed in as <b>' + esc(acct.name) + '</b>' + (acct.username ? ' <b>@' + esc(acct.username) + '</b>' : '') + '</p>' +
         '<p class="age-note" style="margin:0 0 8px;">📧 ' + esc(acct.email) + (acct.phone ? ' · 📱 ' + esc(acct.phone) : '') + '</p>' +
-        '<div class="btn-row"><button class="btn-mini" id="rpAcctRem" type="button">🔔 Reminders</button><button class="btn-mini" id="rpAcctOut" type="button">Log out</button></div>';
+        '<p class="age-note" style="margin:8px 0 4px;">🏷️ Profile type — optional; Streamer and Content Creator get a ⭐ badge by your name, other titles show as a line on your profile</p>' +
+        '<div class="btn-row" style="margin:0 0 10px; flex-wrap:wrap;">' + typeChips + '</div>' +
+        '<div class="btn-row"><button class="btn-mini" id="rpAcctRem" type="button">🔔 Reminders</button><button class="btn-mini" id="rpAcctOut" type="button">Log out</button></div>' +
+        '<div style="margin-top:12px;"><button class="btn-mini" id="rpAcctDel" type="button" style="color:#ff5c7a;">Delete profile</button></div>';
+      // [RP-V7.39] tapping a type chip saves immediately (POST /api/account/profile-type).
+      box.querySelectorAll("[data-rptype]").forEach(function (chip) {
+        chip.addEventListener("click", function () {
+          var t = chip.getAttribute("data-rptype");
+          if (!t || t === (acct.profileType || "member") || acctBusy) return;
+          acctBusy = true;
+          api("/api/account/profile-type", "POST", { profileType: t }).then(function (r) {
+            acctBusy = false;
+            if (r.json && r.json.ok) {
+              acct.profileType = r.json.profileType; saveAcct(); acctBoxSig = ""; renderAcctBox();
+              toast2("Profile type updated — " + (r.json.profileTypeLabel || t) + " ✓", 3200);
+            } else {
+              toast2((r.json && r.json.error) || "Couldn't update your profile type — try again.", 3200);
+            }
+          });
+        });
+      });
       var rb = $("rpAcctRem"), ob = $("rpAcctOut");
       if (rb) rb.addEventListener("click", openReminders);
       if (ob) ob.addEventListener("click", function () {
@@ -19696,6 +20806,8 @@ body.wp-video-on #rpWallC { visibility: hidden; }
         signOutLocal();
         toast2("Logged out — see you soon 👋", 3000);
       });
+      var delb = $("rpAcctDel");
+      if (delb) delb.addEventListener("click", openDeleteProfile);
     } else {
       box.innerHTML = '<p class="age-note" style="margin:0;">👤 Guest — sign up or log in (via “Add email + phone”) for a server account + reminders.</p>';
     }
@@ -21183,7 +22295,9 @@ button.rp72-chip{ cursor:pointer; }
     } catch (e) { }
     return "";
   }
-  function avaHtml(name) {
+  function avaHtml(name, deleted) {
+    // [RP-V7.39] Deleted accounts render as a generic grey avatar.
+    if (deleted) return '<div class="rpdm-ava" style="background:#3a3a42;color:#9a9aa5;">👤</div>';
     var p = photoFor(name);
     if (p) return '<div class="rpdm-ava"><img src="' + esc(p) + '" alt=""/></div>';
     var ch = (String(name || "?").trim().charAt(0) || "?").toUpperCase();
@@ -21272,7 +22386,7 @@ button.rp72-chip{ cursor:pointer; }
     }
     box.innerHTML = list.map(function (t) {
       var row = '<button type="button" class="rpdm-row' + (t.unread ? " unread" : "") + '" data-dmopen="' + esc(t.user.id) + '" data-dmname="' + esc(t.user.name) + '">' +
-        avaHtml(t.user.name) +
+        avaHtml(t.user.name, t.user.deleted) +
         '<span class="rpdm-main"><span class="rpdm-namerow"><span class="rpdm-name">' + esc(t.user.name) + '</span><span class="rpdm-time">' + esc(whenText(t.lastAt)) + '</span></span>' +
         '<span class="rpdm-prev">' + (t.startedByMe ? "You: " : "") + esc(t.lastText || "") + "</span></span>";
       if (inboxTab === "requests") {
@@ -21310,12 +22424,12 @@ button.rp72-chip{ cursor:pointer; }
   }
 
   /* ---------------- conversation ---------------- */
-  var conv = { userId: "", name: "", timer: null, msgs: [], blocked: false, loaded: false };
+  var conv = { userId: "", name: "", timer: null, msgs: [], blocked: false, loaded: false, deleted: false };
   function stopPoll() { if (conv.timer) { clearInterval(conv.timer); conv.timer = null; } }
   function openConversation(userId, name) {
     if (!userId || !acctRec()) return;
     stopPoll();
-    conv.userId = userId; conv.name = name || "Friend"; conv.msgs = []; conv.blocked = false; conv.loaded = false;
+    conv.userId = userId; conv.name = name || "Friend"; conv.msgs = []; conv.blocked = false; conv.loaded = false; conv.deleted = false;
     renderConversation();
     loadThread();
     conv.timer = setInterval(function () {
@@ -21374,11 +22488,20 @@ button.rp72-chip{ cursor:pointer; }
       conv.msgs = msgs;
       conv.loaded = true;
       conv.blocked = !!r.json.blocked;
+      // [RP-V7.39] Deleted account: history stays readable, the
+      // composer goes read-only.
+      conv.deleted = !!r.json.deleted;
+      if (r.json.user && r.json.user.name) conv.name = r.json.user.name;
       var note = $("rpDmBlockedNote");
-      if (note) note.innerHTML = conv.blocked ? '<div class="rpdm-blocked">🚫 Messages are blocked between you and ' + esc(conv.name) + ".</div>" : "";
+      if (note) note.innerHTML = conv.deleted
+        ? '<div class="rpdm-blocked">👤 This account no longer exists. You can read the history, but new messages can\'t be sent.</div>'
+        : (conv.blocked ? '<div class="rpdm-blocked">🚫 Messages are blocked between you and ' + esc(conv.name) + ".</div>" : "");
       var inp = $("rpDmInput"), snd = $("rpDmSend");
-      if (inp) inp.disabled = conv.blocked;
-      if (snd) snd.disabled = conv.blocked;
+      if (inp) {
+        inp.disabled = conv.blocked || conv.deleted;
+        if (conv.deleted) inp.placeholder = "This account no longer exists";
+      }
+      if (snd) snd.disabled = conv.blocked || conv.deleted;
       if (grew || !had) renderMessages();
       api("/api/dm/read", "POST", { userId: conv.userId }).then(function () { refreshBadge(); });
     });
@@ -21386,6 +22509,8 @@ button.rp72-chip{ cursor:pointer; }
   function sendCurrent() {
     var inp = $("rpDmInput");
     if (!inp || conv.blocked) return;
+    // [RP-V7.39] Read-only history: the server refuses too (410).
+    if (conv.deleted) { toast2("This account no longer exists — this conversation is read-only now.", 4200); return; }
     var text = (inp.value || "").trim();
     if (!text) return;
     inp.value = "";
@@ -21581,6 +22706,11 @@ button.rp72-chip{ cursor:pointer; }
     var ch = (String(m.name || "?").trim().charAt(0) || "?").toUpperCase();
     return '<div class="rpdm-ava">' + esc(ch) + "</div>";
   }
+  function rpDmTypeBadge(t) { // [RP-V7.39] star-badge text from the ONE shared client map (window.RP_PROFILE_TYPES) — streamer + creator only
+    var list = window.RP_PROFILE_TYPES || [];
+    for (var i = 0; i < list.length; i++) if (list[i].v === t) return list[i].badge;
+    return "";
+  }
   function renderPeopleRows(members) {
     var box = $("rpPlRows");
     if (!box) return;
@@ -21595,7 +22725,7 @@ button.rp72-chip{ cursor:pointer; }
       return '<button type="button" class="rpdm-row" data-plopen="' + esc(m.accountId) + '" data-plname="' + esc(m.name) + '" data-plphoto="' + esc(m.photo || "") + '">' +
         plAvaHtml(m) +
         '<span class="rpdm-main"><span class="rpdm-namerow"><span class="rpdm-name">' + esc(m.name) + '</span></span>' +
-        '<span class="rpdm-prev">' + (m.username ? "@" + esc(m.username) + " · " : "") + (m.followers || 0) + " followers</span></span>" +
+        '<span class="rpdm-prev">' + (m.username ? "@" + esc(m.username) + " · " : "") + (m.followers || 0) + " followers" + (rpDmTypeBadge(m.profileType) ? ' · <span class="rppl-type">' + esc(rpDmTypeBadge(m.profileType)) + "</span>" : "") + "</span></span>" +
         right + "</button>";
     }).join("");
     box.querySelectorAll("[data-plfollow]").forEach(function (el) {
@@ -21668,6 +22798,8 @@ button.rp72-chip{ cursor:pointer; }
       var bio = $("rpMpBio");
       if (bio && j.testimony) { bio.textContent = "\u201C" + j.testimony + "\u201D"; bio.hidden = false; }
       var badges = [];
+      var mpTypeBadge = rpDmTypeBadge(j.profileType); // [RP-V7.39] star badge — streamer + creator only
+      if (mpTypeBadge) badges.push('<span class="pcard-badge top">' + esc(mpTypeBadge) + "</span>");
       if (j.dailyRank) badges.push('<span class="pcard-badge rank">🏆 Daily No. ' + j.dailyRank + "</span>");
       var bEl = $("rpMpBadges");
       if (bEl && badges.length) { bEl.innerHTML = badges.join(""); bEl.hidden = false; }
@@ -22875,7 +24007,7 @@ button.rp72-chip{ cursor:pointer; }
       opts = opts || {};
       var selfTarget = false;
       try { selfTarget = typeof Online !== "undefined" && !!Online && targetId === Online.myId; } catch (e) { }
-      if (moneyActive() && !opts.local && !opts.__srv && targetName && g && g.id && !selfTarget) { // [RP-V7.34] never ledger-POST a gift to yourself — the local flow's self guard answers instead
+      if (moneyActive() && !opts.local && !opts.__srv && targetName && g && g.id && !selfTarget) { // [RP-V7.39] never ledger-POST a gift to yourself — the local flow's self guard answers instead
         serverGift(targetId, targetName, g, opts);
         return;
       }
