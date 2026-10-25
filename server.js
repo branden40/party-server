@@ -698,21 +698,118 @@ function seedWelcomeReminders(user) {
     }
   );
 }
-// Inert mail hook: when the owner later sets SMTP_URL or RESEND_API_KEY on
-// the server, this is where the welcome email goes out. Until then reminders
-// live in-app only (the 🔔 bell) and this just logs. No credentials here.
-function sendAccountEmail(user, kind) {
-  if (process.env.SMTP_URL || process.env.RESEND_API_KEY) {
-    console.log(
-      "[accounts] " + kind + " email would send to " + user.email +
-        " (provider configured — sending not wired in v7.0)"
-    );
-  } else {
-    console.log(
-      "[accounts] " + kind + " email queued (no mail provider configured) for " +
-        user.email
-    );
+// ---------------------------------------------------------------------------
+// [RP-V7.55] NOTIFICATION TRANSPORT — the real sender (Branden's pick,
+// Oct 25: members hear from the Plaza by email AND phone). Providers
+// are env-configured; with no keys set, every send is a safe no-op
+// and alerts simply stay queued, exactly as before. Contact details
+// are read from the account record server-side ONLY — they never
+// leave through an API.
+//   Email (Resend): RESEND_API_KEY + ALERT_FROM_EMAIL
+//     (RESEND_API_BASE overrides the API root — used by tests)
+//   SMS (Twilio):   TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN +
+//                   TWILIO_FROM_NUMBER (TWILIO_API_BASE likewise)
+// ---------------------------------------------------------------------------
+function notifyEmailReady() {
+  return !!(process.env.RESEND_API_KEY && process.env.ALERT_FROM_EMAIL);
+}
+function notifySmsReady() {
+  return !!(
+    process.env.TWILIO_ACCOUNT_SID &&
+    process.env.TWILIO_AUTH_TOKEN &&
+    process.env.TWILIO_FROM_NUMBER
+  );
+}
+function notifyPhoneE164(phone) {
+  const raw = String(phone || "").trim();
+  const d = raw.replace(/\D/g, "");
+  if (d.length === 10) return "+1" + d;
+  if (d.length === 11 && d[0] === "1") return "+" + d;
+  if (raw.startsWith("+") && d.length >= 10) return "+" + d;
+  return null;
+}
+async function notifySendEmail(to, subject, text) {
+  if (!notifyEmailReady() || !to) return false;
+  try {
+    const base = process.env.RESEND_API_BASE || "https://api.resend.com";
+    const r = await fetch(base + "/emails", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + process.env.RESEND_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: process.env.ALERT_FROM_EMAIL, to, subject, text }),
+    });
+    return r.ok;
+  } catch (e) {
+    return false;
   }
+}
+async function notifySendSms(toPhone, body) {
+  if (!notifySmsReady()) return false;
+  const to = notifyPhoneE164(toPhone);
+  if (!to) return false;
+  try {
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const base = process.env.TWILIO_API_BASE || "https://api.twilio.com";
+    const form = new URLSearchParams({
+      From: process.env.TWILIO_FROM_NUMBER,
+      To: to,
+      Body: body,
+    });
+    const r = await fetch(base + "/2010-04-01/Accounts/" + sid + "/Messages.json", {
+      method: "POST",
+      headers: {
+        Authorization:
+          "Basic " + Buffer.from(sid + ":" + process.env.TWILIO_AUTH_TOKEN).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: form.toString(),
+    });
+    return r.ok;
+  } catch (e) {
+    return false;
+  }
+}
+// Account email (welcome today): really sends when Resend is
+// configured; otherwise the message lives in-app only, as before.
+// Fire-and-forget — a mail failure must never break sign-up.
+function sendAccountEmail(user, kind) {
+  if (!user || !user.email) return;
+  if (!notifyEmailReady()) {
+    console.log(
+      "[accounts] " + kind + " email queued (no email provider configured) for " + user.email
+    );
+    return;
+  }
+  const subjects = { welcome: "Welcome to Rizz Plaza 🎉" };
+  const bodies = {
+    welcome:
+      "Hi " + (user.name || "there") + " — welcome to Rizz Plaza!\n\n" +
+      "Your account is ready. Jump in: go live, meet people in the rooms, enter the Daily Pot (it bursts every night at 9 PM ET), and catch the holiday events all year.\n\n" +
+      "Open the Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+  };
+  notifySendEmail(
+    user.email,
+    subjects[kind] || "Rizz Plaza",
+    bodies[kind] || "Welcome to Rizz Plaza — open https://rizzplaza.com to get started."
+  )
+    .then((ok) =>
+      console.log("[accounts] " + kind + " email " + (ok ? "sent" : "FAILED") + " to " + user.email)
+    )
+    .catch(() => {});
+}
+// [RP-V7.55] The welcome text — after sign-up, members hear from the
+// Plaza by phone too (same rule as the email above).
+function sendAccountSms(user, kind) {
+  if (!user || !user.phone || !notifySmsReady()) return;
+  if (kind !== "welcome") return;
+  notifySendSms(
+    user.phone,
+    "Welcome to Rizz Plaza 🎉 Your account is ready — go live, meet people, and enter the Daily Pot (bursts nightly at 9 PM ET): https://rizzplaza.com"
+  )
+    .then((ok) => console.log("[accounts] welcome sms " + (ok ? "sent" : "FAILED")))
+    .catch(() => {});
 }
 // [RP-V7.52] In-flight sign-up identifier reservations (audit H2):
 // normalized username/email/phone keys held from the uniqueness
@@ -868,6 +965,7 @@ app.post("/api/account/signup", (req, res) => {
     const token = newAccountToken(fresh, user.id);
     writeAccounts(fresh);
     sendAccountEmail(user, "welcome");
+    sendAccountSms(user, "welcome"); // [RP-V7.55] email AND phone, per Branden's rule
     console.log("[accounts] signup", user.email);
     res.status(201).json({ ok: true, token, user: publicAccount(user) });
   } finally {
@@ -2223,6 +2321,17 @@ const POTS_FILE =
 const POT_SEED_MIN = 100;
 const POT_MATCH_PCT = 10; // platform growth match, % of gift charm value
 const POT_WINNER_COUNT = 5;
+// [RP-V7.54] Winner eligibility (Branden's rule, Oct 25): to RECEIVE
+// pot winnings an entrant must (a) FOLLOW the host and (b) have been
+// in the live at least 30 minutes. Entry itself stays free and open
+// to every signed-in 18+ member — eligibility is judged at draw time,
+// and the draw over the QUALIFIED pool stays uniform crypto-random.
+// Watch time accrues server-side from socket presence (the verified
+// acct-presence account binding) while a pot is open; in-memory only,
+// like the lives themselves. Env-tunable for tests; production 30 min.
+const POT_WIN_MIN_WATCH_MS = process.env.POT_WIN_MIN_WATCH_MS !== undefined && Number.isFinite(Number(process.env.POT_WIN_MIN_WATCH_MS)) ? Math.max(0, Number(process.env.POT_WIN_MIN_WATCH_MS)) : 30 * 60 * 1000;
+const POT_WATCH_TICK_MS = Math.max(250, Number(process.env.POT_WATCH_TICK_MS) || 15000);
+const potWatch = new Map(); // live key -> Map(accountId -> ms accrued in the live's room)
 function readPots() {
   // [RP-V7.52] hardened read (audit H11): a corrupt pots.json
   // restores from .bak instead of forgetting escrowed pots.
@@ -2249,6 +2358,7 @@ function potPublic(pot, viewerId) {
     seed: pot.seed || 0,
     match: pot.match || 0,
     entries: Array.isArray(pot.entries) ? pot.entries.length : 0,
+    qualified: pot.status === "drawn" ? (pot.qualifiedCount != null ? pot.qualifiedCount : null) : null, // [RP-V7.54] entrants who met the win rules at the draw
     burstAt: pot.burstAt || null, // [RP-V7.41] optional burst target
     winners: pot.status === "drawn" ? pot.winners || [] : [],
     reason: pot.status === "drawn" ? pot.drawReason || null : null,
@@ -2398,6 +2508,34 @@ function potAfterChange(db, pot) {
   }
   return null;
 }
+// [RP-V7.54] Watch-time accrual for winner eligibility: every tick,
+// each OPEN pot credits the tick to every account-verified socket
+// currently sitting in its live's room. A pot frozen at its burst
+// target re-checks here too, so it bursts the moment the first
+// entrant crosses 30 minutes — no new gift needed.
+setInterval(() => {
+  try {
+    const db = readPots();
+    const openKeys = new Set();
+    for (const k of Object.keys(db.pots)) {
+      const pot = db.pots[k];
+      if (!pot || pot.status !== "open") continue;
+      openKeys.add(k);
+      let watch = potWatch.get(k);
+      if (!watch) { watch = new Map(); potWatch.set(k, watch); }
+      for (const [sid, p] of players) {
+        if (!p || p.room !== pot.room) continue;
+        const s = io.sockets.sockets.get(sid);
+        const acctId = s && s.data && s.data.accountId;
+        if (acctId) watch.set(acctId, (watch.get(acctId) || 0) + POT_WATCH_TICK_MS);
+      }
+      if (pot.burstAt && potTotal(pot) >= pot.burstAt && (pot.entries || []).length >= 1)
+        potAfterChange(db, pot);
+    }
+    for (const k of Array.from(potWatch.keys()))
+      if (!openKeys.has(k)) potWatch.delete(k);
+  } catch (e) {}
+}, POT_WATCH_TICK_MS);
 // The draw itself: pick distinct winners uniformly at random
 // (crypto Fisher-Yates over the entrant list), credit each winner
 // floor(total / winnerCount) charms through the money ledger, return
@@ -2406,8 +2544,11 @@ function potAfterChange(db, pot) {
 // payouts + remainder == seed + match exactly (the match is the only
 // platform-created part, and only ever leaves as winner payouts or
 // the remainder share of it — never on cancel, where it evaporates).
-function potRunDraw(pot) {
-  const entrants = (pot.entries || []).slice();
+function potRunDraw(pot, pool) {
+  // [RP-V7.54] The pool is the QUALIFIED entrants (follow + 30-min
+  // watch — filtered in potFinishDraw); the pick over the pool is the
+  // same uniform crypto shuffle as always.
+  const entrants = (pool || pot.entries || []).slice();
   const total = potTotal(pot);
   const n = Math.min(POT_WINNER_COUNT, entrants.length);
   for (let i = entrants.length - 1; i > 0; i--) {
@@ -2445,13 +2586,35 @@ function potRunDraw(pot) {
     });
   }
   writeMoney(mdb);
+  pot.qualifiedCount = entrants.length; // [RP-V7.54] the qualified pool size at this draw
   pot.status = "drawn";
   pot.winners = winners;
   pot.drawnAt = new Date().toISOString();
   return { winners, share, remainder };
 }
+// [RP-V7.54] The qualified pool for a draw: entrants who FOLLOW the
+// host AND have at least POT_WIN_MIN_WATCH_MS of in-room presence
+// accrued while the pot was open. Everyone else entered for free but
+// cannot receive winnings — the rule the sheet states up front.
+function potEligibleEntries(pot) {
+  const entries = pot.entries || [];
+  if (!entries.length) return [];
+  const sdb = readSocial();
+  const watch = potWatch.get(pot.key);
+  return entries.filter((id) => {
+    if (id === pot.hostAccountId) return false;
+    const watched = watch ? watch.get(id) || 0 : 0;
+    if (watched < POT_WIN_MIN_WATCH_MS) return false;
+    return socialFollowingIds(sdb, id).indexOf(pot.hostAccountId) >= 0;
+  });
+}
 function potFinishDraw(potsDb, pot, reason) {
-  const out = potRunDraw(pot);
+  // [RP-V7.54] No qualified entrants -> NO draw and no side effects
+  // (returns null): callers decide what that means — a burst/host
+  // draw leaves the pot open; a live-end refunds the seed instead.
+  const pool = potEligibleEntries(pot);
+  if (!pool.length) return null;
+  const out = potRunDraw(pot, pool);
   pot.drawReason = reason || "host"; // [RP-V7.41] recorded + broadcast: "burst" | "host" | "live-end"
   writePots(potsDb);
   try {
@@ -2461,10 +2624,22 @@ function potFinishDraw(potsDb, pot, reason) {
       reason: reason || "host",
       total: potTotal(pot),
       entries: (pot.entries || []).length,
+      qualified: pool.length, // [RP-V7.54]
       winners: out.winners,
       pot: potPublic(pot, null),
     });
   } catch (e) {}
+  potWatch.delete(pot.key); // [RP-V7.54] the pot is settled — its watch clocks are done
+  // [RP-V7.54] Announce the winners in the live's chat (Branden:
+  // "announce the winners on the screen") — rides the potShout
+  // system-line path into the comments everyone is watching, on top
+  // of the burst show's winners overlay.
+  potShout(
+    pot,
+    "🏆 Plaza Pot winners: " +
+      out.winners.map((w) => w.name + " — " + w.amount + " charms").join(" · ") +
+      " 🎉"
+  );
   try {
     broadcastLives();
   } catch (e) {}
@@ -2490,6 +2665,7 @@ function potRefundSeed(potsDb, pot, status) {
     writeMoney(mdb);
   }
   pot.status = status || "cancelled";
+  potWatch.delete(pot.key); // [RP-V7.54] settled — drop its watch clocks
   writePots(potsDb);
   try {
     io.to(pot.room).emit("pot-update", {
@@ -2511,8 +2687,12 @@ function potLiveEnded(key) {
     const db = readPots();
     const pot = db.pots[key];
     if (!pot || pot.status !== "open") return;
-    if ((pot.entries || []).length >= 1) potFinishDraw(db, pot, "live-end");
-    else potRefundSeed(db, pot, "cancelled");
+    if ((pot.entries || []).length >= 1) {
+      // [RP-V7.54] Entrants who never qualified (follow + 30 min)
+      // can't be paid — the draw returns null and the seed goes home
+      // exactly like a no-entrant pot.
+      if (!potFinishDraw(db, pot, "live-end")) potRefundSeed(db, pot, "cancelled");
+    } else potRefundSeed(db, pot, "cancelled");
   } catch (e) {
     console.log("[pot] live-end settle failed", key, e && e.message);
   }
@@ -2523,7 +2703,7 @@ function sweepOrphanPots() {
     for (const k of Object.keys(db.pots)) {
       const pot = db.pots[k];
       if (pot && pot.status === "open" && !liveRegistry.has(k)) {
-        if ((pot.entries || []).length >= 1) potFinishDraw(db, pot, "live-end"); // the live no longer exists — same settle rule, same reason set
+        if ((pot.entries || []).length >= 1) { if (!potFinishDraw(db, pot, "live-end")) potRefundSeed(db, pot, "cancelled"); } // the live no longer exists — same settle rule, same reason set; [RP-V7.54] unqualified entrants -> seed refunds
         else potRefundSeed(db, pot, "cancelled");
       }
     }
@@ -2779,6 +2959,11 @@ app.post("/api/pot/draw", lockedHandler("pot-draw", (req, res) => {
       error: "No entries yet — the pot needs at least one entrant",
     });
   const out = potFinishDraw(db, pot, "host");
+  if (!out)
+    return res.status(409).json({
+      ok: false,
+      error: "Nobody qualifies yet — winners must follow you and be in your live at least 30 minutes",
+    });
   res.json({
     ok: true,
     pot: potPublic(pot, ctx.user.id),
@@ -4197,14 +4382,17 @@ function acctIsOnline(accountId) {
 function queueOfflineDmAlert(toAccountId, fromAccountId, fromName) {
   const db = readNotifyOutbox();
   const now = Date.now();
-  const dupe = db.alerts.some(
-    (a) =>
-      a &&
-      a.kind === "dm" &&
-      a.toAccountId === toAccountId &&
-      a.fromAccountId === fromAccountId &&
-      now - Date.parse(a.at || "") < 3600 * 1000
-  );
+  // [RP-V7.55] The one-alert-per-sender-per-hour rule also honors the
+  // DELIVERED log: without it, an alert that drained instantly would
+  // let the next DM re-alert a minute later (a text per message).
+  const recent = (a) =>
+    a &&
+    a.kind === "dm" &&
+    a.toAccountId === toAccountId &&
+    a.fromAccountId === fromAccountId &&
+    now - Date.parse(a.at || "") < 3600 * 1000;
+  const dupe =
+    db.alerts.some(recent) || (db.sentLog || []).some(recent);
   if (dupe) return false;
   db.alerts.push({
     toAccountId,
@@ -4217,42 +4405,100 @@ function queueOfflineDmAlert(toAccountId, fromAccountId, fromName) {
   return true;
 }
 // ---------------------------------------------------------------------------
-// OFFLINE ALERT TRANSPORT — NOT WIRED (stub). sendOfflineAlerts() runs
-// every minute and is a safe no-op until a provider is configured.
-// To wire a real transport later, the owner sets ONE of these in the
-// server environment (names follow the v7.0 mail-hook convention):
-//   Email (Resend):  RESEND_API_KEY + ALERT_FROM_EMAIL
-//   Email (SMTP):    SMTP_URL + ALERT_FROM_EMAIL
-//   SMS (Twilio):    TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN +
-//                    TWILIO_FROM_NUMBER
-// A transport implementation should: read notify-outbox.json, group
-// pending entries per recipient (one digest per person, e.g. "You have
-// new Rizz Plaza messages from <fromName>"), look the recipient's
-// email/phone up in accounts.json (server-side ONLY — contact details
-// must never leave through an API), send, then remove the delivered
-// entries from the outbox. Until then entries simply stay queued and
-// nothing is ever sent.
+// [RP-V7.55] OFFLINE ALERT TRANSPORT — WIRED (was a no-op stub through
+// V7.54). sendOfflineAlerts() drains notify-outbox.json: entries are
+// grouped per recipient into ONE digest per drain ("You have new
+// Rizz Plaza messages from X"), the recipient's email/phone are
+// looked up in accounts.json (server-side ONLY), and the digest goes
+// out on every configured channel (Resend email + Twilio SMS —
+// Branden's pick: both). Entries are removed only when the recipient
+// was reached on at least one configured channel; failures stay
+// queued for the next drain. Entries for accounts that no longer
+// exist (or are pending deletion) are dropped as undeliverable.
+// NOTIFY_DRAIN_MS overrides the cadence for tests; production 60 s.
 // ---------------------------------------------------------------------------
-function sendOfflineAlerts() {
-  const emailReady = !!(
-    (process.env.RESEND_API_KEY || process.env.SMTP_URL) &&
-    process.env.ALERT_FROM_EMAIL
-  );
-  const smsReady = !!(
-    process.env.TWILIO_ACCOUNT_SID &&
-    process.env.TWILIO_AUTH_TOKEN &&
-    process.env.TWILIO_FROM_NUMBER
-  );
+let notifyDrainRunning = false;
+async function sendOfflineAlerts() {
+  if (notifyDrainRunning) return 0;
+  const emailReady = notifyEmailReady();
+  const smsReady = notifySmsReady();
   if (!emailReady && !smsReady) return 0; // no provider configured
-  // Provider keys exist but no transport is implemented yet — stay a
-  // safe no-op rather than half-sending. See the block comment above.
-  return 0;
+  const db = readNotifyOutbox();
+  if (!db.alerts.length) return 0;
+  notifyDrainRunning = true;
+  try {
+    const keyOf = (a) => a.toAccountId + "|" + a.fromAccountId + "|" + a.at;
+    const byRecipient = new Map();
+    for (const a of db.alerts) {
+      if (!a || !a.toAccountId) continue;
+      if (!byRecipient.has(a.toAccountId)) byRecipient.set(a.toAccountId, []);
+      byRecipient.get(a.toAccountId).push(a);
+    }
+    const adb = readAccounts();
+    const deliveredKeys = new Set();
+    let sentCount = 0;
+    for (const [toId, entries] of byRecipient) {
+      const u = adb.users.find((x) => x.id === toId);
+      if (!u || u.deletionAt) {
+        for (const e of entries) deliveredKeys.add(keyOf(e)); // undeliverable — drop
+        continue;
+      }
+      const names = [...new Set(entries.map((e) => e.fromName || "Someone"))];
+      const who =
+        names.length === 1
+          ? names[0]
+          : names.length === 2
+            ? names[0] + " and " + names[1]
+            : names[0] + " and " + (names.length - 1) + " others";
+      let reached = false;
+      if (emailReady && u.email) {
+        const ok = await notifySendEmail(
+          u.email,
+          "You have new Rizz Plaza messages 💬",
+          "Hi " + (u.name || "there") + " — you have new Rizz Plaza messages from " + who + ".\n\nOpen the Plaza to read and reply: https://rizzplaza.com\n\n— The Rizz Plaza team"
+        );
+        if (ok) reached = true;
+      }
+      if (smsReady && u.phone) {
+        const ok = await notifySendSms(
+          u.phone,
+          "Rizz Plaza 💬 You have new messages from " + who + " — open https://rizzplaza.com to reply."
+        );
+        if (ok) reached = true;
+      }
+      if (reached) {
+        for (const e of entries) deliveredKeys.add(keyOf(e));
+        sentCount++;
+      }
+    }
+    if (deliveredKeys.size) {
+      const fresh = readNotifyOutbox();
+      const deliveredEntries = fresh.alerts.filter((a) => deliveredKeys.has(keyOf(a)));
+      fresh.alerts = fresh.alerts.filter((a) => !deliveredKeys.has(keyOf(a)));
+      // [RP-V7.55] Delivered DM alerts leave a 1-hour tombstone so the
+      // per-sender cooldown survives delivery (see queueOfflineDmAlert).
+      const cutoff = Date.now() - 2 * 3600 * 1000;
+      fresh.sentLog = (fresh.sentLog || [])
+        .concat(deliveredEntries.filter((a) => a.kind === "dm"))
+        .filter((a) => Date.parse(a.at || "") > cutoff)
+        .slice(-500);
+      writeNotifyOutbox(fresh);
+    }
+    if (sentCount)
+      console.log("[notify] offline alerts delivered to " + sentCount + " member(s)");
+    return sentCount;
+  } catch (e) {
+    return 0;
+  } finally {
+    notifyDrainRunning = false;
+  }
 }
+const NOTIFY_DRAIN_MS = Math.max(1000, Number(process.env.NOTIFY_DRAIN_MS) || 60 * 1000);
 const notifyAlertTimer = setInterval(() => {
   try {
     sendOfflineAlerts();
   } catch (e) {}
-}, 60 * 1000);
+}, NOTIFY_DRAIN_MS);
 if (notifyAlertTimer.unref) notifyAlertTimer.unref();
 
 // ---------------------------------------------------------------------------
