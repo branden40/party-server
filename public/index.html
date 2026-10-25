@@ -15,6 +15,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
+    <meta name="rp-build" content="RP-V7.61" /> <!-- [RP-V7.61] profile saved strong -->
     <style>
       :root {
         color-scheme: dark;
@@ -4492,6 +4493,7 @@
         try { if (typeof dailyPotInit === "function") dailyPotInit(); else if (window.rpDailyPotInit) window.rpDailyPotInit(); } catch (e) { } // [RP-V7.53] Daily Pot card: entering through the sign-up wall never passed rpBootHome's init (it returns at the wall), so the card stayed hidden until a saved-session reboot — start it here too (idempotent: wiring guarded, state re-fetched)
         showEarnCardOnce();
         guideAfterEnter();
+        if (!me.name) { try { var rpa61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (rpa61 && rpa61.name) me.name = cleanOnlineName(rpa61.name); } catch (e) { } } // [RP-V7.61] a signed-in member is never greeted as "friend" — the account name wins
         profileSaveSuppressed = false;
         saveProfile();
         toast(isTeen()
@@ -4511,6 +4513,7 @@
           if (a && a.phone) ph = suPhoneDigits(a.phone);
           if (em && ph) me.contact = { email: em, phone: ph, consent: true };
         } catch (e) { }
+        try { var a61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a61 && window.rpApplyAccountProfile) window.rpApplyAccountProfile(a61); } catch (e) { } // [RP-V7.61] restore username + name + bio + photo from the account before entering
         rpHydrateAge();
         finishEnterParty();
         if (isTeen()) openTeenGateAll("The whole party");
@@ -5931,6 +5934,7 @@
         me.bio = $("bioInput").value.trim();
         updateHUD();
         saveProfile();
+        try { if (window.rpSaveAccountProfile) window.rpSaveAccountProfile(me.name, me.bio); } catch (e) { } // [RP-V7.61] name + bio also save onto the ACCOUNT — they survive logout and follow the member to any device
         updatePfMeter();
         renderCardPreview();
         if (pfSetup) { pfSetup = false; finishEnterParty(); return; }
@@ -7580,7 +7584,14 @@
         uploadOnlinePhotoCore(file);
       }
       function uploadOnlinePhotoCore(file) {
-        if (!Online.socket || Online.state !== "on" || !Online.myId) {
+        // [RP-V7.61] A signed-in member uploads straight to their
+        // ACCOUNT (/api/account/photo, token auth) — no room join, no
+        // player record needed, so Profile setup works from Home and
+        // the photo survives logout. The legacy room route below stays
+        // as the fallback for anyone without an account session.
+        var acctTok61 = null;
+        try { var aa61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (aa61 && aa61.token) acctTok61 = aa61.token; } catch (e) { }
+        if (!acctTok61 && (!Online.socket || Online.state !== "on" || !Online.myId)) {
           toast("Join an online room first — the party server needs you in a room before it can take your photo.");
           return;
         }
@@ -7606,10 +7617,11 @@
             if (!blob) { done("Your browser couldn\u2019t prepare that photo — try a different one."); return; }
             var fd = new FormData();
             fd.append("photo", blob, "profile.jpg");
-            fd.append("playerId", Online.myId);
             var acctHdr = {};
-            try { var aa = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (aa && aa.token) acctHdr = { "Authorization": "Bearer " + aa.token }; } catch (e) { } // [RP-V7.50] so the server binds the photo to my account
-            fetch(ONLINE_URL + "/api/profile-photo", { method: "POST", headers: acctHdr, body: fd })
+            var photoUrl61 = ONLINE_URL + "/api/profile-photo"; // legacy room route (fallback)
+            if (acctTok61) { acctHdr = { "Authorization": "Bearer " + acctTok61 }; photoUrl61 = ONLINE_URL + "/api/account/photo"; } // [RP-V7.61] account route: token only, no playerId, no room
+            else { fd.append("playerId", Online.myId); try { var aa = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (aa && aa.token) acctHdr = { "Authorization": "Bearer " + aa.token }; } catch (e) { } } // [RP-V7.50] legacy path still binds to the account when it can
+            fetch(photoUrl61, { method: "POST", headers: acctHdr, body: fd })
               .then(function (res) {
                 return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; });
               })
@@ -7617,8 +7629,9 @@
                 if (out.res.ok && out.data && out.data.photoUrl) {
                   Online.myPhotoUrl = out.data.photoUrl;
                   try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(out.data.photoUrl); } catch (e) { } // [RP-V7.50] the account remembers it now
+                  try { if (out.data.user && window.rpApplyAccountProfile) window.rpApplyAccountProfile(out.data.user); } catch (e) { } // [RP-V7.61] the account route returns the full profile — rehydrate from it
                   renderOnlineMe(); renderMyFigure();
-                  done("Profile photo live! Everyone in the room can see it on your avatar now.");
+                  done(acctTok61 ? "Profile photo saved to your account \u2014 it will be there on any device, even after you log out. \u2713" : "Profile photo live! Everyone in the room can see it on your avatar now.");
                 } else if (out.res.status === 503) {
                   done("Photo uploads aren\u2019t switched on for the party server yet — your cartoon avatar still represents you.");
                 } else {
@@ -7632,6 +7645,8 @@
         img.src = url;
       }
       function askOnlinePhoto() {
+        var tok61 = null; try { var ab61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (ab61 && ab61.token) tok61 = ab61.token; } catch (e) { }
+        if (tok61) { $("onlinePhotoInput").click(); return; } // [RP-V7.61] signed in: pick the photo right away — the account takes it, no room join needed
         if (Online.state !== "on") {
           toast("Join the party first — tap ⭐ Live Stage, and the party server can take your photo once you\u2019re in a room.");
           if (!isTeen()) enterLiveStageCard();
@@ -12640,6 +12655,36 @@
         try { renderMyFigure(); } catch (e) { }
         try { saveProfile(); } catch (e) { }
       };
+      /* [RP-V7.61] The account payload is the ONE restore source for
+         identity: username + display name + bio (+ profileType/photo,
+         handled by their own bridges) are written into the SAME local
+         state everything renders from — me.name / me.bio feed the Home
+         greeting, the Profile screen (pfName, nameInput, bioInput)
+         and my own profile card; the username is kept on
+         window.rpAccountProfile so directory / mention rendering can
+         read it without a fetch. Called at login, at session restore
+         (refreshSession + boot) and after every account save, so a
+         fresh login on any device shows the saved profile — never a
+         generic placeholder when the account has the values. */
+      var acctUsername61 = "";
+      window.rpAccountProfile = { username: "" };
+      window.rpApplyAccountProfile = function (u) {
+        if (!u || typeof u !== "object") return;
+        if (typeof u.username === "string" && u.username) { acctUsername61 = u.username; window.rpAccountProfile.username = u.username; try { localStorage.setItem("rpAcctUsername.v1", u.username); } catch (e) { } }
+        var nm = (typeof u.name === "string" && u.name.trim()) ? cleanOnlineName(u.name) : "";
+        if (nm) {
+          me.name = nm;
+          if (Online.state === "off" && !Online.name) Online.name = nm;
+          var ni61 = $("nameInput"); if (ni61 && ni61.value !== nm) ni61.value = nm;
+          var pf61 = $("pfName"); if (pf61) pf61.textContent = nm;
+        }
+        if (typeof u.bio === "string") {
+          me.bio = u.bio.slice(0, 240);
+          var bi61 = $("bioInput"); if (bi61 && bi61.value !== me.bio) { bi61.value = me.bio; var bc61 = $("bioCount"); if (bc61) bc61.textContent = String(me.bio.length); }
+        }
+        try { updateHUD(); } catch (e) { }
+        try { saveProfile(); } catch (e) { }
+      };
       function joinOnlineSaved(roomId) {
         Online.room = roomId;
         noteRoomVisit(roomId);
@@ -13397,6 +13442,7 @@
         // reads "You" for a known user and no entry re-asks the name.
         try { var ba = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (ba && ba.token && ba.name) me.name = cleanOnlineName(ba.name); } catch (e) { }
         if (!me.name) { try { var gn = localStorage.getItem("rpGuestName.v1") || ""; if (gn) me.name = cleanOnlineName(gn); } catch (e) { } }
+        try { var ba61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (ba61 && ba61.token && window.rpApplyAccountProfile) window.rpApplyAccountProfile(ba61); } catch (e) { } // [RP-V7.61] account identity (username + name + bio) applied at boot too, after the guest-name fallback, so a stale device-local snapshot can never shadow it
         rpHydrateAge();
         $("hud").hidden = false;
         updateHUD(); renderLobby(); renderMatches(); renderPlaza();
@@ -21759,6 +21805,39 @@ body.wp-video-on #rpWallC { visibility: hidden; }
   var reminders = [], unread = 0, acctBusy = false;
 
   function saveAcct() { try { if (acct) localStorage.setItem(ACCT_KEY, JSON.stringify(acct)); else localStorage.removeItem(ACCT_KEY); } catch (e) { } }
+  /* [RP-V7.61] ONE restore path for the account payload: every field
+     the account owns (name, username, bio, profileType, photo) lands
+     on the saved session AND in the local identity state the app
+     renders from (via the rpApplyAccount* bridges), in one place, so
+     login / session-restore / post-save can never drift apart — that
+     drift is what greeted Branden as "friend" with an empty profile
+     after a fresh login (Oct 25). */
+  function applyAccountUser(u) {
+    if (!u || typeof u !== "object" || !acct) return;
+    if (u.id) acct.userId = u.id;
+    if (u.name) acct.name = u.name;
+    if (u.username) acct.username = u.username;
+    if (u.email) acct.email = u.email;
+    if (u.phone) acct.phone = u.phone;
+    if (u.profileType) acct.profileType = u.profileType;
+    if (typeof u.bio === "string") acct.bio = u.bio;
+    if ("photo" in u) acct.photo = u.photo || "";
+    saveAcct();
+    try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { }
+    try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(acct.photo || null); } catch (e) { }
+    try { if (window.rpApplyAccountProfile) window.rpApplyAccountProfile(u); } catch (e) { }
+  }
+  /* [RP-V7.61] Profile setup save (name + bio) -> the account record.
+     No-ops signed-out. On success the returned payload flows through
+     the same restore path, so what the server kept is what renders. */
+  window.rpSaveAccountProfile = function (name, bio) {
+    if (!acct || !acct.token) return Promise.resolve(false);
+    return api("/api/account/profile", "POST", { name: name, bio: bio }).then(function (r) {
+      if (r.json && r.json.ok && r.json.user) { applyAccountUser(r.json.user); acctBoxSig = ""; renderAcctBox(); return true; }
+      if (r.status === 401) signOutLocal();
+      return false;
+    });
+  };
   function api(path, method, body) {
     return new Promise(function (resolve) {
       var ctrl = ("AbortController" in window) ? new AbortController() : null;
@@ -21797,13 +21876,8 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     if (!acct) return;
     api("/api/account/me", "GET").then(function (r) {
       if (r.json && r.json.ok) {
-        acct.name = r.json.user.name; acct.email = r.json.user.email; acct.userId = r.json.user.id;
-        if (r.json.user.username) acct.username = r.json.user.username;
-        if (r.json.user.phone) acct.phone = r.json.user.phone;
-        if (r.json.user.profileType) acct.profileType = r.json.user.profileType; // [RP-V7.39]
-        acct.photo = r.json.user.photo || ""; // [RP-V7.50] the account's photo returns with the session
-        try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
-        saveAcct(); try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } setUnread(r.json.unread || 0); fetchReminders();
+        applyAccountUser(r.json.user); // [RP-V7.61] session restore rehydrates name, username, bio, profileType + photo into local identity state (was: photo + name only, applied piecemeal)
+        setUnread(r.json.unread || 0); fetchReminders();
       } else if (r.status === 401) {
         signOutLocal();
         toast2("You're signed out — log in again from the sign-up sheet.", 3600);
@@ -21955,10 +22029,11 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     api("/api/account/signup", "POST", { name: profileName(), username: un, email: em, phone: ph, password: pw, dob: dobOnFile() }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "" };
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "" }; // [RP-V7.61] bio rides the saved session too
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
+        try { if (window.rpApplyAccountProfile) window.rpApplyAccountProfile(r.json.user); } catch (e) { } // [RP-V7.61] username + name + bio restore into local identity (greeting / Profile / setup fields)
         try { var d0 = dobOnFile(); if (d0) localStorage.setItem(DOB_KEY, d0); } catch (e) { }
         localSeed();
         toast2("✅ You're in — check your reminders 🔔", 4200);
@@ -21987,10 +22062,11 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     api("/api/account/login", "POST", { id: idv, username: idv, email: idv, password: pw }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "" };
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "" }; // [RP-V7.61] bio rides the saved session too
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
+        try { if (window.rpApplyAccountProfile) window.rpApplyAccountProfile(r.json.user); } catch (e) { } // [RP-V7.61] username + name + bio restore into local identity (greeting / Profile / setup fields)
         if (er) er.hidden = true;
         // [RP-V7.39] Logging back in inside the 30-day window cancelled
         // a scheduled deletion — say so once, plainly.
@@ -22198,6 +22274,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
   if (acct) refreshSession();
   if (acct && acct.name) { try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } } // [RP-V7.24] identity applies at boot, before any room/live entry
   if (acct && acct.photo) { try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(acct.photo); } catch (e) { } } // [RP-V7.50] the saved session's photo applies at boot too; /me re-confirms it
+  if (acct) { try { if (window.rpApplyAccountProfile) window.rpApplyAccountProfile(acct); } catch (e) { } } // [RP-V7.61] cached username + name + bio rehydrate at boot too; refreshSession() re-confirms from the server payload
   window.rpAcct = {
     state: function () { return acct; },
     reminders: function () { return reminders; },
