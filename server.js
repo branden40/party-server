@@ -25,6 +25,52 @@ function cleanRoomName(room) {
   return r || DEFAULT_ROOMS[0];
 }
 
+// [RP-V7.52] Store hardening (audit C5 + addendum, H11): the money,
+// accounts, pots and dailypot stores NEVER boot empty over a corrupt
+// file again. A read that cannot parse (or fails shape validation)
+// restores the last-good .bak when one exists, quarantines the
+// corrupt bytes to <file>.corrupt-<ts> for forensics, and logs
+// loudly; every successful write refreshes .bak to the state just
+// written, so .bak is always the last known-good state. A missing
+// file is a fresh install — the fallback, silently.
+function storeQuarantine(file) {
+  try {
+    if (fs.existsSync(file)) fs.renameSync(file, file + ".corrupt-" + Date.now());
+  } catch (e) {}
+}
+function storeReadJson(file, validate, fallback, label) {
+  if (!fs.existsSync(file)) return fallback;
+  try {
+    const d = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (validate(d)) return d;
+    console.error("[store] " + label + ": unexpected shape in " + file + " — attempting .bak restore");
+  } catch (e) {
+    console.error("[store] " + label + ": cannot parse " + file + " (" + e.message + ") — attempting .bak restore");
+  }
+  try {
+    const b = JSON.parse(fs.readFileSync(file + ".bak", "utf8"));
+    if (validate(b)) {
+      storeQuarantine(file);
+      const tmp = file + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(b, null, 2));
+      fs.renameSync(tmp, file);
+      console.error("[store] " + label + ": restored last-good state from " + file + ".bak");
+      return b;
+    }
+  } catch (e) {}
+  storeQuarantine(file);
+  console.error("[store] " + label + ": NO usable backup for " + file + " — starting from empty; corrupt bytes quarantined, nothing silently overwritten");
+  return fallback;
+}
+function storeWriteJson(file, obj) {
+  const tmp = file + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
+  fs.renameSync(tmp, file);
+  try {
+    fs.copyFileSync(file, file + ".bak");
+  } catch (e) {}
+}
+
 // socket.id -> { id, name, avatar, room, x, y, dancing, photoUrl }
 const players = new Map();
 // socket.id -> recent chat timestamps (spam protection)
@@ -48,17 +94,16 @@ function livesSnapshot() {
   const potsDb = readPots(); // [RP-V7.41] Plaza Pot state rides the snapshot
   return [...liveRegistry.values()].map((e) => {
     const sid = byKey.get(e.key) || null;
-    // [RP-V7.40] Resolve the host's ACCOUNT id: exact when the host's
-    // own socket announced acct-presence; otherwise the unique-name
-    // rule (same as follow-name). Null for guest hosts / shared names.
+    // [RP-V7.52] Resolve the host's ACCOUNT id ONLY from the host
+    // socket's token-verified acct-presence binding (audit C4). The
+    // old unique-display-name fallback is gone: display names are
+    // claimable by anyone, so an unverified socket could get its
+    // live attributed to a victim's account. An unverified socket
+    // is a guest host with NO account identity — null here.
     let hostAccountId = null;
     if (sid) {
       const hs = io.sockets.sockets.get(sid);
       if (hs && hs.data && hs.data.accountId) hostAccountId = hs.data.accountId;
-    }
-    if (!hostAccountId) {
-      const m = accountsDb.users.filter((u) => u.name === e.name);
-      if (m.length === 1) hostAccountId = m[0].id;
     }
     let watchers = 0;
     for (const p of players.values()) if (p.room === e.room) watchers++;
@@ -466,19 +511,18 @@ function emptyAccounts() {
   return { users: [], tokens: {} };
 }
 function readAccounts() {
-  try {
-    const d = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, "utf8"));
-    if (d && Array.isArray(d.users) && d.tokens && typeof d.tokens === "object")
-      return d;
-    return emptyAccounts();
-  } catch {
-    return emptyAccounts();
-  }
+  // [RP-V7.52] hardened read (audit C5 addendum): a corrupt
+  // accounts.json restores from accounts.json.bak instead of
+  // booting empty and letting the next write destroy the original.
+  return storeReadJson(
+    ACCOUNTS_FILE,
+    (d) => !!(d && Array.isArray(d.users) && d.tokens && typeof d.tokens === "object"),
+    emptyAccounts(),
+    "accounts"
+  );
 }
 function writeAccounts(db) {
-  const tmp = ACCOUNTS_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, ACCOUNTS_FILE);
+  storeWriteJson(ACCOUNTS_FILE, db);
 }
 function hashPassword(password, salt) {
   return crypto.scryptSync(String(password), salt, 64).toString("hex");
@@ -509,7 +553,9 @@ function accountForToken(db, req) {
   return db.users.find((u) => u.id === rec.userId) || null;
 }
 function publicAccount(u) {
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u) };
+  // [RP-V7.50] photo: the account record is the source of truth for the
+  // profile photo — login / signup / /me all carry it back.
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null };
 }
 // RP-V7.17: unique usernames. 3-20 chars, letters/numbers/underscore;
 // uniqueness is compared case-insensitively, ignoring surrounding spaces.
@@ -668,6 +714,11 @@ function sendAccountEmail(user, kind) {
     );
   }
 }
+// [RP-V7.52] In-flight sign-up identifier reservations (audit H2):
+// normalized username/email/phone keys held from the uniqueness
+// check until the insert lands, so the one-account-per-identifier
+// rule is structural, not timing-dependent.
+const signupReservations = new Set();
 const loginAttempts = new Map(); // ip -> [timestamps]
 function loginRateLimited(ip) {
   const now = Date.now();
@@ -751,29 +802,77 @@ app.post("/api/account/signup", (req, res) => {
       ok: false,
       error: "That phone number is already registered",
     });
-  const now = new Date().toISOString();
-  const salt = crypto.randomBytes(16).toString("hex");
-  const user = {
-    id: crypto.randomBytes(12).toString("hex"),
-    name: name || email.split("@")[0],
-    username,
-    email,
-    phone,
-    profileType,
-    passHash: hashPassword(password, salt),
-    salt,
-    dob,
-    createdAt: now,
-    lastLoginAt: now,
-    reminders: [],
-  };
-  seedWelcomeReminders(user);
-  db.users.push(user);
-  const token = newAccountToken(db, user.id);
-  writeAccounts(db);
-  sendAccountEmail(user, "welcome");
-  console.log("[accounts] signup", user.email);
-  res.status(201).json({ ok: true, token, user: publicAccount(user) });
+  // [RP-V7.52] Reserve all three identifiers synchronously BEFORE
+  // the insert work, and re-check against a fresh read at insert
+  // (audit H2): two sign-ups racing the same normalized email,
+  // phone or username can no longer both pass — the second sees
+  // either the reservation or the inserted record and gets the
+  // same 409s as a sequential duplicate. Sequential behavior and
+  // every message above are unchanged.
+  const resKeys = [
+    "u:" + usernameKey(username),
+    "e:" + normEmailKey(email),
+    "p:" + normPhoneKey(phone),
+  ];
+  if (signupReservations.has(resKeys[0]))
+    return res.status(409).json({
+      ok: false,
+      error: "That username is taken — try another",
+    });
+  if (signupReservations.has(resKeys[1]))
+    return res.status(409).json({
+      ok: false,
+      error: "That email is already registered",
+    });
+  if (signupReservations.has(resKeys[2]))
+    return res.status(409).json({
+      ok: false,
+      error: "That phone number is already registered",
+    });
+  for (const k of resKeys) signupReservations.add(k);
+  try {
+    const fresh = readAccounts();
+    if (usernameTaken(fresh, username))
+      return res.status(409).json({
+        ok: false,
+        error: "That username is taken — try another",
+      });
+    if (emailTaken(fresh, email, null))
+      return res.status(409).json({
+        ok: false,
+        error: "That email is already registered",
+      });
+    if (phoneTaken(fresh, phone, null))
+      return res.status(409).json({
+        ok: false,
+        error: "That phone number is already registered",
+      });
+    const now = new Date().toISOString();
+    const salt = crypto.randomBytes(16).toString("hex");
+    const user = {
+      id: crypto.randomBytes(12).toString("hex"),
+      name: name || email.split("@")[0],
+      username,
+      email,
+      phone,
+      profileType,
+      passHash: hashPassword(password, salt),
+      salt,
+      dob,
+      createdAt: now,
+      lastLoginAt: now,
+      reminders: [],
+    };
+    seedWelcomeReminders(user);
+    fresh.users.push(user);
+    const token = newAccountToken(fresh, user.id);
+    writeAccounts(fresh);
+    sendAccountEmail(user, "welcome");
+    console.log("[accounts] signup", user.email);
+    res.status(201).json({ ok: true, token, user: publicAccount(user) });
+  } finally {
+    for (const k of resKeys) signupReservations.delete(k);
+  }
 });
 app.post("/api/account/login", (req, res) => {
   const ip = req.ip || "unknown";
@@ -837,12 +936,17 @@ app.post("/api/account/login", (req, res) => {
   console.log("[accounts] login", user.email);
   res.json({ ok: true, token, user: publicAccount(user), deletionCancelled });
 });
-app.get("/api/account/me", (req, res) => {
+function accountMeHandler(req, res) {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   const unread = ctx.user.reminders.filter((r) => !r.read).length;
   res.json({ ok: true, user: publicAccount(ctx.user), unread });
-});
+}
+app.get("/api/account/me", accountMeHandler);
+// [RP-V7.52] Short alias (audit H5): the canonical account payload
+// (publicAccount — id, name, username, email, phone, profileType,
+// photo) at the path API callers reach for first.
+app.get("/api/me", accountMeHandler);
 app.get("/api/account/reminders", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -1383,7 +1487,10 @@ async function moderateImage(publicUrl) {
 
 // Upload a profile photo. The uploader must be a joined player (playerId =
 // their socket id). On success the photo URL is saved on the player and
-// broadcast to everyone in their room.
+// broadcast to everyone in their room. [RP-V7.50] It is ALSO bound to the
+// uploader's account (resolved from the Bearer token, else the socket's
+// acct-presence announcement) — the account is the source of truth, so
+// the photo survives sign-out and follows the member to any device.
 app.post("/api/profile-photo", upload.single("photo"), async (req, res) => {
   try {
     const player = players.get(String(req.body.playerId || ""));
@@ -1412,6 +1519,21 @@ app.post("/api/profile-photo", upload.single("photo"), async (req, res) => {
 
     player.photoUrl = publicUrl;
     io.to(player.room).emit("player-photo", { id: player.id, photoUrl: publicUrl });
+    // [RP-V7.50] Bind the photo to the account record. Best-effort: a
+    // binding failure never fails the upload itself.
+    try {
+      const adb = readAccounts();
+      let au = accountForToken(adb, req);
+      if (!au) {
+        const sk = io.sockets.sockets.get(player.id);
+        const aid = sk && sk.data && sk.data.accountId;
+        if (aid) au = adb.users.find((x) => x.id === aid) || null;
+      }
+      if (au && au.photo !== publicUrl) {
+        au.photo = publicUrl;
+        writeAccounts(adb);
+      }
+    } catch (e) { /* the upload already succeeded */ }
     return res.json({ ok: true, photoUrl: publicUrl });
   } catch (e) {
     console.log("UPLOAD ERROR:", e.message);
@@ -1495,6 +1617,89 @@ const reelUpload = multer({
 // express.static answers Range requests with 206, which video playback
 // (and seeking) needs.
 app.use("/reel-files", express.static(REELS_DIR));
+// ---------------------------------------------------------------------------
+// [RP-V7.51] Emoji reactions on Photos + Reels (Branden: "Add emojis for
+// photos and reels" → Both → "Give all the emojis"). Any emoji from the
+// full picker can be a reaction; a member may hold several DIFFERENT
+// emojis on one post (once each) and tapping theirs again removes it.
+// Storage: reels carry reactions inside their reels.json entry
+// (reactions: { emoji: [accountId, ...] }) — extending the existing
+// store. Photo (Moments) posts have NO server store (they live in the
+// client), so their reactions get one small store file of the same
+// atomic tmp+rename shape, keyed by the client-side post id.
+// Clients only ever receive counts + their own picks — never member
+// lists. A reaction is NOT a like: nothing here touches reel-signals.
+// ---------------------------------------------------------------------------
+const REACTIONS_FILE =
+  process.env.REACTIONS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "reactions.json");
+const RX_MAX_DISTINCT_PER_MEMBER = 25;
+function readPhotoReactions() {
+  try {
+    const db = JSON.parse(fs.readFileSync(REACTIONS_FILE, "utf8"));
+    if (db && typeof db === "object" && db.photos && typeof db.photos === "object")
+      return db;
+  } catch (e) {}
+  return { photos: {} };
+}
+function writePhotoReactions(db) {
+  const tmp = REACTIONS_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, REACTIONS_FILE);
+}
+// One emoji = exactly one grapheme cluster (ZWJ families, keycaps and
+// flag pairs count as one), a sane byte cap, and a lone ASCII letter,
+// digit or punctuation mark is not an emoji — refuse it as junk.
+function rxCleanEmoji(v) {
+  const s = String(v == null ? "" : v).trim();
+  if (!s) return null;
+  if (Buffer.byteLength(s, "utf8") > 32) return null;
+  let clusters = 0;
+  try {
+    const seg = new Intl.Segmenter("en", { granularity: "grapheme" });
+    for (const _part of seg.segment(s)) {
+      clusters++;
+      if (clusters > 1) return null;
+    }
+  } catch (e) {
+    if ([...s].length > 10) return null;
+    clusters = 1;
+  }
+  if (clusters !== 1) return null;
+  if (/^[\x20-\x7E]$/.test(s)) return null;
+  return s;
+}
+// reactions map (emoji -> [accountId]) -> { counts, mine } for one user.
+function rxSummarize(map, uid) {
+  const counts = {};
+  const mine = [];
+  if (map && typeof map === "object") {
+    for (const emoji of Object.keys(map)) {
+      const ids = Array.isArray(map[emoji]) ? map[emoji] : [];
+      if (ids.length) counts[emoji] = ids.length;
+      if (uid && ids.includes(uid)) mine.push(emoji);
+    }
+  }
+  return { counts, mine };
+}
+// Toggle uid's hold on emoji inside a reactions map (mutates). Returns
+// false when the member already holds the per-post distinct cap and
+// tried to add one more.
+function rxToggle(map, uid, emoji) {
+  const held = Object.keys(map).filter(
+    (e) => Array.isArray(map[e]) && map[e].includes(uid)
+  );
+  const cur = Array.isArray(map[emoji]) ? map[emoji] : null;
+  if (cur && cur.includes(uid)) {
+    map[emoji] = cur.filter((x) => x !== uid);
+    if (!map[emoji].length) delete map[emoji];
+    return true;
+  }
+  if (held.length >= RX_MAX_DISTINCT_PER_MEMBER) return false;
+  if (!cur) map[emoji] = [];
+  map[emoji].push(uid);
+  return true;
+}
 app.get("/api/reels", (req, res) => {
   const newest = listReels()
     .slice()
@@ -1528,6 +1733,12 @@ app.get("/api/reels", (req, res) => {
       stitchStart: typeof r.stitchStart === "number" ? r.stitchStart : null,
       stitchDur: typeof r.stitchDur === "number" ? r.stitchDur : null,
       allowRemix: r.allowRemix !== false,
+      // [RP-V7.51] Compact reaction summary: counts for everyone, the
+      // caller's own picks only when they sent a valid token.
+      reactions: rxSummarize(r.reactions, null).counts,
+      ...(fyUser
+        ? { myReactions: rxSummarize(r.reactions, fyUser.id).mine }
+        : {}),
     };
   });
   res.json({ ok: true, reels: list, ...(fyUser ? { ranked: true } : {}) });
@@ -1786,6 +1997,83 @@ function fyRankReels(user, newestFirst) {
   });
   return out;
 }
+// [RP-V7.51] Toggle the caller's reaction on a photo post or a reel.
+// Session-only (requireAccount → 401 signed out); pending-deletion
+// accounts are refused like everywhere else (403). The response is the
+// post's fresh compact summary so the client can re-render its row.
+app.post("/api/reactions/toggle", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const kind = b.kind === "reel" ? "reel" : b.kind === "photo" ? "photo" : null;
+  const id = reelCleanId(b.id);
+  const emoji = rxCleanEmoji(b.emoji);
+  if (!kind || !id)
+    return res.status(400).json({ ok: false, error: "Bad post reference" });
+  if (!emoji)
+    return res.status(400).json({ ok: false, error: "Pick one emoji" });
+  const uid = ctx.user.id;
+  if (kind === "reel") {
+    const entry = listReels().find((r) => r.id === id);
+    if (!entry) return res.status(404).json({ ok: false, error: "No such reel" });
+    if (!entry.reactions || typeof entry.reactions !== "object")
+      entry.reactions = {};
+    if (!rxToggle(entry.reactions, uid, emoji))
+      return res
+        .status(400)
+        .json({ ok: false, error: "Too many different reactions on one post" });
+    updateReelEntry(id, { reactions: entry.reactions });
+    const s = rxSummarize(entry.reactions, uid);
+    return res.json({ ok: true, kind, id, reactions: s.counts, mine: s.mine });
+  }
+  const db = readPhotoReactions();
+  const map = db.photos[id] || (db.photos[id] = {});
+  if (!rxToggle(map, uid, emoji))
+    return res
+      .status(400)
+      .json({ ok: false, error: "Too many different reactions on one post" });
+  if (!Object.keys(map).length) delete db.photos[id];
+  writePhotoReactions(db);
+  const s = rxSummarize(map, uid);
+  return res.json({ ok: true, kind, id, reactions: s.counts, mine: s.mine });
+});
+// [RP-V7.51] Batch reaction summaries for client-side posts (Photos
+// have no server feed to ride, so their cards ask for the ids on
+// screen). Read is public — counts are public; "mine" appears only
+// with a valid session token.
+app.get("/api/reactions", (req, res) => {
+  const kind = req.query.kind === "reel" ? "reel" : "photo";
+  const ids = String(req.query.ids || "")
+    .split(",")
+    .map((x) => reelCleanId(x))
+    .filter(Boolean)
+    .slice(0, 50);
+  let uid = null;
+  try {
+    const u = accountForToken(readAccounts(), req);
+    if (u) uid = u.id;
+  } catch (e) {}
+  const posts = {};
+  if (kind === "reel") {
+    const all = listReels();
+    for (const id of ids) {
+      const entry = all.find((r) => r.id === id);
+      const s = rxSummarize(entry ? entry.reactions : null, uid);
+      posts[id] = { reactions: s.counts, mine: s.mine };
+    }
+  } else {
+    const db = readPhotoReactions();
+    for (const id of ids) {
+      const s = rxSummarize(db.photos[id], uid);
+      posts[id] = { reactions: s.counts, mine: s.mine };
+    }
+  }
+  res.json({ ok: true, kind, posts });
+});
 app.post("/api/reels/signal", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return; // 401 — guests write no signals
@@ -1936,17 +2224,17 @@ const POT_SEED_MIN = 100;
 const POT_MATCH_PCT = 10; // platform growth match, % of gift charm value
 const POT_WINNER_COUNT = 5;
 function readPots() {
-  try {
-    const d = JSON.parse(fs.readFileSync(POTS_FILE, "utf8"));
-    if (d && d.pots && typeof d.pots === "object" && !Array.isArray(d.pots))
-      return d;
-  } catch (e) {}
-  return { pots: {} };
+  // [RP-V7.52] hardened read (audit H11): a corrupt pots.json
+  // restores from .bak instead of forgetting escrowed pots.
+  return storeReadJson(
+    POTS_FILE,
+    (d) => !!(d && d.pots && typeof d.pots === "object" && !Array.isArray(d.pots)),
+    { pots: {} },
+    "pots"
+  );
 }
 function writePots(db) {
-  const tmp = POTS_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, POTS_FILE);
+  storeWriteJson(POTS_FILE, db);
 }
 function potTotal(pot) {
   return (pot.seed || 0) + (pot.match || 0);
@@ -2018,9 +2306,11 @@ function potOpenForHost(accountId) {
   return null;
 }
 // Resolve a live-registry entry's host ACCOUNT id exactly the way
-// livesSnapshot does: the host socket's acct-presence announcement
-// first, otherwise the unique display-name rule. Null when the host is
-// a guest or the name is shared — pot hosting needs a proven account.
+// livesSnapshot does: ONLY from the host socket's token-verified
+// acct-presence binding. [RP-V7.52] The unique-display-name fallback
+// was removed (audit C4) — pot host authorization keys off this, and
+// a claimable name must never authorize a pot. Null when the host
+// socket has not verified: pot hosting needs a proven account.
 function liveHostAccountId(entry) {
   if (!entry) return null;
   const byKey = new Map();
@@ -2030,8 +2320,6 @@ function liveHostAccountId(entry) {
     const hs = io.sockets.sockets.get(sid);
     if (hs && hs.data && hs.data.accountId) return hs.data.accountId;
   }
-  const m = readAccounts().users.filter((u) => u.name === entry.name);
-  if (m.length === 1) return m[0].id;
   return null;
 }
 function potLiveForHost(user, liveKey) {
@@ -2273,7 +2561,7 @@ function potOnGift(hostAccountId, giftCharms) {
     });
   } catch (e) {}
 }
-app.post("/api/pot/open", (req, res) => {
+app.post("/api/pot/open", lockedHandler("pot-open", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   if (isPendingDeletion(ctx.user))
@@ -2370,8 +2658,8 @@ app.post("/api/pot/open", (req, res) => {
     pot: potPublic(pot, ctx.user.id),
     balance: mdb.balances[ctx.user.id],
   });
-});
-app.post("/api/pot/topup", (req, res) => {
+}));
+app.post("/api/pot/topup", lockedHandler("pot-topup", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   if (isPendingDeletion(ctx.user))
@@ -2423,8 +2711,8 @@ app.post("/api/pot/topup", (req, res) => {
       ? { winners: burstOut.winners, share: burstOut.share, remainder: burstOut.remainder }
       : {}),
   });
-});
-app.post("/api/pot/join", (req, res) => {
+}));
+app.post("/api/pot/join", lockedHandler("pot-join", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return; // 401 "Not signed in" — guests must sign in to enter
   if (isPendingDeletion(ctx.user))
@@ -2471,8 +2759,8 @@ app.post("/api/pot/join", (req, res) => {
       ? { winners: burstOut.winners, share: burstOut.share, remainder: burstOut.remainder }
       : {}),
   });
-});
-app.post("/api/pot/draw", (req, res) => {
+}));
+app.post("/api/pot/draw", lockedHandler("pot-draw", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   const b = req.body || {};
@@ -2498,8 +2786,8 @@ app.post("/api/pot/draw", (req, res) => {
     share: out.share,
     remainder: out.remainder,
   });
-});
-app.post("/api/pot/cancel", (req, res) => {
+}));
+app.post("/api/pot/cancel", lockedHandler("pot-cancel", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   const b = req.body || {};
@@ -2514,7 +2802,7 @@ app.post("/api/pot/cancel", (req, res) => {
     return res.status(404).json({ ok: false, error: "No open pot in this live" });
   potRefundSeed(db, pot, "cancelled");
   res.json({ ok: true, pot: potPublic(pot, ctx.user.id) });
-});
+}));
 app.get("/api/pot/state", (req, res) => {
   const liveKey = String(req.query.live || "");
   let viewerId = null;
@@ -2607,17 +2895,23 @@ const DAILY_POT_SEED_OVERRIDE = (() => {
   return Number.isFinite(n) && n > 0 ? n : 0;
 })();
 function readDailyPot() {
-  try {
-    const d = JSON.parse(fs.readFileSync(DAILYPOT_FILE, "utf8"));
-    if (d && d.rec && typeof d.rec === "object" && !Array.isArray(d.rec))
-      return d;
-  } catch (e) {}
-  return { rec: null };
+  // [RP-V7.52] hardened read (audit C5 family): a corrupt
+  // dailypot.json restores from .bak instead of resetting the day.
+  return storeReadJson(
+    DAILYPOT_FILE,
+    (d) =>
+      !!(
+        d &&
+        "rec" in d &&
+        (d.rec === null ||
+          (d.rec && typeof d.rec === "object" && !Array.isArray(d.rec)))
+      ),
+    { rec: null },
+    "dailypot"
+  );
 }
 function writeDailyPot(db) {
-  const tmp = DAILYPOT_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, DAILYPOT_FILE);
+  storeWriteJson(DAILYPOT_FILE, db);
 }
 // ---------------------------------------------------------------------------
 // [RP-V7.43] DAILY-RETURN ENGINE — habit mechanics around the Daily
@@ -2807,6 +3101,10 @@ function dpBroadcastUpdate(force) {
 // through the money ledger; the split remainder is stamped rolledOut
 // and folds into tomorrow's pot at the roll (never paid to a host).
 function dpRunBurst(db, rec) {
+  // [RP-V7.52] Settlement is idempotent per pot date (audit C1): a
+  // record that is no longer "open" has already settled — a second
+  // settle for the same date is a no-op and pays nobody twice.
+  if (!rec || rec.status !== "open" || rec.burstDoneAt) return null;
   const total = dailyPotTotal(rec);
   const entrants = (rec.entries || []).slice();
   const n = Math.min(DAILY_POT_WINNER_COUNT, entrants.length);
@@ -2828,6 +3126,15 @@ function dpRunBurst(db, rec) {
       amount: share,
     };
   });
+  // [RP-V7.52] The settlement stamp is persisted BEFORE any payout
+  // lands: status flips to "burst" with its burstDoneAt, so any
+  // concurrent or repeated settle attempt from here on reads a
+  // settled record and stops (audit C1).
+  rec.status = "burst";
+  rec.winners = winners;
+  rec.burstDoneAt = new Date().toISOString();
+  rec.rolledOut = remainder;
+  writeDailyPot(db);
   const mdb = readMoney();
   for (const w of winners) {
     mdb.balances[w.id] = (mdb.balances[w.id] || 0) + w.amount;
@@ -2837,11 +3144,6 @@ function dpRunBurst(db, rec) {
     });
   }
   writeMoney(mdb);
-  rec.status = "burst";
-  rec.winners = winners;
-  rec.burstDoneAt = new Date().toISOString();
-  rec.rolledOut = remainder;
-  writeDailyPot(db);
   try {
     io.emit("dailypot-burst", {
       date: rec.date, total, winners, share, remainder,
@@ -2968,11 +3270,15 @@ function dpEnsureToday(now) {
 // The scheduler tick (boot + every 60s): open the ET day at midnight,
 // fire the 21:00 ET burst settlement.
 function dailyPotTick() {
-  try {
-    dpEnsureToday(Date.now());
-  } catch (e) {
-    console.log("[dailypot] tick failed", e && e.message);
-  }
+  // [RP-V7.52] the tick settles through the same money lock as the
+  // HTTP settle-on-contact paths (audit C1).
+  withMoneyLock(() => {
+    try {
+      dpEnsureToday(Date.now());
+    } catch (e) {
+      console.log("[dailypot] tick failed", e && e.message);
+    }
+  }).catch(() => {});
 }
 // Gift growth hook (called from POST /api/money/gift after the money
 // has moved): EVERY gift on the Plaza grows today's Daily Pot by a
@@ -2999,7 +3305,7 @@ function dailyPotOnGift(giftCharms) {
   dpCheckMilestones(cur.date); // [RP-V7.43] growth may have crossed a milestone threshold
   dpBroadcastUpdate(false); // throttled — joins/bursts force their own
 }
-app.post("/api/dailypot/join", (req, res) => {
+app.post("/api/dailypot/join", lockedHandler("dailypot-join", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return; // 401 "Not signed in" — guests must sign in to enter
   if (isPendingDeletion(ctx.user))
@@ -3027,16 +3333,19 @@ app.post("/api/dailypot/join", (req, res) => {
   dpBroadcastUpdate(true);
   console.log("[dailypot] join", rec.date, ctx.user.name, "entries", rec.entries.length);
   res.json({ ok: true, pot: dailyPotPublic(rec, ctx.user.id) });
-});
-app.get("/api/dailypot/state", (req, res) => {
+}));
+app.get("/api/dailypot/state", lockedHandler("dailypot-state", (req, res) => {
   let viewerId = null;
   try {
     const u = accountForToken(readAccounts(), req);
     if (u) viewerId = u.id;
   } catch (e) {}
+  // [RP-V7.52] settle-on-contact runs inside the money lock, so a
+  // state read in the burst window can never race the scheduler
+  // into a second settlement (audit C1).
   const rec = dpEnsureToday(Date.now());
   res.json({ ok: true, pot: dailyPotPublic(rec, viewerId) });
-});
+}));
 
 // ---------------------------------------------------------------------------
 // RP-V7.18: Workout Room member videos. Posts live in workout.json beside
@@ -3338,6 +3647,20 @@ function rpLevelFor(charms) {
   for (const s of RP_LEVEL_STEPS) if (charms >= s) lv++;
   return lv;
 }
+// [RP-V7.50] Fallback photo for an account with none stored: the
+// photoUrl of a currently-connected player whose display name uniquely
+// matches the account name (the pre-V7.50 source), else null.
+function livePhotoForAccount(u) {
+  const k = String((u && u.name) || "").toLowerCase();
+  if (!k) return null;
+  let found = null, n = 0;
+  for (const p of players.values()) {
+    if (!p || !p.name || String(p.name).toLowerCase() !== k) continue;
+    n++;
+    if (p.photoUrl) found = p.photoUrl;
+  }
+  return n === 1 ? found : null;
+}
 app.get("/api/social/profile", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -3423,6 +3746,8 @@ app.get("/api/social/profile", (req, res) => {
     username: target.username || null,
     profileType: profileTypeOf(target),
     profileTypeLabel: profileTypeLabel(target),
+    // [RP-V7.50] the account's stored photo, live-player fallback
+    photo: target.photo || livePhotoForAccount(target),
     followersCount: socialFollowerIds(sdb, target.id).length,
     followingCount: socialFollowingIds(sdb, target.id).length,
     iFollow: socialFollowingIds(sdb, ctx.user.id).includes(target.id),
@@ -3748,10 +4073,11 @@ app.post("/api/dm/unblock", (req, res) => {
 // /api/members makes every ACCOUNT findable 24/7 by username or
 // display name. The payload is a strict whitelist (id, username, name,
 // profileType + label [RP-V7.37], photo, followers, iFollow, isSelf):
-// email, phone and DOB are NEVER included. Accounts don't store a photo (photos live on the live
-// socket player), so `photo` is the photoUrl of a currently-connected
-// player whose display name UNIQUELY matches the account name — the
-// same name-matching the follow system already uses — else null.
+// email, phone and DOB are NEVER included. [RP-V7.50] `photo` is the
+// account's stored photo (bound at upload); when the account has none,
+// it falls back to the photoUrl of a currently-connected player whose
+// display name UNIQUELY matches the account name — the same
+// name-matching the follow system already uses — else null.
 //
 // PRESENCE: game sockets are anonymous, so a signed-in client now
 // announces its account over the socket with "acct-presence"
@@ -3818,7 +4144,9 @@ app.get("/api/members", (req, res) => {
       name: u.name,
       profileType: profileTypeOf(u),
       profileTypeLabel: profileTypeLabel(u),
-      photo: nameCount[k] === 1 ? photoByName[k] || null : null,
+      // [RP-V7.50] the account's stored photo wins; the live-player
+      // name match remains as the fallback for accounts without one.
+      photo: u.photo || (nameCount[k] === 1 ? photoByName[k] || null : null),
       followers,
       iFollow: myFollowing.includes(u.id),
       isSelf: u.id === ctx.user.id,
@@ -4459,31 +4787,34 @@ function emptyMoney() {
     cashouts: [],
     txlog: [],
     processed: {},
+    giftIdem: {}, // [RP-V7.52] gift idempotency keys -> original responses
   };
 }
 function readMoney() {
-  try {
-    const d = JSON.parse(fs.readFileSync(MONEY_FILE, "utf8"));
-    if (
-      d &&
-      d.balances && typeof d.balances === "object" && !Array.isArray(d.balances) &&
-      d.earnings && typeof d.earnings === "object" && !Array.isArray(d.earnings) &&
-      d.premium && typeof d.premium === "object" && !Array.isArray(d.premium) &&
-      Array.isArray(d.cashouts) && Array.isArray(d.txlog)
-    ) {
-      if (!d.processed || typeof d.processed !== "object" || Array.isArray(d.processed))
-        d.processed = {};
-      return d;
-    }
-    return emptyMoney();
-  } catch {
-    return emptyMoney();
-  }
+  // [RP-V7.52] hardened read (audit C5): a corrupt money.json
+  // restores from money.json.bak instead of silently wiping every
+  // balance and letting the next write destroy the original.
+  const d = storeReadJson(
+    MONEY_FILE,
+    (x) =>
+      !!(
+        x &&
+        x.balances && typeof x.balances === "object" && !Array.isArray(x.balances) &&
+        x.earnings && typeof x.earnings === "object" && !Array.isArray(x.earnings) &&
+        x.premium && typeof x.premium === "object" && !Array.isArray(x.premium) &&
+        Array.isArray(x.cashouts) && Array.isArray(x.txlog)
+      ),
+    emptyMoney(),
+    "money"
+  );
+  if (!d.processed || typeof d.processed !== "object" || Array.isArray(d.processed))
+    d.processed = {};
+  if (!d.giftIdem || typeof d.giftIdem !== "object" || Array.isArray(d.giftIdem))
+    d.giftIdem = {};
+  return d;
 }
 function writeMoney(db) {
-  const tmp = MONEY_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, MONEY_FILE);
+  storeWriteJson(MONEY_FILE, db);
 }
 function moneyEarningsFor(db, acctId) {
   let e = db.earnings[acctId];
@@ -4525,6 +4856,32 @@ function moneyTx(db, entry) {
     )
   );
   while (db.txlog.length > 5000) db.txlog.shift();
+}
+// [RP-V7.52] One shared serialization for every money mutation
+// (audit C1/C6/C7/H7): the gift POST, pot open/topup/draw/cancel/
+// join, cash-out and the Daily Pot settlement all run strictly
+// one-at-a-time through this queue, so a check-and-debit can never
+// interleave with another mutation across an await, and a retried
+// request is evaluated against the state the first attempt left
+// behind. Handlers wrapped here MUST NOT call withMoneyLock again
+// (the Daily Pot settle helpers below deliberately never do).
+let moneyQueue = Promise.resolve();
+function withMoneyLock(fn) {
+  const run = moneyQueue.then(() => fn());
+  moneyQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+function lockedHandler(label, fn) {
+  return (req, res) => {
+    withMoneyLock(() => fn(req, res)).catch((e) => {
+      console.error("[money-lock] " + label + " failed:", e && e.message);
+      if (!res.headersSent)
+        res.status(500).json({ ok: false, error: "server-error" });
+    });
+  };
 }
 function moneyPremiumState(db, acctId) {
   const p = db.premium[acctId];
@@ -4908,10 +5265,20 @@ function handleStripeEvent(event) {
 // Send a gift, ledger-first: the sender's charms are debited and the
 // recipient's earnings credited HERE — the room animation/proto the
 // client plays afterwards is just the show; this is the money.
-app.post("/api/money/gift", (req, res) => {
+app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   const b = req.body || {};
+  // [RP-V7.52] Idempotency (audit C6): the client stamps each gift
+  // ATTEMPT with a key; a retry of the same attempt (double-tap,
+  // network retry) returns the original result and never re-charges.
+  const idemKey = String(b.idem || "").slice(0, 64);
+  const idemStoreKey = idemKey ? ctx.user.id + ":" + idemKey : null;
+  if (idemStoreKey) {
+    const seen = readMoney().giftIdem[idemStoreKey];
+    if (seen && seen.response)
+      return res.json(Object.assign({}, seen.response, { deduped: true }));
+  }
   const giftId = String(b.giftId || "");
   const cost = MONEY_GIFT_TABLE[giftId];
   if (!cost)
@@ -4978,6 +5345,31 @@ app.post("/api/money/gift", (req, res) => {
   moneyTx(db, Object.assign({}, txBase, {
     type: "gift-received", cents: hostShare, cut: platformCut,
   }));
+  const giftResponse = {
+    ok: true,
+    balance: db.balances[ctx.user.id],
+    charged: cost,
+    recipient: { id: recipient.id, name: recipient.name },
+    hostShareCents: hostShare,
+    held,
+  };
+  // [RP-V7.52] The idempotency record lands in the SAME write as
+  // the debit itself, so a retry can never slip between the charge
+  // and its record (audit C6).
+  if (idemStoreKey) {
+    db.giftIdem[idemStoreKey] = {
+      at: new Date().toISOString(),
+      response: giftResponse,
+    };
+    const idemKeys = Object.keys(db.giftIdem);
+    if (idemKeys.length > 400) {
+      idemKeys.sort((a, b2) =>
+        String(db.giftIdem[a].at).localeCompare(String(db.giftIdem[b2].at))
+      );
+      for (let i = 0; i < idemKeys.length - 400; i++)
+        delete db.giftIdem[idemKeys[i]];
+    }
+  }
   writeMoney(db);
   rankCreditDaily(recipient.id, recipient.name, cost);
   // [RP-V7.40] Gifting is the strongest interest signal there is: +4
@@ -5009,15 +5401,8 @@ app.post("/api/money/gift", (req, res) => {
     "[money] gift", giftId, cost, "charms:", ctx.user.name, "->", recipient.name,
     "| host", hostShare, "c", held ? "(held)" : "", "| cut", platformCut, "c"
   );
-  res.json({
-    ok: true,
-    balance: db.balances[ctx.user.id],
-    charged: cost,
-    recipient: { id: recipient.id, name: recipient.name },
-    hostShareCents: hostShare,
-    held,
-  });
-});
+  res.json(giftResponse);
+}));
 // RP-V7.22: Daily host rankings. A lightweight tally of charms gifted
 // per host per calendar day (America/New_York), credited from the
 // /api/money/gift path below - the money ledger stays the source of
@@ -5122,23 +5507,14 @@ function recordAuctionEarning(db, acctId, grossCents, ref) {
   });
   return { hostShare, cut };
 }
-app.post("/api/money/auction-earning", (req, res) => {
-  const ctx = requireAccount(req, res);
-  if (!ctx) return;
-  const gross = Math.floor(Number((req.body || {}).grossCents) || 0);
-  if (gross <= 0 || gross > 10000000)
-    return res.status(400).json({ ok: false, error: "Invalid amount" });
-  const db = readMoney();
-  unlockMoneyHolds(db, ctx.user.id);
-  const out = recordAuctionEarning(
-    db,
-    ctx.user.id,
-    gross,
-    (req.body || {}).ref
-  );
-  writeMoney(db);
-  res.json({ ok: true, hostShareCents: out.hostShare, cutCents: out.cut });
-});
+// [RP-V7.52] REMOVED: POST /api/money/auction-earning (audit C2
+// family). The route let any signed-in caller credit their own
+// earnings from a CLIENT-CHOSEN grossCents — an unbounded self-mint
+// feeding the (server-computed) cash-out. No client build calls it
+// (verified against the V7.49/V7.51 clients); auction settlement
+// stays client-local until the Stripe wiring lands, at which point
+// recordAuctionEarning is called from a server-verified settle path
+// with a server-known amount — never from a request body.
 app.post("/api/money/connect/onboard", async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -5182,9 +5558,14 @@ app.get("/api/money/connect/status", async (req, res) => {
     payoutsEnabled: info.payoutsEnabled,
   });
 });
-app.post("/api/money/cashout", async (req, res) => {
+app.post("/api/money/cashout", lockedHandler("cashout", async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
+  // [RP-V7.52] Server-computed cash-out, serialized (audit C2/H6):
+  // the request carries NO amounts — the server reads a FRESH ledger
+  // inside the money lock, matures holds, enforces the $20 minimum,
+  // the 25c fee and one cash-out per day, and reserves the full
+  // available balance. Nothing the client sends can change the sum.
   const db = readMoney();
   unlockMoneyHolds(db, ctx.user.id);
   const earn = moneyEarningsFor(db, ctx.user.id);
@@ -5244,7 +5625,7 @@ app.post("/api/money/cashout", async (req, res) => {
     firstPayoutHold: firstEver,
     availableCents: earn.availableCents,
   });
-});
+}));
 app.get("/api/money/history", async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -5272,10 +5653,52 @@ app.get("/health", (req, res) =>
   res.json({ ok: true, online: players.size })
 );
 
+// [RP-V7.52] Server-side adult class (audit H1): Christian
+// Fellowship ("faith") and Teen Hangout ("teen") are the ONLY
+// all-ages socket rooms — every other room (themed rooms, state
+// rooms, the Live Stage, personal live rooms, Chaos) is an 18+
+// area. A socket is adult-class only when its acct-presence was
+// verified against a session token AND that account's DOB is 18+
+// (accounts are 18+ by the sign-up rule; the class is computed
+// from the verified record, never from anything a client claims).
+const ALL_AGES_ROOMS = new Set(["faith", "teen"]);
+function roomNeedsAdult(room) {
+  return !ALL_AGES_ROOMS.has(room);
+}
+function socketIsAdult(socket) {
+  return !!(
+    socket &&
+    socket.data &&
+    socket.data.accountId &&
+    socket.data.adultClass
+  );
+}
+function socketIdForKey(devKey) {
+  let found = null;
+  for (const [sid, k] of clientKeys) if (k === devKey) found = sid;
+  return found;
+}
+// [RP-V7.52] Pending stage requests (audit H3): hostSocketId ->
+// Map(requesterSocketId -> at). The server tracks them so a host's
+// answer is relayed only for a request it actually received.
+const stageRequests = new Map();
+
 io.on("connection", (socket) => {
   // Player enters the party
   socket.on("join", (data = {}) => {
     const room = cleanRoomName(data.room);
+    // [RP-V7.52] 18+ rooms require a verified adult-class socket
+    // (audit H1). A refused join creates NO player record — the
+    // client receives a clean room-gate refusal, never a hang.
+    // Fellowship and Teen Hangout stay open to everyone, as always.
+    if (roomNeedsAdult(room) && !socketIsAdult(socket)) {
+      socket.emit("room-gate", {
+        room,
+        reason: "adults-only",
+        error: "This room is 18+ — sign in with an 18+ account to enter.",
+      });
+      return;
+    }
     // [RP-V7.24] A reconnecting client keeps its identity via a stable
     // per-device key: if an older socket still holds the same key, it
     // is a ghost (its connection died but the ping timeout hasn't
@@ -5313,7 +5736,8 @@ io.on("connection", (socket) => {
       x: 100 + Math.random() * 200,
       y: 100 + Math.random() * 200,
       dancing: false,
-      photoUrl: null,
+      // [RP-V7.50] the account's photo, when acct-presence landed first
+      photoUrl: socket.data.acctPhoto || null,
     };
     players.set(socket.id, player);
     socket.join(room);
@@ -5337,7 +5761,22 @@ io.on("connection", (socket) => {
     if (socket.data.accountId && socket.data.accountId !== user.id)
       acctSocketRemove(socket.data.accountId, socket.id);
     socket.data.accountId = user.id;
+    // [RP-V7.52] The verified adult class rides the binding (audit
+    // H1): computed here, from the token-verified account record.
+    socket.data.adultClass = ageFromDob(user.dob) >= 18;
     acctSocketAdd(user.id, socket.id);
+    // [RP-V7.50] The account's photo rides the socket: stashed for the
+    // join handler (announce-before-join), and seeded onto an
+    // already-joined player that has none (announce-after-join), so a
+    // fresh sign-in shows the photo everywhere with no re-upload.
+    socket.data.acctPhoto = user.photo || null;
+    try {
+      const p = players.get(socket.id);
+      if (p && !p.photoUrl && user.photo) {
+        p.photoUrl = user.photo;
+        io.to(p.room).emit("player-photo", { id: p.id, photoUrl: user.photo });
+      }
+    } catch (e) { }
     // [RP-V7.40] now that this socket's account is known, hand it the
     // lives list in its own For You order right away.
     try {
@@ -5384,6 +5823,16 @@ io.on("connection", (socket) => {
       }
     }
 
+    // [RP-V7.52] Chat in an 18+ room is adults-only on the server
+    // too (audit H1) — the join gate keeps non-adults out, and this
+    // keeps the relay honest even for a socket that slipped rooms.
+    if (roomNeedsAdult(p.room) && !socketIsAdult(socket)) {
+      socket.emit("chat-blocked", {
+        reason: "This room is 18+ — verified adults only.",
+      });
+      return;
+    }
+
     // Spam protection: max 8 messages per 10 seconds
     const now = Date.now();
     const times = (chatTimes.get(socket.id) || []).filter(
@@ -5415,6 +5864,16 @@ io.on("connection", (socket) => {
     if (!p) return;
     const room = cleanRoomName(data.room);
     if (room === p.room) return;
+    // [RP-V7.52] Same adult-class gate as join (audit H1): a
+    // refused switch leaves the player exactly where they were.
+    if (roomNeedsAdult(room) && !socketIsAdult(socket)) {
+      socket.emit("room-gate", {
+        room,
+        reason: "adults-only",
+        error: "This room is 18+ — sign in with an 18+ account to enter.",
+      });
+      return;
+    }
     socket.leave(p.room);
     socket.to(p.room).emit("player-left", { id: p.id });
     p.room = room;
@@ -5544,6 +6003,56 @@ io.on("connection", (socket) => {
     }
   });
 
+  // [RP-V7.52] Stage requests ride a DEDICATED relay (audit H3).
+  // The legacy path folds the request into the rate-limited chat
+  // proto stream, where a busy room can silently eat it — the
+  // request is now also a first-class socket event: the server
+  // resolves the live's host socket from the registry, records the
+  // pending request, and delivers it to the host; the host's
+  // answer (stage-respond, sent by the existing Invite / new
+  // Decline controls) is relayed only for a request that exists.
+  socket.on("stage-request", () => {
+    const p = players.get(socket.id);
+    if (!p) return;
+    if (!socketIsAdult(socket)) return; // lives are 18+ areas
+    let hostSid = null;
+    if (p.room.indexOf("live-") === 0)
+      hostSid = socketIdForKey(p.room.slice(5));
+    if (!hostSid) {
+      for (const e of liveRegistry.values()) {
+        if (e.room === p.room) {
+          hostSid = socketIdForKey(e.key);
+          break;
+        }
+      }
+    }
+    if (!hostSid || hostSid === socket.id) return;
+    let pend = stageRequests.get(hostSid);
+    if (!pend) {
+      pend = new Map();
+      stageRequests.set(hostSid, pend);
+    }
+    if (pend.has(socket.id)) return; // already asked — no duplicates
+    pend.set(socket.id, Date.now());
+    io.to(hostSid).emit("stage-request", {
+      fromId: socket.id,
+      fromName: p.name,
+    });
+    socket.emit("stage-request-ack", { ok: true });
+  });
+  socket.on("stage-respond", (data = {}) => {
+    const pend = stageRequests.get(socket.id);
+    const to = String(data.to || "");
+    if (!pend || !pend.has(to)) return;
+    pend.delete(to);
+    if (!pend.size) stageRequests.delete(socket.id);
+    const me = players.get(socket.id);
+    io.to(to).emit(data.accept ? "stage-accepted" : "stage-denied", {
+      fromId: socket.id,
+      fromName: me ? me.name : "",
+    });
+  });
+
   // Walkie-talkie floor: one talker per channel at a time.
   socket.on("voice-request-floor", (data = {}) => {
     const channel = String(data.channel || "").slice(0, 80);
@@ -5591,6 +6100,14 @@ io.on("connection", (socket) => {
   // WebRTC signaling relay. Allowed only within the same room or between
   // matched players.
   socket.on("voice-signal", (data = {}) => {
+    // [RP-V7.52] 1:1 video (vc-*) stays 18+ even inside all-ages
+    // Fellowship (audit H4 + the settled rule): BOTH ends must be
+    // verified adult-class sockets or the signal is dropped here.
+    if (String(data.type || "").indexOf("vc-") === 0) {
+      const targetSocket = io.sockets.sockets.get(String(data.to || ""));
+      if (!socketIsAdult(socket) || !targetSocket || !socketIsAdult(targetSocket))
+        return;
+    }
     const target = players.get(String(data.to || ""));
     const me = players.get(socket.id);
     if (!target || !me) return;
@@ -5699,6 +6216,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     if (socket.data.accountId) acctSocketRemove(socket.data.accountId, socket.id); // [RP-V7.30]
+    const discKey = clientKeys.get(socket.id); // [RP-V7.52] capture the device key BEFORE the mapping goes away (host teardown below)
     const floorHid = floorHolderId(socket.id); // [RP-V7.48] capture the floor identity BEFORE the key mapping goes away
     clientKeys.delete(socket.id); // [RP-V7.24]
     const me = players.get(socket.id);
@@ -5715,6 +6233,33 @@ io.on("connection", (socket) => {
       socket.to(p.room).emit("player-left", { id: p.id });
       players.delete(socket.id);
       chatTimes.delete(socket.id);
+    }
+    // [RP-V7.52] Host disconnect teardown (audit H13): a host whose
+    // socket dies (tab close, crash, deploy) deregisters their live
+    // NOW — settle its pot by the lifecycle rule and broadcast the
+    // removal — instead of leaving a ghost live (with a joinable
+    // pot) advertised until the 75s staleness sweep. Guarded by the
+    // device key: if another live socket still carries this key
+    // (the same device reconnected), the live is theirs now and
+    // nothing is torn down. Mirrors live-unregister exactly.
+    if (discKey && liveRegistry.has(discKey)) {
+      let otherHoldsKey = false;
+      for (const k of clientKeys.values())
+        if (k === discKey) {
+          otherHoldsKey = true;
+          break;
+        }
+      if (!otherHoldsKey) {
+        liveRegistry.delete(discKey);
+        broadcastLives();
+        potLiveEnded(discKey);
+      }
+    }
+    // [RP-V7.52] Stage-request bookkeeping dies with either side.
+    stageRequests.delete(socket.id);
+    for (const [hid, pend] of [...stageRequests]) {
+      pend.delete(socket.id);
+      if (!pend.size) stageRequests.delete(hid);
     }
   });
 });
