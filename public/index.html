@@ -833,6 +833,17 @@
       .dpot-winrow { display: flex; justify-content: space-between; gap: 10px; font-weight: 800; padding: 5px 2px; border-bottom: 1px dashed rgba(146,94,10,.25); }
       .dpot-join { width: 100%; padding: 13px; margin-top: 4px; }
       .dpot-joined { text-align: center; font-weight: 900; color: #2e9e4f; margin: 6px 0 2px; }
+      /* [RP-V7.43] Daily-return: streak line, not-entered nudge + Join
+         pulse, yesterday recap, milestone gold flash + line */
+      .dpot-streak { text-align: center; font-weight: 900; color: #e8730c; margin: 8px 0 0; }
+      .dpot-notin { text-align: center; font-weight: 800; color: var(--ink-soft); margin: 6px 0 0; }
+      .dpot-recap { text-align: center; font-weight: 700; font-size: 12.5px; color: var(--ink-soft); margin: 6px 0 0; line-height: 1.45; }
+      @keyframes dpJoinPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,170,26,.55); } 50% { box-shadow: 0 0 0 9px rgba(255,170,26,0); } }
+      .dpot-join.pulse { animation: dpJoinPulse 1.6s ease-in-out infinite; }
+      @keyframes dpMsFlash { 0% { box-shadow: 0 0 0 3px rgba(255,196,0,.95), 0 0 34px rgba(255,196,0,.8); } 100% { box-shadow: 0 8px 24px rgba(255,170,26,.20); } }
+      .dpot-card.msflash { animation: dpMsFlash 1.4s ease-out; }
+      .dpot-msline { text-align: center; font-weight: 900; color: #b57e00; margin: 8px 0 0; opacity: 1; transition: opacity .8s ease; }
+      .dpot-msline.fade { opacity: 0; }
       .dpot-winwrap { position: fixed; z-index: 95; }
       .pot-total { font-size: 34px; font-weight: 1000; color: #ffd166; text-align: center; margin: 2px 0 0; }
       .pot-sub { text-align: center; font-weight: 800; color: var(--ink-soft); margin: 2px 0 8px; }
@@ -1558,6 +1569,10 @@
       .chat-msg.q .q-text { color: #ff9a3c; font-weight: 800; }
       .chat-msg.q .who::after { content: " ?"; color: #ff9a3c; }
       .chat-row { display: flex; gap: 8px; margin-top: 10px; }
+      /* [RP-V7.47] In-room Go LIVE button (scene top; the room chat
+         itself wears the Teen Hangout layout — see the RP-V7.47 room
+         stage module near the end of the file) */
+      .room-golive-scene { background: var(--rose); color: #fff; border-color: transparent; font-weight: 900; }
       .online-input {
         flex: 1; min-width: 0; border: 2px solid var(--line); background: var(--bg); color: var(--ink);
         border-radius: 999px; padding: 11px 16px; font-weight: 700; font-size: 15px; font-family: inherit;
@@ -1734,6 +1749,22 @@
       #livePanel.live-fs .live-giftfeed,
       #livePanel.live-fs > .age-note { display: none !important; }
       #livePanel.live-fs .live-stagewrap { flex: 1 1 auto; min-height: 0; }
+      /* [RP-V7.46] the video lifts above the comment bar (Branden, live
+         as host: "the send button and say something button is on top of
+         the host" — he picked this look over a slim see-through bar).
+         In full screen the stage wrap reserves a bottom strip exactly
+         as tall as the bottom bar (10px gap + 52px bar) plus the
+         safe-area inset, so the grid — every tile in it, host self-view
+         or remote stage, single or multi-tile — ends where the bar
+         begins and nothing covers the host again. The bar keeps its
+         usual bottom offset, now sitting on the panel's own dark strip
+         under the video. The hearts layer insets to the same strip so
+         floats rise inside the video instead of out of the bar; the
+         comment stream already anchors 18px above the bar top, which
+         lands it inside the lifted stage, so it needed no change. */
+      #livePanel.live-fs { --lv-strip: calc(62px + env(safe-area-inset-bottom, 0px)); }
+      #livePanel.live-fs .live-stagewrap { padding-bottom: var(--lv-strip); }
+      #livePanel.live-fs .live-hearts { bottom: var(--lv-strip); }
       #livePanel.live-fs .live-grid { height: 100%; grid-auto-rows: 1fr; gap: 0; }
       #livePanel.live-fs .live-grid:not(.n1) { gap: 2px; }
       #livePanel.live-fs .live-tile { aspect-ratio: auto; height: auto; border: none; border-radius: 0; }
@@ -2490,9 +2521,13 @@
           <div class="dpot-potwrap"><span class="dpot-pot" id="dpPotVisual">🪙</span></div>
           <div class="dpot-total" id="dpTotal">…</div>
           <p class="dpot-sub" id="dpSub">Loading today's pot…</p>
+          <p class="dpot-recap" id="dpRecap" hidden></p>
           <div id="dpWinners"></div>
+          <p class="dpot-streak" id="dpStreak" hidden></p>
           <button type="button" class="btn-primary dpot-join" id="dpJoinBtn" hidden>🪙 JOIN THE DAILY POT — free</button>
+          <p class="dpot-notin" id="dpNotIn" hidden>You haven't entered today's pot yet</p>
           <p class="dpot-joined" id="dpJoined" hidden>You're in ✓ — good luck tonight!</p>
+          <p class="dpot-msline" id="dpMsLine" hidden></p>
           <p class="age-note" style="text-align:center; margin-top:10px;">Free to enter once a day. The Plaza seeds it; every gift on the Plaza grows it a little. Bursts 9 PM ET — 5 winners split it.</p>
         </div>
         <div class="scene scene-plaza">
@@ -2668,6 +2703,16 @@
             <p class="chapel-hint" style="margin:10px 2px 0;">Videos play right in the room — when someone starts one, everyone here can tap join and watch together.</p>
           </div>
         </div>
+        <!-- [RP-V7.47] Offline scenic floor: room chat + Go LIVE honestly
+             live in the ONLINE room — say so, and give the way in. Shown
+             only for the in-scope rooms (never Teen / Fellowship). -->
+        <div class="chapel-panel" id="roomOfflineNote" hidden>
+          <div class="chapel-kicker">💬 ROOM CHAT + 🔴 GO LIVE</div>
+          <p class="chapel-hint" style="margin:6px 2px 12px;">Room chat and going live happen in the online party, with real people. This offline floor is just the scenery — join the online room to chat with everyone here and to go live.</p>
+          <div class="btn-row chapel-actions">
+            <button class="btn-primary" id="btnRoomOfflineJoin" type="button" style="width:auto; padding:11px 22px;">🌐 Join the online room</button>
+          </div>
+        </div>
       </section>
       <!-- SCREEN: ONLINE (multiplayer) -->
       <section class="screen" id="screen-online">
@@ -2677,6 +2722,8 @@
             <span class="meet-badge" id="onlineBadge">LIVE</span>
             <div class="spacer"></div>
             <button class="scene-btn" id="btnOnlineRooms">Switch room</button>
+            <button class="scene-btn room-golive-scene" id="btnRoomGoLive" type="button" hidden>🔴 Go LIVE</button>
+            <button class="scene-btn" id="btnRoomShare" type="button" hidden>🔗 Share</button>
             <button class="scene-btn pink" id="btnOnlineLeave">Leave online</button>
           </div>
           <div class="city-bar" id="cityBar" hidden>
@@ -2799,10 +2846,12 @@
               <div class="btn-row" style="margin-top:10px;"><button class="btn-mini" id="btnEventCal">📅 Event calendar</button></div>
             </div>
           </div>
-          <!-- [RP-V7.24] Room chat panel REMOVED everywhere (Branden:
-               "chat is for live online") — the live overlay's comment
-               stream + bottom type bar is the chat now. The room poll
-               card stays: it's an activity, not chat. -->
+          <!-- [RP-V7.47] Room chat is BACK — wearing the Teen Hangout
+               layout (Branden's template): a floating comment stream +
+               bottom chat bar + big heart, built over the scene by the
+               RP-V7.47 room stage module near the end of the file. No
+               boxed panel here. The room poll card stays: it's an
+               activity, not chat. -->
           <div class="px-poll" id="pollCard"></div>
         </div>
       </section>
@@ -4411,6 +4460,8 @@
         if (tnPanel) tnPanel.hidden = room.id !== "teen";
         var woPanel = $("workoutPanel");
         if (woPanel) woPanel.hidden = room.id !== "workout";
+        var roNote = $("roomOfflineNote"); // [RP-V7.47] chat + Go LIVE live online — 18+ scoped rooms only (Fellowship's scenic chapel keeps its own online button)
+        if (roNote) roNote.hidden = !(rpRoomLayoutEligible(room.id) && room.id !== "faith");
         var best = null, bestN = 0;
         room.guests.forEach(function (g) {
           if (room.dating && !ageMutual(g)) return; // dating rooms only suggest mutual age matches
@@ -6377,6 +6428,7 @@
           socket.on("pot-drawn", onPotDrawn); // [RP-V7.41] Plaza Pot draw results (winner celebration)
           socket.on("dailypot-update", onDailyPotUpdate); // [RP-V7.42] Daily Pot state (whole-Plaza broadcast)
           socket.on("dailypot-burst", onDailyPotBurst); // [RP-V7.42] Daily Pot 9 PM ET burst — the app-wide show
+          socket.on("dailypot-milestone", onDailyPotMilestone); // [RP-V7.43] Daily Pot milestone shouts — Home card flash only
           socket.on("player-joined", onPlayerJoined);
           socket.on("player-moved", onPlayerMoved);
           socket.on("move", onPlayerMoved);
@@ -6458,6 +6510,7 @@
         Online.rafOn = false;
         var f = $("onlineFloor"); if (f) f.innerHTML = "";
         var log = $("onlineChatLog"); if (log) log.innerHTML = "";
+        try { updateRoomChrome(); } catch (e) { } // [RP-V7.47] offline now — the room chrome hides with the room
         $("btnOnlineHud").classList.remove("live");
       }
       function leaveOnline() {
@@ -6585,6 +6638,7 @@
         updateOnlineBadge();
         updateVoiceRoomUI();
         updateLivePanel();
+        updateRoomChrome(); // [RP-V7.47] scene-top Share / Go LIVE follow the room's scope + the adult gate
       }
       function updateOnlineBadge() {
         var n = Object.keys(Online.players).length + ((Online.state === "on" || Online.state === "reconnecting") ? 1 : 0);
@@ -6716,12 +6770,42 @@
         return /^(what|why|how|when|where|which|who|whom|whose|can|could|do|does|did|is|are|was|were|will|would|should|any|anyone|anybody)\b/i.test(s);
       }
       window.rpIsQuestion = chatIsQuestion;
-      function addChatLine(name, text, mine, mid) {
-        // [RP-V7.24] the Room chat panel is gone — chat lives in the
-        // LIVE overlay stream (and the Teen Hangout's bubble stream).
-        // Feed those FIRST; the old log render below is now a no-op.
+      /* [RP-V7.47] Room layout scope (Branden's Teen-Hangout
+         template): every meet room — the themed rooms INCLUDING
+         Christian Fellowship, plus the state/city rooms — gets the
+         floating stream + bottom chat bar + heart + share layout,
+         built by the room stage module. Teen Hangout is the template
+         itself and keeps its own overlay; live rooms, the Chaos
+         Room, Help/Profile/Home get none of it. */
+      function rpRoomLayoutEligible(roomId) {
+        if (!roomId || roomId === "teen") return false;
+        try { if (typeof parseStateRoom === "function" && parseStateRoom(roomId)) return true; } catch (e) { }
+        for (var i = 0; i < ROOMS.length; i++) if (ROOMS[i].id === roomId) return true;
+        return false;
+      }
+      /* The scene-top chrome for those rooms: Share shows in every
+         layout room (all-ages Fellowship included); Go LIVE shows
+         only where the shared go-live flow would accept the user —
+         18+ verified and not teen-locked. In the 18+ rooms everyone
+         present already passed the door gate; in Fellowship this is
+         the gate that keeps the button from teens and unverified
+         guests standing in the prayer room. */
+      function updateRoomChrome() {
+        var eligible = rpRoomLayoutEligible(Online.room);
+        var shareBtn = $("btnRoomShare"); if (shareBtn) shareBtn.hidden = !eligible;
+        var goBtn = $("btnRoomGoLive");
+        if (goBtn) goBtn.hidden = !(eligible && !isTeen() && rpAdultOk());
+      }
+      function addChatLine(name, text, mine, mid, fromId) {
+        // [RP-V7.24] chat also lives in the LIVE overlay stream (and
+        // the Teen Hangout's bubble stream) — feed those FIRST.
+        // [RP-V7.47] the meet rooms' floating stream is fed the same
+        // way, through the room stage module's hook (it renders only
+        // while its room layout is up). Sender id rides along so a
+        // report/mute can purge the sender's bubbles on screen.
         try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, ""); } catch (e) { }
         try { if (window.rpTeenBubble) window.rpTeenBubble(name, text, false); } catch (e) { }
+        try { if (window.rpRoomBubble) window.rpRoomBubble(name, text, false, fromId || (mid ? String(mid).split(":")[0] : "")); } catch (e) { }
         var log = $("onlineChatLog"); if (!log) return;
         var isQ = chatIsQuestion(text);
         var row = document.createElement("div");
@@ -6753,8 +6837,10 @@
       }
       function addChatSystem(text, warn) {
         // [RP-V7.24] see addChatLine — feed the live + teen streams first
+        // [RP-V7.47] …and the meet rooms' floating stream, same hook
         try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment("", text, "sys"); } catch (e) { }
         try { if (window.rpTeenBubble) window.rpTeenBubble("", text, true); } catch (e) { }
+        try { if (window.rpRoomBubble) window.rpRoomBubble("", text, true, ""); } catch (e) { }
         var log = $("onlineChatLog"); if (!log) return;
         var row = document.createElement("div");
         row.className = "chat-sys" + (warn ? " warn" : "");
@@ -6782,7 +6868,7 @@
         if (fromId) statBump("chat", fromId, name);
         // 🔥 a real comment in a live room counts toward that live's engagement score
         try { if (fromId && typeof Live !== "undefined" && Live.active && Live.hostId && typeof inLiveRoom === "function" && inLiveRoom()) engRecord(Live.hostId, fromId, "comment", 1); } catch (e) { }
-        addChatLine(name, text, fromId === Online.myId, mid);
+        addChatLine(name, text, fromId === Online.myId, mid, fromId);
       }
       function onChatBlocked(d) {
         // If the spam cap caught a live-room signal (not a typed message),
@@ -6793,19 +6879,25 @@
         addChatSystem(reason, true);
         toast(reason, 3200);
         // the blocked message was never broadcast — put the words back in the box
-        var ocInp = $("onlineChatInput"); // [RP-V7.24] the room-chat box is gone — it may not exist
+        var ocInp = $("onlineChatInput"); // [RP-V7.47] the room-chat box is back — the restore below works again
         if (ocInp && Online.lastChatText && Date.now() - Online.lastChatAt < 4000 && !ocInp.value) {
           ocInp.value = Online.lastChatText;
         }
       }
-      /* [RP-V7.24] The Room chat panel is gone (Branden: chat is for
-         LIVE online) — this sender now takes its text directly: the
-         live overlay's type bar, the Teen Hangout's own chat row and
-         the in-app posters call it with their text. */
+      /* [RP-V7.24] This sender takes its text directly when called
+         with an argument: the live overlay's type bar, the Teen
+         Hangout's own chat row and the in-app posters call it so.
+         [RP-V7.47] The meet rooms' Teen-style chat bar (room stage
+         module) calls it with its text too. A no-argument send while
+         offline says so honestly instead of swallowing the words. */
       function sendOnlineChat(textArg) {
         var input = $("onlineChatInput");
         var text = (typeof textArg === "string") ? textArg.trim().slice(0, 200) : (input ? (input.value || "").trim().slice(0, 200) : "");
-        if (!text || !Online.socket || Online.state !== "on") return;
+        if (!text) return;
+        if (!Online.socket || Online.state !== "on") {
+          if (typeof textArg !== "string" && rpRoomLayoutEligible(Online.room)) toast("Room chat needs the online party — you're not connected right now.");
+          return;
+        }
         if (Online.room === "teen" && window.rpTeenGuardChat && !window.rpTeenGuardChat(text)) { if (input && typeof textArg !== "string") input.value = ""; return; }
         Online.lastChatText = text; Online.lastChatAt = Date.now();
         if (input && typeof textArg !== "string") input.value = "";
@@ -6853,6 +6945,16 @@
         });
       }
       $("btnOnlineRooms").addEventListener("click", openOnlineRooms);
+      /* [RP-V7.47] The scene-top room chrome: Go LIVE calls
+         startOwnLiveEntry, the SAME entry the Home 🔴 Live Now
+         button uses (no forked live logic); Share opens the room
+         share sheet (shareRoom — the live share panel, room payload). */
+      var btnRoomGoLiveTop = $("btnRoomGoLive");
+      if (btnRoomGoLiveTop) btnRoomGoLiveTop.addEventListener("click", function () { startOwnLiveEntry(); });
+      var btnRoomShareTop = $("btnRoomShare");
+      if (btnRoomShareTop) btnRoomShareTop.addEventListener("click", function () { shareRoom(); });
+      var btnRoomOfflineJoin = $("btnRoomOfflineJoin");
+      if (btnRoomOfflineJoin) btnRoomOfflineJoin.addEventListener("click", function () { if (currentRoom) joinOnlineRoomFromHome(currentRoom.id); });
       var btnCityPickEl = $("btnCityPick"); if (btnCityPickEl) btnCityPickEl.addEventListener("click", openCityPicker);
       /* ---------- player cards, report & block ---------- */
       function renderOnlinePeople() {
@@ -7211,6 +7313,11 @@
       function blockOnlinePlayer(p) {
         Online.blocked[p.id] = p.name;
         removeOnlinePlayer(p.id);
+        // [RP-V7.47] instant-hide covers their floating-stream lines
+        // too: bubbles already on screen from this sender go with
+        // them (future lines are dropped in onChatMessage via
+        // Online.blocked, before any stream hook is fed).
+        try { if (window.rpRoomPurgeSender) window.rpRoomPurgeSender(p.id); } catch (e) { }
         renderOnlinePeople();
         toast("Muted " + p.name + " — you won\u2019t see their photo or chat messages anymore.");
       }
@@ -10287,6 +10394,112 @@
           copyFirstWatch(payload, "Invite copied — paste it into your email 📧");
         });
       }
+      /* [RP-V7.47] Share this ROOM — the app's existing share panel
+         (same sheet, same lvShare ids, same copy-first social row,
+         same helpers), with a room payload: the room's name + the
+         invite + PUBLIC_LINK. Opened by the scene-top Share button
+         in every Teen-template layout room, Fellowship included.
+         No live engagement note — there is no live here to score. */
+      function shareRoom() {
+        var meta = onlineRoomMeta(Online.room);
+        var title = meta.title + " on Rizz Plaza";
+        var text = "Come hang out with me in " + meta.title + " on Rizz Plaza!";
+        var url = PUBLIC_LINK;
+        shareCopiedFlag = false;
+        var payload = title + "\n" + text + "\n" + url;
+        var encPayload = encodeURIComponent(payload);
+        var nativeBtn = (typeof navigator.share === "function")
+          ? '<button type="button" class="btn-primary" id="lvShareNative" style="width:100%; padding:13px;">📤 Share…</button>' : "";
+        var svgFb = '<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M14.2 8.6V6.9c0-.8.2-1.3 1.4-1.3h1.5V2.2h-2.4c-2.9 0-3.9 2-3.9 4.2v2.2H8.2V12h2.6v9.8h3.4V12h2.7l.4-3.4h-3.1z"/></svg>';
+        var svgIg = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.7" r="1.15" fill="#fff" stroke="none"/></svg>';
+        var svgTt = '<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M16.7 2.5c.4 2.2 1.8 3.6 4 3.8v3c-1.5 0-2.9-.4-4-1.2v6.4c0 3.8-2.6 6.2-6 6.2-3.3 0-5.9-2.4-5.9-5.8 0-3.5 2.7-6 6.4-5.9v3.1c-1.9-.3-3.3 1-3.3 2.7 0 1.6 1.2 2.8 2.8 2.8 1.7 0 2.9-1.2 2.9-3.1V2.5h3.2z"/></svg>';
+        var svgSc = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" stroke="rgba(0,0,0,.8)" stroke-width=".7" d="M12 2.6c3.3 0 5.8 2.5 5.8 6 0 .9-.1 1.8-.3 2.5.5.3 1.3.3 1.8.8.3.3.2.8-.2 1.1-.6.5-1.3.8-1.8 1.6.3.3.5.6.8.9.2.3 0 .6-.4.6h-1.4c-.3 0-.5.2-.6.5l-.3 1.1c-.1.3-.4.5-.7.4-.9-.2-1.8-.6-2.7-.6s-1.8.4-2.7.6c-.3.1-.6-.1-.7-.4l-.3-1.1c-.1-.3-.3-.5-.6-.5H6.3c-.4 0-.6-.3-.4-.6.3-.3.5-.6.8-.9-.5-.8-1.2-1.1-1.8-1.6-.4-.3-.5-.8-.2-1.1.5-.5 1.3-.5 1.8-.8-.2-.7-.3-1.6-.3-2.5 0-3.5 2.5-6 5.8-6z"/><circle cx="9.4" cy="9.2" r="1" fill="#111"/><circle cx="14.6" cy="9.2" r="1" fill="#111"/></svg>';
+        var html =
+          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+          '<div class="game-box"><h3>🔗 Share this room</h3>' +
+          '<p style="font-weight:700;">' + escHtml(title) + '<br><span style="color:var(--ink-soft);">Send it to anybody — the invite and the link to join are already written for you.</span></p>' +
+          nativeBtn +
+          '<p class="share-status" id="lvShareStatus" role="status"></p>' +
+          '<p class="share-to-label">Share to</p>' +
+          '<div class="share-social">' +
+          '<button type="button" class="share-soc" id="lvShareFb"><span class="soc-ic soc-fb">' + svgFb + '</span><span class="soc-name">Facebook</span></button>' +
+          '<button type="button" class="share-soc" id="lvShareIg"><span class="soc-ic soc-ig">' + svgIg + '</span><span class="soc-name">Instagram</span></button>' +
+          '<button type="button" class="share-soc" id="lvShareTt"><span class="soc-ic soc-tt">' + svgTt + '</span><span class="soc-name">TikTok</span></button>' +
+          '<button type="button" class="share-soc" id="lvShareSc"><span class="soc-ic soc-sc">' + svgSc + '</span><span class="soc-name">Snapchat</span></button>' +
+          '</div>' +
+          '<div class="share-apps">' +
+          '<a class="share-opt" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=' + encPayload + '">💬 WhatsApp</a>' +
+          '<a class="share-opt" id="lvShareSms" href="sms:?&amp;body=' + encPayload + '">✉️ Messages</a>' +
+          '<a class="share-opt" target="_blank" rel="noopener noreferrer" href="https://t.me/share/url?url=' + encodeURIComponent(url) + '&amp;text=' + encodeURIComponent(title + " — " + text) + '">✈️ Telegram</a>' +
+          '<a class="share-opt" id="lvShareMail" href="mailto:?subject=' + encodeURIComponent(title) + '&amp;body=' + encPayload + '">📧 Email</a>' +
+          '</div>' +
+          '<button type="button" class="btn-primary" id="lvShareCopy" style="width:100%; padding:13px;">📋 Copy invite</button>' +
+          '<textarea class="share-text" id="lvShareText" readonly rows="3" aria-label="Invite text">' + escHtml(payload) + '</textarea>' +
+          '<p class="age-note" style="margin-top:8px;">Nothing work? Press and hold the invite above, tap Select All, then Copy — you can paste it anywhere.</p>' +
+          '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" data-act="close2">Done</button></div>' +
+          '</div>';
+        openSheet(html);
+        wireLiveSheetClose();
+        var nb = $("lvShareNative");
+        if (nb) nb.addEventListener("click", function () {
+          var done = false;
+          function refused() {
+            if (done) return; done = true;
+            toast("That share didn't go through here — pick an app below or tap Copy invite instead. 🔗", 3600);
+          }
+          try {
+            var p = navigator.share({ title: title, text: text, url: url });
+            if (p && typeof p.catch === "function") p.catch(function (err) {
+              if (err && err.name === "AbortError") return;
+              refused();
+            });
+          } catch (e) { refused(); }
+        });
+        var cb = $("lvShareCopy");
+        if (cb) cb.addEventListener("click", function () { copyInviteText(payload); });
+        function shareStatus(msg) { var st = $("lvShareStatus"); if (st) st.textContent = msg; }
+        function appShareTap(openUrl, appName, emoji, newTab) {
+          copyInviteSilent(payload, function (ok) {
+            if (ok) shareCopiedFlag = true;
+            shareStatus(ok
+              ? "✅ Invite copied — opening " + appName + ". Paste it there and it brings people straight to Rizz Plaza."
+              : "Opening " + appName + "… if the invite isn't there, come back and tap 📋 Copy invite first.");
+            toast((ok ? "Invite copied — paste it in " + appName + " " : "Opening " + appName + " ") + emoji, 2600);
+            setTimeout(function () {
+              try {
+                if (newTab) window.open(openUrl, "_blank", "noopener");
+                else window.location.assign(openUrl);
+              } catch (e) { }
+            }, 450);
+            setTimeout(function () {
+              if (document.hidden) return;
+              shareStatus(shareCopiedFlag
+                ? appName + " didn't open here — no problem: your invite is copied, open " + appName + " and paste it."
+                : appName + " didn't open here — tap 📋 Copy invite below, then open " + appName + " and paste it.");
+            }, 2400);
+          });
+        }
+        var fbB = $("lvShareFb");
+        if (fbB) fbB.addEventListener("click", function () {
+          appShareTap("https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(url) + "&quote=" + encodeURIComponent(title + " — " + text), "Facebook", "📘", true);
+        });
+        var igB = $("lvShareIg");
+        if (igB) igB.addEventListener("click", function () { appShareTap("instagram://app", "Instagram", "📸", false); });
+        var ttB = $("lvShareTt");
+        if (ttB) ttB.addEventListener("click", function () { appShareTap("tiktok://", "TikTok", "🎵", false); });
+        var scB = $("lvShareSc");
+        if (scB) scB.addEventListener("click", function () {
+          appShareTap("https://www.snapchat.com/scan?attachmentUrl=" + encodeURIComponent(url), "Snapchat", "👻", true);
+        });
+        var smsB = $("lvShareSms");
+        if (smsB) smsB.addEventListener("click", function () {
+          copyFirstWatch(payload, "Invite copied — paste it into Messages 📩");
+        });
+        var mailB = $("lvShareMail");
+        if (mailB) mailB.addEventListener("click", function () {
+          copyFirstWatch(payload, "Invite copied — paste it into your email 📧");
+        });
+      }
       function copyInviteText(text, okMsg) {
         function copied() { shareCopiedFlag = true; toast(okMsg || "🔗 Invite copied — paste it anywhere to bring people in!"); }
         function failed() {
@@ -11589,6 +11802,7 @@
           me.ageRange = "under18";
           me.ageLocked = true;
         }
+        try { updateRoomChrome(); } catch (e) { } // [RP-V7.47] verification just landed — Fellowship's gated Go LIVE may appear now
         if (rpDoorResume) {
           var rpDoorFn = rpDoorResume; rpDoorResume = null;
           if (age >= 18) { toast("You're 18+ — welcome in! \uD83C\uDF89"); show("screen-plaza"); rpDoorFn(); }
@@ -12033,7 +12247,7 @@
          machinery (potSwell, potBurstRain, the rumble) for the card
          and the app-wide burst show — one particle system, shared. */
       var DPOT_MATCH_CAP = 10000; // Tier-1 fallback — the live swell reference is the state's matchCap (the day's tier cap)
-      var dpot = { state: null, shownTotal: null, anim: null, cdAnchorAt: 0, cdSecs: null, burstShownFor: "", wired: false };
+      var dpot = { state: null, shownTotal: null, anim: null, cdAnchorAt: 0, cdSecs: null, burstShownFor: "", wired: false, msTimer: null };
       function dpotFetchState() {
         var tok = liveAcctToken();
         var headers = {};
@@ -12048,6 +12262,10 @@
         // let one un-join THIS member on the same day.
         if (dpot.state && pot.date === dpot.state.date && dpot.state.joined && !pot.joined)
           pot = Object.assign({}, pot, { joined: true });
+        // [RP-V7.43] pushes also carry streak:null (they're viewer-
+        // agnostic) — keep THIS member's streak until a fetch says else.
+        if (dpot.state && pot.date === dpot.state.date && pot.streak == null && typeof dpot.state.streak === "number")
+          pot = Object.assign({}, pot, { streak: dpot.state.streak });
         dpot.state = pot;
         if (typeof pot.nextBurstInSec === "number") { dpot.cdSecs = pot.nextBurstInSec; dpot.cdAnchorAt = Date.now(); }
         renderDailyPotCard();
@@ -12113,6 +12331,53 @@
           if (join) join.hidden = true;
           if (joined) joined.hidden = true;
         }
+        // [RP-V7.43] daily-return garnish: the streak line, the
+        // not-entered nudge + Join pulse, and yesterday's recap. All
+        // render from the state the server already sent — display only.
+        var streakEl = $("dpStreak"), notIn = $("dpNotIn"), recap = $("dpRecap");
+        var signed = !!liveAcctToken();
+        if (streakEl) {
+          var sk = (typeof p.streak === "number") ? p.streak : 0;
+          if (signed && sk >= 2) {
+            streakEl.hidden = false;
+            streakEl.textContent = "🔥 " + sk + "-day streak" + (!p.joined && p.status === "open" ? " — enter today to keep it!" : "");
+          } else streakEl.hidden = true;
+        }
+        if (notIn) notIn.hidden = !(signed && p.status === "open" && !p.joined);
+        if (join) join.classList.toggle("pulse", !!(signed && p.status === "open" && !p.joined));
+        if (recap) {
+          var y = p.yesterday || null;
+          if (y && y.status === "burst" && (y.winners || []).length) {
+            recap.hidden = false;
+            recap.textContent = "Yesterday: " + potFmt(y.total || 0) + " charms — " + y.winners.map(function (w) { return "🏆 " + (w.name || "Winner") + " " + potFmt(w.amount || 0); }).join(" · ");
+          } else if (y && y.status === "noburst") {
+            recap.hidden = false;
+            recap.textContent = "Yesterday's pot rolled over — it's all in today's!";
+          } else recap.hidden = true;
+        }
+      }
+      /* [RP-V7.43] Milestone shouts land on the Home card only: a gold
+         flash + a line that fades. Elsewhere in the app there is NO
+         visual — the burst show stays the only global overlay. */
+      function onDailyPotMilestone(data) {
+        if (!data || typeof data.threshold !== "number") return;
+        var card = $("dailyPotCard");
+        if (!card || card.hidden) return;
+        var active = document.querySelector(".screen.active");
+        if (active && active.id !== "screen-plaza") return; // not on Home
+        try { card.classList.remove("msflash"); void card.offsetWidth; card.classList.add("msflash"); } catch (e) { }
+        var line = $("dpMsLine");
+        if (line) {
+          line.hidden = false;
+          line.classList.remove("fade");
+          line.textContent = "🪙 The Daily Pot just crossed " + potFmt(data.threshold) + " charms!";
+          if (dpot.msTimer) clearTimeout(dpot.msTimer);
+          dpot.msTimer = setTimeout(function () {
+            line.classList.add("fade");
+            setTimeout(function () { line.hidden = true; line.classList.remove("fade"); }, 850);
+          }, 4200);
+        }
+        setTimeout(function () { try { card.classList.remove("msflash"); } catch (e) { } }, 1500);
       }
       function dpotTickCountdown() {
         var p = dpot.state;
@@ -12744,6 +13009,7 @@
       }
       window.rpProtoSend = protoSend;
       window.rpSendRoomChat = function (t) { sendOnlineChat(t); }; // [RP-V7.24] bridge for the Teen Hangout's own chat row
+      window.rpRoomLayoutEligible = (function (fn) { return function (roomId) { try { return fn(roomId); } catch (e) { return false; } }; })(rpRoomLayoutEligible); // [RP-V7.47] bridge for the room stage module — captures the core fn first (assigning the same-named window prop would make the bridge call itself)
         window.rpSocket = function () { try { return Online.socket; } catch (e) { return null; } };
         window.rpMyId = function () { try { return Online.myId; } catch (e) { return ""; } };
         window.rpLiveInvite = liveInvite;
@@ -16658,6 +16924,19 @@ img.gfx-artimg{ object-fit:cover; border-radius:14px; }
 #rpBatResult .score{ color:#f5b93f; font-weight:900; font-size:17px; margin:6px 0; }
 #rpBatResult button{ margin:8px 4px 0; }
 @media (prefers-reduced-motion: reduce){ .rp-stage-art.pop,.rp-stage-art.rise,.rp-stage-art.spin{ animation:rpFade 3.5s forwards; } }
+/* [RP-V7.44] The live-only floating cluster (Battle button, Add-people button,
+   battle bar + its series/lap satellites) belongs to the full-screen live
+   screen ONLY. Whenever the live screen is not up (body has no .live-fs),
+   these stay hidden no matter what any module's show logic says — a live
+   session running in the background must never leak its controls into
+   Auctions, Home, rooms, Reels or Profile. */
+body:not(.live-fs) #rpBatBtn,
+body:not(.live-fs) #rpAddBtn,
+body:not(.live-fs) #rpBatBar,
+body:not(.live-fs) #rp65LapBtns,
+body:not(.live-fs) #rp65Series,
+body:not(.live-fs) #rp66Box,
+body:not(.live-fs) #rp65How { display:none !important; }
 </style>
 <script>
 /* ================= RP-V5: gift visuals, live battle, social sign-in ================= */
@@ -16890,6 +17169,7 @@ img.gfx-artimg{ object-fit:cover; border-radius:14px; }
     else if (Bat.known && Bat.known.endsAt > Date.now() - 4000) { show = true; aId = Bat.known.aId; bId = Bat.known.bId; aN = Bat.known.aName; bN = Bat.known.bName; ap = Bat.known.ap; bp = Bat.known.bp; ends = Bat.known.endsAt; }
     var L = liveInfo();
     if (show && !(L && L.active)) show = false;
+    if (show && !(document.body && document.body.classList.contains("live-fs"))) show = false; // [RP-V7.44] bar renders on the live screen only
     if (!show) { if (bar) bar.hidden = true; return; }
     if (!bar) {
       bar = document.createElement("div");
@@ -16961,7 +17241,7 @@ img.gfx-artimg{ object-fit:cover; border-radius:14px; }
     var L = liveInfo();
     var hosting = !!(L && L.active && L.mine);
     if (hosting !== Bat.regState) { Bat.regState = hosting; if (s) s.emit("battle", { t: "reg", on: hosting }); }
-    batBtn.hidden = !(hosting && !Bat.active);
+    batBtn.hidden = !(hosting && !Bat.active && document.body && document.body.classList.contains("live-fs")); // [RP-V7.44] live-screen only: never float over other screens while a session runs
     if (Bat.active && Date.now() >= Bat.endsAt) rpBatFinalize(false);
     if (Bat.active || Bat.known) rpBatRender();
   }, 700);
@@ -17036,7 +17316,7 @@ img.gfx-artimg{ object-fit:cover; border-radius:14px; }
   setInterval(function () {
     var L = null;
     try { L = window.rpLive ? window.rpLive() : null; } catch (e) { }
-    btn.hidden = !(L && L.active && L.mine);
+    btn.hidden = !(L && L.active && L.mine && document.body && document.body.classList.contains("live-fs")); // [RP-V7.44] live-screen only: never float over other screens while a session runs
   }, 700);
 })();
 </script>
@@ -19368,6 +19648,7 @@ img.gfx-artimg{ object-fit:cover; border-radius:14px; }
     var el = $("rp66Box"); if (!el) return;
     var b = S.box, host = sideHost();
     if (!b || !host || b.host !== host || !live() || !live().active) { el.hidden = true; S.boxSig = "_"; return; }
+    if (!(document.body && document.body.classList.contains("live-fs"))) { el.hidden = true; return; } // [RP-V7.45] live-screen only: the Bonus Box never floats over other screens while a box event runs
     var ph = boxPhase(b);
     if (ph === "done" && b.doneAt && Date.now() - b.doneAt > 25000) { S.box = null; el.hidden = true; S.boxSig = "_"; renderBar(); return; }
     if (ph === "done" && !b.doneAt) b.doneAt = Math.min(b.opensAt + CLAIM_MS, Date.now());
@@ -24962,6 +25243,353 @@ button.rp72-chip{ cursor:pointer; }
     profane: profane, cooldownLeft: cooldownLeft, kick: kick,
     likes: function () { return likeCount; },
     inRoom: function () { return inRoom; }
+  };
+})();
+</script>
+<style>
+/* ================= RP-V7.47: Emoji picker (reusable component) ================= */
+.rpemoji-backdrop { position: fixed; inset: 0; z-index: 99980; background: rgba(0,0,0,.25); display: none; }
+.rpemoji-backdrop.open { display: block; }
+.rpemoji-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 99981; display: none; flex-direction: column; background: rgba(14,15,22,.97); border-top: 1px solid rgba(255,255,255,.16); border-radius: 18px 18px 0 0; max-height: 54vh; box-shadow: 0 -12px 34px rgba(0,0,0,.5); }
+.rpemoji-sheet.open { display: flex; }
+.rpemoji-tabs { display: flex; gap: 4px; padding: 10px 10px 6px; overflow-x: auto; scrollbar-width: none; flex: none; }
+.rpemoji-tabs::-webkit-scrollbar { display: none; }
+.rpemoji-tab { border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff; border-radius: 999px; padding: 6px 11px; font-size: 15px; cursor: pointer; white-space: nowrap; font-family: inherit; }
+.rpemoji-tab.on { background: #fe2c55; border-color: #fe2c55; }
+.rpemoji-close { margin-left: auto; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; flex: none; }
+.rpemoji-catlabel { padding: 2px 14px 6px; color: rgba(255,255,255,.65); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; flex: none; }
+.rpemoji-grid { overflow-y: auto; padding: 0 8px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 2px; }
+.rpemoji-glyph { border: none; background: transparent; font-size: 25px; line-height: 1.25; padding: 5px 0; cursor: pointer; border-radius: 10px; font-family: inherit; }
+.rpemoji-glyph:active { background: rgba(255,255,255,.14); transform: scale(1.12); }
+</style>
+<script>
+/* ================= RP-V7.47 — Emoji picker (reusable) =================
+   One component for the whole app: window.rpEmojiPicker.open(inputEl)
+   opens a categorized sheet of native emoji glyphs; tapping one
+   inserts it into the input at the cursor. Built for the meet-room
+   chat bar in this build; Photos/Reels reuse the same component next
+   build — nothing about it is room-specific. */
+(function () {
+  "use strict";
+  var CATS = [
+    { id: "smileys", icon: "😀", label: "Smileys & Feelings", glyphs: "😀 😁 😂 🤣 😊 😇 🙃 😉 😍 😘 😋 😎 🤩 🥳 😏 😌 😴 😜 🤪 😝 🤑 🤗 🤔 🤨 😐 😑 😶 🙄 😬 🤐 🤫 🤭 🥱 😪 😴 😷 🤒 🤕 🤢 🤮 🥵 🥶 😱 😳 🤯 😈 👿 💀 👻 👽 🤖 💩 😺 😸 😹 🙀 😻 😼 😽 😾 😿 🙈 🙉 🙊 💋 💌 💘 💝 💖 💗 💓 💞 💕 💟 💔 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💯 💢 💥 💦 💨 💤 🗨️ 💬 💭" },
+    { id: "people", icon: "👋", label: "People & Hands", glyphs: "👋 🤚 🖐️ ✋ 🖖 👌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 💪 🦾 🧠 🦷 🦴 👀 👁️ 👅 👄 👶 🧒 👦 👧 🧑 👱 👨 👩 🧓 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🙇 🤷 🤦 🧏 🙉 🙈 🙊 💃 🕺 🏃 🚶 🧎 🧍 🧘 🏋️ 🤸 ⛹️ 🤾 🚴 🚣 🏊 🧗 🤺 🏇 🏂 🏄 🚵 🤽 🧖 💆 💇 💅 🤳" },
+    { id: "nature", icon: "🦋", label: "Animals & Nature", glyphs: "🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🦋 🐌 🐞 🐜 🪲 🕷️ 🐢 🐍 🦎 🐙 🦑 🦐 🦀 🐡 🐠 🐟 🐬 🐳 🐋 🦈 🐊 🐆 🦓 🦍 🐘 🦏 🐪 🦒 🦘 🐃 🐄 🐎 🐖 🐏 🐐 🦌 🐕 🐩 🐈 🐓 🦃 🕊️ 🦢 🦜 🦩 🐇 🦝 🦨 🌸 🌹 🌺 🌻 🌼 🌷 🌱 🌿 🍀 🌲 🌳 🍁 🍂 🍄 🌾 💐 🌵 🌴 🌞 🌝 ⭐ 🌟 🌈 ⚡ ❄️ 🔥 💧 🌊" },
+    { id: "food", icon: "🍕", label: "Food & Drink", glyphs: "🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🥑 🥦 🥬 🥒 🌽 🥕 🧄 🧅 🥔 🍠 🥐 🍞 🥖 🥨 🧀 🥚 🍳 🧈 🥞 🧇 🥓 🥩 🍗 🍖 🦴 🌭 🍔 🍟 🍕 🫓 🥪 🥙 🧆 🌮 🌯 🫔 🥗 🥘 🍝 🍜 🍲 🍛 🍣 🍱 🥟 🦪 🍤 🍙 🍚 🍘 🍥 🥠 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍿 🍩 🍪 🌰 🥜 🍯 🥛 🍼 🫖 ☕ 🍵 🧃 🥤 🧋 🍶 🍺 🍻 🥂 🍷 🥃 🍸 🍹 🧉 🍾 🧊 🥄 🍴 🍽️" },
+    { id: "activity", icon: "⚽", label: "Fun, Sport & Events", glyphs: "⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🎱 🪀 🏓 🏸 🏒 🏑 🥍 🏏 🥅 ⛳ 🪁 🏹 🎣 🤿 🥊 🥋 🎽 🛹 🛼 ⛸️ 🥌 🎯 🪄 🎮 🕹️ 🎰 🎲 🧩 ♟️ 🎭 🎨 🎬 🎤 🎧 🎼 🎵 🎶 🎷 🎸 🎹 🎺 🎻 🪕 🥁 🎟️ 🎫 🎪 🎢 🎡 🎠 🏆 🥇 🥈 🥉 🏅 🏵️ 🎖️ 🎗️ 🎀 🎁 🎂 🎉 🎊 🎈 🎄 🎃 🎆 🎇 🧨 ✨ 🎐 🎑 🔮 🪅 🪆 🧧 ✉️ 📩" },
+    { id: "things", icon: "🚗", label: "Things & Places", glyphs: "🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚐 🛻 🚚 🚛 🚜 🏍️ 🛵 🚲 🛴 ⚓ ⛽ 🚧 🚦 🗺️ 🗿 🗽 🗼 🏰 🏯 🏟️ 🎡 🎢 🎠 ⛲ ⛺ 🏖️ 🏝️ 🏜️ 🌋 ⛰️ 🏔️ ❄️ 🏕️ 🏠 🏡 🏢 🏣 🏤 🏥 🏦 🏨 🏪 🏫 🏩 💒 🏛️ ⛪ 🕌 🕍 🛕 🕋 ⛩️ 🌁 🌃 🌆 🌇 🌉 🌌 🌠 🎇 🎆 🌅 🌄 🌇 🚀 🛸 ✈️ 🛩️ 🚁 🛶 ⛵ 🚤 🛥️ 🚢 ⌚ 📱 💻 ⌨️ 🖥️ 🖨️ 🖱️ 📷 📸 📹 🎥 🎞️ 📞 📺 📻 🎙️ 🎚️ 🎛️ ⏰ ⏲️ 🕰️ 💡 🔦 🕯️ 🪔 🧯 🛢️ 💸 💵 💴 💶 💷 💰 💳 💎 ⚖️ 🧰 🔧 🔨 ⚒️ 🛠️ ⛏️ ⚙️ 🧱 ⛓️ 🧲 🔫 💣 🧨 🔪 🗡️ ⚔️ 🛡️ 🚬 ⚰️ ⚱️ 🏺 🔮 📿 💈 ⚗️ 🔭 🔬" },
+    { id: "symbols", icon: "✝️", label: "Symbols & Faith", glyphs: "✝️ ☦️ ☪️ ✡️ 🔯 🕎 ☮️ ☯️ 🛐 ⛪ 🕌 🕍 🛕 📿 🙏 🕊️ 👼 😇 📖 🕯️ ✡️ 💒 🔔 🎵 🎶 ❤️ ♥️ ♠️ ♣️ ♦️ 💯 💤 💥 💫 ⭐ 🌟 ✨ ⚡ 🔥 ✅ ✔️ ❌ ❎ ➕ ➖ ➗ ✖️ ➰ ➿ 🔆 🔅 📶 📳 📴 ♀️ ♂️ ⚕️ ♻️ ⚜️ 🔱 📛 🔰 ⭕ ❗ ❓ ‼️ ⁉️ ©️ ®️ ™️ #️⃣ *️⃣ 0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟 🔠 🔡 🔢 🔣 🔤 🆗 🆙 🆒 🆕 🆓 🆔 🅰️ 🅱️ 🆎 🅾️ 🆘 ⛔ 🚫 🚭 🔞 📵 🚷 🚯 🚳 🚸 ⚠️ ⛔ ♈ ♉ ♊ ♋ ♌ ♍ ♎ ♏ ♐ ♑ ♒ ♓ ⛎" },
+    { id: "flags", icon: "🏳️", label: "Flags", glyphs: "🏳️ 🏴 🏁 🚩 🏳️‍🌈 🏴‍☠️ 🇺🇸 🇬🇧 🇨🇦 🇲🇽 🇧🇷 🇦🇷 🇨🇱 🇨🇴 🇵🇪 🇻🇪 🇫🇷 🇩🇪 🇮🇹 🇪🇸 🇵🇹 🇳🇱 🇧🇪 🇨🇭 🇦🇹 🇸🇪 🇳🇴 🇩🇰 🇫🇮 🇮🇸 🇮🇪 🇵🇱 🇬🇷 🇹🇷 🇷🇺 🇺🇦 🇮🇳 🇵🇰 🇧🇩 🇱🇰 🇳🇵 🇨🇳 🇯🇵 🇰🇷 🇮🇩 🇵🇭 🇻🇳 🇹🇭 🇲🇾 🇸🇬 🇦🇺 🇳🇿 🇿🇦 🇳🇬 🇰🇪 🇪🇬 🇮🇱 🇸🇦 🇦🇪 🇶🇦 🇰🇼 🇮🇶 🇮🇷 🇦🇫 🇯🇲 🇭🇹 🇨🇺 🇩🇴 🇵🇷 🇹🇹 🇧🇸 🇬🇾 🇪🇹" }
+  ];
+  var sheet = null, backdrop = null, grid = null, catLabel = null, target = null, selStart = 0, selEnd = 0;
+  function $(id) { return document.getElementById(id); }
+  function build() {
+    if (sheet) return;
+    backdrop = document.createElement("div");
+    backdrop.className = "rpemoji-backdrop";
+    backdrop.id = "rpEmojiBackdrop";
+    sheet = document.createElement("div");
+    sheet.className = "rpemoji-sheet";
+    sheet.id = "rpEmojiSheet";
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-label", "Emoji picker");
+    var tabs = document.createElement("div");
+    tabs.className = "rpemoji-tabs";
+    CATS.forEach(function (c, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "rpemoji-tab" + (i === 0 ? " on" : "");
+      b.textContent = c.icon;
+      b.setAttribute("aria-label", c.label);
+      b.addEventListener("click", function () { showCat(i); });
+      tabs.appendChild(b);
+    });
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "rpemoji-close";
+    close.textContent = "✕ Done";
+    close.addEventListener("click", closePicker);
+    tabs.appendChild(close);
+    sheet.appendChild(tabs);
+    catLabel = document.createElement("div");
+    catLabel.className = "rpemoji-catlabel";
+    sheet.appendChild(catLabel);
+    grid = document.createElement("div");
+    grid.className = "rpemoji-grid";
+    sheet.appendChild(grid);
+    backdrop.addEventListener("click", closePicker);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(sheet);
+    showCat(0);
+  }
+  function showCat(i) {
+    var c = CATS[i];
+    if (!c || !grid) return;
+    catLabel.textContent = c.label;
+    sheet.querySelectorAll(".rpemoji-tab").forEach(function (t, j) { t.classList.toggle("on", j === i); });
+    grid.innerHTML = "";
+    c.glyphs.split(" ").forEach(function (g) {
+      if (!g) return;
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "rpemoji-glyph";
+      b.textContent = g;
+      b.addEventListener("click", function () { insert(g); });
+      grid.appendChild(b);
+    });
+    grid.scrollTop = 0;
+  }
+  function insert(g) {
+    if (!target) return;
+    var v = target.value || "";
+    var s = Math.max(0, Math.min(selStart, v.length));
+    var e = Math.max(s, Math.min(selEnd, v.length));
+    target.value = v.slice(0, s) + g + v.slice(e);
+    selStart = selEnd = s + g.length;
+    try { target.setSelectionRange(selStart, selEnd); } catch (err) { }
+    try { target.dispatchEvent(new Event("input", { bubbles: true })); } catch (err) { }
+  }
+  function openPicker(input) {
+    if (!input) return;
+    build();
+    target = input;
+    try { selStart = input.selectionStart != null ? input.selectionStart : input.value.length; } catch (e) { selStart = (input.value || "").length; }
+    try { selEnd = input.selectionEnd != null ? input.selectionEnd : selStart; } catch (e) { selEnd = selStart; }
+    sheet.classList.add("open");
+    backdrop.classList.add("open");
+  }
+  function closePicker() {
+    if (sheet) sheet.classList.remove("open");
+    if (backdrop) backdrop.classList.remove("open");
+    if (target) { try { target.focus(); } catch (e) { } }
+  }
+  window.rpEmojiPicker = {
+    open: openPicker,
+    close: closePicker,
+    isOpen: function () { return !!(sheet && sheet.classList.contains("open")); },
+    categories: function () { return CATS.map(function (c) { return c.id; }); },
+    count: function () { return CATS.reduce(function (n, c) { return n + c.glyphs.split(" ").filter(Boolean).length; }, 0); }
+  };
+})();
+</script>
+<style>
+/* ================= RP-V7.47: Meet rooms wear the Teen Hangout layout =================
+   Same arrangement + values as the Teen overlay (RP-V7.16): stream at
+   left above the chat row, actions cluster at right (like pill over
+   the big round heart), chat row pinned to the scene's bottom edge. */
+.rproom-overlay { position: absolute; inset: 0; z-index: 7; pointer-events: none; overflow: hidden; }
+.rproom-stream { position: absolute; left: 10px; bottom: 64px; display: flex; flex-direction: column; gap: 6px; max-width: 72%; }
+.rproom-bub { background: rgba(10,12,20,.55); color: #fff; border-radius: 14px; padding: 6px 11px; font-size: 13px; line-height: 1.35; backdrop-filter: blur(3px); animation: rproomIn .25s ease; word-break: break-word; }
+.rproom-bub b { color: #ffd166; margin-right: 6px; font-weight: 800; }
+.rproom-bub.sys { opacity: .78; font-style: italic; }
+.rproom-bub.out { opacity: 0; transition: opacity .6s ease; }
+@keyframes rproomIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.rproom-hearts { position: absolute; inset: 0; overflow: hidden; }
+.rproom-flheart { position: absolute; bottom: 86px; pointer-events: none; animation: rproomRise 2.3s ease-out forwards; text-shadow: 0 2px 8px rgba(0,0,0,.35); }
+@keyframes rproomRise { 0% { transform: translateY(0) scale(.6); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateY(-44vh) translateX(-16px) scale(1.12); opacity: 0; } }
+.rproom-actions { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: auto; }
+.rproom-likepill { background: rgba(10,12,20,.55); color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 999px; padding: 7px 13px; font-family: inherit; font-size: 14px; font-weight: 800; cursor: pointer; backdrop-filter: blur(3px); }
+.rproom-likepill:active { transform: scale(.94); }
+.rproom-heartbtn { width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255,255,255,.75); background: rgba(254,44,85,.88); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; box-shadow: 0 6px 18px rgba(254,44,85,.45); }
+.rproom-heartbtn:active { transform: scale(.92); }
+.rproom-chatrow { position: absolute; left: 10px; right: 92px; bottom: 12px; display: flex; gap: 8px; pointer-events: auto; align-items: center; }
+.rproom-chatrow input { flex: 1; min-width: 0; border-radius: 999px; border: 1px solid rgba(255,255,255,.4); background: rgba(10,12,20,.62); color: #fff; padding: 9px 14px; font-size: 13.5px; font-family: inherit; outline: none; }
+.rproom-chatrow input::placeholder { color: rgba(255,255,255,.65); }
+.rproom-chatrow .rproom-send { border-radius: 999px; border: 1px solid rgba(255,255,255,.4); background: rgba(254,44,85,.9); color: #fff; padding: 9px 16px; font-size: 13.5px; font-weight: 800; font-family: inherit; cursor: pointer; }
+.rproom-chatrow .rproom-emoji { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: rgba(10,12,20,.62); font-size: 19px; line-height: 1; cursor: pointer; backdrop-filter: blur(3px); }
+.rproom-chatrow .rproom-emoji:active { transform: scale(.92); }
+</style>
+<script>
+/* ================= RP-V7.47 — Meet-room stage (Teen Hangout layout) =================
+   Branden's template order: every meet room looks like Teen Hangout —
+   floating comment stream over the scene, a bottom chat bar
+   ("Say something…" + red Send + emoji button), the big round red
+   heart at bottom-right with the ❤️ count pill above it, and the
+   room's share in the scene-top chrome (core). This module mirrors
+   the Teen module's architecture exactly (own overlay built into
+   #onlineScene, own proto listener, 1s watcher over the core
+   bridges) — original code, same patterns:
+   - Chat rides the core sender (window.rpSendRoomChat → the server's
+     room-scoped "chat" relay); the core feeds lines back through
+     window.rpRoomBubble after its blocked-sender drop, so a
+     reported/hidden player's lines never render, and
+     window.rpRoomPurgeSender clears their bubbles already on screen.
+   - Hearts are REAL TAPS ONLY: the heart button spawns hearts here
+     and relays {k:"room-heart"} so the room sees them; the like pill
+     increments THIS ROOM's counter. Counts are per-room (an
+     improvement on Teen's single counter): kept on-device in
+     rpRoomLikes.v1 and max-synced between the people present over
+     the same proto bus ({k:"room-like"} / {k:"room-lsync"}), exactly
+     Teen's relay pattern. The server's chat guard (RP-V7.47) keeps
+     pending-deletion accounts from sending any of it.
+   - Teen Hangout itself is untouched (it is the template); the Teen
+     profanity filter/kick is NOT extended here or to Fellowship —
+     enforcement stays Teen-only by Branden's standing rule. */
+(function () {
+  "use strict";
+  var PX = "✦PX✦";
+  var LIKE_KEY = "rpRoomLikes.v1";
+  function $(id) { return document.getElementById(id); }
+  function myId() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function curRoom() { try { return window.rpRoom ? window.rpRoom() : ""; } catch (e) { return ""; } }
+  function onlineOn() { try { return !!(window.rpOnlineOn && window.rpOnlineOn()); } catch (e) { return false; } }
+  function eligible(room) {
+    if (!room || room === "teen") return false;
+    try { return !!(window.rpRoomLayoutEligible && window.rpRoomLayoutEligible(room)); } catch (e) { return false; }
+  }
+  function layoutRoom() { var r = curRoom(); return onlineOn() && eligible(r) ? r : ""; }
+  function send(o) { try { return window.rpProtoSend ? !!window.rpProtoSend(o) : false; } catch (e) { return false; } }
+
+  /* ---------------- per-room like counts ---------------- */
+  var likeMap = {};
+  try { var raw = localStorage.getItem(LIKE_KEY); if (raw) likeMap = JSON.parse(raw) || {}; } catch (e) { likeMap = {}; }
+  function likes(room) { return +likeMap[room] || 0; }
+  function saveLikes() { try { localStorage.setItem(LIKE_KEY, JSON.stringify(likeMap)); } catch (e) { } }
+  function renderLikes() { var el = $("rpRoomLikeCount"); if (el) el.textContent = String(likes(activeRoom)); }
+
+  /* ---------------- overlay ---------------- */
+  var overlay = null, activeRoom = "", syncAskedAt = 0;
+  function spawnHearts(n) {
+    if (!overlay) return;
+    var layer = overlay.querySelector(".rproom-hearts");
+    if (!layer) return;
+    var glyphs = ["❤️", "💖", "💗", "💕"];
+    for (var i = 0; i < n; i++) {
+      var s = document.createElement("span");
+      s.className = "rproom-flheart";
+      s.textContent = glyphs[i % glyphs.length];
+      s.style.right = (20 + Math.random() * 48) + "px";
+      s.style.fontSize = (18 + Math.random() * 14) + "px";
+      layer.appendChild(s);
+      (function (el) { setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 2400); })(s);
+    }
+  }
+  function pushBubble(name, text, sys, fromId) {
+    if (!overlay) return;
+    var stream = overlay.querySelector(".rproom-stream");
+    if (!stream || !text) return;
+    var b = document.createElement("div");
+    b.className = "rproom-bub" + (sys ? " sys" : "");
+    if (fromId) b.setAttribute("data-from", fromId);
+    if (name && !sys) {
+      var nm = document.createElement("b");
+      nm.textContent = name;
+      b.appendChild(nm);
+    }
+    b.appendChild(document.createTextNode(text));
+    stream.appendChild(b);
+    while (stream.children.length > 5) stream.removeChild(stream.firstChild);
+    setTimeout(function () {
+      b.classList.add("out");
+      setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 700);
+    }, 13000);
+  }
+  window.rpRoomBubble = function (name, text, sys, fromId) { if (overlay && activeRoom) pushBubble(name, text, sys, fromId); };
+  window.rpRoomPurgeSender = function (id) {
+    if (!overlay || !id) return;
+    overlay.querySelectorAll('.rproom-bub[data-from="' + id + '"]').forEach(function (b) { if (b.parentNode) b.parentNode.removeChild(b); });
+  };
+  function build(room) {
+    var host = $("onlineScene");
+    if (!host || overlay) return;
+    activeRoom = room;
+    overlay = document.createElement("div");
+    overlay.className = "rproom-overlay";
+    overlay.id = "rpRoomOverlay";
+    overlay.setAttribute("data-room", room);
+    overlay.innerHTML =
+      '<div class="rproom-stream" aria-hidden="true"></div>' +
+      '<div class="rproom-hearts" aria-hidden="true"></div>' +
+      '<div class="rproom-actions">' +
+      '<button type="button" class="rproom-likepill" id="rpRoomLikeBtn" aria-label="Like this room">❤️ <span id="rpRoomLikeCount">0</span></button>' +
+      '<button type="button" class="rproom-heartbtn" id="rpRoomHeartBtn" aria-label="Send hearts to the room">❤️</button>' +
+      '</div>' +
+      '<div class="rproom-chatrow"><button type="button" class="rproom-emoji" id="rpRoomEmojiBtn" aria-label="Emoji picker">😊</button><input type="text" id="rpRoomChatInput" maxlength="200" placeholder="Say something…" autocomplete="off" /><button type="button" class="rproom-send" id="rpRoomChatSend">Send</button></div>';
+    host.appendChild(overlay);
+    $("rpRoomHeartBtn").addEventListener("click", function () { spawnHearts(6); send({ k: "room-heart", r: activeRoom }); });
+    $("rpRoomLikeBtn").addEventListener("click", function () {
+      likeMap[activeRoom] = likes(activeRoom) + 1;
+      saveLikes(); renderLikes();
+      send({ k: "room-like", r: activeRoom, n: likeMap[activeRoom] });
+    });
+    var inp = $("rpRoomChatInput");
+    function sendChat() {
+      var t = (inp.value || "").trim();
+      if (!t) return;
+      inp.value = "";
+      if (window.rpSendRoomChat) window.rpSendRoomChat(t);
+    }
+    $("rpRoomChatSend").addEventListener("click", sendChat);
+    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") sendChat(); });
+    $("rpRoomEmojiBtn").addEventListener("click", function () { if (window.rpEmojiPicker) window.rpEmojiPicker.open(inp); });
+    renderLikes();
+    if (Date.now() - syncAskedAt > 15000) { syncAskedAt = Date.now(); send({ k: "room-lsync", r: room }); }
+  }
+  function teardown() {
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    overlay = null;
+    activeRoom = "";
+    if (window.rpEmojiPicker) window.rpEmojiPicker.close();
+  }
+
+  /* ---------------- proto reception (own chat listener, Teen pattern) ---------------- */
+  var boundSock = null, seenKeys = {}, lastSyncReplyAt = 0;
+  function onChat(d) {
+    if (!d) return;
+    var t = String(d.text || "");
+    if (t.indexOf(PX) !== 0) return;
+    var key = (d.id || "") + "|" + (d.at || "") + "|" + t;
+    if (seenKeys[key]) return;
+    seenKeys[key] = 1;
+    setTimeout(function () { delete seenKeys[key]; }, 30000);
+    var o;
+    try { o = JSON.parse(t.slice(PX.length)); } catch (e) { return; }
+    if (!o || !o.k || !o.r) return;
+    var self = false;
+    try { self = !!d.id && d.id === myId(); } catch (e) { }
+    if (o.k === "room-heart") {
+      if (!self && overlay && o.r === activeRoom) spawnHearts(5);
+    } else if (o.k === "room-like") {
+      if (typeof o.n === "number" && o.n > likes(o.r)) {
+        likeMap[o.r] = o.n;
+        saveLikes();
+        if (overlay && o.r === activeRoom) renderLikes();
+      }
+    } else if (o.k === "room-lsync") {
+      if (!self && o.r === curRoom() && likes(o.r) > 0 && Date.now() - lastSyncReplyAt > 5000) {
+        lastSyncReplyAt = Date.now();
+        send({ k: "room-like", r: o.r, n: likes(o.r) });
+      }
+    }
+  }
+  function bindSocket() {
+    try {
+      var s = window.rpSocket ? window.rpSocket() : null;
+      if (s && s !== boundSock) {
+        boundSock = s;
+        s.on("chat", onChat);
+        s.on("chat-message", onChat);
+      }
+    } catch (e) { }
+  }
+
+  /* ---------------- main poll (Teen pattern) ---------------- */
+  setInterval(function () {
+    try {
+      bindSocket();
+      var r = layoutRoom();
+      if (r && r !== activeRoom) { teardown(); build(r); }
+      else if (!r && activeRoom) teardown();
+    } catch (e) { }
+  }, 1000);
+
+  /* debug/test handle */
+  window.rpRoomStage = {
+    room: function () { return activeRoom; },
+    likes: function (room) { return likes(room || activeRoom); },
+    bubbles: function () { var s = overlay && overlay.querySelector(".rproom-stream"); return s ? s.children.length : 0; },
+    purge: function (id) { window.rpRoomPurgeSender(id); },
+    build: build, teardown: teardown
   };
 })();
 </script>
