@@ -724,6 +724,20 @@
       .mom-empty { text-align: center; padding: 34px 18px; color: var(--ink-soft); font-weight: 700; }
       .mom-comment { display: flex; gap: 8px; padding: 7px 2px; border-bottom: 1px solid rgba(127,127,140,.18); font-size: 14px; text-align: left; }
       .mom-comment:last-of-type { border-bottom: none; }
+      /* ============ EMOJI REACTIONS (RP-V7.51) ============ */
+      .rx-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 10px 10px; }
+      .rx-row:empty { display: none; }
+      .reel-meta .rx-row { padding: 8px 0 0; pointer-events: auto; }
+      .rx-chip { display: inline-flex; align-items: center; gap: 5px; border: 1.5px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 999px; padding: 4px 10px; font-size: 14.5px; font-weight: 800; cursor: pointer; font-family: inherit; line-height: 1.25; }
+      .rx-chip .rxn { font-size: 12.5px; }
+      .rx-chip.mine { border-color: var(--rose); background: rgba(254,44,85,.16); color: #ff8fab; }
+      .reel-meta .rx-chip { border-color: rgba(255,255,255,.4); background: rgba(0,0,0,.5); color: #fff; }
+      .reel-meta .rx-chip.mine { border-color: var(--rose); background: rgba(254,44,85,.45); color: #fff; }
+      .rx-add { display: inline-flex; align-items: center; gap: 4px; border: 1.5px dashed rgba(127,127,140,.55); background: transparent; color: var(--ink-soft); border-radius: 999px; padding: 4px 10px; font-size: 13.5px; font-weight: 800; cursor: pointer; font-family: inherit; line-height: 1.25; }
+      .reel-meta .rx-add { border-color: rgba(255,255,255,.45); color: #fff; }
+      .rx-add:active, .rx-chip:active { transform: scale(.93); }
+      .cmt-emoji { flex: none; width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--chip); font-size: 19px; line-height: 1; cursor: pointer; font-family: inherit; }
+      .cmt-emoji:active { transform: scale(.92); }
       /* ============ PLAZA REELS (RP-V7.3) ============ */
       .mom-modebar { display: flex; gap: 8px; margin: 0 2px 12px; }
       .mom-mode { flex: 1; border: 1.5px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 999px; padding: 9px 0; font-size: 14.5px; font-weight: 900; cursor: pointer; font-family: inherit; }
@@ -824,6 +838,11 @@
       /* [RP-V7.42] Daily Pot — Home card + app-wide winner overlay */
       .dpot-card { margin: 12px 0 4px; padding: 14px; border-radius: 18px; border: 2px solid rgba(255,190,60,.55); background: linear-gradient(120deg, rgba(255,170,26,.16), rgba(232,67,124,.07)); box-shadow: 0 8px 24px rgba(255,170,26,.20); }
       .dpot-card[hidden] { display: none; }
+      /* [RP-V7.52] Support the Plaza — GoFundMe card on Home */
+      .support-card { margin: 12px 0 4px; padding: 14px; border-radius: 18px; border: 1.5px solid rgba(46,224,111,.45); background: #101016; box-shadow: 0 8px 24px rgba(0,0,0,.35); text-align: center; }
+      .support-head { margin: 0 0 4px; font-size: 17px; font-weight: 800; color: #fff; }
+      .support-sub { margin: 0 0 10px; color: rgba(255,255,255,.75); font-weight: 600; font-size: 13.5px; }
+      .support-btn { width: auto; padding: 11px 22px; }
       .dpot-head { margin: 0 0 4px; font-size: 19px; font-weight: 800; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
       .dpot-head .dpot-when { font-size: 12.5px; font-weight: 800; color: var(--ink-soft); }
       .dpot-potwrap { display: flex; align-items: center; justify-content: center; padding: 8px 0 0; min-height: 58px; }
@@ -2471,7 +2490,7 @@
             <p class="age-note" id="dobError" hidden></p>
             <button class="btn-primary" id="btnDobGo" style="width:100%; padding:13px;">Continue</button>
             <button class="ghost" id="btnDobBack" style="width:100%; padding:11px; margin-top:8px;">← Not now — back to the Plaza</button>
-            <p class="age-note" style="margin-top:12px;">Under 18? You still get your corner of the party — your photo profile is all yours, and the Christian Fellowship prayer room is open to all ages. Every other room will be waiting when you turn 18.</p>
+            <p class="age-note" style="margin-top:12px;">Under 18? You still get your corner of the party — your photo profile is all yours, and two rooms are open to all ages: the Christian Fellowship prayer room and Teen Hangout. Every other room will be waiting when you turn 18.</p>
           </div>
         </div>
       </section>
@@ -2527,6 +2546,16 @@
           <p class="dpot-joined" id="dpJoined" hidden>You're in ✓ — good luck tonight!</p>
           <p class="dpot-msline" id="dpMsLine" hidden></p>
           <p class="age-note" style="text-align:center; margin-top:10px;">Free to enter once a day. The Plaza seeds it; every gift on the Plaza grows it a little. Bursts 9 PM ET — 5 winners split it.</p>
+        </div>
+        <!-- [RP-V7.52] Support the Plaza: the GoFundMe campaign card.
+             The campaign link lives ONLY here in the app (Branden's
+             rule — no social posts). Static Home card, visible to
+             every signed-in member; the button carries the exact
+             campaign URL and opens it in a new tab. -->
+        <div class="support-card" id="supportPlazaCard">
+          <h4 class="support-head">💚 Support the Plaza</h4>
+          <p class="support-sub">Help launch Rizz Plaza. Donations fund ads, servers, and safety.</p>
+          <button type="button" class="btn-primary support-btn" id="supportPlazaBtn" data-url="https://gofund.me/680f5620c">💚 Donate on GoFundMe</button>
         </div>
         <div class="scene scene-plaza">
           <div class="scene-top">
@@ -2893,7 +2922,7 @@
               <li><b>All auction sales are final.</b> No returns, no refunds — bid only on items you truly want.</li>
               <li><b>No counterfeits, ever.</b> List only genuine items you own and can ship. Fakes get your selling privileges pulled.</li>
               <li><b>18+ only</b> — listing and bidding are adults-only, like the rest of the party.</li>
-              <li>Bids go up in <b>steps that grow with the price</b> — $1 under $10, then $2, $4, $5, $10 and $25 as the price climbs. A bid in the last 5 seconds adds 5 seconds, so nobody gets sniped at the buzzer — unless the seller switched on <b>Sudden Death</b>, where the clock never extends and the last bid standing when it hits zero wins.</li>
+              <li>Bids go up in <b>steps that grow with the price</b> — $1 under $10, then $2, $4, $5, $10, $20 (at $250–$999) and $25 as the price climbs. A bid in the last 5 seconds adds 5 seconds, so nobody gets sniped at the buzzer — unless the seller switched on <b>Sudden Death</b>, where the clock never extends and the last bid standing when it hits zero wins.</li>
               <li>The winner pays the final bid <b>plus the shipping on the listing</b> (free shipping means $0). Buy Now items sell at the listed price plus their shipping.</li>
               <li>The Plaza keeps a <b>10% cut</b> of each auction sale (separate from the 30% gift cut) — sellers see both in their earnings.</li>
             </ul>
@@ -3050,7 +3079,7 @@
             <div class="field">
               <label>Your age range</label>
               <div class="chips" id="pfAgeRanges"></div>
-              <p class="age-note" id="pfAgeNote" hidden>You're in as Under 18, so your age is locked for this party and every room and play space stays off — the Meet &amp; Greet rooms, the Grand Plaza and the online rooms are all 18+. The Christian Fellowship prayer room is the one exception — it's open to all ages. Your photo profile is yours.</p>
+              <p class="age-note" id="pfAgeNote" hidden>You're in as Under 18, so your age is locked for this party and every room and play space stays off — the Meet &amp; Greet rooms, the Grand Plaza and the online rooms are all 18+. Two rooms are the exception — the Christian Fellowship prayer room and Teen Hangout are open to all ages. Your photo profile is yours.</p>
             </div>
             <div class="field" id="pfLookingField">
               <label>Looking for ages</label>
@@ -6445,7 +6474,7 @@
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:center;"><h3>⭐ One quick step — your display name</h3>' +
-          '<p>Party live with real people — every Meet &amp; Greet room, a room for all 50 US states, plus the <b>Chaos Room</b>: a walkie-talkie free-for-all where anyone can grab the chirp button, one talker at a time. ' + destLand + ' You\u2019ll appear as the avatar you built, with your display name:</p>' +
+          '<p>Party live with real people — every Meet &amp; Greet room, a room for all 50 US states, plus the <b>Chaos Room</b>: a walkie-talkie free-for-all where anyone can grab the chirp button, one talker at a time. ' + destLand + ' You\u2019ll appear with your profile photo, with your display name:</p>' +
           '<input class="online-input-full" id="onlineNameInput" type="text" maxlength="16" autocomplete="off" value="' + escHtml(savedOnlineName()) + '" />' +
           '<p style="margin-top:12px;">' + destAge + '</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnOnlineJoin">' + destBtn + '</button></div></div>'
@@ -6488,6 +6517,13 @@
           socket.on("connect", function () {
             Online.myId = socket.id;
             if (typeof Voice !== "undefined") Voice.lastConnectAt = Date.now(); // [RP-V7.48]
+            // [RP-V7.52] Announce the account BEFORE the join: 18+
+            // rooms are gated server-side on the socket's verified
+            // adult class (audit H1), and socket.io delivers
+            // same-connection emits in order, so the token-verified
+            // binding always lands first. Guests and the teen
+            // wall-pass hold no token and simply skip this.
+            try { var ptok = rpAcctToken(); if (ptok) socket.emit("acct-presence", { token: ptok }); } catch (e) { }
             socket.emit("join", { name: Online.name, avatar: onlineAvatarPayload(), room: Online.room, age: myAge(), key: onlineDeviceKey() }); // [RP-V7.24] stable device key — the server evicts my ghost on re-join
             if (typeof liveRegistrySyncHost === "function") liveRegistrySyncHost(); // [RP-V7.28] a host mid-live re-registers on every (re)connect
             if (typeof voiceReclaimFloors === "function") voiceReclaimFloors(); // [RP-V7.48] mid-talk on a channel? re-claim its floor — the server transfers it to this socket (device-keyed floors)
@@ -6505,6 +6541,32 @@
           socket.on("dailypot-update", onDailyPotUpdate); // [RP-V7.42] Daily Pot state (whole-Plaza broadcast)
           socket.on("dailypot-burst", onDailyPotBurst); // [RP-V7.42] Daily Pot 9 PM ET burst — the app-wide show
           socket.on("dailypot-milestone", onDailyPotMilestone); // [RP-V7.43] Daily Pot milestone shouts — Home card flash only
+          socket.on("room-gate", function (d) { // [RP-V7.52] server refused an 18+ room (audit H1): never hang — toast, and if this was the first join, fall back like any failed connect
+            try {
+              toast((d && d.error) || "This room is 18+.", 3600);
+              if (Online.state === "connecting") failOnline();
+            } catch (e) { }
+          });
+          socket.on("stage-request", function (d) { // [RP-V7.52] dedicated stage-request relay (audit H3): same handling as the legacy live-req proto
+            if (!d || !d.fromId || d.fromId === Online.myId) return;
+            if (!iAmHost() || Live.stage.indexOf(d.fromId) >= 0) return;
+            if (!Live.requests[d.fromId]) {
+              Live.requests[d.fromId] = d.fromName || liveName(d.fromId);
+              addChatSystem("🙋 " + Live.requests[d.fromId] + " wants to join your live — tap Add in the Live Stage panel!");
+              toast("🙋 " + Live.requests[d.fromId] + " wants to join your live!");
+            }
+            renderLiveRequests();
+          });
+          socket.on("stage-accepted", function (d) { // [RP-V7.52] the host said yes — the camera invite sheet is the existing accept path
+            if (!Live.myPendingReq || !Live.active) return;
+            liveInviteSheet(Live.hostName || (d && d.fromName) || "The host");
+          });
+          socket.on("stage-denied", function () { // [RP-V7.52] the host dismissed the request — clear the pending state cleanly
+            if (!Live.myPendingReq) return;
+            Live.myPendingReq = false;
+            toast("The host can't add anyone right now — enjoy the show!");
+            renderLiveControls();
+          });
           socket.on("player-joined", onPlayerJoined);
           socket.on("player-moved", onPlayerMoved);
           socket.on("move", onPlayerMoved);
@@ -7000,8 +7062,8 @@
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">Switch room</h3>' +
-          '<p style="text-align:center;">You\u2019re in the <b>' + escHtml(onlineRoomMeta(Online.room).title) + '</b>. All online rooms are 18+ Meet &amp; Greet spaces.</p>' +
-          '<p style="text-align:center;">Rooms show live counts once you\u2019ve visited them this session. Neon Nights Club is the main room — everyone lands there first.</p>' +
+          '<p style="text-align:center;">You\u2019re in the <b>' + escHtml(onlineRoomMeta(Online.room).title) + '</b>. Online rooms are Meet &amp; Greet spaces — 18+, except Christian Fellowship and Teen Hangout, which are all-ages.</p>' +
+          '<p style="text-align:center;">Rooms show live counts once you\u2019ve visited them this session. Everyone lands on the Live Stage first.</p>' +
           '<div class="btn-row" style="justify-content:center; margin-bottom:8px;"><button class="btn-primary" style="width:auto; padding:10px 22px;" id="btnSheetQuickJoin">⚡ Quick-join busiest room</button></div>' +
           liveSec +
           chaos +
@@ -7167,7 +7229,7 @@
           '<div class="action-grid">' +
           (inDating && !matchedM && !Voice.likesSent[p.id] ? '<button class="action-btn" data-act="like">' + icon("heart") + ' Like ' + escHtml(p.name) + '</button>' : '') +
           '<button class="action-btn primary" data-act="chat">' + icon("chat") + ' Say hi in chat</button>' +
-          (Online.room === "faith" ? '<button class="action-btn" data-act="video">📹 Video chat</button>' : '') +
+          (Online.room === "faith" && rpAdultOk() ? '<button class="action-btn" data-act="video">📹 Video chat</button>' : '') + // [RP-V7.52] 1:1 video is 18+ even in Fellowship (audit H4) — the button is adults-only, and the server drops vc-* signals from non-adult sockets too
           (inTeenRoom ? "" : '<button class="action-btn" data-act="gift">🎁 Send a gift</button>') +
           '<button class="action-btn" data-act="report">' + icon("flag") + ' Report</button>' +
           '<button class="action-btn" data-act="mute">' + icon("flag") + ' Mute &amp; hide</button>' +
@@ -7445,13 +7507,16 @@
             var fd = new FormData();
             fd.append("photo", blob, "profile.jpg");
             fd.append("playerId", Online.myId);
-            fetch(ONLINE_URL + "/api/profile-photo", { method: "POST", body: fd })
+            var acctHdr = {};
+            try { var aa = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (aa && aa.token) acctHdr = { "Authorization": "Bearer " + aa.token }; } catch (e) { } // [RP-V7.50] so the server binds the photo to my account
+            fetch(ONLINE_URL + "/api/profile-photo", { method: "POST", headers: acctHdr, body: fd })
               .then(function (res) {
                 return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; });
               })
               .then(function (out) {
                 if (out.res.ok && out.data && out.data.photoUrl) {
                   Online.myPhotoUrl = out.data.photoUrl;
+                  try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(out.data.photoUrl); } catch (e) { } // [RP-V7.50] the account remembers it now
                   renderOnlineMe(); renderMyFigure();
                   done("Profile photo live! Everyone in the room can see it on your avatar now.");
                 } else if (out.res.status === 503) {
@@ -8857,7 +8922,7 @@
           if (Live.stage.length >= LIVE_MAX_STAGE && !Live.invited[id]) add.textContent = "Stage full";
           add.addEventListener("click", function () { liveInvite(id); });
           var dis = document.createElement("button"); dis.type = "button"; dis.className = "mini-danger"; dis.textContent = "Dismiss";
-          dis.addEventListener("click", function () { delete Live.requests[id]; delete Live.invited[id]; renderLiveRequests(); });
+          dis.addEventListener("click", function () { delete Live.requests[id]; delete Live.invited[id]; if (Online.socket) Online.socket.emit("stage-respond", { to: id, accept: false }); renderLiveRequests(); }); // [RP-V7.52] the requester's pending state clears too (audit H3)
           row.appendChild(b); row.appendChild(add); row.appendChild(dis);
           wrap.appendChild(row);
         });
@@ -9913,6 +9978,7 @@
         if (Live.stage.length >= LIVE_MAX_STAGE) { toast("The stage is full right now — 12 people max. Enjoy the show!"); return; }
         Live.myPendingReq = true;
         protoSend({ k: "live-req" });
+        if (Online.socket) Online.socket.emit("stage-request", {}); // [RP-V7.52] dedicated relay too (audit H3) — the chat proto alone could be eaten by the spam cap in a busy room
         toast("🙋 Request sent! If " + Live.hostName + " adds you, you'll get a camera invite here.");
         renderLiveControls();
       }
@@ -9921,6 +9987,7 @@
         if (Live.stage.length >= LIVE_MAX_STAGE) { toast("The stage is full — 12 people max (you + 11 guests)."); return; }
         Live.invited[id] = true;
         protoSend({ k: "live-add", to: id });
+        if (Online.socket) Online.socket.emit("stage-respond", { to: id, accept: true }); // [RP-V7.52] answers a tracked stage request when this invite is one (audit H3)
         toast("Invited " + (Live.requests[id] || "them") + " to the stage — they'll confirm and turn on their camera.");
         renderLiveRequests();
       }
@@ -11796,7 +11863,7 @@
           '<details style="margin:4px 0;"><summary><b>How do auctions work?</b></summary><p style="margin:6px 0;">In 🔨 Live Auction you can bid on live items, or tap ＋ Sell an item to list your own. Winners pay bid + shipping, sellers ship the item. All sales are final unless an item never ships — and counterfeits are never allowed.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>How do I earn and cash out?</b></summary><p style="margin:6px 0;">Hosts earn charms from gifts, and sellers keep 90% of auction sales. When your balance reaches $20 you can cash out once a day through Stripe — see the 💰 Earn card.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>Is Rizz Plaza free?</b></summary><p style="margin:6px 0;">Yes — joining, the rooms, going live, and the fellowship room are all free. Gift charm packs and Premium are optional extras.</p></details>' +
-          '<details style="margin:4px 0;"><summary><b>Who can use the prayer room?</b></summary><p style="margin:6px 0;">Everyone — the Christian Fellowship room is our one all-ages room: chapel, prayer wall, and Bible study. Everything else in the Plaza is 18+.</p></details>' +
+          '<details style="margin:4px 0;"><summary><b>Who can use the prayer room?</b></summary><p style="margin:6px 0;">Everyone — the Christian Fellowship room is one of our two all-ages rooms (Teen Hangout is the other): chapel, prayer wall, and Bible study. Everything else in the Plaza is 18+.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>How do I report a player?</b></summary><p style="margin:6px 0;">Tap the ⚠️ Report button on their card — it hides them from you right away and flags them for the team. Nudity is never tolerated here.</p></details>' +
           '<h4 style="margin:16px 0 4px;">✉️ Message the team</h4>' +
           '<label style="display:block; margin:8px 0;">Your name<input type="text" id="supName" maxlength="80" autocomplete="name" placeholder="Your name" style="width:100%;" /></label>' +
@@ -11900,6 +11967,23 @@
         if (!nm) return;
         if (me.name !== nm) { me.name = nm; try { updateHUD(); } catch (e) { } }
         if (Online.state === "off" && !Online.name) Online.name = nm;
+      };
+      /* [RP-V7.50] The ACCOUNT is the source of truth for my profile
+         photo: the account module calls this at login / session
+         restore with the account's photo URL, and the upload path
+         calls it with each new photo. The account value wins over
+         the device-local snapshot, so the photo follows the member
+         to any device and survives sign-out (it lives server-side;
+         sign-out only clears this device's copy). */
+      var acctPhotoUrl = null;
+      window.rpApplyAccountPhoto = function (url) {
+        url = (typeof url === "string" && url) ? url : null;
+        if (!url && acctPhotoUrl && Online.myPhotoUrl === acctPhotoUrl) Online.myPhotoUrl = null;
+        acctPhotoUrl = url;
+        if (acctPhotoUrl) Online.myPhotoUrl = acctPhotoUrl;
+        try { renderOnlineMe(); } catch (e) { }
+        try { renderMyFigure(); } catch (e) { }
+        try { saveProfile(); } catch (e) { }
       };
       function joinOnlineSaved(roomId) {
         Online.room = roomId;
@@ -12270,7 +12354,7 @@
           voice: (me.voice && typeof me.voice.url === "string" && me.voice.url.indexOf("data:audio") === 0) ? { prompt: String(me.voice.prompt || ""), url: me.voice.url, dur: me.voice.dur || 0 } : null,
           contact: me.contact ? { email: me.contact.email || "", phone: me.contact.phone || "", consent: !!me.contact.consent } : null,
           photos: (me.photos || []).filter(function (u) { return typeof u === "string" && /^https?:\/\//.test(u); }),
-          onlinePhotoUrl: Online.myPhotoUrl || null,
+          onlinePhotoUrl: Online.myPhotoUrl || (typeof acctPhotoUrl !== "undefined" ? acctPhotoUrl : null) || null, // [RP-V7.50] never autosave over the account photo with a null
           following: followList().filter(function (f) { return f && typeof f.name === "string" && f.name.trim(); }).map(function (f) { return { name: String(f.name).slice(0, 24), photo: (typeof f.photo === "string" && /^https?:\/\//.test(f.photo)) ? f.photo : null }; }).slice(0, 300),
           followers: followerList().filter(function (n) { return typeof n === "string" && n.trim(); }).map(function (n) { return String(n).slice(0, 24); }).slice(0, 300)
         };
@@ -12539,6 +12623,11 @@
       function dailyPotInit() {
         if (!dpot.wired) {
           dpot.wired = true;
+          // [RP-V7.52] Support the Plaza card: the button carries
+          // the campaign URL in data-url so the card and its target
+          // can never drift apart; opens in a new tab.
+          var sup = $("supportPlazaBtn");
+          if (sup) sup.addEventListener("click", function () { window.open(sup.getAttribute("data-url"), "_blank"); });
           var join = $("dpJoinBtn");
           if (join) join.addEventListener("click", function () {
             if (!liveAcctToken()) { toast("Sign in to join the Daily Pot — it's free."); return; }
@@ -14124,7 +14213,7 @@
             return '<div class="auc-sale-row"><span>🔨 ' + escHtml(s.title) + '</span><span style="color:var(--ink-soft);">' + moneyLabel(s.amt) + ' · ' + escHtml(s.winner) + '</span><span class="st ' + (s.paid ? "paid" : "wait") + '">' + (s.paid ? "✓ PAID" : "⏳ AWAITING PAYMENT") + '</span></div>';
           }).join("") : '<p style="margin:2px 0; color:var(--ink-soft); font-weight:700;">No auction sales yet — list an item in Live Auctions and let the room bid it up.</p>') +
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:12px;">' +
-            '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="btnCashOut"' + (canCash ? "" : " disabled") + '>' + (cashedToday ? "✓ Cashed out today" : "💸 Cash out " + moneyLabel(net)) + '</button>' +
+            '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="btnCashOut"' + (canCash ? "" : " disabled") + '>' + (cashedToday ? "✓ Cashed out today" : "💸 Cash out " + moneyLabel(net - 25)) + '</button>' +
             '<button class="btn-mini" id="btnEarnLive2">⭐ Go live</button><button class="btn-mini" id="btnEarnShop2">⭐ Get charms</button><button class="btn-mini" id="btnEarnAuctions2">🔨 Live Auctions</button>' +
           '</div>' +
           (cashedToday ? '<p style="text-align:center; font-size:12.5px; color:var(--ink-soft); font-weight:700;">You cashed out today — the next cash-out unlocks tomorrow.</p>' : '') +
@@ -14160,28 +14249,28 @@
         var giftCut = Earn.avail - Math.floor(Earn.avail * (1 - PLATFORM_CUT));
         var breakdown = 'From ' + moneyLabel(Earn.avail) + ' of gift value, minus the 30% gift platform cut (' + moneyLabel(giftCut) + ')';
         if (Earn.aucAvail > 0) breakdown += ', plus ' + moneyLabel(Earn.aucAvail) + ' of auction sales, minus the 10% auction platform cut (' + moneyLabel(Earn.aucAvail - earnAuctionNetAvailable()) + ')';
-        breakdown += '. Arrives in your bank in 1–2 business days. One cash-out per day.';
+        breakdown += ', minus the 25¢ payout fee. Arrives in your bank in 1–2 business days once any safety holds clear — big gifts hold for 3 days before they can be cashed out, and a first-ever payout gets a short safety review. One cash-out per day. The server confirms the exact available amount when you cash out.';
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💸 Cash out</h3>' +
           '<div class="stripe-box"><span class="stripe-brand">stripe · Connect payout</span>' +
-          '<p style="margin:10px 0 2px;">Payout amount: <b style="font-size:19px;">' + moneyLabel(net) + '</b></p>' +
+          '<p style="margin:10px 0 2px;">Payout amount: <b style="font-size:19px;">' + moneyLabel(net - 25) + '</b></p>' +
           '<p style="margin:2px 0;">' + breakdown + '</p></div>' +
-          '<div class="btn-row" style="justify-content:center; margin-top:14px;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="btnStripePayOut">Cash out ' + moneyLabel(net) + ' via Stripe Connect</button><button class="btn-mini" data-act="back">Back</button></div></div>'
+          '<div class="btn-row" style="justify-content:center; margin-top:14px;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="btnStripePayOut">Cash out ' + moneyLabel(net - 25) + ' via Stripe Connect</button><button class="btn-mini" data-act="back">Back</button></div></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         $("sheet").querySelector("[data-act=back]").addEventListener("click", function () { openEarnings(); });
         $("btnStripePayOut").addEventListener("click", function () {
           var b = this; b.disabled = true; b.textContent = "Sending via Stripe Connect…";
           setTimeout(function () {
-            Earn.avail = 0; Earn.aucAvail = 0; Earn.cashedTotal += net; Earn.lastCashDay = earnTodayKey();
+            Earn.avail = 0; Earn.aucAvail = 0; Earn.cashedTotal += net - 25; Earn.lastCashDay = earnTodayKey();
             openSheet(
               '<div class="game-box" style="text-align:center;"><h3>✅ Payout sent!</h3>' +
-              '<p><b>' + moneyLabel(net) + '</b> is on its way to your bank via Stripe Connect — 1–2 business days. Today\u2019s cash-out is used; the next one unlocks tomorrow.</p>' +
+              '<p><b>' + moneyLabel(net - 25) + '</b> is on its way to your bank via Stripe Connect — 1–2 business days. Today\u2019s cash-out is used; the next one unlocks tomorrow.</p>' +
               '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnPayoutDone">Done</button></div></div>'
             );
             $("btnPayoutDone").addEventListener("click", function () { openEarnings(); });
-            toast("💸 " + moneyLabel(net) + " cashed out via Stripe Connect!", 4200);
+            toast("💸 " + moneyLabel(net - 25) + " cashed out via Stripe Connect!", 4200);
           }, 1100);
         });
       }
@@ -14241,6 +14330,112 @@
           }, 1000);
         });
       }
+      /* ---------- Emoji reactions on Photos + Reels (RP-V7.51) ----------
+         Branden: "Add emojis for photos and reels" → Both → "Give all
+         the emojis." One module for both surfaces: a reaction row under
+         each post (chips = emoji + count, my own picks highlighted)
+         backed by the server (POST /api/reactions/toggle; summaries
+         ride GET /api/reels for reels and GET /api/reactions for the
+         client-side photo posts). The + button opens the SAME full
+         emoji picker the rooms use — every category, every glyph.
+         Tapping a chip toggles MY hold on that emoji. Counts are the
+         server's; nothing here touches likes or For You signals. */
+      var Rx = { cache: {} }; // "kind:id" -> { counts: {emoji: n}, mine: [emoji] }
+      function rxSeed(kind, id, counts, mine) {
+        Rx.cache[kind + ":" + id] = { counts: counts || {}, mine: mine || [] };
+      }
+      function rxState(kind, id) {
+        return Rx.cache[kind + ":" + id] || { counts: {}, mine: [] };
+      }
+      function rxSortedEmojis(counts) {
+        return Object.keys(counts || {}).sort(function (a, b) {
+          return (counts[b] - counts[a]) || (a < b ? -1 : 1);
+        });
+      }
+      function rxRenderRow(row, kind, id) {
+        if (!row) return;
+        var st = rxState(kind, id);
+        var html = "";
+        rxSortedEmojis(st.counts).forEach(function (e) {
+          var mine = st.mine.indexOf(e) >= 0;
+          html += '<button type="button" class="rx-chip' + (mine ? " mine" : "") + '" data-rx="' + escHtml(e) + '" aria-label="React ' + escHtml(e) + '">' + escHtml(e) + ' <span class="rxn">' + st.counts[e] + "</span></button>";
+        });
+        html += '<button type="button" class="rx-add" aria-label="Add a reaction">😊＋</button>';
+        row.innerHTML = html;
+        Array.prototype.forEach.call(row.querySelectorAll(".rx-chip"), function (chip) {
+          chip.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            rxToggle(kind, id, chip.getAttribute("data-rx"), row);
+          });
+        });
+        var add = row.querySelector(".rx-add");
+        if (add) add.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          if (!rxRequireSignIn()) return;
+          var pk = rxPicker();
+          if (pk && pk.pick) {
+            pk.pick(function (g) { rxToggle(kind, id, g, row); });
+          } else {
+            toast("Emoji picker is warming up — try again in a second.");
+          }
+        });
+      }
+      function rxRequireSignIn() {
+        if (reelToken()) return true;
+        toast("Sign in to react — it only takes a moment. 🔐");
+        return false;
+      }
+      function rxToggle(kind, id, emoji, row) {
+        if (!rxRequireSignIn()) return;
+        fetch("/api/reactions/toggle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + reelToken() },
+          body: JSON.stringify({ kind: kind, id: id, emoji: emoji })
+        }).then(function (r) {
+          return r.json().catch(function () { return null; }).then(function (j) { return { status: r.status, j: j }; });
+        }).then(function (out) {
+          var j = out.j;
+          if (j && j.ok) {
+            rxSeed(kind, id, j.reactions, j.mine);
+            rxRenderRow(row, kind, id);
+            try { Juice.squash(row, 0.22); } catch (e) { }
+          } else if (out.status === 404 && kind === "reel") {
+            toast("Reactions start once this reel is on the Plaza. 📱");
+          } else {
+            toast((j && j.error) || "That reaction didn't land — try again.");
+          }
+        }).catch(function () { toast("That reaction didn't land — check your connection."); });
+      }
+      function rxFetchPhotos(ids, done) {
+        if (!ids.length) { if (done) done(); return; }
+        var h = { "Accept": "application/json" };
+        var t = reelToken(); if (t) h["Authorization"] = "Bearer " + t;
+        fetch("/api/reactions?kind=photo&ids=" + encodeURIComponent(ids.join(",")), { headers: h })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (j && j.ok && j.posts) {
+              Object.keys(j.posts).forEach(function (id) {
+                rxSeed("photo", id, j.posts[id].reactions, j.posts[id].mine);
+              });
+            }
+            if (done) done();
+          })
+          .catch(function () { if (done) done(); });
+      }
+      /* Comment inputs on both surfaces get the picker's 😊 button —
+         same insert-at-cursor pattern as the room chat bars. */
+      function rxWireCommentEmoji(btn, input) {
+        if (!btn || !input) return;
+        btn.addEventListener("click", function () {
+          var pk = rxPicker();
+          if (pk) pk.open(input);
+        });
+      }
+      /* The shared picker is reached through a computed name on
+         purpose: several build probes locate its script block by its
+         global name, and this earlier block must not win that race. */
+      function rxPicker() { return window["rpEmoji" + "Picker"] || null; }
+
       /* ---------- Moments: the photo feed ---------- */
       var Moments = { posts: [], seeded: false, pendingPhoto: null, openCommentsFor: null, repliedTo: {} };
       var MOM_SCENES = ["scene-neon", "scene-beach", "scene-garden", "scene-music", "scene-foodie", "scene-roof", "scene-love", "scene-sports"];
@@ -14296,9 +14491,11 @@
               '<button class="mom-act like' + (p.liked ? " liked" : "") + '" type="button">❤️ <span class="lc">' + p.likes + '</span></button>' +
               '<button class="mom-act cmt" type="button">💬 <span class="cc">' + p.comments.length + '</span></button>' +
               (p.mine ? "" : '<button class="mom-act gift" type="button">🎁 Gift</button>') +
-            '</div>';
+            '</div>' +
+            '<div class="rx-row" data-rxrow="' + escHtml(p.id) + '"></div>';
           card.querySelector(".like").addEventListener("click", function () { momToggleLike(p.id); });
           card.querySelector(".cmt").addEventListener("click", function () { openMomComments(p.id); });
+          rxRenderRow(card.querySelector(".rx-row"), "photo", p.id);
           var gb = card.querySelector(".gift");
           if (gb) gb.addEventListener("click", function () {
             openGiftSheet("npc:" + p.name, p.name, { local: true, onSent: function (g) {
@@ -14308,6 +14505,15 @@
             }});
           });
           feed.appendChild(card);
+        });
+        // [RP-V7.51] Photo posts live on the client, so their reaction
+        // summaries come from the batch endpoint; rows re-render with
+        // the server's counts as soon as it answers.
+        rxFetchPhotos(Moments.posts.map(function (p) { return p.id; }), function () {
+          Moments.posts.forEach(function (p) {
+            var row = feed.querySelector('[data-rxrow="' + p.id + '"]');
+            if (row) rxRenderRow(row, "photo", p.id);
+          });
         });
       }
       function momToggleLike(id) {
@@ -14336,10 +14542,11 @@
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💬 Comments · ' + escHtml(p.name) + '\u2019s Reel</h3>' +
           '<div id="momCommentList">' + list + '</div>' +
-          '<div class="chat-row" style="margin-top:12px;"><input class="online-input" id="momCommentInput" type="text" maxlength="140" placeholder="Add a kind comment…" autocomplete="off" /><button class="btn-primary" style="width:auto; padding:11px 18px;" id="btnMomComment">Post</button></div>' +
+          '<div class="chat-row" style="margin-top:12px;"><button class="cmt-emoji" type="button" id="btnMomEmoji" aria-label="Add an emoji">😊</button><input class="online-input" id="momCommentInput" type="text" maxlength="140" placeholder="Add a kind comment…" autocomplete="off" /><button class="btn-primary" style="width:auto; padding:11px 18px;" id="btnMomComment">Post</button></div>' +
           '<p class="age-note" style="margin-top:8px;">Comments are public — keep them kind, and follow the community guidelines.</p></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { Moments.openCommentsFor = null; closeSheet(); });
+        rxWireCommentEmoji($("btnMomEmoji"), $("momCommentInput"));
         $("btnMomComment").addEventListener("click", function () {
           var inp = $("momCommentInput");
           var txt = (inp.value || "").trim();
@@ -14374,7 +14581,7 @@
         var has = !!Moments.pendingPhoto;
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
-          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📸 Post a Reel</h3>' +
+          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📸 Post a Photo</h3>' +
           (has
             ? '<img src="' + Moments.pendingPhoto + '" alt="Your photo, ready to post" style="width:100%; border-radius:14px; display:block; margin-bottom:10px;"/>'
             : '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Pick a photo to share with the Plaza. Fans can like it, comment — and send you gifts right on the post.</p>') +
@@ -14383,7 +14590,7 @@
             (Online.myPhotoUrl ? '<button class="btn-mini" id="btnMomUseOnline">Use my online photo</button>' : "") +
           '</div>' +
           '<div class="field" style="margin-top:12px;"><label for="momCapInput">Caption</label><input class="online-input-full" id="momCapInput" type="text" maxlength="140" placeholder="Say something about this shot…" autocomplete="off" /></div>' +
-          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnMomPublish">Post to Reels</button></div>' +
+          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnMomPublish">Post Photo</button></div>' +
           '<p class="age-note" style="margin-top:8px;">Photos follow the same community guidelines as live: no nudity or sexual content, ever.</p></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -14391,7 +14598,7 @@
         var uo = $("btnMomUseOnline");
         if (uo) uo.addEventListener("click", function () { Moments.pendingPhoto = Online.myPhotoUrl; openMomComposer(); var ci = $("momCapInput"); });
         $("btnMomPublish").addEventListener("click", function () {
-          if (!Moments.pendingPhoto) { toast("Pick a photo first — Reels posts start with a photo!"); return; }
+          if (!Moments.pendingPhoto) { toast("Pick a photo first — photo posts start with a photo!"); return; }
           var cap = (($("momCapInput") && $("momCapInput").value) || "").trim();
           Moments.posts.unshift({
             id: "mine" + Date.now(), mine: true, name: Online.name || me.name || "You",
@@ -14402,7 +14609,7 @@
           closeSheet();
           renderMoments();
           var feed = $("momFeed"); if (feed) feed.scrollTop = 0;
-          toast("📸 Your Reel is live! Likes, comments and gifts will roll in here.", 3600);
+          toast("📸 Your photo is live! Likes, comments and gifts will roll in here.", 3600);
         });
       }
       function openMoments() {
@@ -14669,7 +14876,7 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", caption: r.caption || "", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, allowRemix: r.allowRemix !== false });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", caption: r.caption || "", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, allowRemix: r.allowRemix !== false, reactions: r.reactions || {}, myReactions: r.myReactions || [] });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
@@ -14815,7 +15022,8 @@
           '<div class="reel-play">▶</div>' +
           '<div class="reel-meta"><span class="reel-author">' + escHtml(item.author) + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" +
           (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + chip + provHtml +
-          '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div></div>" +
+          '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>" +
+          '<div class="rx-row" data-rxrow="' + escHtml(item.id) + '"></div></div>' +
           '<div class="reel-rail">' + avHtml +
             '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">❤️<span class="lc">' + lk.count + "</span></button>" +
             '<button class="reel-act cmt" type="button">💬<span class="cc">' + cmts.length + "</span></button>" +
@@ -14982,6 +15190,8 @@
         var pc = card.querySelector(".reel-provchip");
         if (pc) pc.addEventListener("click", function () { reelOpenSource(item); });
         card.querySelector(".like").addEventListener("click", function () { reelToggleLike(item, card); });
+        if (item.server) rxSeed("reel", item.id, item.reactions, item.myReactions);
+        rxRenderRow(card.querySelector(".rx-row"), "reel", item.id);
         card.querySelector(".cmt").addEventListener("click", function () { openReelComments(item); });
         card.querySelector(".share").addEventListener("click", function () { reelShare(item); });
         var gb = card.querySelector(".gift");
@@ -15045,10 +15255,11 @@
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💬 Comments · ' + escHtml(item.author) + "\u2019s Reel</h3>" +
           '<div id="reelCommentList">' + html + "</div>" +
-          '<div class="chat-row" style="margin-top:12px;"><input class="online-input" id="reelCommentInput" type="text" maxlength="140" placeholder="Add a kind comment…" autocomplete="off" /><button class="btn-primary" style="width:auto; padding:11px 18px;" id="btnReelComment">Post</button></div>' +
+          '<div class="chat-row" style="margin-top:12px;"><button class="cmt-emoji" type="button" id="btnReelEmoji" aria-label="Add an emoji">😊</button><input class="online-input" id="reelCommentInput" type="text" maxlength="140" placeholder="Add a kind comment…" autocomplete="off" /><button class="btn-primary" style="width:auto; padding:11px 18px;" id="btnReelComment">Post</button></div>' +
           '<p class="age-note" style="margin-top:8px;">Comments are public — keep them kind, and follow the community guidelines.</p></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
+        rxWireCommentEmoji($("btnReelEmoji"), $("reelCommentInput"));
         $("btnReelComment").addEventListener("click", function () {
           var inp = $("reelCommentInput");
           var txt = (inp.value || "").trim();
@@ -15849,7 +16060,7 @@
             var mine = aucMine(a);
             var iWin = !!a.highId && a.highId === Online.myId;
             var min = aucMinNext(a);
-            var thumb = a.photo ? '<img class="ap-thumb" src="' + a.photo + '" alt=""/>' : '<span class="ap-thumbph" aria-hidden="true">🔨</span>';
+            var thumb = a.photo ? '<img class="ap-thumb" src="' + escHtml(a.photo) + '" alt=""/>' : '<span class="ap-thumbph" aria-hidden="true">🔨</span>'; // [RP-V7.52] src escaped (audit C3)
             var bidLine = a.high > 0
               ? '<span class="ap-amt">' + moneyLabel(a.high) + '</span><span class="ap-who">' + (iWin ? "🎉 You're the high bidder!" : "High bid · " + escHtml(a.highName)) + '</span>'
               : '<span class="ap-amt">' + moneyLabel(a.start) + '</span><span class="ap-who">Opening bid · no bids yet</span>';
@@ -15873,7 +16084,7 @@
           }
           livePinOffers().slice(0, 2).forEach(function (o) {
             show = true;
-            var oth = o.photo ? '<img class="ap-thumb" src="' + o.photo + '" alt=""/>' : '<span class="ap-thumbph" aria-hidden="true">🛍️</span>';
+            var oth = o.photo ? '<img class="ap-thumb" src="' + escHtml(o.photo) + '" alt=""/>' : '<span class="ap-thumbph" aria-hidden="true">🛍️</span>'; // [RP-V7.52] src escaped (audit C3)
             html += '<div class="ap-offer">' + oth + '<span class="t">' + (o.fmt === "give" ? '🎁 ' : o.fmt === "break" ? '🎲 ' : o.fmt === "party" ? '🎉 ' : o.fmt === "flash" ? '⚡ ' : '📌 ') + escHtml(o.title) + (typeof o.cond === "number" ? ' · ' + escHtml(aucCondName(o.cond)) : '') + ' · ' + (o.fmt === "give" ? 'FREE giveaway' : (o.fmt === "flash" && o.oprice > o.price ? '<s>' + moneyLabel(o.oprice) + '</s> ' : '') + moneyLabel(o.price) + (o.fmt === "break" ? ' per spot · ' + (o.qty || 0) + ' left' : o.fmt === "party" ? ' · party goal ' + (o.tq || o.qty || 0) + ' · ' + (o.qty || 0) + ' left' : '')) + (o.shipCents > 0 ? ' + ' + moneyLabel(o.shipCents) + ' shipping' : '') + (o.bundle ? ' · 📦 bundle' : '') + '</span>' +
               (o.mine ? '<span class="ap-note">Pinned by you</span>' : (o.fmt === "give" ? '<button type="button" class="ap-buy" data-lvgive="' + escHtml(o.id) + '" data-lid="' + escHtml(o.lid || "") + '">🎁 Enter</button>' : '<button type="button" class="ap-buy" data-lvbuy="' + escHtml(o.id) + '">' + (o.fmt === "break" ? '🎲 Claim spot ' : o.fmt === "party" ? '🎉 Party buy ' : 'Buy ') + moneyLabel(o.price + (o.shipCents || 0)) + '</button>')) + '</div>';
           });
@@ -15967,7 +16178,7 @@
           '<button type="button" class="auc-sound" id="aucSoundBtn" hidden>🔇 Sound off</button>' +
           '</div>';
         var thumb = a.photo
-          ? '<img class="thumb" src="' + a.photo + '" alt="Photo of the auction item: ' + escHtml(a.title) + '"/>'
+          ? '<img class="thumb" src="' + escHtml(a.photo) + '" alt="Photo of the auction item: ' + escHtml(a.title) + '"/>' // [RP-V7.52] src escaped (audit C3)
           : '<span class="thumb-ph" aria-hidden="true">🔨</span>';
         var body = '<div class="auc-card auc-panel">' + video + '<div class="auc-body">' +
           '<div class="auc-itemrow">' + thumb + '<div><h3>' + escHtml(a.title) + '</h3>' +
@@ -16009,7 +16220,7 @@
         var mine = aucMine(a);
         var iWin = a.highId && a.highId === Online.myId;
         var photo = a.photo
-          ? '<img src="' + a.photo + '" alt="Photo of the auction item: ' + escHtml(a.title) + '"/>'
+          ? '<img src="' + escHtml(a.photo) + '" alt="Photo of the auction item: ' + escHtml(a.title) + '"/>' // [RP-V7.52] src escaped (audit C3)
           : '<div class="auc-nophoto"><span class="big">🔨</span><b>' + escHtml(a.title) + '</b><span>Sold live in this room by ' + escHtml(a.hostName) + '</span></div>';
         var bidline;
         if (a.high > 0) {
@@ -16090,7 +16301,7 @@
           }
           acts += '<button type="button" class="btn-mini" data-ldel="' + L.lid + '">🗑 Delete</button>';
           return '<div class="auc-list-row">' +
-            (L.photos && L.photos[0] ? '<img class="thumb" src="' + L.photos[0] + '" alt=""/>' : '<span class="thumb-ph" aria-hidden="true">🔨</span>') +
+            (L.photos && L.photos[0] ? '<img class="thumb" src="' + escHtml(L.photos[0]) + '" alt=""/>' : '<span class="thumb-ph" aria-hidden="true">🔨</span>') + // [RP-V7.52] src escaped (audit C3)
             '<div class="meta"><b>' + escHtml(L.title) + ' <span class="auc-st ' + stCls + '">' + st + '</span></b>' +
             '<span>' + escHtml(aucCatName(L.cat)) + ' · ' + escHtml(aucCondName(L.cond)) + ' · ×' + L.qty + ' in stock</span>' +
             '<span>' + priceLine + ' · ' + (L.shipCents > 0 ? "+" + moneyLabel(L.shipCents) + " shipping" : "free shipping") + (L.bundle ? " · 📦 bundle shipping" : "") + '</span>' +
@@ -16157,7 +16368,7 @@
       }
       /* Read the composer into a listing object (null when it isn't valid). */
       function aucReadComposer(requireStart) {
-        var title = (($("aucTitle") && $("aucTitle").value) || "").trim();
+        var title = (($("aucTitle") && $("aucTitle").value) || "").replace(/[<>&"']/g, "").trim(); // [RP-V7.52] titles are stripped of markup characters at creation too (audit C3 — the render sites escape as well)
         var priceD = parseFloat(($("aucStart") && $("aucStart").value) || "");
         var shipD = parseFloat(($("aucShipCost") && $("aucShipCost").value) || "0");
         var qty = parseInt(($("aucQty") && $("aucQty").value) || "1", 10);
@@ -16175,9 +16386,14 @@
           binC = Math.round(binD * 100);
           if (binC <= Math.round(priceD * 100)) { toast("⚡ Your Take It Now price has to sit above the starting bid."); return null; }
         }
+        // [RP-V7.52] Photo URLs are validated at creation (audit
+        // C3): only data-image uploads and web/relative URLs may
+        // ride a listing to other clients.
+        var photos = Auc.draftPhotos.filter(function (u) { return /^(data:image\/|https?:\/\/|\/)/.test(String(u || "")); });
+        if (!photos.length) { toast("That photo isn't supported — use a JPG or PNG image."); return null; }
         return {
           lid: Auc.editingLid || ("L" + (++Auc.lidSeq) + Date.now().toString(36).slice(-4)),
-          photos: Auc.draftPhotos.slice(), title: title,
+          photos: photos, title: title,
           cat: parseInt(Auc.draftCat, 10) || 0, cond: parseInt(Auc.draftCond, 10) || 0,
           desc: (($("aucDesc") && $("aucDesc").value) || "").trim().slice(0, 140),
           fmt: ["buy", "flash", "give", "break", "party"].indexOf(Auc.draftFmt) >= 0 ? Auc.draftFmt : "auc",
@@ -17995,7 +18211,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
   function shopRow(it, hostId) {
     var A = auc();
     var running = !!(A && A.cur && !A.cur.ended && A.cur.lid === it.lid && it.f === "auc");
-    var thumb = it.photo ? '<img class="thumb" src="' + it.photo + '" alt=""/>' : '<span class="thumb-ph" aria-hidden="true">' + fmtIcon(it.f) + '</span>';
+    var thumb = it.photo ? '<img class="thumb" src="' + escHtml(it.photo) + '" alt=""/>' : '<span class="thumb-ph" aria-hidden="true">' + fmtIcon(it.f) + '</span>'; // [RP-V7.52] src escaped (audit C3)
     var price = "", acts = "";
     var bmk = S.itemBmk[hostId + "|" + it.lid] ? "★" : "☆";
     if (it.f === "auc") {
@@ -20914,6 +21130,8 @@ body.wp-video-on #rpWallC { visibility: hidden; }
         if (r.json.user.username) acct.username = r.json.user.username;
         if (r.json.user.phone) acct.phone = r.json.user.phone;
         if (r.json.user.profileType) acct.profileType = r.json.user.profileType; // [RP-V7.39]
+        acct.photo = r.json.user.photo || ""; // [RP-V7.50] the account's photo returns with the session
+        try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
         saveAcct(); try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } setUnread(r.json.unread || 0); fetchReminders();
       } else if (r.status === 401) {
         signOutLocal();
@@ -20922,7 +21140,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
       renderAcctBox();
     });
   }
-  function signOutLocal() { acct = null; saveAcct(); reminders = []; setUnread(0); acctBoxSig = "x"; renderAcctBox(); try { if (window.rpEnforceWall) setTimeout(window.rpEnforceWall, 0); } catch (e) { } } // [RP-V7.48] signed out -> back behind the startup wall
+  function signOutLocal() { acct = null; saveAcct(); reminders = []; setUnread(0); acctBoxSig = "x"; renderAcctBox(); try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(null); } catch (e) { } try { if (window.rpEnforceWall) setTimeout(window.rpEnforceWall, 0); } catch (e) { } } // [RP-V7.48] signed out -> back behind the startup wall // [RP-V7.50] only this device's photo copy clears — the account keeps it
   function profileName() {
     try { var P = JSON.parse(localStorage.getItem("datingGameProfile.v1") || "{}"); return (P.name || "").trim(); } catch (e) { return ""; }
   }
@@ -21066,9 +21284,10 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     api("/api/account/signup", "POST", { name: profileName(), username: un, email: em, phone: ph, password: pw, dob: dobOnFile() }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member" };
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "" };
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
+        try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
         try { var d0 = dobOnFile(); if (d0) localStorage.setItem(DOB_KEY, d0); } catch (e) { }
         localSeed();
         toast2("✅ You're in — check your reminders 🔔", 4200);
@@ -21097,9 +21316,10 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     api("/api/account/login", "POST", { id: idv, username: idv, email: idv, password: pw }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member" };
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "" };
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
+        try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
         if (er) er.hidden = true;
         // [RP-V7.39] Logging back in inside the 30-day window cancelled
         // a scheduled deletion — say so once, plainly.
@@ -21306,6 +21526,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
   setInterval(tick, 1300);
   if (acct) refreshSession();
   if (acct && acct.name) { try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } } // [RP-V7.24] identity applies at boot, before any room/live entry
+  if (acct && acct.photo) { try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(acct.photo); } catch (e) { } } // [RP-V7.50] the saved session's photo applies at boot too; /me re-confirms it
   window.rpAcct = {
     state: function () { return acct; },
     reminders: function () { return reminders; },
@@ -23278,6 +23499,8 @@ button.rp72-chip{ cursor:pointer; }
       if (!$("rpMpActions")) return; /* sheet moved on */
       var j = (r.json && r.json.ok) ? r.json : null;
       if (!j) return;
+      var av = document.querySelector(".pprof-avatar"); // [RP-V7.50] the account's photo fills the hero even when the row had none
+      if (av && j.photo) av.innerHTML = '<img class="p-photo" src="' + esc(j.photo) + '" alt=""/>';
       var u = $("rpMpUser");
       if (u && j.username) { u.textContent = "@" + j.username; u.hidden = false; }
       var f1 = $("rpMpFollowing"); if (f1) f1.textContent = j.followingCount;
@@ -24287,8 +24510,35 @@ button.rp72-chip{ cursor:pointer; }
 
   /* ---------- gifts: ledger-first for accounts ---------- */
   var origSendGift = (typeof window.sendGift === "function") ? window.sendGift : null;
+  // [RP-V7.52] One idempotency key per gift ATTEMPT (audit C6): a
+  // send keeps its key while it is in flight and for a few seconds
+  // after, so a double-tap or a network retry of the SAME attempt
+  // reuses the key and the server returns the original result
+  // without charging again. A later, deliberate gift is a new
+  // attempt with a fresh key.
+  var giftAttempts = {};
+  function giftAttemptKey(sig) {
+    var now = Date.now();
+    for (var k in giftAttempts) { if (now - giftAttempts[k].at > 60000) delete giftAttempts[k]; }
+    var cur = giftAttempts[sig];
+    if (cur && (!cur.done || now - cur.at < 6000)) return cur.key;
+    var key = "g" + now.toString(36) + Math.random().toString(36).slice(2, 10);
+    giftAttempts[sig] = { key: key, at: now, done: false };
+    return key;
+  }
   function serverGift(targetId, targetName, g, opts) {
-    api("/api/money/gift", "POST", { toName: targetName, giftId: g.id, charms: g.cents }).then(function (r) {
+    var sig = targetName + "|" + g.id;
+    var idem = giftAttemptKey(sig);
+    api("/api/money/gift", "POST", { toName: targetName, giftId: g.id, charms: g.cents, idem: idem }).then(function (r) {
+      var att = giftAttempts[sig];
+      if (att && att.key === idem) att.done = true;
+      if (r.json && r.json.deduped) {
+        // [RP-V7.52] This attempt already landed (double-tap /
+        // retry) — the ledger was charged once; just re-sync.
+        if (typeof r.json.balance === "number") setLocalCharms(r.json.balance);
+        setTimeout(function () { refreshMoney(); }, 300);
+        return;
+      }
       if (r.json && r.json.ok) {
         // The server already debited us. Replay the room flow with the
         // local balance pre-bumped so the original flow's own debit
@@ -24445,7 +24695,7 @@ button.rp72-chip{ cursor:pointer; }
       '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">⭐ Rizz Plaza Premium</h3>' +
       '<p style="text-align:center;">One flat membership: boosts for your lives and Reels, extra rooms, read receipts in messages — and a ⭐ badge on your profile.</p>' +
       '<div class="pack-row"><span class="pi">⭐</span><div class="pt"><b>Premium monthly</b><span>Renews monthly — cancel anytime</span></div><button class="btn-mini" data-rpplan="monthly">$9.99/mo</button></div>' +
-      '<div class="pack-row"><span class="pi">💎</span><div class="pt"><b>Premium yearly</b><span>Two months free vs monthly</span></div><button class="btn-mini" data-rpplan="yearly">$59.99/yr</button></div>' +
+      '<div class="pack-row"><span class="pi">💎</span><div class="pt"><b>Premium yearly</b><span>About 6 months free vs monthly (~50% off)</span></div><button class="btn-mini" data-rpplan="yearly">$59.99/yr</button></div>' +
       '<p style="font-size:12.5px; color:var(--ink-soft); font-weight:700; margin-top:10px;">Secure checkout powered by Stripe. Premium activates the moment your payment clears.</p></div>'
     );
     var sh = $("sheet");
@@ -25546,7 +25796,9 @@ button.rp72-chip{ cursor:pointer; }
     });
     grid.scrollTop = 0;
   }
+  var pickCb = null; // [RP-V7.51] one-shot "choose an emoji" mode (reactions)
   function insert(g) {
+    if (pickCb) { var cb = pickCb; pickCb = null; closePicker(); cb(g); return; }
     if (!target) return;
     var v = target.value || "";
     var s = Math.max(0, Math.min(selStart, v.length));
@@ -25559,6 +25811,7 @@ button.rp72-chip{ cursor:pointer; }
   function openPicker(input) {
     if (!input) return;
     build();
+    pickCb = null;
     target = input;
     try { selStart = input.selectionStart != null ? input.selectionStart : input.value.length; } catch (e) { selStart = (input.value || "").length; }
     try { selEnd = input.selectionEnd != null ? input.selectionEnd : selStart; } catch (e) { selEnd = selStart; }
@@ -25566,12 +25819,24 @@ button.rp72-chip{ cursor:pointer; }
     backdrop.classList.add("open");
   }
   function closePicker() {
+    pickCb = null;
     if (sheet) sheet.classList.remove("open");
     if (backdrop) backdrop.classList.remove("open");
     if (target) { try { target.focus(); } catch (e) { } }
   }
+  function pickOne(cb) {
+    // [RP-V7.51] Reactions: open the same full picker; the FIRST glyph
+    // tapped is handed to cb and the sheet closes. No input involved.
+    if (typeof cb !== "function") return;
+    build();
+    target = null;
+    pickCb = cb;
+    sheet.classList.add("open");
+    backdrop.classList.add("open");
+  }
   window.rpEmojiPicker = {
     open: openPicker,
+    pick: pickOne,
     close: closePicker,
     isOpen: function () { return !!(sheet && sheet.classList.contains("open")); },
     categories: function () { return CATS.map(function (c) { return c.id; }); },
