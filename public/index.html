@@ -813,6 +813,16 @@
       @keyframes lvPotFloat { 0% { transform: translateY(8px) scale(.8); opacity: 0; } 18% { opacity: 1; transform: translateY(0) scale(1.1); } 30% { transform: translateY(-3px) scale(1); } 100% { transform: translateY(-32px) scale(1); opacity: 0; } }
       .lv-potchip { pointer-events: auto; border: 1px solid rgba(255,190,60,.75); background: rgba(46,32,4,.82); color: #ffd166; font-weight: 900; font-size: 12.5px; border-radius: 999px; padding: 5px 12px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 2px 14px rgba(255,180,40,.35); }
       .lv-potchip[hidden] { display: none; }
+      /* [RP-V7.53] The REAL pot: an actual pot of gold on the live stage
+         (Branden: the text chip alone read as "just a description"). It
+         sits top-center under the host cluster, fills with gold as gifts
+         land, swells toward 1.6x at the burst target, strains near the
+         top, and pops with the burst show. Lives inside .lv-potrow, so
+         it exists only within the live screen. */
+      .lv-potvisual { position: absolute; left: 50%; top: 38px; translate: -50% 0; width: 104px; z-index: 6; pointer-events: auto; cursor: pointer; filter: drop-shadow(0 6px 18px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(255,180,40,.35)); }
+      .lv-potvisual[hidden] { display: none; }
+      .lv-potvisual svg { display: block; width: 100%; height: auto; transform-origin: 50% 100%; transition: transform .5s cubic-bezier(.34, 1.45, .64, 1); will-change: transform; }
+      .lv-potvisual .lv-potmound { transition: opacity .4s ease, transform .5s ease; }
       .lv-potwin { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; z-index: 30; pointer-events: none; background: radial-gradient(ellipse at center, rgba(20,14,2,.45) 0%, rgba(20,14,2,0) 68%); animation: lvPotPop .45s ease; }
       .lv-potwin .pw-big { font-size: clamp(26px, 6vw, 44px); font-weight: 1000; color: #ffd166; text-shadow: 0 3px 18px rgba(0,0,0,.75), 0 0 26px rgba(255,180,40,.55); padding: 0 18px; }
       .lv-potwin .pw-sub { font-size: clamp(15px, 3.4vw, 21px); font-weight: 900; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.8); padding: 0 18px; }
@@ -2794,7 +2804,7 @@
               <span class="lv-livepill" id="liveFsPill" hidden>● LIVE</span>
               <div class="lv-viewers" id="liveViewerRow"></div>
               <div class="lv-rankrow"><button type="button" class="lv-rankpill" id="liveRankPill" hidden></button></div>
-              <div class="lv-potrow"><button type="button" class="lv-potchip" id="livePotChip" hidden><span class="lv-potinner" id="livePotInner"></span></button></div>
+              <div class="lv-potrow"><button type="button" class="lv-potchip" id="livePotChip" hidden><span class="lv-potinner" id="livePotInner"></span></button><div class="lv-potvisual" id="livePotVisual" hidden title="Plaza Pot — tap for details"><svg id="livePotSvg" viewBox="0 0 120 104" aria-hidden="true"><defs><linearGradient id="lvPotGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe066"/><stop offset=".55" stop-color="#ffb703"/><stop offset="1" stop-color="#e08e00"/></linearGradient><clipPath id="lvPotClip"><path d="M24 40 h72 c0 30 -12 50 -36 50 s-36 -20 -36 -50 z"/></clipPath></defs><path d="M24 40 h72 c0 30 -12 50 -36 50 s-36 -20 -36 -50 z" fill="rgba(24,17,4,.94)"/><g clip-path="url(#lvPotClip)"><rect id="lvPotFillRect" x="16" y="92" width="88" height="56" fill="url(#lvPotGold)"/></g><path d="M24 40 h72 c0 30 -12 50 -36 50 s-36 -20 -36 -50 z" fill="none" stroke="#d4a017" stroke-width="3"/><path d="M23 45 c-9 1 -13 -6 -11 -12 c1 -5 8 -7 12 -3" fill="none" stroke="#d4a017" stroke-width="3" stroke-linecap="round"/><path d="M97 45 c9 1 13 -6 11 -12 c-1 -5 -8 -7 -12 -3" fill="none" stroke="#d4a017" stroke-width="3" stroke-linecap="round"/><ellipse cx="60" cy="40" rx="38" ry="8" fill="#3a2a06" stroke="#d4a017" stroke-width="3"/><g class="lv-potmound" id="lvPotMound" opacity="0"><ellipse cx="60" cy="37" rx="24" ry="7" fill="url(#lvPotGold)"/><circle cx="46" cy="33" r="5" fill="#ffd94d" stroke="#b57f00" stroke-width="1.4"/><circle cx="60" cy="29" r="5.5" fill="#ffd94d" stroke="#b57f00" stroke-width="1.4"/><circle cx="74" cy="33" r="5" fill="#ffd94d" stroke="#b57f00" stroke-width="1.4"/></g></svg></div></div>
               <button type="button" class="lv-fsclose" id="liveFsClose" aria-label="Close live">✕</button>
             </div>
             <div class="lv-titleline" id="liveTitleLine"></div>
@@ -4390,6 +4400,7 @@
         $("hud").hidden = false;
         updateHUD(); renderLobby(); renderMatches(); renderPlaza();
         show("screen-plaza");
+        try { if (typeof dailyPotInit === "function") dailyPotInit(); else if (window.rpDailyPotInit) window.rpDailyPotInit(); } catch (e) { } // [RP-V7.53] Daily Pot card: entering through the sign-up wall never passed rpBootHome's init (it returns at the wall), so the card stayed hidden until a saved-session reboot — start it here too (idempotent: wiring guarded, state re-fetched)
         showEarnCardOnce();
         guideAfterEnter();
         profileSaveSuppressed = false;
@@ -10337,6 +10348,7 @@
         if (!Live.active) {
           if (chip) chip.hidden = true;
           var potChipOff = $("livePotChip"); if (potChipOff) potChipOff.hidden = true; // [RP-V7.41]
+          var potVisOff = $("livePotVisual"); if (potVisOff) potVisOff.hidden = true; // [RP-V7.53]
           if (rail) rail.hidden = true;
           if (bar) bar.hidden = true;
           if (mbtn) mbtn.hidden = true;
@@ -10868,6 +10880,8 @@
         if (fsClose) fsClose.addEventListener("click", liveFsCloseTap);
         var potChip = $("livePotChip"); // [RP-V7.41] the Plaza Pot chip opens the pot sheet
         if (potChip) potChip.addEventListener("click", function () { openPotSheet(); });
+        var potVisualEl = $("livePotVisual"); // [RP-V7.53] the pot visual opens the same sheet
+        if (potVisualEl) potVisualEl.addEventListener("click", function () { openPotSheet(); });
         var moreBtn = $("lvMoreBtn");
         if (moreBtn) moreBtn.addEventListener("click", function () {
           // [RP-V7.24] in the full-screen live, ••• opens the tools
@@ -11040,7 +11054,25 @@
         var inner = $("livePotInner");
         var p = Live.pot;
         function setText(t) { if (inner) inner.textContent = t; else chip.textContent = t; }
-        if (!Live.active || !p) { chip.hidden = true; chip.classList.remove("lv-potstrain"); potSeenRoom = null; potSeenMatch = null; potSeenTotal = null; return; }
+        // [RP-V7.53] Drive the real pot visual from the same render:
+        // gold fill rises with sw.fill, the pot scales with sw.scale,
+        // the coin mound crowns the rim from ~1/3 full, strain wobble
+        // at >=90% (same threshold as the chip). Drawn = full pot.
+        function setPotVisual(show, sw) {
+          var visual = $("livePotVisual");
+          if (!visual) return;
+          visual.hidden = !show;
+          if (!show) { visual.classList.remove("lv-potstrain"); return; }
+          var fill = sw ? sw.fill : 0;
+          var svg = $("livePotSvg");
+          if (svg) svg.style.transform = "scale(" + (sw ? sw.scale.toFixed(3) : "1") + ")";
+          var rect = $("lvPotFillRect");
+          if (rect) rect.setAttribute("y", String(Math.round(92 - fill * 52)));
+          var mound = $("lvPotMound");
+          if (mound) { mound.setAttribute("opacity", fill >= 0.35 ? "1" : "0"); mound.setAttribute("transform", "translate(0 " + ((1 - fill) * 6).toFixed(1) + ")"); }
+          visual.classList.toggle("lv-potstrain", fill >= 0.9);
+        }
+        if (!Live.active || !p) { chip.hidden = true; chip.classList.remove("lv-potstrain"); setPotVisual(false); potSeenRoom = null; potSeenMatch = null; potSeenTotal = null; return; }
         if (p.status === "open") {
           // gift-growth detection: match rose since the last render
           var room = livePotRoom();
@@ -11057,12 +11089,14 @@
           if (inner) inner.style.transform = "scale(" + sw.scale.toFixed(3) + ")";
           chip.classList.toggle("lv-potstrain", sw.fill >= 0.9); // straining at the top end
           chip.hidden = false;
+          setPotVisual(true, sw);
         } else if (p.status === "drawn" && p.drawnAt && Date.now() - Date.parse(p.drawnAt) < 90000) {
           setText("🪙 Plaza Pot drawn — see the winners!");
           if (inner) inner.style.transform = "scale(1)";
           chip.classList.remove("lv-potstrain");
           chip.hidden = false;
-        } else { chip.hidden = true; chip.classList.remove("lv-potstrain"); }
+          setPotVisual(true, { scale: 1, fill: 1 });
+        } else { chip.hidden = true; chip.classList.remove("lv-potstrain"); setPotVisual(false); }
       }
       function potSheetShowing() { return !!$("potSheetBody"); }
       function onPotUpdate(data) {
@@ -11154,10 +11188,13 @@
           if (panel) { panel.classList.remove("lv-rumble"); void panel.offsetWidth; panel.classList.add("lv-rumble"); }
           if (chip) chip.classList.add("lv-potwobble");
           if (inner) inner.style.transform = "scale(1.6)"; // swells to max as it rumbles
+          var pvis = $("livePotVisual"), psvg = $("livePotSvg");
+          if (pvis && !pvis.hidden) { pvis.classList.add("lv-potwobble"); if (psvg) psvg.style.transform = "scale(1.6)"; } // [RP-V7.53] the real pot rumbles + swells to max too
         } catch (e) { }
         setTimeout(function () {
           try {
             if (chip) chip.classList.remove("lv-potwobble");
+            if (pvis) { pvis.classList.remove("lv-potwobble"); if (psvg) psvg.classList.add("lv-potpop"); } // [RP-V7.53] the pot itself pops
             if (inner) inner.classList.add("lv-potpop"); // the pot bursts away
           } catch (e) { }
           try { AudioFX.gift(); } catch (e) { } // the soft gift pop + chime
@@ -11167,6 +11204,7 @@
             try {
               if (panel) panel.classList.remove("lv-rumble");
               if (inner) inner.classList.remove("lv-potpop");
+              if (psvg) psvg.classList.remove("lv-potpop"); // [RP-V7.53]
             } catch (e) { }
             renderLivePotChip(); // restore the drawn-state chip
           }, 3050);
@@ -11317,7 +11355,7 @@
         requestAnimationFrame(frame);
         setTimeout(cleanup, DUR + 500); // belt & braces
       }
-      var POT_RULES = "Free to enter. The host puts up the pot; gifts during the live grow it. 5 winners split it evenly when the host draws.";
+      var POT_RULES = "Free to enter. The host puts up the pot; gifts during the live grow it. 5 winners split it evenly when the pot is drawn. To WIN you must follow the host and be in the live at least 30 minutes when it's drawn — the draw picks only from members who've done both."; // [RP-V7.54] eligibility stated up front, in every sheet state
       function openPotSheet() {
         if (!Live.active) { toast("Nobody is live right now."); return; }
         openSheet('<button class="close-x" data-act="close" aria-label="Close">✕</button><div class="game-box" id="potSheetBody"><h3>🪙 Plaza Pot</h3><p class="pot-sub">Loading the pot…</p></div>');
@@ -11373,7 +11411,7 @@
               '<p class="pot-sub">' + st.entries + " in the pot</p>";
             if (st.burstAt) {
               html += '<p class="pot-sub">💥 Bursts at ' + potFmt(st.burstAt) + " charms" +
-                (st.total >= st.burstAt ? " — the pot is FULL! It bursts the moment the next member joins free." : " — " + potFmt(st.total) + " / " + potFmt(st.burstAt) + " there") + "</p>";
+                (st.total >= st.burstAt ? " — the pot is FULL! It bursts as soon as someone in the pot qualifies (follows the host + 30 minutes in the live)." : " — " + potFmt(st.total) + " / " + potFmt(st.burstAt) + " there") + "</p>";
             }
             if (st.isHost) {
               html += '<p class="pot-sub">You\'re hosting this pot — you can\'t enter your own pot.</p>' +
@@ -11398,7 +11436,8 @@
               '<p class="pot-sub">The pot has been drawn. Winners:</p>' +
               (st.winners || []).map(function (w) {
                 return '<div class="pot-winrow"><span>🏆 ' + escHtml(w.name || "Winner") + "</span><span>" + (w.amount || 0) + " charms</span></div>";
-              }).join("");
+              }).join("") +
+              (st.qualified != null ? '<p class="pot-sub">' + st.qualified + " of " + (st.entries || 0) + " entrants qualified (followers in the live 30+ min) and were in the draw.</p>" : ""); // [RP-V7.54]
             if (host) html += signedIn
               ? '<p class="age-note">Want another round? Seed a fresh pot right here:</p>' + potSeedForm // [RP-V7.49] the form lives in this sheet now — closing and reopening used to dead-end on this same view
               : potSignInNote;
@@ -12648,6 +12687,7 @@
         }
         dpotFetchState().then(function (r) { if (r && r.ok) dpotApply(r.pot); });
       }
+      window.rpDailyPotInit = dailyPotInit; // [RP-V7.53] bridge for entry paths outside this module (see finishEnterParty)
       /* ---------- [RP-V7.42] THE DAILY BURST SHOW ----------
          The V7.41 burst sequence, app-wide: when dailypot-burst
          lands, whatever screen is open gets the show —
@@ -12964,19 +13004,31 @@
         return new Date(y, mo - 1, da);
       }
       function nthWeekday(y, mo, wd, n) { var d = new Date(y, mo, 1); while (d.getDay() !== wd) d.setDate(d.getDate() + 1); d.setDate(d.getDate() + 7 * (n - 1)); return d; }
+      function lastWeekday(y, mo, wd) { var d = new Date(y, mo + 1, 0); while (d.getDay() !== wd) d.setDate(d.getDate() - 1); return d; } // [RP-V7.54] e.g. Memorial Day = last Monday of May
       var HOLIDAYS = [
         { id: "newyear", icon: "🎆", name: "New Year's Day", event: "New Year Countdown Live", mo: 0, da: 1, pre: 2, post: 1, deco: ["🎆", "🎇", "🥂", "✨", "🎊"], accent: "#ffd166", gifts: [["Fireworks Show", "🎆", 60], ["Golden Toast", "🥂", 30], ["Confetti Cannon", "🎉", 20]] },
+        { id: "mlk", icon: "🕊️", name: "Martin Luther King Jr. Day", event: "MLK Dream & Unity Live", nth: [0, 1, 3], pre: 1, post: 1, deco: ["🕊️", "🕯️", "⭐", "🎶", "❤️"], accent: "#a8c5ff", gifts: [["Dove of Peace", "🕊️", 35], ["Unity Candle", "🕯️", 20], ["Dream Bell", "🔔", 25]] },
         { id: "valentines", icon: "💘", name: "Valentine's Day", event: "Valentine's Singles Night", mo: 1, da: 14, pre: 3, post: 1, deco: ["💘", "💝", "🌹", "💌", "💕"], accent: "#ff5d7a", gifts: [["Bouquet of Roses", "🌹", 40], ["Heart Balloon", "🎈", 25], ["Love Letter", "💌", 15]] },
+        { id: "stpatricks", icon: "🍀", name: "St. Patrick's Day", event: "Shamrock Party Live", mo: 2, da: 17, pre: 2, post: 1, deco: ["🍀", "🌈", "🎩", "🍻", "💚"], accent: "#69db7c", gifts: [["Lucky Clover", "🍀", 25], ["Rainbow's End", "🌈", 40], ["Leprechaun Hat", "🎩", 20]] },
         { id: "easter", icon: "🐣", name: "Easter", event: "Easter Spring Live", easter: true, pre: 2, post: 1, deco: ["🐣", "🥚", "🐰", "🌷", "🦋"], accent: "#ffb7d5", gifts: [["Golden Easter Egg", "🥚", 35], ["Bunny Buddy", "🐰", 30], ["Spring Bouquet", "💐", 25]] },
+        { id: "cinco", icon: "🪅", name: "Cinco de Mayo", event: "Cinco de Mayo Fiesta Live", mo: 4, da: 5, pre: 1, post: 1, deco: ["🪅", "🌮", "🎺", "🌶️", "💃"], accent: "#ffa94d", gifts: [["Piñata Party", "🪅", 35], ["Fiesta Taco", "🌮", 20], ["Mariachi Trumpet", "🎺", 30]] },
+        { id: "mothers", icon: "🌸", name: "Mother's Day", event: "Mother's Day Tribute Live", nth: [4, 0, 2], pre: 2, post: 1, deco: ["🌸", "💐", "💝", "🌷", "💕"], accent: "#ff9ecb", gifts: [["Bouquet for Mom", "💐", 40], ["Flower Crown", "🌸", 30], ["Sweet Treat Box", "🍫", 20]] },
+        { id: "memorial", icon: "🎗️", name: "Memorial Day", event: "Memorial Day Tribute Live", last: [4, 1], pre: 1, post: 1, deco: ["🎗️", "🕊️", "🌺", "🕯️", "⭐"], accent: "#b8c4e0", gifts: [["Poppy Wreath", "🌺", 30], ["Candle of Remembrance", "🕯️", 20], ["Dove of Honor", "🕊️", 35]] },
+        { id: "juneteenth", icon: "🎊", name: "Juneteenth", event: "Juneteenth Freedom Live", mo: 5, da: 19, pre: 1, post: 0, deco: ["🎊", "⭐", "🕊️", "🎶", "❤️"], accent: "#ffb35c", gifts: [["Freedom Bell", "🔔", 30], ["Unity Drum", "🥁", 25], ["Heritage Star", "⭐", 35]] },
+        { id: "fathers", icon: "👔", name: "Father's Day", event: "Father's Day Tribute Live", nth: [5, 0, 3], pre: 1, post: 1, deco: ["👔", "🏆", "🍖", "🎣", "💙"], accent: "#8ec5ff", gifts: [["Best Dad Trophy", "🏆", 40], ["BBQ Platter", "🍖", 25], ["Dad's Toolbox", "🧰", 20]] },
         { id: "july4", icon: "🎇", name: "Independence Day", event: "Independence Day Live", mo: 6, da: 4, pre: 2, post: 1, deco: ["🎇", "🎆", "⭐", "🎉", "🎈"], accent: "#7ac2ff", gifts: [["Fireworks Show", "🎆", 60], ["Liberty Cake", "🎂", 35], ["Sparkler Wand", "✨", 20]] },
+        { id: "summer", icon: "🌴", name: "Summer Splash", event: "Summer Splash Party Live", mo: 7, da: 15, pre: 2, post: 2, deco: ["🌴", "🌊", "🍉", "⛱️", "☀️"], accent: "#4dd8ff", gifts: [["Surfboard", "🏄", 35], ["Beach Umbrella", "⛱️", 25], ["Watermelon Slice", "🍉", 15]] },
+        { id: "laborday", icon: "🛠️", name: "Labor Day", event: "Labor Day Weekend Live", nth: [8, 1, 1], pre: 2, post: 1, deco: ["🛠️", "🧺", "🌭", "🎉", "☀️"], accent: "#ffd43b", gifts: [["Golden Wrench", "🔧", 20], ["Picnic Basket", "🧺", 30], ["Grill Master Platter", "🌭", 25]] },
         { id: "birthday", icon: "🎂", name: "Plaza Birthday Bash", event: "Plaza Birthday Bash — our anniversary!", mo: 9, da: 18, pre: 3, post: 3, deco: ["🎂", "🎈", "🎉", "🧁", "🎁"], accent: "#ffc46b", gifts: [["Birthday Cake", "🎂", 45], ["Party Popper", "🎉", 20], ["Cupcake Tower", "🧁", 30]] },
         { id: "halloween", icon: "🎃", name: "Halloween", event: "Halloween Costume Live", mo: 9, da: 31, pre: 3, post: 1, deco: ["🎃", "👻", "🦇", "🕸️", "🍬"], accent: "#ff9a3d", gifts: [["Jack-o'-Lantern", "🎃", 35], ["Ghost Buddy", "👻", 25], ["Candy Bucket", "🍬", 15]] },
+        { id: "veterans", icon: "🎖️", name: "Veterans Day", event: "Veterans Day Honor Live", mo: 10, da: 11, pre: 1, post: 1, deco: ["🎖️", "🕊️", "⭐", "🕯️", "❤️"], accent: "#c2d1f0", gifts: [["Medal of Honor", "🎖️", 40], ["Salute Star", "⭐", 25], ["Thank-You Wreath", "💐", 30]] },
         { id: "thanksgiving", icon: "🦃", name: "Thanksgiving", event: "Thankful Hearts Live", nth: [10, 4, 4], pre: 1, post: 3, deco: ["🦃", "🍂", "🥧", "🌽", "🍁"], accent: "#e0a458", gifts: [["Thankful Turkey", "🦃", 40], ["Harvest Wreath", "🌾", 30], ["Pumpkin Pie", "🥧", 25]] },
         { id: "christmas", icon: "🎄", name: "Christmas", event: "Christmas Live Week", mo: 11, da: 25, pre: 5, post: 1, deco: ["🎄", "🎅", "❄️", "🔔", "⛄"], accent: "#7be0a3", gifts: [["Santa Visit", "🎅", 60], ["Christmas Tree", "🎄", 50], ["Snow Globe", "🔮", 30]] }
       ];
       function holDate(h, y) {
         if (h.easter) return easterSunday(y);
         if (h.nth) return nthWeekday(y, h.nth[0], h.nth[1], h.nth[2]);
+        if (h.last) return lastWeekday(y, h.last[0], h.last[1]); // [RP-V7.54]
         return new Date(y, h.mo, h.da);
       }
       function holWindow(h, y) {
