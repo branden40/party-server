@@ -90,7 +90,10 @@ const LIVE_BEAT_STALE_MS = Math.max(5000, Number(process.env.LIVE_BEAT_STALE_MS)
 function livesSnapshot() {
   const byKey = new Map(); // devKey -> current socket.id
   for (const [sid, k] of clientKeys) byKey.set(k, sid);
-  const accountsDb = readAccounts();
+  // [RP-V7.63] The readAccounts() that used to sit here was DEAD — the
+  // host account id has come from the socket's token-verified binding
+  // since V7.52 (audit C4) — yet it cost a full synchronous read+parse
+  // of accounts.json on EVERY snapshot computation. Gone.
   const potsDb = readPots(); // [RP-V7.41] Plaza Pot state rides the snapshot
   return [...liveRegistry.values()].map((e) => {
     const sid = byKey.get(e.key) || null;
@@ -131,12 +134,12 @@ function livesSnapshot() {
 // for everyone. Defined here (used by livesPayloadFor below) — the
 // interest-store helpers it needs are module-level function
 // declarations further down, hoisted across the whole file.
-function fyRankLives(user, snap) {
+function fyRankLives(user, snap, pre) {
   const now = Date.now();
-  const sig = readReelSignals();
+  const sig = (pre && pre.sig) || readReelSignals(); // [RP-V7.63] broadcast preloads shared stores (see broadcastLives)
   const urec = sig.users[user.id] || null;
   const aff = (urec && urec.authorAff) || {};
-  const following = new Set(socialFollowingIds(readSocial(), user.id));
+  const following = new Set(socialFollowingIds((pre && pre.social) || readSocial(), user.id));
   const scored = snap.map((e) => {
     let s = 0;
     const hid = e.hostAccountId;
@@ -208,19 +211,35 @@ function potLiftOrder(snap) {
   }
   return withPot.concat(plain);
 }
-function livesPayloadFor(socket) {
-  const snap = livesSnapshot();
+function livesPayloadFor(socket, snap, pre) {
+  // [RP-V7.63] snap/pre are optional preloads from broadcastLives: ONE
+  // snapshot + ONE read of each shared store per broadcast, shared by
+  // every recipient. Previously every socket in a broadcast paid for
+  // its own full snapshot (a sync pots parse + an O(lives×players)
+  // watcher count) AND its own accounts/signals/social re-reads — all
+  // synchronous on the event loop, so a broadcast to S sockets did
+  // S× the disk work and stalled every other request behind it.
+  const shot = snap || livesSnapshot();
   const acctId = socket && socket.data && socket.data.accountId;
-  if (!acctId) return { lives: potLiftOrder(snap) };
-  const user = readAccounts().users.find((u) => u.id === acctId);
-  if (!user || user.deletionAt) return { lives: potLiftOrder(snap) };
-  return { lives: fyRankLives(user, snap), ranked: true };
+  if (!acctId) return { lives: potLiftOrder(shot) };
+  const user = ((pre && pre.accounts) || readAccounts()).users.find((u) => u.id === acctId);
+  if (!user || user.deletionAt) return { lives: potLiftOrder(shot) };
+  return { lives: fyRankLives(user, shot, pre), ranked: true };
 }
 function broadcastLives() {
   // [RP-V7.40] personalized at emit time, per socket — no shared order.
+  // [RP-V7.63] …but the snapshot + shared stores are computed ONCE here
+  // and handed down (see livesPayloadFor): per-socket work is now just
+  // the ranking sort. If a preload ever throws, snap/pre stay null and
+  // each socket falls back to computing its own, exactly as before.
+  let snap = null, pre = null;
+  try {
+    snap = livesSnapshot();
+    pre = { accounts: readAccounts(), sig: readReelSignals(), social: readSocial() };
+  } catch (e) { snap = null; pre = null; }
   for (const s of io.sockets.sockets.values()) {
     try {
-      s.emit("lives-update", livesPayloadFor(s));
+      s.emit("lives-update", livesPayloadFor(s, snap, pre));
     } catch (e) { /* a dying socket must not stop the broadcast */ }
   }
 }
@@ -5431,6 +5450,12 @@ async function stripeApi(method, p, params) {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: method === "GET" ? undefined : stripeEncode(params).toString(),
+    // [RP-V7.63] Explicit timeout: without it a hung Stripe call waits
+    // out undici's ~300s default while the client gives up at 9–12s and
+    // the member stares at a stuck "Opening Stripe…" — a timeout makes
+    // the failure surface as the 502 "stripe-error" the routes already
+    // return and the client already handles.
+    signal: AbortSignal.timeout(15000),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
