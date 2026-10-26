@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.61" /> <!-- [RP-V7.61] profile saved strong -->
+    <meta name="rp-build" content="RP-V7.62" /> <!-- [RP-V7.62] gallery saved strong: 12 photos, on the account -->
     <style>
       :root {
         color-scheme: dark;
@@ -3062,13 +3062,13 @@
               <p class="age-note">This is how you'll show up at the party — your name and your photos. No cartoon avatars here, just real profiles.</p>
             </div>
             <div class="field" id="pfSecPhotos" style="margin-top:18px;">
-              <label>Your photos · up to 6</label>
+              <label>Your photos · up to 12</label>
               <div class="btn-row">
                 <button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnPhotoAdd">＋ Add a photo</button>
-                <span class="age-note" id="pfPhotoCount" style="align-self:center;">0 of 6 photos</span>
+                <span class="age-note" id="pfPhotoCount" style="align-self:center;">0 of 12 photos</span>
               </div>
               <div class="pf-grid" id="pfPhotoGrid"></div>
-              <p class="age-note">Your <b>first photo is your main photo</b> — it's the one beside your name, in the HUD and around the party. Use a photo's arrows to reorder the set, ✕ to remove it. Swipe the big photo above (or tap its arrows) to flip through your photos. Photos are kept on this device for this party.</p>
+              <p class="age-note">Your <b>first photo is your main photo</b> — it's the one beside your name, in the HUD and around the party. Use a photo's arrows to reorder the set, ✕ to remove it. Swipe the big photo above (or tap its arrows) to flip through your photos. Your photos save to your account — they're there on every device you sign in on, even after you log out.</p>
               <input type="file" id="photoInput" accept="image/*" multiple hidden />
               <div class="btn-row"><button type="button" class="btn-mini pf-next" data-go="pfSecPrompts" data-adult="1">Next: Prompts →</button></div>
             </div>
@@ -5740,9 +5740,15 @@
         for (var i = 0; i < AGE_RANGES.length; i++) if (AGE_RANGES[i].id === id) return AGE_RANGES[i].label;
         return id || "—";
       }
-      /* ================= Player photos (up to 6) =================
+      /* ================= Player photos (up to 12) =================
          me.photos holds the set; me.photo always mirrors the first one so
-         the HUD, the in-scene portrait and every older surface keep working. */
+         the HUD, the in-scene portrait and every older surface keep working.
+         [RP-V7.62] For a signed-in member the set lives on the ACCOUNT
+         (user.photos, ordered server URLs — see rpApplyAccountGallery):
+         adds upload through the server, reorder/remove sync the ordered
+         list back, and login/session restore rehydrates from the
+         payload. Signed out, the set stays device-local data URLs,
+         exactly as before. */
       function syncMainPhoto() { me.photo = me.photos.length ? me.photos[0] : null; }
       var pfCarIdx = 0;
       function renderPfMedia() {
@@ -5798,23 +5804,62 @@
                   if (j === 0) toast("New main photo set — it's now beside your name and in the HUD.");
                 }
                 syncMainPhoto(); renderProfile(); updateHUD();
+                try { rpSyncAccountGallery(); } catch (e) { } // [RP-V7.62] reorder/remove: the new order saves onto the account
                 if (currentRoom) buildFloor();
               });
             });
             grid.appendChild(tile);
           });
-          if (me.photos.length < 6) {
+          if (me.photos.length < 12) {
             var add = document.createElement("button");
             add.className = "pf-tile pf-add";
-            add.innerHTML = '<span class="pf-add-plus">＋</span><span>Add photo</span><span class="pf-add-n">' + me.photos.length + ' / 6</span>';
+            add.innerHTML = '<span class="pf-add-plus">＋</span><span>Add photo</span><span class="pf-add-n">' + me.photos.length + ' / 12</span>';
             add.addEventListener("click", function () { $("photoInput").click(); });
             grid.appendChild(add);
           }
           var cnt = $("pfPhotoCount");
-          if (cnt) cnt.textContent = me.photos.length + " of 6 photos" + (me.photos.length ? " · first photo is your main" : " · add your first photo");
+          if (cnt) cnt.textContent = me.photos.length + " of 12 photos" + (me.photos.length ? " · first photo is your main" : " · add your first photo");
           var addBtn = $("btnPhotoAdd");
-          if (addBtn) addBtn.disabled = me.photos.length >= 6;
+          if (addBtn) addBtn.disabled = me.photos.length >= 12;
         }
+      }
+      /* [RP-V7.62] ---- account gallery sync (signed-in members) ----
+         The gallery lives on the ACCOUNT: an add uploads the photo
+         (rpUploadAccountGallery, one at a time, in pick order) and a
+         reorder/remove pushes the full ordered list
+         (rpSyncAccountGallery). Both read the rpAcct.v1 token exactly
+         like the V7.61 account-photo upload does, and both no-op
+         signed-out — there the gallery stays device-local data URLs,
+         unchanged. The server's stored list is applied at session
+         boundaries (login / restore) via rpApplyAccountGallery; mid-
+         session the local set the member is looking at is what they
+         edited, and every change is pushed as it happens. */
+      var GALLERY_MAX62 = 12;
+      function rpGalleryToken() {
+        try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a && a.token) return a.token; } catch (e) { }
+        return null;
+      }
+      function rpUploadAccountGallery(blob, done) {
+        var tok = rpGalleryToken();
+        if (!tok || !blob) { done(null); return; }
+        var fd = new FormData();
+        fd.append("photo", blob, "gallery.jpg");
+        fetch(ONLINE_URL + "/api/account/photos", { method: "POST", headers: { "Authorization": "Bearer " + tok }, body: fd })
+          .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
+          .then(function (out) {
+            if (out.res.ok && out.data && out.data.photoUrl) done(out.data.photoUrl);
+            else done(null, (out.data && out.data.error) ? out.data.error : null);
+          })
+          .catch(function () { done(null, null); });
+      }
+      function rpSyncAccountGallery() {
+        var tok = rpGalleryToken();
+        if (!tok) return;
+        var list = (me.photos || []).filter(function (u) { return typeof u === "string" && /^https?:\/\//.test(u); }).slice(0, GALLERY_MAX62);
+        fetch(ONLINE_URL + "/api/account/photos/set", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok }, body: JSON.stringify({ photos: list }) })
+          .then(function (res) { return res.json().catch(function () { return {}; }); })
+          .then(function (data) { return data; })
+          .catch(function () { /* offline mid-edit: the last good sync stands; the order saves again on the next change or login */ });
       }
       function singleRowB(el, items, get, set) {
         if (!el) return;
@@ -5945,14 +5990,15 @@
         var files = Array.prototype.slice.call($("photoInput").files || []);
         $("photoInput").value = "";
         if (!files.length) return;
-        var room = 6 - me.photos.length;
-        if (room <= 0) { toast("That's the full set — six photos max. Remove one to add another."); return; }
-        var queue = files.slice(0, room), dropped = files.length - queue.length, added = 0;
+        var room = GALLERY_MAX62 - me.photos.length;
+        if (room <= 0) { toast("That's the full set — twelve photos max. Remove one to add another."); return; }
+        var queue = files.slice(0, room), dropped = files.length - queue.length, added = 0, failed = 0, lastErr = "";
         function next() {
           if (!queue.length) {
             syncMainPhoto(); renderProfile(); updateHUD();
             if (currentRoom) buildFloor();
-            if (added) toast(added === 1 ? "Photo added to your profile!" : added + " photos added to your profile!" + (dropped ? " (" + dropped + " skipped — six max.)" : ""));
+            if (added) toast((added === 1 ? "Photo added to your profile!" : added + " photos added to your profile!") + (dropped ? " (" + dropped + " skipped — twelve max.)" : "") + (failed ? " (" + failed + " couldn't be saved — try again.)" : ""));
+            else if (failed) toast(lastErr || "Those photos couldn't be saved to your account — check your connection and try again.");
             return;
           }
           var file = queue.shift();
@@ -5964,9 +6010,24 @@
               var cv = document.createElement("canvas");
               cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
               cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-              me.photos.push(cv.toDataURL("image/jpeg", 0.85));
-              added++;
-              next();
+              // [RP-V7.62] Signed in: the photo uploads to the ACCOUNT
+              // gallery and me.photos stores the returned server URL,
+              // so the set survives logout and follows the member.
+              // Signed out: the device-local data-URL flow, unchanged.
+              if (rpGalleryToken() && cv.toBlob) {
+                cv.toBlob(function (blob) {
+                  if (!blob) { failed++; next(); return; }
+                  rpUploadAccountGallery(blob, function (url, err) {
+                    if (url) { me.photos.push(url); added++; }
+                    else { failed++; if (err) lastErr = err; }
+                    next();
+                  });
+                }, "image/jpeg", 0.85);
+              } else {
+                me.photos.push(cv.toDataURL("image/jpeg", 0.85));
+                added++;
+                next();
+              }
             };
             img.onerror = next;
             img.src = reader.result;
@@ -12682,8 +12743,29 @@
           me.bio = u.bio.slice(0, 240);
           var bi61 = $("bioInput"); if (bi61 && bi61.value !== me.bio) { bi61.value = me.bio; var bc61 = $("bioCount"); if (bc61) bc61.textContent = String(me.bio.length); }
         }
+        // [RP-V7.62] The gallery rides the same restore: when the
+        // payload carries the account's photo list, it REPLACES the
+        // local set (server list wins for signed-in members). Payloads
+        // without a photos field leave the local set untouched.
+        if (Array.isArray(u.photos)) { try { window.rpApplyAccountGallery(u.photos); } catch (e) { } }
         try { updateHUD(); } catch (e) { }
         try { saveProfile(); } catch (e) { }
+      };
+      /* [RP-V7.62] The account gallery is the source of truth for a
+         signed-in member's photo set: me.photos becomes the account's
+         ordered URL list (http(s) only, max 12), me.photo re-mirrors
+         the first entry, and the Profile grid re-renders if it is on
+         screen. Called from rpApplyAccountProfile whenever a payload
+         carries photos — login, session restore, boot, post-save — so
+         a fresh login on any device shows the same gallery. */
+      window.rpApplyAccountGallery = function (list) {
+        if (!Array.isArray(list)) return;
+        me.photos = list.filter(function (u) { return typeof u === "string" && /^https?:\/\//.test(u); }).slice(0, 12);
+        syncMainPhoto();
+        pfCarIdx = 0;
+        try { saveProfile(); } catch (e) { }
+        try { if ($("pfPortrait")) renderPfMedia(); } catch (e) { }
+        try { updateHUD(); } catch (e) { }
       };
       function joinOnlineSaved(roomId) {
         Online.room = roomId;
@@ -21822,6 +21904,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     if (u.profileType) acct.profileType = u.profileType;
     if (typeof u.bio === "string") acct.bio = u.bio;
     if ("photo" in u) acct.photo = u.photo || "";
+    if (Array.isArray(u.photos)) acct.photos = u.photos.slice(0, 12); // [RP-V7.62] the gallery rides the saved session too, so boot restores it before /me re-confirms
     saveAcct();
     try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { }
     try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(acct.photo || null); } catch (e) { }
@@ -22029,7 +22112,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     api("/api/account/signup", "POST", { name: profileName(), username: un, email: em, phone: ph, password: pw, dob: dobOnFile() }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "" }; // [RP-V7.61] bio rides the saved session too
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice(0, 12) : [] }; // [RP-V7.61] bio rides the saved session too // [RP-V7.62] + the gallery
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
@@ -22062,7 +22145,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
     api("/api/account/login", "POST", { id: idv, username: idv, email: idv, password: pw }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "" }; // [RP-V7.61] bio rides the saved session too
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice(0, 12) : [] }; // [RP-V7.61] bio rides the saved session too // [RP-V7.62] + the gallery
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
