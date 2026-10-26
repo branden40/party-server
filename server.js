@@ -580,7 +580,9 @@ function publicAccount(u) {
   // [RP-V7.62] photos rides along too: the whole photo gallery (ordered
   // URLs, first = main) lives on the account record, so login / signup
   // / /me return it and any device restores the same gallery.
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u) };
+  // [RP-V7.64] photoViews rides along too: the server-owned "👁 n"
+  // count for each gallery photo, keyed by URL (parallel to photos).
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u) };
 }
 // [RP-V7.62] The gallery as the rest of the app sees it: the stored
 // array when the record has one. A legacy account that only ever set
@@ -2072,6 +2074,7 @@ app.get("/api/reels", (req, res) => {
     fyUser = null;
   }
   const all = fyUser ? fyRankReels(fyUser, newest) : newest;
+  const vdb64 = readViews(); // [RP-V7.64] public tile counts ride along
   const list = all.slice(0, 100).map((r) => {
     // RP-V7.9: remix entries carry their provenance; resolve the source
     // reel's playback URL from the full index so a Duet/Stitch card can
@@ -2090,6 +2093,8 @@ app.get("/api/reels", (req, res) => {
       stitchStart: typeof r.stitchStart === "number" ? r.stitchStart : null,
       stitchDur: typeof r.stitchDur === "number" ? r.stitchDur : null,
       allowRemix: r.allowRemix !== false,
+      // [RP-V7.64] Real server-owned view count (the tile number).
+      views: mediaViewCount(vdb64, "reel:" + r.id),
       // [RP-V7.51] Compact reaction summary: counts for everyone, the
       // caller's own picks only when they sent a valid token.
       reactions: rxSummarize(r.reactions, null).counts,
@@ -2493,6 +2498,235 @@ app.post("/api/reels/signal", (req, res) => {
   for (const id of Object.keys(sig.reels)) if (!live.has(id)) delete sig.reels[id];
   writeReelSignals(sig);
   res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.64] Media view counts — the Facebook-style "👁 332K" on every
+// picture and video tile (Branden, Oct 25: "You see how these posted
+// videos view you can see how many people views it" → "Make the
+// pictures and videos just like this"). Counts are REAL and SERVER-
+// OWNED (the brain rule: they live with the content, not on a device):
+// one small store, views.json, shaped
+//   { items: { "<itemKey>": { count, seen: { "<viewerKey>": "YYYY-MM-DD" } } } }
+// Item keys: "reel:<reelId>" and "photo:<ownerAccountId>:<photoUrl>"
+// (URL-keyed, so reordering a gallery never moves a photo's count).
+// Dedupe: a viewer counts at most ONCE per item per America/New_York
+// calendar day (same Intl day key as the Daily Ranking tally). Viewer
+// identity: the account token when one rides along, else the client's
+// per-device key (rpDeviceKey.v1, same shape the socket join carries).
+// A client can only ever ASK to count a view — it can never set,
+// decrement or delete a number. The store prunes on every write: seen
+// stamps older than today are dropped (dedupe only ever needs today),
+// so the seen maps cannot grow unboundedly; an item entry is dropped
+// when its count is 0 and nobody is stamped today.
+// Deliberately SEPARATE from reel-signals: a counted "view" here is
+// the public tile number; the For You aggregate is untouched.
+// ---------------------------------------------------------------------------
+const VIEWS_FILE =
+  process.env.VIEWS_FILE || path.join(path.dirname(PHOTO_DIR), "views.json");
+function viewDayKey() {
+  // America/New_York calendar day ("YYYY-MM-DD"), Intl only — the
+  // same construction as rankDayKey() for the Daily Ranking tally.
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch (e) {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+function readViews() {
+  return storeReadJson(
+    VIEWS_FILE,
+    (d) => !!(d && d.items && typeof d.items === "object" && !Array.isArray(d.items)),
+    { items: {} },
+    "views"
+  );
+}
+function writeViews(db) {
+  storeWriteJson(VIEWS_FILE, db);
+}
+function pruneViews(db, today) {
+  for (const k of Object.keys(db.items)) {
+    const it = db.items[k];
+    if (!it || typeof it !== "object") { delete db.items[k]; continue; }
+    if (it.seen && typeof it.seen === "object") {
+      for (const vk of Object.keys(it.seen)) {
+        if (it.seen[vk] !== today) delete it.seen[vk];
+      }
+    } else it.seen = {};
+    if (!(it.count > 0) && !Object.keys(it.seen).length) delete db.items[k];
+  }
+  return db;
+}
+function mediaViewCount(db, itemKey) {
+  const it = db.items[itemKey];
+  return it && typeof it.count === "number" && it.count > 0 ? Math.floor(it.count) : 0;
+}
+// Record one view. Returns { views, counted } — counted is false when
+// this viewer already counted for this item today (dedupe), in which
+// case the store is not rewritten at all.
+function recordMediaView(db, itemKey, viewerKey, today) {
+  let it = db.items[itemKey];
+  if (!it || typeof it !== "object") it = db.items[itemKey] = { count: 0, seen: {} };
+  if (!it.seen || typeof it.seen !== "object") it.seen = {};
+  if (it.seen[viewerKey] === today) return { views: mediaViewCount(db, itemKey), counted: false };
+  it.seen[viewerKey] = today;
+  it.count = (typeof it.count === "number" && it.count > 0 ? Math.floor(it.count) : 0) + 1;
+  pruneViews(db, today);
+  return { views: it.count, counted: true };
+}
+function photoViewsFor(owner) {
+  const out = {};
+  const vdb = readViews();
+  for (const url of accountPhotos(owner)) out[url] = mediaViewCount(vdb, "photo:" + owner.id + ":" + url);
+  return out;
+}
+function viewDeviceKey(v) {
+  const s = String(v || "").trim();
+  return /^[A-Za-z0-9_-]{8,80}$/.test(s) ? s : null;
+}
+app.post("/api/media/view", (req, res) => {
+  const b = req.body || {};
+  const kind = String(b.kind || "");
+  if (kind !== "reel" && kind !== "photo")
+    return res.status(400).json({ ok: false, error: "kind must be \"reel\" or \"photo\"" });
+  // Viewer identity: account token wins; else the device key.
+  const adb = readAccounts();
+  const viewer = accountForToken(adb, req);
+  let viewerKey = null;
+  if (viewer) viewerKey = "acct:" + viewer.id;
+  else {
+    const dk = viewDeviceKey(b.deviceKey || req.headers["x-device-key"]);
+    if (dk) viewerKey = "dev:" + dk;
+  }
+  if (!viewerKey)
+    return res.status(400).json({ ok: false, error: "Missing viewer identity" });
+  let itemKey = null;
+  if (kind === "reel") {
+    const reelId = reelCleanId(b.id);
+    if (!reelId) return res.status(400).json({ ok: false, error: "Missing reel id" });
+    const reel = listReels().find((r) => r.id === reelId);
+    if (!reel) return res.status(404).json({ ok: false, error: "Reel not found" });
+    itemKey = "reel:" + reelId;
+  } else {
+    const ownerId = String(b.owner || "").trim();
+    const url = String(b.id || "").trim().slice(0, 600);
+    if (!ownerId || !url)
+      return res.status(400).json({ ok: false, error: "Missing photo owner or url" });
+    const owner = adb.users.find((u) => u.id === ownerId);
+    if (!owner) return res.status(404).json({ ok: false, error: "Account not found" });
+    if (!accountPhotos(owner).includes(url))
+      return res.status(404).json({ ok: false, error: "Photo not found" });
+    itemKey = "photo:" + ownerId + ":" + url;
+  }
+  const db = readViews();
+  const out = recordMediaView(db, itemKey, viewerKey, viewDayKey());
+  if (out.counted) writeViews(db);
+  res.json({ ok: true, views: out.views, counted: out.counted });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.65] Media search — Branden (Oct 25): the Facebook screenshot
+// he circled was the video SEARCH results grid ("This was for
+// searching for videos"). GET /api/media/search?q=<text> searches
+// VIDEOS (reels) and PICTURES (members' gallery photos) Plaza-wide:
+//   - a reel matches when its caption, its author's display name, or
+//     its author's username contains the query (case-insensitive);
+//   - a photo matches when its OWNER's name or username contains the
+//     query (photos carry no captions — the owner is the honest key).
+//     Only photos of visible accounts ride along: pending-deletion
+//     accounts (deletionAt set) are excluded, and fully deleted
+//     accounts are gone from the store entirely — the same
+//     visibility line the directory and /api/social/profile draw.
+//   - a blank query returns the DISCOVERY set: the most-viewed reels
+//     and photos (view count desc, newest first on ties), capped at
+//     24 per kind — what the search screen shows before anyone types.
+//   - query results are capped at 48 per kind, same order.
+// Reel entries are the exact public shape GET /api/reels returns
+// (guests included), counts read from the same views.json — and
+// searching NEVER counts as a view: only opening/playing an item
+// pings POST /api/media/view, exactly as RP-V7.64 built it. Like
+// GET /api/reels, reading public media needs no token and applies
+// no extra filtering (the 18+ gate lives at screen entry, the same
+// place /api/reels relies on it).
+// ---------------------------------------------------------------------------
+function mediaSearchReelItem(r, all, vdb) {
+  const src = r.sourceId ? all.find((x) => x.id === r.sourceId) : null;
+  return {
+    id: r.id,
+    author: r.author,
+    caption: r.caption,
+    createdAt: r.createdAt,
+    url: "/reel-files/" + r.file,
+    kind: r.kind || null,
+    sourceId: r.sourceId || null,
+    sourceAuthor: r.sourceAuthor || null,
+    sourceUrl: src ? "/reel-files/" + src.file : null,
+    stitchStart: typeof r.stitchStart === "number" ? r.stitchStart : null,
+    stitchDur: typeof r.stitchDur === "number" ? r.stitchDur : null,
+    allowRemix: r.allowRemix !== false,
+    views: mediaViewCount(vdb, "reel:" + r.id),
+    reactions: rxSummarize(r.reactions, null).counts,
+  };
+}
+app.get("/api/media/search", (req, res) => {
+  const q = String(req.query.q || "").trim().toLowerCase().slice(0, 80);
+  const vdb = readViews();
+  const adb = readAccounts();
+  const byId = new Map();
+  const byName = new Map();
+  for (const u of adb.users) {
+    if (!u) continue;
+    byId.set(u.id, u);
+    const nk = String(u.name || "").toLowerCase();
+    if (nk && !byName.has(nk)) byName.set(nk, u);
+  }
+  const allReels = listReels().filter((r) => r && r.id);
+  const reelHit = (r) => {
+    if (!q) return true;
+    if (String(r.caption || "").toLowerCase().includes(q)) return true;
+    if (String(r.author || "").toLowerCase().includes(q)) return true;
+    let acct = r.authorId ? byId.get(r.authorId) : null;
+    if (!acct && r.author) acct = byName.get(String(r.author).toLowerCase()) || null;
+    return !!(
+      acct &&
+      acct.username &&
+      String(acct.username).toLowerCase().includes(q)
+    );
+  };
+  const byViewsThenNew = (a, b) =>
+    b.views - a.views ||
+    String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+  const reels = allReels
+    .filter(reelHit)
+    .map((r) => mediaSearchReelItem(r, allReels, vdb))
+    .sort(byViewsThenNew)
+    .slice(0, q ? 48 : 24);
+  const photos = [];
+  for (const u of adb.users) {
+    if (!u || u.deletionAt) continue; // pending deletion = invisible
+    if (
+      q &&
+      !String(u.name || "").toLowerCase().includes(q) &&
+      !String(u.username || "").toLowerCase().includes(q)
+    )
+      continue;
+    for (const url of accountPhotos(u)) {
+      photos.push({
+        ownerId: u.id,
+        ownerName: u.name,
+        ownerUsername: u.username || "",
+        url,
+        views: mediaViewCount(vdb, "photo:" + u.id + ":" + url),
+      });
+    }
+  }
+  photos.sort((a, b) => b.views - a.views);
+  res.json({ ok: true, q, reels, photos: photos.slice(0, q ? 48 : 24) });
 });
 
 // [RP-V7.40] Live-stay signals: the client reports how long the caller
@@ -4166,12 +4400,16 @@ app.get("/api/social/profile", (req, res) => {
     }
   } catch (e) { }
   // Their Reels (author is the display name in the reels store).
+  // [RP-V7.64] each reel carries its real view count; the playback URL
+  // is resolved from the stored file when the entry has no url field
+  // (the same construction GET /api/reels uses).
   let reels = [];
   try {
+    const vdb = readViews();
     reels = listReels()
       .filter((r) => r && r.author === target.name)
       .slice(0, 12)
-      .map((r) => ({ id: r.id, url: r.url, kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null }));
+      .map((r) => ({ id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id) }));
   } catch (e) { }
   let reelsCount = reels.length;
   try {
@@ -4199,6 +4437,10 @@ app.get("/api/social/profile", (req, res) => {
     gifter: { level: rpLevelFor(sentCharms), charms: sentCharms },
     host: { level: rpLevelFor(receivedCharms), charms: receivedCharms },
     gallery: { got: Object.keys(galleryRefs).length, total: Object.keys(MONEY_GIFT_TABLE).length },
+    // [RP-V7.64] the member's gallery photos + their server-owned
+    // view counts, so profile pages can render the tile grid.
+    photos: accountPhotos(target),
+    photoViews: photoViewsFor(target),
     reelsCount, reels, testimony,
   });
 });
