@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.62" /> <!-- [RP-V7.62] gallery saved strong: 12 photos, on the account -->
+    <meta name="rp-build" content="RP-V7.63" /> <!-- [RP-V7.63] one-tap Go LIVE · simulated checkout deleted · big money buttons · Connect hang + server stall fix · signup live invite -->
     <style>
       :root {
         color-scheme: dark;
@@ -2474,6 +2474,11 @@
         font-weight: 800; letter-spacing: .1px;
       }
       .btn-mini { background: #26262e; border: 1px solid rgba(255,255,255,.10); border-radius: 999px; font-weight: 700; }
+      /* [RP-V7.63] Branden: the money buttons in "bigger letters where
+         people can see it" — ⭐ Get charms, 🏦 Connect Stripe to get
+         paid and ⭐ Go Premium get a tall, full-width, big-type
+         treatment, the same presence the Cash out button already has. */
+      .btn-big { display: block; width: 100%; font-size: 19px; font-weight: 800; padding: 16px 20px; border-radius: 14px; margin-top: 10px; letter-spacing: .1px; }
       .sheet { background: #101016; border-radius: 16px 16px 0 0; }
       .sheet::before {
         content: ""; display: block; width: 38px; height: 4px; border-radius: 2px;
@@ -8841,10 +8846,12 @@
             if (lv.photo) e.photo = lv.photo;
             if (lv.hostAccountId) e.hostAccountId = lv.hostAccountId; // [RP-V7.40]
             e.pot = lv.pot || null; // [RP-V7.41] Plaza Pot state rides the snapshot
+            if (typeof lv.watchers === "number") e.watchers = lv.watchers; // [RP-V7.63] carried for the signup invite's busiest-live pick
+            if (lv.startedAt) e.startedAt = lv.startedAt; // [RP-V7.63] …and its earliest-started tie-break
             e.seen = now; e.reg = true; e.regKey = lv.key || e.regKey || "";
             if (foundId !== key && lv.hostId) { Live.directory[key] = e; delete Live.directory[foundId]; }
           } else {
-            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, pot: lv.pot || null }; // [RP-V7.41] pot rides along
+            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, pot: lv.pot || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0 }; // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite
           }
         });
         Live.regRooms = rooms;
@@ -8856,6 +8863,65 @@
         if (typeof syncLivePot === "function") syncLivePot(); // [RP-V7.41] refresh the pot chip for the live I'm in
         if (typeof renderLiveNow === "function") renderLiveNow();
         if (typeof renderLiveDir === "function") renderLiveDir();
+        try { maybeShowSignupLiveInvite(); } catch (e) { } // [RP-V7.63] the first registry sync after a signup consumes the invite arm
+      }
+      /* ---------- [RP-V7.63] signup live invite ----------
+         Branden: "Invite ever one that signs up to the live when
+         someone is live." Armed ONLY by a successful signup — the
+         account module calls the arm with the DOB the signup just
+         collected; plain logins never arm it. The FIRST live-registry
+         sync after arming consumes the arm: if any live is running,
+         the new member gets ONE invite card naming the busiest live
+         (most watchers; ties go to the earliest started). 18+
+         accounts ONLY — an under-18 DOB never arms, so teen locks
+         are untouched — and Join rides the normal Home entry flow
+         (openLiveFromList → joinOnlineRoomFromHome), so rpDoorGate
+         and every other entry rule still apply: the invite is an
+         invitation, not a bypass. Shown once or never; a dismissal
+         is final. In-app card only — no email/SMS/push. */
+      var SignupInvite = { armed: false, consumed: false };
+      function signupInviteAdult(dobStr) {
+        if (typeof isTeen === "function" && isTeen()) return false;
+        var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dobStr || ""));
+        if (!m) return false; // no DOB on file → no invite (age proof belongs to the door gate, not this card)
+        var y = +m[1], mo = +m[2], d = +m[3];
+        var now = new Date();
+        var age = now.getFullYear() - y;
+        if (now.getMonth() + 1 < mo || (now.getMonth() + 1 === mo && now.getDate() < d)) age--;
+        return age >= 18;
+      }
+      window.rpSignupLiveInviteArm = function (dobStr) {
+        if (SignupInvite.armed || SignupInvite.consumed) return;
+        if (!signupInviteAdult(dobStr)) return; // under-18 / unknown DOB: no invite, ever
+        SignupInvite.armed = true;
+      };
+      function signupInviteTopLive() {
+        var best = null;
+        Object.keys(Live.directory).forEach(function (id) {
+          if (id === Online.myId) return;
+          var e = Live.directory[id]; if (!e || !e.room) return;
+          var cand = { room: e.room, name: e.name || "Host", title: e.title || "", watchers: (typeof e.watchers === "number" ? e.watchers : (e.n || 1)), startedAt: e.startedAt || e.seen || 0 };
+          if (!best || cand.watchers > best.watchers || (cand.watchers === best.watchers && cand.startedAt < best.startedAt)) best = cand;
+        });
+        return best;
+      }
+      function maybeShowSignupLiveInvite() {
+        if (!SignupInvite.armed || SignupInvite.consumed) return;
+        SignupInvite.consumed = true; // consumed by this first sync either way — shown once or never
+        SignupInvite.armed = false;
+        var top = signupInviteTopLive();
+        if (!top) return; // nobody live → no invite, no later nag
+        openSheet(
+          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+          '<div class="game-box" style="text-align:center;"><h3>🎉 Welcome to Rizz Plaza!</h3>' +
+          '<p style="font-size:19px; font-weight:800; margin:6px 0 2px;">🔴 ' + escHtml(top.name) + ' is LIVE now</p>' +
+          (top.title ? '<p style="margin:2px 0;">“' + escHtml(top.title) + '”</p>' : '') +
+          '<p style="color:var(--ink-soft); font-weight:700;">👁 ' + top.watchers + (top.watchers === 1 ? " person" : " people") + ' watching — jump in and say hi!</p>' +
+          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnSignupInviteJoin">🔴 Join the live</button><button class="btn-mini" id="btnSignupInviteLater">Maybe later</button></div></div>'
+        );
+        wireLiveSheetClose();
+        var j = $("btnSignupInviteJoin"); if (j) j.addEventListener("click", function () { closeSheet(); openLiveFromList(top.room); });
+        var l = $("btnSignupInviteLater"); if (l) l.addEventListener("click", function () { closeSheet(); });
       }
       /* Host side: register (or re-register after a reconnect) + the
          20s registry heartbeat, independent of the 8s in-room state. */
@@ -9967,7 +10033,15 @@
         // own live room). Only my own already-running live blocks a restart.
         if (iAmHost()) { toast("You're already live — your broadcast is running! 🎥"); return; }
         if (!ensureLiveRules(liveAskGoLive)) return;
-        openLiveSetup();
+        // [RP-V7.63] ONE TAP (Branden: "Only need this once"): the
+        // setup sheet used to be a mandatory second tap on EVERY Go
+        // LIVE entry point. The live now starts right here, seeded
+        // with the saved setup title/topic (defaults: empty title,
+        // "Chatting"). The sheet survives as an optional editor in
+        // the host's ••• menu (✏️ Edit title & topic, lvMoreSetup).
+        Live.title = Live.setupTitle || Live.title || "";
+        Live.topic = Live.setupTopic || Live.topic || "Chatting";
+        liveStartHosting();
       }
       /* The main Go LIVE entry (home page, 🔴 Live Now): always starts YOUR
          own personal live. From a regular room it hops through the Live
@@ -10039,13 +10113,26 @@
             sheet.querySelectorAll("[data-topic]").forEach(function (x) { x.classList.toggle("sel", x === b); });
           });
         });
-        startLivePreview();
+        // [RP-V7.63] reached from the host ••• menu WHILE LIVE, this
+        // sheet is an editor: no second camera preview (the broadcast
+        // owns the camera) and the start button becomes a save.
+        var editingLive63 = !!(Live.active && typeof iAmHost === "function" && iAmHost());
+        if (!editingLive63) startLivePreview();
+        if (editingLive63) { var sb63 = $("btnLiveStart2"); if (sb63) sb63.textContent = "💾 Save title & topic"; }
         $("btnLiveStart2").addEventListener("click", function () {
           Live.setupTitle = ($("lvTitle").value || "").trim();
           Live.title = Live.setupTitle;
           Live.topic = Live.setupTopic;
           stopLivePreview();
           closeSheet();
+          if (Live.active && iAmHost()) {
+            // [RP-V7.63] editing mid-live: re-announce the new
+            // title/topic — never restart a running broadcast.
+            try { liveRegistrySyncHost(); } catch (e) { }
+            try { liveSendState(); } catch (e) { }
+            toast("✏️ Live title & topic updated.");
+            return;
+          }
           liveStartHosting();
         });
       }
@@ -10449,6 +10536,7 @@
           html += '<button type="button" class="btn-mini" id="lvMoreHide">🚫 Mute &amp; Hide ' + escHtml(Live.hostName || "host") + '</button>';
         }
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>';
+        if (host) html += '<button type="button" class="btn-mini" id="lvMoreSetup">✏️ Edit title &amp; topic</button>'; // [RP-V7.63] the setup sheet's new home: an optional editor, no longer a mandatory pre-live gate
         if (host) html += '<button type="button" class="btn-mini" id="lvMorePot">🪙 Plaza Pot' + (Live.pot && Live.pot.status === "open" ? " · " + (Live.pot.total || 0) + " charms · " + (Live.pot.entries || 0) + " in" : (liveAcctToken() ? "" : " · sign in to open")) + "</button>"; // [RP-V7.41] host opens/manages the pot from the ••• tray // [RP-V7.48] guest hosts see the sign-in requirement on the row itself
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreEnd">⏹ End Live</button>';
         else if (onStage) html += '<button type="button" class="btn-mini" id="lvMoreLeave">Leave the stage</button>';
@@ -10472,6 +10560,7 @@
         wire("lvMoreHide", function () { closeSheet(); liveMuteHide(Live.hostId); });
         wire("lvMoreSell", function () { closeSheet(); openAuctions(); });
         wire("lvMorePot", function () { closeSheet(); openPotSheet(); }); // [RP-V7.41]
+        wire("lvMoreSetup", function () { closeSheet(); openLiveSetup(); }); // [RP-V7.63]
         wire("lvMoreEnd", function () { closeSheet(); liveEndMine(); });
         wire("lvMoreLeave", function () { closeSheet(); liveLeaveStage(); });
         wire("lvMoreLike", function () { closeSheet(); sendLiveHeart(); });
@@ -13894,7 +13983,7 @@
           return '<div class="gift-tier"><b>' + t.label + '</b> · ' + t.sub + '</div><div class="gift-grid">' +
             GIFT_SHOP.filter(function (g) { return g.tier === t.id; }).map(cell).join("") + '</div>';
         }).join("");
-        html += '<div class="btn-row" style="justify-content:center; margin-top:16px;"><button class="btn-mini" id="giftGetCharms">⭐ Get charms</button><button class="btn-mini" id="giftMyEarnings">💰 My earnings &amp; cash out</button></div></div>';
+        html += '<button class="btn-mini btn-big" id="giftGetCharms" type="button">⭐ Get charms</button><div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" id="giftMyEarnings">💰 My earnings &amp; cash out</button></div></div>'; // [RP-V7.63] Get charms goes BIG (btn-big)
         openSheet(html);
         var sheet = $("sheet");
         sheet.querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -15011,9 +15100,10 @@
           (Earn.aucSales.length ? Earn.aucSales.slice(-5).reverse().map(function (s) {
             return '<div class="auc-sale-row"><span>🔨 ' + escHtml(s.title) + '</span><span style="color:var(--ink-soft);">' + moneyLabel(s.amt) + ' · ' + escHtml(s.winner) + '</span><span class="st ' + (s.paid ? "paid" : "wait") + '">' + (s.paid ? "✓ PAID" : "⏳ AWAITING PAYMENT") + '</span></div>';
           }).join("") : '<p style="margin:2px 0; color:var(--ink-soft); font-weight:700;">No auction sales yet — list an item in Live Auctions and let the room bid it up.</p>') +
+          '<button class="btn-mini btn-big" id="btnEarnShop2" type="button">⭐ Get charms</button>' + // [RP-V7.63] Get charms goes BIG on the Earn sheet too
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:12px;">' +
             '<button class="btn-primary" style="width:auto; padding:12px 24px;" id="btnCashOut"' + (canCash ? "" : " disabled") + '>' + (cashedToday ? "✓ Cashed out today" : "💸 Cash out " + moneyLabel(net - 25)) + '</button>' +
-            '<button class="btn-mini" id="btnEarnLive2">⭐ Go live</button><button class="btn-mini" id="btnEarnShop2">⭐ Get charms</button><button class="btn-mini" id="btnEarnAuctions2">🔨 Live Auctions</button>' +
+            '<button class="btn-mini" id="btnEarnLive2">⭐ Go live</button><button class="btn-mini" id="btnEarnAuctions2">🔨 Live Auctions</button>' +
           '</div>' +
           (cashedToday ? '<p style="text-align:center; font-size:12.5px; color:var(--ink-soft); font-weight:700;">You cashed out today — the next cash-out unlocks tomorrow.</p>' : '') +
           '</div>'
@@ -15098,36 +15188,33 @@
         var sheet = $("sheet");
         sheet.querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         sheet.querySelectorAll("[data-pack]").forEach(function (b) {
-          b.addEventListener("click", function () { openStripeCheckout(parseInt(b.getAttribute("data-pack"), 10)); });
+          b.addEventListener("click", function () { openPackTap(parseInt(b.getAttribute("data-pack"), 10)); });
         });
         var se = $("shopEarnings"); if (se) se.addEventListener("click", function () { openEarnings(); });
       }
-      function openStripeCheckout(i) {
+      /* [RP-V7.63] The simulated checkout that used to live here is
+         DELETED — money integrity. It credited charms locally after a
+         fake one-second "Contacting Stripe…" and a fake confirmation
+         sheet: no charge, no server call. Once real money went live
+         (Oct 25) that was a free-charms hole under a live money
+         system. A pack tap now reaches ONLY this door:
+           (a) the money module's wrap of this function routes signed-in
+               members to the REAL Stripe Checkout (moneyCheckout →
+               POST /api/money/checkout → Stripe-hosted page; charms
+               are credited by the server webhook, never here), or
+           (b) the "Payments are being switched on" sheet below.
+         Nothing in this function credits charms — by design there is
+         no client-side purchase credit left to find. */
+      function openPackTap(i) {
         var p = CHARM_PACKS[i]; if (!p) return;
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
-          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">Checkout</h3>' +
-          '<div class="stripe-box"><span class="stripe-brand">stripe · Secure checkout</span>' +
-          '<div class="pack-row" style="border-bottom:none; padding:12px 0 2px;"><span class="pi">⭐</span><div class="pt"><b>' + p.charms.toLocaleString("en-US") + ' charms</b><span>Charm pack for Rizz Plaza</span></div><b>' + moneyLabel(p.price) + '</b></div>' +
-          '<p style="margin:8px 0 0; font-size:13px;">Total due today: <b>' + moneyLabel(p.price) + '</b>. Pay with the card or wallet you keep in Stripe — your charms arrive the moment the payment clears.</p></div>' +
-          '<div class="btn-row" style="justify-content:center; margin-top:14px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnStripePay">Pay ' + moneyLabel(p.price) + ' with Stripe</button><button class="btn-mini" data-act="back">Back to packs</button></div></div>'
+          '<div class="game-box" style="text-align:center;"><h3>💳 Payments are being switched on</h3>' +
+          '<p>Charm packs run through Stripe, and the Plaza is finishing that setup right now. Nothing was charged and nothing was credited — check back soon, and everything you earn in the meantime keeps banking safely in your account.</p>' +
+          '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:11px 22px;" data-act="close2">Got it</button></div></div>'
         );
-        $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
-        $("sheet").querySelector("[data-act=back]").addEventListener("click", function () { openCharmShop(); });
-        $("btnStripePay").addEventListener("click", function () {
-          var b = this; b.disabled = true; b.textContent = "Contacting Stripe…";
-          setTimeout(function () {
-            charms += p.charms; saveWallet(); updateHUD(); // [RP-V7.25] persist the local pack credit
-            try { AudioFX.coin(); } catch (e) { }
-            openSheet(
-              '<div class="game-box" style="text-align:center;"><h3>✅ Payment confirmed</h3>' +
-              '<p><b>' + p.charms.toLocaleString("en-US") + ' charms</b> just landed in your wallet — you now have <b>' + charms.toLocaleString("en-US") + '</b>. Go make someone\u2019s day. 🎁</p>' +
-              '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnPayDone">Done</button><button class="btn-mini" id="btnPayMore">Buy another pack</button></div></div>'
-            );
-            $("btnPayDone").addEventListener("click", function () { closeSheet(); });
-            $("btnPayMore").addEventListener("click", function () { openCharmShop(); });
-          }, 1000);
-        });
+        var sh63 = $("sheet");
+        if (sh63) sh63.querySelectorAll("[data-act=close],[data-act=close2]").forEach(function (b) { b.addEventListener("click", function () { closeSheet(); }); });
       }
       /* ---------- Emoji reactions on Photos + Reels (RP-V7.51) ----------
          Branden: "Add emojis for photos and reels" → Both → "Give all
@@ -22121,6 +22208,7 @@ body.wp-video-on #rpWallC { visibility: hidden; }
         localSeed();
         toast2("✅ You're in — check your reminders 🔔", 4200);
         fetchReminders(); renderAcctBox();
+        try { if (window.rpSignupLiveInviteArm) window.rpSignupLiveInviteArm(dobOnFile()); } catch (e) { } // [RP-V7.63] arm the one-time live invite with the DOB this signup just collected (adult DOBs only — logins never arm it)
         try { if (window.rpAuthGatePass) window.rpAuthGatePass(); } catch (e) { } // [RP-V7.48] account created — the wall lets you into the Plaza
       } else if (r.reachable && r.json) {
         // [RP-V7.48] Under-18 sign-ups are refused an account (403) —
@@ -25251,11 +25339,16 @@ button.rp72-chip{ cursor:pointer; }
   }
   function teen() { try { return typeof window.isTeen === "function" ? !!window.isTeen() : false; } catch (e) { return false; } }
   function moneyActive() { return !!acctRec() && !teen(); }
-  function api(path, method, body) {
+  function api(path, method, body, timeoutMs) {
     return new Promise(function (resolve) {
       var a = acctRec();
       var ctrl = ("AbortController" in window) ? new AbortController() : null;
-      var to = setTimeout(function () { if (ctrl) { try { ctrl.abort(); } catch (e) { } } }, 12000);
+      // [RP-V7.63] money-moving calls (checkout / onboard / subscribe /
+      // cashout) pass 30000: they chain server + Stripe round trips and
+      // were dying against the old flat 12s cap whenever the server or
+      // Stripe had a slow moment — the Oct 25 Connect hang. Everything
+      // else keeps the 12s default.
+      var to = setTimeout(function () { if (ctrl) { try { ctrl.abort(); } catch (e) { } } }, typeof timeoutMs === "number" ? timeoutMs : 12000);
       var headers = { "Content-Type": "application/json" };
       if (a && a.token) headers["Authorization"] = "Bearer " + a.token;
       fetch(path, { method: method || "GET", headers: headers, body: body ? JSON.stringify(body) : undefined, signal: ctrl ? ctrl.signal : undefined })
@@ -25330,7 +25423,7 @@ button.rp72-chip{ cursor:pointer; }
     var packId = PACK_IDS[i];
     if (!packId) return false;
     toast2("Opening secure Stripe checkout…", 2000);
-    api("/api/money/checkout", "POST", { packId: packId }).then(function (r) {
+    api("/api/money/checkout", "POST", { packId: packId }, 30000).then(function (r) { // [RP-V7.63] 30s money timeout
       if (r.json && r.json.ok && r.json.url) { location.href = r.json.url; return; }
       if (r.json && r.json.error === "payments-not-configured") { notConfiguredSheet("Charm packs"); return; }
       if (!r.json) { offlineToast(); return; }
@@ -25450,14 +25543,14 @@ button.rp72-chip{ cursor:pointer; }
     if (!conn.configured) {
       html += '</div><p class="rpM-note" style="text-align:center;">Payouts switch on the moment the Plaza finishes its Stripe setup — your earnings keep banking safely until then.</p>';
     } else if (!conn.payoutsEnabled) {
-      html += '<button class="btn-mini" id="rpMConnectBtn">🏦 Connect Stripe to get paid</button></div>';
+      html += '<button class="btn-mini btn-big" id="rpMConnectBtn">🏦 Connect Stripe to get paid</button></div>'; // [RP-V7.63] BIG (btn-big)
     } else {
       html += '</div><p class="rpM-note" style="text-align:center;">✅ Stripe connected — payouts go straight to your bank.</p>';
     }
     if (me.premium && me.premium.active) {
       html += '<p style="text-align:center; margin:10px 0 0;">⭐ <b>Premium</b> is active' + (me.premium.until ? ' until ' + fmtDate(me.premium.until) : '') + '.</p>';
     } else {
-      html += '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" id="rpMPremBtn">⭐ Go Premium — $9.99/mo or $59.99/yr</button></div>';
+      html += '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini btn-big" id="rpMPremBtn">⭐ Go Premium — $9.99/mo or $59.99/yr</button></div>'; // [RP-V7.63] BIG (btn-big)
     }
     if (hist && (hist.tx && hist.tx.length || hist.cashouts && hist.cashouts.length)) {
       html += '<h4 style="margin:16px 0 2px;">Recent activity</h4><div class="rpM-hist">';
@@ -25487,8 +25580,8 @@ button.rp72-chip{ cursor:pointer; }
     if (pm) pm.addEventListener("click", openPremiumSheet);
   }
   function doCashOut() {
-    var b = $("rpMCoBtn"); if (b) { b.disabled = true; b.textContent = "Requesting…"; }
-    api("/api/money/cashout", "POST", {}).then(function (r) {
+    var b = $("rpMCoBtn"); var bLabel = b ? b.textContent : ""; if (b) { b.disabled = true; b.textContent = "Requesting…"; }
+    api("/api/money/cashout", "POST", {}, 30000).then(function (r) { // [RP-V7.63] 30s money timeout
       if (r.json && r.json.ok) {
         var c = r.json.cashout || {};
         var msg;
@@ -25499,6 +25592,7 @@ button.rp72-chip{ cursor:pointer; }
         openServerEarnings();
         return;
       }
+      if (b) { b.disabled = false; b.textContent = bLabel; } // [RP-V7.63] reset on EVERY non-success path (the sheet re-render below replaces the button anyway — never leave it stuck)
       if (r.json && r.json.error === "below-minimum") toast2("Cash-out unlocks at $20 — you're at " + fmt$(r.json.availableCents || 0) + ".", 4000);
       else if (r.json && r.json.error === "already-cashed-out-today") toast2("You've already cashed out today — the next one unlocks tomorrow.", 4000);
       else if (!r.json) offlineToast();
@@ -25508,12 +25602,17 @@ button.rp72-chip{ cursor:pointer; }
   }
   function doOnboard() {
     var b = $("rpMConnectBtn"); if (b) { b.disabled = true; b.textContent = "Opening Stripe…"; }
-    api("/api/money/connect/onboard", "POST", {}).then(function (r) {
+    api("/api/money/connect/onboard", "POST", {}, 30000).then(function (r) { // [RP-V7.63] 30s money timeout
       if (r.json && r.json.ok && r.json.url) { location.href = r.json.url; return; }
+      // [RP-V7.63] EVERY non-success path re-enables the button FIRST —
+      // the !r.json (timeout/offline) branch used to return without
+      // this, leaving "Opening Stripe…" stuck forever (live find,
+      // Oct 25). The not-configured branch replaces the sheet, but the
+      // reset costs nothing and keeps the rule absolute.
+      if (b) { b.disabled = false; b.textContent = "🏦 Connect Stripe to get paid"; }
       if (r.json && r.json.error === "payments-not-configured") { notConfiguredSheet("Payouts"); return; }
       if (!r.json) { offlineToast(); return; }
       toast2("Stripe connect hit a snag — please try again in a moment.", 3600);
-      if (b) { b.disabled = false; b.textContent = "🏦 Connect Stripe to get paid"; }
     });
   }
 
@@ -25531,13 +25630,19 @@ button.rp72-chip{ cursor:pointer; }
     );
     var sh = $("sheet");
     if (sh) sh.querySelectorAll("[data-rpplan]").forEach(function (btn) {
-      btn.addEventListener("click", function () { doSubscribe(btn.getAttribute("data-rpplan")); });
+      btn.addEventListener("click", function () { doSubscribe(btn.getAttribute("data-rpplan"), btn); }); // [RP-V7.63] pass the button so it can be reset
     });
   }
-  function doSubscribe(plan) {
+  function doSubscribe(plan, btn) {
+    // [RP-V7.63] the tapped plan button now shows the wait AND resets
+    // on every non-success path — previously nothing was disabled, so
+    // a hung call read as a dead button and invited double-taps.
+    var b = btn || null; var bLabel = b ? b.textContent : "";
+    if (b) { b.disabled = true; b.textContent = "Opening Stripe…"; }
     toast2("Opening secure Stripe checkout…", 2000);
-    api("/api/money/subscribe", "POST", { plan: plan }).then(function (r) {
+    api("/api/money/subscribe", "POST", { plan: plan }, 30000).then(function (r) { // [RP-V7.63] 30s money timeout
       if (r.json && r.json.ok && r.json.url) { location.href = r.json.url; return; }
+      if (b) { b.disabled = false; b.textContent = bLabel; } // [RP-V7.63] reset on EVERY non-success path
       if (r.json && r.json.error === "payments-not-configured") { notConfiguredSheet("Premium"); return; }
       if (!r.json) { offlineToast(); return; }
       toast2("Checkout hit a snag — please try again in a moment.", 3600);
@@ -25583,11 +25688,15 @@ button.rp72-chip{ cursor:pointer; }
       return origSendGift.apply(null, arguments);
     };
   }
-  if (typeof window.openStripeCheckout === "function") {
-    var origCheckout = window.openStripeCheckout;
-    window.openStripeCheckout = function (i) {
+  if (typeof window.openPackTap === "function") {
+    // [RP-V7.63] the pack-tap seam: real Stripe Checkout for members
+    // whose money is active; everyone else lands on the base door,
+    // which only shows the "being switched on" sheet. The simulated
+    // checkout this seam used to fall back to is deleted.
+    var origPackTap = window.openPackTap;
+    window.openPackTap = function (i) {
       if (moneyActive() && moneyCheckout(i)) return;
-      return origCheckout.apply(null, arguments);
+      return origPackTap.apply(null, arguments);
     };
   }
   if (typeof window.openCharmShop === "function") {
