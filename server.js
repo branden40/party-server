@@ -3969,6 +3969,94 @@ function dailyPotTotal(rec) {
   return (rec.seed || 0) + (rec.rolledIn || 0) + (rec.match || 0);
 }
 // ---------------------------------------------------------------------------
+// [RP-V7.81] EVENT-NOW — the server-anchored holiday calendar for the
+// gift-film resolver (Branden, Oct 26, 2026: during a holiday/event
+// window the HD gift films "dress up" event-matched, automatically,
+// and flip back after). The client HOLIDAYS framework detects windows
+// in DEVICE-local time; film selection must not depend on the viewer's
+// timezone, so the active event is computed HERE, anchored to
+// America/New_York calendar days (the same Intl-only discipline as the
+// Daily Pot), from the same 18-event table and the same window rules
+// (the event day plus `pre` days before and `post` days after).
+// The film files use their own slug vocabulary (the rizz-event-films
+// production list), so each framework id maps to a film slug; events
+// with no commissioned films (mlk, stpatricks, cinco, memorial,
+// summer, laborday, veterans) map to null — the standard film plays.
+// ---------------------------------------------------------------------------
+const RP_EVENT_FILM_SLUGS = {
+  newyear: "newyears", valentines: "valentines", easter: "easter",
+  mothers: "mothersday", fathers: "fathersday", juneteenth: "juneteenth",
+  july4: "july4", birthday: "plazabirthday", halloween: "halloween",
+  thanksgiving: "thanksgiving", christmas: "christmas",
+  mlk: null, stpatricks: null, cinco: null, memorial: null,
+  summer: null, laborday: null, veterans: null,
+};
+// Calendar rules mirrored from the client's HOLIDAYS table (RP-V7.54):
+// { mo, da } fixed date · { nth: [mo, weekday, n] } nth weekday of the
+// month · { last: [mo, weekday] } last weekday of the month ·
+// { easter: true } Easter Sunday (Gregorian computus).
+const RP_EVENT_CALENDAR = [
+  { id: "newyear", name: "New Year's Day", mo: 0, da: 1, pre: 2, post: 1 },
+  { id: "mlk", name: "Martin Luther King Jr. Day", nth: [0, 1, 3], pre: 1, post: 1 },
+  { id: "valentines", name: "Valentine's Day", mo: 1, da: 14, pre: 3, post: 1 },
+  { id: "stpatricks", name: "St. Patrick's Day", mo: 2, da: 17, pre: 2, post: 1 },
+  { id: "easter", name: "Easter", easter: true, pre: 2, post: 1 },
+  { id: "cinco", name: "Cinco de Mayo", mo: 4, da: 5, pre: 1, post: 1 },
+  { id: "mothers", name: "Mother's Day", nth: [4, 0, 2], pre: 2, post: 1 },
+  { id: "memorial", name: "Memorial Day", last: [4, 1], pre: 1, post: 1 },
+  { id: "juneteenth", name: "Juneteenth", mo: 5, da: 19, pre: 1, post: 0 },
+  { id: "fathers", name: "Father's Day", nth: [5, 0, 3], pre: 1, post: 1 },
+  { id: "july4", name: "Independence Day", mo: 6, da: 4, pre: 2, post: 1 },
+  { id: "summer", name: "Summer Splash", mo: 7, da: 15, pre: 2, post: 2 },
+  { id: "laborday", name: "Labor Day", nth: [8, 1, 1], pre: 2, post: 1 },
+  { id: "birthday", name: "Plaza Birthday Bash", mo: 9, da: 18, pre: 3, post: 3 },
+  { id: "halloween", name: "Halloween", mo: 9, da: 31, pre: 3, post: 1 },
+  { id: "veterans", name: "Veterans Day", mo: 10, da: 11, pre: 1, post: 1 },
+  { id: "thanksgiving", name: "Thanksgiving", nth: [10, 4, 4], pre: 1, post: 3 },
+  { id: "christmas", name: "Christmas", mo: 11, da: 25, pre: 5, post: 1 },
+];
+function rpEasterMonthDay(y) {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4,
+    f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
+    i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+    mo = Math.floor((h + l - 7 * m + 114) / 31), da = ((h + l - 7 * m + 114) % 31) + 1;
+  return { mo: mo - 1, da };
+}
+function rpEventDayNum(y, mo, da) { return Math.floor(Date.UTC(y, mo, da) / 86400000); }
+function rpEventDateDayNum(h, y) {
+  if (h.easter) { const ed = rpEasterMonthDay(y); return rpEventDayNum(y, ed.mo, ed.da); }
+  if (h.nth) {
+    const first = new Date(Date.UTC(y, h.nth[0], 1)).getUTCDay();
+    const da = 1 + ((h.nth[1] - first + 7) % 7) + 7 * (h.nth[2] - 1);
+    return rpEventDayNum(y, h.nth[0], da);
+  }
+  if (h.last) {
+    const lastDay = new Date(Date.UTC(y, h.last[0] + 1, 0));
+    const da = lastDay.getUTCDate() - ((lastDay.getUTCDay() - h.last[1] + 7) % 7);
+    return rpEventDayNum(y, h.last[0], da);
+  }
+  return rpEventDayNum(y, h.mo, h.da);
+}
+// The event (if any) whose window contains TODAY in America/New_York.
+// Returns { id, slug, name } — slug is the film slug or null.
+function rpActiveEvent(nowMs) {
+  const p = dpEtParts(nowMs == null ? Date.now() : nowMs);
+  if (!p) return { id: null, slug: null, name: null };
+  const today = rpEventDayNum(p.y, p.mo - 1, p.d);
+  for (const yy of [p.y - 1, p.y, p.y + 1]) {
+    for (const h of RP_EVENT_CALENDAR) {
+      const d = rpEventDateDayNum(h, yy);
+      if (today >= d - h.pre && today <= d + h.post)
+        return { id: h.id, slug: RP_EVENT_FILM_SLUGS[h.id] || null, name: h.name };
+    }
+  }
+  return { id: null, slug: null, name: null };
+}
+app.get("/api/event-now", (req, res) => {
+  const ev = rpActiveEvent(Date.now());
+  res.json({ ok: true, id: ev.id, slug: ev.slug, name: ev.name });
+});
+// ---------------------------------------------------------------------------
 // [RP-V7.76] UNIFIED SERVER DAILY CLAIM (brain train batch 1, FIX-2) —
 // ONE claim gate for the whole Plaza. Up to V7.75 the Plaza had two
 // parallel daily faucets: the adult Daily Rewards ladder was gated
@@ -6889,12 +6977,16 @@ const PREMIUM_PLANS = {
 // trusted for ledger math.
 const MONEY_GIFT_TABLE = {
   heart: 1, rose: 5, coffee: 10, icecream: 25, donut: 30, clap: 50,
-  fingerheart: 99, kiss: 100, fireworks: 200, motorcycle: 300,
-  sportscar: 500, loveballoon: 600, airplane: 800, moneygun: 999,
+  heartburst: 60, thunderbolt: 75, fingerheart: 99, kiss: 100,
+  fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500,
+  loveballoon: 600, guardianpalm: 700, airplane: 800, moneygun: 999,
   castle: 1000, volcano: 2000, lion: 2500, dragon: 3000, meteor: 4000,
-  whale: 4500, galaxy: 5000, diamonds: 6000, rocket: 7500,
-  ferriswheel: 9900, jet: 10000, yacht: 15000, phoenix: 25000,
-  universe: 50000,
+  whale: 4500, galaxy: 5000, starsurge: 5500, diamonds: 6000,
+  rocket: 7500, ferriswheel: 9900, jet: 10000, yacht: 15000,
+  phoenix: 25000, universe: 50000,
+  // [RP-V7.82] +5 gifts (heartburst/thunderbolt small, goldgloves/
+  // guardianpalm medium, starsurge big) — ids + prices mirror the
+  // client's GIFT_SHOP exactly; the catalog is now 33 gifts.
 };
 function emptyMoney() {
   return {
@@ -6934,6 +7026,10 @@ function readMoney() {
     d.giftBals = {};
   if (!d.auctionSettlements || typeof d.auctionSettlements !== "object" || Array.isArray(d.auctionSettlements))
     d.auctionSettlements = {};
+  // [RP-V7.81] owner sales board: the pushed Magniphiscents store total
+  // ({ storeCents, at } from POST /api/owner/store-sales) or null until
+  // the first push lands — never a fabricated number.
+  if (d.ownerStore !== null && (typeof d.ownerStore !== "object" || Array.isArray(d.ownerStore))) d.ownerStore = null;
   return d;
 }
 function writeMoney(db) {
@@ -7877,6 +7973,103 @@ app.post("/api/money/auction-settle", lockedHandler("auction-settle", (req, res)
         ? 404
         : 400;
   return res.status(status).json(result);
+}));
+// ---------------------------------------------------------------------------
+// [RP-V7.81] OWNER-ONLY SALES BOARD (Branden, Oct 26, 2026: "a sales
+// mark list on my page but I can only see it" + "show sales from
+// everything broken down" + the milestone watch's $10K → $3M ladder).
+// GET /api/owner/sales answers ONLY for the owner: the account whose
+// id equals env OWNER_ACCOUNT_ID when set, otherwise the
+// earliest-created account in the accounts store (the platform's
+// first member). Every other caller — other accounts AND guests —
+// gets a flat 404: for them this endpoint does not exist. The totals
+// are computed on the fly from the money ledger's transaction log
+// (moneyTx appends one entry per money event):
+//   charmPacksCents   — "purchase" tx (cents = the pack price paid)
+//   premiumSubsCents  — "premium" + "premium-renew" tx (cents paid)
+//   giftsVolumeCents  — "gift-sent" tx (cents = the gift's dollar
+//                       value; volume across ALL age classes — it is
+//                       volume, not earnings, so charms-only teen
+//                       gifts count at face value like adult gifts)
+//   auctionsVolumeCents — "auction-paid" tx (cents = the settled
+//                       winning bid in charms at 100 = $1, matched by
+//                       the "auction-earned" settlement record)
+//   storeCents        — the Magniphiscents store total, which this
+//                       server cannot read: it is PUSHED in via
+//                       POST /api/owner/store-sales and stays null
+//                       until the first push lands. Never invented.
+// LIMITATION (documented in BUILD-NOTES): the tx log is capped at
+// 5,000 entries (moneyTx shifts the oldest off), so on a very busy
+// Plaza these "all-time" stream totals are exact only back to the
+// oldest retained entry.
+// ---------------------------------------------------------------------------
+function rpOwnerUserId(adb) {
+  const want = String(process.env.OWNER_ACCOUNT_ID || "").trim();
+  if (want) {
+    const u = (adb.users || []).find((x) => x && x.id === want);
+    if (u) return u.id;
+  }
+  let best = null, bestT = Infinity;
+  for (const u of adb.users || []) {
+    if (!u || !u.id) continue;
+    const t = Date.parse(u.createdAt);
+    const tt = isFinite(t) ? t : Infinity;
+    if (tt < bestT) { bestT = tt; best = u; }
+  }
+  return best ? best.id : null;
+}
+function rpSalesStreams(mdb) {
+  let charmPacksCents = 0, premiumSubsCents = 0, giftsVolumeCents = 0, auctionsVolumeCents = 0;
+  for (const tx of mdb.txlog || []) {
+    if (!tx || typeof tx !== "object") continue;
+    const c = Math.round(Number(tx.cents) || 0);
+    if (tx.type === "purchase") charmPacksCents += c;
+    else if (tx.type === "premium" || tx.type === "premium-renew") premiumSubsCents += c;
+    else if (tx.type === "gift-sent") giftsVolumeCents += c;
+    else if (tx.type === "auction-paid") auctionsVolumeCents += c;
+  }
+  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents };
+}
+app.get("/api/owner/sales", (req, res) => {
+  const adb = readAccounts();
+  const user = accountForToken(adb, req);
+  const ownerId = rpOwnerUserId(adb);
+  if (!user || !ownerId || user.id !== ownerId) return res.status(404).json({ ok: false, error: "not-found" });
+  const mdb = readMoney();
+  const s = rpSalesStreams(mdb);
+  const storeCents = mdb.ownerStore && isFinite(Number(mdb.ownerStore.storeCents)) ? Math.round(Number(mdb.ownerStore.storeCents)) : null;
+  const storeAsOf = storeCents === null ? null : (mdb.ownerStore.at || null);
+  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.auctionsVolumeCents + (storeCents || 0);
+  const stepDollars = 10000, capDollars = 3000000;
+  const totalDollars = totalCents / 100;
+  const crossed = totalDollars >= stepDollars ? Math.min(capDollars, Math.floor(totalDollars / stepDollars) * stepDollars) : 0;
+  const next = crossed >= capDollars ? null : crossed + stepDollars;
+  res.json({
+    ok: true,
+    totalCents,
+    streams: {
+      charmPacksCents: s.charmPacksCents,
+      premiumSubsCents: s.premiumSubsCents,
+      giftsVolumeCents: s.giftsVolumeCents,
+      auctionsVolumeCents: s.auctionsVolumeCents,
+      storeCents,
+      storeAsOf,
+    },
+    marks: { step: stepDollars, cap: capDollars, crossed, next },
+  });
+});
+app.post("/api/owner/store-sales", lockedHandler("owner-store-sales", (req, res) => {
+  const want = String(process.env.OWNER_PUSH_SECRET || "");
+  // Disabled entirely (404) until the push secret is configured.
+  if (!want) return res.status(404).json({ ok: false, error: "not-found" });
+  const body = req.body || {};
+  if (String(body.secret || "") !== want) return res.status(404).json({ ok: false, error: "not-found" });
+  const totalCents = Number(body.totalCents);
+  if (!isFinite(totalCents) || totalCents < 0) return res.status(400).json({ ok: false, error: "bad-total" });
+  const mdb = readMoney();
+  mdb.ownerStore = { storeCents: Math.round(totalCents), at: new Date().toISOString() };
+  writeMoney(mdb);
+  res.json({ ok: true, storeCents: mdb.ownerStore.storeCents, at: mdb.ownerStore.at });
 }));
 app.post("/api/money/connect/onboard", async (req, res) => {
   const ctx = requireAccount(req, res);
