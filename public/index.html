@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.80" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.82" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -2777,6 +2777,16 @@
           </div>
           <button class="speed-btn" id="btnFeedHome" type="button">📰 Open the Feed</button>
         </div>
+        <!-- [RP-V7.81] Magniphiscents shop card moved directly under the
+             Plaza Feed card (Branden, Oct 26, 2026) — card unchanged. -->
+        <div class="plaza-card shop-card" style="margin-top:16px;">
+          <span class="shop-wordmark" aria-hidden="true">Magniphiscents</span>
+          <div>
+            <h3>🛍️ Shop · Magniphiscents</h3>
+            <p>Shop exclusive products at Magniphiscents.com — the plaza's own store, with finds you won't catch anywhere else at the party.</p>
+          </div>
+          <a class="speed-btn shop-btn" href="https://magniphiscents.com" target="_blank" rel="noopener noreferrer">Shop Now</a>
+        </div>
         <h3 id="lobbyTitle" style="margin: 26px 0 4px; font-size: 22px;">Meet &amp; Greet</h3>
         <p style="font-weight:600; color:var(--ink-soft); margin:0 0 6px;" data-adult>Every room is a meet-and-greet space built around something you love — and every room is live with <b>real people</b> on the Live Stage. Tap a room to step inside.</p>
         <div class="rooms" id="roomList"></div>
@@ -2803,14 +2813,6 @@
             <p>Your gifts received, earnings and cash-out — gift earnings and auction sales tracked separately, and Cash Out unlocks at $20.</p>
           </div>
           <button class="speed-btn" id="btnEarnHome">Open Earn</button>
-        </div>
-        <div class="plaza-card shop-card" style="margin-top:16px;">
-          <span class="shop-wordmark" aria-hidden="true">Magniphiscents</span>
-          <div>
-            <h3>🛍️ Shop · Magniphiscents</h3>
-            <p>Shop exclusive products at Magniphiscents.com — the plaza's own store, with finds you won't catch anywhere else at the party.</p>
-          </div>
-          <a class="speed-btn shop-btn" href="https://magniphiscents.com" target="_blank" rel="noopener noreferrer">Shop Now</a>
         </div>
         <div class="plaza-card" style="margin-top:16px;" data-adult>
           <div>
@@ -13304,6 +13306,10 @@
         $("btnEarnShop").addEventListener("click", function () { openCharmShop(); });
         $("btnEarnMoments").addEventListener("click", function () { openMoments(); });
         $("btnEarnAuctions").addEventListener("click", function () { openAuctions(); });
+        // [RP-V7.81] owner-only sales board: fetch-gated mount (the
+        // panel exists only if the server says this account is the
+        // owner — see the V7.81 block before </body>).
+        try { if (window.rpOwnerSalesInit) window.rpOwnerSalesInit(); } catch (e) { }
       }
       $("btnEarnHud").addEventListener("click", openEarnSheet);
       $("btnEarnMore").addEventListener("click", openEarnSheet);
@@ -14705,6 +14711,10 @@
         { id: "prestige", label: "Prestige gifts", sub: "legendary" }
       ];
       // [RP-V7.27] art: each gift's animated WebP loop, served from img/gifts/ beside the app
+      // [RP-V7.82] five new gifts (Branden, Oct 26, 2026 — inspired by gift TYPES seen in a
+      // TikTok live tonight; original names + original generated art/films, never TikTok's):
+      // heartburst 60 + thunderbolt 75 (small), goldgloves 450 + guardianpalm 700 (medium),
+      // starsurge 5500 (big). Catalog now 33 gifts.
       var GIFT_SHOP = [
         { id: "heart", art: "img/gifts/heart.webp", name: "Heart", icon: "💗", cents: 1, tier: "penny", fx: "float" },
         { id: "rose", art: "img/gifts/rose.webp", name: "Rose", icon: "🌹", cents: 5, tier: "penny", fx: "float" },
@@ -14712,12 +14722,16 @@
         { id: "icecream", art: "img/gifts/icecream.webp", name: "Ice Cream", icon: "🍦", cents: 25, tier: "small", fx: "float" },
         { id: "donut", art: "img/gifts/donut.webp", name: "Donut", icon: "🍩", cents: 30, tier: "small", fx: "float" },
         { id: "clap", art: "img/gifts/clap.webp", name: "Clap", icon: "👏", cents: 50, tier: "small", fx: "float" },
+        { id: "heartburst", art: "img/gifts/heartburst.webp", name: "Heart Burst", icon: "💖", cents: 60, tier: "small", fx: "float" },
+        { id: "thunderbolt", art: "img/gifts/thunderbolt.webp", name: "Thunderbolt", icon: "⚡", cents: 75, tier: "small", fx: "float" },
         { id: "fingerheart", art: "img/gifts/fingerheart.webp", name: "Finger Heart", icon: "🫰", cents: 99, tier: "small", fx: "float" },
         { id: "kiss", art: "img/gifts/kiss.webp", name: "Kiss", icon: "💋", cents: 100, tier: "small", fx: "float" },
         { id: "fireworks", art: "img/gifts/fireworks.webp", name: "Fireworks", icon: "🎆", cents: 200, tier: "medium", fx: "burst" },
         { id: "motorcycle", art: "img/gifts/motorcycle.webp", name: "Motorcycle", icon: "🏍️", cents: 300, tier: "medium", fx: "across" },
+        { id: "goldgloves", art: "img/gifts/goldgloves.webp", name: "Gold Gloves", icon: "🥊", cents: 450, tier: "medium", fx: "burst" },
         { id: "sportscar", art: "img/gifts/sportscar.webp", name: "Sports Car", icon: "🏎️", cents: 500, tier: "medium", fx: "across" },
         { id: "loveballoon", art: "img/gifts/loveballoon.webp", name: "Love Balloon", icon: "🎈", cents: 600, tier: "medium", fx: "rise" },
+        { id: "guardianpalm", art: "img/gifts/guardianpalm.webp", name: "Guardian Palm", icon: "🖐️", cents: 700, tier: "medium", fx: "burst" },
         { id: "airplane", art: "img/gifts/airplane.webp", name: "Airplane", icon: "✈️", cents: 800, tier: "medium", fx: "across" },
         { id: "moneygun", art: "img/gifts/moneygun.webp", name: "Money Gun", icon: "💸", cents: 999, tier: "medium", fx: "across" },
         { id: "castle", art: "img/gifts/castle.webp", name: "Castle", icon: "🏰", cents: 1000, tier: "medium", fx: "rise" },
@@ -14727,6 +14741,7 @@
         { id: "meteor", art: "img/gifts/meteor.webp", name: "Meteor Shower", icon: "☄️", cents: 4000, tier: "big", fx: "meteor" },
         { id: "whale", art: "img/gifts/whale.webp", name: "Whale Dive", icon: "🐋", cents: 4500, tier: "big", fx: "burst" },
         { id: "galaxy", art: "img/gifts/galaxy.webp", name: "Galaxy", icon: "🌌", cents: 5000, tier: "big", fx: "galaxy" },
+        { id: "starsurge", art: "img/gifts/starsurge.webp", name: "Star Surge", icon: "🌟", cents: 5500, tier: "big", fx: "burst" },
         { id: "diamonds", art: "img/gifts/diamonds.webp", name: "Diamond Shower", icon: "💎", cents: 6000, tier: "big", fx: "rain" },
         { id: "rocket", art: "img/gifts/rocket.webp", name: "Rocket", icon: "🚀", cents: 7500, tier: "big", fx: "launch" },
         { id: "ferriswheel", art: "img/gifts/ferriswheel.webp", name: "Ferris Wheel", icon: "🎡", cents: 9900, tier: "big", fx: "rise" },
@@ -15661,10 +15676,13 @@
         if (fgid && window.rpGiftFilmIds && window.rpGiftFilmIds[fgid] && window.rpGiftFilmUrl) {
           var vid = document.createElement("video");
           vid.className = "gfx-artimg gfx-film";
+          vid.setAttribute("data-gid", fgid);
           vid.src = window.rpGiftFilmUrl(fgid);
           vid.autoplay = true; vid.muted = true; vid.loop = true; vid.playsInline = true;
           vid.style.width = px + "px"; vid.style.height = px + "px"; vid.style.objectFit = "cover";
           vid.onerror = function () {
+            // [RP-V7.81] event film -> standard film before dropping to art.
+            if (window.rpFilmStepDown && window.rpFilmStepDown(vid)) return;
             if (!vid.parentNode) return;
             var im2 = document.createElement("img");
             im2.className = "gfx-artimg"; im2.src = art; im2.alt = "";
@@ -19017,12 +19035,12 @@
 /* [RP-V7.27] animated gift art images */
 .gift-cell .gi img{ width:46px; height:46px; object-fit:cover; border-radius:11px; display:block; }
 .lgf-row .gi img{ width:22px; height:22px; object-fit:cover; border-radius:6px; vertical-align:-6px; }
-.rp-banner img.rp-gift-img{ width:26px; height:26px; object-fit:cover; border-radius:7px; flex:none; }
+.rp-banner img.rp-gift-img{ width:26px; height:26px; object-fit:cover; border-radius:0; flex:none; }
 .rp-banner .rp-art-emoji{ font-size:22px; line-height:1; flex:none; }
-.rp-stage-art img.rp-gift-img{ width:100%; height:100%; object-fit:cover; border-radius:26px; display:block; }
+.rp-stage-art img.rp-gift-img{ width:100%; height:100%; object-fit:cover; border-radius:0; display:block; }
 .rp-stage-art .rp-art-emoji{ display:block; text-align:center; font-size:min(42vw,190px); line-height:1.35; }
-img.gfx-artimg{ object-fit:cover; border-radius:14px; }
-.gfx-hero.gfx-artimg{ border-radius:20px; }
+img.gfx-artimg{ object-fit:cover; border-radius:0; }
+.gfx-hero.gfx-artimg{ border-radius:0; }
 .lgf-row .gi svg{ width:22px; height:22px; vertical-align:-6px; }
 #rpBanners{ position:fixed; left:10px; bottom:172px; z-index:46; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
 .rp-banner{ display:flex; align-items:center; gap:8px; background:rgba(10,10,16,.72); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:5px 12px 5px 6px; color:#fff; font-size:12.5px; animation:rpBannerIn .35s cubic-bezier(.2,.7,.3,1); max-width:82vw; }
@@ -19036,7 +19054,19 @@ img.gfx-artimg{ object-fit:cover; border-radius:14px; }
 #rpStage{ position:fixed; inset:0; z-index:68; pointer-events:none; display:flex; align-items:center; justify-content:center; }
 .rp-stage-art.film{ width:min(94vw,520px); height:auto; aspect-ratio:16/9; }
 .rp-stage-art .rp-gift-film{ width:100%; height:100%; border-radius:0; }
-.rp-banner .rp-gift-film{ border-radius:10px; }
+.rp-banner .rp-gift-film{ border-radius:0; }
+/* [RP-V7.81] T-REX GRAND SHOW — the big/prestige tier's full-screen show
+   film (trex-roar5.mp4). It plays FULL-BLEED inside the stage with its
+   edges melted into the app's near-black background (the radial mask on
+   the video + the melt overlay), never in a box — Branden's screen-blend
+   rule (Oct 26, 2026). The film itself is untouched; the melt is pure
+   show-layer CSS. */
+#rpStage.trex .rp-stage-art{ position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; }
+.rp-trex-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;
+  -webkit-mask-image:radial-gradient(ellipse at center, #000 58%, transparent 98%);
+  mask-image:radial-gradient(ellipse at center, #000 58%, transparent 98%); }
+.rp-trex-melt{ position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(ellipse at center, transparent 52%, rgba(5,5,10,.55) 82%, #05050a 100%); }
 .gfx-film{ mix-blend-mode:screen; }
 #rpStage .rp-stage-bg{ position:absolute; inset:0; background:radial-gradient(ellipse at center, rgba(0,0,0,.12) 30%, rgba(0,0,0,.55) 100%); animation:rpFade 3.5s forwards; }
 .rp-stage-art{ position:relative; width:min(55vw,300px); height:min(55vw,300px); filter:drop-shadow(0 18px 42px rgba(0,0,0,.6)); } /* [RP-V7.27] big-show scale: ~55% of width */
@@ -19135,8 +19165,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
      it for the gift's emoji in place: never a broken-image glyph. Ids
      with no shipped art (holiday gifts, ad-hoc gifts) keep the drawn
      SVG art / orb they had. */
-  var GIFT_ART_IDS = { heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1 };
-  var GIFT_ICONS = { heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐" };
+  var GIFT_ART_IDS = { heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1 }; // [RP-V7.82] +5 gifts
+  var GIFT_ICONS = { heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟" }; // [RP-V7.82] +5 gifts
   window.rpGiftImgErr = function (img) {
     if (!img || !img.parentNode) return;
     var s = document.createElement("span");
@@ -19161,11 +19191,69 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1 };
+  var GIFT_FILM_IDS = { heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1 }; // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; until then shows fall back to the animated art
   window.rpGiftFilmIds = GIFT_FILM_IDS;
-  window.rpGiftFilmUrl = function (id) { return (window.GIFTFX_BASE || "/") + "giftfx-" + id + ".mp4"; };
+  window.rpGiftFilmUrl = function (id) { return window.rpResolveGiftFilm(id); };
+  /* [RP-V7.81] EVENT-FILM RESOLVER + T-REX GRAND SHOW.
+     During a holiday/event window the HD gift shows play the event
+     film giftfx-<id>-<event>.mp4; the chain is event film -> standard
+     film giftfx-<id>.mp4 -> animated WebP art (Branden, Oct 26, 2026:
+     the HD films "dress up" for holidays automatically and flip back
+     after). The ACTIVE event comes from the server (GET
+     /api/event-now — the HOLIDAYS calendar computed server-side on
+     America/New_York days) so every viewer sees the same dress-up
+     regardless of device timezone; the slug is cached for the
+     session. A missing event file steps down invisibly through
+     rpGiftVidErr / rpFilmStepDown — a show never breaks. */
+  var rpEventSlug = null;
+  function rpFilmBase() { return window.GIFTFX_BASE || "/"; }
+  window.rpStdFilmUrl = function (id) { return rpFilmBase() + "giftfx-" + id + ".mp4"; };
+  window.rpEventFilmUrl = function (id) { return rpEventSlug ? rpFilmBase() + "giftfx-" + id + "-" + rpEventSlug + ".mp4" : window.rpStdFilmUrl(id); };
+  window.rpResolveGiftFilm = function (id) { return window.rpEventFilmUrl(id); };
+  window.rpSetEventSlug = function (s) { rpEventSlug = (typeof s === "string" && /^[a-z0-9]+$/.test(s)) ? s : null; return rpEventSlug; };
+  window.rpEventSlugNow = function () { return rpEventSlug; };
+  /* One step DOWN the film chain for a failed <video>: an event film
+     falls to the standard film (the element keeps its error handler
+     for the next step); anything else reports false so the caller
+     drops to the animated art. */
+  window.rpFilmStepDown = function (v) {
+    try {
+      if (!v || v.getAttribute("data-evfb")) return false;
+      var src = v.getAttribute("src") || "";
+      if (rpEventSlug && src.indexOf("-" + rpEventSlug + ".mp4") >= 0) {
+        var gid = v.getAttribute("data-gid");
+        if (!gid) return false;
+        v.setAttribute("data-evfb", "1");
+        v.src = window.rpStdFilmUrl(gid);
+        return true;
+      }
+    } catch (e) { }
+    return false;
+  };
+  try {
+    if (typeof fetch === "function") {
+      fetch("/api/event-now").then(function (r) { return r.json(); }).then(function (j) { if (j && j.ok) window.rpSetEventSlug(j.slug); }).catch(function () { });
+    }
+  } catch (e) { }
+  window.rpTrexUrl = function () { return rpFilmBase() + "trex-roar5.mp4"; };
+  /* The T-Rex file is missing (not yet uploaded) or stalled: remember
+     it for the session and swap THIS stage show back to the gift's
+     normal big-stage film/art path, invisibly. */
+  window.rpTrexErr = function (v) {
+    window.__rpTrexBad = true;
+    try {
+      var ov = $("rpStage"); if (!ov || ov.getAttribute("data-trex-fb")) return;
+      ov.setAttribute("data-trex-fb", "1");
+      ov.classList.remove("trex");
+      var art = ov.querySelector(".rp-stage-art");
+      if (art) { art.className = "rp-stage-art pop film"; art.innerHTML = rpShowArtHtml(ov.getAttribute("data-gid") || "gift", ov.getAttribute("data-icon") || "🎁", "full"); }
+      if (window.__rpStageTimer) clearTimeout(window.__rpStageTimer);
+      window.__rpStageTimer = setTimeout(function () { var o2 = $("rpStage"); if (o2) o2.remove(); stageBusy = false; window.__rpStageTimer = 0; pumpStage(); }, 3560);
+    } catch (e) { }
+  };
   window.rpGiftVidErr = function (v) {
     if (!v || !v.parentNode) return;
+    if (window.rpFilmStepDown(v)) return; /* event film -> standard film */
     var d = document.createElement("div");
     d.innerHTML = rpArt(v.getAttribute("data-gid") || "gift", v.getAttribute("data-icon") || "🎁");
     var n = d.firstChild;
@@ -19180,7 +19268,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     return rpArt(id, icon);
   }
   window.rpShowArtHtml = rpShowArtHtml;
-  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel" };
+  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel", "Thunderbolt": "thunderbolt", "Heart Burst": "heartburst", "Guardian Palm": "guardianpalm", "Gold Gloves": "goldgloves", "Star Surge": "starsurge" }; // [RP-V7.82] +5 gifts
 
   /* ---------- gift panel: swap emoji for rendered art ---------- */
   function swapCell(c) {
@@ -19248,9 +19336,35 @@ body:not(.live-fs) #rp65How { display:none !important; }
     }
     var sgid = g.id || NAME2ID[g.name] || "gift";
     var sFilm = !!(window.rpGiftFilmIds && window.rpGiftFilmIds[sgid === "diamond" ? "diamonds" : sgid]);
-    ov.innerHTML = '<div class="rp-stage-bg"></div>' + sparks + '<div class="rp-stage-art ' + motion + (sFilm ? " film" : "") + '">' + rpShowArtHtml(sgid, g.icon, "full") + '</div><div class="rp-stage-plate"><b>' + esc(it.f || "Someone") + "</b> sent <b>" + esc(it.t || "the host") + '</b><br><span style="font-size:16px;font-weight:800">' + esc(g.name || "Gift") + '</span> · <span class="gp">' + priceLabel(g.cents) + "</span></div>";
+    /* [RP-V7.81] T-REX GRAND SHOW — this stage IS the biggest-gifts
+       tier (rpGiftFx routes only big/prestige here), so the show opens
+       with trex-roar5.mp4 full-screen blended INSTEAD of the gift's
+       own film, plate text unchanged. The film is 10s, so the stage
+       holds ~10.2s. If the file is missing or never starts, rpTrexErr
+       swaps back to the normal film/art path invisibly (and remembers
+       for the session). */
+    var useTrex = !window.__rpTrexBad;
+    var artHtml;
+    if (useTrex) {
+      ov.className = "trex";
+      ov.setAttribute("data-gid", sgid);
+      ov.setAttribute("data-icon", g.icon || GIFT_ICONS[sgid] || "🎁");
+      artHtml = '<video class="rp-trex-video" src="' + window.rpTrexUrl() + '" autoplay muted playsinline preload="auto" onerror="rpTrexErr(this)"></video><div class="rp-trex-melt"></div>';
+    } else {
+      artHtml = rpShowArtHtml(sgid, g.icon, "full");
+    }
+    ov.innerHTML = '<div class="rp-stage-bg"></div>' + (useTrex ? "" : sparks) + '<div class="rp-stage-art ' + (useTrex ? "" : motion + (sFilm ? " film" : "")) + '">' + artHtml + '</div><div class="rp-stage-plate"><b>' + esc(it.f || "Someone") + "</b> sent <b>" + esc(it.t || "the host") + '</b><br><span style="font-size:16px;font-weight:800">' + esc(g.name || "Gift") + '</span> · <span class="gp">' + priceLabel(g.cents) + "</span></div>";
     document.body.appendChild(ov);
-    setTimeout(function () { var o2 = $("rpStage"); if (o2) o2.remove(); stageBusy = false; pumpStage(); }, 3560);
+    window.__rpStageTimer = setTimeout(function () { var o2 = $("rpStage"); if (o2) o2.remove(); stageBusy = false; window.__rpStageTimer = 0; pumpStage(); }, useTrex ? 10200 : 3560);
+    if (useTrex) {
+      var tv = ov.querySelector(".rp-trex-video");
+      if (tv) {
+        tv.addEventListener("playing", function () { tv.__rpOk = true; });
+        /* a film that has not actually started within ~1.8s is treated
+           as missing — same invisible fallback as a load error. */
+        setTimeout(function () { if (ov.parentNode && !tv.__rpOk && tv.readyState < 2) window.rpTrexErr(tv); }, 1800);
+      }
+    }
   }
 
   /* ---------- playGiftFx hook: banner always; stage replaces big shows ---------- */
@@ -24895,7 +25009,11 @@ button.rp72-chip{ cursor:pointer; }
   }
   function renderInboxShell(inner) {
     var reqN = inboxData && inboxData.requests ? inboxData.requests.length : 0;
-    var html = '<h3 style="margin:4px 0">💬 Messages</h3>' +
+    // [RP-V7.81] ✕ exit in the header (Branden device report, Oct 26:
+    // "there's no exit button") — the app's close-x pattern, wired in
+    // wireInboxShell; backdrop-tap close stays as it was.
+    var html = '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+      '<h3 style="margin:4px 0">💬 Messages</h3>' +
       '<div class="rpdm-tabs" id="rpDmTabs">' +
       '<button type="button" class="rpdm-tab' + (inboxTab === "inbox" ? " on" : "") + '" data-dmtab="inbox">Messages</button>' +
       '<button type="button" class="rpdm-tab' + (inboxTab === "requests" ? " on" : "") + '" data-dmtab="requests">Requests' + (reqN ? '<span class="rpdm-cnt">' + reqN + "</span>" : "") + "</button>" +
@@ -24906,6 +25024,8 @@ button.rp72-chip{ cursor:pointer; }
     wireInboxShell();
   }
   function wireInboxShell() {
+    var cx = document.querySelector("#sheet [data-act=close]"); // [RP-V7.81]
+    if (cx) cx.addEventListener("click", function () { if (typeof window.closeSheet === "function") window.closeSheet(); });
     document.querySelectorAll("[data-dmtab]").forEach(function (b) {
       b.addEventListener("click", function () {
         inboxTab = b.getAttribute("data-dmtab");
@@ -25268,16 +25388,20 @@ button.rp72-chip{ cursor:pointer; }
     loadPeople();
   }
   function renderPeopleShell(inner) {
+    // [RP-V7.81] ✕ exit beside the title (Branden device report, Oct
+    // 26) — the "‹ Messages" back button and backdrop-tap close stay.
     var html = '<div class="rpdm-head">' +
       '<button type="button" class="btn-mini" id="rpPlBack">‹ Messages</button>' +
       '<div class="rpdm-title">Find people</div>' +
-      '<span style="width:86px"></span></div>' +
+      '<button class="close-x" data-act="close" aria-label="Close" style="float:none;margin:0 0 0 auto">✕</button></div>' +
       '<div class="rppl-searchrow"><input class="rpdm-input" id="rpPlSearch" type="text" maxlength="40" placeholder="Search by name or @username…" autocomplete="off" value="' + esc(peopleQuery) + '"/></div>' +
       '<p class="age-note" style="margin:2px 0 6px">Message anyone here anytime — even when they\'re offline. It\'ll be waiting in their inbox. 💬</p>' +
       '<div id="rpPlRows">' + inner + "</div>";
     window.openSheet(html);
     var back = $("rpPlBack");
     if (back) back.addEventListener("click", function () { openInbox(); });
+    var cxp = document.querySelector("#sheet [data-act=close]"); // [RP-V7.81]
+    if (cxp) cxp.addEventListener("click", function () { if (typeof window.closeSheet === "function") window.closeSheet(); });
     var inp = $("rpPlSearch");
     if (inp) {
       inp.addEventListener("input", function () {
@@ -29989,7 +30113,9 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .feed-comp-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .feed-comp-note { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
 #feedPreview { margin-top: 10px; position: relative; }
-#feedPreview img, #feedPreview video { max-width: 100%; max-height: 300px; border-radius: 12px; display: block; }
+#feedPreview img { max-width: 100%; max-height: 300px; border-radius: 12px; display: block; }
+/* [RP-V7.81] composer video preview: full-width treatment, not a tile. */
+#feedPreview video { width: 100%; max-height: 70vh; object-fit: cover; border-radius: 12px; display: block; }
 #feedPreview .feed-pv-x { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(0,0,0,.65); color: #fff; font-size: 15px; cursor: pointer; }
 .feed-post { background: var(--panel, #17171f); border: 1.5px solid rgba(255,255,255,.09); border-radius: 16px; padding: 13px 14px; margin-bottom: 12px; }
 .feed-phead { display: flex; align-items: center; gap: 9px; }
@@ -30001,7 +30127,10 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .feed-follow.on { background: rgba(255,255,255,.16); color: inherit; }
 .feed-text { margin: 10px 0 0; font-size: 15px; font-weight: 600; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .feed-media { margin-top: 10px; }
-.feed-media img, .feed-media video { width: 100%; max-height: 480px; object-fit: contain; border-radius: 12px; background: #000; display: block; }
+.feed-media img { width: 100%; max-height: 480px; object-fit: contain; border-radius: 12px; background: #000; display: block; }
+/* [RP-V7.81] feed videos go FULL-WIDTH at natural aspect — no 480px cap,
+   no black letterbox box (Branden, Oct 26, 2026). */
+.feed-media video { width: 100%; height: auto; border-radius: 12px; display: block; }
 .feed-actions { display: flex; gap: 8px; margin-top: 11px; border-top: 1px solid rgba(255,255,255,.07); padding-top: 10px; }
 .feed-act { background: rgba(255,255,255,.06); border: none; color: inherit; border-radius: 999px; padding: 8px 14px; font-family: inherit; font-weight: 800; font-size: 13.5px; cursor: pointer; }
 .feed-act small { font-size: 13px; margin-left: 2px; }
@@ -30325,6 +30454,126 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   }
   setInterval(function () { try { stamp(); } catch (e) { } }, 700);
   window.rpGifterFx = { stampNow: stamp, rankings: rankings };
+})();
+</script>
+
+<!-- [RP-V7.81] OWNER-ONLY SALES BOARD (Branden, Oct 26, 2026: "a sales
+     mark list on my page but I can only see it" + "show sales from
+     everything broken down" + "refresh every 5 minutes"). The panel is
+     FETCH-GATED: it is created only after GET /api/owner/sales answers
+     200 for this account (the server 404s everyone else), so for every
+     other member it never enters the DOM — it is not CSS-hidden. -->
+<style>
+.rp-owner-sales{ margin-top:14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); border-radius:14px; padding:14px; text-align:left; }
+.rp-owner-sales h4{ margin:0 0 6px; font-size:16px; }
+.rp-os-total{ font-size:26px; font-weight:900; color:#f5c542; }
+.rp-os-next{ margin-top:10px; font-size:15px; font-weight:800; }
+.rp-os-bar{ height:10px; border-radius:6px; background:rgba(255,255,255,.12); overflow:hidden; margin:6px 0 4px; }
+.rp-os-bar > div{ height:100%; background:#f5c542; border-radius:6px; }
+.rp-os-chips{ margin-top:8px; line-height:2; }
+.rp-os-chip{ display:inline-block; background:rgba(245,197,66,.16); border:1px solid rgba(245,197,66,.45); color:#f5c542; border-radius:999px; padding:1px 8px; margin:0 4px 4px 0; font-size:12px; font-weight:700; }
+.rp-os-rows{ margin-top:10px; }
+.rp-os-row{ display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-top:1px solid rgba(255,255,255,.08); font-size:14px; }
+.rp-os-row b{ color:#fff; }
+.rp-os-note{ font-size:12px; opacity:.65; margin-top:8px; }
+</style>
+<script>
+(function () {
+  "use strict";
+  function esc2(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function money(cents) {
+    var v = (Number(cents) || 0) / 100;
+    return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function markMoney(dollars) { return "$" + Number(dollars || 0).toLocaleString("en-US"); }
+  /* Pure render of the board from a GET /api/owner/sales payload —
+     the ladder math lives here so it can be probed directly. */
+  window.rpOwnerSalesRender = function (d) {
+    var total = Number(d.totalCents) || 0;
+    var m = d.marks || { step: 10000, cap: 3000000, crossed: 0, next: 10000 };
+    var st = d.streams || {};
+    var h = '<h4>👑 Owner · Sales</h4>';
+    h += '<div class="rp-os-total">' + money(total) + '</div><div class="rp-os-note" style="margin-top:0">All-time sales across the whole Plaza</div>';
+    if (m.next == null) {
+      h += '<div class="rp-os-next">🏆 Ladder complete — ' + markMoney(m.cap) + ' reached!</div>';
+    } else {
+      var crossedC = (Number(m.crossed) || 0) * 100, nextC = Number(m.next) * 100;
+      var pct = nextC > crossedC ? Math.max(0, Math.min(100, ((total - crossedC) / (nextC - crossedC)) * 100)) : 0;
+      h += '<div class="rp-os-next">Next mark: ' + markMoney(m.next) + ' — ' + money(nextC - total) + ' to go</div>';
+      h += '<div class="rp-os-bar"><div style="width:' + pct.toFixed(1) + '%"></div></div>';
+    }
+    var nCross = Math.floor((Number(m.crossed) || 0) / (Number(m.step) || 10000));
+    if (nCross > 0) {
+      var marksList = [];
+      for (var i = 1; i <= nCross; i++) marksList.push(i * (Number(m.step) || 10000));
+      var show = marksList;
+      var moreNote = "";
+      if (marksList.length > 24) {
+        show = marksList.slice(0, 12).concat(marksList.slice(-6));
+        moreNote = '<span class="rp-os-chip">… ' + (marksList.length - 18) + ' more marks …</span>';
+      }
+      h += '<div class="rp-os-chips">' + show.map(function (v) { return '<span class="rp-os-chip">✓ ' + markMoney(v) + "</span>"; }).join("") + moreNote + "</div>";
+      h += '<div class="rp-os-note">' + nCross + " mark" + (nCross === 1 ? "" : "s") + " crossed</div>";
+    } else {
+      h += '<div class="rp-os-note">No marks crossed yet — first mark at ' + markMoney(m.step) + ".</div>";
+    }
+    function row(label, cents, extra) {
+      return '<div class="rp-os-row"><span>' + label + '</span><b>' + (cents == null ? "—" : money(cents)) + "</b></div>" + (extra || "");
+    }
+    h += '<div class="rp-os-rows">' +
+      row("🎁 Charm packs", st.charmPacksCents) +
+      row("⭐ Premium subscriptions", st.premiumSubsCents) +
+      row("🎁 Gifts volume", st.giftsVolumeCents) +
+      row("🔨 Auctions volume", st.auctionsVolumeCents) +
+      row("🛍️ Store · Magniphiscents", st.storeCents == null ? null : st.storeCents,
+        st.storeCents == null ? "" : '<div class="rp-os-note" style="margin-top:2px">Store total as of ' + esc2(st.storeAsOf || "") + "</div>") +
+      "</div>";
+    return h;
+  };
+  var osTimer = null;
+  function osToken() {
+    try { var r = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return r && r.token ? String(r.token) : ""; } catch (e) { return ""; }
+  }
+  function osFetch() {
+    var t = osToken();
+    if (!t || typeof fetch !== "function") return Promise.resolve(null);
+    return fetch("/api/owner/sales", { headers: { Authorization: "Bearer " + t } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { return j && j.ok ? j : null; })
+      .catch(function () { return null; });
+  }
+  function osStop() { if (osTimer) { clearInterval(osTimer); osTimer = null; } }
+  window.rpOwnerSalesInit = function () {
+    osFetch().then(function (d) {
+      var sheet = document.getElementById("sheet");
+      if (!sheet) return;
+      var panel = document.getElementById("rpOwnerSales");
+      if (!d) { /* not the owner (or offline): the panel never renders */
+        if (panel) panel.remove();
+        osStop();
+        return;
+      }
+      if (!panel) {
+        panel = document.createElement("div");
+        panel.className = "rp-owner-sales";
+        panel.id = "rpOwnerSales";
+        var host = sheet.querySelector(".game-box") || sheet;
+        host.appendChild(panel);
+      }
+      panel.innerHTML = window.rpOwnerSalesRender(d) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
+      if (!osTimer) {
+        osTimer = setInterval(function () {
+          if (!document.getElementById("rpOwnerSales")) { osStop(); return; }
+          osFetch().then(function (d2) {
+            var p2 = document.getElementById("rpOwnerSales");
+            if (!p2) { osStop(); return; }
+            if (!d2) { p2.remove(); osStop(); return; }
+            p2.innerHTML = window.rpOwnerSalesRender(d2) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
+          });
+        }, 300000);
+      }
+    });
+  };
 })();
 </script>
 
