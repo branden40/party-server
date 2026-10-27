@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.82" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.83" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -828,7 +828,11 @@
         vessel photo's mouth is pre-cleared; underneath it a painted
         dark interior (disc) shows when empty and the gold layer rises
         inside the rim window as sw.fill climbs. */
-      .lv-potvisual { position: absolute; left: 2px; top: 34px; width: 224px; z-index: 6; pointer-events: auto; cursor: pointer; filter: drop-shadow(0 6px 18px rgba(0,0,0,.55)); --potfill: 0; }
+      /* [RP-V7.83] top:88px (was 34px): the pot hangs fully UNDER the ✕
+         close button — at 34px its rim overlapped and covered the ✕
+         (Branden, device screenshot Oct 26). Size, fill and swell
+         behavior are untouched; only the hang point moved down. */
+      .lv-potvisual { position: absolute; left: 2px; top: 88px; width: 224px; z-index: 6; pointer-events: auto; cursor: pointer; filter: drop-shadow(0 6px 18px rgba(0,0,0,.55)); --potfill: 0; }
       .lv-potvisual[hidden] { display: none; }
       .lv-potglow { position: absolute; inset: -36% -24%; background: radial-gradient(ellipse at 50% 46%, rgba(255,196,64,.85) 0%, rgba(255,150,30,.38) 42%, rgba(255,120,20,0) 70%); opacity: calc(.26 + var(--potfill) * .62); animation: lvPotGlowPulse 3.4s ease-in-out infinite; pointer-events: none; }
       @keyframes lvPotGlowPulse { 0%, 100% { transform: scale(.94); } 50% { transform: scale(1.07); } }
@@ -11033,9 +11037,21 @@
          in one bottom sheet — filters, camera/mic, follow, gift, join
          requests, viewers & host tools, invite, report, mute & hide,
          and the leave/end controls. */
+      /* [RP-V7.83] Is the live on air an auction show? The app's own
+         signal: the host's own auction pinned in this live —
+         livePinAuction() is non-null exactly while that auction runs
+         here, and the #liveAucPin card is on stage exactly while
+         selling is pinned (running auction, its just-ended card, or
+         pinned offers). Battle + Add people never ride an auction show. */
+      function liveAucCtx() {
+        try { if (typeof livePinAuction === "function" && livePinAuction()) return true; } catch (e) { }
+        var pin = $("liveAucPin");
+        return !!(pin && !pin.hidden);
+      }
       function openLiveMoreSheet() {
         if (!Live.active) { toast("Nobody is live right now."); return; }
         var host = iAmHost(), onStage = iAmOnStage();
+        var aucCtx = liveAucCtx(); // [RP-V7.83] auction shows get no Battle / Add people rows
         var watchN = Object.keys(Online.players).length + 1;
         var html = '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box"><h3 style="text-align:center;">••• More</h3>' +
@@ -11059,6 +11075,8 @@
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>';
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreSetup">✏️ Edit title &amp; topic</button>'; // [RP-V7.63] the setup sheet's new home: an optional editor, no longer a mandatory pre-live gate
         if (host) html += '<button type="button" class="btn-mini" id="lvMorePot">🪙 Plaza Pot' + (Live.pot && Live.pot.status === "open" ? " · " + (Live.pot.total || 0) + " charms · " + (Live.pot.entries || 0) + " in" : (liveAcctToken() ? "" : " · sign in to open")) + "</button>"; // [RP-V7.41] host opens/manages the pot from the ••• tray // [RP-V7.48] guest hosts see the sign-in requirement on the row itself
+        if (host && !aucCtx) html += '<button type="button" class="btn-mini" id="lvMoreBattle">⚔️ Battle</button>'; // [RP-V7.83] Battle's home is this sheet now (was a floating button) — regular lives only, never an auction show
+        if (host && !aucCtx) html += '<button type="button" class="btn-mini" id="lvMoreAddPeople">＋ Add people</button>'; // [RP-V7.83] Add people moved with Battle
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreEnd">⏹ End Live</button>';
         else if (onStage) html += '<button type="button" class="btn-mini" id="lvMoreLeave">Leave the stage</button>';
         if (!host) html += '<button type="button" class="btn-mini" id="lvMoreClose">✕ Close this live</button>';
@@ -11080,6 +11098,8 @@
         wire("lvMoreReport", function () { closeSheet(); openOnlineReport(Online.players[Live.hostId] || { id: Live.hostId, name: Live.hostName || "Host" }); });
         wire("lvMoreHide", function () { closeSheet(); liveMuteHide(Live.hostId); });
         wire("lvMoreSell", function () { closeSheet(); openAuctions(); });
+        wire("lvMoreBattle", function () { closeSheet(); if (window.rpBattleOpen) window.rpBattleOpen(); }); // [RP-V7.83]
+        wire("lvMoreAddPeople", function () { closeSheet(); if (window.rpAddPeopleOpen) window.rpAddPeopleOpen(); }); // [RP-V7.83]
         wire("lvMorePot", function () { closeSheet(); openPotSheet(); }); // [RP-V7.41]
         wire("lvMoreSetup", function () { closeSheet(); openLiveSetup(); }); // [RP-V7.63]
         wire("lvMoreEnd", function () { closeSheet(); liveEndMine(); });
@@ -19082,7 +19102,6 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
 @keyframes rpSpark{ from{ transform:translate(0,0) scale(1); opacity:1;} to{ transform:translate(var(--dx),var(--dy)) scale(.2); opacity:0;} }
 .rp-stage-plate{ position:absolute; left:50%; bottom:19%; transform:translateX(-50%); background:rgba(8,8,14,.78); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.18); color:#fff; border-radius:14px; padding:10px 18px; text-align:center; font-size:14px; animation:rpFade 3.5s forwards; max-width:88vw; }
 .rp-stage-plate .gp{ color:#f5b93f; font-weight:900; }
-#rpBatBtn{ position:fixed; right:12px; top:132px; z-index:44; background:linear-gradient(135deg,#fe2c55,#d91f43); color:#fff; border:none; border-radius:999px; padding:10px 15px; font:800 13.5px inherit; box-shadow:0 8px 22px rgba(254,44,85,.45); cursor:pointer; }
 #rpBatBar{ position:fixed; top:64px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; background:rgba(8,8,14,.82); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px 12px; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; color:#fff; }
 #rpBatBar .bb-side{ display:flex; align-items:center; gap:7px; min-width:0; }
 #rpBatBar .bb-side.r{ justify-content:flex-end; }
@@ -19105,14 +19124,14 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
 #rpBatResult .score{ color:#f5b93f; font-weight:900; font-size:17px; margin:6px 0; }
 #rpBatResult button{ margin:8px 4px 0; }
 @media (prefers-reduced-motion: reduce){ .rp-stage-art.pop,.rp-stage-art.rise,.rp-stage-art.spin{ animation:rpFade 3.5s forwards; } }
-/* [RP-V7.44] The live-only floating cluster (Battle button, Add-people button,
-   battle bar + its series/lap satellites) belongs to the full-screen live
-   screen ONLY. Whenever the live screen is not up (body has no .live-fs),
-   these stay hidden no matter what any module's show logic says — a live
-   session running in the background must never leak its controls into
-   Auctions, Home, rooms, Reels or Profile. */
-body:not(.live-fs) #rpBatBtn,
-body:not(.live-fs) #rpAddBtn,
+/* [RP-V7.44] The live-only floating cluster (battle bar + its series/lap
+   satellites) belongs to the full-screen live screen ONLY. Whenever the
+   live screen is not up (body has no .live-fs), these stay hidden no
+   matter what any module's show logic says — a live session running in
+   the background must never leak its controls into Auctions, Home,
+   rooms, Reels or Profile. [RP-V7.83] The Battle and Add-people
+   BUTTONS left this cluster entirely: they are host rows in the live's
+   own ••• More sheet now. */
 body:not(.live-fs) #rpBatBar,
 body:not(.live-fs) #rp65LapBtns,
 body:not(.live-fs) #rp65Series,
@@ -19522,23 +19541,25 @@ body:not(.live-fs) #rp65How { display:none !important; }
     else if (m.t === "score") { if (Bat.active && m.from === Bat.oppId) { Bat.oppPts = m.pts || 0; batSyncProto(); rpBatRender(); } }
     else if (m.t === "end") { if (Bat.active) rpBatFinalize(true); }
   }
-  /* ⚔️ button + socket binder + heartbeat */
-  var batBtn = document.createElement("button");
-  batBtn.id = "rpBatBtn";
-  batBtn.textContent = "⚔️ Battle";
-  batBtn.hidden = true;
-  document.body.appendChild(batBtn);
-  batBtn.addEventListener("click", function () {
+  /* [RP-V7.83] ⚔️ Battle entry MOVED into the live's own ••• More sheet
+     (host row #lvMoreBattle, built by openLiveMoreSheet in the core
+     module, which gates it to regular lives — never an auction show).
+     The old floating body-level button sat over the room header, leaked
+     onto the Auctions screen, and was not reachable inside the live
+     room itself. This opener runs the exact sheet the floating button
+     opened; the socket binder + heartbeat below are unchanged. */
+  function rpBatOpenSheet() {
     try { window.openSheet('<h3 style="margin:4px 0">⚔️ Live Battle</h3><p class="age-note">Challenge another live host: 5 minutes, gifts score points, most points takes the crown 👑</p><div id="rpBatList"><p class="age-note">Finding live hosts…</p></div>'); } catch (e) { }
     var s = sock(); if (s) s.emit("battle", { t: "who" });
-  });
+  }
+  window.rpBattleOpen = rpBatOpenSheet;
+  /* socket binder + heartbeat (unchanged from RP-V5) */
   setInterval(function () {
     var s = sock();
     if (s && !Bat.bound) { Bat.bound = true; s.on("battle", rpBatMsg); }
     var L = liveInfo();
     var hosting = !!(L && L.active && L.mine);
     if (hosting !== Bat.regState) { Bat.regState = hosting; if (s) s.emit("battle", { t: "reg", on: hosting }); }
-    batBtn.hidden = !(hosting && !Bat.active && document.body && document.body.classList.contains("live-fs")); // [RP-V7.44] live-screen only: never float over other screens while a session runs
     if (Bat.active && Date.now() >= Bat.endsAt) rpBatFinalize(false);
     if (Bat.active || Bat.known) rpBatRender();
   }, 700);
@@ -19572,7 +19593,6 @@ body:not(.live-fs) #rp65How { display:none !important; }
 </script>
 
 <style>
-#rpAddBtn{ position:fixed; right:12px; top:182px; z-index:44; background:rgba(16,16,24,.88); backdrop-filter:blur(8px); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:999px; padding:10px 15px; font:800 13.5px inherit; cursor:pointer; }
 .rp-add-row{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px dashed rgba(255,255,255,.12); }
 .rp-add-row .who{ flex:1; min-width:0; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 </style>
@@ -19584,12 +19604,12 @@ body:not(.live-fs) #rp65How { display:none !important; }
   function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
   function toast2(m, t) { try { if (window.toast) window.toast(m, t); } catch (e) { } }
   var invited = {};
-  var btn = document.createElement("button");
-  btn.id = "rpAddBtn";
-  btn.textContent = "＋ Add people";
-  btn.hidden = true;
-  document.body.appendChild(btn);
-  btn.addEventListener("click", function () {
+  /* [RP-V7.83] ＋ Add people entry MOVED into the live's own ••• More
+     sheet (host row #lvMoreAddPeople, built by openLiveMoreSheet in the
+     core module, which gates it to regular lives — never an auction
+     show). Same move as ⚔️ Battle: the floating body-level button is
+     gone; this opener runs the exact panel it opened. */
+  function rpAddOpenSheet() {
     var reqs = (window.rpRequests ? window.rpRequests() : []).filter(function (r) { return !invited[r.id]; });
     var viewers = (window.rpViewers ? window.rpViewers() : []).filter(function (v) { return !invited[v.id]; });
     var stage = window.rpStageCount ? window.rpStageCount() : 0;
@@ -19609,12 +19629,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
         try { window.rpLiveInvite && window.rpLiveInvite(id); } catch (e) { }
       });
     });
-  });
-  setInterval(function () {
-    var L = null;
-    try { L = window.rpLive ? window.rpLive() : null; } catch (e) { }
-    btn.hidden = !(L && L.active && L.mine && document.body && document.body.classList.contains("live-fs")); // [RP-V7.44] live-screen only: never float over other screens while a session runs
-  }, 700);
+  }
+  window.rpAddPeopleOpen = rpAddOpenSheet;
 })();
 </script>
 
