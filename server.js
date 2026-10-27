@@ -599,7 +599,10 @@ function publicAccount(u) {
   // / /me return it and any device restores the same gallery.
   // [RP-V7.64] photoViews rides along too: the server-owned "👁 n"
   // count for each gallery photo, keyed by URL (parallel to photos).
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u) };
+  // [RP-V7.88] face rides along too: photo stays the EFFECTIVE face
+  // (every surface already reads it); facePhoto is the member's own
+  // uploaded photo, kept apart so switching back never loses it.
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u) };
 }
 // [RP-V7.62] The gallery as the rest of the app sees it: the stored
 // array when the record has one. A legacy account that only ever set
@@ -1194,6 +1197,21 @@ app.post("/api/account/profile-type", (req, res) => {
 // (name 40, bio 160). An empty/absent name is ignored (a save can never
 // blank a member's name); a present bio string is saved as-is, so an
 // emptied bio clears deliberately.
+// [RP-V7.86] The profile LINK: one URL, set in Profile setup, shown
+// tappable under the bio. Accepts a bare domain (gets https://) or a
+// full http(s) URL; anything else (other schemes, spaces, junk) is
+// rejected with null so the endpoint can 400 it. Empty string clears.
+function normProfileLink(v) {
+  let s = String(v == null ? "" : v).trim().slice(0, 300);
+  if (!s) return "";
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = "https://" + s;
+  let u;
+  try { u = new URL(s); } catch (e) { return null; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+  if (!u.hostname || u.hostname.indexOf(".") < 0) return null;
+  return u.toString();
+}
+
 app.post("/api/account/profile", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -1216,8 +1234,105 @@ app.post("/api/account/profile", (req, res) => {
       changed = true;
     }
   }
+  // [RP-V7.86] The one tappable link under the bio.
+  if (typeof b.link === "string") {
+    const link = normProfileLink(b.link);
+    if (link === null)
+      return res.status(400).json({ ok: false, error: "That link doesn't look right — use a full web address like yoursite.com" });
+    if (link !== (ctx.user.link || "")) { ctx.user.link = link; changed = true; }
+  }
+  // [RP-V7.86] Liked-tab privacy: private = only the owner sees it.
+  if (typeof b.likedPrivate === "boolean" && b.likedPrivate !== !!ctx.user.likedPrivate) {
+    ctx.user.likedPrivate = b.likedPrivate; changed = true;
+  }
   if (changed) writeAccounts(ctx.db);
   res.json({ ok: true, user: publicAccount(ctx.user) });
+});
+
+/* ---------- [RP-V7.86] PROFILE PINS + COLLECTIONS ----------
+   Pins: up to 3 of a member's OWN posts (reels / photo posts), stored
+   on the account record (u.pins = [{kind, id}]) — pins ride the
+   account, not the device. Collections (the @sswurve "playlists" row,
+   in our own code): named groups of the member's own posts, stored in
+   a small account-keyed store beside the other JSON stores. Only the
+   owner can pin / collect; reads ride the public profile payload. */
+const PROFILE_COLLECTIONS_FILE = process.env.PROFILE_COLLECTIONS_FILE || path.join(path.dirname(PHOTO_DIR), "profile-collections.json");
+function readProfileCollections() {
+  return storeReadJson(PROFILE_COLLECTIONS_FILE, (d) => !!(d && d.byUser && typeof d.byUser === "object" && !Array.isArray(d.byUser)), { byUser: {} }, "profile-collections");
+}
+function writeProfileCollections(db) { storeWriteJson(PROFILE_COLLECTIONS_FILE, db); }
+function profileOwnsPost(db, user, kind, id) {
+  if (kind === "reel") {
+    const r = listReels().find((x) => x && x.id === id);
+    if (!r) return false;
+    return reelAuthorKeyFor(db, r) === user.id;
+  }
+  if (kind === "photopost") {
+    const post = readPhotoPosts().posts.find((x) => x && x.id === id);
+    return !!(post && post.owner === user.id);
+  }
+  return false;
+}
+function profileSanitizeItems(db, user, raw, cap) {
+  const out = []; const seen = new Set();
+  for (const it of Array.isArray(raw) ? raw : []) {
+    if (!it || typeof it !== "object") continue;
+    const kind = it.kind === "reel" || it.kind === "photopost" ? it.kind : null;
+    const id = typeof it.id === "string" ? it.id.slice(0, 80) : "";
+    if (!kind || !id) continue;
+    const k = kind + ":" + id;
+    if (seen.has(k)) continue;
+    if (!profileOwnsPost(db, user, kind, id)) continue;
+    seen.add(k); out.push({ kind, id });
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+app.post("/api/account/pins", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const items = profileSanitizeItems(ctx.db, ctx.user, (req.body || {}).items, 3);
+  ctx.user.pins = items;
+  writeAccounts(ctx.db);
+  res.json({ ok: true, pins: items });
+});
+app.post("/api/account/collections", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const name = String(b.name || "").trim().slice(0, 40);
+  if (!name) return res.status(400).json({ ok: false, error: "Give the collection a name." });
+  const db = readProfileCollections();
+  const mine = Array.isArray(db.byUser[ctx.user.id]) ? db.byUser[ctx.user.id] : [];
+  if (mine.length >= 20) return res.status(400).json({ ok: false, error: "That's the collection limit for now." });
+  const coll = { id: crypto.randomBytes(8).toString("hex"), name, items: profileSanitizeItems(ctx.db, ctx.user, b.items, 60), createdAt: Date.now() };
+  mine.push(coll);
+  db.byUser[ctx.user.id] = mine;
+  writeProfileCollections(db);
+  res.json({ ok: true, collection: { id: coll.id, name: coll.name, count: coll.items.length } });
+});
+app.post("/api/account/collections/update", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const db = readProfileCollections();
+  const mine = Array.isArray(db.byUser[ctx.user.id]) ? db.byUser[ctx.user.id] : [];
+  const coll = mine.find((c) => c && c.id === b.id);
+  if (!coll) return res.status(404).json({ ok: false, error: "Collection not found." });
+  if (typeof b.name === "string" && b.name.trim()) coll.name = b.name.trim().slice(0, 40);
+  if (Array.isArray(b.items)) coll.items = profileSanitizeItems(ctx.db, ctx.user, b.items, 60);
+  writeProfileCollections(db);
+  res.json({ ok: true, collection: { id: coll.id, name: coll.name, count: coll.items.length } });
+});
+app.post("/api/account/collections/delete", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const db = readProfileCollections();
+  const mine = Array.isArray(db.byUser[ctx.user.id]) ? db.byUser[ctx.user.id] : [];
+  db.byUser[ctx.user.id] = mine.filter((c) => !(c && c.id === b.id));
+  writeProfileCollections(db);
+  res.json({ ok: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -1741,6 +1856,11 @@ app.post("/api/account/photo", upload.single("photo"), async (req, res) => {
       console.log("ACCOUNT PHOTO UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, publicUrl);
     }
     ctx.user.photo = publicUrl;
+    // [RP-V7.88] A fresh main photo is also the face record: it becomes
+    // the stored original (photoOrig) and the photo route wins, so
+    // switching face modes later can always bring THIS photo back.
+    ctx.user.photoOrig = publicUrl;
+    ctx.user.faceMode = "photo";
     // [RP-V7.62] Keep the gallery invariant: the profile photo IS the
     // first gallery photo. A fresh main photo moves to the front of
     // the stored gallery (seeding it for legacy accounts), so the
@@ -1813,10 +1933,17 @@ app.post("/api/account/photos", upload.single("photo"), async (req, res) => {
     }
     list.push(publicUrl);
     ctx.user.photos = list;
-    ctx.user.photo = list[0];
+    // [RP-V7.88] The gallery main tracks into photoOrig (the member's
+    // own photo); the EFFECTIVE face only follows the gallery while
+    // the member is on the photo route — an avatar face is never
+    // clobbered by adding a gallery photo.
+    ctx.user.photoOrig = list[0];
+    if (faceModeOf(ctx.user) === "photo") {
+      ctx.user.photo = list[0];
+    }
     writeAccounts(ctx.db);
     // The main photo only changed if the gallery was empty.
-    if (list.length === 1) refreshPlayerPhoto(ctx.user.id, publicUrl);
+    if (list.length === 1 && faceModeOf(ctx.user) === "photo") refreshPlayerPhoto(ctx.user.id, publicUrl);
     return res.json({ ok: true, photoUrl: publicUrl, photos: list, user: publicAccount(ctx.user) });
   } catch (e) {
     console.log("ACCOUNT GALLERY UPLOAD ERROR:", e.message);
@@ -1858,12 +1985,196 @@ app.post("/api/account/photos/set", (req, res) => {
   if (list.length > ACCOUNT_PHOTOS_MAX) {
     return res.status(400).json({ ok: false, error: "That's the full set — 12 photos max." });
   }
-  const mainChanged = (list[0] || null) !== (ctx.user.photo || null);
+  const galleryMain = list.length ? list[0] : null;
+  // [RP-V7.88] Same split as the gallery upload: the stored original
+  // follows the gallery order, the effective face follows only on the
+  // photo route.
+  const mainChanged = faceModeOf(ctx.user) === "photo" && galleryMain !== (ctx.user.photo || null);
   ctx.user.photos = list;
-  ctx.user.photo = list.length ? list[0] : null;
+  ctx.user.photoOrig = galleryMain;
+  if (faceModeOf(ctx.user) === "photo") {
+    ctx.user.photo = galleryMain;
+  }
   writeAccounts(ctx.db);
   if (mainChanged && ctx.user.photo) refreshPlayerPhoto(ctx.user.id, ctx.user.photo);
   return res.json({ ok: true, photos: list, user: publicAccount(ctx.user) });
+});
+
+/* ---------- [RP-V7.88] FACE CHOICE — photo OR avatar, all three routes ----------
+   The member's face is chosen in Profile setup, FOUR ways: their real
+   PHOTO (the original path), a ready-made Plaza AVATAR from the rack,
+   a BUILD-YOUR-OWN avatar (original layered builder — the spec is
+   stored, the render is a PNG through the photo pipeline), or an AI
+   AVATAR FROM THEIR PHOTO (v1: on-device stylized renditions of the
+   member's own photo; a generative provider plugs into the same
+   face/upload route later). The brain rule holds: the choice lives on
+   the ACCOUNT (u.faceMode / u.faceRack / u.faceBuild / u.faceImg).
+   Whichever route wins, the produced image lands in u.photo — the one
+   field every surface already reads (profile page, profile card,
+   directory, live seats + host bar, comments, story tray) — so no
+   surface needed rewiring. u.photoOrig keeps the member's uploaded
+   photo apart from the effective face: switching back to Photo
+   restores it exactly; nothing is ever destroyed by switching. */
+const FACE_MODES = ["photo", "rack", "build", "ai"];
+const FACE_RACK_IDS = [
+  "avatar-01", "avatar-02", "avatar-03", "avatar-04", "avatar-05", "avatar-06",
+  "avatar-07", "avatar-08", "avatar-09", "avatar-10", "avatar-11", "avatar-12",
+];
+function faceRackUrl(id) { return "/img/avatars/" + id + ".webp"; }
+function faceModeOf(u) {
+  const m = String((u && u.faceMode) || "photo").trim().toLowerCase();
+  return FACE_MODES.indexOf(m) >= 0 ? m : "photo";
+}
+function facePhotoOrig(u) {
+  if (!u) return null;
+  if (typeof u.photoOrig === "string" && u.photoOrig) return u.photoOrig;
+  const gal = accountPhotos(u);
+  if (gal.length) return gal[0];
+  return typeof u.photo === "string" && u.photo ? u.photo : null;
+}
+const FACE_BUILD_HAIRS = ["fade", "waves", "braids", "bun", "curly", "long", "buzz", "bob"];
+const FACE_BUILD_EXPRS = ["smile", "bigsmile", "calm", "wink"];
+const FACE_BUILD_ACCS = ["none", "glasses", "shades", "cap", "hoops", "star"];
+function faceHex(v) {
+  const t = String(v || "").trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(t) ? t : null;
+}
+function normFaceBuild(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const skin = faceHex(v.skin), hairColor = faceHex(v.hairColor),
+    top = faceHex(v.top), bg = faceHex(v.bg);
+  const hair = FACE_BUILD_HAIRS.indexOf(String(v.hair || "")) >= 0 ? String(v.hair) : null;
+  const expr = FACE_BUILD_EXPRS.indexOf(String(v.expr || "")) >= 0 ? String(v.expr) : null;
+  const acc = FACE_BUILD_ACCS.indexOf(String(v.acc || "")) >= 0 ? String(v.acc) : null;
+  if (!skin || !hairColor || !top || !bg || !hair || !expr || !acc) return null;
+  return { skin, hair, hairColor, expr, top, acc, bg };
+}
+
+// Switch the face route. Photo + rack are pure account writes; build /
+// ai restore the face image that route last produced (face/upload made
+// it) — asking for one that was never made is a clear 400, not a
+// silent blank face.
+app.post("/api/account/face", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const mode = String(b.mode || "").trim().toLowerCase();
+  if (FACE_MODES.indexOf(mode) < 0)
+    return res.status(400).json({ ok: false, error: "Pick how your face shows: photo, avatar rack, build your own, or AI from your photo." });
+  const u = ctx.user;
+  if (mode === "photo") {
+    const orig = facePhotoOrig(u);
+    u.faceMode = "photo";
+    // faceImg / faceImgMode are NOT touched here: they keep pointing
+    // at the last avatar the member produced, so switching back to
+    // that route restores it exactly.
+    if (orig) u.photo = orig;
+  } else if (mode === "rack") {
+    const rack = String(b.rack || "").trim();
+    if (FACE_RACK_IDS.indexOf(rack) < 0)
+      return res.status(400).json({ ok: false, error: "Pick one of the Plaza avatars from the rack." });
+    u.faceMode = "rack";
+    u.faceRack = rack;
+    u.faceImg = faceRackUrl(rack);
+    u.photo = u.faceImg;
+  } else {
+    if (u.faceImgMode !== mode || !u.faceImg)
+      return res.status(400).json({ ok: false, error: mode === "build" ? "Build your avatar first — then it is yours to switch back to anytime." : "Make your AI avatar from your photo first — then it is yours to switch back to anytime." });
+    u.faceMode = mode;
+    u.photo = u.faceImg;
+  }
+  writeAccounts(ctx.db);
+  if (u.photo) refreshPlayerPhoto(u.id, u.photo);
+  return res.json({ ok: true, user: publicAccount(u) });
+});
+
+// A produced face image arrives: the builder's PNG render, or the
+// member's picked AI-from-photo rendition. Same multer storage, same
+// 5 MB / image-only limits, same moderateImage gate as
+// /api/account/photo — the produced image becomes the account's
+// effective face and is remembered per route (faceImg + faceImgMode)
+// so the member can switch away and back without remaking it.
+app.post("/api/account/face/upload", upload.single("photo"), async (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return;
+  }
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: "No image file received." });
+    }
+    const mode = String((req.body || {}).mode || "").trim().toLowerCase();
+    if (mode !== "build" && mode !== "ai") {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ ok: false, error: "That upload route only takes a built avatar or an AI avatar." });
+    }
+    let spec = null;
+    if (mode === "build") {
+      try { spec = normFaceBuild(JSON.parse(String((req.body || {}).spec || ""))); } catch (e) { spec = null; }
+      if (!spec) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ ok: false, error: "That avatar build doesn't look right — reopen the builder and save again." });
+      }
+    }
+    const publicUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
+    const mod = await moderateImage(publicUrl);
+    if (!mod.ok) {
+      fs.unlink(req.file.path, () => {});
+      console.log("FACE IMAGE REJECTED:", ctx.user.id, mod.reason);
+      return res.status(422).json({ ok: false, error: "That image didn't pass our safety check. Please try a different one." });
+    }
+    if (mod.unreviewed) {
+      console.log("FACE IMAGE UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, publicUrl);
+    }
+    const u = ctx.user;
+    u.faceMode = mode;
+    u.faceImg = publicUrl;
+    u.faceImgMode = mode;
+    if (mode === "build") u.faceBuild = spec;
+    u.photo = publicUrl;
+    writeAccounts(ctx.db);
+    refreshPlayerPhoto(u.id, publicUrl);
+    return res.json({ ok: true, photoUrl: publicUrl, user: publicAccount(u) });
+  } catch (e) {
+    console.log("FACE UPLOAD ERROR:", e.message);
+    return res.status(500).json({ ok: false, error: "Upload failed. Please try again." });
+  }
+});
+
+// The AI route's source photo. The moderation gate runs on the SOURCE
+// before any stylizing happens client-side (the picked rendition is
+// moderated again by face/upload on its way in). The source is stored
+// on the account (u.faceAiSource) so a future generative provider
+// plugs into exactly this step; setting a source never changes the
+// member's current face by itself.
+app.post("/api/account/face/source", upload.single("photo"), async (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return;
+  }
+  try {
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: "No image file received." });
+    }
+    const publicUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
+    const mod = await moderateImage(publicUrl);
+    if (!mod.ok) {
+      fs.unlink(req.file.path, () => {});
+      console.log("FACE SOURCE REJECTED:", ctx.user.id, mod.reason);
+      return res.status(422).json({ ok: false, error: "That photo didn't pass our safety check. Please try a different one." });
+    }
+    if (mod.unreviewed) {
+      console.log("FACE SOURCE UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, publicUrl);
+    }
+    ctx.user.faceAiSource = publicUrl;
+    writeAccounts(ctx.db);
+    return res.json({ ok: true, photoUrl: publicUrl, user: publicAccount(ctx.user) });
+  } catch (e) {
+    console.log("FACE SOURCE ERROR:", e.message);
+    return res.status(500).json({ ok: false, error: "Upload failed. Please try again." });
+  }
 });
 
 // Upload a profile photo. The uploader must be a joined player (playerId =
@@ -1912,6 +2223,9 @@ app.post("/api/profile-photo", upload.single("photo"), async (req, res) => {
       }
       if (au && au.photo !== publicUrl) {
         au.photo = publicUrl;
+        // [RP-V7.88] Same face bookkeeping as /api/account/photo.
+        au.photoOrig = publicUrl;
+        au.faceMode = "photo";
         // [RP-V7.62] Same gallery sync as /api/account/photo: the new
         // main photo moves to the front of the stored gallery.
         const lgal = accountPhotos(au).filter((x) => x !== publicUrl);
@@ -2125,8 +2439,18 @@ app.get("/api/reels", (req, res) => {
       // [RP-V7.51] Compact reaction summary: counts for everyone, the
       // caller's own picks only when they sent a valid token.
       reactions: rxSummarize(r.reactions, null).counts,
+      // [RP-V7.84] FIX-4/FIX-3: heart-likes and comments are account
+      // state on the reel record. Counts are public; the caller's own
+      // heart rides only with a valid token (same rule as myReactions).
+      heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+      comments: reelPublicComments(r),
+      commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
       ...(fyUser
-        ? { myReactions: rxSummarize(r.reactions, fyUser.id).mine }
+        ? {
+            myReactions: rxSummarize(r.reactions, fyUser.id).mine,
+            myHeart:
+              Array.isArray(r.heartLikes) && r.heartLikes.includes(fyUser.id),
+          }
         : {}),
     };
   });
@@ -2305,12 +2629,14 @@ function fyUserRec(sig, userId, create) {
   let rec = sig.users[userId];
   if (!rec) {
     if (!create) return null;
-    rec = sig.users[userId] = { authorAff: {}, liked: {}, seenFull: {}, liveSigAt: {} };
+    rec = sig.users[userId] = { authorAff: {}, liked: {}, seenFull: {}, liveSigAt: {}, storySigDay: {}, pliked: {} };
   }
   if (!rec.authorAff) rec.authorAff = {};
   if (!rec.liked) rec.liked = {};
   if (!rec.seenFull) rec.seenFull = {};
   if (!rec.liveSigAt) rec.liveSigAt = {};
+  if (!rec.storySigDay) rec.storySigDay = {};
+  if (!rec.pliked) rec.pliked = {};
   return rec;
 }
 function reelAuthorKeyFor(accountsDb, reel) {
@@ -2528,6 +2854,411 @@ app.post("/api/reels/signal", (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// [RP-V7.84] FIX-3 + FIX-4 — reel comments and heart-likes become
+// ACCOUNT state (brain-train batch 2, sweep G3/G4). Through V7.83 a
+// comment lived only in the writing device's localStorage
+// (rpReelComments.v1) and a heart-like only in rpReelLikes.v1 — no
+// other member ever saw either. Now:
+//   comments: stored on the reel record (comments: [{uid, name, text,
+//     ts}]) and returned with GET /api/reels; POST /api/reel/comment
+//     is token-authed and stamps the account's own display name.
+//     Text is cleaned exactly like a reel caption (angle brackets and
+//     quotes stripped, trimmed, capped) and the client renders with
+//     escHtml as it always has. POST /api/reel/comment also accepts
+//     kind:"photo" with the client-side Moments post id, storing into
+//     photo-comments.json with the same shape — the endpoint is ready
+//     for photo Moments the day those posts get a server store (their
+//     posts are still device-local, so the Moments UI does not call
+//     it yet and its on-post comments are untouched).
+//   heart-likes: a per-account set on the reel record (heartLikes:
+//     [accountId]) toggled by POST /api/reel/like; GET /api/reels
+//     computes the count from the set and reports the caller's own
+//     heart as myHeart. Emoji reactions (above) are a separate system
+//     and are NOT touched.
+//   the +4 signal: /api/reel/like performs the SAME bookkeeping as
+//     the kind:"like" branch of /api/reels/signal, through the SAME
+//     exactly-once guard (the caller's liked record in
+//     reel-signals.json): whichever endpoint hears about a like first
+//     moves the aggregate + affinity (+4 / −4), the other sees the
+//     record already set and does nothing — a like can never count
+//     twice, and an unlike only ever counts against a recorded like.
+// ---------------------------------------------------------------------------
+const REEL_COMMENT_MAX = 140; // matches the client input maxlength
+const REEL_COMMENTS_KEEP = 300; // stored per post, oldest dropped
+const REEL_COMMENTS_RETURN = 100; // newest ones riding GET /api/reels
+const PHOTO_COMMENTS_FILE =
+  process.env.PHOTO_COMMENTS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "photo-comments.json");
+function readPhotoComments() {
+  try {
+    const db = JSON.parse(fs.readFileSync(PHOTO_COMMENTS_FILE, "utf8"));
+    if (db && typeof db === "object" && db.photos && typeof db.photos === "object")
+      return db;
+  } catch (e) {}
+  return { photos: {} };
+}
+function writePhotoComments(db) {
+  const tmp = PHOTO_COMMENTS_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, PHOTO_COMMENTS_FILE);
+}
+// The public shape of a stored comment: display name + text + time.
+// The author's account id stays server-side (moderation only) — the
+// same "never member lists" rule the reaction summaries follow.
+function reelPublicComments(r) {
+  const list = r && Array.isArray(r.comments) ? r.comments : [];
+  return list.slice(-REEL_COMMENTS_RETURN).map((c) => ({
+    name: String((c && c.name) || "Someone").slice(0, 40),
+    text: String((c && c.text) || "").slice(0, REEL_COMMENT_MAX),
+    ts: (c && c.ts) || null,
+  }));
+}
+function reelCleanCommentText(v) {
+  return String(v == null ? "" : v)
+    .replace(/[<>&"]/g, "")
+    .trim()
+    .slice(0, REEL_COMMENT_MAX);
+}
+app.post("/api/reel/comment", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const kind = b.kind === "photo" ? "photo" : "reel";
+  const id = reelCleanId(b.id || b.reelId);
+  const text = reelCleanCommentText(b.text);
+  if (!id) return res.status(400).json({ ok: false, error: "Bad post reference" });
+  if (!text) return res.status(400).json({ ok: false, error: "Write a comment first" });
+  const comment = {
+    uid: ctx.user.id,
+    name: reelCleanName(ctx.user.name) || "Someone",
+    text,
+    ts: new Date().toISOString(),
+  };
+  const pub = { name: comment.name, text: comment.text, ts: comment.ts };
+  if (kind === "photo") {
+    const db = readPhotoComments();
+    const list = db.photos[id] || (db.photos[id] = []);
+    list.push(comment);
+    while (list.length > REEL_COMMENTS_KEEP) list.shift();
+    writePhotoComments(db);
+    return res.json({ ok: true, kind, id, comment: pub, count: list.length });
+  }
+  const entry = listReels().find((r) => r.id === id);
+  if (!entry) return res.status(404).json({ ok: false, error: "Reel not found" });
+  if (!Array.isArray(entry.comments)) entry.comments = [];
+  entry.comments.push(comment);
+  while (entry.comments.length > REEL_COMMENTS_KEEP) entry.comments.shift();
+  updateReelEntry(id, { comments: entry.comments });
+  res.json({ ok: true, kind, id, comment: pub, count: entry.comments.length });
+});
+app.post("/api/reel/like", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const id = reelCleanId(b.id || b.reelId);
+  if (!id) return res.status(400).json({ ok: false, error: "Missing reel id" });
+  const entry = listReels().find((r) => r.id === id);
+  if (!entry) return res.status(404).json({ ok: false, error: "Reel not found" });
+  const want = b.liked === true;
+  if (!Array.isArray(entry.heartLikes)) entry.heartLikes = [];
+  const has = entry.heartLikes.includes(ctx.user.id);
+  if (want && !has) {
+    entry.heartLikes.push(ctx.user.id);
+    updateReelEntry(id, { heartLikes: entry.heartLikes });
+  } else if (!want && has) {
+    entry.heartLikes = entry.heartLikes.filter((x) => x !== ctx.user.id);
+    updateReelEntry(id, { heartLikes: entry.heartLikes });
+  }
+  // For You bookkeeping — identical semantics to the kind:"like"
+  // branch of /api/reels/signal, sharing its exactly-once guard.
+  try {
+    const sig = readReelSignals();
+    const urec = fyUserRec(sig, ctx.user.id, true);
+    const agg =
+      sig.reels[id] || (sig.reels[id] = { views: 0, completes: 0, likes: 0, fastSkips: 0 });
+    const key = reelAuthorKeyFor(ctx.db, entry);
+    const notSelf = key && key !== ctx.user.id;
+    const sigHas = !!urec.liked[id];
+    if (want && !sigHas) {
+      urec.liked[id] = true;
+      agg.likes += 1;
+      if (notSelf) fyBump(urec, key, 4, Date.now());
+    } else if (!want && sigHas) {
+      delete urec.liked[id];
+      agg.likes = Math.max(0, agg.likes - 1);
+      if (notSelf) fyBump(urec, key, -4, Date.now());
+    }
+    writeReelSignals(sig);
+  } catch (e) { /* affinity bookkeeping must never break a like */ }
+  res.json({ ok: true, id, liked: want, heartLikes: entry.heartLikes.length });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.85] FIX-3b — photo Moments posts get a server home (Branden,
+// Oct 27: "Add the photo comments"). Through V7.84 a Moments post
+// lived ONLY in the posting device's memory: Moments.posts was never
+// persisted anywhere, so a member's photo post, its comments and its
+// heart-likes all vanished on reload and no other member ever saw
+// the post at all. (Emoji reactions were already server state, keyed
+// by the client post id — V7.51 — and V7.84's POST /api/reel/comment
+// kind:"photo" already wrote comments into photo-comments.json, but
+// nothing ever read them back.) Now:
+//   posts: photo-posts.json — { posts: [ { id, owner, name, photo,
+//     caption, clientKey, ts } ] } newest first, capped. Created by
+//     POST /api/photo/post on the SAME pipeline as account photos:
+//     the shared multer `upload` into PHOTO_DIR (5 MB, image-only),
+//     the same moderateImage gate, the same /photos/ URL shape. The
+//     composer may instead pass photoUrl to reuse one of the caller's
+//     OWN gallery photos ("Use my online photo") — ownership is
+//     checked by file name against the account's gallery. clientKey
+//     (the on-device post id) dedupes per owner, so the one-time
+//     client migration can never double-post.
+//   feed: GET /api/photo/posts is a public read (counts are public);
+//     with a token it also reports mine / myLiked. Each post's
+//     comments ride the payload out of photo-comments.json in the
+//     same public shape as reel comments (name + text + ts — the
+//     author's account id never leaves the server).
+//   seed/demo posts keep their client ids ("seed0"…); their shared
+//     comments + like counts ride GET /api/photo/extras?ids=, the
+//     same batch shape as GET /api/reactions.
+//   likes: photo-likes.json — { photos: { "<postId>": [accountId] } },
+//     a per-account set per post, toggled by POST /api/photo/like
+//     (idempotent). Counts are computed from the set everywhere.
+//   the +4 signal: liking a MEMBER's post bumps the author's
+//     affinity in the liker's interest profile exactly once, guarded
+//     by urec.pliked in reel-signals.json (normalized in fyUserRec
+//     above) — the same economics as reel/story likes; an unlike
+//     reverses it only against a recorded like. Likes on seed/demo
+//     ids are recorded (shared counts) but emit no signal: those
+//     posts have no account author. Self-likes never emit a signal.
+// ---------------------------------------------------------------------------
+const PHOTO_POSTS_FILE =
+  process.env.PHOTO_POSTS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "photo-posts.json");
+const PHOTO_LIKES_FILE =
+  process.env.PHOTO_LIKES_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "photo-likes.json");
+const PHOTO_POSTS_KEEP = 500;
+const PHOTO_POSTS_RETURN = 100;
+function readPhotoPosts() {
+  return storeReadJson(
+    PHOTO_POSTS_FILE,
+    (d) => !!(d && Array.isArray(d.posts)),
+    { posts: [] },
+    "photo-posts"
+  );
+}
+function writePhotoPosts(db) {
+  storeWriteJson(PHOTO_POSTS_FILE, db);
+}
+function readPhotoLikes() {
+  try {
+    const db = JSON.parse(fs.readFileSync(PHOTO_LIKES_FILE, "utf8"));
+    if (db && typeof db === "object" && db.photos && typeof db.photos === "object")
+      return db;
+  } catch (e) {}
+  return { photos: {} };
+}
+function writePhotoLikes(db) {
+  const tmp = PHOTO_LIKES_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, PHOTO_LIKES_FILE);
+}
+function photoLikeCount(likesDb, id) {
+  const s = likesDb.photos[id];
+  return Array.isArray(s) ? s.length : 0;
+}
+function photoPublicPost(p, uid, likesDb, commentsDb) {
+  const list = (commentsDb.photos && commentsDb.photos[p.id]) || [];
+  const set = Array.isArray(likesDb.photos[p.id]) ? likesDb.photos[p.id] : [];
+  return {
+    id: p.id,
+    author: p.name,
+    photo: p.photo,
+    caption: p.caption || "",
+    createdAt: p.ts || null,
+    mine: !!uid && uid === p.owner,
+    likes: set.length,
+    myLiked: !!uid && set.includes(uid),
+    comments: reelPublicComments({ comments: list }),
+    commentCount: list.length,
+  };
+}
+app.post("/api/photo/post", upload.single("photo"), async (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return;
+  }
+  if (isPendingDeletion(ctx.user)) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  }
+  try {
+    const b = req.body || {};
+    const caption = reelCleanCommentText(b.caption);
+    const clientKey = reelCleanId(b.clientKey);
+    const db = readPhotoPosts();
+    if (clientKey) {
+      const ex = db.posts.find(
+        (p) => p.owner === ctx.user.id && p.clientKey === clientKey
+      );
+      if (ex) {
+        if (req.file) fs.unlink(req.file.path, () => {});
+        return res.json({
+          ok: true,
+          deduped: true,
+          post: photoPublicPost(ex, ctx.user.id, readPhotoLikes(), readPhotoComments()),
+        });
+      }
+    }
+    let photoUrl = null;
+    if (req.file) {
+      photoUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
+      const mod = await moderateImage(photoUrl);
+      if (!mod.ok) {
+        fs.unlink(req.file.path, () => {});
+        console.log("PHOTO POST REJECTED:", ctx.user.id, mod.reason);
+        return res.status(422).json({
+          ok: false,
+          error: "That photo didn't pass our safety check. Please try a different one.",
+        });
+      }
+      if (mod.unreviewed) {
+        console.log("PHOTO POST UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, photoUrl);
+      }
+    } else if (b.photoUrl) {
+      const url = String(b.photoUrl).slice(0, 600);
+      const fileOf = (u) => {
+        const i = String(u || "").indexOf("/photos/");
+        return i >= 0 ? String(u).slice(i + "/photos/".length) : null;
+      };
+      const f = fileOf(url);
+      const owned = !!f && accountPhotos(ctx.user).some((u) => fileOf(u) === f);
+      if (!owned)
+        return res.status(400).json({ ok: false, error: "That photo isn't one of yours" });
+      photoUrl = url;
+    }
+    if (!photoUrl)
+      return res.status(400).json({ ok: false, error: "Pick a photo first" });
+    const post = {
+      id: "ph" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex"),
+      owner: ctx.user.id,
+      name: reelCleanName(ctx.user.name) || "Someone",
+      photo: photoUrl,
+      caption,
+      clientKey: clientKey || null,
+      ts: new Date().toISOString(),
+    };
+    db.posts.unshift(post);
+    db.posts = db.posts.slice(0, PHOTO_POSTS_KEEP);
+    writePhotoPosts(db);
+    return res.json({
+      ok: true,
+      post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments()),
+    });
+  } catch (e) {
+    console.log("PHOTO POST ERROR:", e.message);
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(500).json({ ok: false, error: "Posting failed. Please try again." });
+  }
+});
+app.get("/api/photo/posts", (req, res) => {
+  let uid = null;
+  try {
+    const u = accountForToken(readAccounts(), req);
+    if (u) uid = u.id;
+  } catch (e) {}
+  const likesDb = readPhotoLikes();
+  const commentsDb = readPhotoComments();
+  const posts = readPhotoPosts()
+    .posts.slice(0, PHOTO_POSTS_RETURN)
+    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb));
+  res.json({ ok: true, posts });
+});
+// [RP-V7.85] Batch social state for posts that have no server post
+// record (the client-seeded demo posts): shared comments + like
+// counts by id. Public read — counts are public; myLiked appears
+// only with a valid session token. Mirrors GET /api/reactions.
+app.get("/api/photo/extras", (req, res) => {
+  const ids = String(req.query.ids || "")
+    .split(",")
+    .map((x) => reelCleanId(x))
+    .filter(Boolean)
+    .slice(0, 50);
+  let uid = null;
+  try {
+    const u = accountForToken(readAccounts(), req);
+    if (u) uid = u.id;
+  } catch (e) {}
+  const likesDb = readPhotoLikes();
+  const commentsDb = readPhotoComments();
+  const posts = {};
+  for (const id of ids) {
+    const list = (commentsDb.photos && commentsDb.photos[id]) || [];
+    const set = Array.isArray(likesDb.photos[id]) ? likesDb.photos[id] : [];
+    posts[id] = {
+      comments: reelPublicComments({ comments: list }),
+      commentCount: list.length,
+      likes: set.length,
+      myLiked: !!uid && set.includes(uid),
+    };
+  }
+  res.json({ ok: true, posts });
+});
+app.post("/api/photo/like", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const id = reelCleanId(b.id);
+  if (!id) return res.status(400).json({ ok: false, error: "Bad post reference" });
+  const want = b.liked === true;
+  const db = readPhotoLikes();
+  const set = Array.isArray(db.photos[id]) ? db.photos[id].slice() : [];
+  const has = set.includes(ctx.user.id);
+  if (want && !has) set.push(ctx.user.id);
+  if (!want && has) set.splice(set.indexOf(ctx.user.id), 1);
+  if (set.length) db.photos[id] = set;
+  else delete db.photos[id];
+  writePhotoLikes(db);
+  // For You bookkeeping — the +4 like signal, exactly once, only for
+  // a real member's post (seed/demo ids have no account author) and
+  // never for a self-like; guarded by the caller's pliked record.
+  try {
+    const post = readPhotoPosts().posts.find((p) => p.id === id);
+    if (post && post.owner && post.owner !== ctx.user.id) {
+      const sig = readReelSignals();
+      const urec = fyUserRec(sig, ctx.user.id, true);
+      const sigHas = !!urec.pliked[id];
+      if (want && !sigHas) {
+        urec.pliked[id] = true;
+        fyBump(urec, post.owner, 4, Date.now());
+      } else if (!want && sigHas) {
+        delete urec.pliked[id];
+        fyBump(urec, post.owner, -4, Date.now());
+      }
+      writeReelSignals(sig);
+    }
+  } catch (e) { /* affinity bookkeeping must never break a like */ }
+  res.json({ ok: true, id, liked: set.includes(ctx.user.id), likes: set.length });
+});
+
 // [RP-V7.64] Media view counts — the Facebook-style "👁 332K" on every
 // picture and video tile (Branden, Oct 25: "You see how these posted
 // videos view you can see how many people views it" → "Make the
@@ -3996,24 +4727,24 @@ const RP_EVENT_FILM_SLUGS = {
 // month · { last: [mo, weekday] } last weekday of the month ·
 // { easter: true } Easter Sunday (Gregorian computus).
 const RP_EVENT_CALENDAR = [
-  { id: "newyear", name: "New Year's Day", mo: 0, da: 1, pre: 2, post: 1 },
-  { id: "mlk", name: "Martin Luther King Jr. Day", nth: [0, 1, 3], pre: 1, post: 1 },
+  { id: "newyear", name: "New Year's Day", mo: 0, da: 1, pre: 3, post: 1 },
+  { id: "mlk", name: "Martin Luther King Jr. Day", nth: [0, 1, 3], pre: 3, post: 1 },
   { id: "valentines", name: "Valentine's Day", mo: 1, da: 14, pre: 3, post: 1 },
-  { id: "stpatricks", name: "St. Patrick's Day", mo: 2, da: 17, pre: 2, post: 1 },
-  { id: "easter", name: "Easter", easter: true, pre: 2, post: 1 },
-  { id: "cinco", name: "Cinco de Mayo", mo: 4, da: 5, pre: 1, post: 1 },
-  { id: "mothers", name: "Mother's Day", nth: [4, 0, 2], pre: 2, post: 1 },
-  { id: "memorial", name: "Memorial Day", last: [4, 1], pre: 1, post: 1 },
-  { id: "juneteenth", name: "Juneteenth", mo: 5, da: 19, pre: 1, post: 0 },
-  { id: "fathers", name: "Father's Day", nth: [5, 0, 3], pre: 1, post: 1 },
-  { id: "july4", name: "Independence Day", mo: 6, da: 4, pre: 2, post: 1 },
-  { id: "summer", name: "Summer Splash", mo: 7, da: 15, pre: 2, post: 2 },
-  { id: "laborday", name: "Labor Day", nth: [8, 1, 1], pre: 2, post: 1 },
+  { id: "stpatricks", name: "St. Patrick's Day", mo: 2, da: 17, pre: 3, post: 1 },
+  { id: "easter", name: "Easter", easter: true, pre: 3, post: 1 },
+  { id: "cinco", name: "Cinco de Mayo", mo: 4, da: 5, pre: 3, post: 1 },
+  { id: "mothers", name: "Mother's Day", nth: [4, 0, 2], pre: 3, post: 1 },
+  { id: "memorial", name: "Memorial Day", last: [4, 1], pre: 3, post: 1 },
+  { id: "juneteenth", name: "Juneteenth", mo: 5, da: 19, pre: 3, post: 0 },
+  { id: "fathers", name: "Father's Day", nth: [5, 0, 3], pre: 3, post: 1 },
+  { id: "july4", name: "Independence Day", mo: 6, da: 4, pre: 3, post: 1 },
+  { id: "summer", name: "Summer Splash", mo: 7, da: 15, pre: 3, post: 2 },
+  { id: "laborday", name: "Labor Day", nth: [8, 1, 1], pre: 3, post: 1 },
   { id: "birthday", name: "Plaza Birthday Bash", mo: 9, da: 18, pre: 3, post: 3 },
   { id: "halloween", name: "Halloween", mo: 9, da: 31, pre: 3, post: 1 },
-  { id: "veterans", name: "Veterans Day", mo: 10, da: 11, pre: 1, post: 1 },
-  { id: "thanksgiving", name: "Thanksgiving", nth: [10, 4, 4], pre: 1, post: 3 },
-  { id: "christmas", name: "Christmas", mo: 11, da: 25, pre: 5, post: 1 },
+  { id: "veterans", name: "Veterans Day", mo: 10, da: 11, pre: 3, post: 1 },
+  { id: "thanksgiving", name: "Thanksgiving", nth: [10, 4, 4], pre: 3, post: 3 },
+  { id: "christmas", name: "Christmas", mo: 11, da: 25, pre: 3, post: 1 },
 ];
 function rpEasterMonthDay(y) {
   const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4,
@@ -5086,6 +5817,24 @@ function livePhotoForAccount(u) {
   }
   return n === 1 ? found : null;
 }
+// [RP-V7.86] Resolve one post reference ({kind, id}) to a profile tile,
+// or null when the post is gone. Shared by pins, collections and the
+// Liked tab so every profile surface renders the same tile shape.
+function profileTileForPost(kind, id, vdb, likesDb, commentsDb) {
+  if (kind === "reel") {
+    const r = listReels().find((x) => x && x.id === id);
+    if (!r || !r.file) return null;
+    return { kind: "reel", id: r.id, src: "/reel-files/" + r.file, views: mediaViewCount(vdb, "reel:" + r.id), caption: r.caption || "", likes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0 };
+  }
+  if (kind === "photopost") {
+    const p = readPhotoPosts().posts.find((x) => x && x.id === id);
+    if (!p || !p.photo) return null;
+    const pub = photoPublicPost(p, "", likesDb, commentsDb);
+    return { kind: "photopost", id: p.id, src: p.photo, views: 0, caption: p.caption || "", likes: pub.likes || 0 };
+  }
+  return null;
+}
+
 app.get("/api/social/profile", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -5168,6 +5917,82 @@ app.get("/api/social/profile", (req, res) => {
     const fp = (readFaith().profiles || {})[target.id];
     if (fp && fp.testimony) testimony = String(fp.testimony).slice(0, 140);
   } catch (e) { }
+  // [RP-V7.86] Likes RECEIVED across every post kind (reels + photo
+  // posts + stories + feed posts), the profile's own photo posts, the
+  // live badge, pinned posts, collections and the Liked tab — all from
+  // the server stores, never faked client-side.
+  const vdb86 = readViews();
+  const likesDb86 = readPhotoLikes();
+  const commentsDb86 = readPhotoComments();
+  let likesTotal = 0;
+  let photoPosts = [];
+  try {
+    for (const r of listReels())
+      if (r && Array.isArray(r.heartLikes) && r.heartLikes.length && reelAuthorKeyFor(ctx.db, r) === target.id)
+        likesTotal += r.heartLikes.length;
+  } catch (e) { }
+  try {
+    photoPosts = readPhotoPosts().posts.filter((p) => p && p.owner === target.id).slice(0, 30)
+      .map((p) => photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86));
+    for (const p of photoPosts) likesTotal += p.likes || 0;
+  } catch (e) { }
+  try {
+    const nowMs = Date.now();
+    const sdb86 = readStories();
+    for (const s of Object.values(sdb86.stories || {}))
+      if (s && s.authorId === target.id && Date.parse(s.expiresAt) > nowMs && Array.isArray(s.likes))
+        likesTotal += s.likes.length;
+  } catch (e) { }
+  try {
+    const fdb86 = readFeed();
+    for (const fp of Object.values(fdb86.posts || {}))
+      if (fp && fp.authorId === target.id && Array.isArray(fp.likes))
+        likesTotal += fp.likes.length;
+  } catch (e) { }
+  const liveNow = [...liveRegistry.values()].some((e) => e && e.name === target.name);
+  const pinRefs = (Array.isArray(target.pins) ? target.pins : [])
+    .filter((x) => x && (x.kind === "reel" || x.kind === "photopost") && typeof x.id === "string").slice(0, 3);
+  const pinnedItems = [];
+  for (const pn of pinRefs) {
+    const it = profileTileForPost(pn.kind, pn.id, vdb86, likesDb86, commentsDb86);
+    if (it) pinnedItems.push(it);
+  }
+  let collections = [];
+  try {
+    const cdb86 = readProfileCollections();
+    const mine86 = Array.isArray(cdb86.byUser[target.id]) ? cdb86.byUser[target.id] : [];
+    collections = mine86.map((c) => ({
+      id: c.id, name: c.name,
+      count: Array.isArray(c.items) ? c.items.length : 0,
+      items: (Array.isArray(c.items) ? c.items : []).map((it) => profileTileForPost(it.kind, it.id, vdb86, likesDb86, commentsDb86)).filter(Boolean),
+    }));
+  } catch (e) { }
+  const likedPrivate = !!target.likedPrivate;
+  let liked = null;
+  if (ctx.user.id === target.id || !likedPrivate) {
+    liked = [];
+    try {
+      for (const r of listReels())
+        if (r && Array.isArray(r.heartLikes) && r.heartLikes.includes(target.id)) {
+          const it = profileTileForPost("reel", r.id, vdb86, likesDb86, commentsDb86);
+          if (it) liked.push(it);
+        }
+    } catch (e) { }
+    try {
+      for (const pid of Object.keys(likesDb86.photos || {}))
+        if (Array.isArray(likesDb86.photos[pid]) && likesDb86.photos[pid].includes(target.id)) {
+          const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86);
+          if (it) liked.push(it);
+        }
+    } catch (e) { }
+    try {
+      const fdb87 = readFeed();
+      for (const fp of Object.values(fdb87.posts || {}))
+        if (fp && fp.file && Array.isArray(fp.likes) && fp.likes.includes(target.id))
+          liked.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, src: "/photos/feed/" + fp.file, views: 0, caption: fp.text || "", likes: fp.likes.length });
+    } catch (e) { }
+    liked = liked.slice(0, 36);
+  }
   res.json({
     ok: true,
     id: target.id,
@@ -5189,6 +6014,14 @@ app.get("/api/social/profile", (req, res) => {
     photos: accountPhotos(target),
     photoViews: photoViewsFor(target),
     reelsCount, reels, testimony,
+    // [RP-V7.86] The profile build: bio + link, live badge, Likes
+    // received, photo posts, pins, collections, Liked tab + privacy.
+    bio: typeof target.bio === "string" ? target.bio : "",
+    link: typeof target.link === "string" ? target.link : "",
+    liveNow,
+    likesTotal, photoPosts,
+    pins: pinRefs, pinnedItems, collections,
+    likedPrivate, liked,
   });
 });
 
@@ -5554,7 +6387,32 @@ app.post("/api/story/view", (req, res) => {
     if (s.viewedBy.length > 500) s.viewedBy = s.viewedBy.slice(-500);
     writeStories(db);
   }
-  res.json({ ok: true, views: out.views, counted: out.counted });
+  // [RP-V7.84] N3 (sweep G14): a FULL view (the client reports
+  // full:true when the story plays to the end) also teaches the
+  // shared For You profile — +3 to the author's affinity in the
+  // VIEWER's record, the reel "complete" weight, at most once per
+  // story per viewer per America/New_York day. The day stamp lives in
+  // the viewer's own signal record (storySigDay, pruned to today on
+  // write), so replays and tray-sitting can't farm it. Story LIKES
+  // keep their own +4 in /api/story/like — this path never fires it.
+  let storySig = false;
+  if ((req.body || {}).full === true && s.authorId && s.authorId !== ctx.user.id) {
+    try {
+      const sig = readReelSignals();
+      const rec = fyUserRec(sig, ctx.user.id, true);
+      const today = viewDayKey();
+      if (!rec.storySigDay) rec.storySigDay = {};
+      if (rec.storySigDay[s.id] !== today) {
+        rec.storySigDay[s.id] = today;
+        for (const k of Object.keys(rec.storySigDay))
+          if (rec.storySigDay[k] !== today) delete rec.storySigDay[k];
+        fyBump(rec, s.authorId, 3, Date.now());
+        writeReelSignals(sig);
+        storySig = true;
+      }
+    } catch (e) { /* affinity bookkeeping must never break a view */ }
+  }
+  res.json({ ok: true, views: out.views, counted: out.counted, ...(storySig ? { sig: true } : {}) });
 });
 // Like / unlike a story (toggle). A fresh like bumps the shared
 // author affinity by +4 — the settled For You like weight.
