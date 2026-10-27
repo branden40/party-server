@@ -253,6 +253,23 @@ setInterval(() => {
 }, LIVE_SWEEP_MS);
 // room -> live auction state (Whatnot-style bidding)
 const auctions = new Map();
+// [RP-V7.80] Full-scan F3: the server socket auction enforces the
+// SAME tiered bid ladder as the shipping client (aucBidStep in
+// index.html, RP-V6.15 — quoted there against a high bid in cents;
+// the socket auction bids in whole dollars, so the steps mirror in
+// dollars, thresholds identical):
+//   high < $10 -> $1 · < $25 -> $2 · < $50 -> $4 · < $100 -> $5 ·
+//   < $250 -> $10 · < $1000 -> $20 · >= $1000 -> $25
+function auctionBidStepDollars(highDollars) {
+  const d = Number(highDollars) || 0;
+  if (d < 10) return 1;
+  if (d < 25) return 2;
+  if (d < 50) return 4;
+  if (d < 100) return 5;
+  if (d < 250) return 10;
+  if (d < 1000) return 20;
+  return 25;
+}
 
 // ---------------------------------------------------------------------------
 // Voice (walkie-talkie) signaling + floor control.
@@ -824,7 +841,7 @@ function sendAccountEmail(user, kind) {
   const bodies = {
     welcome:
       "Hi " + (user.name || "there") + " — welcome to Rizz Plaza!\n\n" +
-      "Your account is ready. Jump in: go live, meet people in the rooms, enter the Daily Pot (it bursts every night at 9 PM ET), and catch the holiday events all year.\n\n" +
+      "Your account is ready. Jump in: go live, meet people in the rooms, enter the Daily Pot (it bursts at a secret moment between 7 and 9 PM ET — be there!), and catch the holiday events all year.\n\n" +
       "Open the Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
   };
   notifySendEmail(
@@ -844,7 +861,7 @@ function sendAccountSms(user, kind) {
   if (kind !== "welcome") return;
   notifySendSms(
     user.phone,
-    "Welcome to Rizz Plaza 🎉 Your account is ready — go live, meet people, and enter the Daily Pot (bursts nightly at 9 PM ET): https://rizzplaza.com"
+    "Welcome to Rizz Plaza 🎉 Your account is ready — go live, meet people, and enter the Daily Pot (bursts at a secret moment between 7 and 9 PM ET — be there!): https://rizzplaza.com"
   )
     .then((ok) => console.log("[accounts] welcome sms " + (ok ? "sent" : "FAILED")))
     .catch(() => {});
@@ -916,8 +933,18 @@ app.post("/api/account/signup", (req, res) => {
     return res
       .status(400)
       .json({ ok: false, error: "That date of birth doesn't look right" });
-  if (age < 18)
-    return res.status(403).json({ ok: false, error: "Accounts require 18+" });
+  // [RP-V7.80] TEEN SIGNUP IS OPEN (full-scan F1; Branden's decision,
+  // Oct 26, 2026: "Open teen signup — the full teen model goes
+  // live"). The floor is 13: an under-13 DOB is refused outright. A
+  // 13–17 sign-up creates a normal account through this same
+  // machinery — the stored DOB is what every existing gate reads
+  // (ageFromDob < 18 → teen class: charms-only economy, money doors
+  // server-locked, room/pot classes), so no downstream rule changes.
+  if (age < 13)
+    return res.status(403).json({
+      ok: false,
+      error: "You must be 13 or older to join Rizz Plaza",
+    });
   const db = readAccounts();
   if (usernameTaken(db, username))
     return res.status(409).json({
@@ -2771,7 +2798,10 @@ app.post("/api/live/signal", (req, res) => {
 // RP-V7.41: Plaza Pot — a host-seeded charm pot inside a live.
 // LEGAL SHAPE (settled with the owner; do not soften): NO buy-ins,
 // ever. Nobody stakes anything to enter — entry is a free tap by any
-// signed-in 18+ member. The pot is promo charms only: the HOST seeds
+// signed-in member. [RP-V7.75] Under-18 members included: the pot is
+// charms end to end, and a teen's whole economy is charms-only, so
+// teen hosts may seed/top up/draw/cancel and teen members may enter
+// (Branden's teen model, Oct 26, 2026). The pot is promo charms only: the HOST seeds
 // it from their own charm balance (escrowed through the money ledger),
 // and the PLATFORM grows it while it is open with a match of 10% of
 // each gift's charm value that lands on the host, capped at the seed
@@ -2812,12 +2842,23 @@ app.post("/api/live/signal", (req, res) => {
 const POTS_FILE =
   process.env.POTS_FILE || path.join(path.dirname(PHOTO_DIR), "pots.json");
 const POT_SEED_MIN = 100;
+// [RP-V7.75] THE TEEN BUILD constants (Branden, Oct 26, 2026 — he
+// picked "Both — daily drop and boosted winnings" for how under-18
+// members earn "thousands more" charms than adults): every under-18
+// account claims TEEN_DAILY_DROP charms once per America/New_York
+// day, and every Plaza Pot / Daily Pot win by an under-18 account
+// gets TEEN_WIN_BOOST extra charms on top of the split — platform-
+// funded, never taken from the pot or the other winners. Both land
+// in the teen's main balance AND mirror into their gift balance
+// (giftBalMirrorWin), because winning is what fuels teen gifting.
+const TEEN_DAILY_DROP = 2500;
+const TEEN_WIN_BOOST = 2500;
 const POT_MATCH_PCT = 10; // platform growth match, % of gift charm value
 const POT_WINNER_COUNT = 5;
 // [RP-V7.54] Winner eligibility (Branden's rule, Oct 25): to RECEIVE
 // pot winnings an entrant must (a) FOLLOW the host and (b) have been
 // in the live at least 30 minutes. Entry itself stays free and open
-// to every signed-in 18+ member — eligibility is judged at draw time,
+// to every signed-in member — eligibility is judged at draw time,
 // and the draw over the QUALIFIED pool stays uniform crypto-random.
 // Watch time accrues server-side from socket presence (the verified
 // acct-presence account binding) while a pot is open; in-memory only,
@@ -2825,15 +2866,54 @@ const POT_WINNER_COUNT = 5;
 const POT_WIN_MIN_WATCH_MS = process.env.POT_WIN_MIN_WATCH_MS !== undefined && Number.isFinite(Number(process.env.POT_WIN_MIN_WATCH_MS)) ? Math.max(0, Number(process.env.POT_WIN_MIN_WATCH_MS)) : 30 * 60 * 1000;
 const POT_WATCH_TICK_MS = Math.max(250, Number(process.env.POT_WATCH_TICK_MS) || 15000);
 const potWatch = new Map(); // live key -> Map(accountId -> ms accrued in the live's room)
+function accountAgeClass(user) {
+  return user && ageFromDob(user.dob) < 18 ? "teen" : "adult";
+}
+function accountAgeClassById(accountId, adb) {
+  try {
+    const db = adb || readAccounts();
+    return accountAgeClass(db.users.find((u) => u.id === accountId));
+  } catch (e) {
+    return "adult";
+  }
+}
+function potClassForRecord(pot, adb) {
+  if (pot && (pot.potClass === "teen" || pot.potClass === "adult"))
+    return pot.potClass;
+  // [RP-V7.77] Legacy live pots predate age classes. Branden's
+  // migration rule is adult unless the host account's DOB proves the
+  // host was in the teen class.
+  return pot ? accountAgeClassById(pot.hostAccountId, adb) : "adult";
+}
+function potWrongClassError(potClass) {
+  return potClass === "teen"
+    ? "This is the teen pot — teens only"
+    : "This is the adults' pot";
+}
 function readPots() {
   // [RP-V7.52] hardened read (audit H11): a corrupt pots.json
   // restores from .bak instead of forgetting escrowed pots.
-  return storeReadJson(
+  const db = storeReadJson(
     POTS_FILE,
     (d) => !!(d && d.pots && typeof d.pots === "object" && !Array.isArray(d.pots)),
     { pots: {} },
     "pots"
   );
+  // [RP-V7.77] Normalize every record to its host's age class in
+  // memory; boot migration persists the field, and every later write
+  // carries it too. This makes a legacy record adult by default,
+  // exactly as the migration rule requires.
+  let adb = null;
+  for (const pot of Object.values(db.pots || {})) {
+    if (!pot || typeof pot !== "object") continue;
+    if (pot.potClass !== "teen" && pot.potClass !== "adult") {
+      if (!adb) {
+        try { adb = readAccounts(); } catch (e) { adb = { users: [] }; }
+      }
+      pot.potClass = potClassForRecord(pot, adb);
+    }
+  }
+  return db;
 }
 function writePots(db) {
   storeWriteJson(POTS_FILE, db);
@@ -2846,6 +2926,7 @@ function potPublic(pot, viewerId) {
   return {
     key: pot.key,
     room: pot.room,
+    potClass: potClassForRecord(pot),
     status: pot.status,
     total: potTotal(pot),
     seed: pot.seed || 0,
@@ -2883,6 +2964,7 @@ function potSnapshotFrom(potsDb, key, liveStartedAt) {
   if (pot.status === "open")
     return {
       status: "open",
+      potClass: potClassForRecord(pot),
       total: potTotal(pot),
       seed: pot.seed || 0, // [RP-V7.41] the chip's swell mapping needs the seed
       match: pot.match || 0, // [RP-V7.41] the chip floats "+N 🪙" on match growth
@@ -2892,6 +2974,7 @@ function potSnapshotFrom(potsDb, key, liveStartedAt) {
   if (pot.status === "drawn")
     return {
       status: "drawn",
+      potClass: potClassForRecord(pot),
       total: potTotal(pot),
       entries: (pot.entries || []).length,
       winners: pot.winners || [],
@@ -3056,10 +3139,21 @@ function potRunDraw(pot, pool) {
   const adb = readAccounts();
   const winners = picked.map((id) => {
     const u = adb.users.find((x) => x.id === id);
+    // [RP-V7.75] Boosted teen winnings: an under-18 winner gets
+    // TEEN_WIN_BOOST on top of the split. The boost is platform-
+    // funded — share/remainder math over the pot itself is exact
+    // and untouched, so no other winner loses a charm to it.
+    // [RP-V7.77] The boost belongs to the TEEN pot world only: a
+    // legacy teen entrant in an adult-class pot does not receive it.
+    const boost =
+      potClassForRecord(pot) === "teen" && u && ageFromDob(u.dob) < 18
+        ? TEEN_WIN_BOOST
+        : 0;
     return {
       id,
       name: (u && u.name) || (pot.entryNames && pot.entryNames[id]) || "Winner",
-      amount: share,
+      amount: share + boost,
+      ...(boost ? { boost } : {}),
     };
   });
   const mdb = readMoney();
@@ -3069,6 +3163,10 @@ function potRunDraw(pot, pool) {
       type: "pot-win", from: null, to: w.id, charms: w.amount,
       cents: 0, cut: 0, ref: pot.key,
     });
+    // [RP-V7.74] A teen winner's prize also fills their gift balance.
+    // [RP-V7.75] w.amount already includes the teen win boost, so the
+    // gift balance mirrors the FULL credited amount (split + boost).
+    giftBalMirrorWin(mdb, adb.users.find((x) => x.id === w.id), w.amount);
   }
   if (remainder > 0) {
     mdb.balances[pot.hostAccountId] =
@@ -3241,6 +3339,11 @@ app.post("/api/pot/open", lockedHandler("pot-open", (req, res) => {
     return res
       .status(403)
       .json({ ok: false, error: "This account is scheduled for deletion" });
+  // [RP-V7.75] No age gate here anymore: the pot escrows CHARMS
+  // only, and under Branden's teen model a teen host seeds their own
+  // live's pot with charms exactly like an adult (the V7.74 18+
+  // block on this route is reversed — money doors stay locked, the
+  // charms-only pot is not a money door).
   const b = req.body || {};
   const entry = potLiveForHost(ctx.user, b.live);
   if (!entry)
@@ -3302,6 +3405,7 @@ app.post("/api/pot/open", lockedHandler("pot-open", (req, res) => {
   const pot = {
     key: entry.key,
     room: entry.room,
+    potClass: accountAgeClass(ctx.user), // [RP-V7.77] a live pot is classed by its HOST, permanently at open
     hostAccountId: ctx.user.id,
     hostName: ctx.user.name,
     seed,
@@ -3339,6 +3443,7 @@ app.post("/api/pot/topup", lockedHandler("pot-topup", (req, res) => {
     return res
       .status(403)
       .json({ ok: false, error: "This account is scheduled for deletion" });
+  // [RP-V7.75] Charms-only escrow — teen hosts top up too (see /api/pot/open).
   const b = req.body || {};
   const entry = potLiveForHost(ctx.user, b.live);
   if (!entry)
@@ -3392,8 +3497,8 @@ app.post("/api/pot/join", lockedHandler("pot-join", (req, res) => {
     return res
       .status(403)
       .json({ ok: false, error: "This account is scheduled for deletion" });
-  if (ageFromDob(ctx.user.dob) < 18)
-    return res.status(403).json({ ok: false, error: "The Plaza Pot is 18+" });
+  // [RP-V7.75] Pot ENTRY is open to signed-in under-18 accounts —
+  // free, charms-only, winner eligibility (follow + 30 min) unchanged.
   const liveKey = String((req.body || {}).live || "");
   const db = readPots();
   const pot = db.pots[liveKey];
@@ -3403,6 +3508,16 @@ app.post("/api/pot/join", lockedHandler("pot-join", (req, res) => {
     return res
       .status(400)
       .json({ ok: false, error: "You can't enter your own pot" });
+  // [RP-V7.77] Live-pot entry is locked to the pot's HOST class.
+  // The pot remains visible across classes; only entry is refused.
+  const viewerPotClass = accountAgeClass(ctx.user);
+  const thisPotClass = potClassForRecord(pot);
+  if (viewerPotClass !== thisPotClass)
+    return res.status(403).json({
+      ok: false,
+      error: potWrongClassError(thisPotClass),
+      potClass: thisPotClass,
+    });
   if ((pot.entries || []).indexOf(ctx.user.id) >= 0)
     return res
       .status(409)
@@ -3436,6 +3551,8 @@ app.post("/api/pot/join", lockedHandler("pot-join", (req, res) => {
 app.post("/api/pot/draw", lockedHandler("pot-draw", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
+  // [RP-V7.75] Drawing pays out escrowed CHARMS — a teen host draws
+  // their own pot too (see /api/pot/open).
   const b = req.body || {};
   const entry = potLiveForHost(ctx.user, b.live);
   if (!entry)
@@ -3468,6 +3585,8 @@ app.post("/api/pot/draw", lockedHandler("pot-draw", (req, res) => {
 app.post("/api/pot/cancel", lockedHandler("pot-cancel", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
+  // [RP-V7.75] Cancelling refunds the escrowed seed in charms — teen
+  // hosts cancel their own pots too (see /api/pot/open).
   const b = req.body || {};
   const entry = potLiveForHost(ctx.user, b.live);
   if (!entry)
@@ -3500,36 +3619,49 @@ app.get("/api/pot/state", (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// [RP-V7.42] THE DAILY POT — one whole-Plaza pot, sibling of the
-// per-live Plaza Pot (RP-V7.41 above, untouched). It gathers from ALL
-// streamers' rooms and takes from NONE of them:
-//   - the PLAZA seeds each day with DAILY_POT_SEED charms (platform
-//     promo accounting, like the live-pot match — no member debited);
-//   - every gift ANYWHERE on the Plaza grows it by a platform match
-//     of 2% of the gift's charm value (floored, min 0), capped for
-//     the day at DAILY_POT_MATCH_CAP. The gift itself, its 70/30
-//     split and any live-pot match are untouched — a single gift can
-//     feed a live pot (10%) and the Daily Pot (2%) at once.
-// Entry is a FREE tap, once per account per day, signed-in 18+ only.
+// [RP-V7.42] THE DAILY POT — sibling of the per-live Plaza Pot.
+// [RP-V7.77] POT SEPARATION (Branden, Oct 26, 2026: "Don't mix up
+// the adult daily and live pot with teen daily and live pot they
+// both have different pots"): there are now TWO Daily Pots — an
+// ADULT Daily Pot and a TEEN Daily Pot — fully independent in
+// state, entries, tier track, caps, streaks, recaps, milestones and
+// remainder rolls. A member only ever sees or enters their own
+// class's pot. Each pot gathers from its own class and takes from
+// no member:
+//   - the PLAZA seeds each class's day from THAT class's tier
+//     (platform promo accounting — no member debited);
+//   - every gift grows the SENDER's class Daily Pot by a platform
+//     match of 2% of the gift's charm value (floored, min 0),
+//     capped at that pool's own cap. The gift itself, its 70/30
+//     split and any live-pot match are untouched — a single gift
+//     can feed a live pot (10%) and its class Daily Pot (2%) at once.
+// Entry is a FREE tap, once per account per day, signed-in members
+// in their own class only. Teen winners in the TEEN pot get the
+// TEEN_WIN_BOOST on top; adult winners never do.
 // Lifecycle (America/New_York, via Intl — never server-local time):
-// the day opens at 00:00 ET seeded; at 21:00 ET the pot BURSTS — 5
-// winners (fewer entrants = all win) split the total evenly through
+// the day opens at 00:00 ET seeded; at its own SECRET drawn
+// moment inside 19:00-21:00 ET the pot BURSTS —
+// 1 to 5 winners (the count itself is drawn at random each night,
+// RP-V7.66; fewer entrants = all win) split the total evenly through
 // the money ledger (tx "dailypot-win"), picked uniformly at random
 // over the ENTRY LIST ONLY — the same draw discipline as potRunDraw;
 // nothing from the interest system ever feeds this draw. The split
 // remainder is NOT paid out and does NOT vanish: it is stamped
-// rolledOut and folds into TOMORROW's pot. With ZERO entries at
-// 21:00 there is no burst at all and the ENTIRE total rolls into
-// tomorrow (tomorrow = rollover + fresh seed + its own growth).
+// rolledOut and folds into TOMORROW's pot IN THE SAME CLASS. With
+// ZERO entries at its drawn moment there is no burst at all and the ENTIRE
+// total rolls into that class's tomorrow (rollover + fresh seed +
+// its own growth).
 // After a burst, the evening shows the winners; at 00:00 ET the next
 // day's pot opens. State lives in dailypot.json beside the other
 // stores, so a restart mid-day loses nothing; a scheduler tick
 // (boot + every 60s, plus a settle check inside dpEnsureToday)
-// opens days and fires the 21:00 settlement.
-// Record: { date, seed, rolledIn, match, milestonesHit: [thresholds
+// opens days and fires each settlement at its drawn moment.
+// Store: { pots: { adult: Record, teen: Record } }. Record:
+// { potClass, date, seed, rolledIn, match, milestonesHit: [thresholds
 //   already shouted — RP-V7.43], entries: [accountId],
 //   entryNames: { id: name }, status: "open"|"burst"|"noburst",
-//   winners: [{ id, name, amount }], burstAt: <ms epoch, 21:00 ET>,
+//   winners: [{ id, name, amount }], burstAt: <ms epoch, SECRET drawn
+//   moment in 19:00-21:00 ET — server record only, never public pre-burst>,
 //   burstDoneAt, rolledOut }
 // ---------------------------------------------------------------------------
 const DAILYPOT_FILE =
@@ -3549,9 +3681,11 @@ const DAILY_POT_MILESTONES = [2500, 5000, 10000, 25000, 50000, 100000];
 const DAILY_POT_SEED = 1000;
 const DAILY_POT_MATCH_PCT = 2; // platform growth match, % of ANY gift's charm value
 const DAILY_POT_MATCH_CAP = 10000;
-const DAILY_POT_WINNER_COUNT = 5;
+const DAILY_POT_MAX_WINNERS = 5; // [RP-V7.66] the nightly winner COUNT is drawn at random, 1..this (Branden, Oct 26)
 const DAILY_POT_TZ = "America/New_York";
-const DAILY_POT_BURST_HOUR = 21; // 9:00 PM ET
+const DAILY_POT_BURST_WINDOW_START_HOUR = 19; // 7:00 PM ET
+const DAILY_POT_BURST_WINDOW_MS = 2 * 60 * 60 * 1000; // secret moment in [19:00, 21:00) ET
+const DAILY_POT_BURST_COPY = "Bursts tonight between 7 and 9 PM ET — be here!";
 // [RP-V7.42] Launch tiers (Branden's call): launch at Tier 1 and
 // AUTO-GROW as the Plaza grows. At each ET day rollover the new
 // day's tier is read from the PREVIOUS ET day's total gift volume
@@ -3568,28 +3702,67 @@ const DAILY_POT_TIERS = [
   { tier: 2, minVolume: 25000, seed: 2500, cap: 25000 },
   { tier: 1, minVolume: 0, seed: 1000, cap: 10000 },
 ];
+// [RP-V7.77] BE-THERE RULE (Branden, Oct 26, 2026: "Add a be-there
+// rule to the Daily Pots too" — mirroring the live Plaza Pot's
+// winner rule, but Plaza-wide, in his words: winners must have
+// "been in the plaza for at least 30 minutes" that ET day).
+// In-Plaza presence accrues server-side per ACCOUNT per ET day
+// (dp-presence.json — the brain rule: it survives device switches
+// and reconnects, and time across sessions sums). It is a SEPARATE
+// counter from the live pot's in-a-specific-live watch time
+// (potWatch): being in a live also counts toward in-Plaza time
+// (that socket is in the Plaza), never the other way around.
+const DP_WIN_MIN_PRESENCE_MS = process.env.DP_WIN_MIN_PRESENCE_MS !== undefined && Number.isFinite(Number(process.env.DP_WIN_MIN_PRESENCE_MS)) ? Math.max(0, Number(process.env.DP_WIN_MIN_PRESENCE_MS)) : 30 * 60 * 1000;
+const DP_PRESENCE_FILE =
+  process.env.DP_PRESENCE_FILE || path.join(path.dirname(PHOTO_DIR), "dp-presence.json");
 const DAILY_POT_SEED_OVERRIDE = (() => {
   const n = parseInt(process.env.DAILY_POT_SEED_OVERRIDE || "0", 10);
   return Number.isFinite(n) && n > 0 ? n : 0;
 })();
+function normalizeDailyPotDb(raw) {
+  const pots = { adult: null, teen: null };
+  const take = (value, potClass) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const rec = { ...value, potClass };
+    if (!Array.isArray(rec.entries)) rec.entries = [];
+    if (!rec.entryNames || typeof rec.entryNames !== "object") rec.entryNames = {};
+    return rec;
+  };
+  if (raw && raw.pots && typeof raw.pots === "object" && !Array.isArray(raw.pots)) {
+    pots.adult = take(raw.pots.adult, "adult");
+    pots.teen = take(raw.pots.teen, "teen");
+  } else if (raw && "rec" in raw) {
+    // [RP-V7.77] MIGRATION: the pre-split store held ONE pot and its
+    // entry gate admitted adults only. The whole record — total,
+    // entries and burst state — therefore belongs to the ADULT pot.
+    // The teen pot starts unset here and dpEnsureClass seeds it
+    // fresh from the teen class's own tier.
+    pots.adult = take(raw.rec, "adult");
+  }
+  return { splitVersion: 1, pots };
+}
 function readDailyPot() {
   // [RP-V7.52] hardened read (audit C5 family): a corrupt
   // dailypot.json restores from .bak instead of resetting the day.
-  return storeReadJson(
+  const raw = storeReadJson(
     DAILYPOT_FILE,
     (d) =>
       !!(
         d &&
-        "rec" in d &&
-        (d.rec === null ||
-          (d.rec && typeof d.rec === "object" && !Array.isArray(d.rec)))
+        (("rec" in d &&
+          (d.rec === null ||
+            (d.rec && typeof d.rec === "object" && !Array.isArray(d.rec)))) ||
+          (d.pots &&
+            typeof d.pots === "object" &&
+            !Array.isArray(d.pots)))
       ),
-    { rec: null },
+    { pots: { adult: null, teen: null } },
     "dailypot"
   );
+  return normalizeDailyPotDb(raw);
 }
 function writeDailyPot(db) {
-  storeWriteJson(DAILYPOT_FILE, db);
+  storeWriteJson(DAILYPOT_FILE, normalizeDailyPotDb(db));
 }
 // ---------------------------------------------------------------------------
 // [RP-V7.43] DAILY-RETURN ENGINE — habit mechanics around the Daily
@@ -3598,49 +3771,97 @@ function writeDailyPot(db) {
 // the ENTRY LIST ONLY and never touches streaks, history or milestones,
 // so a long streak (or a big recap) moves nobody's odds by a hair.
 // ---------------------------------------------------------------------------
+function normalizeDpStreaks(raw) {
+  const out = { classes: { adult: { users: {} }, teen: { users: {} } } };
+  const takeUsers = (value) =>
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  if (raw && raw.classes && typeof raw.classes === "object") {
+    out.classes.adult.users = takeUsers(raw.classes.adult && raw.classes.adult.users);
+    out.classes.teen.users = takeUsers(raw.classes.teen && raw.classes.teen.users);
+  }
+  // [RP-V7.77] Legacy streaks belonged to the adult-only Daily Pot,
+  // so the whole legacy users map migrates into the adult class.
+  if (raw && raw.users && typeof raw.users === "object" && !Array.isArray(raw.users))
+    out.classes.adult.users = { ...raw.users, ...out.classes.adult.users };
+  return out;
+}
 function readDpStreaks() {
   try {
-    const d = JSON.parse(fs.readFileSync(DAILYPOT_STREAKS_FILE, "utf8"));
-    if (d && d.users && typeof d.users === "object" && !Array.isArray(d.users))
-      return d;
+    return normalizeDpStreaks(
+      JSON.parse(fs.readFileSync(DAILYPOT_STREAKS_FILE, "utf8"))
+    );
   } catch (e) {}
-  return { users: {} };
+  return normalizeDpStreaks(null);
 }
 function writeDpStreaks(db) {
   const tmp = DAILYPOT_STREAKS_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(normalizeDpStreaks(db), null, 2));
   fs.renameSync(tmp, DAILYPOT_STREAKS_FILE);
+}
+function dpClassOrDerived(userId, potClass) {
+  if (potClass === "adult" || potClass === "teen") return potClass;
+  return accountAgeClassById(userId);
+}
+function dpStreakBucket(db, potClass) {
+  const normalized = normalizeDpStreaks(db);
+  return normalized.classes[potClass].users;
 }
 // After a successful join on dateStr: yesterday -> streak+1; anything
 // older (or a first-ever entry) -> streak 1. best = the all-time max.
-function dpBumpStreak(userId, dateStr) {
+function dpBumpStreak(userId, dateStr, potClass) {
   const db = readDpStreaks();
-  const cur = db.users[userId] || { lastDate: null, streak: 0, best: 0 };
+  const bucket = dpStreakBucket(db, dpClassOrDerived(userId, potClass));
+  const cur = bucket[userId] || { lastDate: null, streak: 0, best: 0 };
   if (cur.lastDate === dateStr) return cur; // already counted today (the join route's dup-guard keeps this unreachable)
   cur.streak = cur.lastDate === dpDatePlus(dateStr, -1) ? (cur.streak || 0) + 1 : 1;
   cur.lastDate = dateStr;
   cur.best = Math.max(cur.best || 0, cur.streak);
-  db.users[userId] = cur;
+  bucket[userId] = cur;
+  // dpStreakBucket returns a bucket inside a normalized copy; write
+  // that exact normalized shape back through its class container.
+  const cls = dpClassOrDerived(userId, potClass);
+  db.classes[cls].users = bucket;
   writeDpStreaks(db);
   return cur;
 }
 // The streak as the member should see it TODAY: entered today -> the
 // streak; last entry yesterday -> still alive (at risk until they
 // enter); anything older -> 0 (broken).
-function dpStreakFor(userId, todayStr) {
-  const s = readDpStreaks().users[userId];
+function dpStreakFor(userId, todayStr, potClass) {
+  const db = readDpStreaks();
+  const s = dpStreakBucket(db, dpClassOrDerived(userId, potClass))[userId];
   if (!s || !s.lastDate) return 0;
   if (s.lastDate === todayStr) return s.streak || 0;
   if (s.lastDate === dpDatePlus(todayStr, -1)) return s.streak || 0;
   return 0;
 }
-function readDpHistory() {
+function normalizeDpHistory(raw) {
+  const out = { adult: [], teen: [] };
+  const take = (value) => (Array.isArray(value) ? value : []);
+  if (Array.isArray(raw)) out.adult = take(raw);
+  else if (raw && Array.isArray(raw.days)) out.adult = take(raw.days);
+  else if (raw && typeof raw === "object") {
+    out.adult = take(raw.adult);
+    out.teen = take(raw.teen);
+  }
+  return out;
+}
+function readDpHistoryMap() {
   try {
-    const d = JSON.parse(fs.readFileSync(DAILYPOT_HISTORY_FILE, "utf8"));
-    if (Array.isArray(d)) return d;
-    if (d && Array.isArray(d.days)) return d.days;
+    return normalizeDpHistory(
+      JSON.parse(fs.readFileSync(DAILYPOT_HISTORY_FILE, "utf8"))
+    );
   } catch (e) {}
-  return [];
+  return normalizeDpHistory(null);
+}
+function readDpHistory(potClass) {
+  const cls = potClass === "teen" ? "teen" : "adult";
+  return readDpHistoryMap()[cls];
+}
+function writeDpHistoryMap(map) {
+  const tmp = DAILYPOT_HISTORY_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(normalizeDpHistory(map), null, 2));
+  fs.renameSync(tmp, DAILYPOT_HISTORY_FILE);
 }
 // Snapshot a finished day for the recap, newest first, last 7 kept.
 // Deduped by date so a restart mid-roll can never double-record a day.
@@ -3650,29 +3871,31 @@ function dpPushHistory(rec) {
     date: rec.date,
     total: dailyPotTotal(rec),
     status: rec.status,
+    statusNote: rec.statusNote || null,
     winners: (rec.winners || []).map((w) => ({ name: w.name, amount: w.amount })),
     entriesCount: Array.isArray(rec.entries) ? rec.entries.length : 0,
   };
-  let hist = readDpHistory().filter((s) => s && s.date !== snap.date);
-  hist.unshift(snap);
+  const cls = rec.potClass === "teen" ? "teen" : "adult";
+  const map = readDpHistoryMap();
+  let hist = map[cls].filter((s) => s && s.date !== snap.date);
+  hist.unshift({ ...snap, potClass: cls });
   hist.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // newest day first
-  hist = hist.slice(0, 7);
-  const tmp = DAILYPOT_HISTORY_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(hist, null, 2));
-  fs.renameSync(tmp, DAILYPOT_HISTORY_FILE);
+  map[cls] = hist.slice(0, 7);
+  writeDpHistoryMap(map);
 }
-function dpYesterdayRecap(todayStr) {
+function dpYesterdayRecap(todayStr, potClass) {
   const y = dpDatePlus(todayStr, -1);
-  const hist = readDpHistory();
+  const hist = readDpHistory(potClass);
   for (const s of hist) if (s && s.date === y) return s;
   return null;
 }
 // Fire dailypot-milestone for every threshold the day's total has
 // crossed that hasn't been shouted yet. The crossed set persists on
 // the day record (milestonesHit), so restarts never re-shout.
-function dpCheckMilestones(dateStr) {
+function dpCheckMilestones(dateStr, potClass) {
+  const cls = potClass === "teen" ? "teen" : "adult";
   const db = readDailyPot();
-  const rec = db.rec;
+  const rec = db.pots[cls];
   if (!rec || rec.date !== dateStr) return;
   const total = dailyPotTotal(rec);
   if (!Array.isArray(rec.milestonesHit)) rec.milestonesHit = [];
@@ -3685,7 +3908,7 @@ function dpCheckMilestones(dateStr) {
   writeDailyPot(db);
   for (const t of crossed) {
     try {
-      io.emit("dailypot-milestone", { threshold: t, total, date: rec.date });
+      io.emit("dailypot-milestone", { threshold: t, total, date: rec.date, potClass: cls });
     } catch (e) {}
     console.log("[dailypot] MILESTONE", rec.date, "crossed", t, "total", total);
   }
@@ -3734,16 +3957,206 @@ function dpEtEpoch(dateStr, hh, mi) {
   }
   return guess;
 }
+// [RP-V7.77] Each Daily Pot draws its OWN secret burst moment for
+// the day, crypto-random over [19:00, 21:00) ET, when the day opens.
+// It is persisted on the server record as burstAt and is NEVER put
+// in a public payload while the pot is open ("give everyone a
+// reason to be there" — Branden, Oct 26, 2026).
+function dpDrawDailyBurstAt(dateStr) {
+  return dpEtEpoch(dateStr, DAILY_POT_BURST_WINDOW_START_HOUR, 0) + crypto.randomInt(DAILY_POT_BURST_WINDOW_MS);
+}
 function dailyPotTotal(rec) {
   return (rec.seed || 0) + (rec.rolledIn || 0) + (rec.match || 0);
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.76] UNIFIED SERVER DAILY CLAIM (brain train batch 1, FIX-2) —
+// ONE claim gate for the whole Plaza. Up to V7.75 the Plaza had two
+// parallel daily faucets: the adult Daily Rewards ladder was gated
+// per-DEVICE in the client (rpDailyClaim.v1 — claimable once per
+// device per day, streak = whichever device you were holding), while
+// the teen daily drop (V7.75) was already server-side on the account
+// record (teenDailyDropDate). Both now run through the single claim
+// system below: the gate + streak live in claims.json on the ACCOUNT
+// (an America/New_York day), so one claim per account per ET day
+// across ALL devices, and every device renders the same streak from
+// the claim/state payloads. The claim TYPE is set by the account's
+// age class, never by the request: under-18 = the teen drop (2,500
+// main + 2,500 giftBal mirror, the V7.75 terms verbatim); 18+ = the
+// Daily Rewards ladder (DAILY_CLAIM_LADDER — the exact amounts the
+// client ladder has always paid: 10/15/20/25/30/40/60 by streak day).
+// The endpoint stays kind-extensible: { kind: "daily-claim" |
+// "teen-drop" } is accepted, an adult explicitly asking for the teen
+// drop is refused 403, and either kind from a teen pays teen terms —
+// it is the same single gate. The superseded parallel gate (the
+// /api/teen/daily-drop route + the teenDailyDropDate account field)
+// is retired: claimRecordFor still READS a same-day teenDailyDropDate
+// as an already-made teen claim so a deploy-day claim can never
+// double-pay, and nothing writes the field anymore.
+// ---------------------------------------------------------------------------
+const CLAIMS_FILE =
+  process.env.CLAIMS_FILE || path.join(path.dirname(PHOTO_DIR), "claims.json");
+const DAILY_CLAIM_LADDER = [10, 15, 20, 25, 30, 40, 60];
+function readClaims() {
+  try {
+    const d = JSON.parse(fs.readFileSync(CLAIMS_FILE, "utf8"));
+    if (d && d.users && typeof d.users === "object" && !Array.isArray(d.users))
+      return d;
+  } catch (e) {}
+  return { users: {} };
+}
+function writeClaims(db) {
+  const tmp = CLAIMS_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, CLAIMS_FILE);
+}
+// The account's claim record: { lastDate, streak, best, lastKind }.
+// Merges the claims store with the retired V7.75 field for read
+// compat (see the block comment above).
+function claimRecordFor(user, cdb) {
+  const db = cdb || readClaims();
+  const rec = db.users[user.id];
+  if (rec && rec.lastDate)
+    return {
+      lastDate: rec.lastDate,
+      streak: rec.streak || 0,
+      best: rec.best || 0,
+      lastKind: rec.lastKind || null,
+    };
+  if (user.teenDailyDropDate)
+    return {
+      lastDate: user.teenDailyDropDate,
+      streak: 1,
+      best: 1,
+      lastKind: "teen-drop",
+    };
+  return { lastDate: null, streak: 0, best: 0, lastKind: null };
+}
+// The streak as the member should see it TODAY (same display rule
+// as dpStreakFor): claimed today or last claimed yesterday -> the
+// streak is alive; anything older -> 0 (broken).
+function claimStreakShown(rec, today) {
+  if (!rec || !rec.lastDate) return 0;
+  if (rec.lastDate === today || rec.lastDate === dpDatePlus(today, -1))
+    return rec.streak || 0;
+  return 0;
+}
+// The claim state every payload carries (claim responses +
+// /api/money/me): one shape, rendered identically on every device.
+function claimStatePayload(user, cdb) {
+  const today = dpDateStr(Date.now());
+  const rec = claimRecordFor(user, cdb);
+  const teen = ageFromDob(user.dob) < 18;
+  const streak = claimStreakShown(rec, today);
+  return {
+    date: today,
+    kind: teen ? "teen-drop" : "daily-claim",
+    claimedToday: rec.lastDate === today,
+    lastDate: rec.lastDate || null,
+    streak,
+    best: rec.best || 0,
+    nextAmount: teen
+      ? TEEN_DAILY_DROP
+      : DAILY_CLAIM_LADDER[Math.min(streak, DAILY_CLAIM_LADDER.length - 1)],
+  };
+}
+// [RP-V7.75] The teen daily-drop status for one viewer: eligible
+// only for under-18 accounts; claimed is read from the unified
+// server claim store (RP-V7.76 — claims.json, see above); the brain
+// rule stands: account-persistent, never device-local.
+function teenDropStatusFor(viewerId) {
+  const base = { eligible: false, amount: TEEN_DAILY_DROP, claimed: false };
+  if (!viewerId) return base;
+  try {
+    const u = readAccounts().users.find((x) => x.id === viewerId);
+    if (!u || ageFromDob(u.dob) >= 18) return base;
+    return {
+      eligible: true,
+      amount: TEEN_DAILY_DROP,
+      claimed: claimRecordFor(u).lastDate === dpDateStr(Date.now()),
+    };
+  } catch (e) {
+    return base;
+  }
+}
+function readDpPresence() {
+  try {
+    const d = JSON.parse(fs.readFileSync(DP_PRESENCE_FILE, "utf8"));
+    if (d && d.days && typeof d.days === "object" && !Array.isArray(d.days)) return d;
+  } catch (e) {}
+  return { days: {} };
+}
+function writeDpPresence(db) {
+  const tmp = DP_PRESENCE_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, DP_PRESENCE_FILE);
+}
+function dpPresenceMs(userId, dateStr) {
+  if (!userId) return 0;
+  const day = readDpPresence().days[dateStr || dpDateStr(Date.now())] || {};
+  return Number(day[userId]) || 0;
+}
+function dpAccountPresent(userId) {
+  // [RP-V7.77] The third be-there condition: the account holds a
+  // live acct-presence socket RIGHT NOW (any device — the server's
+  // view of "here", not any one screen's).
+  if (!userId) return false;
+  try {
+    for (const [, sock] of io.sockets.sockets)
+      if (sock && sock.data && sock.data.accountId === userId) return true;
+  } catch (e) {}
+  return false;
+}
+function dpPresencePayload(userId, dateStr) {
+  if (!userId) return null;
+  const ms = dpPresenceMs(userId, dateStr);
+  const minutesQualified = ms >= DP_WIN_MIN_PRESENCE_MS;
+  const presentNow = dpAccountPresent(userId);
+  return {
+    ms,
+    minutes: Math.floor(ms / 60000),
+    requiredMs: DP_WIN_MIN_PRESENCE_MS,
+    requiredMinutes: Math.round(DP_WIN_MIN_PRESENCE_MS / 60000),
+    minutesQualified,
+    presentNow,
+    // Full be-there qualification: 30+ minutes banked today AND
+    // present in the Plaza at the burst moment.
+    qualified: minutesQualified && presentNow,
+  };
+}
+// Presence accrual: the same 15s tick discipline as the live pot's
+// watch accrual — every tick credits each account with at least one
+// verified acct-presence socket connected. One credit per account
+// per tick no matter how many devices (presence is presence);
+// sequential sessions across the day sum into the same counter.
+setInterval(() => {
+  try {
+    const present = new Set();
+    for (const [, sock] of io.sockets.sockets) {
+      const acctId = sock && sock.data && sock.data.accountId;
+      if (acctId) present.add(acctId);
+    }
+    if (!present.size) return;
+    const today = dpDateStr(Date.now());
+    const db = readDpPresence();
+    if (!db.days[today]) db.days[today] = {};
+    for (const id of present)
+      db.days[today][id] = (Number(db.days[today][id]) || 0) + POT_WATCH_TICK_MS;
+    // keep today + the last two ET days; older days are history
+    const keep = new Set([today, dpDatePlus(today, -1), dpDatePlus(today, -2)]);
+    for (const d of Object.keys(db.days)) if (!keep.has(d)) delete db.days[d];
+    writeDpPresence(db);
+  } catch (e) {}
+}, POT_WATCH_TICK_MS);
 function dailyPotPublic(rec, viewerId) {
   if (!rec) return null;
-  let nextBurstAt = rec.burstAt || null;
-  if (rec.status !== "open")
-    nextBurstAt = dpEtEpoch(dpDatePlus(rec.date, 1), DAILY_POT_BURST_HOUR, 0);
+  // [RP-V7.77] SURPRISE DISCIPLINE for BOTH Daily Pots: while a pot
+  // is open, its exact drawn burst moment and any countdown to it
+  // stay server-side only. The public payload carries the window
+  // copy instead. After settlement the moment is history.
+  const secret = rec.status === "open";
   return {
     date: rec.date,
+    potClass: rec.potClass === "teen" ? "teen" : "adult",
     status: rec.status,
     tier: rec.tier != null ? rec.tier : 1, // [RP-V7.42] the day's launch tier (0 = manual override)
     matchCap: rec.matchCap != null ? rec.matchCap : DAILY_POT_MATCH_CAP,
@@ -3753,14 +4166,39 @@ function dailyPotPublic(rec, viewerId) {
     matchPart: rec.match || 0,
     entriesCount: Array.isArray(rec.entries) ? rec.entries.length : 0,
     joined: viewerId ? (rec.entries || []).indexOf(viewerId) >= 0 : false,
-    streak: viewerId ? dpStreakFor(viewerId, rec.date) : null, // [RP-V7.43] the caller's entry streak (null for guests)
-    yesterday: dpYesterdayRecap(rec.date), // [RP-V7.43] yesterday's recap snapshot (null on day one)
+    streak: viewerId ? dpStreakFor(viewerId, rec.date, rec.potClass) : null, // [RP-V7.43] the caller's entry streak, in their class (null for guests)
+    presence: viewerId ? dpPresencePayload(viewerId, rec.date) : null, // [RP-V7.77] the caller's in-Plaza minutes today + be-there qualification
+    winRule: "Winners must have been in the Plaza at least 30 minutes today AND be in the Plaza when it bursts — leave before it pops and the win goes to someone who's here.",
+    statusNote: rec.statusNote || null, // [RP-V7.77] why a pot rolled instead of bursting, when it did
+    teenDrop: viewerId ? teenDropStatusFor(viewerId) : null, // [RP-V7.75] the caller's teen daily-drop status (null for guests)
+    yesterday: dpYesterdayRecap(rec.date, rec.potClass), // [RP-V7.43 + V7.77] yesterday's recap for THIS class only
     winners: rec.status === "burst" ? rec.winners || [] : [],
-    burstAt: rec.burstAt || null,
-    nextBurstInSec: nextBurstAt
-      ? Math.max(0, Math.round((nextBurstAt - Date.now()) / 1000))
-      : null,
+    burstAt: secret ? null : rec.burstAt || null,
+    burstAtMasked: secret,
+    burstWindow: { startHour: 19, endHour: 21, tz: DAILY_POT_TZ, label: DAILY_POT_BURST_COPY },
+    burstCopy: DAILY_POT_BURST_COPY,
+    nextBurstInSec: null,
   };
+}
+// [RP-V7.77] The side-by-side Home payload (Branden approved the
+// mock, Oct 26): a signed-in member gets BOTH Daily Pots — their
+// own class's pot in the existing `pot` shape (full viewer state),
+// plus the other class's pot marked watch-only (public state only:
+// no joined/streak/teenDrop for this viewer). Guests keep the
+// historical single adult-pot view in `pot`; the pair rides along
+// in `pots`/`otherPot` and the guest client renders only its own.
+function dailyPotPairPayload(viewer) {
+  const db = readDailyPot();
+  const ownClass = viewer ? accountAgeClass(viewer) : "adult";
+  const otherClass = ownClass === "teen" ? "adult" : "teen";
+  const own = dailyPotPublic(db.pots[ownClass], viewer ? viewer.id : null);
+  const other = dailyPotPublic(db.pots[otherClass], null);
+  if (own) { own.own = true; own.enterable = !!viewer; own.watchOnly = !viewer; }
+  if (other) { other.own = false; other.enterable = false; other.watchOnly = true; }
+  const pots = {};
+  pots[ownClass] = own;
+  pots[otherClass] = other;
+  return { pot: own, ownPot: own, otherPot: other, pots, ownClass, otherClass };
 }
 let dpLastGrowthBcastAt = 0;
 // Plaza-wide state push. Growth ticks are throttled to ~15s; joins,
@@ -3770,7 +4208,12 @@ function dpBroadcastUpdate(force) {
   if (!force && now - dpLastGrowthBcastAt < 15000) return;
   dpLastGrowthBcastAt = now;
   try {
-    io.emit("dailypot-update", { pot: dailyPotPublic(readDailyPot().rec, null) });
+    const db = readDailyPot();
+    const adult = dailyPotPublic(db.pots.adult, null);
+    const teen = dailyPotPublic(db.pots.teen, null);
+    // `pot` remains the adult pot for older clients. V7.77 clients
+    // select their own class from `pots` and never render the other.
+    io.emit("dailypot-update", { pot: adult, pots: { adult, teen } });
   } catch (e) {}
 }
 // The Daily Pot draw — the same discipline as potRunDraw (RP-V7.41):
@@ -3778,14 +4221,46 @@ function dpBroadcastUpdate(force) {
 // over the ENTRY LIST ONLY; each winner is credited floor(total / n)
 // through the money ledger; the split remainder is stamped rolledOut
 // and folds into tomorrow's pot at the roll (never paid to a host).
+// [RP-V7.66] HOW MANY winners is itself random (Branden, Oct 26):
+// every night the count is drawn fresh, 1..DAILY_POT_MAX_WINNERS —
+// some nights ONE lucky winner takes the whole pot.
 function dpRunBurst(db, rec) {
   // [RP-V7.52] Settlement is idempotent per pot date (audit C1): a
   // record that is no longer "open" has already settled — a second
   // settle for the same date is a no-op and pays nobody twice.
   if (!rec || rec.status !== "open" || rec.burstDoneAt) return null;
   const total = dailyPotTotal(rec);
-  const entrants = (rec.entries || []).slice();
-  const n = Math.min(DAILY_POT_WINNER_COUNT, entrants.length);
+  // [RP-V7.77] BE-THERE RULE: the draw runs over QUALIFIED entrants
+  // only — entered AND at least DP_WIN_MIN_PRESENCE_MS of in-Plaza
+  // presence today AND present in the Plaza at the burst moment
+  // (a live acct-presence socket when settlement runs; Branden:
+  // "30 minutes and can't leave until the pot burst"). Unqualified
+  // names are skipped, exactly like the live pot's qualified-pool
+  // draw. If NOBODY qualifies, the pot does not burst at all: the
+  // whole pot rolls into its class's tomorrow through the noburst
+  // path, with the reason on the record.
+  const entrants = (rec.entries || []).filter(
+    (id) =>
+      dpPresenceMs(id, rec.date) >= DP_WIN_MIN_PRESENCE_MS &&
+      dpAccountPresent(id)
+  );
+  if (!entrants.length) {
+    rec.status = "noburst";
+    rec.statusNote = !(rec.entries || []).length
+      ? "rolled — nobody entered"
+      : (rec.entries || []).some((id) => dpPresenceMs(id, rec.date) >= DP_WIN_MIN_PRESENCE_MS)
+        ? "rolled — nobody with 30 minutes in the Plaza was here when it burst"
+        : "rolled — nobody had 30 minutes in the Plaza yet";
+    rec.burstDoneAt = new Date().toISOString();
+    writeDailyPot(db);
+    dpBroadcastUpdate(true);
+    console.log(
+      "[dailypot:" + rec.potClass + "] no burst —", rec.statusNote + ":", rec.date, total
+    );
+    return { noburst: true, reason: "presence" };
+  }
+  const drawCount = 1 + crypto.randomInt(DAILY_POT_MAX_WINNERS); // [RP-V7.66] tonight's winner count: 1..5
+  const n = Math.min(drawCount, entrants.length);
   for (let i = entrants.length - 1; i > 0; i--) {
     const j = crypto.randomInt(i + 1);
     const t = entrants[i];
@@ -3798,10 +4273,21 @@ function dpRunBurst(db, rec) {
   const adb = readAccounts();
   const winners = picked.map((id) => {
     const u = adb.users.find((x) => x.id === id);
+    // [RP-V7.75] Boosted teen winnings, same rule as the Plaza Pot:
+    // +TEEN_WIN_BOOST platform-funded charms on top of the split for
+    // an under-18 winner. The split remainder (rolledOut) is computed
+    // from share alone, so it stays exact to the charm.
+    // [RP-V7.77] Only the TEEN Daily Pot carries the boost; the adult
+    // pool never boosts an anomalously classed legacy entrant.
+    const boost =
+      rec.potClass === "teen" && u && ageFromDob(u.dob) < 18
+        ? TEEN_WIN_BOOST
+        : 0;
     return {
       id,
       name: (u && u.name) || (rec.entryNames && rec.entryNames[id]) || "Winner",
-      amount: share,
+      amount: share + boost,
+      ...(boost ? { boost } : {}),
     };
   });
   // [RP-V7.52] The settlement stamp is persisted BEFORE any payout
@@ -3820,11 +4306,15 @@ function dpRunBurst(db, rec) {
       type: "dailypot-win", from: null, to: w.id, charms: w.amount,
       cents: 0, cut: 0, ref: rec.date,
     });
+    // [RP-V7.74] A teen winner's prize also fills their gift balance.
+    // [RP-V7.75] w.amount includes the teen win boost — the mirror
+    // sees the full credited amount.
+    giftBalMirrorWin(mdb, adb.users.find((x) => x.id === w.id), w.amount);
   }
   writeMoney(mdb);
   try {
     io.emit("dailypot-burst", {
-      date: rec.date, total, winners, share, remainder,
+      date: rec.date, potClass: rec.potClass, total, winners, share, remainder,
     });
   } catch (e) {}
   dpBroadcastUpdate(true);
@@ -3835,31 +4325,42 @@ function dpRunBurst(db, rec) {
   );
   return { winners, share, remainder };
 }
-// The 21:00 settlement for a day: entries -> burst; ZERO entries ->
+// The settlement for a day at its drawn moment: entries -> burst; ZERO entries ->
 // NO burst (status "noburst") — the whole total rolls into tomorrow.
-function dpSettle(rec) {
+function dpSettleClass(potClass) {
+  const cls = potClass === "teen" ? "teen" : "adult";
   const db = readDailyPot();
-  const cur = db.rec;
-  if (!cur || cur.date !== rec.date || cur.status !== "open") return null;
+  const cur = db.pots[cls];
+  if (!cur || cur.status !== "open") return null;
   if ((cur.entries || []).length >= 1) return dpRunBurst(db, cur);
   cur.status = "noburst";
+  cur.statusNote = "rolled — nobody entered";
   writeDailyPot(db);
   dpBroadcastUpdate(true);
   console.log(
-    "[dailypot] no burst (0 entries) — whole pot rolls forward:", cur.date,
+    "[dailypot:" + cls + "] no burst (0 entries) — whole pot rolls forward:", cur.date,
     dailyPotTotal(cur)
   );
   return { noburst: true };
 }
-function dpGiftVolumeOn(dateStr) {
+function dpGiftVolumeOn(dateStr, potClass) {
   // [RP-V7.42] Total charms gifted on one ET date, from the money
   // ledger's gift-sent transactions (one per gift, charms = the
   // gift's catalog cost). No ledger yet = zero volume = Tier 1.
+  // [RP-V7.77] Volume is measured PER AGE CLASS from the sender:
+  // adult gifts grow the adult tier track, teen gifts the teen one.
+  // The classes never lend each other volume.
+  const cls = potClass === "teen" ? "teen" : "adult";
   let total = 0;
   try {
     const db = readMoney();
+    const adb = readAccounts();
+    const senderClass = new Map(
+      adb.users.map((u) => [u.id, accountAgeClass(u)])
+    );
     for (const tx of db.txlog || []) {
       if (!tx || tx.type !== "gift-sent") continue;
+      if ((senderClass.get(tx.from) || "adult") !== cls) continue;
       const at = Date.parse(tx.at || "");
       if (!Number.isFinite(at)) continue;
       if (dpDateStr(at) === dateStr) total += tx.charms || 0;
@@ -3867,7 +4368,7 @@ function dpGiftVolumeOn(dateStr) {
   } catch (e) { /* volume reads must never break the day roll */ }
   return total;
 }
-function dpTierForNewDay(dateStr) {
+function dpTierForNewDay(dateStr, potClass) {
   // [RP-V7.42] The tier a NEW day (dateStr) opens at — from the
   // PREVIOUS ET day's gift volume; the manual override wins outright.
   if (DAILY_POT_SEED_OVERRIDE > 0)
@@ -3877,15 +4378,17 @@ function dpTierForNewDay(dateStr) {
       cap: DAILY_POT_SEED_OVERRIDE * 10,
       prevVolume: null,
     };
-  const prevVolume = dpGiftVolumeOn(dpDatePlus(dateStr, -1));
+  const prevVolume = dpGiftVolumeOn(dpDatePlus(dateStr, -1), potClass);
   for (const t of DAILY_POT_TIERS)
     if (prevVolume >= t.minVolume)
       return { tier: t.tier, seed: t.seed, cap: t.cap, prevVolume };
   return { tier: 1, seed: DAILY_POT_SEED, cap: DAILY_POT_MATCH_CAP, prevVolume };
 }
-function dpFreshRec(dateStr, rolledIn) {
-  const t = dpTierForNewDay(dateStr); // [RP-V7.42] the day carries its tier
+function dpFreshRec(dateStr, rolledIn, potClass) {
+  const cls = potClass === "teen" ? "teen" : "adult";
+  const t = dpTierForNewDay(dateStr, cls); // [RP-V7.42] the day carries its own class tier
   return {
+    potClass: cls,
     date: dateStr,
     tier: t.tier,
     seed: t.seed,
@@ -3898,55 +4401,76 @@ function dpFreshRec(dateStr, rolledIn) {
     entryNames: {},
     status: "open",
     winners: [],
-    burstAt: dpEtEpoch(dateStr, DAILY_POT_BURST_HOUR, 0),
+    burstAt: dpDrawDailyBurstAt(dateStr), // [RP-V7.77] this class's own secret moment in [19:00, 21:00) ET
+    burstDrawVersion: 1,
     burstDoneAt: null,
     rolledOut: 0,
   };
 }
 // Make sure the store holds TODAY's (ET) pot, settling/rolling any
-// stale day first: an old day still "open" past its 21:00 settles by
+// stale day first: an old day still "open" past its drawn moment settles by
 // its own rules (missed bursts still fire), then the carry folds in —
 // a burst day contributes only its split remainder; any other day
 // (no-burst) contributes its ENTIRE total. Also settles today's pot
 // the moment it comes due, so state reads never lag the tick.
-function dpEnsureToday(now) {
+function dpEnsureClass(potClass, now) {
+  const cls = potClass === "teen" ? "teen" : "adult";
   const today = dpDateStr(now);
   let db = readDailyPot();
-  let rec = db.rec;
+  let rec = db.pots[cls];
+  if (rec && rec.date === today && rec.status === "open" && rec.burstDrawVersion !== 1) {
+    // A record opened before the secret-window rule gets its drawn
+    // moment now, persisted once — reboots never redraw it.
+    rec.burstAt = dpDrawDailyBurstAt(today);
+    rec.burstDrawVersion = 1;
+    db.pots[cls] = rec;
+    writeDailyPot(db);
+    db = readDailyPot();
+    rec = db.pots[cls];
+  }
   if (rec && rec.date !== today) {
     if (rec.status === "open" && now >= (rec.burstAt || 0)) {
-      dpSettle(rec);
+      dpSettleClass(cls);
       db = readDailyPot();
-      rec = db.rec;
+      rec = db.pots[cls];
     }
-    if (rec) dpPushHistory(rec); // [RP-V7.43] snapshot the finished day for the yesterday recap
+    if (rec) dpPushHistory(rec); // [RP-V7.43] snapshot this class's finished day only
     const carry = rec
       ? rec.status === "burst"
         ? rec.rolledOut || 0
         : dailyPotTotal(rec)
       : 0;
-    rec = dpFreshRec(today, carry);
-    db.rec = rec;
+    rec = dpFreshRec(today, carry, cls);
+    db = readDailyPot();
+    db.pots[cls] = rec;
     writeDailyPot(db);
-    console.log("[dailypot] opened", today, "seed", rec.seed, "rolledIn", carry);
+    console.log("[dailypot:" + cls + "] opened", today, "seed", rec.seed, "rolledIn", carry);
     dpBroadcastUpdate(true);
-    dpCheckMilestones(today); // [RP-V7.43] rollover-in may open the day already past a threshold
+    dpCheckMilestones(today, cls); // [RP-V7.43] rollover-in may open the day already past a threshold
   }
   if (!rec) {
-    rec = dpFreshRec(today, 0);
-    db.rec = rec;
+    rec = dpFreshRec(today, 0, cls);
+    db = readDailyPot();
+    db.pots[cls] = rec;
     writeDailyPot(db);
-    console.log("[dailypot] opened", today, "seed", rec.seed, "rolledIn", 0);
-    dpCheckMilestones(today); // [RP-V7.43] a big manual seed override could open past a threshold too
+    console.log("[dailypot:" + cls + "] opened", today, "seed", rec.seed, "rolledIn", 0);
+    dpCheckMilestones(today, cls); // a big manual seed override could open past a threshold too
   }
   if (rec.status === "open" && now >= (rec.burstAt || 0)) {
-    dpSettle(rec);
-    rec = readDailyPot().rec;
+    dpSettleClass(cls);
+    rec = readDailyPot().pots[cls];
   }
   return rec;
 }
+function dpEnsureToday(now) {
+  // Both class worlds roll/settle independently. The adult record
+  // is returned for the few legacy-shaped internal callers; routes
+  // and gift routing always name their class explicitly.
+  dpEnsureClass("teen", now);
+  return dpEnsureClass("adult", now);
+}
 // The scheduler tick (boot + every 60s): open the ET day at midnight,
-// fire the 21:00 ET burst settlement.
+// fire each burst settlement at its drawn moment.
 function dailyPotTick() {
   // [RP-V7.52] the tick settles through the same money lock as the
   // HTTP settle-on-contact paths (audit C1).
@@ -3963,8 +4487,11 @@ function dailyPotTick() {
 // platform match of 2% of its charm value (floored, min 0), capped
 // for the day at the day's tier cap (rec.matchCap). Platform accounting only — the
 // gift, its split and any live-pot match are untouched.
-function dailyPotOnGift(giftCharms) {
-  const rec = dpEnsureToday(Date.now());
+function dailyPotOnGift(giftCharms, senderClass) {
+  // [RP-V7.77] The 2% match follows the SENDER's age class and only
+  // that class's Daily Pot, against that pool's own cap.
+  const cls = senderClass === "teen" ? "teen" : "adult";
+  const rec = dpEnsureClass(cls, Date.now());
   if (!rec || rec.status !== "open") return;
   const cap = rec.matchCap != null ? rec.matchCap : DAILY_POT_MATCH_CAP; // [RP-V7.42] the DAY's cap, from its tier
   const add = Math.min(
@@ -3973,14 +4500,14 @@ function dailyPotOnGift(giftCharms) {
   );
   if (!(add > 0)) return;
   const db = readDailyPot();
-  const cur = db.rec;
+  const cur = db.pots[cls];
   if (!cur || cur.date !== rec.date || cur.status !== "open") return;
   const cap2 = cur.matchCap != null ? cur.matchCap : DAILY_POT_MATCH_CAP;
   const add2 = Math.min(cap2 - (cur.match || 0), add);
   if (!(add2 > 0)) return;
   cur.match = (cur.match || 0) + add2;
   writeDailyPot(db);
-  dpCheckMilestones(cur.date); // [RP-V7.43] growth may have crossed a milestone threshold
+  dpCheckMilestones(cur.date, cls); // [RP-V7.43] growth may have crossed a milestone threshold
   dpBroadcastUpdate(false); // throttled — joins/bursts force their own
 }
 app.post("/api/dailypot/join", lockedHandler("dailypot-join", (req, res) => {
@@ -3990,11 +4517,26 @@ app.post("/api/dailypot/join", lockedHandler("dailypot-join", (req, res) => {
     return res
       .status(403)
       .json({ ok: false, error: "This account is scheduled for deletion" });
-  if (ageFromDob(ctx.user.dob) < 18)
-    return res.status(403).json({ ok: false, error: "The Daily Pot is 18+" });
-  dpEnsureToday(Date.now());
+  // [RP-V7.77] Daily Pot entry is class-locked. With no explicit
+  // target the member enters their own class's pot. A client may
+  // name a potClass (the card normally doesn't), and naming the
+  // other world is a clean refusal — the pools never mix.
+  const ownClass = accountAgeClass(ctx.user);
+  const requestedClass = String(
+    (req.body || {}).potClass || (req.body || {}).class || ownClass
+  );
+  if (requestedClass !== ownClass)
+    return res.status(403).json({
+      ok: false,
+      error:
+        requestedClass === "teen"
+          ? "This is the teen pot — teens only"
+          : "This is the adults' pot",
+      potClass: requestedClass,
+    });
+  dpEnsureClass(ownClass, Date.now());
   const db = readDailyPot();
-  const rec = db.rec;
+  const rec = db.pots[ownClass];
   if (!rec || rec.status !== "open")
     return res.status(409).json({
       ok: false,
@@ -4007,22 +4549,139 @@ app.post("/api/dailypot/join", lockedHandler("dailypot-join", (req, res) => {
   rec.entries.push(ctx.user.id);
   rec.entryNames[ctx.user.id] = ctx.user.name;
   writeDailyPot(db);
-  dpBumpStreak(ctx.user.id, rec.date); // [RP-V7.43] a successful entry feeds the streak
+  dpBumpStreak(ctx.user.id, rec.date, ownClass); // [RP-V7.43] a successful entry feeds this class's streak
   dpBroadcastUpdate(true);
-  console.log("[dailypot] join", rec.date, ctx.user.name, "entries", rec.entries.length);
-  res.json({ ok: true, pot: dailyPotPublic(rec, ctx.user.id) });
+  console.log("[dailypot:" + ownClass + "] join", rec.date, ctx.user.name, "entries", rec.entries.length);
+  res.json({ ok: true, ...dailyPotPairPayload(ctx.user) });
 }));
 app.get("/api/dailypot/state", lockedHandler("dailypot-state", (req, res) => {
-  let viewerId = null;
+  let viewer = null;
   try {
-    const u = accountForToken(readAccounts(), req);
-    if (u) viewerId = u.id;
+    viewer = accountForToken(readAccounts(), req);
   } catch (e) {}
   // [RP-V7.52] settle-on-contact runs inside the money lock, so a
   // state read in the burst window can never race the scheduler
   // into a second settlement (audit C1).
-  const rec = dpEnsureToday(Date.now());
-  res.json({ ok: true, pot: dailyPotPublic(rec, viewerId) });
+  // [RP-V7.77] A signed-in member is served BOTH Daily Pots for
+  // the side-by-side Home pair: their own class's pot in `pot`
+  // (enterable) and the other class's pot watch-only in
+  // `otherPot`/`pots`. Guests keep the adult pot in `pot`; they
+  // cannot enter either pool without an account.
+  dpEnsureToday(Date.now());
+  const payload = dailyPotPairPayload(viewer);
+  // [RP-V7.80] Full-scan F4: a guest (no/invalid token) gets NO
+  // otherPot key at all — the side-by-side pair is a signed-in
+  // surface. Signed-in adult/teen payloads are unchanged.
+  if (!viewer) delete payload.otherPot;
+  res.json({ ok: true, ...payload });
+}));
+
+// ---------------------------------------------------------------------------
+// [RP-V7.76] THE UNIFIED DAILY CLAIM ENDPOINT (brain train batch 1,
+// FIX-2) — the single claim gate described above claimRecordFor.
+// History: RP-V7.75 shipped the teen half of this as
+// POST /api/teen/daily-drop with the gate on the account record;
+// that route and field are retired into this endpoint (read-compat
+// for a same-day teenDailyDropDate lives in claimRecordFor), and the
+// adult Daily Rewards ladder — device-gated in the client since
+// RP-V7.26 — moves behind the same gate here. Externally visible
+// teen behavior is IDENTICAL to V7.75: 2,500 main + 2,500 giftBal
+// mirror, 409 on a same-day re-claim with the same copy, adults
+// refused the teen claim, claimed-state UI driven by the same
+// teenDrop status in the Daily Pot state. The adult claim pays the
+// ladder rung for the NEW streak day — the exact amounts the client
+// has always paid (DAILY_CLAIM_LADDER mirrors REWARD_LADDER).
+// Runs through the money lock like every other charm mutation.
+// ---------------------------------------------------------------------------
+app.post("/api/money/daily-claim", lockedHandler("daily-claim", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return; // 401 "Not signed in"
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const user =
+    ctx.db.users.find((u) => u.id === ctx.user.id) || ctx.user;
+  const teen = ageFromDob(user.dob) < 18;
+  const wantKind = String((req.body || {}).kind || "");
+  // The teen claim stays teen-only in BOTH directions: an adult
+  // explicitly asking for the teen drop is refused (the V7.75 rule).
+  if (!teen && (wantKind === "teen-drop" || wantKind === "teen"))
+    return res
+      .status(403)
+      .json({ ok: false, error: "The daily charm drop is for under-18 members" });
+  const today = dpDateStr(Date.now());
+  const cdb = readClaims();
+  const rec = claimRecordFor(user, cdb);
+  const kind = teen ? "teen-drop" : "daily-claim";
+  if (rec.lastDate === today) {
+    // ONE gate: any claim kind already made today refuses every
+    // other kind today too — nothing moves, the payload carries the
+    // shared state so any client surface renders the claimed day.
+    return res.status(409).json({
+      ok: false,
+      error: teen
+        ? "You've already claimed today's drop — the next one lands tomorrow"
+        : "You've already claimed today's reward — the next one lands tomorrow",
+      claimed: true,
+      kind,
+      amount: teen
+        ? TEEN_DAILY_DROP
+        : DAILY_CLAIM_LADDER[Math.min(rec.streak || 1, DAILY_CLAIM_LADDER.length) - 1],
+      streak: rec.streak || 0,
+      dailyClaim: claimStatePayload(user, cdb),
+      teenDrop: teen
+        ? { eligible: true, amount: TEEN_DAILY_DROP, claimed: true }
+        : { eligible: false, amount: TEEN_DAILY_DROP, claimed: false },
+    });
+  }
+  // Streak advance in the claim store (ET days): yesterday -> +1,
+  // anything older (or a first-ever claim) -> 1.
+  const streak = rec.lastDate === dpDatePlus(today, -1) ? (rec.streak || 0) + 1 : 1;
+  cdb.users[user.id] = {
+    lastDate: today,
+    streak,
+    best: Math.max(rec.best || 0, streak),
+    lastKind: kind,
+  };
+  writeClaims(cdb);
+  const amount = teen
+    ? TEEN_DAILY_DROP
+    : DAILY_CLAIM_LADDER[Math.min(streak, DAILY_CLAIM_LADDER.length) - 1];
+  const mdb = readMoney();
+  mdb.balances[user.id] = (mdb.balances[user.id] || 0) + amount;
+  moneyTx(mdb, {
+    // Ledger continuity: the teen claim keeps its V7.75 tx type.
+    type: teen ? "teen-daily-drop" : "daily-claim", from: null, to: user.id,
+    charms: amount, cents: 0, cut: 0, ref: today,
+  });
+  // The teen claim keeps its V7.75 fill rule: the drop is gifting
+  // fuel, so the full amount mirrors into the gift balance. The
+  // mirror helper itself no-ops for adults.
+  if (teen) giftBalMirrorWin(mdb, user, amount);
+  writeMoney(mdb);
+  // [RP-V7.75, kept] BRAIN + ALGORITHM: the claim also registers in
+  // the server-side daily-return engine (RP-V7.43, dailypot-streaks)
+  // — a claim day counts as a daily return exactly like a Daily Pot
+  // entry day. dpBumpStreak is same-day idempotent, so claim-then-
+  // enter (or enter-then-claim) counts the day once and never
+  // resets a running streak. (V7.75 did this for teen claims; the
+  // unified claim does it for every claim — same engine, same rule.)
+  try { dpBumpStreak(user.id, today, teen ? "teen" : "adult"); } catch (e) {}
+  console.log("[claim]", kind, today, user.name, "+", amount, "streak", streak);
+  res.json({
+    ok: true,
+    kind,
+    amount,
+    streak,
+    date: today,
+    balance: mdb.balances[user.id],
+    giftBal: (mdb.giftBals && mdb.giftBals[user.id]) || 0,
+    dailyClaim: claimStatePayload(user),
+    teenDrop: teen
+      ? { eligible: true, amount: TEEN_DAILY_DROP, claimed: true }
+      : { eligible: false, amount: TEEN_DAILY_DROP, claimed: false },
+  });
 }));
 
 // ---------------------------------------------------------------------------
@@ -4524,6 +5183,671 @@ function noteDmSend(userId) {
   arr.push(Date.now());
   dmSendTimes.set(userId, arr);
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.70] Plaza Stories (Branden, Oct 26: "Every profile should have
+// this where people post to their story and algorithm will post your
+// friends story so you can see it... When you touch anyone's story the
+// video will play. And you can gift it or like it or share it or follow
+// that person just like it is in TikTok" — TikTok's story FLOW, rebuilt
+// in original code with Plaza branding; no TikTok assets or copy).
+//
+// Stories are ACCOUNT state ("the brain in everything"): the store is
+// stories.json beside the other data files, media files live under
+// PHOTO_DIR/stories and ride the existing /photos static mount, so a
+// story answers at /photos/stories/<file> on any device the member
+// signs in on — never device-only.
+//
+//   { stories: { [storyId]: { id, authorId, authorName, file,
+//        createdAt, expiresAt, likes: [accountId], viewedBy: [accountId] } } }
+//
+// Lifetime: a story dies 24h after posting (expiresAt). sweepStories()
+// runs on boot, on a 10-minute timer (same pattern as the deletion
+// sweep) and lazily inside read paths; expiring a story also unlinks
+// its media file.
+//
+// Tray ranking REUSES the one shared For You interest profile
+// (reel-signals.json): people the member follows come first, ordered
+// by decayed author affinity (fyDecayed, the same read the Reels and
+// Live rankers use), then everyone else by affinity, newest first on
+// ties. No second ranker exists.
+//
+// Views ride the EXISTING views system (views.json): POST
+// /api/story/view records through recordMediaView with item key
+// "story:<id>" — deduped per viewer per America/New_York day, exactly
+// the semantics reels and photos use. The public count on a story is
+// mediaViewCount of that key. (viewedBy in this store is only the
+// ring state — colored vs gray — which must live for the story's
+// whole 24h, not just today.)
+//
+// Likes live here (a set of account ids per story); a fresh like also
+// bumps the shared author affinity by +4 — the settled For You weight
+// for a like — so liking stories feeds the same interest profile that
+// ranks Reels, Live and this tray.
+//
+// AGE SPLIT — FINAL, Branden, Oct 26, 2026. His clarifications, in
+// order: "Stories: all ages can view, gifting stays 18+" (options
+// tap) → "Likes to" → "Let's get this straight under 18 is allowed
+// to post anything get likes can share to" + "No gifting for
+// under 18". Net rule: EVERYTHING SOCIAL = ALL AGES; MONEY = 18+.
+//   VIEWING (tray + view recording): ALL AGES.
+//   LIKES: ALL AGES (RP-V7.74; follows viewing).
+//   POSTING: ALL AGES (RP-V7.74 — the /api/story/post gate below
+//     is now view-level; V7.72–V7.73 held posting at 18+, that is
+//     superseded).
+//   SHARING: ALL AGES (share never carried an age gate).
+//   GIFTING from a story: OPEN to every signed-in account since
+//     RP-V7.79 — the V7.72 door gate on the viewer's 🎁 tap is
+//     superseded (Branden tapped "Open teen story-gifting too
+//     (charms only)"); a teen's story gift settles charms-only.
+//     On the server,
+//     POST /api/money/gift itself no longer 403s teens (RP-V7.74,
+//     superseding RP-V7.73): a gift with a teen on either side runs
+//     CHARMS-ONLY — charms move, no earnings are created. Real money
+//     stays 18+ server-locked: checkout / subscribe / cashout
+//     (RP-V7.74).
+// The constants below (and their client mirrors) are the ONE
+// flip point for this split. Teen Hangout and Fellowship all-ages
+// functions are untouched either way.
+// ---------------------------------------------------------------------------
+const STORY_VIEW_ALL_AGES = true;    // [RP-V7.72] viewing/tray/views: every signed-in account
+const STORY_LIKE_ALL_AGES = true;    // [RP-V7.74] likes: ALL AGES, like viewing (Branden: "Likes to")
+const STORY_POST_ALL_AGES = true;    // [RP-V7.74] posting: ALL AGES (Branden: "allowed to post anything") — replaces STORY_POST_ADULT_ONLY (V7.72, superseded)
+const STORY_GIFT_ADULT_ONLY = false; // [RP-V7.79] story gifting OPEN to every signed-in account (Branden tapped "Open teen story-gifting too (charms only)") — supersedes the V7.72 hold: the tray payload's canGift follows storyCanGift below, the 🎁 tap opens the standard gift sheet, and /api/money/gift's teen branch settles the send charms-only (giftBal debit, author credited charms, zero earnings, RP-V7.74). Guests still can't gift: the tray requires an account.
+const STORY_TTL_MS = 24 * 3600 * 1000;
+const STORY_VIDEO_MAX = 50 * 1024 * 1024; // same cap as DM/reel video
+const STORY_MAX_ACTIVE_PER_AUTHOR = 10;
+const STORY_TRAY_MAX_AUTHORS = 50;
+const STORIES_FILE =
+  process.env.STORIES_FILE || path.join(path.dirname(PHOTO_DIR), "stories.json");
+const STORY_DIR = path.join(PHOTO_DIR, "stories");
+fs.mkdirSync(STORY_DIR, { recursive: true });
+function readStories() {
+  return storeReadJson(
+    STORIES_FILE,
+    (d) => !!(d && d.stories && typeof d.stories === "object" && !Array.isArray(d.stories)),
+    { stories: {} },
+    "stories"
+  );
+}
+function writeStories(db) {
+  storeWriteJson(STORIES_FILE, db);
+}
+function sweepStories() {
+  const db = readStories();
+  const now = Date.now();
+  let changed = false;
+  for (const id of Object.keys(db.stories)) {
+    const s = db.stories[id];
+    if (!s || !(Date.parse(s.expiresAt) > now)) {
+      if (s && s.file) fs.unlink(path.join(STORY_DIR, String(s.file)), () => {});
+      delete db.stories[id];
+      changed = true;
+    }
+  }
+  if (changed) writeStories(db);
+  return db;
+}
+function storyIsAdult(user) {
+  return ageFromDob(user.dob) >= 18;
+}
+function storyCanView(user) {
+  return STORY_VIEW_ALL_AGES || storyIsAdult(user);
+}
+function storyCanLike(user) {
+  // [RP-V7.74] Likes are view-level: any signed-in account, any DOB.
+  return STORY_LIKE_ALL_AGES || storyIsAdult(user);
+}
+function storyCanPost(user) {
+  // [RP-V7.74] Posting is view-level now: any signed-in account.
+  return STORY_POST_ALL_AGES || storyIsAdult(user);
+}
+function storyCanGift(user) {
+  return !STORY_GIFT_ADULT_ONLY || storyIsAdult(user);
+}
+function storyPublic(s, vdb, meId) {
+  const likes = Array.isArray(s.likes) ? s.likes : [];
+  const viewedBy = Array.isArray(s.viewedBy) ? s.viewedBy : [];
+  return {
+    id: s.id,
+    url: "/photos/stories/" + s.file,
+    createdAt: s.createdAt,
+    expiresAt: s.expiresAt,
+    views: mediaViewCount(vdb, "story:" + s.id),
+    likes: likes.length,
+    likedByMe: meId ? likes.includes(meId) : false,
+    viewedByMe: meId ? viewedBy.includes(meId) : false,
+  };
+}
+const storyUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, STORY_DIR),
+    filename: (req, file, cb) => {
+      const ext = REEL_VIDEO_TYPES[file.mimetype] || "mp4";
+      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${ext}`);
+    },
+  }),
+  limits: { fileSize: STORY_VIDEO_MAX },
+  fileFilter: (req, file, cb) => {
+    if (REEL_VIDEO_TYPES[file.mimetype]) cb(null, true);
+    else cb(new Error("Stories are video only — MP4, WebM or MOV"));
+  },
+});
+// Post a story. Auth (and the age gate) run BEFORE multer, exactly
+// like POST /api/dm/media, so a refused request never writes a file;
+// every later failure unlinks the stored file.
+app.post("/api/story/post",
+  (req, res, next) => {
+    const ctx = requireAccount(req, res);
+    if (!ctx) return;
+    if (!storyCanPost(ctx.user))
+      return res.status(403).json({ ok: false, error: "Posting stories is 18+" });
+    req._storyCtx = ctx;
+    next();
+  },
+  (req, res, next) => {
+    storyUpload.single("media")(req, res, (err) => {
+      if (err) {
+        const tooBig = err && err.code === "LIMIT_FILE_SIZE";
+        return res.status(tooBig ? 413 : 400).json({
+          ok: false,
+          error: tooBig ? "That video is too big — 50 MB max" : (err.message || "That file can't be posted"),
+        });
+      }
+      next();
+    });
+  },
+  (req, res) => {
+    const ctx = req._storyCtx;
+    const fail = (status, error) => {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(status).json({ ok: false, error });
+    };
+    if (!req.file) return fail(400, "No video received");
+    const db = sweepStories();
+    const mine = Object.values(db.stories).filter((s) => s && s.authorId === ctx.user.id);
+    if (mine.length >= STORY_MAX_ACTIVE_PER_AUTHOR)
+      return fail(429, "You already have " + STORY_MAX_ACTIVE_PER_AUTHOR + " stories up — let one expire first");
+    const now = Date.now();
+    const story = {
+      id: crypto.randomBytes(8).toString("hex"),
+      authorId: ctx.user.id,
+      authorName: ctx.user.name,
+      file: path.basename(req.file.path),
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + STORY_TTL_MS).toISOString(),
+      likes: [],
+      viewedBy: [],
+    };
+    db.stories[story.id] = story;
+    writeStories(db);
+    res.json({ ok: true, story: storyPublic(story, readViews(), ctx.user.id) });
+  }
+);
+// The story tray: active stories grouped by author, ranked by the
+// shared For You profile (follows first, then decayed author
+// affinity, newest first on ties).
+app.get("/api/story/tray", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (!storyCanView(ctx.user))
+    return res.json({ ok: true, adultOnly: true, authors: [] });
+  const db = sweepStories();
+  const vdb = readViews();
+  const sdb = readSocial();
+  const following = new Set(socialFollowingIds(sdb, ctx.user.id));
+  const sig = readReelSignals();
+  const urec = fyUserRec(sig, ctx.user.id, false);
+  const aff = (urec && urec.authorAff) || {};
+  const now = Date.now();
+  const byAuthor = new Map();
+  for (const s of Object.values(db.stories)) {
+    if (!s || !s.authorId) continue;
+    if (!byAuthor.has(s.authorId)) byAuthor.set(s.authorId, []);
+    byAuthor.get(s.authorId).push(s);
+  }
+  const authors = [];
+  for (const [authorId, list] of byAuthor) {
+    const brief = socialBrief(ctx.db, authorId);
+    if (!brief) continue; // pending-deletion / gone accounts don't show
+    const acct = ctx.db.users.find((u) => u.id === authorId);
+    const photos = acct ? accountPhotos(acct) : [];
+    list.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    const stories = list.map((s) => storyPublic(s, vdb, ctx.user.id));
+    authors.push({
+      author: { id: authorId, name: brief.name, photo: photos[0] || null },
+      iFollow: following.has(authorId),
+      isSelf: authorId === ctx.user.id,
+      allViewed: stories.every((s) => s.viewedByMe),
+      latestAt: list[list.length - 1].createdAt,
+      stories,
+      _score:
+        (following.has(authorId) ? 1000 : 0) +
+        2.5 * fyDecayed(aff[authorId], now),
+    });
+  }
+  authors.sort(
+    (a, b) =>
+      b._score - a._score || String(b.latestAt).localeCompare(String(a.latestAt))
+  );
+  for (const a of authors.slice(0, STORY_TRAY_MAX_AUTHORS)) delete a._score;
+  const mePhotos = accountPhotos(ctx.user);
+  res.json({
+    ok: true,
+    adultOnly: false,
+    // [RP-V7.72] Capability flags from the account's adult status —
+    // the client shows Post controls only when canPost, and routes
+    // the viewer's Gift tap through the adult door gate when !canGift.
+    // [RP-V7.74] canLike rides along: true for every account while
+    // likes are all-ages.
+    canPost: storyCanPost(ctx.user),
+    canLike: storyCanLike(ctx.user),
+    canGift: storyCanGift(ctx.user),
+    me: { id: ctx.user.id, name: ctx.user.name, photo: mePhotos[0] || null },
+    authors: authors.slice(0, STORY_TRAY_MAX_AUTHORS),
+  });
+});
+// Record a story view: the count rides the shared views system
+// (deduped per viewer per ET day); viewedBy marks the ring seen.
+app.post("/api/story/view", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (!storyCanView(ctx.user))
+    return res.status(403).json({ ok: false, error: "Stories aren't available on this account" });
+  const storyId = String((req.body || {}).storyId || "");
+  const db = sweepStories();
+  const s = db.stories[storyId];
+  if (!s) return res.status(404).json({ ok: false, error: "Story not found" });
+  const vdb = readViews();
+  const out = recordMediaView(vdb, "story:" + s.id, "acct:" + ctx.user.id, viewDayKey());
+  if (out.counted) writeViews(vdb);
+  if (!Array.isArray(s.viewedBy)) s.viewedBy = [];
+  if (!s.viewedBy.includes(ctx.user.id)) {
+    s.viewedBy.push(ctx.user.id);
+    if (s.viewedBy.length > 500) s.viewedBy = s.viewedBy.slice(-500);
+    writeStories(db);
+  }
+  res.json({ ok: true, views: out.views, counted: out.counted });
+});
+// Like / unlike a story (toggle). A fresh like bumps the shared
+// author affinity by +4 — the settled For You like weight.
+app.post("/api/story/like", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  // [RP-V7.74] Likes are ALL AGES (Branden, Oct 26, 2026: "Likes
+  // to") — this gate was storyCanPost through V7.73; it now checks
+  // storyCanLike, which follows viewing. Posting stays 18+.
+  if (!storyCanLike(ctx.user))
+    return res.status(403).json({ ok: false, error: "Liking stories is 18+" });
+  const storyId = String((req.body || {}).storyId || "");
+  const db = sweepStories();
+  const s = db.stories[storyId];
+  if (!s) return res.status(404).json({ ok: false, error: "Story not found" });
+  if (!Array.isArray(s.likes)) s.likes = [];
+  const ix = s.likes.indexOf(ctx.user.id);
+  let liked;
+  if (ix >= 0) {
+    s.likes.splice(ix, 1);
+    liked = false;
+  } else {
+    s.likes.push(ctx.user.id);
+    liked = true;
+    if (s.authorId !== ctx.user.id) {
+      try {
+        const sig = readReelSignals();
+        const rec = fyUserRec(sig, ctx.user.id, true);
+        fyBump(rec, s.authorId, 4, Date.now());
+        writeReelSignals(sig);
+      } catch (e) { /* affinity bookkeeping must never break a like */ }
+    }
+  }
+  writeStories(db);
+  res.json({ ok: true, likes: s.likes.length, likedByMe: liked });
+});
+// Delete one of my own stories (and its file).
+app.delete("/api/story/:id", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readStories();
+  const s = db.stories[String(req.params.id)];
+  if (!s) return res.status(404).json({ ok: false, error: "Story not found" });
+  if (s.authorId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "That's not your story" });
+  if (s.file) fs.unlink(path.join(STORY_DIR, String(s.file)), () => {});
+  delete db.stories[s.id];
+  writeStories(db);
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.71] Open Plaza Feed (Branden, Oct 26: "make a feed available
+// for random people to post anything and gifting likes follow and
+// sharing available for that as well").
+//
+// The Feed is ACCOUNT state ("the brain in everything"): the store is
+// feed.json beside the other data files, media files live under
+// PHOTO_DIR/feed and ride the existing /photos static mount, so a post
+// answers at /photos/feed/<file> on any device the member signs in
+// on — never device-only.
+//
+//   { posts: { [postId]: { id, authorId, authorName, text, kind,
+//        file, createdAt, likes: [accountId] } } }
+//
+// kind: "text" | "photo" | "video". Media rules match DM media
+// exactly: photos JPG/PNG/WebP/GIF at most 10 MB (and through the same
+// moderateImage safety check as profile photos and DM photos), videos
+// MP4/WebM/MOV via REEL_VIDEO_TYPES at most 50 MB. Auth (and the age
+// gate) run BEFORE multer, so a refused request never writes a file;
+// every later failure unlinks the stored file.
+//
+// Ranking REUSES the one shared For You interest profile
+// (reel-signals.json) — no second ranker: the base order is newest
+// first, and each post's timestamp is lifted by the same affinity read
+// Reels and Stories use (2.5 x decayed author affinity, fyDecayed)
+// plus a follow bonus, the total lift capped at 24 hours so fresh
+// posts still lead while authors a member engages with surface sooner.
+//
+// Likes live here (a set of account ids per post); a fresh like also
+// bumps the shared author affinity by +4 — the settled For You weight
+// for a like — exactly like story and reel likes.
+//
+// Gifting a post's author is NOT new money code: the client calls the
+// existing openGiftSheet(authorId, authorName), which runs the money
+// layer's ledger-first /api/money/gift path. Follow likewise calls
+// the existing /api/social/follow, and share rides the existing share
+// machinery (navigator.share with a clipboard fallback).
+//
+// AGE RULE — FINAL, Branden, Oct 26, 2026 ("under 18 is allowed to
+// post anything get likes can share to" / "No gifting for under
+// 18"): the Feed is SOCIAL, so viewing, posting and liking are ALL
+// AGES behind the ONE constant below, which RP-V7.74 flips to
+// all-ages semantics (FEED_ADULT_ONLY=false; V7.71 shipped it 18+,
+// superseded). Gifting a post's author still rides
+// POST /api/money/gift — since RP-V7.74 a gift with a teen on either
+// side is CHARMS-ONLY there (charms move, no earnings), and buying /
+// subscribing / cashing out stay 18+ server-locked — no money door
+// opens here. Which screens a teen-LOCKED account may
+// enter (the TEEN_ONLY_18 surface list) is a separate rule and is
+// NOT changed by this build. Teen Hangout and Fellowship all-ages
+// functions are untouched either way.
+// ---------------------------------------------------------------------------
+const FEED_ADULT_ONLY = false; // [RP-V7.74] THE Feed age flip point (server) — false = all ages (Branden, Oct 26, 2026)
+const FEED_PHOTO_MAX = 10 * 1024 * 1024; // same cap as DM photos
+const FEED_VIDEO_MAX = 50 * 1024 * 1024; // same cap as DM/reel/story video
+const FEED_TEXT_MAX = 500;
+const FEED_PAGE_MAX = 50;
+const FEED_FILE =
+  process.env.FEED_FILE || path.join(path.dirname(PHOTO_DIR), "feed.json");
+const FEED_DIR = path.join(PHOTO_DIR, "feed");
+fs.mkdirSync(FEED_DIR, { recursive: true });
+function readFeed() {
+  return storeReadJson(
+    FEED_FILE,
+    (d) => !!(d && d.posts && typeof d.posts === "object" && !Array.isArray(d.posts)),
+    { posts: {} },
+    "feed"
+  );
+}
+function writeFeed(db) {
+  storeWriteJson(FEED_FILE, db);
+}
+function feedAdultOk(user) {
+  return !FEED_ADULT_ONLY || ageFromDob(user.dob) >= 18;
+}
+function feedPublic(ctx, p, following) {
+  const brief = socialBrief(ctx.db, p.authorId);
+  if (!brief) return null; // pending-deletion / gone authors don't show
+  const acct = ctx.db.users.find((u) => u.id === p.authorId);
+  const photos = acct ? accountPhotos(acct) : [];
+  const likes = Array.isArray(p.likes) ? p.likes : [];
+  return {
+    id: p.id,
+    author: { id: p.authorId, name: brief.name, photo: photos[0] || null },
+    text: p.text || "",
+    kind: p.kind || (p.file ? "photo" : "text"),
+    url: p.file ? "/photos/feed/" + p.file : null,
+    createdAt: p.createdAt,
+    likes: likes.length,
+    likedByMe: likes.includes(ctx.user.id),
+    iFollow: following ? following.has(p.authorId) : false,
+    isSelf: p.authorId === ctx.user.id,
+  };
+}
+const FEED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const feedUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, FEED_DIR),
+    filename: (req, file, cb) => {
+      const ext = (file.mimetype || "").startsWith("video/")
+        ? (REEL_VIDEO_TYPES[file.mimetype] || "mp4")
+        : extFor(file.mimetype);
+      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${ext}`);
+    },
+  }),
+  limits: { fileSize: FEED_VIDEO_MAX },
+  fileFilter: (req, file, cb) => {
+    const m = file.mimetype || "";
+    if (FEED_IMAGE_TYPES.includes(m) || REEL_VIDEO_TYPES[m]) cb(null, true);
+    else cb(new Error("Only photos (JPG, PNG, WebP, GIF) and videos (MP4, WebM, MOV) can be posted"));
+  },
+});
+// Post to the Feed: text only (JSON), or text + one photo/video
+// (multipart). Auth (and the age gate) run BEFORE multer, exactly
+// like POST /api/dm/media; every later failure unlinks the file.
+app.post("/api/feed/post",
+  (req, res, next) => {
+    const ctx = requireAccount(req, res);
+    if (!ctx) return;
+    if (!feedAdultOk(ctx.user))
+      return res.status(403).json({ ok: false, error: "The Feed is 18+ right now" });
+    req._feedCtx = ctx;
+    next();
+  },
+  (req, res, next) => {
+    if (!/^multipart\/form-data/i.test(String(req.get("content-type") || ""))) return next();
+    feedUpload.single("media")(req, res, (err) => {
+      if (err) {
+        const tooBig = err && err.code === "LIMIT_FILE_SIZE";
+        return res.status(tooBig ? 413 : 400).json({
+          ok: false,
+          error: tooBig ? "That file is too big — 50 MB max" : (err.message || "That file can't be posted"),
+        });
+      }
+      next();
+    });
+  },
+  async (req, res) => {
+    const ctx = req._feedCtx;
+    const fail = (status, error) => {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(status).json({ ok: false, error });
+    };
+    try {
+      const text = String((req.body || {}).text || "").trim();
+      if (text.length > FEED_TEXT_MAX)
+        return fail(400, "Posts are " + FEED_TEXT_MAX + " characters max");
+      if (!req.file && !text)
+        return fail(400, "Write something, or add a photo or video");
+      let kind = "text";
+      if (req.file) {
+        const isVideo = (req.file.mimetype || "").startsWith("video/");
+        if (!isVideo && req.file.size > FEED_PHOTO_MAX)
+          return fail(413, "That photo is too big — 10 MB max");
+        if (!isVideo) {
+          const publicUrl = `https://${req.get("host")}/photos/feed/${req.file.filename}`;
+          const mod = await moderateImage(publicUrl);
+          if (!mod.ok) {
+            console.log("FEED PHOTO REJECTED:", ctx.user.id, mod.reason);
+            return fail(422, "That photo didn't pass our safety check. Please try a different one.");
+          }
+        }
+        kind = isVideo ? "video" : "photo";
+      }
+      const db = readFeed();
+      const post = {
+        id: crypto.randomBytes(8).toString("hex"),
+        authorId: ctx.user.id,
+        authorName: ctx.user.name,
+        text,
+        kind,
+        file: req.file ? path.basename(req.file.path) : null,
+        createdAt: new Date().toISOString(),
+        likes: [],
+      };
+      db.posts[post.id] = post;
+      writeFeed(db);
+      const sdb = readSocial();
+      const following = new Set(socialFollowingIds(sdb, ctx.user.id));
+      res.json({ ok: true, post: feedPublic(ctx, post, following) });
+    } catch (e) {
+      console.log("FEED POST ERROR:", e.message);
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(500).json({ ok: false, error: "That post didn't go up. Please try again." });
+    }
+  }
+);
+// The Feed itself: newest first, lifted by the shared For You author
+// affinity (2.5 x decayed affinity + a follow bonus, lift capped at
+// 24h) — the same philosophy as Reels and the Stories tray.
+app.get("/api/feed", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (!feedAdultOk(ctx.user))
+    return res.json({ ok: true, adultOnly: true, posts: [] });
+  const limit = Math.max(1, Math.min(FEED_PAGE_MAX, parseInt(req.query.limit, 10) || 30));
+  const db = readFeed();
+  const sdb = readSocial();
+  const following = new Set(socialFollowingIds(sdb, ctx.user.id));
+  const sig = readReelSignals();
+  const urec = fyUserRec(sig, ctx.user.id, false);
+  const aff = (urec && urec.authorAff) || {};
+  const now = Date.now();
+  const scored = [];
+  for (const p of Object.values(db.posts)) {
+    if (!p || !p.authorId) continue;
+    const pub = feedPublic(ctx, p, following);
+    if (!pub) continue;
+    const liftH = Math.max(0, Math.min(24,
+      2.5 * fyDecayed(aff[p.authorId], now) + (following.has(p.authorId) ? 6 : 0)));
+    scored.push({ pub, _t: Date.parse(p.createdAt) + liftH * 3600000 });
+  }
+  scored.sort((a, b) => b._t - a._t);
+  res.json({
+    ok: true,
+    adultOnly: false,
+    me: { id: ctx.user.id, name: ctx.user.name },
+    posts: scored.slice(0, limit).map((s) => s.pub),
+  });
+});
+// Like / unlike a Feed post (toggle). A fresh like bumps the shared
+// author affinity by +4 — the settled For You like weight.
+app.post("/api/feed/like", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (!feedAdultOk(ctx.user))
+    return res.status(403).json({ ok: false, error: "The Feed is 18+ right now" });
+  const postId = String((req.body || {}).postId || "");
+  const db = readFeed();
+  const p = db.posts[postId];
+  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  if (!Array.isArray(p.likes)) p.likes = [];
+  const ix = p.likes.indexOf(ctx.user.id);
+  let liked;
+  if (ix >= 0) {
+    p.likes.splice(ix, 1);
+    liked = false;
+  } else {
+    p.likes.push(ctx.user.id);
+    liked = true;
+    if (p.authorId !== ctx.user.id) {
+      try {
+        const sig = readReelSignals();
+        const rec = fyUserRec(sig, ctx.user.id, true);
+        fyBump(rec, p.authorId, 4, Date.now());
+        writeReelSignals(sig);
+      } catch (e) { /* affinity bookkeeping must never break a like */ }
+    }
+  }
+  writeFeed(db);
+  res.json({ ok: true, likes: p.likes.length, likedByMe: liked });
+});
+// Delete one of my own Feed posts (and its media file).
+app.delete("/api/feed/:id", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readFeed();
+  const p = db.posts[String(req.params.id)];
+  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  if (p.authorId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "That's not your post" });
+  if (p.file) fs.unlink(path.join(FEED_DIR, String(p.file)), () => {});
+  delete db.posts[p.id];
+  writeFeed(db);
+  res.json({ ok: true });
+});
+
+// [RP-V7.68] DM media (Branden, Oct 26: "when you click the message
+// button have a way you can send pictures to them and videos").
+// Files live under PHOTO_DIR/dm and ride the existing /photos static
+// mount, so a stored file answers at /photos/dm/<file> — the same
+// volume and serving path as profile photos and reels.
+const DM_DIR = path.join(PHOTO_DIR, "dm");
+fs.mkdirSync(DM_DIR, { recursive: true });
+const DM_PHOTO_MAX = 10 * 1024 * 1024; // 10 MB per photo
+const DM_VIDEO_MAX = 50 * 1024 * 1024; // 50 MB per video
+const DM_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const dmUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, DM_DIR),
+    filename: (req, file, cb) => {
+      const ext = (file.mimetype || "").startsWith("video/")
+        ? (REEL_VIDEO_TYPES[file.mimetype] || "mp4")
+        : extFor(file.mimetype);
+      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${ext}`);
+    },
+  }),
+  limits: { fileSize: DM_VIDEO_MAX },
+  fileFilter: (req, file, cb) => {
+    const m = file.mimetype || "";
+    if (DM_IMAGE_TYPES.includes(m) || REEL_VIDEO_TYPES[m]) cb(null, true);
+    else cb(new Error("Only photos (JPG, PNG, WebP, GIF) and videos (MP4, WebM, MOV) can be sent"));
+  },
+});
+// Shared delivery for text AND media messages: get-or-create the
+// thread, append, cap history, accept-on-reply, persist, count the
+// send against the rate limit, and queue the offline alert.
+function dmDeliver(ctx, other, msg) {
+  const db = readDms();
+  const key = dmThreadKey(ctx.user.id, other.id);
+  let t = db.threads[key];
+  const now = msg.at || new Date().toISOString();
+  if (!t) {
+    t = {
+      id: key,
+      users: [ctx.user.id, other.id].sort(),
+      startedBy: ctx.user.id,
+      accepted: false,
+      messages: [],
+      createdAt: now,
+      lastAt: now,
+      lastReadAt: {},
+      declined: {},
+    };
+    db.threads[key] = t;
+  }
+  t.messages.push(msg);
+  while (t.messages.length > 500) t.messages.shift();
+  t.lastAt = now;
+  // Replying to a first contact accepts the thread — same as Accept.
+  if (t.startedBy !== ctx.user.id && !t.accepted) t.accepted = true;
+  writeDms(db);
+  noteDmSend(ctx.user.id);
+  // [RP-V7.30] The message is stored and waits in the recipient's
+  // inbox either way. If they have no live socket right now, also
+  // queue an offline alert (deduped per sender per hour).
+  if (!acctIsOnline(other.id))
+    queueOfflineDmAlert(other.id, ctx.user.id, ctx.user.name);
+  return msg;
+}
 app.get("/api/dm/threads", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -4639,44 +5963,90 @@ app.post("/api/dm/send", (req, res) => {
       ok: false,
       error: "Messages are blocked between you and this person",
     });
-  const key = dmThreadKey(ctx.user.id, other.id);
-  let t = db.threads[key];
-  const now = new Date().toISOString();
-  if (!t) {
-    t = {
-      id: key,
-      users: [ctx.user.id, other.id].sort(),
-      startedBy: ctx.user.id,
-      accepted: false,
-      messages: [],
-      createdAt: now,
-      lastAt: now,
-      lastReadAt: {},
-      declined: {},
-    };
-    db.threads[key] = t;
-  }
   const msg = {
     id: crypto.randomBytes(8).toString("hex"),
     from: ctx.user.id,
     text,
-    at: now,
+    at: new Date().toISOString(),
   };
-  t.messages.push(msg);
-  while (t.messages.length > 500) t.messages.shift();
-  t.lastAt = now;
-  // Replying to a first contact accepts the thread — same as Accept.
-  if (t.startedBy !== ctx.user.id && !t.accepted) t.accepted = true;
-  writeDms(db);
-  noteDmSend(ctx.user.id);
-  // [RP-V7.30] The message is stored and waits in the recipient's
-  // inbox either way. If they have no live socket right now, also
-  // queue an offline alert (deduped per sender per hour) for the
-  // future email/SMS transport — see the RP-V7.30 block below.
-  if (!acctIsOnline(other.id))
-    queueOfflineDmAlert(other.id, ctx.user.id, ctx.user.name);
+  dmDeliver(ctx, other, msg);
   res.json({ ok: true, message: msg });
 });
+// [RP-V7.68] Send a photo or video in a DM. Auth runs BEFORE multer
+// so an unauthenticated request never writes a file; every later
+// validation failure unlinks the stored file. Photos go through the
+// same moderateImage safety check as profile photos.
+app.post("/api/dm/media",
+  (req, res, next) => {
+    const ctx = requireAccount(req, res);
+    if (!ctx) return;
+    req._dmCtx = ctx;
+    next();
+  },
+  (req, res, next) => {
+    dmUpload.single("media")(req, res, (err) => {
+      if (err) {
+        const tooBig = err && err.code === "LIMIT_FILE_SIZE";
+        return res.status(tooBig ? 413 : 400).json({
+          ok: false,
+          error: tooBig ? "That video is too big — 50 MB max" : (err.message || "That file can't be sent"),
+        });
+      }
+      next();
+    });
+  },
+  async (req, res) => {
+    const ctx = req._dmCtx;
+    const fail = (status, error) => {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(status).json({ ok: false, error });
+    };
+    try {
+      if (!req.file)
+        return res.status(400).json({ ok: false, error: "No photo or video received" });
+      if (dmRateLimited(ctx.user.id))
+        return fail(429, "You're sending messages too fast — slow down a moment");
+      const toId = String((req.body || {}).to || "");
+      const other = ctx.db.users.find((u) => u.id === toId);
+      if (!other) {
+        if (isTombstonedAccount(toId))
+          return fail(410, "This account no longer exists — this conversation is read-only now.");
+        return fail(404, "Account not found");
+      }
+      if (other.deletionAt)
+        return fail(410, "This account no longer exists — this conversation is read-only now.");
+      if (other.id === ctx.user.id)
+        return fail(400, "You can't message yourself");
+      const db = readDms();
+      if (dmEitherBlocked(db, ctx.user.id, other.id))
+        return fail(403, "Messages are blocked between you and this person");
+      const isVideo = (req.file.mimetype || "").startsWith("video/");
+      if (!isVideo && req.file.size > DM_PHOTO_MAX)
+        return fail(413, "That photo is too big — 10 MB max");
+      const publicUrl = `https://${req.get("host")}/photos/dm/${req.file.filename}`;
+      if (!isVideo) {
+        const mod = await moderateImage(publicUrl);
+        if (!mod.ok) {
+          console.log("DM PHOTO REJECTED:", ctx.user.id, mod.reason);
+          return fail(422, "That photo didn't pass our safety check. Please try a different one.");
+        }
+      }
+      const msg = {
+        id: crypto.randomBytes(8).toString("hex"),
+        from: ctx.user.id,
+        text: isVideo ? "🎥 Video" : "📷 Photo",
+        media: { kind: isVideo ? "video" : "photo", url: publicUrl },
+        at: new Date().toISOString(),
+      };
+      dmDeliver(ctx, other, msg);
+      res.json({ ok: true, message: msg });
+    } catch (e) {
+      console.log("DM MEDIA ERROR:", e.message);
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(500).json({ ok: false, error: "That file didn't send. Please try again." });
+    }
+  }
+);
 app.post("/api/dm/read", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -5535,6 +6905,8 @@ function emptyMoney() {
     txlog: [],
     processed: {},
     giftIdem: {}, // [RP-V7.52] gift idempotency keys -> original responses
+    giftBals: {}, // [RP-V7.74] under-18 earned/won gift balance (charms) — see giftBalMirrorWin
+    auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — the first outcome is final
   };
 }
 function readMoney() {
@@ -5558,6 +6930,10 @@ function readMoney() {
     d.processed = {};
   if (!d.giftIdem || typeof d.giftIdem !== "object" || Array.isArray(d.giftIdem))
     d.giftIdem = {};
+  if (!d.giftBals || typeof d.giftBals !== "object" || Array.isArray(d.giftBals))
+    d.giftBals = {};
+  if (!d.auctionSettlements || typeof d.auctionSettlements !== "object" || Array.isArray(d.auctionSettlements))
+    d.auctionSettlements = {};
   return d;
 }
 function writeMoney(db) {
@@ -5576,6 +6952,24 @@ function moneyEarningsFor(db, acctId) {
 }
 function moneyHeldCents(e) {
   return (e.held || []).reduce((sum, h) => sum + (h.cents || 0), 0);
+}
+// [RP-V7.74] TEEN GIFT BALANCE (giftBals, charms — Branden, Oct 26,
+// 2026: "It's teen gifting free but they have to earn and win it").
+// An under-18 account gifts for FREE: a teen's gift never spends
+// their main charm balance and never costs money — it spends ONLY
+// this earned/won balance. giftBals fills EXCLUSIVELY by mirroring
+// WIN/PRIZE charm credits to an under-18 account (pot-win and
+// dailypot-win today; any future giveaway charm credit should call
+// this same helper). Charm-pack purchases (a teen can't check out
+// anyway), received gifts, pot seed refunds/remainders and every
+// other credit do NOT fill it. Adults never use it: the mirror is a
+// no-op for 18+ accounts, and the gift handler only spends from it
+// for under-18 senders.
+function giftBalMirrorWin(mdb, user, amount) {
+  if (!user || !(amount > 0)) return;
+  if (ageFromDob(user.dob) >= 18) return;
+  if (!mdb.giftBals || typeof mdb.giftBals !== "object") mdb.giftBals = {};
+  mdb.giftBals[user.id] = (mdb.giftBals[user.id] || 0) + amount;
 }
 // Move matured holds into available. Returns true when anything moved.
 function unlockMoneyHolds(db, acctId) {
@@ -5783,6 +7177,7 @@ function moneyMePayload(db, user, connect) {
   return {
     ok: true,
     charms: db.balances[user.id] || 0,
+    giftBal: (db.giftBals && db.giftBals[user.id]) || 0, // [RP-V7.74] teen earned/won gift balance (0 for adults)
     earnings: {
       availableCents: e.availableCents,
       heldCents,
@@ -5791,6 +7186,7 @@ function moneyMePayload(db, user, connect) {
       totalEarnedCents: e.totalEarnedCents,
     },
     premium: moneyPremiumState(db, user.id),
+    dailyClaim: claimStatePayload(user), // [RP-V7.76] the unified claim gate + streak (FIX-2): every device renders the same claimed state and streak from this
     cashoutEligibility: { canCashOut: reasons.length === 0, reasons },
     connect,
     paymentsConfigured: stripeConfigured(),
@@ -5809,6 +7205,14 @@ app.get("/api/money/me", async (req, res) => {
 app.post("/api/money/checkout", async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
+  // [RP-V7.74] Buying charms is 18+ on the SERVER (Branden, Oct 26,
+  // 2026: "No gifting for under 18" — no money door stays open to
+  // under-18 accounts). Same ageFromDob determination first used in
+  // V7.73's gift gate, placed BEFORE the pack lookup, the Stripe-config
+  // check and any session creation, so an under-18 attempt creates
+  // nothing and reaches no Stripe call.
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "Buying charms is 18+" });
   const pack = CHARM_PACKS[String((req.body || {}).packId || "")];
   if (!pack)
     return res.status(400).json({ ok: false, error: "Unknown charm pack" });
@@ -5846,6 +7250,12 @@ app.post("/api/money/checkout", async (req, res) => {
 app.post("/api/money/subscribe", async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
+  // [RP-V7.74] Subscribing is 18+ on the SERVER — its own handler
+  // (it does NOT share the /api/money/checkout handler), so it gets
+  // the same ageFromDob gate, before the plan lookup, the Stripe-
+  // config check and any session creation.
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "Subscribing is 18+" });
   const planName = String((req.body || {}).plan || "");
   const plan = PREMIUM_PLANS[planName];
   if (!plan)
@@ -6015,12 +7425,25 @@ function handleStripeEvent(event) {
     return;
   }
 }
-// Send a gift, ledger-first: the sender's charms are debited and the
-// recipient's earnings credited HERE — the room animation/proto the
-// client plays afterwards is just the show; this is the money.
+// Send a gift, ledger-first: the sender's charms are debited HERE —
+// the room animation/proto the client plays afterwards is just the
+// show; this is the money. Adult→adult: the recipient's EARNINGS are
+// credited (70% split). If EITHER side is under 18 the gift is
+// CHARMS-ONLY (RP-V7.74, see the branch below): the recipient's charm
+// balance is credited instead and no earnings exist.
 app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
+  // [RP-V7.74] No blanket age 403 here anymore. RP-V7.73 locked this
+  // endpoint to 18+ outright; Branden's later rulings the same day
+  // (Oct 26, 2026: "They can go live and gift to but they gifting is
+  // free no money in it only charms" + "It's teen gifting free but
+  // they have to earn and win it") supersede it: an under-18 account
+  // MAY gift — the gift runs CHARMS-ONLY and a teen sender pays from
+  // their earned/won gift balance, never their main balance (branch
+  // after the recipient is resolved). What stays 18+ server-locked
+  // is real money: checkout / subscribe / cashout (below) — no money
+  // enters or leaves a teen account in either direction.
   const b = req.body || {};
   // [RP-V7.52] Idempotency (audit C6): the client stamps each gift
   // ATTEMPT with a key; a retry of the same attempt (double-tap,
@@ -6060,32 +7483,73 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   const recipient = matches[0];
   const db = readMoney();
   const balance = db.balances[ctx.user.id] || 0;
-  if (balance < cost)
+  // [RP-V7.74] TEEN ECONOMY — CHARMS ONLY, SPENT FROM EARNINGS/WINS.
+  // If the sender OR the recipient is under 18, the gift moves
+  // charms and ONLY charms: the recipient's spendable CHARM balance
+  // is credited the gift's cost and NO earnings are created (no
+  // availableCents, no held entry, no totalEarnedCents; the tx pair
+  // records cents: 0 / cut: 0, so no money figure anywhere moves).
+  // The 70% money split applies ONLY when both sides are adults —
+  // that path is byte-for-byte the RP-V7.73 behavior.
+  // SPEND SOURCE (Branden's final refinement, Oct 26, 2026: "It's
+  // teen gifting free but they have to earn and win it"): an
+  // under-18 SENDER never spends their main charm balance — the
+  // gift is FREE to them and is paid out of their earned/won gift
+  // balance (giftBals, filled only by win/prize credits — see
+  // giftBalMirrorWin). An adult sender pays from the main balance
+  // exactly as before, even when the recipient is a teen.
+  const senderTeen = ageFromDob(ctx.user.dob) < 18;
+  const charmsOnly = senderTeen || ageFromDob(recipient.dob) < 18;
+  let giftBal = (db.giftBals && db.giftBals[ctx.user.id]) || 0;
+  if (senderTeen) {
+    if (giftBal < cost)
+      return res.status(400).json({
+        ok: false,
+        error: "insufficient-charms",
+        message: "Earn or win charms to gift",
+        balance,
+        giftBal,
+        needed: cost,
+      });
+  } else if (balance < cost) {
     return res.status(400).json({
       ok: false,
       error: "insufficient-charms",
       balance,
       needed: cost,
     });
-  db.balances[ctx.user.id] = balance - cost;
-  const giftValueCents = cost * CHARM_CENT_VALUE;
-  const hostShare = Math.floor((giftValueCents * GIFT_HOST_PCT) / 100);
-  const platformCut = giftValueCents - hostShare;
-  const earn = moneyEarningsFor(db, recipient.id);
-  let held = false;
-  if (giftValueCents >= LARGE_GIFT_HOLD_CENTS) {
-    earn.held.push({
-      cents: hostShare,
-      unlockAt: new Date(
-        Date.now() + HOLD_DAYS * 24 * 3600 * 1000
-      ).toISOString(),
-      reason: "large-gift",
-    });
-    held = true;
-  } else {
-    earn.availableCents += hostShare;
   }
-  earn.totalEarnedCents += hostShare;
+  if (senderTeen) {
+    giftBal -= cost;
+    db.giftBals[ctx.user.id] = giftBal;
+  } else {
+    db.balances[ctx.user.id] = balance - cost;
+  }
+  let giftValueCents = 0;
+  let hostShare = 0;
+  let platformCut = 0;
+  let held = false;
+  if (charmsOnly) {
+    db.balances[recipient.id] = (db.balances[recipient.id] || 0) + cost;
+  } else {
+    giftValueCents = cost * CHARM_CENT_VALUE;
+    hostShare = Math.floor((giftValueCents * GIFT_HOST_PCT) / 100);
+    platformCut = giftValueCents - hostShare;
+    const earn = moneyEarningsFor(db, recipient.id);
+    if (giftValueCents >= LARGE_GIFT_HOLD_CENTS) {
+      earn.held.push({
+        cents: hostShare,
+        unlockAt: new Date(
+          Date.now() + HOLD_DAYS * 24 * 3600 * 1000
+        ).toISOString(),
+        reason: "large-gift",
+      });
+      held = true;
+    } else {
+      earn.availableCents += hostShare;
+    }
+    earn.totalEarnedCents += hostShare;
+  }
   const txBase = {
     from: ctx.user.id,
     to: recipient.id,
@@ -6105,6 +7569,14 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     recipient: { id: recipient.id, name: recipient.name },
     hostShareCents: hostShare,
     held,
+    // [RP-V7.74] Additive fields (older clients ignore them): a
+    // charms-only gift reports hostShareCents 0 and the charm amount
+    // the recipient's balance was credited; giftBal is the sender's
+    // post-gift earned/won gift balance (teen spend source — for an
+    // adult sender it simply reports their stored value, unused).
+    charmsOnly,
+    recipientCharms: charmsOnly ? cost : 0,
+    giftBal,
   };
   // [RP-V7.52] The idempotency record lands in the SAME write as
   // the debit itself, so a retry can never slip between the charge
@@ -6144,15 +7616,17 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     potOnGift(recipient.id, cost);
   } catch (e) { /* pot bookkeeping must never break a gift */ }
   // [RP-V7.42] Daily Pot growth match: EVERY gift on the Plaza also
-  // grows the whole-Plaza Daily Pot by 2% of its charm value (platform
-  // match, capped per day) — a gift can feed a live pot AND the Daily
-  // Pot; both matches are platform-side and the split above is final.
+  // grows the SENDER's class Daily Pot by 2% of its charm value
+  // (platform match, capped per pool) — a gift can feed a live pot
+  // AND its own class's Daily Pot; both matches are platform-side
+  // and the split above is final. [RP-V7.77]
   try {
-    dailyPotOnGift(cost);
+    dailyPotOnGift(cost, senderTeen ? "teen" : "adult");
   } catch (e) { /* daily pot bookkeeping must never break a gift */ }
   console.log(
     "[money] gift", giftId, cost, "charms:", ctx.user.name, "->", recipient.name,
-    "| host", hostShare, "c", held ? "(held)" : "", "| cut", platformCut, "c"
+    "| host", hostShare, "c", held ? "(held)" : "", "| cut", platformCut, "c",
+    charmsOnly ? "| CHARMS-ONLY (teen involved)" : ""
   );
   res.json(giftResponse);
 }));
@@ -6268,6 +7742,142 @@ function recordAuctionEarning(db, acctId, grossCents, ref) {
 // stays client-local until the Stripe wiring lands, at which point
 // recordAuctionEarning is called from a server-verified settle path
 // with a server-known amount — never from a request body.
+// [RP-V7.80] That settle path now exists (full-scan F2):
+// settleAuctionMoney below. It honors the C2 lesson in both
+// directions — earnings are credited ONLY against an equal charm
+// debit taken in the same locked mutation, and on the HTTP path
+// the debit can only ever come out of the authenticated caller's
+// own balance.
+// ---------------------------------------------------------------------------
+// Settle ONE finished auction as a TRANSFER, never a mint:
+//   - Client auctions bid in dollars; settlement is in CHARMS at
+//     100 charms = $1 of bid (bidCharms = round(winningBid * 100)).
+//   - The winner's charm balance is debited the full bidCharms.
+//   - The host is credited via recordAuctionEarning (grossCents =
+//     bidCharms numerically — 100 charms = $1 = 100 cents at
+//     CHARM_CENT_VALUE 1): floor(90%) of the bid value lands as
+//     host EARNINGS, so the credit is backed by the debit and can
+//     never exceed 90% of it; the platform's 10% is the difference.
+//   - Both parties must be existing ADULT accounts, winner ≠ host,
+//     amount > 0. A teen on either side, a self-win, an unknown
+//     account or a bad amount refuses with NOTHING moved.
+//   - Insufficient winner balance fails cleanly: no debit, no
+//     credit — and the failure is recorded.
+//   - IDEMPOTENT by auctionId: the first outcome (settled or
+//     cleanly failed) is recorded in the money store; every later
+//     call returns that record with deduped:true and moves nothing.
+// Runs inside the money lock (callers wrap it); mutates mdb — the
+// caller writes it. adb is an accounts-db snapshot for the
+// existence/class checks.
+function settleAuctionMoney(adb, mdb, opts) {
+  const auctionId = String((opts && opts.auctionId) || "").slice(0, 80);
+  if (!mdb.auctionSettlements || typeof mdb.auctionSettlements !== "object")
+    mdb.auctionSettlements = {};
+  const prior = mdb.auctionSettlements[auctionId];
+  if (prior) return Object.assign({}, prior, { deduped: true });
+  const winnerId = String((opts && opts.winnerId) || "");
+  const hostId = String((opts && opts.hostId) || "");
+  const bidDollars = Number(opts && opts.winningBid);
+  const bidCharms = Math.round(bidDollars * 100);
+  const record = (fields) => {
+    const rec = Object.assign(
+      {
+        ok: false,
+        auctionId,
+        winnerId,
+        hostId,
+        bidDollars: isFinite(bidDollars) ? bidDollars : 0,
+        bidCharms: isFinite(bidCharms) ? bidCharms : 0,
+        at: new Date().toISOString(),
+      },
+      fields
+    );
+    mdb.auctionSettlements[auctionId] = rec;
+    // Same 400-record cap discipline as giftIdem.
+    const keys = Object.keys(mdb.auctionSettlements);
+    if (keys.length > 400) {
+      keys.sort((a, b2) =>
+        String(mdb.auctionSettlements[a].at).localeCompare(
+          String(mdb.auctionSettlements[b2].at)
+        )
+      );
+      for (let i = 0; i < keys.length - 400; i++)
+        delete mdb.auctionSettlements[keys[i]];
+    }
+    return Object.assign({}, rec);
+  };
+  const winner = adb.users.find((u) => u.id === winnerId);
+  const host = adb.users.find((u) => u.id === hostId);
+  if (!winner || !host) return record({ ok: false, error: "account-not-found" });
+  if (winnerId === hostId) return record({ ok: false, error: "self-win" });
+  if (ageFromDob(winner.dob) < 18 || ageFromDob(host.dob) < 18)
+    return record({ ok: false, error: "teen-party" });
+  if (!(bidCharms > 0)) return record({ ok: false, error: "bad-amount" });
+  const balance = mdb.balances[winnerId] || 0;
+  if (balance < bidCharms)
+    return record({
+      ok: false,
+      error: "insufficient-charms",
+      balance,
+      needed: bidCharms,
+    });
+  mdb.balances[winnerId] = balance - bidCharms;
+  const { hostShare, cut } = recordAuctionEarning(mdb, hostId, bidCharms, auctionId);
+  moneyTx(mdb, {
+    type: "auction-paid",
+    from: winnerId,
+    to: hostId,
+    charms: bidCharms,
+    cents: bidCharms,
+    cut,
+    ref: auctionId,
+  });
+  return record({
+    ok: true,
+    hostShareCents: hostShare,
+    cutCents: cut,
+    winnerBalance: mdb.balances[winnerId],
+  });
+}
+// [RP-V7.80] The client (rpWn) settle path — account auth only, and
+// the winner is ALWAYS the authenticated caller: a settle request
+// can spend the caller's own charms to pay a host, but it can never
+// name a third-party winner and drain them. The socket auction
+// path settles inside endAuction with server-known identities and
+// never comes through here.
+app.post("/api/money/auction-settle", lockedHandler("auction-settle", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const auctionId = String(b.auctionId || "").trim().slice(0, 80);
+  const hostId = String(b.hostId || "").trim().slice(0, 64);
+  const winningBid = Number(b.winningBid);
+  if (!auctionId || !hostId || !isFinite(winningBid))
+    return res.status(400).json({
+      ok: false,
+      error: "auctionId, hostId and winningBid are required",
+    });
+  const mdb = readMoney();
+  const result = settleAuctionMoney(ctx.db, mdb, {
+    auctionId,
+    winnerId: ctx.user.id,
+    hostId,
+    winningBid,
+  });
+  writeMoney(mdb);
+  if (result.ok) return res.json(result);
+  const status =
+    result.error === "teen-party"
+      ? 403
+      : result.error === "account-not-found"
+        ? 404
+        : 400;
+  return res.status(status).json(result);
+}));
 app.post("/api/money/connect/onboard", async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -6314,6 +7924,11 @@ app.get("/api/money/connect/status", async (req, res) => {
 app.post("/api/money/cashout", lockedHandler("cashout", async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
+  // [RP-V7.74] Cashing out is 18+ on the SERVER — the same ageFromDob
+  // gate first used in V7.73's gift gate, placed BEFORE the ledger is
+  // read, so an under-18 attempt reserves nothing and changes no state.
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "Cashing out is 18+" });
   // [RP-V7.52] Server-computed cash-out, serialized (audit C2/H6):
   // the request carries NO amounts — the server reads a FRESH ledger
   // inside the money lock, matures holds, enforces the $20 minimum,
@@ -6409,8 +8024,10 @@ app.get("/health", (req, res) =>
 // [RP-V7.52] Server-side adult class (audit H1): Christian
 // Fellowship ("faith") and Teen Hangout ("teen") are the ONLY
 // all-ages socket rooms — every other room (themed rooms, state
-// rooms, the Live Stage, personal live rooms, Chaos) is an 18+
-// area. A socket is adult-class only when its acct-presence was
+// rooms, Chaos) is an 18+ area. [RP-V7.75] ONE carve-out was added
+// later under Branden's teen model: the Live Stage and personal
+// live rooms admit verified TEEN-class sockets too (see
+// socketMayEnterRoom below). A socket is adult-class only when its acct-presence was
 // verified against a session token AND that account's DOB is 18+
 // (accounts are 18+ by the sign-up rule; the class is computed
 // from the verified record, never from anything a client claims).
@@ -6425,6 +8042,51 @@ function socketIsAdult(socket) {
     socket.data.accountId &&
     socket.data.adultClass
   );
+}
+// [RP-V7.75] THE TEEN BUILD — live rooms are the carve-out
+// (Branden's teen model, Oct 26, 2026: "They can go live"): the Live
+// Stage ("live-stage") and personal live rooms ("live-<key>") are
+// open to SIGNED-IN under-18 accounts as viewers and as hosts. A
+// socket is teen-class when its acct-presence was verified against a
+// session token AND that account's DOB is under 18 — computed from
+// the verified record, never from anything a client claims. Every
+// other 18+ room class (dating rooms, state rooms, auction rooms,
+// themed rooms, Chaos) keeps the audit-H1 adult gate exactly as it
+// was, and a socket with NO account still enters none of them —
+// lives included.
+function isLiveRoom(room) {
+  return (
+    room === "live-stage" ||
+    (typeof room === "string" && room.indexOf("live-") === 0)
+  );
+}
+function socketIsTeen(socket) {
+  return !!(
+    socket &&
+    socket.data &&
+    socket.data.accountId &&
+    socket.data.teenClass
+  );
+}
+function socketMayEnterRoom(socket, room) {
+  if (!roomNeedsAdult(room)) return true; // faith / teen: all ages
+  if (isLiveRoom(room)) return socketIsAdult(socket) || socketIsTeen(socket);
+  return socketIsAdult(socket);
+}
+function roomGatePayload(room) {
+  // [RP-V7.75] a live room refuses only the account-less; its copy
+  // says so instead of calling the room 18+.
+  if (isLiveRoom(room))
+    return {
+      room,
+      reason: "account-required",
+      error: "Sign in with a Plaza account to enter a live.",
+    };
+  return {
+    room,
+    reason: "adults-only",
+    error: "This room is 18+ — sign in with an 18+ account to enter.",
+  };
 }
 function socketIdForKey(devKey) {
   let found = null;
@@ -6444,12 +8106,8 @@ io.on("connection", (socket) => {
     // (audit H1). A refused join creates NO player record — the
     // client receives a clean room-gate refusal, never a hang.
     // Fellowship and Teen Hangout stay open to everyone, as always.
-    if (roomNeedsAdult(room) && !socketIsAdult(socket)) {
-      socket.emit("room-gate", {
-        room,
-        reason: "adults-only",
-        error: "This room is 18+ — sign in with an 18+ account to enter.",
-      });
+    if (!socketMayEnterRoom(socket, room)) {
+      socket.emit("room-gate", roomGatePayload(room));
       return;
     }
     // [RP-V7.24] A reconnecting client keeps its identity via a stable
@@ -6517,6 +8175,10 @@ io.on("connection", (socket) => {
     // [RP-V7.52] The verified adult class rides the binding (audit
     // H1): computed here, from the token-verified account record.
     socket.data.adultClass = ageFromDob(user.dob) >= 18;
+    // [RP-V7.75] The verified teen class rides the same binding: a
+    // signed-in under-18 account, computed from the token-verified
+    // record — it opens LIVE rooms only (see socketMayEnterRoom).
+    socket.data.teenClass = ageFromDob(user.dob) < 18;
     acctSocketAdd(user.id, socket.id);
     // [RP-V7.50] The account's photo rides the socket: stashed for the
     // join handler (announce-before-join), and seeded onto an
@@ -6579,9 +8241,11 @@ io.on("connection", (socket) => {
     // [RP-V7.52] Chat in an 18+ room is adults-only on the server
     // too (audit H1) — the join gate keeps non-adults out, and this
     // keeps the relay honest even for a socket that slipped rooms.
-    if (roomNeedsAdult(p.room) && !socketIsAdult(socket)) {
+    if (!socketMayEnterRoom(socket, p.room)) {
       socket.emit("chat-blocked", {
-        reason: "This room is 18+ — verified adults only.",
+        reason: isLiveRoom(p.room)
+          ? "Live chat needs a signed-in Plaza account."
+          : "This room is 18+ — verified adults only.",
       });
       return;
     }
@@ -6619,12 +8283,8 @@ io.on("connection", (socket) => {
     if (room === p.room) return;
     // [RP-V7.52] Same adult-class gate as join (audit H1): a
     // refused switch leaves the player exactly where they were.
-    if (roomNeedsAdult(room) && !socketIsAdult(socket)) {
-      socket.emit("room-gate", {
-        room,
-        reason: "adults-only",
-        error: "This room is 18+ — sign in with an 18+ account to enter.",
-      });
+    if (!socketMayEnterRoom(socket, room)) {
+      socket.emit("room-gate", roomGatePayload(room));
       return;
     }
     socket.leave(p.room);
@@ -6767,7 +8427,7 @@ io.on("connection", (socket) => {
   socket.on("stage-request", () => {
     const p = players.get(socket.id);
     if (!p) return;
-    if (!socketIsAdult(socket)) return; // lives are 18+ areas
+    if (!socketMayEnterRoom(socket, p.room)) return; // [RP-V7.75] lives are open to signed-in teens too — the same may-enter rule as join
     let hostSid = null;
     if (p.room.indexOf("live-") === 0)
       hostSid = socketIdForKey(p.room.slice(5));
@@ -6879,8 +8539,11 @@ io.on("connection", (socket) => {
   // Live auctions (Whatnot-style). One live auction per room. The host lists
   // an item with a starting bid and a timer; joined viewers bid in real time;
   // a bid in the last 5 seconds extends the timer by 5s (anti-sniping). The
-  // server only runs the bidding — payment (Stripe) and shipping are handled
-  // by the game client afterward; the winner is broadcast as "auction-ended".
+  // winner is broadcast as "auction-ended". [RP-V7.80] Settlement is
+  // server-side now (full-scan F2/F3/F5): endAuction settles through
+  // settleAuctionMoney when both parties are account-identified, bids
+  // follow the client's tiered ladder, and a suddenDeath auction
+  // never extends. Shipping stays a client/host matter.
   // -------------------------------------------------------------------------
   function endAuction(room, cancelled) {
     const a = auctions.get(room);
@@ -6890,15 +8553,50 @@ io.on("connection", (socket) => {
     const winner = a.highBidderId
       ? { id: a.highBidderId, name: a.highBidderName, amount: a.currentBid }
       : null;
-    io.to(room).emit(cancelled ? "auction-cancelled" : "auction-ended", {
+    const payload = {
       room,
       item: a.item,
       winner: cancelled ? null : winner,
-    });
+    };
+    const emitEnd = () =>
+      io.to(room).emit(cancelled ? "auction-cancelled" : "auction-ended", payload);
+    // [RP-V7.80] Full-scan F2: a real (not cancelled) win with BOTH
+    // parties account-identified settles server-side through
+    // settleAuctionMoney BEFORE the end broadcast, so the money has
+    // already moved exactly once when clients hear the result. A
+    // win involving a guest socket (no account identity) cannot
+    // settle — the announcement still goes out, marked skipped.
+    if (!cancelled && winner && a.hostAccountId && a.highBidderAccountId) {
+      withMoneyLock(() => {
+        const adb = readAccounts();
+        const mdb = readMoney();
+        const r = settleAuctionMoney(adb, mdb, {
+          auctionId: a.id,
+          winnerId: a.highBidderAccountId,
+          hostId: a.hostAccountId,
+          winningBid: a.currentBid,
+        });
+        writeMoney(mdb);
+        return r;
+      })
+        .then((r) => {
+          payload.settlement = r;
+          emitEnd();
+        })
+        .catch(() => emitEnd());
+    } else {
+      if (!cancelled && winner)
+        payload.settlement = {
+          ok: false,
+          error: "settlement-skipped-unverified-party",
+        };
+      emitEnd();
+    }
   }
   socket.on("auction-start", (data = {}) => {
     const me = players.get(socket.id);
     if (!me) return;
+    if (socketIsTeen(socket)) return; // [RP-V7.75] auctions stay 18+ — a teen in a live room can't run one
     const room = me.room;
     if (auctions.has(room)) return;
     const startBid = Math.max(1, Math.min(100000, Math.floor(Number(data.startBid) || 1)));
@@ -6918,6 +8616,16 @@ io.on("connection", (socket) => {
       highBidderName: null,
       endsAt: Date.now() + durationSec * 1000,
       timer: null,
+      // [RP-V7.80] Full-scan F5: Sudden Death — when the seller
+      // starts with suddenDeath:true, a late bid never extends the
+      // clock (the client rpWn module's aucSd rule, now server-side).
+      suddenDeath: !!data.suddenDeath,
+      // [RP-V7.80] Full-scan F2: settlement identity — a stable
+      // per-auction id (the settlement idempotency key) and the
+      // host's ACCOUNT id, captured from acct-presence.
+      id: "auc-" + crypto.randomBytes(8).toString("hex"),
+      hostAccountId: socket.data.accountId || null,
+      highBidderAccountId: null,
     };
     a.timer = setTimeout(() => endAuction(room, false), durationSec * 1000);
     auctions.set(room, a);
@@ -6930,22 +8638,35 @@ io.on("connection", (socket) => {
       currentBid: 0,
       highBidderName: null,
       endsAt: a.endsAt,
+      suddenDeath: a.suddenDeath,
+      auctionId: a.id,
     });
   });
   socket.on("auction-bid", (data = {}) => {
     const me = players.get(socket.id);
     if (!me) return;
+    if (socketIsTeen(socket)) return; // [RP-V7.75] auctions stay 18+ — a teen in a live room can't bid in the host's pinned auction
     const a = auctions.get(me.room);
     if (!a || a.hostId === socket.id) return;
     const amount = Math.floor(Number(data.amount) || 0);
-    const minimum = a.highBidderId ? a.currentBid + 1 : a.startBid;
+    // [RP-V7.80] Full-scan F3: the minimum next bid follows the
+    // client's tiered ladder (auctionBidStepDollars) — a first bid
+    // may land exactly on startBid; every later bid must clear the
+    // current high by the tier step. A below-ladder bid is refused
+    // silently with NO state change, exactly like a below-minimum
+    // bid before.
+    const minimum = a.highBidderId
+      ? a.currentBid + auctionBidStepDollars(a.currentBid)
+      : a.startBid;
     if (amount < minimum) return;
     a.currentBid = amount;
     a.highBidderId = socket.id;
     a.highBidderName = me.name;
+    a.highBidderAccountId = socket.data.accountId || null; // [RP-V7.80] settlement identity (F2)
     let extended = false;
     const remaining = a.endsAt - Date.now();
-    if (remaining < 5000) {
+    // [RP-V7.80] Full-scan F5: Sudden Death auctions never extend.
+    if (!a.suddenDeath && remaining < 5000) {
       a.endsAt = Date.now() + 5000;
       clearTimeout(a.timer);
       a.timer = setTimeout(() => endAuction(me.room, false), 5000);
@@ -6958,6 +8679,7 @@ io.on("connection", (socket) => {
       highBidderName: a.highBidderName,
       endsAt: a.endsAt,
       extended,
+      suddenDeath: !!a.suddenDeath,
     });
   });
   socket.on("auction-end", () => {
@@ -7021,6 +8743,25 @@ server.listen(PORT, () =>
   console.log(`Party server listening on port ${PORT}`)
 );
 
+// [RP-V7.77] POT SEPARATION boot migration: persist the normalized
+// classed shapes once. readPots/readDailyPot/readDpStreaks and the
+// history reader all migrate legacy data in memory (live pots and
+// the Daily Pot to ADULT unless a live host's DOB says teen; streaks
+// and history to ADULT wholesale); writing them back here makes the
+// migration durable and idempotent — a second boot reads classed
+// stores and changes nothing. dpEnsureToday then creates the fresh
+// teen Daily Pot from the teen class's own tier if it does not yet
+// exist, without touching the migrated adult record.
+try {
+  writePots(readPots());
+  writeDailyPot(readDailyPot());
+  dpEnsureToday(Date.now());
+  writeDpStreaks(readDpStreaks());
+  writeDpHistoryMap(readDpHistoryMap());
+} catch (e) {
+  console.log("[pot-separation] boot migration failed", e && e.message);
+}
+
 // [RP-V7.37] Delete-profile finalization sweep: once on boot, then
 // every 10 minutes (the login route also runs it lazily). Accounts
 // past their 30-day deletionAt get the full hard cascade.
@@ -7049,9 +8790,10 @@ const potSweepTimer = setInterval(() => {
 if (potSweepTimer.unref) potSweepTimer.unref();
 
 // [RP-V7.42] Daily Pot scheduler: once on boot, then every 60s —
-// opens the America/New_York day at midnight and fires the 21:00 ET
+// opens the America/New_York day at midnight and fires each Daily
+// Pot settlement at its secret drawn moment in 19:00-21:00 ET; a state
 // burst settlement (dpEnsureToday also settles on contact, so a state
-// read right at 21:00 never lags; this timer is the guarantee for an
+// read right at a drawn moment never lags; this timer is the guarantee for an
 // idle server). All state persists in dailypot.json across restarts.
 try {
   dailyPotTick();
@@ -7062,3 +8804,17 @@ const dailyPotTimer = setInterval(() => {
   } catch (e) {}
 }, 60 * 1000);
 if (dailyPotTimer.unref) dailyPotTimer.unref();
+
+// [RP-V7.70] Stories expiry sweep: once on boot, then every 10
+// minutes (the deletion-sweep pattern) — a story dies at 24h and its
+// media file is unlinked with it. Reads also sweep lazily.
+try {
+  sweepStories();
+} catch (e) {}
+const storySweepTimer = setInterval(() => {
+  try {
+    sweepStories();
+  } catch (e) {}
+}, 10 * 60 * 1000);
+if (storySweepTimer.unref) storySweepTimer.unref();
+
