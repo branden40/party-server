@@ -588,6 +588,24 @@ function accountForToken(db, req) {
   }
   return db.users.find((u) => u.id === rec.userId) || null;
 }
+// [RP-V7.94] Extended profile fields — the account owns them (brain
+// rule): gender, ageRange, lookingFor, relStatus, vibe. Only known
+// values ever read back; anything else reads as null (unset). An
+// unset gender is null — the server never invents one.
+const EXT_GENDERS = ["male", "female"];
+const EXT_AGE_RANGES = ["18-24", "25-34", "35-44", "45-54", "55+", "under18"];
+const EXT_REL_STATUSES = ["single", "married", "divorced", "widowed"];
+const EXT_VIBES = ["Charming", "Funny", "Sweet", "Bold", "Chill", "Romantic"];
+function extProfileOf(u) {
+  const e = (u && u.extProfile && typeof u.extProfile === "object" && !Array.isArray(u.extProfile)) ? u.extProfile : {};
+  return {
+    gender: EXT_GENDERS.indexOf(e.gender) >= 0 ? e.gender : null,
+    ageRange: EXT_AGE_RANGES.indexOf(e.ageRange) >= 0 ? e.ageRange : null,
+    lookingFor: EXT_AGE_RANGES.indexOf(e.lookingFor) >= 0 ? e.lookingFor : null,
+    relStatus: EXT_REL_STATUSES.indexOf(e.relStatus) >= 0 ? e.relStatus : null,
+    vibe: EXT_VIBES.indexOf(e.vibe) >= 0 ? e.vibe : null,
+  };
+}
 function publicAccount(u) {
   // [RP-V7.50] photo: the account record is the source of truth for the
   // profile photo — login / signup / /me all carry it back.
@@ -602,7 +620,7 @@ function publicAccount(u) {
   // [RP-V7.88] face rides along too: photo stays the EFFECTIVE face
   // (every surface already reads it); facePhoto is the member's own
   // uploaded photo, kept apart so switching back never loses it.
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u) };
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u) };
 }
 // [RP-V7.62] The gallery as the rest of the app sees it: the stored
 // array when the record has one. A legacy account that only ever set
@@ -1241,6 +1259,28 @@ app.post("/api/account/profile", (req, res) => {
       return res.status(400).json({ ok: false, error: "That link doesn't look right — use a full web address like yoursite.com" });
     if (link !== (ctx.user.link || "")) { ctx.user.link = link; changed = true; }
   }
+  // [RP-V7.94] Extended profile fields ride this same save: only
+  // known values are stored, null clears, an absent ext object
+  // changes nothing, and no value is ever invented server-side.
+  if (b.ext && typeof b.ext === "object" && !Array.isArray(b.ext)) {
+    const cur94 = extProfileOf(ctx.user);
+    const nx94 = { gender: cur94.gender, ageRange: cur94.ageRange, lookingFor: cur94.lookingFor, relStatus: cur94.relStatus, vibe: cur94.vibe };
+    let extBad94 = false;
+    const extSet94 = (key, allowed) => {
+      if (!(key in b.ext)) return;
+      if (b.ext[key] === null) nx94[key] = null;
+      else if (allowed.indexOf(b.ext[key]) >= 0) nx94[key] = b.ext[key];
+      else extBad94 = true;
+    };
+    extSet94("gender", EXT_GENDERS);
+    extSet94("ageRange", EXT_AGE_RANGES);
+    extSet94("lookingFor", EXT_AGE_RANGES);
+    extSet94("relStatus", EXT_REL_STATUSES);
+    extSet94("vibe", EXT_VIBES);
+    if (extBad94)
+      return res.status(400).json({ ok: false, error: "That profile value isn't one of the Plaza's choices" });
+    if (JSON.stringify(nx94) !== JSON.stringify(cur94)) { ctx.user.extProfile = nx94; changed = true; }
+  }
   // [RP-V7.86] Liked-tab privacy: private = only the owner sees it.
   if (typeof b.likedPrivate === "boolean" && b.likedPrivate !== !!ctx.user.likedPrivate) {
     ctx.user.likedPrivate = b.likedPrivate; changed = true;
@@ -1766,6 +1806,30 @@ const upload = multer({
   },
 });
 
+// [RP-V7.89] FAIL-2 (V7.88 full scan): routes that ran the shared
+// photo upload as bare middleware (`upload.single("photo")`) let a
+// wrong-type or oversize file fall through to Express's default
+// error page (HTTP 500 HTML). photoUpload runs the same upload
+// through the error-callback discipline the wrapped routes
+// (/api/reel, stories, feed, DMs) already use: the multer error is
+// answered in place with clean JSON — 413 for LIMIT_FILE_SIZE, 400
+// otherwise — and nothing is stored. A clean upload runs the
+// route's original handler untouched.
+function photoUpload(handler) {
+  return (req, res) => {
+    upload.single("photo")(req, res, (err) => {
+      if (err) {
+        const tooBig = err.code === "LIMIT_FILE_SIZE";
+        return res.status(tooBig ? 413 : 400).json({
+          ok: false,
+          error: tooBig ? "That photo is over the 5 MB limit" : err.message,
+        });
+      }
+      return handler(req, res);
+    });
+  };
+}
+
 function extFor(mimetype) {
   const m = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
   return m[mimetype] || "jpg";
@@ -1831,7 +1895,7 @@ function refreshPlayerPhoto(userId, publicUrl) {
 // (user.photo) and returned in the account payload, so it restores on
 // any login on any device. If the member happens to be in a room, their
 // player record is updated + broadcast as a best-effort extra.
-app.post("/api/account/photo", upload.single("photo"), async (req, res) => {
+app.post("/api/account/photo", photoUpload(async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) {
     if (req.file) fs.unlink(req.file.path, () => {});
@@ -1888,7 +1952,7 @@ app.post("/api/account/photo", upload.single("photo"), async (req, res) => {
     console.log("ACCOUNT UPLOAD ERROR:", e.message);
     return res.status(500).json({ ok: false, error: "Upload failed. Please try again." });
   }
-});
+}));
 
 // [RP-V7.62] Upload ONE photo into the account gallery. Session auth
 // ONLY (requireAccount) — no joined player, no room, no socket, same
@@ -1900,7 +1964,7 @@ app.post("/api/account/photo", upload.single("photo"), async (req, res) => {
 // with a clear 400 BEFORE moderation runs, and the temp file is
 // removed. user.photo re-syncs to photos[0] (appends can only change
 // it when the gallery was empty).
-app.post("/api/account/photos", upload.single("photo"), async (req, res) => {
+app.post("/api/account/photos", photoUpload(async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) {
     if (req.file) fs.unlink(req.file.path, () => {});
@@ -1949,7 +2013,7 @@ app.post("/api/account/photos", upload.single("photo"), async (req, res) => {
     console.log("ACCOUNT GALLERY UPLOAD ERROR:", e.message);
     return res.status(500).json({ ok: false, error: "Upload failed. Please try again." });
   }
-});
+}));
 
 // [RP-V7.62] Replace the gallery wholesale — remove + reorder in ONE
 // atomic write. Session auth ONLY. The body carries the FULL ordered
@@ -2016,10 +2080,12 @@ app.post("/api/account/photos/set", (req, res) => {
    photo apart from the effective face: switching back to Photo
    restores it exactly; nothing is ever destroyed by switching. */
 const FACE_MODES = ["photo", "rack", "build", "ai"];
-const FACE_RACK_IDS = [
-  "avatar-01", "avatar-02", "avatar-03", "avatar-04", "avatar-05", "avatar-06",
-  "avatar-07", "avatar-08", "avatar-09", "avatar-10", "avatar-11", "avatar-12",
-];
+// [RP-V7.89] The rack grew 12 → 100 faces (Branden, Oct 27, 2026:
+// "Can it be 100 faces") — ids run avatar-01 … avatar-100; the art
+// for 13–100 ships as file drops beside the original twelve.
+const FACE_RACK_IDS = [];
+for (let _fr = 1; _fr <= 100; _fr++)
+  FACE_RACK_IDS.push("avatar-" + (_fr < 10 ? "0" + _fr : String(_fr)));
 function faceRackUrl(id) { return "/img/avatars/" + id + ".webp"; }
 function faceModeOf(u) {
   const m = String((u && u.faceMode) || "photo").trim().toLowerCase();
@@ -2094,7 +2160,7 @@ app.post("/api/account/face", (req, res) => {
 // /api/account/photo — the produced image becomes the account's
 // effective face and is remembered per route (faceImg + faceImgMode)
 // so the member can switch away and back without remaking it.
-app.post("/api/account/face/upload", upload.single("photo"), async (req, res) => {
+app.post("/api/account/face/upload", photoUpload(async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) {
     if (req.file) fs.unlink(req.file.path, () => {});
@@ -2140,7 +2206,7 @@ app.post("/api/account/face/upload", upload.single("photo"), async (req, res) =>
     console.log("FACE UPLOAD ERROR:", e.message);
     return res.status(500).json({ ok: false, error: "Upload failed. Please try again." });
   }
-});
+}));
 
 // The AI route's source photo. The moderation gate runs on the SOURCE
 // before any stylizing happens client-side (the picked rendition is
@@ -2148,7 +2214,7 @@ app.post("/api/account/face/upload", upload.single("photo"), async (req, res) =>
 // on the account (u.faceAiSource) so a future generative provider
 // plugs into exactly this step; setting a source never changes the
 // member's current face by itself.
-app.post("/api/account/face/source", upload.single("photo"), async (req, res) => {
+app.post("/api/account/face/source", photoUpload(async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) {
     if (req.file) fs.unlink(req.file.path, () => {});
@@ -2175,7 +2241,7 @@ app.post("/api/account/face/source", upload.single("photo"), async (req, res) =>
     console.log("FACE SOURCE ERROR:", e.message);
     return res.status(500).json({ ok: false, error: "Upload failed. Please try again." });
   }
-});
+}));
 
 // Upload a profile photo. The uploader must be a joined player (playerId =
 // their socket id). On success the photo URL is saved on the player and
@@ -2371,13 +2437,27 @@ function rxCleanEmoji(v) {
 }
 // reactions map (emoji -> [accountId]) -> { counts, mine } for one user.
 function rxSummarize(map, uid) {
+  // [RP-V7.89] ONE reaction per member per post (owner: "This should
+  // only show once not where I can pick multiple ones"). Stored maps
+  // predate the rule and carry no timestamps, so a member holding
+  // several emojis collapses to the FIRST emoji in the map's stored
+  // key order — counts and "mine" both derive from the per-account
+  // records with that dedupe, so reads are correct even before any
+  // new write heals the record (rxToggle normalizes on write).
   const counts = {};
   const mine = [];
   if (map && typeof map === "object") {
+    const counted = new Set();
     for (const emoji of Object.keys(map)) {
       const ids = Array.isArray(map[emoji]) ? map[emoji] : [];
-      if (ids.length) counts[emoji] = ids.length;
-      if (uid && ids.includes(uid)) mine.push(emoji);
+      let n = 0;
+      for (const id of ids) {
+        if (counted.has(id)) continue;
+        counted.add(id);
+        n++;
+        if (uid && id === uid) mine.push(emoji);
+      }
+      if (n) counts[emoji] = n;
     }
   }
   return { counts, mine };
@@ -2386,17 +2466,30 @@ function rxSummarize(map, uid) {
 // false when the member already holds the per-post distinct cap and
 // tried to add one more.
 function rxToggle(map, uid, emoji) {
+  // [RP-V7.89] Single-choice (Facebook model): first collapse any
+  // legacy multi-holds to the member's first-stored emoji, then —
+  // tapping the held emoji removes it; tapping any other emoji
+  // SWITCHES (old -1, new +1). Never refuses.
   const held = Object.keys(map).filter(
     (e) => Array.isArray(map[e]) && map[e].includes(uid)
   );
+  for (const e of held.slice(1)) {
+    map[e] = map[e].filter((x) => x !== uid);
+    if (!map[e].length) delete map[e];
+  }
   const cur = Array.isArray(map[emoji]) ? map[emoji] : null;
   if (cur && cur.includes(uid)) {
     map[emoji] = cur.filter((x) => x !== uid);
     if (!map[emoji].length) delete map[emoji];
     return true;
   }
-  if (held.length >= RX_MAX_DISTINCT_PER_MEMBER) return false;
-  if (!cur) map[emoji] = [];
+  for (const e of Object.keys(map)) {
+    if (e !== emoji && Array.isArray(map[e]) && map[e].includes(uid)) {
+      map[e] = map[e].filter((x) => x !== uid);
+      if (!map[e].length) delete map[e];
+    }
+  }
+  if (!Array.isArray(map[emoji])) map[emoji] = [];
   map[emoji].push(uid);
   return true;
 }
@@ -2434,6 +2527,11 @@ app.get("/api/reels", (req, res) => {
       stitchStart: typeof r.stitchStart === "number" ? r.stitchStart : null,
       stitchDur: typeof r.stitchDur === "number" ? r.stitchDur : null,
       allowRemix: r.allowRemix !== false,
+      // [RP-V7.90] the reel's attached sound (reference + mix), if any.
+      musicTrackId: r.musicTrackId || null,
+      musicStart: typeof r.musicStart === "number" ? r.musicStart : null,
+      musicVol: typeof r.musicVol === "number" ? r.musicVol : null,
+      origVol: typeof r.origVol === "number" ? r.origVol : null,
       // [RP-V7.64] Real server-owned view count (the tile number).
       views: mediaViewCount(vdb64, "reel:" + r.id),
       // [RP-V7.51] Compact reaction summary: counts for everyone, the
@@ -2443,6 +2541,8 @@ app.get("/api/reels", (req, res) => {
       // state on the reel record. Counts are public; the caller's own
       // heart rides only with a valid token (same rule as myReactions).
       heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+      // [RP-V7.89] Reposts ride the payload like heart-likes do.
+      reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
       comments: reelPublicComments(r),
       commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
       ...(fyUser
@@ -2450,12 +2550,198 @@ app.get("/api/reels", (req, res) => {
             myReactions: rxSummarize(r.reactions, fyUser.id).mine,
             myHeart:
               Array.isArray(r.heartLikes) && r.heartLikes.includes(fyUser.id),
+            myReposted:
+              Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === fyUser.id),
           }
         : {}),
     };
   });
   res.json({ ok: true, reels: list, ...(fyUser ? { ranked: true } : {}) });
 });
+// [RP-V7.89] Hashtag view (owner: "Hashtags help a lot to see what a
+// person likes"): GET /api/tag/<tag> lists reels + photo posts whose
+// captions carry that hashtag, newest first. Public counts; the
+// caller's own like/repost state rides with a valid token, exactly
+// like the surfaces these posts normally ride.
+app.get("/api/tag/:tag", (req, res) => {
+  const tag = String(req.params.tag || "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 40);
+  if (!tag) return res.status(400).json({ ok: false, error: "Bad tag" });
+  let uid = null;
+  try {
+    const u = accountForToken(readAccounts(), req);
+    if (u) uid = u.id;
+  } catch (e) {}
+  const hasTag = (text) => styleKeysForCaption(text).tags.includes(tag);
+  const reels = listReels()
+    .filter((r) => r && hasTag(r.caption))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, 60)
+    .map((r) => ({
+      id: r.id,
+      author: r.author,
+      caption: r.caption,
+      createdAt: r.createdAt,
+      url: "/reel-files/" + r.file,
+      views: mediaViewCount(readViews(), "reel:" + r.id),
+      heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+      reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
+      myReposted: !!uid && Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid),
+      commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
+    }));
+  const likesDb = readPhotoLikes();
+  const commentsDb = readPhotoComments();
+  const repostsDb = readPhotoReposts();
+  const photos = readPhotoPosts()
+    .posts.filter((x) => x && hasTag(x.caption))
+    .slice(0, 60)
+    .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb));
+  res.json({ ok: true, tag, reels, photos });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.90] ADD SOUND — the camera's music layer. The catalog itself stays
+// the client's TRACKS shelf (licensed Pixabay instrumentals, served at
+// full source quality from /audio/); this block mirrors only the track
+// IDS + their style families so the server can validate references and
+// feed the For You style profile. Authorized scope, nothing wider:
+//   - reel + photo-post records carry musicTrackId/musicStart/musicVol
+//     (+ origVol on reels) — stored and returned verbatim;
+//   - Favorites + Recents are ACCOUNT state (the brain rule) in
+//     sounds.json, with Plaza-wide usage counts for cold-start ordering;
+//   - using a track on a post bumps its style family +4 in the EXISTING
+//     reel-signals machinery (the gift-hook convention: +4 per event);
+//     favoriting bumps +4 / unfavoriting -4, transition-guarded exactly
+//     like a reel like; completing a watch of a reel that carries a
+//     track credits the track's family +3 alongside the completion.
+const SOUND_TRACKS = {
+  reggae: { family: "music" }, gospel: { family: "faith" },
+  soft: { family: "music" }, party: { family: "music" },
+  lofi: { family: "music" }, island: { family: "music" },
+  worship: { family: "faith" }, dance: { family: "dance" },
+};
+function soundCleanId(v) {
+  const s = String(v || "");
+  return Object.prototype.hasOwnProperty.call(SOUND_TRACKS, s) ? s : null;
+}
+const SOUNDS_FILE =
+  process.env.SOUNDS_FILE || path.join(path.dirname(PHOTO_DIR), "sounds.json");
+function readSounds() {
+  try {
+    const d = JSON.parse(fs.readFileSync(SOUNDS_FILE, "utf8"));
+    if (d && d.users && typeof d.users === "object" && d.usage && typeof d.usage === "object") {
+      if (!d.trend || typeof d.trend !== "object") d.trend = {};
+      return d;
+    }
+  } catch {}
+  return { users: {}, usage: {}, trend: {} };
+}
+// [RP-V7.90] TRENDING — computed, never hand-picked: a per-track score
+// bumped by REAL Plaza activity (post +10 · favorite add +4 ·
+// "use this sound" tap +3 · completed watch of a tracked reel +2),
+// decayed with the codebase's own convention (7-day half-life, the
+// fyDecayed math from the reel-signals store) so this week's riser
+// outranks an old evergreen.
+function soundTrendBump(trackId, w) {
+  const d = readSounds();
+  const now = Date.now();
+  const v = Math.min(9999, fyDecayed(d.trend[trackId], now) + w);
+  d.trend[trackId] = { s: Math.round(v * 1000) / 1000, at: now };
+  writeSounds(d);
+}
+function soundTrending(d) {
+  const now = Date.now();
+  const order = Object.keys(SOUND_TRACKS);
+  const scores = {};
+  for (const id of order) scores[id] = Math.round(fyDecayed(d.trend[id], now) * 1000) / 1000;
+  const ids = order.slice().sort((a, b) => {
+    if (scores[b] !== scores[a]) return scores[b] - scores[a];
+    const ua = (d.usage && d.usage[a]) || 0, ub = (d.usage && d.usage[b]) || 0;
+    if (ub !== ua) return ub - ua;
+    return order.indexOf(a) - order.indexOf(b);
+  });
+  return { ids, scores };
+}
+function writeSounds(d) {
+  const tmp = SOUNDS_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(d, null, 2));
+  fs.renameSync(tmp, SOUNDS_FILE);
+}
+function soundBumpFamily(uid, trackId, delta) {
+  const fam = SOUND_TRACKS[trackId] && SOUND_TRACKS[trackId].family;
+  if (!uid || !fam || !delta) return;
+  const sig = readReelSignals();
+  const urec = fyUserRec(sig, uid, true);
+  fyBumpStyleKeys(urec, { tags: [], families: [fam] }, delta, Date.now());
+  writeReelSignals(sig);
+}
+function soundTouchUse(uid, trackId) {
+  const d = readSounds();
+  d.usage[trackId] = (d.usage[trackId] || 0) + 1;
+  if (uid) {
+    const u = d.users[uid] || (d.users[uid] = { favs: [], recents: [] });
+    u.recents = [trackId].concat((u.recents || []).filter((x) => x !== trackId)).slice(0, 12);
+  }
+  writeSounds(d);
+  soundBumpFamily(uid, trackId, 4); // a use is a like-tier (+4) style signal
+  soundTrendBump(trackId, 10); // a post is the heaviest trending signal
+}
+app.get("/api/sounds/state", (req, res) => {
+  const d = readSounds();
+  let user = null;
+  try { user = accountForToken(readAccounts(), req); } catch (e) { user = null; }
+  const out = { ok: true, usage: d.usage || {} };
+  const tr = soundTrending(d);
+  out.trending = tr.ids;
+  out.trendScores = tr.scores;
+  // [RP-V7.90] No featured/hand-picked list exists — the owner
+  // retracted handpicks: Trending is the algorithm's alone.
+  if (user) {
+    const u = d.users[user.id] || { favs: [], recents: [] };
+    out.favorites = Array.isArray(u.favs) ? u.favs : [];
+    out.recents = Array.isArray(u.recents) ? u.recents : [];
+    // The caller's OWN decayed style weights (their picker ordering) —
+    // own record only, the same privacy rule as every signal surface.
+    const sig = readReelSignals();
+    const urec = fyUserRec(sig, user.id, false);
+    const now = Date.now();
+    const style = {};
+    if (urec && urec.styleAff) {
+      for (const fam of Object.keys(STYLE_FAMILIES)) {
+        const w = fyDecayed(urec.styleAff[fam], now);
+        if (w) style[fam] = Math.round(w * 1000) / 1000;
+      }
+    }
+    out.style = style;
+  }
+  res.json(out);
+});
+app.post("/api/sounds/favorite", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return; // guests keep a device-local list (client-side)
+  const b = req.body || {};
+  const tid = soundCleanId(b.trackId);
+  if (!tid) return res.status(400).json({ ok: false, error: "Unknown track" });
+  const want = b.fav === true;
+  const d = readSounds();
+  const u = d.users[ctx.user.id] || (d.users[ctx.user.id] = { favs: [], recents: [] });
+  if (!Array.isArray(u.favs)) u.favs = [];
+  const has = u.favs.includes(tid);
+  if (want && !has) u.favs.push(tid);
+  if (!want && has) u.favs = u.favs.filter((x) => x !== tid);
+  writeSounds(d);
+  if (want !== has) soundBumpFamily(ctx.user.id, tid, want ? 4 : -4);
+  if (want && !has) soundTrendBump(tid, 4);
+  res.json({ ok: true, favorites: u.favs });
+});
+app.post("/api/sounds/use-tap", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return; // guests write no signals — the standing rule
+  const tid = soundCleanId((req.body || {}).trackId);
+  if (!tid) return res.status(400).json({ ok: false, error: "Unknown track" });
+  soundTrendBump(tid, 3); // "use this sound" tap from a watched reel
+  res.json({ ok: true });
+});
+
 app.post("/api/reel", (req, res) => {
   reelUpload.single("video")(req, res, (err) => {
     if (err) {
@@ -2511,6 +2797,14 @@ app.post("/api/reel", (req, res) => {
       rb.allowRemix === "0" ||
       rb.allowRemix === false
     );
+    // [RP-V7.90] Add Sound: an optional catalog track reference + the
+    // poster's mix (start point, music volume, original volume). The
+    // track FILE is never uploaded or re-encoded — the record carries
+    // the reference and players stream the full-quality source.
+    const musicTrackId = soundCleanId(rb.musicTrackId);
+    const musicStart = musicTrackId ? (reelNum(rb.musicStart, 0, 3600) || 0) : null;
+    const musicVol = musicTrackId ? (reelNum(rb.musicVol, 0, 1) ?? 0.8) : null;
+    const origVol = musicTrackId ? (reelNum(rb.origVol, 0, 1) ?? 1) : null;
     const entry = saveReel({
       id: path.basename(req.file.filename, path.extname(req.file.filename)),
       author,
@@ -2528,7 +2822,9 @@ app.post("/api/reel", (req, res) => {
       ...(stitchStart !== null ? { stitchStart } : {}),
       ...(stitchDur !== null ? { stitchDur } : {}),
       allowRemix,
+      ...(musicTrackId ? { musicTrackId, musicStart, musicVol, origVol } : {}),
     });
+    if (musicTrackId) soundTouchUse(authorUser ? authorUser.id : null, musicTrackId);
     console.log("[reels] new reel", entry.id, "by", author, entry.size, "bytes");
     res.json({ ok: true, id: entry.id, url: "/reel-files/" + entry.file });
   });
@@ -2622,6 +2918,77 @@ function fyBump(urec, key, delta, now) {
   const v = Math.max(-10, Math.min(60, fyDecayed(urec.authorAff[key], now) + delta));
   urec.authorAff[key] = { s: Math.round(v * 1000) / 1000, at: now };
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.89] STYLE affinity — the For You profile learns WHAT a member
+// likes, not just WHO (owner: "make sure the algorithm feeds off of what
+// you like to see... If I watch a lot of sports make the algorithm send
+// me more sports videos and pictures" + "Hashtags help a lot to see what
+// a person likes"). Style keys come from metadata the app already has:
+//   - HASHTAGS in reel / photo-post captions are the PRIMARY signal —
+//     every #tag is a style bucket of its own (open vocabulary).
+//   - Caption WORDS never create buckets; they only roll up into the
+//     curated FAMILIES below (a football post feeds "sports"), so plain
+//     text can never override or dilute an explicit hashtag.
+//   - A live's room/theme text rolls into families the same way.
+// Style weights live in the SAME per-member record (urec.styleAff) with
+// the SAME decay (7-day half-life) and clamp family ([-10, 60]) as
+// author affinity. A post's style weight = its tag weights + its family
+// weights, families counted ONCE per post (no multi-tag stuffing), the
+// sum clamped to the same [-10, 60] so style is comparable to one
+// author affinity in the combined score.
+const STYLE_FAMILIES = {
+  faith: ["faith","church","jesus","god","bible","scripture","prayer","praying","worship","gospel","sermon","pastor","ministry","christian","praise","hallelujah","blessing","blessed","testimony","devotion","psalm","verse","choir"],
+  sports: ["sports","football","basketball","soccer","baseball","boxing","mma","ufc","nfl","nba","mlb","nhl","fifa","worldcup","highlights","touchdown","dunk","homerun","tennis","golf","racing","nascar","olympics","wrestling","volleyball","softball","hockey","athlete","superbowl","playoffs"],
+  music: ["music","song","singing","singer","rap","hiphop","piano","guitar","drums","concert","album","beats","producer","dj","rnb","jazz","blues","rock","metal","country","violin","cello","trumpet","saxophone","freestyle"],
+  comedy: ["comedy","funny","laugh","laughs","joke","jokes","humor","hilarious","skit","prank","standup","memes","meme"],
+  fitness: ["fitness","gym","workout","workouts","exercise","training","cardio","weights","lifting","running","runner","marathon","yoga","pilates","health","healthy","muscle","strength","crossfit","bodybuilding"],
+  food: ["food","cooking","cook","recipe","recipes","baking","chef","kitchen","delicious","yummy","breakfast","lunch","dinner","dessert","cake","pizza","tacos","bbq","grill","vegan","snacks","coffee","tea","restaurant","eats","foodie"],
+  fashion: ["fashion","beauty","makeup","style","outfit","ootd","hair","nails","skincare","glam","model","boutique","shopping","dress","shoes","sneakers","aesthetic"],
+  gaming: ["gaming","gamer","games","game","xbox","playstation","ps5","nintendo","stream","streaming","twitch","fortnite","minecraft","roblox","cod","gta","esports","gameplay"],
+  cars: ["cars","car","truck","trucks","auto","automotive","engine","motorsport","drift","garage","mechanic","ford","chevy","dodge","tesla","bmw","lowrider","offroad","motorcycle","bike","biker","harley"],
+  dance: ["dance","dancing","dancer","choreography","ballet","salsa","bachata","twerk","shuffle"],
+  pets: ["pets","pet","dog","dogs","puppy","puppies","cat","cats","kitten","kittens","animals","animal","horse","horses","bird","fish","rescue","vet","bunny","rabbit"],
+};
+const STYLE_WORD2FAM = {};
+for (const fam of Object.keys(STYLE_FAMILIES)) {
+  for (const w of STYLE_FAMILIES[fam]) if (!STYLE_WORD2FAM[w]) STYLE_WORD2FAM[w] = fam;
+  if (!STYLE_WORD2FAM[fam]) STYLE_WORD2FAM[fam] = fam;
+}
+function styleKeysForCaption(text) {
+  const tags = new Set();
+  const fams = new Set();
+  const str = String(text || "").toLowerCase();
+  for (const m of str.matchAll(/#([a-z0-9_]{2,40})/g)) tags.add(m[1]);
+  const words = str.replace(/#([a-z0-9_]+)/g, " $1 ").split(/[^a-z0-9]+/);
+  for (const w of words) { if (w.length >= 3 && STYLE_WORD2FAM[w]) fams.add(STYLE_WORD2FAM[w]); }
+  for (const t of tags) { if (STYLE_WORD2FAM[t]) fams.add(STYLE_WORD2FAM[t]); }
+  return { tags: [...tags].slice(0, 8), families: [...fams] };
+}
+function styleKeysForText(text) {
+  // Lives: the room/theme text rolls into families; a single-token room
+  // id also counts as its own bucket.
+  const k = styleKeysForCaption(text);
+  const tok = String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (tok && !tok.includes(" ") && tok.length >= 2 && !k.tags.includes(tok)) k.tags.push(tok);
+  return k;
+}
+function fyBumpStyleKeys(urec, keys, delta, now) {
+  if (!urec || !keys || !delta) return;
+  if (!urec.styleAff) urec.styleAff = {};
+  const bump = (k) => {
+    const v = Math.max(-10, Math.min(60, fyDecayed(urec.styleAff[k], now) + delta));
+    urec.styleAff[k] = { s: Math.round(v * 1000) / 1000, at: now };
+  };
+  for (const t of keys.tags || []) bump(t);
+  for (const f of keys.families || []) bump(f);
+}
+function fyStyleWeight(urec, keys, now) {
+  if (!urec || !keys || !urec.styleAff) return 0;
+  let sum = 0;
+  for (const t of keys.tags || []) sum += fyDecayed(urec.styleAff[t], now);
+  for (const f of keys.families || []) sum += fyDecayed(urec.styleAff[f], now);
+  return Math.max(-10, Math.min(60, sum));
+}
 // Fetch (and optionally create) a member's interest record, normalized
 // to the full shape — records may have been started by any of the three
 // writers (reels signals, live signals, the gift hook).
@@ -2629,7 +2996,7 @@ function fyUserRec(sig, userId, create) {
   let rec = sig.users[userId];
   if (!rec) {
     if (!create) return null;
-    rec = sig.users[userId] = { authorAff: {}, liked: {}, seenFull: {}, liveSigAt: {}, storySigDay: {}, pliked: {} };
+    rec = sig.users[userId] = { authorAff: {}, liked: {}, seenFull: {}, liveSigAt: {}, storySigDay: {}, pliked: {}, reposted: {}, styleAff: {} };
   }
   if (!rec.authorAff) rec.authorAff = {};
   if (!rec.liked) rec.liked = {};
@@ -2637,6 +3004,8 @@ function fyUserRec(sig, userId, create) {
   if (!rec.liveSigAt) rec.liveSigAt = {};
   if (!rec.storySigDay) rec.storySigDay = {};
   if (!rec.pliked) rec.pliked = {};
+  if (!rec.reposted) rec.reposted = {}; // [RP-V7.89] repost exactly-once guard (kind:id)
+  if (!rec.styleAff) rec.styleAff = {}; // [RP-V7.89] style affinity (tags + families)
   return rec;
 }
 function reelAuthorKeyFor(accountsDb, reel) {
@@ -2659,6 +3028,10 @@ function fyScoreReel(user, urec, sig, following, accountsDb, reel, now) {
   const seenFull = (urec && urec.seenFull) || {};
   let score = 0;
   if (urec && key && !isOwn) score += 2.5 * fyDecayed(aff[key], now);
+  // [RP-V7.89] STYLE affinity joins the score: a brand-new author in a
+  // member's proven style can outrank an established author in a style
+  // the member skips. Same 2.5 weight as one author affinity.
+  if (urec && !isOwn) score += 2.5 * fyStyleWeight(urec, styleKeysForCaption(reel.caption), now);
   if (!isOwn && key && key.indexOf("name:") !== 0 && following.has(key))
     score += 12;
   const agg = sig.reels[reel.id];
@@ -2816,11 +3189,11 @@ app.post("/api/reels/signal", (req, res) => {
     if (want && !has) {
       urec.liked[reelId] = true;
       agg.likes += 1;
-      if (notSelf) fyBump(urec, key, 4, now);
+      if (notSelf) { fyBump(urec, key, 4, now); fyBumpStyleKeys(urec, styleKeysForCaption(reel.caption), 4, now); }
     } else if (!want && has) {
       delete urec.liked[reelId];
       agg.likes = Math.max(0, agg.likes - 1);
-      if (notSelf) fyBump(urec, key, -4, now);
+      if (notSelf) { fyBump(urec, key, -4, now); fyBumpStyleKeys(urec, styleKeysForCaption(reel.caption), -4, now); }
     }
   } else {
     const watchedMs = reelNum(b.watchedMs, 0, 3600000) || 0;
@@ -2841,9 +3214,10 @@ app.post("/api/reels/signal", (req, res) => {
     }
     if (skippedFast) agg.fastSkips += 1;
     if (notSelf) {
-      if (completed) fyBump(urec, key, 3, now);
-      else if (frac > 0.6) fyBump(urec, key, 2, now);
-      if (skippedFast) fyBump(urec, key, -1, now);
+      const sKeys = styleKeysForCaption(reel.caption);
+      if (completed) { fyBump(urec, key, 3, now); fyBumpStyleKeys(urec, sKeys, 3, now); if (reel.musicTrackId && SOUND_TRACKS[reel.musicTrackId]) fyBumpStyleKeys(urec, { tags: [], families: [SOUND_TRACKS[reel.musicTrackId].family] }, 3, now); soundTrendBump(reel.musicTrackId, 2); }
+      else if (frac > 0.6) { fyBump(urec, key, 2, now); fyBumpStyleKeys(urec, sKeys, 2, now); }
+      if (skippedFast) { fyBump(urec, key, -1, now); fyBumpStyleKeys(urec, sKeys, -1, now); }
     }
   }
   // Bound the store: drop aggregates for reels that fell out of the index.
@@ -2992,15 +3366,62 @@ app.post("/api/reel/like", (req, res) => {
     if (want && !sigHas) {
       urec.liked[id] = true;
       agg.likes += 1;
-      if (notSelf) fyBump(urec, key, 4, Date.now());
+      if (notSelf) { fyBump(urec, key, 4, Date.now()); fyBumpStyleKeys(urec, styleKeysForCaption(entry.caption), 4, Date.now()); }
     } else if (!want && sigHas) {
       delete urec.liked[id];
       agg.likes = Math.max(0, agg.likes - 1);
-      if (notSelf) fyBump(urec, key, -4, Date.now());
+      if (notSelf) { fyBump(urec, key, -4, Date.now()); fyBumpStyleKeys(urec, styleKeysForCaption(entry.caption), -4, Date.now()); }
     }
     writeReelSignals(sig);
   } catch (e) { /* affinity bookkeeping must never break a like */ }
   res.json({ ok: true, id, liked: want, heartLikes: entry.heartLikes.length });
+});
+// [RP-V7.89] REPOST (owner, from his phone on live V7.88: "I'm missing a
+// repost button — along with the others for reels and photos"). The
+// repost set lives ON the reel record as [{u, at}] so counts ride GET
+// /api/reels like heart-likes, and the profile Reposts tab + the Feed
+// resolve from the same records. Toggle is idempotent, token identity
+// only. A member cannot repost their own reel (refused here AND the
+// client hides the button). The For You +4 fires ONCE per (member,
+// post) EVER via urec.reposted — unrepost never reverses it and a
+// re-repost never re-fires it (deliberately unlike likes).
+app.post("/api/reel/repost", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const id = reelCleanId(b.id || b.reelId);
+  if (!id) return res.status(400).json({ ok: false, error: "Missing reel id" });
+  const entry = listReels().find((r) => r.id === id);
+  if (!entry) return res.status(404).json({ ok: false, error: "Reel not found" });
+  const key = reelAuthorKeyFor(ctx.db, entry);
+  if (key && key === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't repost your own post" });
+  const want = b.reposted === true;
+  if (!Array.isArray(entry.reposts)) entry.reposts = [];
+  const has = entry.reposts.some((x) => x && x.u === ctx.user.id);
+  if (want && !has) {
+    entry.reposts.push({ u: ctx.user.id, at: new Date().toISOString() });
+    updateReelEntry(id, { reposts: entry.reposts });
+  } else if (!want && has) {
+    entry.reposts = entry.reposts.filter((x) => !(x && x.u === ctx.user.id));
+    updateReelEntry(id, { reposts: entry.reposts });
+  }
+  try {
+    const sig = readReelSignals();
+    const urec = fyUserRec(sig, ctx.user.id, true);
+    const gk = "reel:" + id;
+    if (want && !urec.reposted[gk]) {
+      urec.reposted[gk] = true;
+      if (key && key !== ctx.user.id) fyBump(urec, key, 4, Date.now());
+      fyBumpStyleKeys(urec, styleKeysForCaption(entry.caption), 4, Date.now());
+    }
+    writeReelSignals(sig);
+  } catch (e) { /* affinity bookkeeping must never break a repost */ }
+  res.json({ ok: true, id, reposted: entry.reposts.some((x) => x && x.u === ctx.user.id), reposts: entry.reposts.length });
 });
 
 // ---------------------------------------------------------------------------
@@ -3078,9 +3499,33 @@ function photoLikeCount(likesDb, id) {
   const s = likesDb.photos[id];
   return Array.isArray(s) ? s.length : 0;
 }
-function photoPublicPost(p, uid, likesDb, commentsDb) {
+// [RP-V7.89] Reposts for photo posts: photo-reposts.json
+// { photos: { <postId>: [{ u, at }] } } — same read/write discipline as
+// photo-likes.json (plain read + tmp/rename write).
+const PHOTO_REPOSTS_FILE =
+  process.env.PHOTO_REPOSTS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "photo-reposts.json");
+function readPhotoReposts() {
+  try {
+    const db = JSON.parse(fs.readFileSync(PHOTO_REPOSTS_FILE, "utf8"));
+    if (db && typeof db === "object" && db.photos && typeof db.photos === "object")
+      return db;
+  } catch (e) {}
+  return { photos: {} };
+}
+function writePhotoReposts(db) {
+  const tmp = PHOTO_REPOSTS_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, PHOTO_REPOSTS_FILE);
+}
+function photoRepostSet(repostsDb, id) {
+  const s2 = repostsDb && repostsDb.photos ? repostsDb.photos[id] : null;
+  return Array.isArray(s2) ? s2 : [];
+}
+function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb) {
   const list = (commentsDb.photos && commentsDb.photos[p.id]) || [];
   const set = Array.isArray(likesDb.photos[p.id]) ? likesDb.photos[p.id] : [];
+  const rset = photoRepostSet(repostsDb, p.id);
   return {
     id: p.id,
     author: p.name,
@@ -3090,11 +3535,18 @@ function photoPublicPost(p, uid, likesDb, commentsDb) {
     mine: !!uid && uid === p.owner,
     likes: set.length,
     myLiked: !!uid && set.includes(uid),
+    // [RP-V7.89] repost count + the caller's own state, like likes.
+    reposts: rset.length,
+    myReposted: !!uid && rset.some((x) => x && x.u === uid),
     comments: reelPublicComments({ comments: list }),
     commentCount: list.length,
+    // [RP-V7.90] attached sound reference on photo posts, same shape as reels.
+    musicTrackId: p.musicTrackId || null,
+    musicStart: typeof p.musicStart === "number" ? p.musicStart : null,
+    musicVol: typeof p.musicVol === "number" ? p.musicVol : null,
   };
 }
-app.post("/api/photo/post", upload.single("photo"), async (req, res) => {
+app.post("/api/photo/post", photoUpload(async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) {
     if (req.file) fs.unlink(req.file.path, () => {});
@@ -3120,7 +3572,7 @@ app.post("/api/photo/post", upload.single("photo"), async (req, res) => {
         return res.json({
           ok: true,
           deduped: true,
-          post: photoPublicPost(ex, ctx.user.id, readPhotoLikes(), readPhotoComments()),
+          post: photoPublicPost(ex, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts()),
         });
       }
     }
@@ -3153,6 +3605,7 @@ app.post("/api/photo/post", upload.single("photo"), async (req, res) => {
     }
     if (!photoUrl)
       return res.status(400).json({ ok: false, error: "Pick a photo first" });
+    const musicTrackId = soundCleanId(b.musicTrackId);
     const post = {
       id: "ph" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex"),
       owner: ctx.user.id,
@@ -3161,20 +3614,22 @@ app.post("/api/photo/post", upload.single("photo"), async (req, res) => {
       caption,
       clientKey: clientKey || null,
       ts: new Date().toISOString(),
+      ...(musicTrackId ? { musicTrackId, musicStart: reelNum(b.musicStart, 0, 3600) || 0, musicVol: reelNum(b.musicVol, 0, 1) ?? 0.8 } : {}),
     };
+    if (musicTrackId) soundTouchUse(ctx.user.id, musicTrackId);
     db.posts.unshift(post);
     db.posts = db.posts.slice(0, PHOTO_POSTS_KEEP);
     writePhotoPosts(db);
     return res.json({
       ok: true,
-      post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments()),
+      post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts()),
     });
   } catch (e) {
     console.log("PHOTO POST ERROR:", e.message);
     if (req.file) fs.unlink(req.file.path, () => {});
     return res.status(500).json({ ok: false, error: "Posting failed. Please try again." });
   }
-});
+}));
 app.get("/api/photo/posts", (req, res) => {
   let uid = null;
   try {
@@ -3183,9 +3638,10 @@ app.get("/api/photo/posts", (req, res) => {
   } catch (e) {}
   const likesDb = readPhotoLikes();
   const commentsDb = readPhotoComments();
+  const repostsDb = readPhotoReposts();
   const posts = readPhotoPosts()
     .posts.slice(0, PHOTO_POSTS_RETURN)
-    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb));
+    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb));
   res.json({ ok: true, posts });
 });
 // [RP-V7.85] Batch social state for posts that have no server post
@@ -3205,15 +3661,19 @@ app.get("/api/photo/extras", (req, res) => {
   } catch (e) {}
   const likesDb = readPhotoLikes();
   const commentsDb = readPhotoComments();
+  const repostsDbE = readPhotoReposts();
   const posts = {};
   for (const id of ids) {
     const list = (commentsDb.photos && commentsDb.photos[id]) || [];
     const set = Array.isArray(likesDb.photos[id]) ? likesDb.photos[id] : [];
+    const rset = photoRepostSet(repostsDbE, id);
     posts[id] = {
       comments: reelPublicComments({ comments: list }),
       commentCount: list.length,
       likes: set.length,
       myLiked: !!uid && set.includes(uid),
+      reposts: rset.length,
+      myReposted: !!uid && rset.some((x) => x && x.u === uid),
     };
   }
   res.json({ ok: true, posts });
@@ -3249,14 +3709,60 @@ app.post("/api/photo/like", (req, res) => {
       if (want && !sigHas) {
         urec.pliked[id] = true;
         fyBump(urec, post.owner, 4, Date.now());
+        fyBumpStyleKeys(urec, styleKeysForCaption(post.caption), 4, Date.now());
       } else if (!want && sigHas) {
         delete urec.pliked[id];
         fyBump(urec, post.owner, -4, Date.now());
+        fyBumpStyleKeys(urec, styleKeysForCaption(post.caption), -4, Date.now());
       }
       writeReelSignals(sig);
     }
   } catch (e) { /* affinity bookkeeping must never break a like */ }
   res.json({ ok: true, id, liked: set.includes(ctx.user.id), likes: set.length });
+});
+// [RP-V7.89] REPOST for photo posts — mirrors /api/reel/repost. Only
+// real server posts can be reposted (seed/demo ids have no record and
+// answer 404; the client renders no repost button on them). Own-post
+// refused. The +4 (author + style) fires once per (member, post) EVER
+// via urec.reposted and never reverses.
+app.post("/api/photo/repost", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const id = reelCleanId(b.id);
+  if (!id) return res.status(400).json({ ok: false, error: "Bad post reference" });
+  const post = readPhotoPosts().posts.find((x) => x && x.id === id);
+  if (!post) return res.status(404).json({ ok: false, error: "Post not found" });
+  if (post.owner === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't repost your own post" });
+  const want = b.reposted === true;
+  const db = readPhotoReposts();
+  const set = photoRepostSet(db, id).slice();
+  const has = set.some((x) => x && x.u === ctx.user.id);
+  if (want && !has) set.push({ u: ctx.user.id, at: new Date().toISOString() });
+  if (!want && has) {
+    const ix = set.findIndex((x) => x && x.u === ctx.user.id);
+    if (ix >= 0) set.splice(ix, 1);
+  }
+  if (set.length) db.photos[id] = set;
+  else delete db.photos[id];
+  writePhotoReposts(db);
+  try {
+    const sig = readReelSignals();
+    const urec = fyUserRec(sig, ctx.user.id, true);
+    const gk = "photo:" + id;
+    if (want && !urec.reposted[gk]) {
+      urec.reposted[gk] = true;
+      if (post.owner && post.owner !== ctx.user.id) fyBump(urec, post.owner, 4, Date.now());
+      fyBumpStyleKeys(urec, styleKeysForCaption(post.caption), 4, Date.now());
+    }
+    writeReelSignals(sig);
+  } catch (e) { /* affinity bookkeeping must never break a repost */ }
+  res.json({ ok: true, id, reposted: set.some((x) => x && x.u === ctx.user.id), reposts: set.length });
 });
 
 // [RP-V7.64] Media view counts — the Facebook-style "👁 332K" on every
@@ -3520,6 +4026,10 @@ app.post("/api/live/signal", (req, res) => {
   if (urec.liveSigAt[host.id] && now - urec.liveSigAt[host.id] < 5 * 60 * 1000)
     return res.json({ ok: true, counted: false });
   fyBump(urec, host.id, delta, now);
+  // [RP-V7.89] the live's room/theme is a style too — the client sends
+  // roomKey when it knows it; absent, no style learning from this event.
+  if (typeof b.roomKey === "string" && b.roomKey)
+    fyBumpStyleKeys(urec, styleKeysForText(b.roomKey.slice(0, 60)), delta, now);
   urec.liveSigAt[host.id] = now;
   writeReelSignals(sig);
   res.json({ ok: true, counted: true });
@@ -5924,6 +6434,7 @@ app.get("/api/social/profile", (req, res) => {
   const vdb86 = readViews();
   const likesDb86 = readPhotoLikes();
   const commentsDb86 = readPhotoComments();
+  const repostsDb86 = readPhotoReposts(); // [RP-V7.89]
   let likesTotal = 0;
   let photoPosts = [];
   try {
@@ -5933,7 +6444,7 @@ app.get("/api/social/profile", (req, res) => {
   } catch (e) { }
   try {
     photoPosts = readPhotoPosts().posts.filter((p) => p && p.owner === target.id).slice(0, 30)
-      .map((p) => photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86));
+      .map((p) => photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86));
     for (const p of photoPosts) likesTotal += p.likes || 0;
   } catch (e) { }
   try {
@@ -5993,6 +6504,30 @@ app.get("/api/social/profile", (req, res) => {
     } catch (e) { }
     liked = liked.slice(0, 36);
   }
+  // [RP-V7.89] Reposts tab: the member's reposted reels + photo posts,
+  // newest repost first, resolved at read time (a deleted post drops
+  // out via profileTileForPost, like pins/collections). Public — the
+  // Liked-privacy toggle governs Liked only.
+  let reposts86 = [];
+  try {
+    const mine86 = [];
+    for (const r of listReels())
+      if (r && Array.isArray(r.reposts))
+        for (const rp of r.reposts)
+          if (rp && rp.u === target.id) {
+            const it = profileTileForPost("reel", r.id, vdb86, likesDb86, commentsDb86);
+            if (it) { it.repostedAt = rp.at || null; mine86.push(it); }
+          }
+    for (const pid of Object.keys(repostsDb86.photos || {})) {
+      const hit = photoRepostSet(repostsDb86, pid).find((x) => x && x.u === target.id);
+      if (hit) {
+        const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86);
+        if (it) { it.repostedAt = hit.at || null; mine86.push(it); }
+      }
+    }
+    mine86.sort((a, b) => String(b.repostedAt || "").localeCompare(String(a.repostedAt || "")));
+    reposts86 = mine86.slice(0, 36);
+  } catch (e) { }
   res.json({
     ok: true,
     id: target.id,
@@ -6022,6 +6557,7 @@ app.get("/api/social/profile", (req, res) => {
     likesTotal, photoPosts,
     pins: pinRefs, pinnedItems, collections,
     likedPrivate, liked,
+    reposts: reposts86, // [RP-V7.89]
   });
 });
 
@@ -6335,7 +6871,7 @@ app.get("/api/story/tray", (req, res) => {
     list.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
     const stories = list.map((s) => storyPublic(s, vdb, ctx.user.id));
     authors.push({
-      author: { id: authorId, name: brief.name, photo: photos[0] || null },
+      author: { id: authorId, name: brief.name, photo: (acct && acct.photo) || photos[0] || null }, // [RP-V7.89] the FACE is user.photo — gallery[0] showed the old photo after an avatar pick
       iFollow: following.has(authorId),
       isSelf: authorId === ctx.user.id,
       allViewed: stories.every((s) => s.viewedByMe),
@@ -6363,7 +6899,7 @@ app.get("/api/story/tray", (req, res) => {
     canPost: storyCanPost(ctx.user),
     canLike: storyCanLike(ctx.user),
     canGift: storyCanGift(ctx.user),
-    me: { id: ctx.user.id, name: ctx.user.name, photo: mePhotos[0] || null },
+    me: { id: ctx.user.id, name: ctx.user.name, photo: ctx.user.photo || mePhotos[0] || null }, // [RP-V7.89] face, not gallery[0]
     authors: authors.slice(0, STORY_TRAY_MAX_AUTHORS),
   });
 });
@@ -6547,7 +7083,7 @@ function feedPublic(ctx, p, following) {
   const likes = Array.isArray(p.likes) ? p.likes : [];
   return {
     id: p.id,
-    author: { id: p.authorId, name: brief.name, photo: photos[0] || null },
+    author: { id: p.authorId, name: brief.name, photo: (acct && acct.photo) || photos[0] || null }, // [RP-V7.89] face, not gallery[0]
     text: p.text || "",
     kind: p.kind || (p.file ? "photo" : "text"),
     url: p.file ? "/photos/feed/" + p.file : null,
@@ -6672,10 +7208,38 @@ app.get("/api/feed", (req, res) => {
     if (!p || !p.authorId) continue;
     const pub = feedPublic(ctx, p, following);
     if (!pub) continue;
+    // [RP-V7.89] the lift is now author affinity + STYLE affinity (from
+    // the post's caption text), still capped at 24h total.
+    const styleLift = urec ? 2.5 * fyStyleWeight(urec, styleKeysForCaption(p.text), now) : 0;
     const liftH = Math.max(0, Math.min(24,
-      2.5 * fyDecayed(aff[p.authorId], now) + (following.has(p.authorId) ? 6 : 0)));
+      2.5 * fyDecayed(aff[p.authorId], now) + (following.has(p.authorId) ? 6 : 0) + styleLift));
     scored.push({ pub, _t: Date.parse(p.createdAt) + liftH * 3600000 });
   }
+  // [RP-V7.89] Reposts surface to the reposter's FOLLOWERS in the Feed,
+  // in reverse-chronological position by repost time (no ranking change),
+  // carrying a "reposted" attribution the client renders.
+  try {
+    const rpDbF = readPhotoReposts();
+    const byId = (uid) => ctx.db.users.find((u) => u.id === uid && !u.deletionAt);
+    for (const r of listReels()) {
+      if (!r || !Array.isArray(r.reposts)) continue;
+      for (const rp of r.reposts) {
+        if (!rp || rp.u === ctx.user.id || !following.has(rp.u)) continue;
+        const by = byId(rp.u); if (!by) continue;
+        const aKey = reelAuthorKeyFor(ctx.db, r);
+        const aUser = aKey ? ctx.db.users.find((u) => u.id === aKey) : null;
+        scored.push({ pub: { kind: "repost", id: "rp:reel:" + r.id + ":" + rp.u, repostBy: { id: rp.u, name: by.name }, repostedAt: rp.at || null, createdAt: rp.at || null, post: { kind: "reel", id: r.id, author: { id: aKey || null, name: (aUser && aUser.name) || r.author || "" }, url: "/reel-files/" + r.file, caption: r.caption || "" } }, _t: Date.parse(rp.at || "") || 0 });
+      }
+    }
+    for (const pp of readPhotoPosts().posts) {
+      const set = photoRepostSet(rpDbF, pp.id);
+      for (const rp of set) {
+        if (!rp || rp.u === ctx.user.id || !following.has(rp.u)) continue;
+        const by = byId(rp.u); if (!by) continue;
+        scored.push({ pub: { kind: "repost", id: "rp:photopost:" + pp.id + ":" + rp.u, repostBy: { id: rp.u, name: by.name }, repostedAt: rp.at || null, createdAt: rp.at || null, post: { kind: "photopost", id: pp.id, author: { id: pp.owner, name: pp.name || "" }, url: pp.photo, caption: pp.caption || "" } }, _t: Date.parse(rp.at || "") || 0 });
+      }
+    }
+  } catch (e) { /* repost surfacing must never break the feed */ }
   scored.sort((a, b) => b._t - a._t);
   res.json({
     ok: true,
@@ -6709,6 +7273,7 @@ app.post("/api/feed/like", (req, res) => {
         const sig = readReelSignals();
         const rec = fyUserRec(sig, ctx.user.id, true);
         fyBump(rec, p.authorId, 4, Date.now());
+        fyBumpStyleKeys(rec, styleKeysForCaption(p.text), 4, Date.now()); // [RP-V7.89]
         writeReelSignals(sig);
       } catch (e) { /* affinity bookkeeping must never break a like */ }
     }
@@ -7856,7 +8421,7 @@ function emptyMoney() {
     processed: {},
     giftIdem: {}, // [RP-V7.52] gift idempotency keys -> original responses
     giftBals: {}, // [RP-V7.74] under-18 earned/won gift balance (charms) — see giftBalMirrorWin
-    auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — the first outcome is final
+    auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — recorded outcomes are final; [RP-V7.89] insufficient-charms failures are never recorded (FAIL-1)
   };
 }
 function readMoney() {
@@ -8716,10 +9281,11 @@ function recordAuctionEarning(db, acctId, grossCents, ref) {
 //     amount > 0. A teen on either side, a self-win, an unknown
 //     account or a bad amount refuses with NOTHING moved.
 //   - Insufficient winner balance fails cleanly: no debit, no
-//     credit — and the failure is recorded.
-//   - IDEMPOTENT by auctionId: the first outcome (settled or
-//     cleanly failed) is recorded in the money store; every later
-//     call returns that record with deduped:true and moves nothing.
+//     credit — and [RP-V7.89] the failure is NOT recorded, so it
+//     never blocks a later retry once the winner tops up (FAIL-1).
+//   - IDEMPOTENT by auctionId: every RECORDED outcome (settled, or
+//     a deterministic refusal) is final; later calls return that
+//     record with deduped:true and move nothing.
 // Runs inside the money lock (callers wrap it); mutates mdb — the
 // caller writes it. adb is an accounts-db snapshot for the
 // existence/class checks.
@@ -8728,7 +9294,12 @@ function settleAuctionMoney(adb, mdb, opts) {
   if (!mdb.auctionSettlements || typeof mdb.auctionSettlements !== "object")
     mdb.auctionSettlements = {};
   const prior = mdb.auctionSettlements[auctionId];
-  if (prior) return Object.assign({}, prior, { deduped: true });
+  // [RP-V7.89] FAIL-1: a prior insufficient-charms record (only
+  // writable by older builds — V7.89 never persists one) does NOT
+  // dedupe: the retry re-runs against the winner's current balance
+  // and supersedes it. Any other recorded outcome stays final.
+  if (prior && !(prior.ok === false && prior.error === "insufficient-charms"))
+    return Object.assign({}, prior, { deduped: true });
   const winnerId = String((opts && opts.winnerId) || "");
   const hostId = String((opts && opts.hostId) || "");
   const bidDollars = Number(opts && opts.winningBid);
@@ -8746,17 +9317,22 @@ function settleAuctionMoney(adb, mdb, opts) {
       },
       fields
     );
-    mdb.auctionSettlements[auctionId] = rec;
-    // Same 400-record cap discipline as giftIdem.
-    const keys = Object.keys(mdb.auctionSettlements);
-    if (keys.length > 400) {
-      keys.sort((a, b2) =>
-        String(mdb.auctionSettlements[a].at).localeCompare(
-          String(mdb.auctionSettlements[b2].at)
-        )
-      );
-      for (let i = 0; i < keys.length - 400; i++)
-        delete mdb.auctionSettlements[keys[i]];
+    // [RP-V7.89] FAIL-1: insufficient-charms failures are returned
+    // to the caller but never persisted — persisting one cached the
+    // failure forever and that auctionId could never settle.
+    if (!(rec.ok === false && rec.error === "insufficient-charms")) {
+      mdb.auctionSettlements[auctionId] = rec;
+      // Same 400-record cap discipline as giftIdem.
+      const keys = Object.keys(mdb.auctionSettlements);
+      if (keys.length > 400) {
+        keys.sort((a, b2) =>
+          String(mdb.auctionSettlements[a].at).localeCompare(
+            String(mdb.auctionSettlements[b2].at)
+          )
+        );
+        for (let i = 0; i < keys.length - 400; i++)
+          delete mdb.auctionSettlements[keys[i]];
+      }
     }
     return Object.assign({}, rec);
   };
@@ -9793,6 +10369,48 @@ io.on("connection", (socket) => {
 server.listen(PORT, () =>
   console.log(`Party server listening on port ${PORT}`)
 );
+
+/* ---------- [RP-V7.94] Seed/demo content sweep (boot, idempotent) ----------
+   The Plaza no longer ships fake content (Branden, Oct 28, 2026:
+   "Erase these fake photos"). The client seed routines are gone;
+   this sweep removes the server-side traces the seeds could leave:
+   shared likes / comments / reposts / reactions recorded under the
+   client seed post ids "seed0".."seed5" (the six Moments demo
+   posts), plus — defensively — any photo post or reel whose id IS
+   one of those seed ids. Those ids were only ever minted by the
+   client seed routine (real posts/reels carry server-generated
+   ids), so nothing a real member made can match. No account is
+   touched: accounts were never seeded server-side (sign-up is the
+   only account creator). Runs once per boot; a second boot finds
+   nothing and writes nothing. */
+const SEED_DEMO_IDS_94 = ["seed0", "seed1", "seed2", "seed3", "seed4", "seed5"];
+function sweepSeedDemo94() {
+  let removed = 0;
+  const dropKeys = (map) => {
+    if (!map || typeof map !== "object") return false;
+    let hit = false;
+    for (const id of SEED_DEMO_IDS_94) if (id in map) { delete map[id]; hit = true; removed++; }
+    return hit;
+  };
+  try {
+    const pp = readPhotoPosts();
+    const before = pp.posts.length;
+    pp.posts = pp.posts.filter((p) => !(p && SEED_DEMO_IDS_94.indexOf(p.id) >= 0));
+    if (pp.posts.length !== before) { removed += before - pp.posts.length; writePhotoPosts(pp); }
+  } catch (e) {}
+  try { const lk = readPhotoLikes(); if (dropKeys(lk.photos)) writePhotoLikes(lk); } catch (e) {}
+  try { const cm = readPhotoComments(); if (dropKeys(cm.photos)) writePhotoComments(cm); } catch (e) {}
+  try { const rp = readPhotoReposts(); if (dropKeys(rp.photos)) writePhotoReposts(rp); } catch (e) {}
+  try { const rx = readPhotoReactions(); if (dropKeys(rx.photos)) writePhotoReactions(rx); } catch (e) {}
+  try {
+    const reels = listReels();
+    const keep = reels.filter((r) => !(r && SEED_DEMO_IDS_94.indexOf(r.id) >= 0));
+    if (keep.length !== reels.length) { removed += reels.length - keep.length; fs.writeFileSync(REELS_FILE, JSON.stringify(keep, null, 2)); }
+  } catch (e) {}
+  if (removed) console.log("[seed-sweep] removed " + removed + " seeded demo record(s)");
+  return removed;
+}
+try { sweepSeedDemo94(); } catch (e) { console.log("[seed-sweep] failed", e && e.message); }
 
 // [RP-V7.77] POT SEPARATION boot migration: persist the normalized
 // classed shapes once. readPots/readDailyPot/readDpStreaks and the
