@@ -721,6 +721,8 @@
       .mom-acts { display: flex; align-items: center; gap: 6px; padding: 8px 10px 12px; }
       .mom-act { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; }
       .mom-act.liked { border-color: var(--rose); color: #ff7d9c; }
+      .mom-act.reposted { color: #25d0a5; } /* [RP-V7.89] */
+      .mom-tag { background: none; border: none; color: #25d0a5; font: inherit; font-weight: 800; cursor: pointer; padding: 0; }
       .mom-act.gift { margin-left: auto; border-color: rgba(245,185,63,.55); color: var(--gold); }
       .mom-empty { text-align: center; padding: 34px 18px; color: var(--ink-soft); font-weight: 700; }
       .mom-comment { display: flex; gap: 8px; padding: 7px 2px; border-bottom: 1px solid rgba(127,127,140,.18); font-size: 14px; text-align: left; }
@@ -755,6 +757,11 @@
       .reel-act { display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; color: #fff; font-size: 21px; cursor: pointer; font-family: inherit; text-shadow: 0 1px 6px rgba(0,0,0,.7); padding: 2px; line-height: 1.1; }
       .reel-act span { font-size: 11.5px; font-weight: 800; }
       .reel-act.liked { color: #ff7d9c; }
+      .reel-act.reposted { color: #25d0a5; } /* [RP-V7.89] repost active */
+      .rp-tagreel { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+      .rp-tagreel video { width: 64px; height: 86px; object-fit: cover; border-radius: 10px; background: #111; }
+      .rp-tagreel p { margin: 2px 0; color: var(--ink-soft); font-size: 13px; }
+      .feed-repostby { color: var(--ink-soft); font-size: 12.5px; font-weight: 700; margin: 0 0 6px; }
       .reel-mute { position: absolute; top: 10px; right: 10px; width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(0,0,0,.5); color: #fff; font-size: 16px; cursor: pointer; z-index: 3; }
       .reel-play { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 56px; color: rgba(255,255,255,.92); text-shadow: 0 2px 14px rgba(0,0,0,.7); pointer-events: none; }
       .reel-card.paused .reel-play { display: flex; }
@@ -1302,9 +1309,17 @@
       .face-mode.on { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255,209,102,.25); }
       .face-mode.peek { border-color: var(--rose); }
       .face-panel { border: 1.5px dashed var(--line); border-radius: 12px; padding: 12px; }
-      .face-rack { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-      .face-rack-tile { border: 2.5px solid transparent; border-radius: 14px; padding: 0; overflow: hidden; background: var(--panel-2); cursor: pointer; font-family: inherit; }
-      .face-rack-tile img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+      .face-mode .fm-sub { font-size: 10px; font-weight: 700; opacity: .72; }
+      .face-now { cursor: pointer; }
+      /* [RP-V7.89b] the rack opens as a full-screen grid sheet (one grid, two doors:
+         the setup rack tile, and your own face on your profile / the setup preview) */
+      .face-sheet { position: fixed; inset: 0; z-index: 80; background: #0b0b10; color: var(--ink); display: flex; flex-direction: column; animation: sheetUp .32s cubic-bezier(.2,.7,.3,1); }
+      .face-sheet[hidden] { display: none; }
+      .face-sheet-head { display: flex; align-items: flex-start; gap: 12px; padding: calc(14px + env(safe-area-inset-top)) 16px 12px; background: rgba(18,18,26,.88); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+      .face-sheet-head h3 { margin: 0; font-size: 19px; }
+      .face-sheet-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 14px 12px calc(18px + env(safe-area-inset-bottom)); scrollbar-width: thin; align-content: start; }
+      .face-rack-tile { border: 2.5px solid transparent; border-radius: 14px; padding: 0; overflow: hidden; background: var(--panel-2); cursor: pointer; font-family: inherit; aspect-ratio: 1; width: 100%; }
+      .face-rack-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .face-rack-tile.on { border-color: var(--gold); }
       .face-bld { display: flex; gap: 14px; flex-wrap: wrap; }
       .face-bld-preview { width: 148px; height: 148px; border-radius: 16px; overflow: hidden; background: var(--panel-2); flex: none; }
@@ -2719,6 +2734,15 @@
       </section>
       <!-- SCREEN: HOME (the startup page — everything on one page) -->
       <section class="screen active" id="screen-plaza">
+        <!-- [RP-V7.90] How-you-get-paid card: the first thing on Home.
+             During a LIVE holiday the V7.87 banner inserts before the
+             screen's firstChild, so the banner rides above this card
+             and the card sits directly under it. -->
+        <button type="button" id="earnCard" aria-label="How you get paid on Rizz Plaza">
+          <span class="earn-ic">💰</span>
+          <span class="earn-tx"><b>How you get paid on Rizz Plaza</b><span>You keep 70% of gifts · 90% of auctions · Cash out from $20</span></span>
+          <span class="earn-go">›</span>
+        </button>
         <!-- [RP-V7.70] Plaza Stories tray: "Your story" first, then friends/follows ranked by the shared For You profile (server). Rendered by the Stories module. -->
         <div class="story-tray" id="storyTrayHome" hidden></div>
         <div class="live-now-box" id="liveNowBox">
@@ -3254,7 +3278,7 @@
               <div class="face-now"><img id="pfFaceNowImg" alt="Your current face"/><div><b id="pfFaceNowLabel">Your photo</b><span>Currently showing</span></div></div>
               <div class="face-modes" id="pfFaceModes">
                 <button type="button" class="face-mode" data-fmode="photo"><span class="fm-ico">📸</span>My photo</button>
-                <button type="button" class="face-mode" data-fmode="rack"><span class="fm-ico">🎭</span>Avatar rack</button>
+                <button type="button" class="face-mode" data-fmode="rack"><span class="fm-ico">🎭</span>Avatar rack<span class="fm-sub">100 faces</span></button>
                 <button type="button" class="face-mode" data-fmode="build"><span class="fm-ico">🎨</span>Build my own</button>
                 <button type="button" class="face-mode" data-fmode="ai"><span class="fm-ico">✨</span>AI from photo</button>
               </div>
@@ -3264,10 +3288,6 @@
                   <button type="button" class="btn-primary" style="width:auto; padding:10px 18px;" id="pfFaceUsePhoto">Use my photo</button>
                   <button type="button" class="btn-mini" id="pfFaceUploadPhoto">Upload a new photo</button>
                 </div>
-              </div>
-              <div class="face-panel" id="pfFacePanelRack" hidden>
-                <p class="age-note" style="margin:0 0 10px;">Ready-made Plaza avatars — tap one and it's your face, right away.</p>
-                <div class="face-rack" id="pfFaceRack"></div>
               </div>
               <div class="face-panel" id="pfFacePanelBuild" hidden>
                 <div class="face-bld">
@@ -3501,6 +3521,17 @@
     <div class="overlay" id="overlay">
       <div class="sheet" id="sheet"></div>
     </div>
+    <!-- [RP-V7.89b] Avatar rack — full-screen grid sheet -->
+    <div class="face-sheet" id="pfRackSheet" hidden>
+      <div class="face-sheet-head">
+        <div style="flex:1; min-width:0;">
+          <h3>🎭 Plaza avatars</h3>
+          <p class="age-note" style="margin:2px 0 0;">100 ready-made faces — tap one and it's your face, right away.</p>
+        </div>
+        <button type="button" class="close-x" id="pfRackSheetClose" aria-label="Close avatar rack">✕</button>
+      </div>
+      <div class="face-sheet-grid" id="pfFaceRack"></div>
+    </div>
 
     <div class="confetti" id="confetti"></div>
     <div class="toast" id="toast" role="status"></div>
@@ -3633,7 +3664,7 @@
         return '<span class="pface pface-init' + c + '" style="background:linear-gradient(135deg,' + g[0] + ',' + g[1] + ')" aria-hidden="true">' + escHtml(initial) + '</span>';
       }
       function myFace(cls) {
-        var photo = (typeof Online !== "undefined" && Online && Online.myPhotoUrl) || me.photo || null;
+        var photo = (typeof acctPhotoUrl !== "undefined" && acctPhotoUrl) || (typeof Online !== "undefined" && Online && Online.myPhotoUrl) || me.photo || null; // [RP-V7.89] the account face wins — a stale saved online photo never overrides it
         var nm = (typeof Online !== "undefined" && Online && Online.name) || me.name || "You";
         return personFace({ name: nm, photo: photo }, cls);
       }
@@ -7973,6 +8004,7 @@
           '<div class="pprof-tabs">' +
           '<button class="pprof-tab on" id="pprofTabPosts" type="button">Posts</button>' +
           '<button class="pprof-tab" id="pprofTabLiked" type="button">Liked</button>' +
+          '<button class="pprof-tab" id="pprofTabReposts" type="button">Reposts</button>' + /* [RP-V7.89] */
           '</div>' +
           '<div id="pprofPanePosts">' +
           '<div id="pprofColls"></div>' +
@@ -7981,6 +8013,9 @@
           '</div>' +
           '<div id="pprofPaneLiked" hidden>' +
           '<div id="pprofLikedBody"><p class="age-note" style="text-align:center; padding:14px 6px;">Loading…</p></div>' +
+          '</div>' +
+          '<div id="pprofPaneReposts" hidden>' + /* [RP-V7.89] */
+          '<div id="pprofRepostsBody"><p class="age-note" style="text-align:center; padding:14px 6px;">Loading…</p></div>' +
           '</div>' +
           '</div>'
         );
@@ -7995,14 +8030,29 @@
             else if (act === "mute") { closeSheet(); blockOnlinePlayer(p); }
           });
         });
-        $("pprofShare").addEventListener("click", function () { rpShareProfile86(p.name); });
-        var tabP = $("pprofTabPosts"), tabL = $("pprofTabLiked");
-        function showTab(likedTab) {
-          tabP.classList.toggle("on", !likedTab); tabL.classList.toggle("on", likedTab);
-          $("pprofPanePosts").hidden = likedTab; $("pprofPaneLiked").hidden = !likedTab;
+        if (isSelf) { // [RP-V7.89b] your own face opens the rack — tap it, pick, done (other members' faces keep the story tap)
+          var hav89 = document.querySelector("#sheet .pprof-avatar");
+          if (hav89) {
+            hav89.dataset.sringBound = "1"; // the story ring still paints, but the tap belongs to the rack here
+            hav89.style.cursor = "pointer";
+            hav89.setAttribute("role", "button");
+            hav89.setAttribute("aria-label", "Change your avatar");
+            hav89.addEventListener("click", function (e) {
+              e.stopPropagation(); e.stopImmediatePropagation();
+              if (window.rpOpenFaceRackSheet88) window.rpOpenFaceRackSheet88();
+            });
+          }
         }
-        tabP.addEventListener("click", function () { showTab(false); });
-        tabL.addEventListener("click", function () { showTab(true); });
+        $("pprofShare").addEventListener("click", function () { rpShareProfile86(p.name); });
+        var tabP = $("pprofTabPosts"), tabL = $("pprofTabLiked"), tabR = $("pprofTabReposts");
+        function showTab(which) { // [RP-V7.89] three tabs now: posts | liked | reposts
+          tabP.classList.toggle("on", which === "posts"); tabL.classList.toggle("on", which === "liked"); if (tabR) tabR.classList.toggle("on", which === "reposts");
+          $("pprofPanePosts").hidden = which !== "posts"; $("pprofPaneLiked").hidden = which !== "liked";
+          var pr = $("pprofPaneReposts"); if (pr) pr.hidden = which !== "reposts";
+        }
+        tabP.addEventListener("click", function () { showTab("posts"); });
+        tabL.addEventListener("click", function () { showTab("liked"); });
+        if (tabR) tabR.addEventListener("click", function () { showTab("reposts"); });
         rpFetchProfile(p.name).then(function (j) {
           var grid = $("pprofGrid"); if (!grid) return; // sheet moved on
           if (!j) { grid.innerHTML = '<p class="age-note">' + escHtml(p.name) + ' doesn’t have a Rizz Plaza account yet — profiles, follows and messages need an account.</p>'; return; }
@@ -8029,6 +8079,19 @@
               emptyHtml: '<p class="age-note" style="grid-column:1/-1;">No posts yet.</p>'
             });
             if (window.rpProfDecorate) window.rpProfDecorate(grid, j, isSelf);
+          }
+          var rb2 = $("pprofRepostsBody"); // [RP-V7.89] Reposts tab (public, like Posts)
+          if (rb2) {
+            if (Array.isArray(j.reposts) && j.reposts.length && window.rpViewsFillGrid) {
+              rb2.innerHTML = '<div class="rpmedia-grid bleed" id="pprofRepostsGrid"></div>';
+              var rg2 = $("pprofRepostsGrid");
+              if (rg2) window.rpViewsFillGrid(rg2, j.reposts, {
+                onReel: rpReelOpen86(p),
+                onPhoto: function (it, upd) { rpProfOpen86(j, it, upd); }
+              });
+            } else {
+              rb2.innerHTML = '<p class="age-note" style="text-align:center; padding:14px 6px;">No reposts yet — tap 🔁 on a reel or photo to share it here.</p>';
+            }
           }
           var lb = $("pprofLikedBody");
           if (lb) {
@@ -10998,6 +11061,7 @@
             liveTeardown(true);
           }
           var myRoom = myLiveRoomId(); // [RP-V7.24] stable across reconnects
+          if (!isLiveRoomId(Online.room)) Live.originRoom = Online.room; // [RP-V7.89] the room this live is hosted FROM — a live hosted from the Fellowship ("faith") is a church live (commerce-free, work item 9)
           var at = Date.now();
           if (Online.room !== myRoom) {
             // announce in the room I'm leaving, so the people here can find
@@ -11024,12 +11088,12 @@
           // from the selling desk before I went live), re-announce it in
           // this live room so it pins inside my live for every viewer —
           // and re-share my pinned Buy Now offers here too.
-          if (typeof Auc !== "undefined" && Auc.cur && !Auc.cur.ended && Auc.cur.hostId === Online.myId) {
+          if (typeof Auc !== "undefined" && Auc.cur && !Auc.cur.ended && Auc.cur.hostId === Online.myId && !(typeof liveChurchCtx === "function" && liveChurchCtx())) { // [RP-V7.89] a church live never re-states selling into the room
             var ca = Auc.cur;
             protoSend({ k: "auc-new", id: ca.id, t: ca.title.slice(0, 36), s: ca.start, d: Math.max(1, Math.round((ca.endsAt - Date.now()) / 1000)), e: ca.endsAt, sh: ca.ship.slice(0, 40), h: ca.high, hn: (ca.highName || "").slice(0, 16), hid: ca.highId || "", n: ca.bids });
             aucSendInfo(ca);
           }
-          if (typeof Auc !== "undefined") Auc.listings.forEach(function (L) {
+          if (typeof Auc !== "undefined" && !(typeof liveChurchCtx === "function" && liveChurchCtx())) Auc.listings.forEach(function (L) { // [RP-V7.89] no pinned offers announced into a church live either
             if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0, tq: L.tq || L.qty || 0 });
           });
           startLiveHeartbeat();
@@ -11057,18 +11121,18 @@
         // carry the ids, LIVE_STAGE_CHUNK at a time.
         Live.stateSeq = (Live.stateSeq || 0) + 1;
         var seq = Live.stateSeq;
-        protoSend({ k: "live-state", host: Live.hostId, at: Live.startedAt, title: (Live.title || "").slice(0, 30), topic: Live.topic || "Chatting", n: Live.stage.length, s: seq, er: Math.round(engRateOf(EngLog[Live.hostId] || [], Date.now())) });
+        protoSend({ k: "live-state", host: Live.hostId, at: Live.startedAt, title: (Live.title || "").slice(0, 30), topic: Live.topic || "Chatting", n: Live.stage.length, s: seq, er: Math.round(engRateOf(EngLog[Live.hostId] || [], Date.now())), org: String(Live.originRoom || "").slice(0, 24) }); // [RP-V7.89] org = the room the host went live from, so viewers can apply the church commerce gate
         if (seq % 4 === 1) sendLiveMeta(); // re-announce my home + interests every ~32s so late joiners' ✨ For You lists can place me
         // my pinned selling rides the heartbeat too: a running auction
         // re-states itself so a viewer who joins my live late still sees
         // it pinned (adopters with a running copy ignore the re-state),
         // and my pinned Buy Now offers re-share on the slow cadence
-        if (typeof Auc !== "undefined" && Auc.cur && !Auc.cur.ended && Auc.cur.hostId === Online.myId) {
+        if (typeof Auc !== "undefined" && Auc.cur && !Auc.cur.ended && Auc.cur.hostId === Online.myId && !(typeof liveChurchCtx === "function" && liveChurchCtx())) { // [RP-V7.89] a church live never re-states selling into the room
           var ca2 = Auc.cur;
           protoSend({ k: "auc-state", id: ca2.id, t: ca2.title.slice(0, 36), s: ca2.start, sh: ca2.ship.slice(0, 40), e: ca2.endsAt, h: ca2.high, hn: (ca2.highName || "").slice(0, 16), hid: ca2.highId || "", n: ca2.bids });
           aucSendInfo(ca2);
         }
-        if (seq % 4 === 1 && typeof Auc !== "undefined") Auc.listings.forEach(function (L) {
+        if (seq % 4 === 1 && typeof Auc !== "undefined" && !(typeof liveChurchCtx === "function" && liveChurchCtx())) Auc.listings.forEach(function (L) { // [RP-V7.89] no pinned-offer re-share from a church live
           if (L.pinned && L.offerId && L.qty > 0) protoSend({ k: "auc-shop", id: L.offerId, lid: L.lid, t: L.title.slice(0, 30), p: L.price, sp: L.shipCents || 0, c: L.cat, o: L.cond, q: L.qty, f: L.fmt || "buy", op: L.oprice || 0, b: L.bundle ? 1 : 0, tq: L.tq || L.qty || 0 });
         });
         var chunks = Math.max(1, Math.ceil(Live.stage.length / LIVE_STAGE_CHUNK));
@@ -11395,7 +11459,7 @@
           html += '<button type="button" class="btn-mini" id="lvMoreReport">🚩 Report ' + escHtml(Live.hostName || "host") + '</button>';
           html += '<button type="button" class="btn-mini" id="lvMoreHide">🚫 Mute &amp; Hide ' + escHtml(Live.hostName || "host") + '</button>';
         }
-        if (host) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>';
+        if (host && !liveChurchCtx()) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>'; // [RP-V7.89] no Sell row in a church live
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreSetup">✏️ Edit title &amp; topic</button>'; // [RP-V7.63] the setup sheet's new home: an optional editor, no longer a mandatory pre-live gate
         if (host) html += '<button type="button" class="btn-mini" id="lvMorePot">🪙 Plaza Pot' + (Live.pot && Live.pot.status === "open" ? " · " + (Live.pot.total || 0) + " charms · " + (Live.pot.entries || 0) + " in" : (liveAcctToken() ? "" : " · sign in to open")) + "</button>"; // [RP-V7.41] host opens/manages the pot from the ••• tray // [RP-V7.48] guest hosts see the sign-in requirement on the row itself
         if (host && !aucCtx) html += '<button type="button" class="btn-mini" id="lvMoreBattle">⚔️ Battle</button>'; // [RP-V7.83] Battle's home is this sheet now (was a floating button) — regular lives only, never an auction show
@@ -12066,6 +12130,7 @@
         var payload = { watchedMs: Math.max(0, Date.now() - since) };
         if (e.hostAccountId) payload.hostAccountId = e.hostAccountId;
         if (e.name) payload.hostName = e.name;
+        if (e.topic || e.room) payload.roomKey = String(e.topic || e.room).slice(0, 60); // [RP-V7.89] style learning from lives
         if (!payload.hostAccountId && !payload.hostName) return;
         try {
           fetch("/api/live/signal", {
@@ -13234,9 +13299,9 @@
         var m = Live.pendingMeta, s = Live.pendingStage;
         if (!m || !s || m.host !== s.host || m.seq !== s.seq) return;
         Live.pendingMeta = null; Live.pendingStage = null;
-        applyLiveState(m.host, m.at, m.title, m.topic, s.stage, m.er);
+        applyLiveState(m.host, m.at, m.title, m.topic, s.stage, m.er, m.org);
       }
-      function applyLiveState(host, at, title, topic, stageArr, er) {
+      function applyLiveState(host, at, title, topic, stageArr, er, org) {
         var newStage = sanitizeStage(stageArr, host);
         var oldStage = Live.stage;
         var wasOnStage = oldStage.indexOf(Online.myId) >= 0;
@@ -13244,6 +13309,7 @@
         var rosterChanged = newStage.join(",") !== oldStage.join(",");
         Live.active = true; Live.broadcastKnown = true;
         Live.hostId = host; Live.hostName = liveName(host);
+        Live.hostOrigin = org || ""; // [RP-V7.89] where the host went live from ("faith" = a church live)
         Live.startedAt = at || Live.startedAt || Date.now();
         Live.roomId = Online.room;
         if (title != null) Live.title = title;
@@ -13315,7 +13381,7 @@
             var host = o.host || fromId;
             if (host !== fromId || host === Online.myId) return;
             if (Live.active && Live.hostId !== host && Online.players[Live.hostId]) return; // a different live is running in this room — not ours to adopt ([RP-V7.24] unless that host is gone: then this is our host re-keyed after a reconnect)
-            Live.pendingMeta = { host: host, at: o.at, title: o.title, topic: o.topic, seq: o.s, er: (typeof o.er === "number" ? o.er : null) };
+            Live.pendingMeta = { host: host, at: o.at, title: o.title, topic: o.topic, seq: o.s, er: (typeof o.er === "number" ? o.er : null), org: (typeof o.org === "string" ? o.org : "") }; // [RP-V7.89] host's origin room rides along (church gate)
             maybeApplyLiveState();
             break;
           }
@@ -13796,7 +13862,9 @@
          faceRack / faceBuild / faceImg); the winning image is the
          account's photo, so every surface that already renders the
          photo shows the chosen face with no per-surface rewiring. */
-      var FACE_RACK88 = ["avatar-01", "avatar-02", "avatar-03", "avatar-04", "avatar-05", "avatar-06", "avatar-07", "avatar-08", "avatar-09", "avatar-10", "avatar-11", "avatar-12"];
+      /* [RP-V7.89] The rack grew 12 → 100 faces — ids avatar-01 … avatar-100. */
+      var FACE_RACK88 = [];
+      for (var _fr88 = 1; _fr88 <= 100; _fr88++) FACE_RACK88.push("avatar-" + (_fr88 < 10 ? "0" + _fr88 : String(_fr88)));
       var FACE_RACK_BASE88 = "/img/avatars/";
       var FACE_BUILD_DEFAULTS88 = { skin: "#d29a66", hair: "waves", hairColor: "#26221f", expr: "smile", top: "#fe2c55", acc: "none", bg: "#2b2b66" };
       var facePanel88 = "photo";
@@ -13820,9 +13888,13 @@
         if (user) {
           try { if (window.rpApplyAccountProfile) window.rpApplyAccountProfile(user); } catch (e) { }
           try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(user.photo || null); } catch (e) { }
+          try { if (window.rpAcctSyncUser) window.rpAcctSyncUser(user); } catch (e) { } // [RP-V7.89] the account module's saved session follows the new face at once
         }
         try { renderMyFigure(); } catch (e) { }
         try { updateHUD(); } catch (e) { }
+        try { renderLobby(); } catch (e) { } // [RP-V7.89] the new face shows on Home at once
+        try { renderPlaza(); } catch (e) { }
+        try { if (typeof renderTrays === "function") renderTrays(); } catch (e) { }
         renderFaceChoice();
         if (msg) toast(msg, 4200);
       }
@@ -14089,6 +14161,35 @@
         img.onerror = function () { URL.revokeObjectURL(url); toast("That image couldn't be read — try a different photo.", 4200); };
         img.src = url;
       }
+      /* ----- [RP-V7.89b] the rack as a full-screen grid sheet ----- */
+      function openFaceRackSheet88() {
+        var sh = $("pfRackSheet"); if (!sh) return;
+        renderFaceRack88(faceState88());
+        sh.hidden = false;
+        var g = $("pfFaceRack");
+        if (g) {
+          var on = g.querySelector(".face-rack-tile.on");
+          if (on) { try { on.scrollIntoView({ block: "center" }); } catch (e) { } }
+          else g.scrollTop = 0;
+        }
+      }
+      function closeFaceRackSheet88() {
+        var sh = $("pfRackSheet"); if (sh) sh.hidden = true;
+      }
+      /* After a pick, a profile page open underneath shows the new face at once. */
+      function refreshProfHero88() {
+        var url = faceState88().img; if (!url) return;
+        var av = document.querySelector("#sheet .pprof-avatar"); if (!av) return;
+        av.dataset.facePicked = "1";
+        var img = av.querySelector("img.p-photo");
+        if (img) { img.src = url; return; }
+        var badge = av.querySelector(".pprof-livebadge");
+        Array.prototype.slice.call(av.children).forEach(function (n) { if (n !== badge) av.removeChild(n); });
+        var im = document.createElement("img");
+        im.className = "p-photo"; im.src = url; im.alt = "";
+        av.insertBefore(im, badge || null);
+      }
+      window.rpOpenFaceRackSheet88 = openFaceRackSheet88;
       /* ----- render + wiring ----- */
       function renderFaceRack88(st) {
         var box = $("pfFaceRack"); if (!box) return;
@@ -14097,10 +14198,12 @@
           FACE_RACK88.forEach(function (id) {
             var b = document.createElement("button");
             b.type = "button"; b.className = "face-rack-tile"; b.setAttribute("data-rack", id);
-            b.setAttribute("aria-label", "Use Plaza avatar " + id.slice(-2));
-            b.innerHTML = '<img src="' + FACE_RACK_BASE88 + id + '.webp" alt="Plaza avatar ' + id.slice(-2) + '"/>';
+            b.setAttribute("aria-label", "Use Plaza avatar " + id.replace("avatar-", ""));
+            b.innerHTML = '<img src="' + FACE_RACK_BASE88 + id + '.webp" alt="Plaza avatar ' + id.replace("avatar-", "") + '"/>';
             b.addEventListener("click", function () {
-              facePost88("/api/account/face", { mode: "rack", rack: id }, "Avatar set — that's your face everywhere now. 🎭");
+              facePost88("/api/account/face", { mode: "rack", rack: id }, "Avatar set — that's your face everywhere now. 🎭").then(function (ok) {
+                if (ok) { closeFaceRackSheet88(); refreshProfHero88(); }
+              });
             });
             box.appendChild(b);
           });
@@ -14113,7 +14216,11 @@
         document.querySelectorAll("#pfFaceModes [data-fmode]").forEach(function (b) {
           if (b.dataset.w88) return;
           b.dataset.w88 = "1";
-          b.addEventListener("click", function () { facePanel88 = b.getAttribute("data-fmode"); renderFaceChoice(); });
+          b.addEventListener("click", function () {
+            var m89 = b.getAttribute("data-fmode");
+            if (m89 === "rack") { openFaceRackSheet88(); return; } // [RP-V7.89b] rack = full-screen grid sheet
+            facePanel88 = m89; renderFaceChoice();
+          });
         });
         var usePhoto = $("pfFaceUsePhoto");
         if (usePhoto && !usePhoto.dataset.w88) {
@@ -14167,6 +14274,18 @@
               faceUploadApply88(blob, { mode: "ai" }, "AI avatar set — that's your face everywhere now. ✨");
             }, "image/png");
           });
+        }
+        var rackX = $("pfRackSheetClose");
+        if (rackX && !rackX.dataset.w88) {
+          rackX.dataset.w88 = "1";
+          rackX.addEventListener("click", function () { closeFaceRackSheet88(); });
+        }
+        var nowRow = document.querySelector(".face-now");
+        if (nowRow && !nowRow.dataset.w88) {
+          nowRow.dataset.w88 = "1";
+          nowRow.setAttribute("role", "button");
+          nowRow.setAttribute("aria-label", "Open the avatar rack");
+          nowRow.addEventListener("click", function () { openFaceRackSheet88(); });
         }
       }
       function renderFaceChoice() {
@@ -14628,10 +14747,10 @@
         me.look = mergedLook(d.look);
         me.look.gender = me.gender;
         me.photos = (Array.isArray(d.photos) ? d.photos : []).filter(function (u) { return typeof u === "string" && /^https?:\/\//.test(u); });
-        me.photo = me.photos[0] || null;
+        syncMainPhoto(); // [RP-V7.89] guard-aware (was: me.photo = gallery[0], which stomped an avatar face with the old photo on every restore)
         me.following = (Array.isArray(d.following) ? d.following : []).filter(function (f) { return f && typeof f.name === "string" && f.name.trim(); }).map(function (f) { return { name: String(f.name).slice(0, 24), photo: (typeof f.photo === "string" && /^https?:\/\//.test(f.photo)) ? f.photo : null }; }).slice(0, 300);
         me.followers = (Array.isArray(d.followers) ? d.followers : []).filter(function (n) { return typeof n === "string" && n.trim(); }).map(function (n) { return String(n).slice(0, 24); }).slice(0, 300);
-        if (typeof d.onlinePhotoUrl === "string" && d.onlinePhotoUrl) Online.myPhotoUrl = d.onlinePhotoUrl;
+        if (typeof d.onlinePhotoUrl === "string" && d.onlinePhotoUrl && !(typeof acctPhotoUrl !== "undefined" && acctPhotoUrl)) Online.myPhotoUrl = d.onlinePhotoUrl; // [RP-V7.89] account face wins over the device snapshot
         if ($("nameInput")) $("nameInput").value = me.name;
         if ($("bioInput")) $("bioInput").value = me.bio;
       }
@@ -14650,7 +14769,7 @@
       function showWelcomeBack(d) {
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
-          '<div class="profile-hero">' + personFace({ name: d.name, photo: (d.photos && d.photos[0]) || d.onlinePhotoUrl || null }, "avatar-big") +
+          '<div class="profile-hero">' + personFace({ name: d.name, photo: (typeof acctPhotoUrl !== "undefined" && acctPhotoUrl) || d.onlinePhotoUrl || (d.photos && d.photos[0]) || null }, "avatar-big") + // [RP-V7.89] account face first
           '<h3>Welcome back, ' + escHtml(d.name) + '!</h3><p>Your saved profile is on this device — your photos, bio and settings, right where you left them.</p></div>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="btnWelcomeContinue">Continue as ' + escHtml(d.name) + '</button><button class="btn-mini" id="btnWelcomeFresh">Start fresh</button></div>' +
           '<p class="age-note" style="text-align:center;">Continuing skips the age check and profile setup — everything is already set up.</p>'
@@ -16984,6 +17103,44 @@
           }
         }).catch(function () { toast("That reaction didn't land — check your connection."); });
       }
+      /* [RP-V7.89] Hashtag view: tapping a #tag in a reel or photo
+         caption opens this sheet — reels + photo posts carrying the
+         tag, newest first, from GET /api/tag/<tag>. Back = the
+         sheet's ✕ / "← Back". Minimal by design: existing tiles,
+         no new ranking. */
+      window.rpOpenTagView = function (tag) {
+        tag = String(tag || "").toLowerCase().replace(/[^a-z0-9_]/g, "");
+        if (!tag) return;
+        openSheet(
+          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">#' + escHtml(tag) + "</h3>" +
+          '<div id="rpTagBody"><p class="age-note" style="text-align:center;">Loading…</p></div>' +
+          '<div style="text-align:center; margin-top:10px;"><button type="button" class="btn-mini" data-act="close">← Back</button></div></div>'
+        );
+        $("sheet").querySelectorAll("[data-act=close]").forEach(function (b) { b.addEventListener("click", function () { closeSheet(); }); });
+        var h = { "Accept": "application/json" };
+        var t = null; try { t = reelToken(); } catch (e) { }
+        if (t) h["Authorization"] = "Bearer " + t;
+        fetch("/api/tag/" + encodeURIComponent(tag), { headers: h })
+          .then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (j) {
+            var body = $("rpTagBody"); if (!body) return;
+            if (!j || !j.ok) { body.innerHTML = '<p class="age-note" style="text-align:center;">Couldn\'t load that tag — try again in a moment.</p>'; return; }
+            var html = "";
+            if (j.photos && j.photos.length) {
+              html += '<h4 class="pprof-gridtitle">📸 Photos</h4><div class="rpmedia-grid bleed">' + j.photos.map(function (pp) {
+                return '<div class="rpmedia-tile"><img src="' + escHtml(pp.photo) + '" alt=""/><span class="rpmedia-cap">' + escHtml(pp.author || "") + "</span></div>";
+              }).join("") + "</div>";
+            }
+            if (j.reels && j.reels.length) {
+              html += '<h4 class="pprof-gridtitle">🎬 Reels</h4>' + j.reels.map(function (r) {
+                return '<div class="rp-tagreel"><video src="' + escHtml(r.url) + '" preload="metadata" muted playsinline></video><div><b>' + escHtml(r.author || "") + '</b><p>' + escHtml(r.caption || "") + '</p><small>❤️ ' + (r.heartLikes || 0) + " · 🔁 " + (r.reposts || 0) + " · 💬 " + (r.commentCount || 0) + "</small></div></div>";
+              }).join("");
+            }
+            body.innerHTML = html || '<p class="age-note" style="text-align:center;">Nothing with #' + escHtml(tag) + " yet — post the first one!</p>";
+          })
+          .catch(function () { var body = $("rpTagBody"); if (body) body.innerHTML = '<p class="age-note" style="text-align:center;">Couldn\'t load that tag — check your connection.</p>'; });
+      };
       function rxFetchPhotos(ids, done) {
         if (!ids.length) { if (done) done(); return; }
         var h = { "Accept": "application/json" };
@@ -17066,9 +17223,10 @@
         return {
           id: sp.id, srv: true, mine: !!sp.mine, name: sp.author || "Someone",
           photo: sp.photo || "", caption: sp.caption || "", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
-          likeBase: 0, srvLikes: sp.likes || 0, liked: !!sp.myLiked, gifts: 0,
+          likeBase: 0, srvLikes: sp.likes || 0, liked: !!sp.myLiked, srvReposts: sp.reposts || 0, reposted: !!sp.myReposted, /* [RP-V7.89] */ gifts: 0,
           comments: Array.isArray(sp.comments) ? sp.comments : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
+          musicTrackId: sp.musicTrackId || null, musicStart: sp.musicStart, musicVol: sp.musicVol, /* [RP-V7.90] */
           cmtBase: 0
         };
       }
@@ -17207,9 +17365,11 @@
         Moments.posts.unshift({
           id: "mine" + Date.now(), mine: true, name: Online.name || me.name || "You",
           photo: Moments.pendingPhoto, caption: cap || "Fresh from the Plaza 📸", when: "now",
-          likeBase: 0, srvLikes: 0, likes: 0, liked: false, gifts: 0, comments: []
+          likeBase: 0, srvLikes: 0, likes: 0, liked: false, gifts: 0, comments: [],
+          musicTrackId: (Moments.pendingSound ? Moments.pendingSound.trackId : null), musicStart: (Moments.pendingSound ? (Moments.pendingSound.start || 0) : null), musicVol: (Moments.pendingSound ? Moments.pendingSound.musicVol : null) /* [RP-V7.90] */
         });
         Moments.pendingPhoto = null;
+        Moments.pendingSound = null; /* [RP-V7.90] */
         closeSheet();
         renderMoments();
         var feed = $("momFeed"); if (feed) feed.scrollTop = 0;
@@ -17218,12 +17378,14 @@
       function momPublish(cap) {
         var t = momToken();
         var photo = Moments.pendingPhoto;
+        var snd = Moments.pendingSound || null; /* [RP-V7.90] */
         if (!t || !photo) { momPublishLocal(cap); return; }
         var clientKey = "post" + Date.now().toString(36);
         function onOk(j) {
           if (j && j.ok && j.post) {
             Moments.posts.unshift(momSrvPost(j.post));
             Moments.pendingPhoto = null;
+            Moments.pendingSound = null; /* [RP-V7.90] */
             closeSheet();
             renderMoments();
             var feed = $("momFeed"); if (feed) feed.scrollTop = 0;
@@ -17238,6 +17400,7 @@
             fd.append("photo", blob, "moment.jpg");
             fd.append("caption", cap || "");
             fd.append("clientKey", clientKey);
+            if (snd) { fd.append("musicTrackId", snd.trackId); fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
             return fetch("/api/photo/post", { method: "POST", headers: { "Authorization": "Bearer " + t }, body: fd })
               .then(function (r) { return r.json().catch(function () { return null; }); });
           }).then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
@@ -17248,7 +17411,7 @@
           fetch("/api/photo/post", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
-            body: JSON.stringify({ photoUrl: photo, caption: cap || "", clientKey: clientKey })
+            body: JSON.stringify(snd ? { photoUrl: photo, caption: cap || "", clientKey: clientKey, musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : { photoUrl: photo, caption: cap || "", clientKey: clientKey }) /* [RP-V7.90] */
           }).then(function (r) { return r.json().catch(function () { return null; }); })
             .then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
             .catch(function () { momPublishLocal(cap); });
@@ -17277,15 +17440,24 @@
             '<div class="mom-top"><span class="who-av">' + av + '</span><div><b>' + escHtml(p.name) + '</b><span>' + escHtml(p.when || "now") + ' · Reels</span></div>' +
             (p.gifts > 0 ? '<span class="mom-gifted">🎁 ' + p.gifts.toLocaleString("en-US") + ' charms gifted</span>' : '<span class="mom-gifted" hidden></span>') + '</div>' +
             '<div class="mom-photo">' + photo + '</div>' +
-            '<p class="mom-cap"><b>' + escHtml(p.name) + '</b>' + escHtml(p.caption || "") + '</p>' +
+            '<p class="mom-cap"><b>' + escHtml(p.name) + '</b>' + momCaptionHtml(p.caption || "") + '</p>' + /* [RP-V7.89] hashtags tappable */
+            (p.musicTrackId ? '<button type="button" class="mom-snd rp-snd" data-tid="' + escHtml(p.musicTrackId) + '">♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(p.musicTrackId) : "Plaza sound") + ' · tap to play</button>' : "") + /* [RP-V7.90] */
             '<div class="mom-acts">' +
               '<button class="mom-act like' + (p.liked ? " liked" : "") + '" type="button">❤️ <span class="lc">' + momLikeCount(p) + '</span></button>' +
               '<button class="mom-act cmt" type="button">💬 <span class="cc">' + momCommentTotal(p) + '</span></button>' +
+              ((p.srv && !p.mine) ? '<button class="mom-act repost' + (p.reposted ? " reposted" : "") + '" type="button">🔁 <span class="rc">' + (p.srvReposts || 0) + '</span></button>' : "") + /* [RP-V7.89] server posts only — seed/demo posts have no server record to repost */
               (p.mine ? "" : '<button class="mom-act gift" type="button">🎁 Gift</button>') +
             '</div>' +
             '<div class="rx-row" data-rxrow="' + escHtml(p.id) + '"></div>';
           card.querySelector(".like").addEventListener("click", function () { momToggleLike(p.id); });
           card.querySelector(".cmt").addEventListener("click", function () { openMomComments(p.id); });
+          var rpb2 = card.querySelector(".repost");
+          if (rpb2) rpb2.addEventListener("click", function () { momToggleRepost(p.id); }); // [RP-V7.89]
+          var capEl = card.querySelector(".mom-cap");
+          if (capEl) capEl.addEventListener("click", function (e) {
+            var t = e.target;
+            if (t && t.classList && t.classList.contains("mom-tag") && window.rpOpenTagView) window.rpOpenTagView(t.getAttribute("data-mtag") || "");
+          });
           rxRenderRow(card.querySelector(".rx-row"), "photo", p.id);
           var gb = card.querySelector(".gift");
           if (gb) gb.addEventListener("click", function () {
@@ -17324,6 +17496,40 @@
         if (!b) return;
         b.classList.toggle("liked", !!p.liked);
         var lc = b.querySelector(".lc"); if (lc) lc.textContent = momLikeCount(p);
+      }
+      function momCaptionHtml(caption) {
+        return escHtml(caption || "").replace(/#([A-Za-z0-9_]+)/g, function (w, tag) {
+          return '<button type="button" class="mom-tag" data-mtag="' + tag.toLowerCase() + '">#' + tag + "</button>";
+        });
+      }
+      /* [RP-V7.89] REPOST for photo posts — mirrors momToggleLike:
+         optimistic paint, POST /api/photo/repost, server answer is
+         truth. Signed out: toast only (no device shadow state). */
+      function momPaintRepost(p) {
+        var card = $("momFeed") && $("momFeed").querySelector('[data-mid="' + p.id + '"]');
+        if (!card) return;
+        var b = card.querySelector(".repost");
+        if (!b) return;
+        b.classList.toggle("reposted", !!p.reposted);
+        var rc = b.querySelector(".rc"); if (rc) rc.textContent = p.srvReposts || 0;
+      }
+      function momToggleRepost(id) {
+        var p = momPostById(id); if (!p || !p.srv) return;
+        if (!momToken()) { toast("Sign in to repost 🔁", 3200); return; }
+        var want = !p.reposted;
+        p.reposted = want;
+        p.srvReposts = Math.max(0, (p.srvReposts || 0) + (want ? 1 : -1));
+        momPaintRepost(p);
+        fetch("/api/photo/repost", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + momToken() },
+          body: JSON.stringify({ id: p.id, reposted: want }),
+          keepalive: true
+        }).then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (j) {
+            if (j && j.ok) { p.reposted = !!j.reposted; p.srvReposts = j.reposts || 0; momPaintRepost(p); }
+          }).catch(function () { });
+        if (want) toast("Reposted to your profile 🔁", 2600);
       }
       function momToggleLike(id) {
         var p = momPostById(id); if (!p) return;
@@ -17751,6 +17957,7 @@
           if (meta.sourceAuthor) fd.append("sourceAuthor", meta.sourceAuthor);
           if (meta.kind === "stitch") { fd.append("stitchStart", String(meta.stitchStart || 0)); fd.append("stitchDur", String(meta.stitchDur || 5)); }
           fd.append("allowRemix", meta.allowRemix === false ? "false" : "true");
+          if (meta.musicTrackId) { fd.append("musicTrackId", meta.musicTrackId); fd.append("musicStart", String(meta.musicStart || 0)); fd.append("musicVol", String(meta.musicVol != null ? meta.musicVol : 0.8)); fd.append("origVol", String(meta.origVol != null ? meta.origVol : 1)); } /* [RP-V7.90] */
           var headers = {};
           var tok = reelToken(); if (tok) headers["Authorization"] = "Bearer " + tok;
           return fetch("/api/reel", { method: "POST", headers: headers, body: fd })
@@ -17770,12 +17977,12 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", caption: r.caption || "", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", caption: r.caption || "", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
           if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
-          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", createdAt: m.createdAt || "", url: "", pending: true, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, allowRemix: m.allowRemix !== false });
+          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", createdAt: m.createdAt || "", url: "", pending: true, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, allowRemix: m.allowRemix !== false, musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
         });
         if (Reels.ranked) {
           // [RP-V7.40] the server already ordered its reels For You —
@@ -17924,13 +18131,14 @@
           '<div class="reel-play">▶</div>' +
           '<div class="reel-meta"><span class="reel-author">' + escHtml(item.author) + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" +
           (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + chip + provHtml +
-          '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>" +
+          (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : "Plaza sound") + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound">☆</button></div>' : '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>") +
           '<span class="reel-views" data-rpviews="' + escHtml(item.id) + '">👁 ' + (window.fmtViews ? window.fmtViews(item.views || 0) : (item.views || 0)) + "</span>" +
           '<div class="rx-row" data-rxrow="' + escHtml(item.id) + '"></div></div>' +
           '<div class="reel-rail">' + avHtml +
             '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">❤️<span class="lc">' + lk.count + "</span></button>" +
             '<button class="reel-act cmt" type="button">💬<span class="cc">' + cmtCount + "</span></button>" +
             '<button class="reel-act share" type="button">↗️<span>Share</span></button>' +
+            ((item.server && !item.mine) ? '<button class="reel-act repost' + (item.myReposted ? " reposted" : "") + '" type="button">🔁<span class="rc">' + (item.reposts || 0) + "</span></button>" : "") + /* [RP-V7.89] */
             (item.mine ? "" : '<button class="reel-act gift" type="button">🎁<span>Gift</span></button>') +
             (canRemix ? '<button class="reel-act remix" type="button">🎬<span>Remix</span></button>' : "") +
           "</div>" +
@@ -18104,6 +18312,8 @@
         rxRenderRow(card.querySelector(".rx-row"), "reel", item.id);
         card.querySelector(".cmt").addEventListener("click", function () { openReelComments(item); });
         card.querySelector(".share").addEventListener("click", function () { reelShare(item); });
+        var rpb = card.querySelector(".repost");
+        if (rpb) rpb.addEventListener("click", function () { reelToggleRepost(item, card); }); // [RP-V7.89]
         var gb = card.querySelector(".gift");
         if (gb) gb.addEventListener("click", function () {
           openGiftSheet("npc:" + item.author, item.author, { local: true, onSent: function () { } });
@@ -18119,9 +18329,12 @@
         card.querySelector(".reel-meta").addEventListener("click", function (e) {
           var t = e.target;
           if (t && t.classList && t.classList.contains("reel-tag")) {
-            Reels.tagFilter = t.getAttribute("data-rtag") || "";
-            renderReels();
-            var feed = $("reelFeed"); if (feed) feed.scrollTop = 0;
+            // [RP-V7.89] a hashtag tap opens the tag view (reels +
+            // photo posts with that tag); the in-feed filter remains
+            // as the fallback if the view can't open.
+            var tg = t.getAttribute("data-rtag") || "";
+            if (window.rpOpenTagView) window.rpOpenTagView(tg);
+            else { Reels.tagFilter = tg; renderReels(); var feed = $("reelFeed"); if (feed) feed.scrollTop = 0; }
           }
         });
         if (Reels.observer) Reels.observer.observe(card);
@@ -18184,6 +18397,41 @@
         if (item.server) cur = reelToken() ? !!item.myHeart : !!((reelLoadLikes()[item.id] || {}).liked);
         else { var mt = reelMetaById(item.id); cur = !!(mt && mt.liked); }
         reelSetLike(item, card, !cur);
+      }
+      /* [RP-V7.89] REPOST — account state on the server (POST
+         /api/reel/repost), painted optimistically, server answer
+         adopted as truth, exactly like reelPostHeart. Signed out
+         there is no account to hold a repost: a plain toast, no
+         device-local shadow state (the brain rule). */
+      function reelPostRepost(item, want, btn, rc) {
+        var tok = reelToken(); if (!tok) return;
+        fetch("/api/reel/repost", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok },
+          body: JSON.stringify({ reelId: item.id, reposted: want }),
+          keepalive: true
+        }).then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (j) {
+            if (j && j.ok) {
+              item.myReposted = !!j.reposted;
+              item.reposts = j.reposts || 0;
+              if (btn) btn.classList.toggle("reposted", item.myReposted);
+              if (rc) rc.textContent = item.reposts;
+            }
+          }).catch(function () { });
+      }
+      function reelToggleRepost(item, card) {
+        if (!item.server) return;
+        if (!reelToken()) { toast("Sign in to repost 🔁", 3200); return; }
+        var btn = card.querySelector(".repost"), rc = card.querySelector(".rc");
+        var want = !item.myReposted;
+        item.myReposted = want;
+        item.reposts = Math.max(0, (item.reposts || 0) + (want ? 1 : -1));
+        if (btn) btn.classList.toggle("reposted", want);
+        if (rc) rc.textContent = item.reposts;
+        try { Juice.squash(btn, 0.3); } catch (e) { }
+        reelPostRepost(item, want, btn, rc);
+        if (want) toast("Reposted to your profile 🔁", 2600);
       }
       function openReelComments(item) {
         // [RP-V7.84] FIX-3: on a server reel a signed-in member reads
@@ -18282,6 +18530,7 @@
       function reelClearPending() {
         if (Reels.pendingUrl) { try { URL.revokeObjectURL(Reels.pendingUrl); } catch (e) { } }
         Reels.pendingBlob = null; Reels.pendingUrl = null; Reels.pendingSecs = 0;
+        Reels.pendingSound = null; /* [RP-V7.90] */
       }
       function openReelComposer() {
         if (isTeen()) { openTeenGateAll("Reels"); return; }
@@ -18481,6 +18730,9 @@
         var blob = Reels.pendingBlob;
         var draftId = Reels.editingDraftId;
         var meta = reelPublishBlob(blob, cap);
+        if (Reels.pendingSound && Reels.pendingSound.trackId) {
+          reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol });
+        }
         if (Reels.remix) {
           reelUpdateMeta(meta.id, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur });
           Reels.remix = null;
@@ -18510,6 +18762,7 @@
             createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: true
           };
           var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
+          if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }); }
           if (Reels.remix) { reelUpdateMeta(meta.id, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
           Reels.memBlobs[meta.id] = Reels.pendingBlob;
           reelDbPut(meta.id, Reels.pendingBlob).catch(function () { });
@@ -18528,6 +18781,7 @@
           Reels.pendingBlob = blob;
           Reels.pendingUrl = URL.createObjectURL(blob);
           Reels.pendingSecs = 0;
+          Reels.pendingSound = m.musicTrackId ? { trackId: m.musicTrackId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : null; /* [RP-V7.90] */
           Reels.pendingCaption = m.caption || "";
           Reels.remix = m.kind ? { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur } : null;
           Reels.editingDraftId = id;
@@ -18993,13 +19247,32 @@
          Auctions screen — only the host's own selling pins, and only
          while their live is on, so nobody else's auction can hijack a
          live that isn't theirs. */
+      /* [RP-V7.89] CHURCH IS COMMERCE-FREE (owner order, Oct 27): in the
+         Christian Fellowship / prayer room — and in any live hosted
+         FROM there — no selling and no auctions surface: the host's
+         auction-pin exception does NOT apply, no pinned offers, no
+         Sell row, and no auction can be started while standing in the
+         Fellowship. Gifting, hearts, chat, share and the Plaza Pot are
+         untouched. The host's origin room rides the live-state
+         heartbeat ("org") so viewers apply the same gate. */
+      function rpChurchRoom(id) { return id === "faith"; }
+      function rpChurchRoomNow() { try { return typeof Online !== "undefined" && rpChurchRoom(Online.room); } catch (e) { return false; } }
+      function liveChurchCtx() {
+        try {
+          if (typeof Live === "undefined" || !Live.active || !Live.hostId) return false;
+          if (typeof iAmHost === "function" && iAmHost()) return rpChurchRoom(Live.originRoom);
+          return rpChurchRoom(Live.hostOrigin);
+        } catch (e) { return false; }
+      }
       function livePinAuction() {
+        if (liveChurchCtx()) return null; // [RP-V7.89] no auction pin in a church live
         if (typeof Live === "undefined" || !Live.active || !Live.hostId) return null;
         var a = Auc.cur;
         if (!a || a.ended) return null;
         return a.hostId === Live.hostId ? a : null;
       }
       function livePinOffers() {
+        if (liveChurchCtx()) return []; // [RP-V7.89] no pinned selling in a church live
         if (typeof Live === "undefined" || !Live.active || !Live.hostId) return [];
         if (Live.hostId === Online.myId) {
           return Auc.listings.filter(function (L) { return L.pinned && L.offerId && L.qty > 0; }).map(function (L) {
@@ -19014,6 +19287,7 @@
       }
       function renderLiveAucPin() {
         var pin = $("liveAucPin"); if (!pin) return;
+        if (liveChurchCtx()) { pin.hidden = true; pin.innerHTML = ""; var pc9 = $("livePanel"); if (pc9) pc9.classList.remove("pin-on"); return; } // [RP-V7.89] church lives never show the pin card (incl. the ended card)
         var panel = $("livePanel");
         var show = false, html = "";
         if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) {
@@ -19565,6 +19839,7 @@
         var card = $("aucListingsCard"); if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
       }
       function aucStartFromListing(L) {
+        if (rpChurchRoomNow()) { toast("⛪ No selling or auctions in the Fellowship — church is commerce-free."); return; } // [RP-V7.89]
         if (!aucOnline()) { toast("Connect first — auctions run live in the online rooms. Your listing stays saved in the queue."); return; }
         if (Auc.cur && !Auc.cur.ended) { toast("An auction is already running in this room — one at a time!"); return; }
         if (L.qty <= 0) { toast("That listing is sold out — bump the quantity in Edit if you have more."); return; }
@@ -19594,6 +19869,7 @@
       }
       /* Pin one of my Buy Now listings for sale in this room. */
       function aucPinOffer(L) {
+        if (rpChurchRoomNow()) { toast("⛪ No selling or auctions in the Fellowship — church is commerce-free."); return; } // [RP-V7.89]
         if (!aucOnline()) { toast("Connect first — Buy Now offers are pinned live to the room you\u2019re in. Your listing stays saved."); renderAuctions(); return; }
         if (L.qty <= 0) { toast("That listing is sold out — bump the quantity in Edit if you have more."); return; }
         var oid = "b" + (++Auc.offerSeq) + Date.now().toString(36).slice(-4);
@@ -19751,12 +20027,14 @@
           }
           case "auc-state": {
             if (fromId === Online.myId) return;
+            if (rpChurchRoomNow()) break; // [RP-V7.89] the Fellowship never adopts an auction
             if (a && !a.ended) return;
             aucAdopt(o, fromId, fromName, true);
             break;
           }
           case "auc-ping": {
             if (fromId === Online.myId) return;
+            if (rpChurchRoomNow()) break; // [RP-V7.89] and never re-shares selling
             if (a && !a.ended && aucMine(a)) {
               protoSend({ k: "auc-state", id: a.id, t: a.title.slice(0, 36), s: a.start, sh: a.ship.slice(0, 40), e: a.endsAt, h: a.high, hn: (a.highName || "").slice(0, 16), hid: a.highId || "", n: a.bids });
               aucSendInfo(a);
@@ -20049,6 +20327,7 @@
     <button class="tab-btn" data-tab="home" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg></span>Home</button>
     <button class="tab-btn" data-tab="live" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="6"/></svg></span>Live</button>
     <button class="tab-btn" data-tab="auctions" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h16"/><path d="M6 16l7-7"/><path d="M12 4l8 8-3 3-8-8z"/></svg></span>Auctions</button>
+    <button class="tab-btn tab-create" id="btnTabCreate" data-tab="create" type="button" aria-label="Create — open the camera"><span class="tab-plus" aria-hidden="true">+</span></button>
     <button class="tab-btn" data-tab="moments" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9l5 3-5 3z"/></svg></span>Reels</button>
     <button class="tab-btn" data-tab="profile" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg></span>Profile</button>
   </nav>
@@ -24208,6 +24487,11 @@ body.wp-video-on #rpWallC { visibility: hidden; }
   /* [RP-V7.61] Profile setup save (name + bio) -> the account record.
      No-ops signed-out. On success the returned payload flows through
      the same restore path, so what the server kept is what renders. */
+  /* [RP-V7.89] The face flow lives in the main script; when a face
+     change lands, it pushes the fresh account user through THIS
+     module's one restore path too, so the saved session copy
+     (acct.photo) can never drift behind the member's current face. */
+  window.rpAcctSyncUser = function (u) { try { if (acct && u) applyAccountUser(u); } catch (e) { } };
   window.rpSaveAccountProfile = function (name, bio, link) {
     if (!acct || !acct.token) return Promise.resolve(false);
     var body86 = { name: name, bio: bio };
@@ -26706,12 +26990,25 @@ button.rp72-chip{ cursor:pointer; }
     var back = $("rpMpBack");
     if (back) back.addEventListener("click", function () { openPeople(peopleQuery); });
     renderMemberActions(accountId, name, self, null);
+    if (self) { // [RP-V7.89b] same rack door on the directory view of your own profile
+      var mav89 = document.querySelector("#sheet .pprof-avatar");
+      if (mav89) {
+        mav89.dataset.sringBound = "1";
+        mav89.style.cursor = "pointer";
+        mav89.setAttribute("role", "button");
+        mav89.setAttribute("aria-label", "Change your avatar");
+        mav89.addEventListener("click", function (e) {
+          e.stopPropagation(); e.stopImmediatePropagation();
+          if (window.rpOpenFaceRackSheet88) window.rpOpenFaceRackSheet88();
+        });
+      }
+    }
     api("/api/social/profile?id=" + encodeURIComponent(accountId), "GET").then(function (r) {
       if (!$("rpMpActions")) return; /* sheet moved on */
       var j = (r.json && r.json.ok) ? r.json : null;
       if (!j) return;
       var av = document.querySelector(".pprof-avatar"); // [RP-V7.50] the account's photo fills the hero even when the row had none
-      if (av && j.photo) av.innerHTML = '<img class="p-photo" src="' + esc(j.photo) + '" alt=""/>';
+      if (av && j.photo && !av.dataset.facePicked) av.innerHTML = '<img class="p-photo" src="' + esc(j.photo) + '" alt=""/>'; // [RP-V7.89b] never stomp a just-picked face with the pre-pick fetch
       if (window.RPStories) window.RPStories.decorateHero(accountId, av);
       var u = $("rpMpUser");
       if (u && j.username) { u.textContent = "@" + j.username; u.hidden = false; }
@@ -29605,6 +29902,16 @@ button.rp72-chip{ cursor:pointer; }
 .rproom-chatrow .rproom-send { border-radius: 999px; border: 1px solid rgba(255,255,255,.4); background: rgba(254,44,85,.9); color: #fff; padding: 9px 16px; font-size: 13.5px; font-weight: 800; font-family: inherit; cursor: pointer; }
 .rproom-chatrow .rproom-emoji { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: rgba(10,12,20,.62); font-size: 19px; line-height: 1; cursor: pointer; backdrop-filter: blur(3px); }
 .rproom-chatrow .rproom-emoji:active { transform: scale(.92); }
+/* [RP-V7.89] Rooms take the LIVE screen's auto-fading chrome: after a
+   few idle seconds the room overlay + scene-top + presence strip fade
+   out over the scene; any tap on the scene wakes them (the live
+   stage's lv-idle behavior, same idea). The chat input being focused
+   holds the fade off, like the live comment bar. */
+.rproom-overlay { transition: opacity .45s ease; }
+#onlineScene .scene-top, #screen-online .px-strip { transition: opacity .45s ease; }
+#screen-online.rproom-idle .rproom-overlay,
+#screen-online.rproom-idle #onlineScene .scene-top,
+#screen-online.rproom-idle .px-strip { opacity: 0; pointer-events: none; }
 </style>
 <script>
 /* ================= RP-V7.47 — Meet-room stage (Teen Hangout layout) =================
@@ -29823,11 +30130,38 @@ button.rp72-chip{ cursor:pointer; }
   setInterval(function () {
     try {
       bindSocket();
-      var r = layoutRoom();
+      // [RP-V7.89] While a live is running (hosted or watched from this
+      // room), the LIVE screen is the surface — pot, rail and all —
+      // so the room overlay stands down and returns when it ends.
+      var lvActive = false;
+      try { var L = window.rpLive && window.rpLive(); lvActive = !!(L && L.active); } catch (e) { }
+      var r = lvActive ? "" : layoutRoom();
       if (r && r !== activeRoom) { teardown(); build(r); }
       else if (!r && activeRoom) teardown();
     } catch (e) { }
   }, 1000);
+
+  /* [RP-V7.89] Auto-fade chrome, mirroring the live screen: 4s without
+     a pointer touch on the online screen fades the room chrome; a tap
+     wakes it; typing in the room chat bar holds it open. */
+  var idleAt = Date.now();
+  document.addEventListener("pointerdown", function (e) {
+    var sc = $("screen-online");
+    if (sc && sc.classList.contains("active") && sc.contains(e.target)) {
+      idleAt = Date.now();
+      sc.classList.remove("rproom-idle");
+    }
+  }, true);
+  setInterval(function () {
+    try {
+      var sc = $("screen-online");
+      if (!sc) return;
+      var inp = $("rpRoomChatInput");
+      var typing = !!(inp && document.activeElement === inp);
+      if (overlay && !typing && Date.now() - idleAt >= 4000) sc.classList.add("rproom-idle");
+      else if (!overlay || typing) { sc.classList.remove("rproom-idle"); idleAt = Date.now(); }
+    } catch (e) { }
+  }, 500);
 
   /* debug/test handle */
   window.rpRoomStage = {
@@ -31514,6 +31848,19 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     });
   }
   function postHtml(p) {
+    // [RP-V7.89] A repost entry: attribution line + the original post,
+    // no actions row of its own.
+    if (p.kind === "repost" && p.post) {
+      var rpMedia = "";
+      if (p.post.kind === "reel" && p.post.url) rpMedia = '<div class="feed-media"><video src="' + escF(p.post.url) + '" controls playsinline preload="metadata"></video></div>';
+      else if (p.post.url) rpMedia = '<div class="feed-media"><img src="' + escF(p.post.url) + '" alt=""/></div>';
+      return '<article class="feed-post" data-fid="' + escF(p.id) + '">' +
+        '<p class="feed-repostby">🔁 <b>' + escF((p.repostBy && p.repostBy.name) || "Someone") + "</b> reposted</p>" +
+        '<div class="feed-phead"><span class="feed-chip">' + avaInner(p.post.author) +
+        "<span><b>" + escF((p.post.author && p.post.author.name) || "") + "</b><small>" + timeAgo(p.repostedAt || p.createdAt) + "</small></span></span></div>" +
+        (p.post.caption ? '<p class="feed-text">' + escF(p.post.caption) + "</p>" : "") + rpMedia +
+        "</article>";
+    }
     var media = "";
     if (p.kind === "photo" && p.url) media = '<div class="feed-media"><img src="' + escF(p.url) + '" alt=""/></div>';
     else if (p.kind === "video" && p.url) media = '<div class="feed-media"><video src="' + escF(p.url) + '" controls playsinline preload="metadata"></video></div>';
@@ -31892,6 +32239,998 @@ body[data-holiday]:not([data-holiday=""]) .tab-btn.on .ti { color: var(--hol, #f
   };
 })();
 </script>
+
+  <style>
+    /* ================= [RP-V7.90] CENTER + CAMERA =================
+       The bottom bar gains a raised center + (Plaza red, Plaza type)
+       that opens a full-screen camera: live HD preview, the Plaza's own
+       18 fun face lenses (carousel + full lens sheet), a TikTok-style
+       side rail (Flip / Timer / Flash / Lenses — no beauty, no color
+       filters, per the house rules), an Add Sound pill over the Plaza's
+       licensed Pixabay catalog with picker/trim/mix editor, and hand-
+       offs into the EXISTING reel/photo flows. Sound rides the records
+       as a track reference — files are never re-encoded. */
+    #tabbar .tab-plus {
+      flex: 0 0 auto; width: 56px; height: 40px; margin: -22px 2px 0;
+      border: none; border-radius: 14px; cursor: pointer;
+      background: linear-gradient(135deg, #fe2c55, #ff5e7a);
+      color: #fff; font-size: 30px; font-weight: 800; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 20px rgba(254,44,85,.45), inset 0 0 0 2px rgba(255,255,255,.25);
+    }
+    #tabbar .tab-plus:active { transform: scale(.94); }
+    #camScreen {
+      position: fixed; inset: 0; z-index: 80; background: #000;
+      display: none; flex-direction: column; overflow: hidden;
+    }
+    #camScreen.open { display: flex; }
+    #camVideo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+    #camScreen .cam-top {
+      position: relative; z-index: 3; display: flex; align-items: flex-start; gap: 10px;
+      padding: calc(10px + env(safe-area-inset-top)) 12px 0;
+    }
+    #camClose {
+      width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
+      background: rgba(10,10,16,.55); color: #fff; font-size: 19px; flex: 0 0 auto;
+    }
+    #camSoundPill {
+      flex: 1 1 auto; max-width: 300px; margin: 2px auto 0; height: 36px; padding: 0 16px;
+      border-radius: 999px; border: 1px solid rgba(255,255,255,.25); cursor: pointer;
+      background: rgba(10,10,16,.55); color: #fff; font-size: 13.5px; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #camSoundPill.has { background: rgba(254,44,85,.85); border-color: transparent; }
+    .cam-topsp { width: 40px; flex: 0 0 auto; }
+    #camScreen .cam-rail {
+      position: absolute; z-index: 3; right: 10px; top: 96px;
+      display: flex; flex-direction: column; gap: 14px; align-items: center;
+    }
+    .cam-rbtn {
+      width: 52px; padding: 7px 0 5px; border: none; border-radius: 14px; cursor: pointer;
+      background: rgba(10,10,16,.5); color: #fff; font-size: 19px; line-height: 1.15;
+      display: flex; flex-direction: column; align-items: center; gap: 1px;
+    }
+    .cam-rbtn span { font-size: 9.5px; font-weight: 700; letter-spacing: .02em; }
+    .cam-rbtn.on { background: rgba(254,44,85,.9); }
+    #camTimerPop {
+      position: absolute; z-index: 4; right: 72px; top: 150px;
+      display: flex; gap: 6px; padding: 6px; border-radius: 999px;
+      background: rgba(10,10,16,.78); border: 1px solid rgba(255,255,255,.18);
+    }
+    #camTimerPop[hidden] { display: none; }
+    #camTimerPop button {
+      border: none; cursor: pointer; border-radius: 999px; padding: 7px 13px;
+      background: transparent; color: #fff; font-size: 13px; font-weight: 700;
+    }
+    #camTimerPop button.on { background: #fe2c55; }
+    #camCount {
+      position: absolute; z-index: 4; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 130px; font-weight: 900; color: #fff; text-shadow: 0 6px 40px rgba(0,0,0,.6);
+      pointer-events: none;
+    }
+    #camCount[hidden] { display: none; }
+    #camScreen .cam-bottom { position: relative; z-index: 3; margin-top: auto; padding: 0 0 calc(14px + env(safe-area-inset-bottom)); }
+    #camLensName {
+      display: block; text-align: center; color: #fff; font-size: 13px; font-weight: 700;
+      text-shadow: 0 1px 8px rgba(0,0,0,.7); min-height: 18px; margin-bottom: 6px;
+    }
+    .cam-mode-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px; padding: 0 10px; }
+    .cam-len { display: flex; gap: 4px; margin-right: 2px; }
+    .cam-len[hidden] { display: none; }
+    .cam-len button, .cam-mode-row > button {
+      border: none; cursor: pointer; border-radius: 999px; padding: 7px 14px;
+      background: rgba(10,10,16,.5); color: rgba(255,255,255,.75);
+      font-size: 12.5px; font-weight: 800; letter-spacing: .06em;
+    }
+    .cam-len button.on, .cam-mode-row > button.on { background: #fff; color: #111; }
+    #camLensRail {
+      display: flex; gap: 12px; overflow-x: auto; padding: 4px 18px 12px;
+      scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    }
+    #camLensRail::-webkit-scrollbar { display: none; }
+    .cam-lens {
+      flex: 0 0 auto; width: 58px; height: 58px; border-radius: 50%; cursor: pointer;
+      border: 3px solid rgba(255,255,255,.35); background: #1c1c26; color: #fff;
+      display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0;
+    }
+    .cam-lens .fx-sw { width: 100%; height: 100%; border-radius: 50%; }
+    .cam-lens.sel { border-color: #fe2c55; box-shadow: 0 0 0 3px rgba(254,44,85,.35); }
+    #camShutter {
+      position: relative; display: block; margin: 2px auto 0; width: 74px; height: 74px; border-radius: 50%;
+      border: 5px solid #fff; background: #fe2c55; cursor: pointer;
+      box-shadow: 0 6px 24px rgba(0,0,0,.5); transition: transform .12s, border-radius .12s, width .12s, height .12s;
+    }
+    #camShutter.photo { background: #fff; box-shadow: inset 0 0 0 5px #16161e, 0 4px 18px rgba(0,0,0,.45); }
+    #camShutter.rec { width: 62px; height: 62px; border-radius: 20px; }
+    #camShutter:active { transform: scale(.94); }
+    #camShutter.busy { opacity: .55; pointer-events: none; }
+    #camTimer {
+      position: absolute; left: 50%; transform: translateX(-50%); bottom: 108px;
+      color: #fff; font-weight: 800; font-size: 15px; text-shadow: 0 1px 8px rgba(0,0,0,.8); display: none;
+    }
+    /* ---- shared overlay sheets (picker / editor / lens sheet) ---- */
+    .rp-ovl {
+      position: fixed; inset: 0; z-index: 95; display: none;
+      background: rgba(4,4,8,.62); align-items: flex-end; justify-content: center;
+    }
+    .rp-ovl.open { display: flex; }
+    .rp-panel {
+      width: 100%; max-width: 560px; max-height: 86vh; overflow-y: auto;
+      background: #14141d; color: #fff; border-radius: 22px 22px 0 0;
+      padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+      box-shadow: 0 -12px 44px rgba(0,0,0,.55);
+    }
+    .rp-panel h3 { margin: 0 0 4px; font-size: 17px; }
+    .rp-panel .rp-sub { color: rgba(255,255,255,.6); font-size: 12.5px; margin: 0 0 10px; }
+    .rp-x { float: right; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,.1); color: #fff; font-size: 16px; cursor: pointer; }
+    #sndSearch {
+      width: 100%; box-sizing: border-box; padding: 11px 14px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.16); background: #1d1d29; color: #fff; font-size: 14.5px; margin: 6px 0 12px;
+    }
+    .snd-sec { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.55); margin: 14px 0 6px; }
+    .snd-row {
+      display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+      padding: 10px 10px; border: none; border-radius: 14px; cursor: pointer;
+      background: rgba(255,255,255,.05); color: #fff; margin-bottom: 7px;
+    }
+    .snd-row.playing { background: rgba(254,44,85,.22); outline: 1.5px solid rgba(254,44,85,.65); }
+    .snd-row .snd-ic { font-size: 19px; width: 26px; text-align: center; flex: 0 0 auto; }
+    .snd-row .snd-nm { flex: 1 1 auto; min-width: 0; }
+    .snd-row .snd-nm b { display: block; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .snd-row .snd-nm span { font-size: 11.5px; color: rgba(255,255,255,.55); text-transform: capitalize; }
+    .snd-row .snd-dur { font-size: 12px; color: rgba(255,255,255,.55); flex: 0 0 auto; }
+    .snd-fav {
+      flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; border: none; cursor: pointer;
+      background: transparent; color: rgba(255,255,255,.65); font-size: 21px;
+    }
+    .snd-fav.on { color: #ffd166; }
+    #sndTrimBox { background: rgba(255,255,255,.05); border-radius: 14px; padding: 12px; margin-top: 6px; }
+    #sndTrimBox[hidden] { display: none; }
+    #sndTrimBox label, .ed-row label { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; color: rgba(255,255,255,.8); margin-bottom: 6px; }
+    .rp-panel input[type="range"] { width: 100%; accent-color: #fe2c55; }
+    #sndUse {
+      width: 100%; margin-top: 12px; padding: 13px; border: none; border-radius: 14px; cursor: pointer;
+      background: #fe2c55; color: #fff; font-size: 15px; font-weight: 800;
+    }
+    /* ---- sound editor ---- */
+    #camEditVideo { width: 100%; max-height: 44vh; border-radius: 16px; background: #000; display: block; }
+    .ed-row { margin-top: 13px; }
+    .ed-track { display: flex; align-items: center; gap: 9px; background: rgba(255,255,255,.05); border-radius: 14px; padding: 11px 12px; margin-top: 12px; }
+    .ed-track b { flex: 1 1 auto; font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ed-track button { border: none; cursor: pointer; border-radius: 999px; padding: 7px 12px; background: rgba(255,255,255,.12); color: #fff; font-size: 12.5px; font-weight: 700; }
+    .ed-btns { display: flex; gap: 9px; margin-top: 16px; }
+    .ed-btns button { flex: 1; padding: 13px; border: none; border-radius: 14px; cursor: pointer; font-size: 14.5px; font-weight: 800; }
+    #camEditRetake { background: rgba(255,255,255,.1); color: #fff; }
+    #camEditGo { background: #fe2c55; color: #fff; }
+    /* ---- lens sheet ---- */
+    #camLensSheet .fx-rail { display: flex; flex-wrap: wrap; gap: 12px; overflow: visible; padding: 6px 0; }
+    /* ---- posted-content sound credits ---- */
+    .reel-sound.rp-snd { cursor: pointer; display: inline-flex; align-items: center; gap: 7px; pointer-events: auto; }
+    .rp-sndfav { border: none; background: transparent; color: rgba(255,255,255,.8); font-size: 16px; cursor: pointer; padding: 2px 4px; line-height: 1; }
+    .rp-sndfav.on { color: #ffd166; }
+    .mom-snd {
+      display: inline-flex; align-items: center; gap: 6px; margin: 2px 14px 10px; padding: 7px 12px;
+      border: 1px solid var(--line); border-radius: 999px; background: var(--panel2, rgba(127,127,160,.12));
+      color: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    }
+    /* ---- [RP-V7.90] How-you-get-paid card (top of Home) + sheet ---- */
+    #earnCard {
+      display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box;
+      text-align: left; cursor: pointer; margin: 0 0 12px; padding: 14px 16px;
+      border-radius: 18px; border: 1px solid rgba(255,209,102,.45);
+      background: linear-gradient(135deg, #2a1220, #14141d 65%);
+      color: #fff; box-shadow: var(--shadow);
+    }
+    #earnCard:active { transform: scale(.99); }
+    #earnCard .earn-ic { font-size: 30px; flex: 0 0 auto; }
+    #earnCard .earn-tx { flex: 1 1 auto; min-width: 0; }
+    #earnCard .earn-tx b { display: block; font-size: 16.5px; line-height: 1.25; }
+    #earnCard .earn-tx span { display: block; font-size: 12.5px; opacity: .75; margin-top: 2px; }
+    #earnCard .earn-go { font-size: 24px; opacity: .55; flex: 0 0 auto; }
+    .earn-sec { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .6; margin: 16px 0 8px; }
+    .earn-row { display: flex; gap: 11px; background: rgba(255,255,255,.05); border-radius: 14px; padding: 12px; margin-bottom: 8px; }
+    .earn-row .earn-ric { font-size: 21px; flex: 0 0 auto; }
+    .earn-row b { display: block; font-size: 14.5px; }
+    .earn-row p { margin: 3px 0 0; font-size: 13px; line-height: 1.45; opacity: .78; }
+    .earn-badge { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .07em; padding: 2.5px 8px; border-radius: 999px; background: rgba(255,209,102,.18); color: #ffd166; border: 1px solid rgba(255,209,102,.4); margin-left: 6px; vertical-align: 2px; }
+    .earn-note { font-size: 13px; line-height: 1.55; opacity: .85; background: rgba(255,255,255,.05); border-radius: 14px; padding: 12px; }
+  </style>
+  <div id="camScreen" aria-hidden="true">
+    <video id="camVideo" autoplay playsinline muted></video>
+    <div class="cam-top">
+      <button type="button" id="camClose" aria-label="Close camera">✕</button>
+      <button type="button" id="camSoundPill">🎵 Add sound</button>
+      <span class="cam-topsp"></span>
+    </div>
+    <div class="cam-rail">
+      <button type="button" class="cam-rbtn" id="camFlip">🔄<span>Flip</span></button>
+      <button type="button" class="cam-rbtn" id="camTimerBtn">⏱️<span id="camTimerLbl">Timer</span></button>
+      <button type="button" class="cam-rbtn" id="camFlashBtn">⚡<span>Flash</span></button>
+      <button type="button" class="cam-rbtn" id="camLensSheetBtn">✨<span>Lenses</span></button>
+    </div>
+    <div id="camTimerPop" hidden>
+      <button type="button" data-timer="0" class="on">Off</button>
+      <button type="button" data-timer="3">3s</button>
+      <button type="button" data-timer="10">10s</button>
+    </div>
+    <div id="camCount" hidden>3</div>
+    <div class="cam-bottom">
+      <span id="camLensName"></span>
+      <div class="cam-mode-row">
+        <span class="cam-len" id="camLenWrap">
+          <button type="button" data-len="15">15s</button>
+          <button type="button" data-len="60" class="on">60s</button>
+        </span>
+        <button type="button" id="camModeVideo" class="on">VIDEO</button>
+        <button type="button" id="camModePhoto">PHOTO</button>
+      </div>
+      <div id="camLensRail" role="listbox" aria-label="Face lenses"></div>
+      <button type="button" id="camShutter" aria-label="Record or capture"></button>
+      <div id="camTimer"></div>
+    </div>
+  </div>
+
+  <div class="rp-ovl" id="sndSheet" aria-hidden="true">
+    <div class="rp-panel">
+      <button type="button" class="rp-x" id="sndClose" aria-label="Close sounds">✕</button>
+      <h3>🎵 Add sound</h3>
+      <p class="rp-sub">Plaza licensed instrumentals (Pixabay) — full quality, never re-encoded. Tap a track to preview it; tap ✓ to attach it.</p>
+      <input id="sndSearch" type="search" placeholder="Search sounds…" autocomplete="off"/>
+      <div id="sndList"></div>
+      <div id="sndTrimBox" hidden>
+        <label><span>✂️ Trim — where the sound starts</span><span id="sndTrimVal">0:00</span></label>
+        <input type="range" id="sndTrim" min="0" max="60" step="1" value="0"/>
+        <button type="button" id="sndUse">✓ Use this sound</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rp-ovl" id="camEditSheet" aria-hidden="true">
+    <div class="rp-panel">
+      <h3>🎬 Sound check</h3>
+      <p class="rp-sub">Mix the sound with your video's own audio. Nothing about the sound can change after posting.</p>
+      <video id="camEditVideo" loop playsinline></video>
+      <div class="ed-track">
+        <span>🎵</span><b id="camEditTrackName">No sound attached</b>
+        <button type="button" id="camEditChange">Add</button>
+        <button type="button" id="camEditRemove" hidden>Remove</button>
+      </div>
+      <div class="ed-row">
+        <label><span>🎵 Music volume</span><span id="camEditMusicVal">80%</span></label>
+        <input type="range" id="camEditMusicVol" min="0" max="100" step="1" value="80"/>
+      </div>
+      <div class="ed-row">
+        <label><span>🎤 Original sound volume</span><span id="camEditOrigVal">100%</span></label>
+        <input type="range" id="camEditOrigVol" min="0" max="100" step="1" value="100"/>
+      </div>
+      <div class="ed-btns">
+        <button type="button" id="camEditRetake">⟲ Retake</button>
+        <button type="button" id="camEditGo">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rp-ovl" id="camLensSheet" aria-hidden="true">
+    <div class="rp-panel">
+      <button type="button" class="rp-x" id="camLensSheetClose" aria-label="Close lenses">✕</button>
+      <h3>✨ All lenses</h3>
+      <p class="rp-sub">The Plaza's fun face effects — the same rack as the live setup. Fun effects only.</p>
+      <div id="camLensSheetBody"></div>
+    </div>
+  </div>
+
+  <audio id="rpSndEl" preload="auto" loop hidden></audio>
+
+  <div class="rp-ovl" id="earnSheet" aria-hidden="true">
+    <div class="rp-panel">
+      <button type="button" class="rp-x" id="earnClose" aria-label="Close earnings">✕</button>
+      <h3>💰 How You Get Paid on Rizz Plaza</h3>
+      <p class="rp-sub">Real money for hosts and creators — here's the whole breakdown.</p>
+      <div class="earn-sec">Earning now</div>
+      <div class="earn-row"><span class="earn-ric">🎁</span><div><b>Gifts on your lives — you keep 70%</b><p>Fans send gifts while you host. TikTok keeps about half of what their hosts earn. On Rizz Plaza you keep 70 cents of every gift dollar.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">🔨</span><div><b>Live auctions — you keep 90%</b><p>Sell live, Whatnot-style. You keep 90% of every winning bid.</p></div></div>
+      <div class="earn-sec">Coming to the Plaza</div>
+      <div class="earn-row"><span class="earn-ric">👀</span><div><b>Views pay you<span class="earn-badge">COMING</span></b><p>A Creator Pool takes 15% of charm-pack and premium sales and splits it weekly by real views on your reels, photos, and lives. No ads needed — you get paid like YouTube, without the ads.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">⭐</span><div><b>Fan subscriptions<span class="earn-badge">COMING</span></b><p>Your fans subscribe to YOU monthly.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">💌</span><div><b>Profile tips<span class="earn-badge">COMING</span></b><p>Anyone can tip you right from your profile, any time.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">🎟️</span><div><b>Ticketed lives<span class="earn-badge">COMING</span></b><p>Charge at the door for concerts, classes, and showcases. Church is always free on Rizz Plaza.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">📣</span><div><b>Paid shoutouts<span class="earn-badge">COMING</span></b><p>Set your price for birthday shoutouts, song requests, and advice.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">🛍️</span><div><b>Shop commissions<span class="earn-badge">COMING</span></b><p>Earn a cut selling Magniphiscents products in your lives and posts.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">👑</span><div><b>Fan clubs<span class="earn-badge">COMING</span></b><p>Paid memberships with member-only rooms.</p></div></div>
+      <div class="earn-sec">How cash-out works</div>
+      <div class="earn-note">Everything you earn lands in your Plaza wallet. At <b>$20</b> you cash out to your bank through Stripe. Cash earnings are <b>18+</b>; younger members earn charms. Plus: Daily Pots and Plaza Pots pay out <b>charms</b> every day — the Plaza Pot bursts live in hosted rooms, and both Daily Pots burst between 7–9 PM ET.</div>
+    </div>
+  </div>
+
+  <script>
+  /* ================= [RP-V7.90] CENTER + CAMERA =================
+     Tapping the bottom bar's center + opens the Plaza camera:
+       - HD capture (owner directive): getUserMedia asks the device for
+         its best (ideal 1920x1080, graceful fallback), the recorder
+         runs at the highest bitrates offered (12 Mbps video / 256 kbps
+         audio), photos are full-frame (ImageCapture / native-size
+         canvas, JPEG 0.92) — nothing is downscaled anywhere.
+       - Lenses are the Plaza's OWN 18 fun face effects (LIVE_FILTERS):
+         the carousel + the full lens sheet render the engine's own
+         swatches and a pick goes through setLiveFilter, so the preview
+         and the recording run the engine's own fx pipeline.
+       - Side rail (TikTok's arrangement, Plaza's jobs): Flip, Timer
+         (3s/10s), Flash (torch where the device allows), Lenses.
+         NO Enhance / Retouch / color Filters — fun lenses only, the
+         house rule. Speed is NOT faked: the web recorder has no clean
+         capture-rate control, so it ships in a later pass.
+       - Add Sound: the Plaza's licensed Pixabay catalog (TRACKS) with
+         search, account Favorites + Recents (brain rule — server-side
+         for members, device-local for guests), preview, a start-point
+         Trim, and a post-record mix editor (music + original volume).
+         The picked track rides the EXISTING reel/photo flows as a
+         reference on the record; players stream the full-quality file
+         (256 kbps MP3, never re-encoded) in sync with the video.
+       - Finishing hands off to the existing flows (video → reel
+         composer, photo → photo composer). Gates are inherited
+         untouched: 18+ where the flows already gate. */
+  (function () {
+    "use strict";
+    function el(id) { return document.getElementById(id); }
+    function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
+
+    /* ---------- sound catalog maps (mirror the server's SOUND_TRACKS) ---------- */
+    var SND_FAM = { reggae: "music", gospel: "faith", soft: "music", party: "music", lofi: "music", island: "music", worship: "faith", dance: "dance" };
+    var SND_DUR = { reggae: 155, gospel: 206, soft: 172, party: 103, lofi: 214, island: 168, worship: 206, dance: 103 };
+    function trackById(id) {
+      for (var i = 0; i < TRACKS.length; i++) if (TRACKS[i].id === id) return TRACKS[i];
+      return null;
+    }
+    function fmtDur(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
+    window.rpTrackName = function (id) { var t = trackById(id); return t ? t.name : "Plaza sound"; };
+
+    /* ---------- sound state ---------- */
+    var Snd = {
+      attached: null,        // { trackId, start, musicVol, origVol }
+      favs: {}, recents: [], usage: {}, style: {}, signedIn: false, loaded: false,
+      pickId: null, pickStart: 0, owner: null, photoTid: null, trending: [], trendScores: {}
+    };
+    function sndToken() { try { return typeof reelToken === "function" ? reelToken() : null; } catch (e) { return null; } }
+    function sndEl() { return el("rpSndEl"); }
+    function sndPlay() { var a = sndEl(); if (!a) return; var p = null; try { p = a.play(); } catch (e) { } if (p && p.catch) p.catch(function () { }); }
+    function sndSetTrack(id) {
+      var a = sndEl(), t = trackById(id); if (!a || !t) return;
+      var url = "/audio/" + t.file;
+      if (a.getAttribute("src") !== url) { try { a.src = url; } catch (e) { } }
+    }
+    function sndStop(owner) {
+      var a = sndEl(); if (!a) return;
+      if (owner && Snd.owner !== owner) return;
+      try { a.pause(); } catch (e) { }
+      Snd.owner = null; Snd.photoTid = null;
+      document.querySelectorAll(".mom-snd[data-playing]").forEach(function (b) { b.removeAttribute("data-playing"); });
+    }
+    function sndLoadState(done) {
+      var t = sndToken();
+      var h = { "Accept": "application/json" }; if (t) h["Authorization"] = "Bearer " + t;
+      fetch("/api/sounds/state", { headers: h }).then(function (r) { return r.json().catch(function () { return null; }); })
+        .then(function (j) {
+          if (j && j.ok) {
+            Snd.usage = j.usage || {};
+            Snd.trending = Array.isArray(j.trending) ? j.trending : [];
+            Snd.trendScores = j.trendScores || {};
+            if (Array.isArray(j.favorites)) {
+              Snd.signedIn = true; Snd.favs = {}; j.favorites.forEach(function (id) { Snd.favs[id] = true; });
+              Snd.recents = Array.isArray(j.recents) ? j.recents : [];
+              Snd.style = j.style || {};
+            } else {
+              Snd.signedIn = false;
+              try {
+                Snd.favs = {}; (JSON.parse(localStorage.getItem("rpSndFavs.v1") || "[]")).forEach(function (id) { Snd.favs[id] = true; });
+                Snd.recents = JSON.parse(localStorage.getItem("rpSndRecents.v1") || "[]");
+              } catch (e) { Snd.favs = {}; Snd.recents = []; }
+              Snd.style = {};
+            }
+            Snd.loaded = true;
+          }
+          if (done) done();
+        }).catch(function () { if (done) done(); });
+    }
+    function sndToggleFav(id) {
+      if (!trackById(id)) return;
+      var on = !Snd.favs[id];
+      if (on) Snd.favs[id] = true; else delete Snd.favs[id];
+      if (Snd.signedIn) {
+        var t = sndToken();
+        fetch("/api/sounds/favorite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
+          body: JSON.stringify({ trackId: id, fav: on })
+        }).then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (j) { if (j && j.ok && Array.isArray(j.favorites)) { Snd.favs = {}; j.favorites.forEach(function (x) { Snd.favs[x] = true; }); paintFavs(); } })
+          .catch(function () { });
+      } else {
+        try { localStorage.setItem("rpSndFavs.v1", JSON.stringify(Object.keys(Snd.favs))); } catch (e) { }
+      }
+      paintFavs();
+      if (el("sndSheet") && el("sndSheet").classList.contains("open")) renderPicker();
+    }
+    window.rpSndToggleFav = sndToggleFav;
+    function paintFavs() {
+      document.querySelectorAll(".rp-sndfav, .snd-fav").forEach(function (b) {
+        var on = !!Snd.favs[b.getAttribute("data-tid")];
+        b.classList.toggle("on", on); b.textContent = on ? "★" : "☆";
+      });
+    }
+    function trackOrder() {
+      var ids = TRACKS.map(function (t) { return t.id; });
+      if (!Snd.signedIn) return ids; // guests: the default shelf order
+      var style = Snd.style || {}, usage = Snd.usage || {};
+      var idx = {}; ids.forEach(function (id, i) { idx[id] = i; });
+      return ids.slice().sort(function (a, b) {
+        var sa = num(style[SND_FAM[a]], 0), sb = num(style[SND_FAM[b]], 0);
+        if (sb !== sa) return sb - sa;
+        var ua = usage[a] || 0, ub = usage[b] || 0;
+        if (ub !== ua) return ub - ua;
+        return idx[a] - idx[b];
+      });
+    }
+    window.rpSndState = function () {
+      return { order: trackOrder(), trending: Snd.trending.slice(), trendScores: Snd.trendScores, favs: Object.keys(Snd.favs), recents: Snd.recents.slice(), style: Snd.style, usage: Snd.usage, signedIn: Snd.signedIn, attached: Snd.attached };
+    };
+
+    /* ---------- the picker ---------- */
+    function sndRowHtml(id) {
+      var t = trackById(id); if (!t) return "";
+      var playing = Snd.pickId === id && Snd.owner === "pick";
+      return '<div class="snd-row' + (playing ? " playing" : "") + '" data-tid="' + id + '" role="button" tabindex="0">' +
+        '<span class="snd-ic">' + (playing ? "⏸" : "🎵") + '</span>' +
+        '<span class="snd-nm"><b>' + escHtml(t.name) + '</b><span>' + escHtml(SND_FAM[id] || "music") + ' · Plaza licensed</span></span>' +
+        '<span class="snd-dur">' + fmtDur(SND_DUR[id] || 0) + '</span>' +
+        '<button type="button" class="snd-fav rp-sndfav' + (Snd.favs[id] ? " on" : "") + '" data-tid="' + id + '" aria-label="Favorite ' + escHtml(t.name) + '">' + (Snd.favs[id] ? "★" : "☆") + '</button></div>';
+    }
+    function renderPicker() {
+      var list = el("sndList"); if (!list) return;
+      var q = (el("sndSearch").value || "").trim().toLowerCase();
+      var html = "";
+      function sect(name, label, ids) {
+        if (!ids.length) return "";
+        return '<div class="snd-sect" data-sect="' + name + '"><div class="snd-sec">' + label + '</div>' + ids.map(sndRowHtml).join("") + "</div>";
+      }
+      if (q) {
+        var hits = TRACKS.filter(function (t) { return t.name.toLowerCase().indexOf(q) >= 0 || t.id.indexOf(q) >= 0; });
+        html = '<div class="snd-sect" data-sect="results"><div class="snd-sec">Results</div>' + (hits.length ? hits.map(function (t) { return sndRowHtml(t.id); }).join("") : '<p class="rp-sub">No Plaza sound matches that yet.</p>') + "</div>";
+      } else {
+        // Trending: computed Plaza-wide from real usage, recency-
+        // weighted on the server. Nobody hand-picks it (owner's rule).
+        html += sect("trending", "🔥 Trending", (Snd.trending || []).filter(function (id) { return !!trackById(id); }));
+        var favIds = Object.keys(Snd.favs).filter(function (id) { return !!trackById(id); });
+        html += sect("favs", "★ Favorites" + (Snd.signedIn ? "" : " (this device)"), favIds);
+        var recIds = (Snd.recents || []).filter(function (id) { return !!trackById(id); });
+        html += sect("recent", "🕘 Recent", recIds);
+        var anyStyle = false; for (var k in (Snd.style || {})) if (Snd.style[k] > 0) anyStyle = true;
+        html += sect("foryou", Snd.signedIn && anyStyle ? "✨ For you" : "🎶 All sounds", trackOrder());
+      }
+      list.innerHTML = html;
+      var tb = el("sndTrimBox");
+      if (Snd.pickId) {
+        tb.hidden = false;
+        var sl = el("sndTrim"); sl.max = Math.max(1, (SND_DUR[Snd.pickId] || 60) - 1); sl.value = Snd.pickStart;
+        el("sndTrimVal").textContent = fmtDur(Snd.pickStart);
+      } else tb.hidden = true;
+    }
+    function sndPreview(id) {
+      if (Snd.pickId === id && Snd.owner === "pick") { // second tap pauses
+        sndStop("pick"); try { AudioFX.releaseMusic("sndpick"); } catch (e) { }
+        renderPicker(); return;
+      }
+      Snd.pickId = id; Snd.pickStart = 0;
+      Snd.owner = "pick"; sndSetTrack(id);
+      var a = sndEl(); a.loop = true; a.volume = 0.9;
+      try { a.currentTime = 0; } catch (e) { }
+      try { AudioFX.holdMusic("sndpick"); } catch (e) { }
+      sndPlay(); renderPicker();
+    }
+    function openPicker() {
+      sndLoadState(function () { renderPicker(); });
+      el("sndSheet").classList.add("open"); el("sndSheet").setAttribute("aria-hidden", "false");
+      renderPicker();
+    }
+    function closePicker() {
+      el("sndSheet").classList.remove("open"); el("sndSheet").setAttribute("aria-hidden", "true");
+      if (Snd.owner === "pick") sndStop("pick");
+      try { AudioFX.releaseMusic("sndpick"); } catch (e) { }
+    }
+    window.rpSndOpen = openPicker;
+    function updatePill() {
+      var p = el("camSoundPill"); if (!p) return;
+      if (Snd.attached) { var t = trackById(Snd.attached.trackId); p.textContent = "🎵 " + (t ? t.name : "Sound attached"); p.classList.add("has"); }
+      else { p.textContent = "🎵 Add sound"; p.classList.remove("has"); }
+    }
+
+    /* ---------- camera core ---------- */
+    var Cam = {
+      open: false, stream: null, facing: "user", mode: "video",
+      recorder: null, chunks: [], recording: false, recStart: 0,
+      timerInt: null, paintRaf: 0, timer: 0, flash: false, busy: false, lastRec: null
+    };
+    function camToast(m) { try { toast(m); } catch (e) { } }
+    function constraints() {
+      return { video: { facingMode: Cam.facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true };
+    }
+    function applyTorch(silent) {
+      if (!Cam.stream) return false;
+      var tr = Cam.stream.getVideoTracks && Cam.stream.getVideoTracks()[0];
+      if (!tr || !tr.getCapabilities || !tr.applyConstraints) { if (!silent && Cam.flash) { Cam.flash = false; paintRailBtns(); camToast("Flash isn't available on this camera/browser"); } return false; }
+      var caps = {}; try { caps = tr.getCapabilities() || {}; } catch (e) { }
+      if (!caps.torch) { if (!silent && Cam.flash) { Cam.flash = false; paintRailBtns(); camToast("Flash isn't available on this camera/browser"); } return false; }
+      tr.applyConstraints({ advanced: [{ torch: !!Cam.flash }] }).catch(function () { });
+      return true;
+    }
+    function acquire() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { camToast("This browser can't open the camera here"); return Promise.resolve(false); }
+      return navigator.mediaDevices.getUserMedia(constraints()).then(function (s) {
+        Cam.stream = s;
+        var v = el("camVideo"); v.srcObject = s;
+        var p = v.play(); if (p && p.catch) p.catch(function () { });
+        if (Cam.flash) applyTorch(true);
+        fxSync();
+        return true;
+      }).catch(function () { camToast("Camera permission is off — allow it to film 📷"); return false; });
+    }
+    function release() {
+      stopPaint();
+      try { fxStopPipeline(); } catch (e) { }
+      if (Cam.stream) { Cam.stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) { } }); Cam.stream = null; }
+      var v = el("camVideo"); if (v) v.srcObject = null;
+    }
+    function startPaint() {
+      stopPaint();
+      var step = function () {
+        if (!Cam.open) return;
+        try { fxPaint(); } catch (e) { }
+        Cam.paintRaf = requestAnimationFrame(step);
+      };
+      Cam.paintRaf = requestAnimationFrame(step);
+    }
+    function stopPaint() { if (Cam.paintRaf) cancelAnimationFrame(Cam.paintRaf); Cam.paintRaf = 0; }
+    function fxSync() {
+      var v = el("camVideo"); if (!v || !Cam.stream) return;
+      var on = typeof Live !== "undefined" && Live.filterId && Live.filterId !== "none";
+      if (on) {
+        try { fxStartPipeline(Cam.stream, "preview"); } catch (e) { }
+        if (typeof Live !== "undefined" && Live.fx && Live.fx.stream) { v.srcObject = Live.fx.stream; }
+      } else {
+        stopPaint();
+        try { fxStopPipeline(); } catch (e) { }
+        v.srcObject = Cam.stream;
+      }
+    }
+    function paintLensName() {
+      var n = el("camLensName"); if (!n) return;
+      var f = (typeof Live !== "undefined" && Live.filterId) || "none";
+      var nm = "Original";
+      for (var i = 0; i < LIVE_FILTERS.length; i++) if (LIVE_FILTERS[i].id === f) nm = LIVE_FILTERS[i].name;
+      n.textContent = f === "none" ? "" : nm;
+      document.querySelectorAll(".cam-lens").forEach(function (c) { c.classList.toggle("sel", c.getAttribute("data-fx") === f); });
+    }
+    function buildRail() {
+      var rail = el("camLensRail"); if (!rail || rail.children.length) return;
+      rail.innerHTML = LIVE_FILTERS.map(function (f) {
+        return '<button type="button" class="cam-lens' + (f.id === "none" ? " sel" : "") + '" data-fx="' + f.id + '" role="option" aria-label="' + escHtml(f.name) + '" title="' + escHtml(f.name) + '">' + fxSwatchInner(f) + "</button>";
+      }).join("");
+      rail.querySelectorAll(".cam-lens").forEach(function (chip) {
+        chip.addEventListener("click", function () {
+          setLiveFilter(chip.getAttribute("data-fx"));
+          fxSync(); paintLensName();
+        });
+      });
+      paintLensName();
+    }
+    function paintRailBtns() {
+      el("camTimerLbl").textContent = Cam.timer ? ("Timer " + Cam.timer + "s") : "Timer";
+      el("camTimerBtn").classList.toggle("on", !!Cam.timer);
+      el("camFlashBtn").classList.toggle("on", !!Cam.flash);
+      el("camTimerPop").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", Number(b.getAttribute("data-timer")) === Cam.timer); });
+    }
+    function setMode(m) {
+      Cam.mode = m;
+      el("camModeVideo").classList.toggle("on", m === "video");
+      el("camModePhoto").classList.toggle("on", m === "photo");
+      el("camLenWrap").hidden = m !== "video";
+      el("camShutter").classList.toggle("photo", m === "photo");
+    }
+    function openCamera() {
+      var scr = el("camScreen"); if (!scr) return;
+      if (typeof Live !== "undefined" && Live.state && Live.state !== "idle") { camToast("You're live right now — the camera is busy 🎥"); return; }
+      Cam.open = true;
+      scr.classList.add("open"); scr.setAttribute("aria-hidden", "false");
+      buildRail(); paintLensName(); paintRailBtns(); setMode(Cam.mode); updatePill();
+      sndLoadState(function () { });
+      acquire();
+    }
+    function closeCamera() {
+      if (Cam.recording) stopRecording();
+      if (Snd.owner === "record" || Snd.owner === "pick") sndStop();
+      try { AudioFX.releaseMusic("sndrec"); } catch (e) { }
+      closePicker(); closeEditor(); closeLensSheet();
+      Cam.open = false; Cam.busy = false;
+      var scr = el("camScreen");
+      if (scr) { scr.classList.remove("open"); scr.setAttribute("aria-hidden", "true"); }
+      release();
+    }
+    window.rpOpenCamera = openCamera;
+    window.rpCloseCamera = closeCamera;
+
+    /* ---------- countdown + shutter ---------- */
+    function countdown(n, done) {
+      Cam.busy = true; el("camShutter").classList.add("busy");
+      var c = el("camCount"); c.hidden = false; c.textContent = n;
+      var left = n;
+      var iv = setInterval(function () {
+        left -= 1;
+        if (left <= 0) {
+          clearInterval(iv); c.hidden = true;
+          Cam.busy = false; el("camShutter").classList.remove("busy");
+          done();
+        } else c.textContent = left;
+      }, 1000);
+    }
+    function shutterTap() {
+      if (Cam.busy) return;
+      if (Cam.mode === "video" && !Cam.recording && Snd.attached) {
+        // Prime the attached track INSIDE the tap (autoplay rules want a
+        // gesture); beginRecord re-syncs it to the trim start.
+        Snd.owner = "record"; sndSetTrack(Snd.attached.trackId);
+        var pa = sndEl(); pa.loop = true; pa.volume = Snd.attached.musicVol;
+        try { AudioFX.holdMusic("sndrec"); } catch (e) { }
+        sndPlay();
+      }
+      if (Cam.mode === "video") {
+        if (Cam.recording) { stopRecording(); return; }
+        if (typeof isTeen === "function" && isTeen()) { openTeenGateAll("Reels"); return; }
+        if (Cam.timer) countdown(Cam.timer, beginRecord); else beginRecord();
+      } else {
+        if (Cam.timer) countdown(Cam.timer, capturePhoto); else capturePhoto();
+      }
+    }
+
+    /* ---------- recording (HD: top bitrates the device offers) ---------- */
+    function recordStream() {
+      var on = typeof Live !== "undefined" && Live.filterId && Live.filterId !== "none" && Live.fx && Live.fx.stream;
+      return on ? Live.fx.stream : Cam.stream;
+    }
+    function beginRecord() {
+      if (!Cam.stream) { camToast("Camera is still warming up…"); return; }
+      var src = recordStream(); if (!src) return;
+      var mimes = ["video/webm;codecs=vp9,opus", "video/mp4", "video/webm;codecs=vp8,opus", "video/webm"];
+      var mime = ""; for (var i = 0; i < mimes.length; i++) { try { if (window.MediaRecorder && MediaRecorder.isTypeSupported(mimes[i])) { mime = mimes[i]; break; } } catch (e) { } }
+      var opts = { videoBitsPerSecond: 12000000, audioBitsPerSecond: 256000 };
+      if (mime) opts.mimeType = mime;
+      Cam.recOpts = opts;
+      try { Cam.recorder = new MediaRecorder(src, opts); }
+      catch (e) { try { Cam.recorder = new MediaRecorder(src); } catch (e2) { camToast("Recording isn't supported in this browser"); return; } }
+      Cam.chunks = [];
+      Cam.recorder.addEventListener("dataavailable", function (ev) { if (ev.data && ev.data.size) Cam.chunks.push(ev.data); });
+      Cam.recorder.addEventListener("stop", finishRecord);
+      Cam.recorder.start(250);
+      Cam.recording = true; Cam.recStart = Date.now();
+      el("camShutter").classList.add("rec");
+      var tm = el("camTimer"); tm.style.display = "block"; tm.textContent = "● 0:00";
+      Cam.timerInt = setInterval(function () {
+        var s = Math.floor((Date.now() - Cam.recStart) / 1000);
+        tm.textContent = "● " + fmtDur(s) + " / " + fmtDur(Reels.maxSecs || 60);
+        if (s >= (Reels.maxSecs || 60)) stopRecording();
+      }, 500);
+      if (Snd.attached) {
+        Snd.owner = "record"; sndSetTrack(Snd.attached.trackId);
+        var a = sndEl(); a.loop = true; a.volume = Snd.attached.musicVol;
+        try { a.currentTime = Snd.attached.start || 0; } catch (e) { }
+        try { AudioFX.holdMusic("sndrec"); } catch (e) { }
+        sndPlay();
+      }
+    }
+    function stopRecording() {
+      if (!Cam.recorder || !Cam.recording) return;
+      Cam.recording = false;
+      if (Cam.timerInt) { clearInterval(Cam.timerInt); Cam.timerInt = null; }
+      el("camShutter").classList.remove("rec");
+      el("camTimer").style.display = "none";
+      try { Cam.recorder.stop(); } catch (e) { }
+    }
+    function finishRecord() {
+      var secs = Math.max(1, Math.round((Date.now() - Cam.recStart) / 1000));
+      var type = (Cam.recorder && Cam.recorder.mimeType) || "video/webm";
+      var blob = new Blob(Cam.chunks, { type: type });
+      Cam.lastRec = { secs: secs, mime: type, size: blob.size, at: Cam.recStart };
+      if (!Cam.open) return;
+      reelClearPending();
+      Reels.pendingBlob = blob;
+      Reels.pendingUrl = URL.createObjectURL(blob);
+      Reels.pendingSecs = secs;
+      Reels.stage = "preview";
+      closeCamera();
+      openEditor();
+    }
+
+    /* ---------- photo (full sensor resolution, never a downscaled grab) ---------- */
+    function grabFullFrame(cb) {
+      var track = Cam.stream && Cam.stream.getVideoTracks && Cam.stream.getVideoTracks()[0];
+      var v = el("camVideo");
+      var on = typeof Live !== "undefined" && Live.filterId && Live.filterId !== "none";
+      if (!on && track && window.ImageCapture) {
+        try {
+          new ImageCapture(track).takePhoto().then(function (blob) {
+            var r = new FileReader();
+            r.onload = function () { cb(r.result); };
+            r.onerror = function () { canvasGrab(cb); };
+            r.readAsDataURL(blob);
+          }).catch(function () { canvasGrab(cb); });
+          return;
+        } catch (e) { }
+      }
+      canvasGrab(cb);
+    }
+    function canvasGrab(cb) {
+      var on = typeof Live !== "undefined" && Live.filterId && Live.filterId !== "none" && Live.fx && Live.fx.canvas;
+      var srcEl = on ? Live.fx.canvas : el("camVideo");
+      var w = on ? srcEl.width : (srcEl.videoWidth || 0);
+      var h = on ? srcEl.height : (srcEl.videoHeight || 0);
+      if (!w || !h) { camToast("Camera is still warming up…"); return; }
+      var c = document.createElement("canvas"); c.width = w; c.height = h;
+      c.getContext("2d").drawImage(srcEl, 0, 0, w, h);
+      cb(c.toDataURL("image/jpeg", 0.92));
+    }
+    function capturePhoto() {
+      if (!Cam.stream) { camToast("Camera is still warming up…"); return; }
+      grabFullFrame(function (url) {
+        if (!url) return;
+        Moments.pendingPhoto = url;
+        Moments.pendingSound = Snd.attached ? { trackId: Snd.attached.trackId, start: Snd.attached.start || 0, musicVol: Snd.attached.musicVol } : null;
+        closeCamera();
+        openMomComposer();
+      });
+    }
+
+    /* ---------- sound editor (after recording, before the composer) ---------- */
+    function openEditor() {
+      var sh = el("camEditSheet"); if (!sh) { openReelComposer(); return; }
+      var v = el("camEditVideo");
+      v.src = Reels.pendingUrl || "";
+      var has = !!Snd.attached;
+      el("camEditTrackName").textContent = has ? (trackById(Snd.attached.trackId) || {}).name : "No sound attached";
+      el("camEditChange").textContent = has ? "Change" : "Add";
+      el("camEditRemove").hidden = !has;
+      el("camEditMusicVol").value = Math.round((has ? Snd.attached.musicVol : 0.8) * 100);
+      el("camEditOrigVol").value = Math.round((has ? Snd.attached.origVol : 1) * 100);
+      el("camEditMusicVal").textContent = Math.round((has ? Snd.attached.musicVol : 0.8) * 100) + "%";
+      el("camEditOrigVal").textContent = Math.round((has ? Snd.attached.origVol : 1) * 100) + "%";
+      sh.classList.add("open"); sh.setAttribute("aria-hidden", "false");
+      v.muted = false; v.volume = has ? Snd.attached.origVol : 1;
+      var p = v.play(); if (p && p.catch) p.catch(function () { });
+      if (has) {
+        Snd.owner = "edit"; sndSetTrack(Snd.attached.trackId);
+        try { AudioFX.holdMusic("sndedit"); } catch (e) { }
+        var a = sndEl(); a.loop = true; a.volume = Snd.attached.musicVol;
+        try { a.currentTime = Snd.attached.start || 0; } catch (e) { }
+        sndPlay();
+      }
+    }
+    function closeEditor() {
+      var sh = el("camEditSheet"); if (!sh) return;
+      sh.classList.remove("open"); sh.setAttribute("aria-hidden", "true");
+      var v = el("camEditVideo"); try { v.pause(); } catch (e) { }
+      if (Snd.owner === "edit") sndStop("edit");
+      try { AudioFX.releaseMusic("sndedit"); } catch (e) { }
+    }
+    function editorCommit() {
+      if (Snd.attached) {
+        Snd.attached.musicVol = num(el("camEditMusicVol").value, 80) / 100;
+        Snd.attached.origVol = num(el("camEditOrigVol").value, 100) / 100;
+        Reels.pendingSound = { trackId: Snd.attached.trackId, start: Snd.attached.start || 0, musicVol: Snd.attached.musicVol, origVol: Snd.attached.origVol };
+      } else Reels.pendingSound = null;
+      closeEditor();
+      openReelComposer();
+    }
+
+    /* ---------- lens sheet ("All effects") ---------- */
+    function openLensSheet() {
+      var body = el("camLensSheetBody");
+      body.innerHTML = filterRailHTML();
+      wireFilterRail(body);
+      body.addEventListener("click", function () {
+        setTimeout(function () { fxSync(); paintLensName(); closeLensSheet(); }, 60);
+      });
+      el("camLensSheet").classList.add("open"); el("camLensSheet").setAttribute("aria-hidden", "false");
+    }
+    function closeLensSheet() {
+      var sh = el("camLensSheet"); if (!sh) return;
+      sh.classList.remove("open"); sh.setAttribute("aria-hidden", "true");
+    }
+
+    /* ---------- posted-reel / photo sound playback ---------- */
+    function syncPair(video, start) {
+      var a = sndEl(); if (!a || !video) return;
+      var dur = a.duration, want;
+      if (dur && isFinite(dur) && dur > 0) { var span = Math.max(1, dur - (start || 0)); want = (start || 0) + ((video.currentTime || 0) % span); }
+      else want = (start || 0) + (video.currentTime || 0);
+      if (Math.abs((a.currentTime || 0) - want) > 1.4) { try { a.currentTime = want; } catch (e) { } }
+    }
+    function sndTick() {
+      paintFavs();
+      var a = sndEl(); if (!a) return;
+      var camBusy = Cam.open || el("camEditSheet").classList.contains("open") || el("sndSheet").classList.contains("open");
+      if (Snd.owner === "edit") {
+        var ev = el("camEditVideo");
+        if (ev && Snd.attached) { syncPair(ev, Snd.attached.start || 0); if (ev.paused && !a.paused) a.pause(); else if (!ev.paused && a.paused) sndPlay(); }
+        return;
+      }
+      if (camBusy || Snd.owner === "pick" || Snd.owner === "record") return;
+      var av = (typeof Reels !== "undefined") ? Reels.activeView : null;
+      var item = av && av.item;
+      if (item && item.musicTrackId && av.video) {
+        if (typeof AudioFX !== "undefined" && !AudioFX.musicOn()) { if (Snd.owner === "reel") { sndStop("reel"); try { AudioFX.releaseMusic("reelsnd"); } catch (e) { } } return; }
+        if (Snd.owner !== "reel") { Snd.owner = "reel"; try { AudioFX.holdMusic("reelsnd"); } catch (e) { } }
+        sndSetTrack(item.musicTrackId);
+        a.loop = true; a.volume = num(item.musicVol, 0.8);
+        try { av.video.volume = num(item.origVol, 1); if (num(item.origVol, 1) === 0) av.video.muted = true; } catch (e) { }
+        syncPair(av.video, item.musicStart || 0);
+        if (!av.video.paused && av.video.readyState > 1) { if (a.paused) sndPlay(); }
+        else if (!a.paused) a.pause();
+        return;
+      }
+      if (Snd.owner === "reel") { sndStop("reel"); try { AudioFX.releaseMusic("reelsnd"); } catch (e) { } }
+      if (Snd.owner === "photo") {
+        var btn = document.querySelector('.mom-snd[data-playing="1"]');
+        if (!btn) sndStop("photo");
+      }
+    }
+    function togglePhotoSound(btn) {
+      var id = btn.getAttribute("data-tid"); if (!id) return;
+      if (Snd.owner === "photo" && Snd.photoTid === id) { sndStop("photo"); return; }
+      var card = btn.closest ? btn.closest(".mom-card") : null;
+      var start = 0, vol = 0.8;
+      if (card) {
+        var mid = card.getAttribute("data-mid");
+        var post = null;
+        try { post = (Moments.posts || []).filter(function (p) { return p.id === mid; })[0]; } catch (e) { }
+        if (post) { start = num(post.musicStart, 0); vol = num(post.musicVol, 0.8); }
+      }
+      Snd.owner = "photo"; Snd.photoTid = id;
+      sndSetTrack(id);
+      var a = sndEl(); a.loop = true; a.volume = vol;
+      try { a.currentTime = start; } catch (e) { }
+      document.querySelectorAll(".mom-snd[data-playing]").forEach(function (b) { b.removeAttribute("data-playing"); });
+      btn.setAttribute("data-playing", "1");
+      sndPlay();
+    }
+    function useThisSound(id) {
+      if (!trackById(id)) return;
+      var tk = sndToken();
+      if (tk) fetch("/api/sounds/use-tap", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tk }, body: JSON.stringify({ trackId: id }) }).catch(function () { });
+      Snd.attached = { trackId: id, start: 0, musicVol: 0.8, origVol: 1 };
+      Snd.pickId = id;
+      updatePill();
+      openCamera();
+    }
+
+    /* ---------- global click delegation for credits/favorites ---------- */
+    document.addEventListener("click", function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var fav = t.closest(".rp-sndfav");
+      if (fav && !t.closest("#sndList")) { e.preventDefault(); e.stopPropagation(); sndToggleFav(fav.getAttribute("data-tid")); return; }
+      var credit = t.closest(".reel-sound.rp-snd");
+      if (credit) { e.preventDefault(); e.stopPropagation(); useThisSound(credit.getAttribute("data-tid")); return; }
+      var photo = t.closest(".mom-snd.rp-snd");
+      if (photo) { e.preventDefault(); e.stopPropagation(); togglePhotoSound(photo); return; }
+    }, true);
+
+    /* ---------- init wiring ---------- */
+    function init() {
+      var plus = el("btnTabCreate");
+      if (plus) plus.addEventListener("click", function () { openCamera(); });
+      el("camClose").addEventListener("click", closeCamera);
+      el("camSoundPill").addEventListener("click", openPicker);
+      el("camFlip").addEventListener("click", function () {
+        if (Cam.recording) return;
+        Cam.facing = Cam.facing === "user" ? "environment" : "user";
+        release(); acquire();
+      });
+      el("camTimerBtn").addEventListener("click", function () { var p = el("camTimerPop"); p.hidden = !p.hidden; });
+      el("camTimerPop").querySelectorAll("button").forEach(function (b) {
+        b.addEventListener("click", function () { Cam.timer = Number(b.getAttribute("data-timer")) || 0; paintRailBtns(); el("camTimerPop").hidden = true; });
+      });
+      el("camFlashBtn").addEventListener("click", function () { Cam.flash = !Cam.flash; paintRailBtns(); applyTorch(false); });
+      el("camLensSheetBtn").addEventListener("click", openLensSheet);
+      el("camLensSheetClose").addEventListener("click", closeLensSheet);
+      el("camModeVideo").addEventListener("click", function () { setMode("video"); });
+      el("camModePhoto").addEventListener("click", function () { setMode("photo"); });
+      el("camLenWrap").querySelectorAll("button").forEach(function (b) {
+        b.addEventListener("click", function () {
+          Reels.maxSecs = Number(b.getAttribute("data-len")) || 60;
+          el("camLenWrap").querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
+        });
+      });
+      el("camShutter").addEventListener("click", shutterTap);
+      /* picker */
+      el("sndClose").addEventListener("click", closePicker);
+      el("sndSearch").addEventListener("input", renderPicker);
+      el("sndList").addEventListener("click", function (e) {
+        var fav = e.target.closest && e.target.closest(".snd-fav");
+        if (fav) { e.stopPropagation(); sndToggleFav(fav.getAttribute("data-tid")); return; }
+        var row = e.target.closest && e.target.closest(".snd-row");
+        if (row) sndPreview(row.getAttribute("data-tid"));
+      });
+      el("sndTrim").addEventListener("input", function () {
+        Snd.pickStart = Number(el("sndTrim").value) || 0;
+        el("sndTrimVal").textContent = fmtDur(Snd.pickStart);
+        if (Snd.owner === "pick") { try { sndEl().currentTime = Snd.pickStart; } catch (e) { } }
+      });
+      el("sndUse").addEventListener("click", function () {
+        if (!Snd.pickId) return;
+        Snd.attached = { trackId: Snd.pickId, start: Snd.pickStart || 0, musicVol: 0.8, origVol: 1 };
+        if (!Snd.signedIn) {
+          Snd.recents = [Snd.pickId].concat(Snd.recents.filter(function (x) { return x !== Snd.pickId; })).slice(0, 12);
+          try { localStorage.setItem("rpSndRecents.v1", JSON.stringify(Snd.recents)); } catch (e) { }
+        }
+        closePicker(); updatePill();
+        if (el("camEditSheet").classList.contains("open")) openEditor();
+      });
+      /* editor */
+      el("camEditChange").addEventListener("click", function () { openPicker(); });
+      el("camEditRemove").addEventListener("click", function () {
+        Snd.attached = null; if (Snd.owner === "edit") sndStop("edit");
+        updatePill(); openEditor();
+      });
+      el("camEditMusicVol").addEventListener("input", function () {
+        var v = Number(el("camEditMusicVol").value) || 0;
+        el("camEditMusicVal").textContent = v + "%";
+        if (Snd.attached) Snd.attached.musicVol = v / 100;
+        if (Snd.owner === "edit") sndEl().volume = v / 100;
+      });
+      el("camEditOrigVol").addEventListener("input", function () {
+        var v = Number(el("camEditOrigVol").value) || 0;
+        el("camEditOrigVal").textContent = v + "%";
+        if (Snd.attached) Snd.attached.origVol = v / 100;
+        el("camEditVideo").volume = v / 100;
+      });
+      el("camEditRetake").addEventListener("click", function () {
+        closeEditor();
+        Reels.pendingSound = null;
+        reelClearPending();
+        openCamera();
+      });
+      el("camEditGo").addEventListener("click", editorCommit);
+      /* earnings card + sheet */
+      var ec = el("earnCard");
+      if (ec) ec.addEventListener("click", function () { el("earnSheet").classList.add("open"); el("earnSheet").setAttribute("aria-hidden", "false"); });
+      el("earnClose").addEventListener("click", function () { el("earnSheet").classList.remove("open"); el("earnSheet").setAttribute("aria-hidden", "true"); });
+      /* Autoplay rules: a track that wants to play but was blocked
+         retries on the member's next tap (real devices tap constantly;
+         the first tap unlocks the shared player like the app's own
+         audio unlock). */
+      document.addEventListener("pointerdown", function () {
+        var a = sndEl();
+        if (a && a.paused && (Snd.owner === "reel" || Snd.owner === "edit")) sndPlay();
+      }, true);
+      /* sound sync loop */
+      setInterval(sndTick, 500);
+      sndLoadState(function () { paintFavs(); });
+    }
+    window.rpCamState = function () {
+      return {
+        open: Cam.open, mode: Cam.mode, facing: Cam.facing, recording: Cam.recording,
+        timer: Cam.timer, flash: Cam.flash,
+        hasStream: !!Cam.stream, filter: (typeof Live !== "undefined" && Live.filterId) || "none",
+        fxStream: !!(typeof Live !== "undefined" && Live.fx && Live.fx.stream),
+        previewIsFx: !!(Cam.stream && el("camVideo") && el("camVideo").srcObject && typeof Live !== "undefined" && Live.fx && el("camVideo").srcObject === Live.fx.stream),
+        lensCount: LIVE_FILTERS.length,
+        videoSettings: (Cam.stream && Cam.stream.getVideoTracks()[0] && Cam.stream.getVideoTracks()[0].getSettings) ? Cam.stream.getVideoTracks()[0].getSettings() : null,
+        recOpts: Cam.recOpts || null, lastRec: Cam.lastRec,
+        sound: Snd.attached
+      };
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+    else init();
+  })();
+  </script>
+
 
 </body>
 </html>
