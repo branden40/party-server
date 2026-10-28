@@ -2125,21 +2125,7 @@
       .lv-aucpin .ap-open { background: none; border: none; color: #ffd9e4; font-weight: 800; font-size: 12px; cursor: pointer; font-family: inherit; text-decoration: underline; padding: 0; }
       @media (prefers-reduced-motion: reduce) { .lv-aucpin .auc-clock.urgent { animation: none; } }
 
-      /* ---------- Earn announcement card ---------- */
-      .earn-card {
-        position: fixed; right: 14px; bottom: 14px; z-index: 60; width: min(330px, calc(100vw - 28px));
-        background: var(--panel); color: var(--ink); border: 1.5px solid var(--gold); border-radius: 18px;
-        box-shadow: 0 18px 44px rgba(0,0,0,.4); padding: 14px 16px; display: none;
-      }
-      .earn-card.show { display: block; animation: pxUp2 .35s cubic-bezier(.2,.7,.3,1); }
-      @keyframes pxUp2 { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-      .earn-card h4 { margin: 0 26px 5px 0; font-size: 16.5px; line-height: 1.3; }
-      .earn-card p { margin: 0 0 11px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
-      .earn-card .earn-x {
-        position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%;
-        border: none; background: rgba(0,0,0,.07); color: var(--ink); font-weight: 900; cursor: pointer; font-family: inherit;
-      }
-      @media (prefers-reduced-motion: reduce) { .earn-card.show { animation: none !important; } }
+      /* [RP-V7.93] Earn announcement popup styles removed with the popup. */
 
       /* ---------- Featured room card & guided start path & age gate ---------- */
       .move-chip.featured {
@@ -2175,7 +2161,6 @@
       .guide-action { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
       .guide-action .btn-primary { width: auto; padding: 10px 20px; }
       .guide-action span { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
-      @media (max-width: 700px) { .earn-card { bottom: 150px; } }
       .agegate-wrap { max-width: 520px; margin: 26px auto; padding: 0 14px; }
       body.guide-on .wrap { padding-bottom: 168px; }
       .agegate-card h2 { margin-top: 0; }
@@ -3506,13 +3491,7 @@
     </div>
 
     <!-- GUEST / GAME / CHAT SHEET -->
-    <div class="earn-card" id="earnCard" role="dialog" aria-label="Earn money and prizes announcement">
-      <button class="earn-x" id="btnEarnCardX" type="button" aria-label="Dismiss">✕</button>
-      <h4>💸 Earn REAL MONEY going live + win daily prizes!</h4>
-      <p>Broadcast on the Live Stage, stack up gift charms from your viewers, and climb the Party Board.</p>
-      <p id="earnNextEvent" style="font-weight:800;"></p>
-      <button class="btn-primary" style="width:auto; padding:10px 20px;" id="btnEarnMore" type="button">Tell me more</button>
-    </div>
+    <!-- [RP-V7.93] The auto-appearing earn promo popup was removed for good (Branden, Oct 27). Earn info lives on the Home "How you get paid" card and in the Earn sheet. -->
     <div class="guide-bar" id="guideBar" hidden>
       <div class="guide-head"><b id="guideTitle">🚀 Your first minute at the party</b><button class="guide-skip" id="btnGuideSkip" type="button">Skip</button></div>
       <div class="guide-steps" id="guideSteps"></div>
@@ -4156,8 +4135,6 @@
         var screens = document.querySelectorAll(".screen");
         for (var i = 0; i < screens.length; i++) screens[i].classList.remove("active");
         $(screenId).classList.add("active");
-        if (screenId === "screen-signup") { hideEarnCard(); earnCardPending = false; } // [RP-V7.91]+[RP-V7.92] back at the wall: card hidden and any pending show cancelled
-        else { try { setTimeout(tryShowEarnCard, 350); } catch (e) { } } // [RP-V7.92] an in-Plaza screen becoming active may release a pending earn card
         if (window.rpSceneOnShow) window.rpSceneOnShow(screenId);
         var ahBtn = $("btnAuctionsHud"); if (ahBtn) ahBtn.style.display = screenId === "screen-online" ? "none" : "";
         if (screenId === "screen-plaza" && !show._homeReady && typeof me !== "undefined" && me.ageRange) {
@@ -4792,7 +4769,6 @@
         updateHUD(); renderLobby(); renderMatches(); renderPlaza();
         rpPostAuthLanding();
         try { if (typeof dailyPotInit === "function") dailyPotInit(); else if (window.rpDailyPotInit) window.rpDailyPotInit(); } catch (e) { } // [RP-V7.53] Daily Pot card: entering through the sign-up wall never passed rpBootHome's init (it returns at the wall), so the card stayed hidden until a saved-session reboot — start it here too (idempotent: wiring guarded, state re-fetched)
-        showEarnCardOnce();
         guideAfterEnter();
         if (!me.name) { try { var rpa61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (rpa61 && rpa61.name) me.name = cleanOnlineName(rpa61.name); } catch (e) { } } // [RP-V7.61] a signed-in member is never greeted as "friend" — the account name wins
         profileSaveSuppressed = false;
@@ -5423,7 +5399,7 @@
       $("btnLeave").addEventListener("click", function () { closeSheet(); show("screen-plaza"); });
       /* ================= Guest sheet ================= */
       function openSheet(html) { $("sheet").innerHTML = html; $("overlay").classList.add("open"); }
-      function closeSheet() { $("overlay").classList.remove("open"); currentGuest = null; AudioFX.setArcade(false); try { setTimeout(tryShowEarnCard, 350); } catch (e) { } } // [RP-V7.92] an entry sheet closing may release a pending earn card (it re-checks the gate itself)
+      function closeSheet() { $("overlay").classList.remove("open"); currentGuest = null; AudioFX.setArcade(false); }
       $("overlay").addEventListener("click", function (e) { if (e.target === $("overlay")) closeSheet(); });
 
       function chemBar(g) {
@@ -13631,34 +13607,11 @@
       }
 
       /* ================= EARN (real money & prizes) ================= */
-      var earnCardShown = false;
-      var earnCardPending = false;
-      // [RP-V7.92] The earn promo card may ONLY appear once the member
-      // is fully INSIDE the Plaza — never on any entry surface: not
-      // the sign-up/sign-in wall [RP-V7.91], and not over the
-      // welcome-back / restore sheet (Branden, device-confirmed on
-      // V7.91: the card popped over "Continue as Sean"). A blocked
-      // attempt stays PENDING — the once-per-session eligibility is
-      // not consumed — and tryShowEarnCard re-checks when an entry
-      // sheet closes or an in-Plaza screen becomes active (hooks in
-      // closeSheet() / show() below).
-      function earnCardBlockedNow() {
-        var su = $("screen-signup"); if (su && su.classList.contains("active")) return true;
-        var ov = $("overlay"); if (ov && ov.classList.contains("open")) return true;
-        return false;
-      }
-      function tryShowEarnCard() {
-        if (!earnCardPending || earnCardShown || isTeen()) return;
-        if (earnCardBlockedNow()) return;
-        earnCardPending = false; earnCardShown = true;
-        var c = document.querySelector(".earn-card"); if (c) c.classList.add("show");
-      }
-      function showEarnCardOnce() {
-        if (earnCardShown || isTeen()) return;
-        earnCardPending = true;
-        setTimeout(tryShowEarnCard, 700);
-      }
-      function hideEarnCard() { var c = document.querySelector(".earn-card"); if (c) c.classList.remove("show"); }
+      // [RP-V7.93] The auto-appearing earn promo popup and its entire
+      // auto-show machinery (the V7.91/V7.92 gates + pending model)
+      // are REMOVED — Branden, Oct 27: "Kill the popup everywhere."
+      // The earn info stays in the Plaza on the Home "How you get
+      // paid" card and in the Earn sheet (openEarnSheet, below).
       var SUPPORT_EMAIL = "support@rizzplaza.com";
       function openSupportSheet() {
         openSheet(
@@ -13710,7 +13663,6 @@
       }
 
       function openEarnSheet() {
-        hideEarnCard();
         if (isTeen()) { openTeenGateAll("Earning & gifts"); return; }
         if (!rpAdultOk()) { rpDoorGate("Earning & gifts", openEarnSheet); return; }
         var net = earnNetAvailable();
@@ -13744,8 +13696,6 @@
         try { if (window.rpOwnerSalesInit) window.rpOwnerSalesInit(); } catch (e) { }
       }
       $("btnEarnHud").addEventListener("click", openEarnSheet);
-      $("btnEarnMore").addEventListener("click", openEarnSheet);
-      $("btnEarnCardX").addEventListener("click", hideEarnCard);
 
       /* ================= AGE CHECK (up front) & GUIDED START =================
          The very first screen is a date-of-birth self-declaration — no ID,
@@ -14784,7 +14734,6 @@
         $("hud").hidden = false;
         updateHUD(); renderLobby(); renderMatches(); renderPlaza();
         rpPostAuthLanding();
-        showEarnCardOnce();
         profileSaveSuppressed = false;
         saveProfile();
         toast("Welcome back, " + me.name + "! Your saved profile is loaded — looking great.");
@@ -31012,7 +30961,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 
 /* G3/H1 — cards flat: hairline border, no shadow, radius <= 12 */
 .plaza-card, .online-card, .arc-card, .controls-card, .online-panel, .game-box, .voice-box,
-.live-panel, .earn-card, .creator-card, .controls-card, .stage-card, .chapel-panel, .wo-launch-card {
+.live-panel, .creator-card, .controls-card, .stage-card, .chapel-panel, .wo-launch-card {
   background: #0c0c12 !important; border: 1px solid rgba(255,255,255,.09) !important;
   border-radius: 12px !important; box-shadow: none !important;
 }
@@ -32279,6 +32228,17 @@ body[data-holiday]:not([data-holiday=""]) .tab-btn.on .ti { color: var(--hol, #f
       box-shadow: 0 8px 20px rgba(254,44,85,.45), inset 0 0 0 2px rgba(255,255,255,.25);
     }
     #tabbar .tab-plus:active { transform: scale(.94); }
+    /* [RP-V7.93] The raised + sits on the bar's exact midpoint,
+       between Auctions and Reels, at every width (Branden, Oct 27:
+       "This should be centered in between auction and reels"). The
+       + button takes its natural 60px; the three left tabs and the
+       two right tabs split the remaining width in a 2:3 grow ratio
+       so each side sums to the same width and the + button's center
+       lands on 50% of the bar. Raised styling and tap behavior are
+       unchanged. */
+    #tabbar .tab-create { flex: 0 0 auto; }
+    #tabbar .tab-btn[data-tab="home"], #tabbar .tab-btn[data-tab="live"], #tabbar .tab-btn[data-tab="auctions"] { flex: 2 1 0%; }
+    #tabbar .tab-btn[data-tab="moments"], #tabbar .tab-btn[data-tab="profile"] { flex: 3 1 0%; }
     #camScreen {
       position: fixed; inset: 0; z-index: 80; background: #000;
       display: none; flex-direction: column; overflow: hidden;
