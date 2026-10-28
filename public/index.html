@@ -4156,6 +4156,7 @@
         var screens = document.querySelectorAll(".screen");
         for (var i = 0; i < screens.length; i++) screens[i].classList.remove("active");
         $(screenId).classList.add("active");
+        if (screenId === "screen-signup") hideEarnCard(); // [RP-V7.91] the earn promo card never sits on the sign-up wall
         if (window.rpSceneOnShow) window.rpSceneOnShow(screenId);
         var ahBtn = $("btnAuctionsHud"); if (ahBtn) ahBtn.style.display = screenId === "screen-online" ? "none" : "";
         if (screenId === "screen-plaza" && !show._homeReady && typeof me !== "undefined" && me.ageRange) {
@@ -13633,9 +13634,16 @@
       function showEarnCardOnce() {
         if (earnCardShown || isTeen()) return;
         earnCardShown = true;
-        setTimeout(function () { var c = $("earnCard"); if (c) c.classList.add("show"); }, 700);
+        // [RP-V7.91] Target the .earn-card popup itself (the Home
+        // "How you get paid" button shares the earnCard id), and
+        // never show it while the sign-up wall is on screen —
+        // Branden: the card comes off signup, stays in the Plaza.
+        setTimeout(function () {
+          var su = $("screen-signup"); if (su && su.classList.contains("active")) return;
+          var c = document.querySelector(".earn-card"); if (c) c.classList.add("show");
+        }, 700);
       }
-      function hideEarnCard() { var c = $("earnCard"); if (c) c.classList.remove("show"); }
+      function hideEarnCard() { var c = document.querySelector(".earn-card"); if (c) c.classList.remove("show"); }
       var SUPPORT_EMAIL = "support@rizzplaza.com";
       function openSupportSheet() {
         openSheet(
@@ -24886,11 +24894,17 @@ body.wp-video-on #rpWallC { visibility: hidden; }
       var typeChips = typeOpts.map(function (o) {
         return '<button class="btn-mini rp-type-chip' + (curType === o.v ? " on" : "") + '" data-rptype="' + o.v + '" type="button">' + esc(o.pick || o.label) + "</button>";
       }).join("");
+      // [RP-V7.91] 💬 Messages entry lives in Profile now (the app-bar
+      // 💬 button is retired). Same under-18 rule as every DM surface:
+      // never rendered for a teen account (DOB on file decides).
+      var showMsgBtn = true;
+      try { var dv91 = dobOnFile(); if (dv91) { var pp91 = String(dv91).split("-"); var by91 = parseInt(pp91[0], 10), bm91 = parseInt(pp91[1], 10), bd91 = parseInt(pp91[2], 10); var nw91 = new Date(); var ag91 = nw91.getFullYear() - by91; if (nw91.getMonth() < bm91 - 1 || (nw91.getMonth() === bm91 - 1 && nw91.getDate() < bd91)) ag91--; if (ag91 >= 13 && ag91 < 18) showMsgBtn = false; } } catch (e) { }
+      var msgBtnHtml = showMsgBtn ? '<button class="btn-mini" id="rpAcctMsg" type="button" style="position:relative;">💬 Messages<span id="rpDmBadge"></span></button>' : '';
       box.innerHTML = '<p class="age-note" style="margin:0 0 4px;">✅ Signed in as <b>' + esc(acct.name) + '</b>' + (acct.username ? ' <b>@' + esc(acct.username) + '</b>' : '') + '</p>' +
         '<p class="age-note" style="margin:0 0 8px;">📧 ' + esc(acct.email) + (acct.phone ? ' · 📱 ' + esc(acct.phone) : '') + '</p>' +
         '<p class="age-note" style="margin:8px 0 4px;">🏷️ Profile type — optional; Streamer and Content Creator get a ⭐ badge by your name, other titles show as a line on your profile</p>' +
         '<div class="btn-row" style="margin:0 0 10px; flex-wrap:wrap;">' + typeChips + '</div>' +
-        '<div class="btn-row"><button class="btn-mini" id="rpAcctRem" type="button">🔔 Reminders</button><button class="btn-mini" id="rpAcctOut" type="button">Log out</button></div>' +
+        '<div class="btn-row">' + msgBtnHtml + '<button class="btn-mini" id="rpAcctRem" type="button">🔔 Reminders</button><button class="btn-mini" id="rpAcctOut" type="button">Log out</button></div>' +
         '<div style="margin-top:12px;"><button class="btn-mini" id="rpAcctDel" type="button" style="color:#ff5c7a;">Delete profile</button></div>';
       // [RP-V7.39] tapping a type chip saves immediately (POST /api/account/profile-type).
       box.querySelectorAll("[data-rptype]").forEach(function (chip) {
@@ -24909,6 +24923,8 @@ body.wp-video-on #rpWallC { visibility: hidden; }
           });
         });
       });
+      var mb = $("rpAcctMsg");
+      if (mb) mb.addEventListener("click", function () { if (window.rpDm && window.rpDm.openInbox) window.rpDm.openInbox(); }); // [RP-V7.91] same openInbox the app-bar button used
       var rb = $("rpAcctRem"), ob = $("rpAcctOut");
       if (rb) rb.addEventListener("click", openReminders);
       if (ob) ob.addEventListener("click", function () {
@@ -26343,7 +26359,7 @@ button.rp72-chip{ cursor:pointer; }
    Real 1:1 messages between server ACCOUNTS (v7.0), classified with
    the v7.4 social graph: a first message from someone you don't
    follow lands in your Requests until you accept it or reply.
-   Surfaces: a 💬 button in the Plaza app bar (unread badge), plus a
+   Surfaces: a 💬 Messages entry in Profile (unread badge), plus a
    💬 Message button beside every Follow button (profile cards, room
    people lists, swipe cards, the live host chip). Guests and
    signed-out users get the sign-in note; the under-18 guest view
@@ -26453,20 +26469,11 @@ button.rp72-chip{ cursor:pointer; }
       if (r.json && r.json.ok) setBadge(r.json.unreadTotal || 0);
     });
   }
-  function buildBtn() {
-    if (isTeenGuest()) return;
-    var actions = document.querySelector("#ttbar .tt-actions");
-    if (!actions || $("rpDmBtn")) return;
-    var b = document.createElement("button");
-    b.type = "button"; b.className = "tt-pill"; b.id = "rpDmBtn";
-    b.innerHTML = '💬<span id="rpDmBadge"></span>';
-    var bell = $("rpBell");
-    if (bell && bell.parentNode === actions) actions.insertBefore(b, bell);
-    else actions.appendChild(b);
-    b.addEventListener("click", openInbox);
-    setBadge(totalUnread);
-    refreshBadge();
-  }
+  /* [RP-V7.91] The app-bar 💬 button is retired (Branden, Oct 27:
+     Messages live in Profile only). The Profile account box carries
+     the 💬 Messages entry — with the #rpDmBadge span inside it, so
+     setBadge/refreshBadge keep working untouched — wired to this
+     same openInbox. */
 
   /* ---------------- inbox (Messages / Requests) ---------------- */
   var inboxTab = "inbox", inboxData = null;
@@ -27100,7 +27107,7 @@ button.rp72-chip{ cursor:pointer; }
   function scheduleInject() {
     if (moPending) return;
     moPending = true;
-    setTimeout(function () { moPending = false; buildBtn(); injectButtons(); }, 350);
+    setTimeout(function () { moPending = false; injectButtons(); }, 350);
   }
   if ("MutationObserver" in window) {
     try {
@@ -27110,13 +27117,11 @@ button.rp72-chip{ cursor:pointer; }
   }
   var lastToken = "";
   setInterval(function () {
-    buildBtn();
     announcePresence(); // [RP-V7.30]
     var a = acctRec();
     var tok = a ? a.token : "";
     if (tok !== lastToken) { lastToken = tok; if (tok) { refreshBadge(); injectButtons(); } else setBadge(0); }
   }, 2000);
-  buildBtn();
   injectButtons();
   announcePresence(); // [RP-V7.30]
   if (acctRec()) { lastToken = acctRec().token; refreshBadge(); }
