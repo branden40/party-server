@@ -4156,7 +4156,8 @@
         var screens = document.querySelectorAll(".screen");
         for (var i = 0; i < screens.length; i++) screens[i].classList.remove("active");
         $(screenId).classList.add("active");
-        if (screenId === "screen-signup") hideEarnCard(); // [RP-V7.91] the earn promo card never sits on the sign-up wall
+        if (screenId === "screen-signup") { hideEarnCard(); earnCardPending = false; } // [RP-V7.91]+[RP-V7.92] back at the wall: card hidden and any pending show cancelled
+        else { try { setTimeout(tryShowEarnCard, 350); } catch (e) { } } // [RP-V7.92] an in-Plaza screen becoming active may release a pending earn card
         if (window.rpSceneOnShow) window.rpSceneOnShow(screenId);
         var ahBtn = $("btnAuctionsHud"); if (ahBtn) ahBtn.style.display = screenId === "screen-online" ? "none" : "";
         if (screenId === "screen-plaza" && !show._homeReady && typeof me !== "undefined" && me.ageRange) {
@@ -5422,7 +5423,7 @@
       $("btnLeave").addEventListener("click", function () { closeSheet(); show("screen-plaza"); });
       /* ================= Guest sheet ================= */
       function openSheet(html) { $("sheet").innerHTML = html; $("overlay").classList.add("open"); }
-      function closeSheet() { $("overlay").classList.remove("open"); currentGuest = null; AudioFX.setArcade(false); }
+      function closeSheet() { $("overlay").classList.remove("open"); currentGuest = null; AudioFX.setArcade(false); try { setTimeout(tryShowEarnCard, 350); } catch (e) { } } // [RP-V7.92] an entry sheet closing may release a pending earn card (it re-checks the gate itself)
       $("overlay").addEventListener("click", function (e) { if (e.target === $("overlay")) closeSheet(); });
 
       function chemBar(g) {
@@ -13631,17 +13632,31 @@
 
       /* ================= EARN (real money & prizes) ================= */
       var earnCardShown = false;
+      var earnCardPending = false;
+      // [RP-V7.92] The earn promo card may ONLY appear once the member
+      // is fully INSIDE the Plaza — never on any entry surface: not
+      // the sign-up/sign-in wall [RP-V7.91], and not over the
+      // welcome-back / restore sheet (Branden, device-confirmed on
+      // V7.91: the card popped over "Continue as Sean"). A blocked
+      // attempt stays PENDING — the once-per-session eligibility is
+      // not consumed — and tryShowEarnCard re-checks when an entry
+      // sheet closes or an in-Plaza screen becomes active (hooks in
+      // closeSheet() / show() below).
+      function earnCardBlockedNow() {
+        var su = $("screen-signup"); if (su && su.classList.contains("active")) return true;
+        var ov = $("overlay"); if (ov && ov.classList.contains("open")) return true;
+        return false;
+      }
+      function tryShowEarnCard() {
+        if (!earnCardPending || earnCardShown || isTeen()) return;
+        if (earnCardBlockedNow()) return;
+        earnCardPending = false; earnCardShown = true;
+        var c = document.querySelector(".earn-card"); if (c) c.classList.add("show");
+      }
       function showEarnCardOnce() {
         if (earnCardShown || isTeen()) return;
-        earnCardShown = true;
-        // [RP-V7.91] Target the .earn-card popup itself (the Home
-        // "How you get paid" button shares the earnCard id), and
-        // never show it while the sign-up wall is on screen —
-        // Branden: the card comes off signup, stays in the Plaza.
-        setTimeout(function () {
-          var su = $("screen-signup"); if (su && su.classList.contains("active")) return;
-          var c = document.querySelector(".earn-card"); if (c) c.classList.add("show");
-        }, 700);
+        earnCardPending = true;
+        setTimeout(tryShowEarnCard, 700);
       }
       function hideEarnCard() { var c = document.querySelector(".earn-card"); if (c) c.classList.remove("show"); }
       var SUPPORT_EMAIL = "support@rizzplaza.com";
