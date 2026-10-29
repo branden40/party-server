@@ -515,6 +515,7 @@
       .room-suggest {
         margin: 8px 16px 0; padding: 9px 14px; border-radius: 12px; position: relative; z-index: 3;
         background: rgba(242,169,59,.92); color: #33192a; font-weight: 800; font-size: 13.5px;
+        cursor: pointer; /* [RP-V7.119] FIX 1: the banner is tappable — it is the join button (see enterRoom). */
       }
       .guest.suggested .gname { background: var(--gold); color: #33192a; box-shadow: 0 0 0 2px rgba(242,169,59,.55); }
       /* ============ HOLIDAYS & SPECIAL EVENTS ============ */
@@ -1300,6 +1301,8 @@
       .profile-hero h3 { margin: 8px 0 2px; font-size: 24px; }
       .profile-hero p { margin: 0; font-weight: 700; opacity: .94; font-size: 14px; }
       .profile-hero h2 { margin: 10px 0 2px; font-size: 27px; }
+      /* [RP-V7.119] FIX 4: the Profile tab hero is the simple profile — one round avatar, no photo carousel / MAIN PHOTO dating presentation. */
+      .profile-hero #pfPortrait .pf-hero-ava { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto; }
       #pfPortrait svg { width: 132px; height: 185px; }
       .p-photo { width: 150px; height: 150px; border-radius: 50%; object-fit: cover; border: 4px solid rgba(255,255,255,.85); box-shadow: 0 8px 22px rgba(0,0,0,.3); }
       #pfPortrait .p-photo { width: 158px; height: 158px; }
@@ -2232,11 +2235,11 @@
         font-weight: 700; font-size: 14.5px; line-height: 1.45; cursor: pointer;
       }
       .su-consent input { width: 22px; height: 22px; flex: none; margin-top: 1px; accent-color: var(--rose); cursor: pointer; }
-      /* [RP-V7.117] One-way-in tabs on the sign-up sheet. */
+      /* [RP-V7.118] One-way-in tabs on the sign-up sheet. */
       .su-mode { display: flex; gap: 8px; margin: 0 0 14px; }
       .su-mode-btn { flex: 1; padding: 11px; border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff; font: 700 14.5px inherit; cursor: pointer; }
       .su-mode-btn.on { background: var(--rose); border-color: transparent; }
-      /* [RP-V7.117] First-run profile-pass welcome bar. */
+      /* [RP-V7.118] First-run profile-pass welcome bar. */
       .pf-firstrun-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0 0 16px; padding: 13px 15px; border-radius: 14px; background: linear-gradient(135deg, rgba(254,44,85,.20), rgba(124,92,255,.16)); border: 1px solid rgba(254,44,85,.45); font-size: 14.5px; line-height: 1.45; }
       .pf-firstrun-bar b { font-size: 16px; }
       .pf-firstrun-bar span { flex: 1; min-width: 200px; font-weight: 600; }
@@ -2759,7 +2762,7 @@
           </div>
         </div>
       </section>
-      <!-- SCREEN: SIGN-UP ([RP-V7.117] one way in: Google/Apple, or phone OR email + consent) -->
+      <!-- SCREEN: SIGN-UP ([RP-V7.118] one way in: Google/Apple, or phone OR email + consent) -->
       <section class="screen" id="screen-signup">
         <div class="agegate-wrap">
           <div class="controls-card agegate-card">
@@ -3305,7 +3308,11 @@
             </div>
             <!-- [RP-V7.70] Your story row on the Profile page: ring + post. -->
             <div class="story-profile-row" id="storyProfileRow" hidden></div>
-            <div class="pf-meter" id="pfMeter">
+            <!-- [RP-V7.119] FIX 4: the "% complete" meter is a dating-builder
+                 element — hidden on the Profile tab. Dating details render
+                 only inside the dating / meet & greet rooms; the builder
+                 sections below still edit everything. -->
+            <div class="pf-meter" id="pfMeter" hidden>
               <div class="pf-meter-top"><span class="pf-meter-txt" id="pfMeterTxt">Your profile is 0% complete</span><span class="pf-meter-pct" id="pfMeterPct">0%</span></div>
               <div class="pf-meter-track"><div class="pf-meter-fill" id="pfMeterFill"></div></div>
               <p class="pf-meter-hint" id="pfMeterHint"></p>
@@ -4845,7 +4852,7 @@
           var a = null; try { a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); } catch (e) { }
           if (a && a.email) em = String(a.email).toLowerCase();
           if (a && a.phone) ph = suPhoneDigits(a.phone);
-          // [RP-V7.117] one way in = one contact on file is enough.
+          // [RP-V7.118] one way in = one contact on file is enough.
           if (em || ph) me.contact = { email: em, phone: ph, consent: true };
         } catch (e) { }
         try { var a61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a61 && window.rpApplyAccountProfile) window.rpApplyAccountProfile(a61); } catch (e) { } // [RP-V7.61] restore username + name + bio + photo from the account before entering
@@ -5003,8 +5010,18 @@
         renderAgeFilter();
         var afb = $("ageFilterBar"); if (afb) afb.style.display = "none";
         var sg = $("roomSuggest");
+        /* [RP-V7.119] FIX 1: the banner IS the join button now. The old
+           copy sent people to a "⭐ Live Stage in the top bar" that does
+           not exist inside a room — a dead end (owner-reported from his
+           phone). The tap runs the app's normal online entry for THIS
+           room (joinOnlineRoomFromHome: sign-in/age gates, connect,
+           join or switch; on failure the existing failOnline behavior
+           applies). onclick assignment — re-entering rooms never stacks
+           listeners. */
         sg.hidden = false;
-        sg.textContent = room.id === "teen" ? "This room is live with real people online — tap 💬 Join the live Teen Hangout below to chat, send hearts and hang out. The offline floor is just the scenery." : "This room is live with real people online — tap ⭐ Live Stage in the top bar to join them, then switch rooms from there. The offline floor is just the scenery now: no bots, no fake guests.";
+        sg.setAttribute("role", "button");
+        sg.onclick = function () { joinOnlineRoomFromHome(room.id); };
+        sg.textContent = room.id === "teen" ? "You're on the offline floor — tap here to join the live Teen Hangout. No bots, no fake guests here — just scenery. 💚" : "You're on the offline floor — tap here to join this room live. No bots, no fake guests here — just scenery.";
         show("screen-room");
       }
       /* ================= Christian Fellowship: Verse of the Day, Prayer Wall, Bible Study ================= */
@@ -6098,28 +6115,14 @@
         var box = $("pfPortrait");
         if (pfCarIdx >= me.photos.length) pfCarIdx = Math.max(0, me.photos.length - 1);
         if (pfCarIdx < 0) pfCarIdx = 0;
+        /* [RP-V7.119] FIX 4: the Profile tab hero is the SIMPLE profile —
+           one round avatar. The photo carousel with its MAIN PHOTO badge
+           is dating-profile presentation and renders only inside the
+           dating / meet & greet rooms now. The photo editor grid below
+           (pfPhotoGrid) is unchanged: the builder still manages every
+           photo from the Photos section. */
         if (me.photos.length) {
-          var dots = me.photos.map(function (_, i) { return '<span class="pcar-dot' + (i === pfCarIdx ? " on" : "") + '"></span>'; }).join("");
-          box.innerHTML =
-            '<div class="pcar" id="pfCar">' +
-            '<img class="pcar-img" src="' + me.photos[pfCarIdx] + '" alt="Your profile photo ' + (pfCarIdx + 1) + ' of ' + me.photos.length + '"/>' +
-            (me.photos.length > 1 ? '<button class="pcar-nav prev" id="pfCarPrev" aria-label="Previous photo">‹</button><button class="pcar-nav next" id="pfCarNext" aria-label="Next photo">›</button>' : '') +
-            '<div class="pcar-top"><span class="pcar-count">' + (pfCarIdx + 1) + ' / ' + me.photos.length + '</span>' + (pfCarIdx === 0 ? '<span class="pcar-main">MAIN PHOTO</span>' : '<span></span>') + '</div>' +
-            (me.photos.length > 1 ? '<div class="pcar-dots">' + dots + '</div>' : '') +
-            '</div>';
-          if (me.photos.length > 1) {
-            $("pfCarPrev").addEventListener("click", function () { pfCarIdx = (pfCarIdx + me.photos.length - 1) % me.photos.length; renderPfMedia(); });
-            $("pfCarNext").addEventListener("click", function () { pfCarIdx = (pfCarIdx + 1) % me.photos.length; renderPfMedia(); });
-            var car = $("pfCar"), sx = null;
-            car.addEventListener("pointerdown", function (e) { sx = e.clientX; });
-            car.addEventListener("pointerup", function (e) {
-              if (sx === null) return;
-              var dx = e.clientX - sx; sx = null;
-              if (dx <= -42) { pfCarIdx = (pfCarIdx + 1) % me.photos.length; renderPfMedia(); }
-              else if (dx >= 42) { pfCarIdx = (pfCarIdx + me.photos.length - 1) % me.photos.length; renderPfMedia(); }
-            });
-            car.addEventListener("pointercancel", function () { sx = null; });
-          }
+          box.innerHTML = '<img class="pf-hero-ava" src="' + me.photos[0] + '" alt="Your profile photo"/>';
         } else {
           box.innerHTML = personFace(me, "avatar-big");
         }
@@ -6215,15 +6218,32 @@
           el.appendChild(b);
         });
       }
+      /* [RP-V7.119] FIX 4 helper: the simple-profile identity line for
+         the Profile tab hero — @username · bio · link. Never dating
+         fields (gender, age range, looking-for, status, vibe): those
+         render only inside the dating / meet & greet rooms and stay
+         editable in the builder sections below. */
+      function pfSimpleSub119() {
+        var parts = [];
+        var un = "";
+        try { un = (window.rpAccountProfile && window.rpAccountProfile.username) || ""; } catch (e) { }
+        if (!un) { try { un = localStorage.getItem("rpAcctUsername.v1") || ""; } catch (e) { } }
+        if (un) parts.push("@" + un);
+        var bioEl = $("bioInput");
+        var bio = ((bioEl && bioEl.value) || me.bio || "").trim();
+        if (bio) parts.push(bio);
+        var lk = $("pfLinkInput");
+        var link = lk ? (lk.value || "").trim() : "";
+        if (link) parts.push(link);
+        return parts.length ? parts.join(" · ") : "Your Plaza profile";
+      }
       function renderProfile() {
         renderPfMedia();
         var niEl = $("nameInput");
         if (niEl && niEl.value !== (me.name || "")) niEl.value = me.name || "";
         singleRowB($("pfGender"), GENDERS, function () { return me.gender; }, function (v) { me.gender = v; });
         $("pfName").textContent = me.name || "Your profile";
-        $("pfSub").textContent = ((me.gender === "male" || me.gender === "female") ? ((me.gender === "male" ? "Male" : "Female") + " · ") : "") +
-          (isTeen() ? "Under 18 · Lives, Stories, Feed & the pots are yours (charms only) — dating rooms & auctions open at 18" : "Age range " + rangeLabel(me.ageRange) + " · Looking for " + rangeLabel(me.lookingFor || me.ageRange) + " · Status: " + statusLabel(me.relStatus)) +
-          " · Vibe: " + me.vibe;
+        $("pfSub").textContent = pfSimpleSub119(); // [RP-V7.119] FIX 4: simple identity line — dating fields no longer render on the Profile tab.
         renderFollowStats();
         $("pfLookingField").style.display = isTeen() ? "none" : "";
         $("pfStatusField").style.display = isTeen() ? "none" : "";
@@ -6295,7 +6315,7 @@
         if (!pfSetup) {
           var sv0 = $("btnSaveProfile"); if (sv0) sv0.textContent = "Save profile";
           var bk0 = $("btnProfileBack"); if (bk0) bk0.hidden = false;
-          // [RP-V7.117] first-run artifacts never outlive the pass.
+          // [RP-V7.118] first-run artifacts never outlive the pass.
           var frb0 = $("pfFirstRunBar"); if (frb0) frb0.remove();
           document.querySelectorAll(".pf-finish-later").forEach(function (b) { b.remove(); });
           pfFirstRunOn = false;
@@ -6322,7 +6342,7 @@
     }
         show("screen-profile");
       }
-      /* [RP-V7.117] First-run profile pass (Branden, Oct 29: the
+      /* [RP-V7.118] First-run profile pass (Branden, Oct 29: the
          Profile setup he screenshotted stays EXACTLY as it is and
          becomes the step right after a NEW sign-up): the member lands
          in the existing setup (enterProfileSetup mode) with a welcome
@@ -7062,15 +7082,34 @@
           connectOnline(nm);
         });
       }
+      var ioLoadQueue = null; // [RP-V7.118] callbacks riding the in-flight library load (see ensureIo)
       function ensureIo(cb) {
         if (window.io) { cb(true); return; }
+        if (ioLoadQueue) { ioLoadQueue.push(cb); return; } // a load is already running — ride along instead of failing
         if (Online.ioTried) { cb(false); return; }
         Online.ioTried = true;
-        var sc = document.createElement("script");
-        sc.src = "https://cdn.socket.io/4.7.5/socket.io.min.js";
-        sc.onload = function () { cb(!!window.io); };
-        sc.onerror = function () { cb(false); };
-        document.head.appendChild(sc);
+        var myQueue = ioLoadQueue = [cb];
+        // [RP-V7.118] own origin FIRST: the app's server serves the matched
+        // socket.io library at /socket.io/socket.io.js — the public CDN is
+        // only a fallback (a lone CDN load failing used to brick the whole
+        // page session: ioTried latched true and every retry gave up).
+        var sources = ["/socket.io/socket.io.js", "https://cdn.socket.io/4.7.5/socket.io.min.js"];
+        var finish = function (ok) {
+          if (ioLoadQueue !== myQueue) return; // this round already settled
+          ioLoadQueue = null;
+          if (!ok) Online.ioTried = false; // a failed round clears the latch — the next connect retries the loads
+          for (var i = 0; i < myQueue.length; i++) myQueue[i](ok);
+        };
+        var tryNext = function (idx) {
+          if (window.io) { finish(true); return; }
+          if (idx >= sources.length) { finish(false); return; }
+          var sc = document.createElement("script");
+          sc.src = sources[idx];
+          sc.onload = function () { if (window.io) finish(true); else tryNext(idx + 1); };
+          sc.onerror = function () { tryNext(idx + 1); };
+          document.head.appendChild(sc);
+        };
+        tryNext(0);
       }
       function connectOnline(name, quiet) {
         Online.state = "connecting";
@@ -16507,7 +16546,7 @@
       if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", rpBootHome);
       else rpBootHome();
 
-      /* ================= SIGN-UP ([RP-V7.117] one way in: phone OR email + consent) =================
+      /* ================= SIGN-UP ([RP-V7.118] one way in: phone OR email + consent) =================
          Onboarding step right after the age check: shown when the player
          taps "Enter the party" in the creator and no contact is on file.
          Submits POST to the party server's /api/subscribe; if the server
@@ -16547,7 +16586,7 @@
         var email = $("suEmail").value, phone = $("suPhone").value, consent = $("suConsent").checked;
         var eOk = suEmailOk(email), pOk = suPhoneOk(phone);
         var eErr = $("suEmailErr"), pErr = $("suPhoneErr");
-        // [RP-V7.117] ONE way in: only the CHOSEN contact (Use email /
+        // [RP-V7.118] ONE way in: only the CHOSEN contact (Use email /
         // Use phone tab) is validated and required — the other field
         // is hidden and its error stays hidden. The missing-contact
         // hint points at the other tab.
@@ -16572,7 +16611,7 @@
             else uErr.hidden = true;
           }
         }
-        // [RP-V7.117] The password rule (≥8) joins the gate here too —
+        // [RP-V7.118] The password rule (≥8) joins the gate here too —
         // the account module's gateSignupBtn only ever disables, so
         // without this the button could light up on a short password.
         var pwEl = $("suPass"), pwOk = !pwEl || pwEl.value.length >= 8;
@@ -16591,7 +16630,7 @@
         $(id).addEventListener("blur", syncSignupForm);
       });
       $("suConsent").addEventListener("change", syncSignupForm);
-      /* [RP-V7.117] TikTok-simple sign-up: ONE way in — Use email OR
+      /* [RP-V7.118] TikTok-simple sign-up: ONE way in — Use email OR
          Use phone. The tabs pick which contact the form asks for; the
          other is never required, and switching tabs clears it so only
          the chosen one is ever submitted. */
@@ -16620,7 +16659,7 @@
       $("btnSignupGo").addEventListener("click", function () {
         var email = $("suEmail").value.trim().toLowerCase();
         var phone = suPhoneDigits($("suPhone").value);
-        // [RP-V7.117] mode-aware: only the chosen contact must check out.
+        // [RP-V7.118] mode-aware: only the chosen contact must check out.
         var contactOk = (typeof suMode === "string" && suMode === "phone") ? suPhoneOk(phone) : suEmailOk(email);
         if (!contactOk || !$("suConsent").checked) { syncSignupForm(); return; }
         // [RP-V7.48] STARTUP WALL: Continue no longer admits on a
@@ -16630,7 +16669,7 @@
         // an unreachable server) leaves the user on the wall.
         if (!rpAcctSignedIn()) return;
         me.contact = { email: email, phone: phone, consent: true };
-        // [RP-V7.117] the reminder subscribe is email-keyed — a
+        // [RP-V7.118] the reminder subscribe is email-keyed — a
         // phone-only account simply skips it.
         if (email) sendOrQueue("subscribe", { email: email, phone: phone, displayName: me.name || "", consent: true, ts: Date.now() });
         profileSaveSuppressed = false;
@@ -16653,7 +16692,7 @@
         var el = $("pfContactInfo"); if (!el) return;
         var btn = $("btnUnsubToggle");
         var c = me.contact;
-        // [RP-V7.117] one contact is enough — email OR phone.
+        // [RP-V7.118] one contact is enough — email OR phone.
         if (!c || (!c.email && !c.phone)) {
           el.textContent = "No email or phone on file yet — the sign-up step appears right after the age check when you first enter the party.";
           if (btn) btn.hidden = true;
@@ -16666,7 +16705,7 @@
         if (btn) { btn.hidden = false; btn.textContent = c.consent ? "Unsubscribe from texts & emails" : "Turn reminders back on"; }
       }
       $("btnUnsubToggle").addEventListener("click", function () {
-        var c = me.contact; if (!c || (!c.email && !c.phone)) return; // [RP-V7.117] phone-only counts too
+        var c = me.contact; if (!c || (!c.email && !c.phone)) return; // [RP-V7.118] phone-only counts too
         c.consent = !c.consent;
         if (c.consent) {
           sendOrQueue("subscribe", { email: c.email, phone: c.phone, displayName: me.name || "", consent: true, ts: Date.now() });
@@ -22393,7 +22432,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
   var q = null;
   try { q = new URLSearchParams(location.search); } catch (e) { }
   var auth = q ? q.get("auth") : null;
-  // [RP-V7.117] A Google return carrying a handoff code (?auth=google
+  // [RP-V7.118] A Google return carrying a handoff code (?auth=google
   // &g=…) belongs to the account module, which exchanges the code for
   // a session — leave the query in place for it and stay silent here.
   var keepG = auth === "google" && !!(q && q.get("g"));
@@ -24798,7 +24837,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
       '<button class="btn-primary" id="btnLoginGo" type="button" style="width:100%; padding:13px;">Log in</button>' +
       '<button class="btn-mini" id="btnLoginBack" type="button" style="width:100%; padding:12px; margin-top:8px;">← Back to sign up</button>';
     card.appendChild(panel);
-    // [RP-V7.117] Google finish panel: a first-time Google member
+    // [RP-V7.118] Google finish panel: a first-time Google member
     // completes with ONLY a username + date of birth — no phone
     // number, no Plaza password (they sign in with Google).
     var gPanel = document.createElement("div");
@@ -24840,7 +24879,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     var bad = p.value.length > 0 && p.value.length < 8;
     if (e) { e.hidden = !bad; if (bad) e.textContent = "Password needs at least 8 characters."; }
     if (!passOk() || !userOk()) go.disabled = true;
-    // [RP-V7.117] this gate only ever disables — let the wall's own
+    // [RP-V7.118] this gate only ever disables — let the wall's own
     // gate recompute the full one-way-in rule so Continue can light.
     else { var se3 = $("suEmail"); if (se3) se3.dispatchEvent(new Event("input", { bubbles: true })); }
   }
@@ -24854,7 +24893,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     });
     var div = card.querySelector(".su-divider"); if (div) div.style.display = on ? "none" : "";
     var cl = card.querySelector(".su-consent"); if (cl) cl.style.display = on ? "none" : "";
-    var md = $("suMode"); if (md) md.style.display = on ? "none" : ""; // [RP-V7.117]
+    var md = $("suMode"); if (md) md.style.display = on ? "none" : ""; // [RP-V7.118]
     ["suEmail", "suPhone", "suPass", "suDob", "suUser"].forEach(function (id) {
       var el = $(id); var f = el ? (el.closest(".field") || el) : null;
       if (f) f.style.display = on ? "none" : "";
@@ -24863,7 +24902,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     if (h) h.textContent = on ? "👋 Log in" : "📝 Create your account";
     if (on) { var le = $("liEmail"), se = $("suEmail"), su2 = $("suUser"); if (le && !le.value) le.value = (su2 && su2.value.trim()) || (se ? se.value : ""); }
     syncDobWrap();
-    try { if (window.rpSyncSuMode) window.rpSyncSuMode(); } catch (e) { } // [RP-V7.117] re-apply the chosen-contact visibility after the blanket restore
+    try { if (window.rpSyncSuMode) window.rpSyncSuMode(); } catch (e) { } // [RP-V7.118] re-apply the chosen-contact visibility after the blanket restore
   }
   document.addEventListener("click", function (e) {
     if (!e.isTrusted) return;
@@ -24904,7 +24943,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
         try { if (window.rpSignupLiveInviteArm) window.rpSignupLiveInviteArm(dobOnFile()); } catch (e) { } // [RP-V7.63] arm the one-time live invite with the DOB this signup just collected (adult DOBs only — logins never arm it)
         try { if (window.rpInviteLinkAuthReady) window.rpInviteLinkAuthReady("signup"); } catch (e) { } // [RP-V7.65] a share-link invite routes the new member to the live/room that invited them (and outranks the generic invite)
         try { if (window.rpAuthGatePass) window.rpAuthGatePass(); } catch (e) { } // [RP-V7.48] account created — the wall lets you into the Plaza
-        try { if (window.rpFirstRunProfile) window.rpFirstRunProfile(); } catch (e) { } // [RP-V7.117] brand-new account → first-run profile pass (the existing setup screens, fully skippable)
+        try { if (window.rpFirstRunProfile) window.rpFirstRunProfile(); } catch (e) { } // [RP-V7.118] brand-new account → first-run profile pass (the existing setup screens, fully skippable)
       } else if (r.reachable && r.json) {
         // [RP-V7.80] A 403 here is the under-13 refusal — the
         // server's message shows as a clear refusal. (A 13–17 DOB
@@ -24962,7 +25001,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     if (sp && user.phone) { sp.value = user.phone; sp.dispatchEvent(new Event("input", { bubbles: true })); }
     if (pass) { pass.value = pw; pass.dispatchEvent(new Event("input", { bubbles: true })); }
     if (sc && !sc.checked) { sc.checked = true; sc.dispatchEvent(new Event("change", { bubbles: true })); }
-    // [RP-V7.117] the wall gate now checks only the CHOSEN contact —
+    // [RP-V7.118] the wall gate now checks only the CHOSEN contact —
     // point it at the contact this account actually has.
     try { if (window.rpSetSuMode) window.rpSetSuMode(user.phone && !user.email ? "phone" : "email", false); } catch (e) { }
     setLoginMode(false);
@@ -24970,7 +25009,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     setTimeout(function () { if (go && !go.disabled) go.click(); }, 80);
   }
 
-  /* ---------- [RP-V7.117] Google return: exchange / complete ---------- */
+  /* ---------- [RP-V7.118] Google return: exchange / complete ---------- */
   // The server's Google callback now returns /?auth=google&g=<code>.
   // A known account exchanges the code for a session right here; a
   // first-time Google member gets the finish panel (username + DOB
@@ -32245,7 +32284,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 /* [RP-V7.81] composer video preview: full-width treatment, not a tile. */
 #feedPreview video { width: 100%; max-height: 70vh; object-fit: cover; border-radius: 12px; display: block; }
 #feedPreview .feed-pv-x { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(0,0,0,.65); color: #fff; font-size: 15px; cursor: pointer; }
-.feed-post { background: var(--panel, #17171f); border: 1.5px solid rgba(255,255,255,.09); border-radius: 16px; padding: 13px 14px; margin-bottom: 12px; }
+.feed-post { background: var(--panel, #17171f); border: 1.5px solid rgba(255,255,255,.09); border-radius: 16px; padding: 13px 14px; margin-bottom: 12px; box-sizing: border-box; width: 100%; max-width: 100%; } /* [RP-V7.119] FIX 2: the card can never exceed its column. */
 .feed-phead { display: flex; align-items: center; gap: 9px; }
 .feed-chip { display: flex; align-items: center; gap: 10px; background: none; border: none; color: inherit; font-family: inherit; cursor: pointer; padding: 0; text-align: left; flex: 1; min-width: 0; }
 .feed-chip img, .feed-chip .feed-init { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; display: flex; align-items: center; justify-content: center; background: #33333f; color: #fff; font-weight: 900; font-size: 17px; flex: 0 0 auto; }
@@ -32255,12 +32294,12 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .feed-follow.on { background: rgba(255,255,255,.16); color: inherit; }
 .feed-text { margin: 10px 0 0; font-size: 15px; font-weight: 600; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .feed-media { margin-top: 10px; }
-.feed-media img { width: 100%; max-height: 480px; object-fit: contain; border-radius: 12px; background: #000; display: block; }
+.feed-media img { width: 100%; max-width: 100%; max-height: 480px; object-fit: contain; border-radius: 12px; background: #000; display: block; }
 /* [RP-V7.81] feed videos go FULL-WIDTH at natural aspect — no 480px cap,
    no black letterbox box (Branden, Oct 26, 2026). */
-.feed-media video { width: 100%; height: auto; border-radius: 12px; display: block; }
-.feed-actions { display: flex; gap: 8px; margin-top: 11px; border-top: 1px solid rgba(255,255,255,.07); padding-top: 10px; }
-.feed-act { background: rgba(255,255,255,.06); border: none; color: inherit; border-radius: 999px; padding: 8px 14px; font-family: inherit; font-weight: 800; font-size: 13.5px; cursor: pointer; }
+.feed-media video { width: 100%; max-width: 100%; height: auto; border-radius: 12px; display: block; }
+.feed-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; border-top: 1px solid rgba(255,255,255,.07); padding-top: 10px; } /* [RP-V7.119] FIX 2: the row wraps inside the card instead of overflowing the screen. */
+.feed-act { background: rgba(255,255,255,.06); border: none; color: inherit; border-radius: 999px; padding: 8px 6px; font-family: inherit; font-weight: 800; font-size: 13.5px; cursor: pointer; flex: 1 1 88px; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; } /* [RP-V7.119] FIX 2: pills shrink and share rows — every action stays visible + tappable at 360px. */
 .feed-act small { font-size: 13px; margin-left: 2px; }
 .feed-act.like.on { color: #fe2c55; background: rgba(254,44,85,.14); } .feed-act.repost.on { color: #37d67a; background: rgba(55,214,122,.14); } /* [RP-V7.95] Post Insights panel (owner-only, Plaza-original) */ .fi-media img, .fi-media video { width: 100%; border-radius: 12px; display: block; margin-bottom: 10px; } .fi-date { color: var(--ink-soft); font-weight: 700; font-size: 13px; margin: 2px 0 12px; } .fi-counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; } .fi-count { flex: 1 1 60px; background: rgba(255,255,255,.06); border-radius: 12px; padding: 10px 6px; text-align: center; } .fi-count b { display: block; font-size: 17px; } .fi-count small { color: var(--ink-soft); font-weight: 700; font-size: 11.5px; } .fi-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .fi-tile { background: rgba(255,255,255,.06); border-radius: 12px; padding: 12px; } .fi-tile b { display: block; font-size: 20px; } .fi-tile small { color: var(--ink-soft); font-weight: 700; font-size: 12px; } .fi-callout { margin-top: 12px; background: rgba(255,209,102,.13); border: 1px solid rgba(255,209,102,.35); color: #ffd166; border-radius: 12px; padding: 11px 13px; font-weight: 800; font-size: 13.5px; } .fi-cmt { text-align: left; margin: 8px 0; } .fi-cmt b { margin-right: 6px; } .fi-cmtrow { display: flex; gap: 8px; margin-top: 12px; } .fi-cmtrow input { flex: 1; }
 .feed-empty { text-align: center; color: var(--ink-soft); font-weight: 700; padding: 26px 0; }
@@ -32348,10 +32387,102 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     api("/api/feed?limit=50", "GET").then(function (r) {
       if (r.json && r.json.ok) {
         adultOnly = !!r.json.adultOnly;
-        posts = adultOnly ? [] : (r.json.posts || []);
+        if (adultOnly) { posts = []; render(); return; }
+        /* [RP-V7.119] FIX 3: the Plaza feed merges ALL the post stores.
+           Until now it read ONLY /api/feed, so a member's photo post
+           (Moments store) and reel (Reels store) never appeared here —
+           the owner saw his reel play in the Friends feed while the
+           Plaza feed showed nothing. Merged items are tagged _store and
+           their actions route to their own stores' endpoints (see
+           onLike / onComment / onRepost); Delete + Insights stay
+           feed-store only because the other stores have no such
+           endpoints. The Reels surface itself already reads /api/reels
+           (For You + Friends) and its Photos mode reads
+           /api/photo/posts — both verified against the staged server. */
+        var base119 = r.json.posts || [];
+        var myId119 = (r.json.me && r.json.me.id) || null;
+        var extra119 = [];
+        var pPhotos119 = api("/api/photo/posts", "GET").then(function (pr) {
+          if (pr.json && pr.json.ok && Array.isArray(pr.json.posts)) pr.json.posts.slice(0, 30).forEach(function (pp) { extra119.push(mapPhotoPost119(pp)); });
+        });
+        var pReels119 = api("/api/reels", "GET").then(function (rr) {
+          if (rr.json && rr.json.ok && Array.isArray(rr.json.reels)) rr.json.reels.slice(0, 30).forEach(function (rl) { extra119.push(mapReelPost119(rl)); });
+        });
+        Promise.all([pPhotos119, pReels119]).then(function () {
+          resolveMergedAuthors119(extra119, myId119).then(function () {
+            posts = mergeByTime119(base119, extra119);
+            render();
+          });
+        });
+        return;
       }
       render();
     });
+  }
+  /* [RP-V7.119] FIX 3 helpers: map the photo-post and reel payloads
+     onto the feed post shape. ids are store-prefixed so findPost and
+     data-fid can never collide across stores; _sid keeps the raw id
+     for the stores' own endpoints. Comments already ride both payloads
+     in the flat {name, text} shape the comments sheet renders. */
+  function mapPhotoPost119(pp) {
+    return {
+      id: "photo:" + pp.id, _sid: pp.id, _store: "photo",
+      kind: "photo", url: pp.photo || "", text: pp.caption || "", createdAt: pp.createdAt || null,
+      author: { id: null, name: pp.author || "Someone", photo: null },
+      likes: pp.likes || 0, likedByMe: !!pp.myLiked,
+      reposts: pp.reposts || 0, myReposted: !!pp.myReposted,
+      comments: Array.isArray(pp.comments) ? pp.comments : [],
+      commentCount: (typeof pp.commentCount === "number") ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0),
+      shares: 0, views: 0, iFollow: false, isSelf: !!pp.mine
+    };
+  }
+  function mapReelPost119(rl) {
+    return {
+      id: "reel:" + rl.id, _sid: rl.id, _store: "reel",
+      kind: "video", url: rl.url || "", text: rl.caption || "", createdAt: rl.createdAt || null,
+      author: { id: null, name: rl.author || "Someone", photo: null },
+      likes: rl.heartLikes || 0, likedByMe: !!rl.myHeart,
+      reposts: Array.isArray(rl.reposts) ? rl.reposts.length : (rl.reposts || 0), myReposted: !!rl.myReposted,
+      comments: Array.isArray(rl.comments) ? rl.comments : [],
+      commentCount: (typeof rl.commentCount === "number") ? rl.commentCount : (Array.isArray(rl.comments) ? rl.comments.length : 0),
+      shares: 0, views: rl.views || 0, iFollow: false, isSelf: false
+    };
+  }
+  /* Author ids for merged items: the photo/reel payloads carry the
+     author's display NAME only, so resolve id/photo/follow-state from
+     the profile endpoint by name (unique-name match server-side).
+     Best-effort and capped — an unresolved author simply keeps the
+     name-based fallbacks (gift by name, lazy resolve on profile tap). */
+  function resolveMergedAuthors119(items, myId) {
+    var byName = {};
+    items.forEach(function (p) { if (!p.author.id && p.author.name) (byName[p.author.name] = byName[p.author.name] || []).push(p); });
+    var names = Object.keys(byName).slice(0, 12);
+    if (!names.length) return Promise.resolve();
+    return Promise.all(names.map(function (nm) {
+      return api("/api/social/profile?name=" + encodeURIComponent(nm), "GET").then(function (r) {
+        var j = r.json;
+        if (!j || !j.ok || !j.id) return;
+        byName[nm].forEach(function (p) {
+          p.author.id = j.id;
+          p.author.photo = j.photo || null;
+          p.iFollow = !!j.iFollow;
+          if (myId && j.id === myId) p.isSelf = true;
+        });
+      });
+    })).then(function () { });
+  }
+  /* Interleave merged items into the feed list by createdAt (newest
+     first) WITHOUT disturbing the feed posts' own ranked order: each
+     merged item is inserted before the first post older than it. */
+  function mergeByTime119(base, extra) {
+    var out = base.slice();
+    var sorted = extra.slice().sort(function (a, b) { return String(b.createdAt || "").localeCompare(String(a.createdAt || "")); });
+    sorted.forEach(function (item) {
+      var t = String(item.createdAt || ""), idx = -1;
+      for (var i = 0; i < out.length; i++) { if (String(out[i].createdAt || "") <= t) { idx = i; break; } }
+      if (idx < 0) out.push(item); else out.splice(idx, 0, item);
+    });
+    return out;
   }
   function postHtml(p) {
     // [RP-V7.89] A repost entry: attribution line + the original post,
@@ -32371,7 +32502,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     if (p.kind === "photo" && p.url) media = '<div class="feed-media"><img src="' + escF(p.url) + '" alt=""/></div>';
     else if (p.kind === "video" && p.url) media = '<div class="feed-media"><video src="' + escF(p.url) + '" controls playsinline preload="metadata"></video></div>';
     var follow = "";
-    if (!p.isSelf) follow = '<button type="button" class="feed-follow' + (p.iFollow ? " on" : "") + '" data-feed-act="follow">' + (p.iFollow ? "Following ✓" : "Follow") + "</button>";
+    if (!p.isSelf && p.author.id) follow = '<button type="button" class="feed-follow' + (p.iFollow ? " on" : "") + '" data-feed-act="follow">' + (p.iFollow ? "Following ✓" : "Follow") + "</button>";
     return '<article class="feed-post" data-fid="' + escF(p.id) + '">' +
       '<div class="feed-phead"><button type="button" class="feed-chip" data-feed-act="profile">' + avaInner(p.author) +
       "<span><b>" + escF(p.author.name) + "</b><small>" + timeAgo(p.createdAt) + "</small></span></button>" + follow + "</div>" +
@@ -32382,8 +32513,8 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       ('<button type="button" class="feed-act repost' + (p.myReposted ? " on" : "") + '" data-feed-act="repost">🔁<small>' + (p.reposts || 0) + "</small></button>") /* [RP-V7.101] own posts too — a reshare; the server keeps it out of the public count */ +
       '<button type="button" class="feed-act" data-feed-act="gift">🎁 Gift</button>' +
       '<button type="button" class="feed-act" data-feed-act="share">🔗 Share<small>' + (p.shares || 0) + "</small></button>" +
-      (p.isSelf ? '<button type="button" class="feed-act" data-feed-act="insights">📊 Insights</button>' : "") +
-      (p.isSelf ? '<button type="button" class="feed-act" data-feed-act="del" style="margin-left:auto;">🗑 Delete</button>' : "") +
+      (p.isSelf && !p._store ? '<button type="button" class="feed-act" data-feed-act="insights">📊 Insights</button>' : "") + /* [RP-V7.119] FIX 3: Insights/Delete are feed-store only — the photo/reel stores have no such endpoints. */
+      (p.isSelf && !p._store ? '<button type="button" class="feed-act" data-feed-act="del" style="margin-left:auto;">🗑 Delete</button>' : "") +
       "</div></article>";
   }
   function render() {
@@ -32406,7 +32537,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
      counted view per viewer per post per day. Repost entries and the
      owner's own posts never report. */
   function reportView(p) {
-    if (!p || p.isSelf || p.kind === "repost" || viewedIds[p.id]) return;
+    if (!p || p.isSelf || p._store || p.kind === "repost" || viewedIds[p.id]) return; // [RP-V7.119] FIX 3: merged items never ping the feed view counter with a foreign id.
     viewedIds[p.id] = true;
     api("/api/feed/view", "POST", { postId: p.id }).then(function (r) {
       if (r.json && r.json.ok) p.views = r.json.views;
@@ -32429,6 +32560,23 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   }
 
   function onLike(p, btn) {
+    /* [RP-V7.119] FIX 3: merged photo/reel posts like through their own
+       stores' endpoints; the feed-store path below is unchanged. */
+    if (p._store) {
+      var wantL119 = !p.likedByMe;
+      var lPath119 = p._store === "photo" ? "/api/photo/like" : "/api/reel/like";
+      var lBody119 = p._store === "photo" ? { id: p._sid, liked: wantL119 } : { reelId: p._sid, liked: wantL119 };
+      api(lPath119, "POST", lBody119).then(function (r) {
+        if (r.json && r.json.ok) {
+          p.likedByMe = !!r.json.liked;
+          if (typeof r.json.likes === "number") p.likes = r.json.likes;
+          else if (typeof r.json.heartLikes === "number") p.likes = r.json.heartLikes;
+          btn.classList.toggle("on", !!p.likedByMe);
+          var smL119 = btn.querySelector("small"); if (smL119) smL119.textContent = String(p.likes || 0);
+        } else toastF((r.json && r.json.error) || "Couldn't like that just now.", 3000);
+      });
+      return;
+    }
     api("/api/feed/like", "POST", { postId: p.id }).then(function (r) {
       if (r.json && r.json.ok) {
         p.likes = r.json.likes; p.likedByMe = r.json.likedByMe;
@@ -32438,20 +32586,24 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     });
   }
   function onGift(p) {
-    if (typeof window.openGiftSheet === "function") window.openGiftSheet(p.author.id, p.author.name);
+    if (typeof window.openGiftSheet === "function") window.openGiftSheet(p.author.id || p.author.name, p.author.name); // [RP-V7.119] FIX 3: merged items may carry a name-only author (the gift sheet resolves names, same as the Reels surface).
     else toastF("Open " + p.author.name + "'s profile to send a gift 🎁", 3600);
   }
   function onShare(p) {
     // [RP-V7.95] count the real Share tap on the server first (fire and
     // forget — the share flow below never waits on it).
-    api("/api/feed/share", "POST", { postId: p.id }).then(function (r) {
-      if (r.json && r.json.ok) {
-        p.shares = r.json.shares;
-        var art = document.querySelector('article[data-fid="' + p.id + '"]');
-        var sm = art ? art.querySelector('[data-feed-act="share"] small') : null;
-        if (sm) sm.textContent = String(p.shares || 0);
-      }
-    });
+    /* [RP-V7.119] FIX 3: merged photo/reel posts have no feed-store
+       share counter — the share flow below still runs for them. */
+    if (!p._store) {
+      api("/api/feed/share", "POST", { postId: p.id }).then(function (r) {
+        if (r.json && r.json.ok) {
+          p.shares = r.json.shares;
+          var art = document.querySelector('article[data-fid="' + p.id + '"]');
+          var sm = art ? art.querySelector('[data-feed-act="share"] small') : null;
+          if (sm) sm.textContent = String(p.shares || 0);
+        }
+      });
+    }
     var url = "https://rizzplaza.com";
     var data = { title: "Rizz Plaza", text: p.author.name + " on the Plaza Feed 📰", url: url };
     if (navigator.share) { navigator.share(data).catch(function () {}); return; }
@@ -32483,6 +32635,26 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       var inp = $("fiCmtInput");
       var text = inp ? inp.value.trim() : "";
       if (!text) return;
+      /* [RP-V7.119] FIX 3: merged posts comment through /api/reel/comment
+         (kind "photo" for photo posts — the same endpoint the Moments
+         and Reels surfaces use); the feed-store path below is unchanged. */
+      if (p._store) {
+        var cBody119 = p._store === "photo" ? { kind: "photo", id: p._sid, text: text } : { reelId: p._sid, text: text };
+        api("/api/reel/comment", "POST", cBody119).then(function (r) {
+          if (r.json && r.json.ok && r.json.comment) {
+            if (!Array.isArray(p.comments)) p.comments = [];
+            p.comments.push({ name: r.json.comment.name, text: r.json.comment.text });
+            p.commentCount = (typeof r.json.count === "number") ? r.json.count : p.comments.length;
+            paintCommentCount(p);
+            var box119 = $("fiCmtList");
+            if (box119) box119.innerHTML = p.comments.map(function (c) {
+              return '<div class="fi-cmt"><b>' + escF(c.name || "Someone") + "</b><span>" + escF(c.text || "") + "</span></div>";
+            }).join("");
+            if (inp) inp.value = "";
+          } else toastF((r.json && r.json.error) || "Couldn't post that comment.", 3000);
+        });
+        return;
+      }
       api("/api/feed/comment", "POST", { postId: p.id, text: text }).then(function (r) {
         if (r.json && r.json.ok) {
           p.comments = r.json.comments || p.comments;
@@ -32500,6 +32672,22 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   /* [RP-V7.95] REPOST toggle for Feed posts — mirrors the photo/reel
      repost pattern: optimistic paint, server answer is truth. */
   function onRepost(p, btn) {
+    /* [RP-V7.119] FIX 3: merged photo/reel posts repost through their
+       own stores' endpoints; the feed-store path below is unchanged. */
+    if (p._store) {
+      var wantR119 = !p.myReposted;
+      var rpPath119 = p._store === "photo" ? "/api/photo/repost" : "/api/reel/repost";
+      var rpBody119 = p._store === "photo" ? { id: p._sid, reposted: wantR119 } : { reelId: p._sid, reposted: wantR119 };
+      api(rpPath119, "POST", rpBody119).then(function (r) {
+        if (r.json && r.json.ok) {
+          p.myReposted = !!r.json.reposted; p.reposts = r.json.reposts || 0;
+          btn.classList.toggle("on", !!p.myReposted);
+          var smR119 = btn.querySelector("small"); if (smR119) smR119.textContent = String(p.reposts || 0);
+          if (p.myReposted) toastF("Reposted to your profile 🔁", 2800);
+        } else toastF((r.json && r.json.error) || "Couldn't repost that just now.", 3000);
+      });
+      return;
+    }
     var want = !p.myReposted;
     api("/api/feed/repost", "POST", { postId: p.id, reposted: want }).then(function (r) {
       if (r.json && r.json.ok) {
@@ -32577,6 +32765,15 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     });
   }
   function openAuthorSheet(p) {
+    /* [RP-V7.119] FIX 3: a merged photo/reel post whose author id could
+       not be resolved at load resolves it by name on tap. */
+    if (!p.author.id) {
+      api("/api/social/profile?name=" + encodeURIComponent(p.author.name), "GET").then(function (r) {
+        if (r.json && r.json.ok && r.json.id) { p.author.id = r.json.id; p.author.photo = r.json.photo || p.author.photo; openAuthorSheet(p); }
+        else toastF("Couldn't open that profile just now.", 3000);
+      });
+      return;
+    }
     api("/api/social/profile?id=" + encodeURIComponent(p.author.id), "GET").then(function (r) {
       var j = (r.json && r.json.ok) ? r.json : null;
       if (!j || typeof window.openSheet !== "function") return;
