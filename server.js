@@ -1951,6 +1951,45 @@ function photoUpload(handler) {
   };
 }
 
+// [RP-V7.123] Multi-photo posts: one photo post can carry a SET of up
+// to 10 pictures. photoUploadSet runs the same shared multer `upload`
+// with .fields — files arrive on "photos" (the set field) and/or the
+// legacy single "photo" — under the same JSON error discipline as
+// photoUpload, and normalizes everything the route needs onto
+// req.photoFiles123 (the ordered uploaded-file queue). Non-multipart
+// (JSON) requests pass through untouched, exactly as before.
+const PHOTO_SET_MAX123 = 10;
+function photoUploadSet(handler) {
+  return (req, res) => {
+    upload.fields([{ name: "photo", maxCount: 1 }, { name: "photos", maxCount: PHOTO_SET_MAX123 }])(req, res, (err) => {
+      if (err) {
+        const tooBig = err.code === "LIMIT_FILE_SIZE";
+        return res.status(tooBig ? 413 : 400).json({
+          ok: false,
+          error: tooBig ? "That photo is over the 5 MB limit" : err.message,
+        });
+      }
+      const q = [];
+      if (req.files) {
+        (req.files.photos || []).forEach((f) => q.push(f));
+        (req.files.photo || []).forEach((f) => q.push(f));
+      }
+      req.photoFiles123 = q;
+      return handler(req, res);
+    });
+  };
+}
+function unlinkPhotoFiles123(req) {
+  const files = (req && req.photoFiles123) || (req && req.file ? [req.file] : []);
+  files.forEach((f) => { try { fs.unlink(f.path, () => {}); } catch (e) {} });
+}
+// [RP-V7.123] The ordered URL list a stored post carries: `urls` when
+// the post was made as a set, else the single legacy `photo`.
+function photoUrlsOf123(p) {
+  const list = Array.isArray(p && p.urls) && p.urls.length ? p.urls : [p && p.photo];
+  return list.filter(Boolean).slice(0, PHOTO_SET_MAX123);
+}
+
 function extFor(mimetype) {
   const m = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
   return m[mimetype] || "jpg";
@@ -3749,6 +3788,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb) {
     id: p.id,
     author: p.name,
     photo: p.photo,
+    urls: photoUrlsOf123(p), // [RP-V7.123] the full set; photo above stays urls[0] for every older reader
     caption: p.caption || "",
     createdAt: p.ts || null,
     mine: !!uid && uid === p.owner,
@@ -3765,14 +3805,14 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb) {
     musicVol: typeof p.musicVol === "number" ? p.musicVol : null,
   };
 }
-app.post("/api/photo/post", photoUpload(async (req, res) => {
+app.post("/api/photo/post", photoUploadSet(async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    unlinkPhotoFiles123(req);
     return;
   }
   if (isPendingDeletion(ctx.user)) {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    unlinkPhotoFiles123(req);
     return res
       .status(403)
       .json({ ok: false, error: "This account is scheduled for deletion" });
@@ -3787,7 +3827,7 @@ app.post("/api/photo/post", photoUpload(async (req, res) => {
         (p) => p.owner === ctx.user.id && p.clientKey === clientKey
       );
       if (ex) {
-        if (req.file) fs.unlink(req.file.path, () => {});
+        unlinkPhotoFiles123(req);
         return res.json({
           ok: true,
           deduped: true,
@@ -3795,41 +3835,71 @@ app.post("/api/photo/post", photoUpload(async (req, res) => {
         });
       }
     }
-    let photoUrl = null;
-    if (req.file) {
-      photoUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
-      const mod = await moderateImage(photoUrl);
-      if (!mod.ok) {
-        fs.unlink(req.file.path, () => {});
-        console.log("PHOTO POST REJECTED:", ctx.user.id, mod.reason);
-        return res.status(422).json({
-          ok: false,
-          error: "That photo didn't pass our safety check. Please try a different one.",
-        });
-      }
-      if (mod.unreviewed) {
-        console.log("PHOTO POST UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, photoUrl);
-      }
-    } else if (b.photoUrl) {
-      const url = String(b.photoUrl).slice(0, 600);
-      const fileOf = (u) => {
-        const i = String(u || "").indexOf("/photos/");
-        return i >= 0 ? String(u).slice(i + "/photos/".length) : null;
-      };
-      const f = fileOf(url);
-      const owned = !!f && accountPhotos(ctx.user).some((u) => fileOf(u) === f);
-      if (!owned)
+    // [RP-V7.123] Assemble the ordered set: uploaded files and/or the
+    // caller's OWN gallery URLs ("Use my online photo"), interleaved
+    // in the client's pick order when it sends a `seq` manifest
+    // ("f" = next uploaded file, "u" = next supplied URL). Without a
+    // manifest the legacy shapes land exactly as before: the single
+    // uploaded file, or the single photoUrl.
+    const filesQ = (req.photoFiles123 || []).slice();
+    let urlList = [];
+    if (Array.isArray(b.photoUrls)) urlList = b.photoUrls.map((x) => String(x).slice(0, 600));
+    else if (b.photoUrls) { try { const arr = JSON.parse(b.photoUrls); if (Array.isArray(arr)) urlList = arr.map((x) => String(x).slice(0, 600)); } catch (e) {} }
+    if (!urlList.length && b.photoUrl) urlList = [String(b.photoUrl).slice(0, 600)];
+    const fileOf = (u) => {
+      const i = String(u || "").indexOf("/photos/");
+      return i >= 0 ? String(u).slice(i + "/photos/".length) : null;
+    };
+    for (const u of urlList) {
+      const f = fileOf(u);
+      const owned = !!f && accountPhotos(ctx.user).some((x) => fileOf(x) === f);
+      if (!owned) {
+        unlinkPhotoFiles123(req);
         return res.status(400).json({ ok: false, error: "That photo isn't one of yours" });
-      photoUrl = url;
+      }
     }
-    if (!photoUrl)
+    const urlQ = urlList.slice();
+    const picked = [];
+    const seq = String(b.seq || "").split(",").map((x) => x.trim()).filter(Boolean);
+    if (seq.length) {
+      for (const t of seq) {
+        if (t === "f" && filesQ.length) picked.push({ file: filesQ.shift() });
+        else if (t === "u" && urlQ.length) picked.push({ url: urlQ.shift() });
+      }
+    }
+    while (filesQ.length) picked.push({ file: filesQ.shift() });
+    while (urlQ.length) picked.push({ url: urlQ.shift() });
+    const set = picked.slice(0, PHOTO_SET_MAX123);
+    if (!set.length) {
+      unlinkPhotoFiles123(req);
       return res.status(400).json({ ok: false, error: "Pick a photo first" });
+    }
+    const urls = [];
+    for (const it of set) {
+      if (it.file) {
+        const u = `https://${req.get("host")}/photos/${it.file.filename}`;
+        const mod = await moderateImage(u);
+        if (!mod.ok) {
+          unlinkPhotoFiles123(req);
+          console.log("PHOTO POST REJECTED:", ctx.user.id, mod.reason);
+          return res.status(422).json({
+            ok: false,
+            error: "That photo didn't pass our safety check. Please try a different one.",
+          });
+        }
+        if (mod.unreviewed) {
+          console.log("PHOTO POST UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, u);
+        }
+        urls.push(u);
+      } else urls.push(it.url);
+    }
     const musicTrackId = soundCleanId(b.musicTrackId);
     const post = {
       id: "ph" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex"),
       owner: ctx.user.id,
       name: reelCleanName(ctx.user.name) || "Someone",
-      photo: photoUrl,
+      photo: urls[0],
+      urls, // [RP-V7.123] the full ordered set; `photo` stays urls[0]
       caption,
       clientKey: clientKey || null,
       ts: new Date().toISOString(),
@@ -3845,7 +3915,7 @@ app.post("/api/photo/post", photoUpload(async (req, res) => {
     });
   } catch (e) {
     console.log("PHOTO POST ERROR:", e.message);
-    if (req.file) fs.unlink(req.file.path, () => {});
+    unlinkPhotoFiles123(req);
     return res.status(500).json({ ok: false, error: "Posting failed. Please try again." });
   }
 }));
@@ -6651,7 +6721,7 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb) {
     const p = readPhotoPosts().posts.find((x) => x && x.id === id);
     if (!p || !p.photo) return null;
     const pub = photoPublicPost(p, "", likesDb, commentsDb);
-    return { kind: "photopost", id: p.id, src: p.photo, views: 0, caption: p.caption || "", likes: pub.likes || 0 };
+    return { kind: "photopost", id: p.id, src: p.photo, views: 0, caption: p.caption || "", likes: pub.likes || 0, photoCount: (pub.urls || []).length || 1 }; // [RP-V7.123] set size for the grid's multi-photo badge
   }
   return null;
 }
