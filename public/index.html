@@ -19445,10 +19445,12 @@
         // plain newest-first list, exactly as before.
         var fyH = { "Accept": "application/json" };
         var fyT = reelToken(); if (fyT) fyH["Authorization"] = "Bearer " + fyT;
+        var fetchFriends128 = !!Reels.friends; // [RP-V7.128]
         fetch(Reels.friends ? "/api/reels?friends=1" : "/api/reels", { headers: fyH }) // [RP-V7.112]
           .then(function (r) { return r.json(); })
           .then(function (j) {
             if (j && j.ok && Array.isArray(j.reels)) {
+              if (fetchFriends128) Reels._friendsLoaded = true; // [RP-V7.128]
               Reels.server = j.reels; Reels.serverOk = true;
               Reels.ranked = Reels.friends ? false : !!j.ranked; // [RP-V7.112] Friends is pure newest-first
               reelMigrateLocal();
@@ -19463,7 +19465,7 @@
               reelLoadMeta().forEach(function (m) { if (!m.serverId && !m.draft) reelTryUpload(m.id); });
             }
           })
-          .catch(function () { Reels.serverOk = false; Reels.ranked = false; });
+          .catch(function () { Reels.serverOk = false; Reels.ranked = false; if (fetchFriends128) { Reels._friendsLoaded = true; if (Reels.mode === "reels" && Reels.friends) renderReels(); } }); // [RP-V7.128]
       }
       /* [RP-V7.40] For You signals: fire-and-forget, signed-in only.
          fetch with keepalive (sendBeacon cannot carry the
@@ -19633,6 +19635,15 @@
         var vs = feed.querySelectorAll("video");
         for (var i = 0; i < vs.length; i++) { try { vs[i].pause(); } catch (e) { } }
       }
+      /* [RP-V7.128] Friends empty states: a loading line while the friends
+         fetch is in flight, then a plain panel that says what Friends is
+         and offers the people directory — an empty feed must never look
+         like a dead button. */
+      function friendsEmptyHtml128() {
+        if (!Reels._friendsLoaded) return '<div class="mom-empty">Loading your friends\' reels\u2026 \uD83D\uDC65</div>';
+        return '<div class="mom-empty">\uD83D\uDC65 No reels from people you follow yet.<br>When someone you follow posts a reel, it lands right here.</div>' +
+          '<div class="mom-empty" style="padding-top:0;"><button type="button" class="btn-mini plaza-glow" id="btnFriendsFind128">Find people to follow</button></div>';
+      }
       function renderReels() {
         var feed = $("reelFeed"); if (!feed) return;
         reelPauseAll();
@@ -19658,10 +19669,12 @@
           feed.innerHTML = barHtml + (Reels.tagFilter
             ? '<div class="mom-empty">No reels with #' + escHtml(Reels.tagFilter) + " yet — post the first one! 🎬</div>"
             : Reels.friends
-              ? '<div class="mom-empty">No friend reels yet — follow people and their new reels will land here 👥</div>'
+              ? friendsEmptyHtml128()
               : '<div class="mom-empty">No Reels yet — be the first to post one! 🎬</div>' +
               (Reels.serverOk ? "" : '<div class="mom-empty" style="padding-top:0;">Reels go public on the live site — yours are saved on this device until then.</div>'));
           reelClearTagWire();
+          var ff128 = document.getElementById("btnFriendsFind128"); // [RP-V7.128]
+          if (ff128) ff128.addEventListener("click", function () { if (window.rpDm && window.rpDm.openPeople) window.rpDm.openPeople(""); });
           return;
         }
         if (Reels.friends) { // [RP-V7.112] Friends: only followed authors' server reels, never my own or device-only posts
@@ -20165,7 +20178,7 @@
          leave Friends mode cleanly. */
       window.rpFriendsOpen = function () {
         Reels.friends = true; Reels._friendsEnter = true; window.__rpFriendsMode = true;
-        Reels.server = []; Reels.ranked = false;
+        Reels.server = []; Reels.ranked = false; Reels._friendsLoaded = false; // [RP-V7.128] loading state until the friends fetch lands
         var b = $("btnMomentsPlaza"); if (b) b.click();
         setMomMode("reels");
         Reels._friendsEnter = false;
