@@ -1,7 +1,15 @@
 /* Rizz Plaza service worker — offline app shell.
    Cache-first for the app shell and icons, network-first for page
-   navigations so a fresh build always wins when online. */
-var CACHE = "dating-game-v1";
+   navigations so a fresh build always wins when online.
+   [RP-V7.120] The v1 worker cached EVERY same-origin GET — including
+   the /socket.io/ polling handshake — and matched the cache with
+   ignoreSearch, so every later connect replayed the first session's
+   dead handshake and the app could never get online. v2: realtime
+   (/socket.io/) and /api/ traffic is never intercepted, the cache
+   name is bumped (activation deletes the poisoned v1 cache), static
+   matches no longer ignore the query string, and only clean 200
+   responses are stored. */
+var CACHE = "dating-game-v2";
 var CORE = [
   "../",
   "../index.html",
@@ -40,11 +48,17 @@ self.addEventListener("fetch", function (event) {
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // [RP-V7.120] Realtime and API traffic goes straight to the network:
+  // never cached, never replayed.
+  if (url.pathname.indexOf("/socket.io/") === 0 || url.pathname.indexOf("/api/") === 0) return;
+
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req).then(function (res) {
-        var copy = res.clone();
-        caches.open(CACHE).then(function (cache) { cache.put("../index.html", copy); });
+        if (res && res.ok) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (cache) { cache.put("../index.html", copy); });
+        }
         return res;
       }).catch(function () {
         return caches.match("../index.html", { ignoreSearch: true })
@@ -55,10 +69,10 @@ self.addEventListener("fetch", function (event) {
   }
 
   event.respondWith(
-    caches.match(req, { ignoreSearch: true }).then(function (hit) {
+    caches.match(req).then(function (hit) {
       if (hit) return hit;
       return fetch(req).then(function (res) {
-        if (res && res.ok) {
+        if (res && res.status === 200) {
           var copy = res.clone();
           caches.open(CACHE).then(function (cache) { cache.put(req, copy); });
         }
