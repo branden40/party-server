@@ -639,6 +639,7 @@ function settingsOf(u) {
       comments: n.comments !== false,
       reposts: n.reposts !== false,
       dailypot: n.dailypot !== false,
+      posts: n.posts !== false, // [RP-V7.129] new-post alerts, default on
       // [RP-V7.100] Per-channel switches (Settings -> Notifications ->
       // "Reach me by"): the bell feed, email, and text messages. All
       // default ON; SMS still only ever carries messages + Daily Pot
@@ -1378,7 +1379,7 @@ app.post("/api/account/settings", (req, res) => {
   if (!ctx) return;
   const b = req.body || {};
   const cur = settingsOf(ctx.user);
-  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
   if ("letterStyle" in b) {
     if (LETTER_STYLE_IDS.indexOf(b.letterStyle) < 0)
       return res.status(400).json({ ok: false, error: "That letter style isn't one of the Plaza's choices" });
@@ -1390,7 +1391,7 @@ app.post("/api/account/settings", (req, res) => {
     nx.dmPrivacy = b.dmPrivacy;
   }
   if (b.notify && typeof b.notify === "object" && !Array.isArray(b.notify)) {
-    for (const k of ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot"])
+    for (const k of ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts"])
       if (typeof b.notify[k] === "boolean") nx.notify[k] = b.notify[k];
     if (b.notify.channels && typeof b.notify.channels === "object" && !Array.isArray(b.notify.channels)) {
       for (const ck of ["inapp", "email", "sms"])
@@ -3022,6 +3023,7 @@ app.post("/api/reel", (req, res) => {
     });
     if (musicTrackId) soundTouchUse(authorUser ? authorUser.id : null, musicTrackId);
     console.log("[reels] new reel", entry.id, "by", author, entry.size, "bytes");
+    if (authorUser) notifyFollowersOfPost129(authorUser, "reel"); // [RP-V7.129]
     res.json({ ok: true, id: entry.id, url: "/reel-files/" + entry.file });
   });
 });
@@ -3920,6 +3922,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
     db.posts.unshift(post);
     db.posts = db.posts.slice(0, PHOTO_POSTS_KEEP);
     writePhotoPosts(db);
+    notifyFollowersOfPost129(ctx.user, (post.urls && post.urls.length > 1) ? "photos" : "photo"); // [RP-V7.129]
     return res.json({
       ok: true,
       post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts()),
@@ -8508,9 +8511,41 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot" };
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts" }; // [RP-V7.129] post alerts
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true };
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
+// [RP-V7.129] NEW-POST ALERTS: when a member posts, every follower gets
+// the standard activity notification (bell + email per their own
+// switches; never SMS — "post" is not in NOTIFY_SMS_KINDS). The bell
+// entry coalesces per author, so a posting spree bumps one line
+// ("· N new") instead of flooding the feed. Fully guarded: a
+// notification must never break a post.
+function notifyFollowersOfPost129(authorUser, what) {
+  try {
+    if (!authorUser || !authorUser.id) return;
+    const followers = socialFollowerIds(readSocial(), authorUser.id).slice(0, 1000);
+    if (!followers.length) return;
+    const nm = authorUser.name || "Someone";
+    const isReel = what === "reel";
+    const isSet = what === "photos";
+    const text = isReel ? "\uD83C\uDFAC " + nm + " posted a new reel"
+      : isSet ? "\uD83D\uDCF8 " + nm + " posted new photos"
+      : "\uD83D\uDCF8 " + nm + " posted a new photo";
+    for (const fid of followers) {
+      notifyActivity({
+        toId: fid,
+        kind: "post",
+        actorId: authorUser.id,
+        actorName: nm,
+        text,
+        emailSubject: nm + " posted on Rizz Plaza",
+        emailText: text + " on Rizz Plaza.\n\nSee it in Moments: https://rizzplaza.com\n\n\u2014 The Rizz Plaza team",
+        go: { screen: "moments" },
+        coalesceKey: "post:" + authorUser.id,
+      });
+    }
+  } catch (e) { /* never break the post */ }
+}
 const NOTIFY_REMINDERS_CAP = 120;
 function notifyPairBlocked(aId, bId) {
   if (!aId || !bId || aId === bId) return false;
