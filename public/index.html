@@ -168,6 +168,9 @@
         border-radius: 10px; padding: 8px 12px; font-weight: 800; font-size: 13px;
       }
       .btn-mini:hover { border-color: var(--gold); }
+      /* [RP-V7.121] The way home: the "← Plaza" back buttons carry a BIG glowing light (owner: "add the Bigg glowing light to this so people can know how to get to the plaza") — same glow family as the V7.116 Live pill, with a slow pulse so the eye catches it. */
+      .btn-mini.plaza-glow { background: linear-gradient(180deg, #ff2438, #d8001c); border-color: rgba(255,120,135,.95); color: #fff; box-shadow: 0 0 16px rgba(255,30,50,.95), 0 0 38px rgba(255,0,40,.65), 0 0 64px rgba(255,0,40,.35); animation: plazaGlowPulse 1.8s ease-in-out infinite; }
+      @keyframes plazaGlowPulse { 0%, 100% { box-shadow: 0 0 14px rgba(255,30,50,.9), 0 0 34px rgba(255,0,40,.6), 0 0 56px rgba(255,0,40,.32); } 50% { box-shadow: 0 0 22px rgba(255,30,50,1), 0 0 52px rgba(255,0,40,.8), 0 0 88px rgba(255,0,40,.45); } }
 
       /* ---------- Lobby ---------- */
       .lobby-head h2 { font-size: 30px; margin: 4px 0 6px; }
@@ -3216,7 +3219,7 @@
       <section class="screen" id="screen-moments">
         <div class="mom-wrap">
           <div class="mom-head">
-            <button class="btn-mini" id="btnMomentsBack" type="button">← Plaza</button>
+            <button class="btn-mini plaza-glow" id="btnMomentsBack" type="button">← Plaza</button>
             <h2>🎬 Reels</h2>
             <button class="btn-primary" style="width:auto; padding:10px 18px;" id="btnMomPost" type="button">＋ Post a photo</button>
             <input type="file" id="momPhotoInput" accept="image/*" hidden />
@@ -3253,7 +3256,7 @@
       <section class="screen" id="screen-feed">
         <div class="mom-wrap">
           <div class="mom-head">
-            <button class="btn-mini" id="btnFeedBack" type="button">← Plaza</button>
+            <button class="btn-mini plaza-glow" id="btnFeedBack" type="button">← Plaza</button>
             <h2>📰 Plaza Feed</h2>
           </div>
           <p style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px;">The open Plaza wall — post a thought, a photo or a short video. Tap ❤️ to like, 🎁 to gift the poster (real charms, same as live), follow people you like, and 🔗 share the good stuff. 18+ only.</p>
@@ -3275,7 +3278,7 @@
       <section class="screen" id="screen-auctions">
         <div class="auc-wrap">
           <div class="auc-head">
-            <button class="btn-mini" id="btnAuctionsBack" type="button">← Plaza</button>
+            <button class="btn-mini plaza-glow" id="btnAuctionsBack" type="button">← Plaza</button>
             <h2>🔨 Live Auctions</h2>
             <button class="btn-mini" id="btnAucSell" type="button">＋ Sell an item</button>
             <button class="btn-mini" id="btnAucEarnings" type="button">💰 My earnings</button>
@@ -7121,7 +7124,7 @@
           if (!ok) { failOnline(); return; }
           var socket;
           try {
-            socket = window.io(ONLINE_URL, { timeout: 10000, reconnection: true, reconnectionAttempts: 12, reconnectionDelay: 800, reconnectionDelayMax: 5000, transports: ["polling", "websocket"] }); // [RP-V7.24] polling fallback — websocket-only died silently on some mobile networks
+            socket = window.io(ONLINE_URL, { timeout: 10000, reconnection: true, reconnectionAttempts: 12, reconnectionDelay: 800, reconnectionDelayMax: 5000, transports: ["websocket", "polling"] }); // [RP-V7.122] websocket FIRST: polling handshakes through the CDN intermittently lose the session at connect ("Session ID unknown" / xhr poll error, reproduced in soak tests Oct 29) while websocket connects directly and held soak tests for minutes; polling stays as the fallback for networks where websocket is blocked (the V7.24 case).
           } catch (e) { failOnline(); return; }
           Online.socket = socket;
           Online.connectStartedAt = Date.now();
