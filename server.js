@@ -606,6 +606,53 @@ function extProfileOf(u) {
     vibe: EXT_VIBES.indexOf(e.vibe) >= 0 ? e.vibe : null,
   };
 }
+// [RP-V7.99] Member settings — the account owns them (brain rule),
+// riding the same account record + restore path as the V7.94 extended
+// profile fields: letterStyle (the letter-style shelf, canonical ids
+// shared with the client picker), dmPrivacy (who may START a message
+// thread with me), notify (in-app alert preferences). Only known
+// values ever read back; anything else reads as the default, and no
+// value is ever invented server-side.
+const LETTER_STYLE_IDS = ["default", "roman", "royal", "slab", "blackletter", "vintage", "elegant", "script", "calligraphy", "handwritten", "signature", "brush", "bubble", "comic", "retro", "arcade", "display", "condensed", "typewriter", "mono", "outline", "neon", "techno", "rounded", "chunky", "pirate", "deco", "marker", "chalk", "stencil", "school", "luxury"];
+const DM_PRIVACY_VALUES = ["everyone", "following", "noone"];
+function settingsOf(u) {
+  const s = (u && u.settings && typeof u.settings === "object" && !Array.isArray(u.settings)) ? u.settings : {};
+  const n = (s.notify && typeof s.notify === "object" && !Array.isArray(s.notify)) ? s.notify : {};
+  return {
+    letterStyle: LETTER_STYLE_IDS.indexOf(s.letterStyle) >= 0 ? s.letterStyle : "default",
+    dmPrivacy: DM_PRIVACY_VALUES.indexOf(s.dmPrivacy) >= 0 ? s.dmPrivacy : "everyone",
+    notify: {
+      messages: n.messages !== false,
+      follows: n.follows !== false,
+      gifts: n.gifts !== false,
+      likes: n.likes !== false,
+      comments: n.comments !== false,
+      reposts: n.reposts !== false,
+      dailypot: n.dailypot !== false,
+      // [RP-V7.100] Per-channel switches (Settings -> Notifications ->
+      // "Reach me by"): the bell feed, email, and text messages. All
+      // default ON; SMS still only ever carries messages + Daily Pot
+      // wins (see NOTIFY_SMS_KINDS) and never goes to a teen account.
+      channels: {
+        inapp: !(n.channels && n.channels.inapp === false),
+        email: !(n.channels && n.channels.email === false),
+        sms: !(n.channels && n.channels.sms === false),
+      },
+    },
+  };
+}
+// [RP-V7.99] Mutual block invisibility: the accounts I blocked plus
+// the accounts that blocked me. List surfaces filter both directions,
+// so a block truly takes the two accounts out of each other's Plaza.
+function blockHiddenIds(meId) {
+  const db = readDms();
+  const hidden = new Set(dmBlockedSet(db, meId));
+  const blocks = (db && db.blocks && typeof db.blocks === "object") ? db.blocks : {};
+  for (const uid of Object.keys(blocks)) {
+    if (uid !== meId && Array.isArray(blocks[uid]) && blocks[uid].indexOf(meId) >= 0) hidden.add(uid);
+  }
+  return hidden;
+}
 function publicAccount(u) {
   // [RP-V7.50] photo: the account record is the source of truth for the
   // profile photo — login / signup / /me all carry it back.
@@ -620,7 +667,7 @@ function publicAccount(u) {
   // [RP-V7.88] face rides along too: photo stays the EFFECTIVE face
   // (every surface already reads it); facePhoto is the member's own
   // uploaded photo, kept apart so switching back never loses it.
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u) };
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u), settings: settingsOf(u) };
 }
 // [RP-V7.62] The gallery as the rest of the app sees it: the stored
 // array when the record has one. A legacy account that only ever set
@@ -1287,6 +1334,62 @@ app.post("/api/account/profile", (req, res) => {
   }
   if (changed) writeAccounts(ctx.db);
   res.json({ ok: true, user: publicAccount(ctx.user) });
+});
+
+/* ---------- [RP-V7.99] MEMBER SETTINGS + CHANGE PASSWORD ----------
+   The settings sheet's server side. POST /api/account/settings takes
+   a partial { letterStyle?, dmPrivacy?, notify? } — only known values
+   are stored (an unknown letter style or privacy value is a 400, the
+   same discipline as the V7.94 extended fields), and the response is
+   the full account payload so the client's one restore path lands
+   exactly what the server kept. POST /api/account/password verifies
+   the CURRENT password (the same timing-safe check as deletion)
+   before rehashing with a fresh salt. */
+app.post("/api/account/settings", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const cur = settingsOf(ctx.user);
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
+  if ("letterStyle" in b) {
+    if (LETTER_STYLE_IDS.indexOf(b.letterStyle) < 0)
+      return res.status(400).json({ ok: false, error: "That letter style isn't one of the Plaza's choices" });
+    nx.letterStyle = b.letterStyle;
+  }
+  if ("dmPrivacy" in b) {
+    if (DM_PRIVACY_VALUES.indexOf(b.dmPrivacy) < 0)
+      return res.status(400).json({ ok: false, error: "That message privacy choice isn't one of the Plaza's choices" });
+    nx.dmPrivacy = b.dmPrivacy;
+  }
+  if (b.notify && typeof b.notify === "object" && !Array.isArray(b.notify)) {
+    for (const k of ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot"])
+      if (typeof b.notify[k] === "boolean") nx.notify[k] = b.notify[k];
+    if (b.notify.channels && typeof b.notify.channels === "object" && !Array.isArray(b.notify.channels)) {
+      for (const ck of ["inapp", "email", "sms"])
+        if (typeof b.notify.channels[ck] === "boolean") nx.notify.channels[ck] = b.notify.channels[ck];
+    }
+  }
+  let changed = false;
+  if (JSON.stringify(nx) !== JSON.stringify(cur)) { ctx.user.settings = nx; changed = true; }
+  if (changed) writeAccounts(ctx.db);
+  res.json({ ok: true, user: publicAccount(ctx.user), settings: settingsOf(ctx.user) });
+});
+app.post("/api/account/password", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const curPw = String(b.currentPassword || "");
+  const newPw = String(b.newPassword || "");
+  if (!curPw || !verifyAccountPassword(ctx.user, curPw))
+    return res.status(403).json({ ok: false, error: "Your current password doesn't match" });
+  if (newPw.length < 8)
+    return res.status(400).json({ ok: false, error: "Your new password needs at least 8 characters" });
+  if (newPw === curPw)
+    return res.status(400).json({ ok: false, error: "Your new password is the same as the current one — pick a different one" });
+  ctx.user.salt = crypto.randomBytes(16).toString("hex");
+  ctx.user.passHash = hashPassword(newPw, ctx.user.salt);
+  writeAccounts(ctx.db);
+  res.json({ ok: true });
 });
 
 /* ---------- [RP-V7.86] PROFILE PINS + COLLECTIONS ----------
@@ -2507,7 +2610,19 @@ app.get("/api/reels", (req, res) => {
   } catch (e) {
     fyUser = null;
   }
-  const all = fyUser ? fyRankReels(fyUser, newest) : newest;
+  const allRanked = fyUser ? fyRankReels(fyUser, newest) : newest;
+  // [RP-V7.99] Mutual block invisibility for signed-in callers:
+  // blocked (either direction) authors' reels leave the list.
+  let all = allRanked;
+  if (fyUser) {
+    try {
+      const h99 = blockHiddenIds(fyUser.id);
+      if (h99.size) {
+        const adb99 = readAccounts();
+        all = allRanked.filter((r) => { const k = reelAuthorKeyFor(adb99, r); return !(k && h99.has(k)); });
+      }
+    } catch (e) { /* block filtering must never break reels */ }
+  }
   const vdb64 = readViews(); // [RP-V7.64] public tile counts ride along
   const list = all.slice(0, 100).map((r) => {
     // RP-V7.9: remix entries carry their provenance; resolve the source
@@ -2551,7 +2666,8 @@ app.get("/api/reels", (req, res) => {
             myHeart:
               Array.isArray(r.heartLikes) && r.heartLikes.includes(fyUser.id),
             myReposted:
-              Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === fyUser.id),
+              (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === fyUser.id)) ||
+              (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === fyUser.id)), // [RP-V7.101] own reshare state
           }
         : {}),
     };
@@ -2585,7 +2701,7 @@ app.get("/api/tag/:tag", (req, res) => {
       views: mediaViewCount(readViews(), "reel:" + r.id),
       heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
-      myReposted: !!uid && Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid),
+      myReposted: !!uid && ((Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === uid))), // [RP-V7.101] own reshare state
       commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
     }));
   const likesDb = readPhotoLikes();
@@ -3321,6 +3437,20 @@ app.post("/api/reel/comment", (req, res) => {
     list.push(comment);
     while (list.length > REEL_COMMENTS_KEEP) list.shift();
     writePhotoComments(db);
+    try {
+      const pcPost = readPhotoPosts().posts.find((x) => x && x.id === id);
+      if (pcPost && pcPost.owner && pcPost.owner !== ctx.user.id)
+        notifyActivity({
+          toId: pcPost.owner,
+          kind: "comment",
+          actorId: ctx.user.id,
+          actorName: ctx.user.name,
+          text: "✍️ " + ctx.user.name + " commented on your photo: \"" + String(comment.text).slice(0, 60) + "\"",
+          emailSubject: ctx.user.name + " commented on your photo on Rizz Plaza",
+          emailText: ctx.user.name + " commented on your photo on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+          go: { screen: "moments" },
+        });
+    } catch (e) { /* a notification must never break a comment */ }
     return res.json({ ok: true, kind, id, comment: pub, count: list.length });
   }
   const entry = listReels().find((r) => r.id === id);
@@ -3329,6 +3459,20 @@ app.post("/api/reel/comment", (req, res) => {
   entry.comments.push(comment);
   while (entry.comments.length > REEL_COMMENTS_KEEP) entry.comments.shift();
   updateReelEntry(id, { comments: entry.comments });
+  try {
+    const cKey = reelAuthorKeyFor(ctx.db, entry);
+    if (cKey && cKey !== ctx.user.id)
+      notifyActivity({
+        toId: cKey,
+        kind: "comment",
+        actorId: ctx.user.id,
+        actorName: ctx.user.name,
+        text: "✍️ " + ctx.user.name + " commented on your reel: \"" + String(comment.text).slice(0, 60) + "\"",
+        emailSubject: ctx.user.name + " commented on your reel on Rizz Plaza",
+        emailText: ctx.user.name + " commented on your reel on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+        go: { screen: "moments" },
+      });
+  } catch (e) { /* a notification must never break a comment */ }
   res.json({ ok: true, kind, id, comment: pub, count: entry.comments.length });
 });
 app.post("/api/reel/like", (req, res) => {
@@ -3374,6 +3518,22 @@ app.post("/api/reel/like", (req, res) => {
     }
     writeReelSignals(sig);
   } catch (e) { /* affinity bookkeeping must never break a like */ }
+  if (want && !has) {
+    try {
+      const aKey = reelAuthorKeyFor(ctx.db, entry);
+      if (aKey && aKey !== ctx.user.id)
+        notifyActivity({
+          toId: aKey,
+          kind: "like",
+          actorId: ctx.user.id,
+          actorName: ctx.user.name,
+          text: "❤️ " + ctx.user.name + " liked your reel",
+          emailSubject: ctx.user.name + " liked your reel on Rizz Plaza",
+          emailText: ctx.user.name + " liked your reel on Rizz Plaza.\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+          go: { screen: "moments" },
+        });
+    } catch (e) { /* a notification must never break a like */ }
+  }
   res.json({ ok: true, id, liked: want, heartLikes: entry.heartLikes.length });
 });
 // [RP-V7.89] REPOST (owner, from his phone on live V7.88: "I'm missing a
@@ -3381,8 +3541,9 @@ app.post("/api/reel/like", (req, res) => {
 // repost set lives ON the reel record as [{u, at}] so counts ride GET
 // /api/reels like heart-likes, and the profile Reposts tab + the Feed
 // resolve from the same records. Toggle is idempotent, token identity
-// only. A member cannot repost their own reel (refused here AND the
-// client hides the button). The For You +4 fires ONCE per (member,
+// only. [RP-V7.101] Own-reel re-sharing IS allowed, as a RESHARE
+// stored separately (entry.reshares) so it never counts as engagement.
+// The For You +4 fires ONCE per (member,
 // post) EVER via urec.reposted — unrepost never reverses it and a
 // re-repost never re-fires it (deliberately unlike likes).
 app.post("/api/reel/repost", (req, res) => {
@@ -3398,9 +3559,19 @@ app.post("/api/reel/repost", (req, res) => {
   const entry = listReels().find((r) => r.id === id);
   if (!entry) return res.status(404).json({ ok: false, error: "Reel not found" });
   const key = reelAuthorKeyFor(ctx.db, entry);
-  if (key && key === ctx.user.id)
-    return res.status(400).json({ ok: false, error: "You can't repost your own post" });
   const want = b.reposted === true;
+  // [RP-V7.101] Own-reel RESHARE: recorded in entry.reshares, SEPARATE
+  // from entry.reposts — no public count, no For You/style signal, no
+  // notification. Still resurfaces to followers + the Reposts tab.
+  if (key && key === ctx.user.id) {
+    if (!Array.isArray(entry.reposts)) entry.reposts = [];
+    if (!Array.isArray(entry.reshares)) entry.reshares = [];
+    const hasR = entry.reshares.some((x) => x && x.u === ctx.user.id);
+    if (want && !hasR) entry.reshares.push({ u: ctx.user.id, at: new Date().toISOString() });
+    if (!want && hasR) entry.reshares = entry.reshares.filter((x) => !(x && x.u === ctx.user.id));
+    updateReelEntry(id, { reposts: entry.reposts, reshares: entry.reshares });
+    return res.json({ ok: true, id, reposted: entry.reshares.some((x) => x && x.u === ctx.user.id), reposts: entry.reposts.length, reshare: true });
+  }
   if (!Array.isArray(entry.reposts)) entry.reposts = [];
   const has = entry.reposts.some((x) => x && x.u === ctx.user.id);
   if (want && !has) {
@@ -3421,6 +3592,17 @@ app.post("/api/reel/repost", (req, res) => {
     }
     writeReelSignals(sig);
   } catch (e) { /* affinity bookkeeping must never break a repost */ }
+  if (want && !has && key && key !== ctx.user.id)
+    notifyActivity({
+      toId: key,
+      kind: "repost",
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+      text: "🔁 " + ctx.user.name + " reposted your reel",
+      emailSubject: ctx.user.name + " reposted your reel on Rizz Plaza",
+      emailText: ctx.user.name + " reposted your reel on Rizz Plaza — it is reaching new people.\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "moments" },
+    });
   res.json({ ok: true, id, reposted: entry.reposts.some((x) => x && x.u === ctx.user.id), reposts: entry.reposts.length });
 });
 
@@ -3522,6 +3704,13 @@ function photoRepostSet(repostsDb, id) {
   const s2 = repostsDb && repostsDb.photos ? repostsDb.photos[id] : null;
   return Array.isArray(s2) ? s2 : [];
 }
+function photoReshareSet(repostsDb, id) {
+  // [RP-V7.101] Own-post reshares for photo posts live under db.reshares,
+  // SEPARATE from db.photos (the public repost sets), so counts stay
+  // public-only by construction.
+  const s2 = repostsDb && repostsDb.reshares ? repostsDb.reshares[id] : null;
+  return Array.isArray(s2) ? s2 : [];
+}
 function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb) {
   const list = (commentsDb.photos && commentsDb.photos[p.id]) || [];
   const set = Array.isArray(likesDb.photos[p.id]) ? likesDb.photos[p.id] : [];
@@ -3537,7 +3726,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb) {
     myLiked: !!uid && set.includes(uid),
     // [RP-V7.89] repost count + the caller's own state, like likes.
     reposts: rset.length,
-    myReposted: !!uid && rset.some((x) => x && x.u === uid),
+    myReposted: !!uid && (rset.some((x) => x && x.u === uid) || photoReshareSet(repostsDb, p.id).some((x) => x && x.u === uid)), // [RP-V7.101] own reshare state; reposts count above stays public-only
     comments: reelPublicComments({ comments: list }),
     commentCount: list.length,
     // [RP-V7.90] attached sound reference on photo posts, same shape as reels.
@@ -3639,8 +3828,16 @@ app.get("/api/photo/posts", (req, res) => {
   const likesDb = readPhotoLikes();
   const commentsDb = readPhotoComments();
   const repostsDb = readPhotoReposts();
-  const posts = readPhotoPosts()
-    .posts.slice(0, PHOTO_POSTS_RETURN)
+  let rawPosts99 = readPhotoPosts().posts;
+  // [RP-V7.99] Mutual block invisibility for signed-in callers.
+  if (uid) {
+    try {
+      const h99 = blockHiddenIds(uid);
+      if (h99.size) rawPosts99 = rawPosts99.filter((p) => !(p && h99.has(p.owner)));
+    } catch (e) { /* block filtering must never break photo posts */ }
+  }
+  const posts = rawPosts99
+    .slice(0, PHOTO_POSTS_RETURN)
     .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb));
   res.json({ ok: true, posts });
 });
@@ -3673,7 +3870,7 @@ app.get("/api/photo/extras", (req, res) => {
       likes: set.length,
       myLiked: !!uid && set.includes(uid),
       reposts: rset.length,
-      myReposted: !!uid && rset.some((x) => x && x.u === uid),
+      myReposted: !!uid && (rset.some((x) => x && x.u === uid) || photoReshareSet(repostsDbE, id).some((x) => x && x.u === uid)), // [RP-V7.101] own reshare state
     };
   }
   res.json({ ok: true, posts });
@@ -3718,12 +3915,30 @@ app.post("/api/photo/like", (req, res) => {
       writeReelSignals(sig);
     }
   } catch (e) { /* affinity bookkeeping must never break a like */ }
+  if (want && !has) {
+    try {
+      const pPost = readPhotoPosts().posts.find((x) => x && x.id === id);
+      if (pPost && pPost.owner && pPost.owner !== ctx.user.id)
+        notifyActivity({
+          toId: pPost.owner,
+          kind: "like",
+          actorId: ctx.user.id,
+          actorName: ctx.user.name,
+          text: "❤️ " + ctx.user.name + " liked your photo",
+          emailSubject: ctx.user.name + " liked your photo on Rizz Plaza",
+          emailText: ctx.user.name + " liked your photo on Rizz Plaza.\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+          go: { screen: "moments" },
+        });
+    } catch (e) { /* a notification must never break a like */ }
+  }
   res.json({ ok: true, id, liked: set.includes(ctx.user.id), likes: set.length });
 });
 // [RP-V7.89] REPOST for photo posts — mirrors /api/reel/repost. Only
 // real server posts can be reposted (seed/demo ids have no record and
-// answer 404; the client renders no repost button on them). Own-post
-// refused. The +4 (author + style) fires once per (member, post) EVER
+// answer 404; the client renders no repost button on them).
+// [RP-V7.101] Own-post re-sharing IS allowed, as a RESHARE stored
+// separately (db.reshares) so it never counts as engagement. The +4
+// (author + style) fires once per (member, post) EVER
 // via urec.reposted and never reverses.
 app.post("/api/photo/repost", (req, res) => {
   const ctx = requireAccount(req, res);
@@ -3737,10 +3952,25 @@ app.post("/api/photo/repost", (req, res) => {
   if (!id) return res.status(400).json({ ok: false, error: "Bad post reference" });
   const post = readPhotoPosts().posts.find((x) => x && x.id === id);
   if (!post) return res.status(404).json({ ok: false, error: "Post not found" });
-  if (post.owner === ctx.user.id)
-    return res.status(400).json({ ok: false, error: "You can't repost your own post" });
   const want = b.reposted === true;
   const db = readPhotoReposts();
+  // [RP-V7.101] Own-photo RESHARE: toggles db.reshares[id], SEPARATE
+  // from the public db.photos sets — no public count, no For You/style
+  // signal, no notification. Still resurfaces + lands in Reposts tab.
+  if (post.owner === ctx.user.id) {
+    if (!db.reshares || typeof db.reshares !== "object") db.reshares = {};
+    const rset2 = photoReshareSet(db, id).slice();
+    const hasR = rset2.some((x) => x && x.u === ctx.user.id);
+    if (want && !hasR) rset2.push({ u: ctx.user.id, at: new Date().toISOString() });
+    if (!want && hasR) {
+      const ixR = rset2.findIndex((x) => x && x.u === ctx.user.id);
+      if (ixR >= 0) rset2.splice(ixR, 1);
+    }
+    if (rset2.length) db.reshares[id] = rset2;
+    else delete db.reshares[id];
+    writePhotoReposts(db);
+    return res.json({ ok: true, id, reposted: rset2.some((x) => x && x.u === ctx.user.id), reposts: photoRepostSet(db, id).length, reshare: true });
+  }
   const set = photoRepostSet(db, id).slice();
   const has = set.some((x) => x && x.u === ctx.user.id);
   if (want && !has) set.push({ u: ctx.user.id, at: new Date().toISOString() });
@@ -3762,6 +3992,17 @@ app.post("/api/photo/repost", (req, res) => {
     }
     writeReelSignals(sig);
   } catch (e) { /* affinity bookkeeping must never break a repost */ }
+  if (want && !has)
+    notifyActivity({
+      toId: post.owner,
+      kind: "repost",
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+      text: "🔁 " + ctx.user.name + " reposted your photo",
+      emailSubject: ctx.user.name + " reposted your photo on Rizz Plaza",
+      emailText: ctx.user.name + " reposted your photo on Rizz Plaza — it is reaching new people.\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "moments" },
+    });
   res.json({ ok: true, id, reposted: set.some((x) => x && x.u === ctx.user.id), reposts: set.length });
 });
 
@@ -5641,6 +5882,22 @@ function dpRunBurst(db, rec) {
     giftBalMirrorWin(mdb, adb.users.find((x) => x.id === w.id), w.amount);
   }
   writeMoney(mdb);
+  // [RP-V7.100] Winners hear it everywhere — bell, email, and a text
+  // (pot wins always send; they bypass the 15-minute cooldown).
+  for (const w of winners) {
+    const potName = rec.potClass === "teen" ? "Teen Daily Pot" : "Daily Pot";
+    notifyActivity({
+      toId: w.id,
+      kind: "potwin",
+      actorId: null,
+      actorName: "Rizz Plaza",
+      text: "🪙 You won " + w.amount + " charms in the " + potName + "! 🎉",
+      emailSubject: "You won the " + potName + "! 🪙",
+      emailText: "Hi " + w.name + " — you won " + w.amount + " charms in the " + potName + " on Rizz Plaza! 🎉\n\nYour charms are already in your balance. Open the Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      smsText: "Rizz Plaza 🪙 You won " + w.amount + " charms in the " + potName + "! Open https://rizzplaza.com",
+      go: { screen: "plaza" },
+    });
+  }
   try {
     io.emit("dailypot-burst", {
       date: rec.date, potClass: rec.potClass, total, winners, share, remainder,
@@ -6190,7 +6447,18 @@ app.post("/api/social/follow", (req, res) => {
       error: "Account not found",
     });
   const db = readSocial();
-  socialSetFollow(db, ctx.user.id, targetId, true);
+  const followChanged = socialSetFollow(db, ctx.user.id, targetId, true);
+  if (followChanged)
+    notifyActivity({
+      toId: targetId,
+      kind: "follow",
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+      text: "👋 " + ctx.user.name + " started following you",
+      emailSubject: ctx.user.name + " is now following you on Rizz Plaza",
+      emailText: ctx.user.name + " started following you on Rizz Plaza.\n\nCome see who's new: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "profile", id: ctx.user.id, name: ctx.user.name },
+    });
   res.json({
     ok: true,
     following: true,
@@ -6230,7 +6498,18 @@ app.post("/api/social/follow-name", (req, res) => {
   );
   if (matches.length !== 1) return res.json({ ok: false, resolved: false });
   const db = readSocial();
-  socialSetFollow(db, ctx.user.id, matches[0].id, true);
+  const followChanged = socialSetFollow(db, ctx.user.id, matches[0].id, true);
+  if (followChanged)
+    notifyActivity({
+      toId: matches[0].id,
+      kind: "follow",
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+      text: "👋 " + ctx.user.name + " started following you",
+      emailSubject: ctx.user.name + " is now following you on Rizz Plaza",
+      emailText: ctx.user.name + " started following you on Rizz Plaza.\n\nCome see who's new: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "profile", id: ctx.user.id, name: ctx.user.name },
+    });
   res.json({
     ok: true,
     resolved: true,
@@ -6293,7 +6572,9 @@ app.get("/api/social/user/:id", (req, res) => {
 app.get("/api/social/directory", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
+  const hidden99 = blockHiddenIds(ctx.user.id); // [RP-V7.99]
   const users = ctx.db.users
+    .filter((u) => u.id === ctx.user.id || !hidden99.has(u.id))
     .slice(0, 500)
     .map((u) => ({ id: u.id, name: u.name }));
   res.json({ ok: true, users });
@@ -6512,14 +6793,21 @@ app.get("/api/social/profile", (req, res) => {
   try {
     const mine86 = [];
     for (const r of listReels())
-      if (r && Array.isArray(r.reposts))
-        for (const rp of r.reposts)
+      if (r && (Array.isArray(r.reposts) || Array.isArray(r.reshares)))
+        for (const rp of (r.reposts || []).concat(r.reshares || [])) // [RP-V7.101] own reshares land in the Reposts tab too
           if (rp && rp.u === target.id) {
             const it = profileTileForPost("reel", r.id, vdb86, likesDb86, commentsDb86);
             if (it) { it.repostedAt = rp.at || null; mine86.push(it); }
           }
     for (const pid of Object.keys(repostsDb86.photos || {})) {
       const hit = photoRepostSet(repostsDb86, pid).find((x) => x && x.u === target.id);
+      if (hit) {
+        const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86);
+        if (it) { it.repostedAt = hit.at || null; mine86.push(it); }
+      }
+    }
+    for (const pid of Object.keys(repostsDb86.reshares || {})) { // [RP-V7.101] own photo reshares
+      const hit = photoReshareSet(repostsDb86, pid).find((x) => x && x.u === target.id);
       if (hit) {
         const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86);
         if (it) { it.repostedAt = hit.at || null; mine86.push(it); }
@@ -6712,6 +7000,11 @@ const STORY_POST_ALL_AGES = true;    // [RP-V7.74] posting: ALL AGES (Branden: "
 const STORY_GIFT_ADULT_ONLY = false; // [RP-V7.79] story gifting OPEN to every signed-in account (Branden tapped "Open teen story-gifting too (charms only)") — supersedes the V7.72 hold: the tray payload's canGift follows storyCanGift below, the 🎁 tap opens the standard gift sheet, and /api/money/gift's teen branch settles the send charms-only (giftBal debit, author credited charms, zero earnings, RP-V7.74). Guests still can't gift: the tray requires an account.
 const STORY_TTL_MS = 24 * 3600 * 1000;
 const STORY_VIDEO_MAX = 50 * 1024 * 1024; // same cap as DM/reel video
+// [RP-V7.99] Photo stories ride the existing photo pipeline rules:
+// same image types and the same 10 MB cap as Feed/DM photos.
+const STORY_PHOTO_MAX = 10 * 1024 * 1024;
+const STORY_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const STORY_IMAGE_EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
 const STORY_MAX_ACTIVE_PER_AUTHOR = 10;
 const STORY_TRAY_MAX_AUTHORS = 50;
 const STORIES_FILE =
@@ -6766,6 +7059,7 @@ function storyPublic(s, vdb, meId) {
   const viewedBy = Array.isArray(s.viewedBy) ? s.viewedBy : [];
   return {
     id: s.id,
+    kind: s.kind === "photo" ? "photo" : "video",
     url: "/photos/stories/" + s.file,
     createdAt: s.createdAt,
     expiresAt: s.expiresAt,
@@ -6779,14 +7073,14 @@ const storyUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, STORY_DIR),
     filename: (req, file, cb) => {
-      const ext = REEL_VIDEO_TYPES[file.mimetype] || "mp4";
+      const ext = REEL_VIDEO_TYPES[file.mimetype] || STORY_IMAGE_EXT[file.mimetype] || "mp4";
       cb(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${ext}`);
     },
   }),
   limits: { fileSize: STORY_VIDEO_MAX },
   fileFilter: (req, file, cb) => {
-    if (REEL_VIDEO_TYPES[file.mimetype]) cb(null, true);
-    else cb(new Error("Stories are video only — MP4, WebM or MOV"));
+    if (REEL_VIDEO_TYPES[file.mimetype] || STORY_IMAGE_TYPES.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Stories take a video (MP4, WebM or MOV) or a photo (JPG, PNG, WebP or GIF)"));
   },
 });
 // Post a story. Auth (and the age gate) run BEFORE multer, exactly
@@ -6819,7 +7113,10 @@ app.post("/api/story/post",
       if (req.file) fs.unlink(req.file.path, () => {});
       return res.status(status).json({ ok: false, error });
     };
-    if (!req.file) return fail(400, "No video received");
+    if (!req.file) return fail(400, "No photo or video received");
+    const isPhoto = STORY_IMAGE_TYPES.includes(req.file.mimetype);
+    if (isPhoto && req.file.size > STORY_PHOTO_MAX)
+      return fail(413, "That photo is too big — 10 MB max");
     const db = sweepStories();
     const mine = Object.values(db.stories).filter((s) => s && s.authorId === ctx.user.id);
     if (mine.length >= STORY_MAX_ACTIVE_PER_AUTHOR)
@@ -6827,6 +7124,7 @@ app.post("/api/story/post",
     const now = Date.now();
     const story = {
       id: crypto.randomBytes(8).toString("hex"),
+      kind: isPhoto ? "photo" : "video",
       authorId: ctx.user.id,
       authorName: ctx.user.name,
       file: path.basename(req.file.path),
@@ -6852,6 +7150,7 @@ app.get("/api/story/tray", (req, res) => {
   const vdb = readViews();
   const sdb = readSocial();
   const following = new Set(socialFollowingIds(sdb, ctx.user.id));
+  const hidden99 = blockHiddenIds(ctx.user.id); // [RP-V7.99] mutual block invisibility
   const sig = readReelSignals();
   const urec = fyUserRec(sig, ctx.user.id, false);
   const aff = (urec && urec.authorAff) || {};
@@ -6864,6 +7163,7 @@ app.get("/api/story/tray", (req, res) => {
   }
   const authors = [];
   for (const [authorId, list] of byAuthor) {
+    if (authorId !== ctx.user.id && hidden99.has(authorId)) continue; // [RP-V7.99]
     const brief = socialBrief(ctx.db, authorId);
     if (!brief) continue; // pending-deletion / gone accounts don't show
     const acct = ctx.db.users.find((u) => u.id === authorId);
@@ -7075,6 +7375,29 @@ function writeFeed(db) {
 function feedAdultOk(user) {
   return !FEED_ADULT_ONLY || ageFromDob(user.dob) >= 18;
 }
+// [RP-V7.95] Post Insights helpers: counts are read straight off the
+// post record (likes are the account-id set, comments/reposts are the
+// stored arrays, shares/views are the counters instrumented below).
+// A rate is count / views as a percentage, 2 decimals; 0 views = 0.
+function feedCounts(p) {
+  return {
+    likes: Array.isArray(p.likes) ? p.likes.length : 0,
+    comments: Array.isArray(p.comments) ? p.comments.length : 0,
+    reposts: Array.isArray(p.reposts) ? p.reposts.length : 0,
+    shares: typeof p.shares === "number" ? p.shares : 0,
+    views: typeof p.views === "number" ? p.views : 0,
+  };
+}
+function byIdSafe(uid) {
+  try {
+    const db = readAccounts();
+    return db.users.find((u) => u.id === uid && !u.deletionAt) || null;
+  } catch (e) { return null; }
+}
+function feedRatePct(count, views) {
+  if (!views || views <= 0) return 0;
+  return Math.round((count / views) * 10000) / 100;
+}
 function feedPublic(ctx, p, following) {
   const brief = socialBrief(ctx.db, p.authorId);
   if (!brief) return null; // pending-deletion / gone authors don't show
@@ -7090,6 +7413,15 @@ function feedPublic(ctx, p, following) {
     createdAt: p.createdAt,
     likes: likes.length,
     likedByMe: likes.includes(ctx.user.id),
+    // [RP-V7.95] engagement counts ride the feed payload (public, like
+    // the like count): comments in the public name/text shape, repost
+    // count + the caller's own state, share and view counters.
+    comments: reelPublicComments({ comments: Array.isArray(p.comments) ? p.comments : [] }),
+    commentCount: Array.isArray(p.comments) ? p.comments.length : 0,
+    reposts: Array.isArray(p.reposts) ? p.reposts.length : 0,
+    myReposted: (Array.isArray(p.reposts) && p.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(p.reshares) && p.reshares.some((x) => x && x.u === ctx.user.id)), // [RP-V7.101] own reshare shows as my repost state; the public count above stays reposts-only
+    shares: typeof p.shares === "number" ? p.shares : 0,
+    views: typeof p.views === "number" ? p.views : 0,
     iFollow: following ? following.has(p.authorId) : false,
     isSelf: p.authorId === ctx.user.id,
   };
@@ -7174,6 +7506,11 @@ app.post("/api/feed/post",
         file: req.file ? path.basename(req.file.path) : null,
         createdAt: new Date().toISOString(),
         likes: [],
+        comments: [], // [RP-V7.95]
+        reposts: [], // [RP-V7.95] [{ u, at }] set, like photo reposts
+        shares: 0, // [RP-V7.95] real Share taps (POST /api/feed/share)
+        views: 0, // [RP-V7.95] real rendered views (POST /api/feed/view)
+        viewSeen: {}, // [RP-V7.95] viewerId -> ET day of last counted view
       };
       db.posts[post.id] = post;
       writeFeed(db);
@@ -7199,6 +7536,7 @@ app.get("/api/feed", (req, res) => {
   const db = readFeed();
   const sdb = readSocial();
   const following = new Set(socialFollowingIds(sdb, ctx.user.id));
+  const hidden99 = blockHiddenIds(ctx.user.id); // [RP-V7.99] mutual block invisibility
   const sig = readReelSignals();
   const urec = fyUserRec(sig, ctx.user.id, false);
   const aff = (urec && urec.authorAff) || {};
@@ -7206,6 +7544,7 @@ app.get("/api/feed", (req, res) => {
   const scored = [];
   for (const p of Object.values(db.posts)) {
     if (!p || !p.authorId) continue;
+    if (hidden99.has(p.authorId)) continue; // [RP-V7.99]
     const pub = feedPublic(ctx, p, following);
     if (!pub) continue;
     // [RP-V7.89] the lift is now author affinity + STYLE affinity (from
@@ -7222,21 +7561,40 @@ app.get("/api/feed", (req, res) => {
     const rpDbF = readPhotoReposts();
     const byId = (uid) => ctx.db.users.find((u) => u.id === uid && !u.deletionAt);
     for (const r of listReels()) {
-      if (!r || !Array.isArray(r.reposts)) continue;
-      for (const rp of r.reposts) {
+      if (!r || (!Array.isArray(r.reposts) && !Array.isArray(r.reshares))) continue; // [RP-V7.101]
+      for (const rp of (r.reposts || []).concat(r.reshares || [])) { // [RP-V7.101] own reshares resurface to followers, attributed to the author
         if (!rp || rp.u === ctx.user.id || !following.has(rp.u)) continue;
         const by = byId(rp.u); if (!by) continue;
         const aKey = reelAuthorKeyFor(ctx.db, r);
+        if (hidden99.has(rp.u) || (aKey && hidden99.has(aKey))) continue; // [RP-V7.99]
         const aUser = aKey ? ctx.db.users.find((u) => u.id === aKey) : null;
         scored.push({ pub: { kind: "repost", id: "rp:reel:" + r.id + ":" + rp.u, repostBy: { id: rp.u, name: by.name }, repostedAt: rp.at || null, createdAt: rp.at || null, post: { kind: "reel", id: r.id, author: { id: aKey || null, name: (aUser && aUser.name) || r.author || "" }, url: "/reel-files/" + r.file, caption: r.caption || "" } }, _t: Date.parse(rp.at || "") || 0 });
       }
     }
     for (const pp of readPhotoPosts().posts) {
-      const set = photoRepostSet(rpDbF, pp.id);
+      const set = photoRepostSet(rpDbF, pp.id).concat(photoReshareSet(rpDbF, pp.id)); // [RP-V7.101] own reshares resurface too
       for (const rp of set) {
         if (!rp || rp.u === ctx.user.id || !following.has(rp.u)) continue;
+        if (hidden99.has(rp.u) || hidden99.has(pp.owner)) continue; // [RP-V7.99]
         const by = byId(rp.u); if (!by) continue;
         scored.push({ pub: { kind: "repost", id: "rp:photopost:" + pp.id + ":" + rp.u, repostBy: { id: rp.u, name: by.name }, repostedAt: rp.at || null, createdAt: rp.at || null, post: { kind: "photopost", id: pp.id, author: { id: pp.owner, name: pp.name || "" }, url: pp.photo, caption: pp.caption || "" } }, _t: Date.parse(rp.at || "") || 0 });
+      }
+    }
+  } catch (e) { /* repost surfacing must never break the feed */ }
+  // [RP-V7.95] Feed-post reposts surface the same way: to the
+  // reposter's followers, at repost time, with attribution.
+  try {
+    for (const fp of Object.values(db.posts)) {
+      if (!fp || (!Array.isArray(fp.reposts) && !Array.isArray(fp.reshares))) continue; // [RP-V7.101] reshare-only posts surface too
+      if (hidden99.has(fp.authorId)) continue; // [RP-V7.99]
+      const fpub0 = feedPublic(ctx, fp, following);
+      if (!fpub0) continue;
+      for (const rp of (fp.reposts || []).concat(fp.reshares || [])) { // [RP-V7.101] own reshares resurface to followers, attributed to the author
+        if (!rp || rp.u === ctx.user.id || !following.has(rp.u)) continue;
+        if (hidden99.has(rp.u)) continue; // [RP-V7.99]
+        const by = byIdSafe(rp.u);
+        if (!by) continue;
+        scored.push({ pub: { kind: "repost", id: "rp:feedpost:" + fp.id + ":" + rp.u, repostBy: { id: rp.u, name: by.name }, repostedAt: rp.at || null, createdAt: rp.at || null, post: { kind: fp.kind || "text", id: fp.id, author: { id: fp.authorId, name: fpub0.author.name }, url: fpub0.url, caption: fp.text || "" } }, _t: Date.parse(rp.at || "") || 0 });
       }
     }
   } catch (e) { /* repost surfacing must never break the feed */ }
@@ -7278,9 +7636,223 @@ app.post("/api/feed/like", (req, res) => {
       } catch (e) { /* affinity bookkeeping must never break a like */ }
     }
   }
+  if (liked && p.authorId !== ctx.user.id)
+    notifyActivity({
+      toId: p.authorId,
+      kind: "like",
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+      text: "❤️ " + ctx.user.name + " liked your post",
+      emailSubject: ctx.user.name + " liked your post on Rizz Plaza",
+      emailText: ctx.user.name + " liked your post on Rizz Plaza.\n\nSee it in the Feed: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "feed" },
+    });
   writeFeed(db);
   res.json({ ok: true, likes: p.likes.length, likedByMe: liked });
 });
+// ---------------------------------------------------------------------------
+// [RP-V7.95] POST INSIGHTS for Feed posts (Branden, Oct 27 ~23:46 EDT,
+// with a screenshot of an insights screen: "Make this tomorrow with
+// feeds"). Owner-only engagement for a member's OWN Feed posts.
+// Feed posts only — Reels insights are a separate follow-up. No money
+// data anywhere: these are social stats, so a teen reading insights on
+// their own post is fine (the Feed itself is all-ages, V7.74).
+//
+// DATA (brain rule — everything lives on the post record in feed.json):
+//   likes    — the existing account-id set on the post.
+//   comments — NEW real mechanic, stored on the post (POST
+//     /api/feed/comment): through V7.94 a Feed post had no comment
+//     action at all, so the insights count row the owner asked for
+//     would have had nothing honest to show. Text is cleaned exactly
+//     like a reel comment (REEL_COMMENT_MAX cap, same public shape).
+//   reposts  — NEW real mechanic, stored on the post (POST
+//     /api/feed/repost): a per-account toggle set, own post refused,
+//     and a repost surfaces the post to the reposter's followers in
+//     GET /api/feed (above), exactly like reel/photo reposts. The
+//     For You +4 fires once per (member, post) EVER via
+//     urec.reposted["feed:<id>"], mirroring photo reposts.
+//   shares   — NEW counter (POST /api/feed/share): the client fires it
+//     from the post's existing Share action, before the native share /
+//     clipboard flow. Every real Share tap counts once; nobody can set
+//     or decrement the number.
+//   views    — NEW counter (POST /api/feed/view). DEFINITION: a view
+//     counts when a signed-in NON-owner's client actually renders the
+//     post card into the viewport (the client reports it via
+//     IntersectionObserver) — a feed fetch alone never counts. The
+//     server dedupes to at most one counted view per viewer per post
+//     per America/New_York calendar day (viewSeen, pruned on write),
+//     and the owner's own renders never count.
+//   saves    — the Feed has NO save/bookmark action, so there is no
+//     save count and no save-rate tile anywhere in this build. Nothing
+//     was invented to fill that slot.
+// ---------------------------------------------------------------------------
+const FEED_INSIGHTS_POOL_MIN = 20; // posts with views, last 7 days
+app.post("/api/feed/view", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (!feedAdultOk(ctx.user))
+    return res.status(403).json({ ok: false, error: "The Feed is 18+ right now" });
+  const postId = String((req.body || {}).postId || "");
+  const db = readFeed();
+  const p = db.posts[postId];
+  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  if (typeof p.views !== "number") p.views = 0;
+  if (!p.viewSeen || typeof p.viewSeen !== "object") p.viewSeen = {};
+  if (p.authorId === ctx.user.id)
+    return res.json({ ok: true, views: p.views, counted: false });
+  const today = viewDayKey();
+  if (p.viewSeen[ctx.user.id] === today)
+    return res.json({ ok: true, views: p.views, counted: false });
+  p.viewSeen[ctx.user.id] = today;
+  for (const k of Object.keys(p.viewSeen))
+    if (p.viewSeen[k] !== today) delete p.viewSeen[k];
+  p.views += 1;
+  writeFeed(db);
+  res.json({ ok: true, views: p.views, counted: true });
+});
+app.post("/api/feed/share", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (!feedAdultOk(ctx.user))
+    return res.status(403).json({ ok: false, error: "The Feed is 18+ right now" });
+  const postId = String((req.body || {}).postId || "");
+  const db = readFeed();
+  const p = db.posts[postId];
+  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  if (typeof p.shares !== "number") p.shares = 0;
+  p.shares += 1;
+  writeFeed(db);
+  res.json({ ok: true, shares: p.shares });
+});
+app.post("/api/feed/comment", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+  if (!feedAdultOk(ctx.user))
+    return res.status(403).json({ ok: false, error: "The Feed is 18+ right now" });
+  const b = req.body || {};
+  const postId = String(b.postId || "");
+  const text = reelCleanCommentText(b.text);
+  if (!text) return res.status(400).json({ ok: false, error: "Write a comment first" });
+  const db = readFeed();
+  const p = db.posts[postId];
+  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  if (!Array.isArray(p.comments)) p.comments = [];
+  const comment = { uid: ctx.user.id, name: reelCleanName(ctx.user.name) || "Someone", text, ts: new Date().toISOString() };
+  p.comments.push(comment);
+  while (p.comments.length > REEL_COMMENTS_KEEP) p.comments.shift();
+  writeFeed(db);
+  if (p.authorId !== ctx.user.id)
+    notifyActivity({
+      toId: p.authorId,
+      kind: "comment",
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+      text: "✍️ " + ctx.user.name + " commented on your post: \"" + String(comment.text).slice(0, 60) + "\"",
+      emailSubject: ctx.user.name + " commented on your post on Rizz Plaza",
+      emailText: ctx.user.name + " commented on your post on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nRead it in the Feed: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "feed" },
+    });
+  res.json({ ok: true, comment: { name: comment.name, text: comment.text, ts: comment.ts }, comments: reelPublicComments({ comments: p.comments }), commentCount: p.comments.length });
+});
+app.post("/api/feed/repost", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+  if (!feedAdultOk(ctx.user))
+    return res.status(403).json({ ok: false, error: "The Feed is 18+ right now" });
+  const b = req.body || {};
+  const postId = String(b.postId || "");
+  const db = readFeed();
+  const p = db.posts[postId];
+  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  const want = b.reposted === true;
+  if (!Array.isArray(p.reposts)) p.reposts = [];
+  // [RP-V7.101] Own-post RESHARE: the author re-sharing their own post
+  // is recorded in p.reshares, SEPARATE from p.reposts, so the public
+  // count, Post Insights, For You/style signals and notifications stay
+  // clean by construction (they all read p.reposts only). The reshare
+  // still resurfaces to followers and lands in the author's Reposts
+  // surfaces via the distribution loops below.
+  if (p.authorId === ctx.user.id) {
+    if (!Array.isArray(p.reshares)) p.reshares = [];
+    const hasR = p.reshares.some((x) => x && x.u === ctx.user.id);
+    if (want && !hasR) p.reshares.push({ u: ctx.user.id, at: new Date().toISOString() });
+    if (!want && hasR) p.reshares = p.reshares.filter((x) => !(x && x.u === ctx.user.id));
+    writeFeed(db);
+    return res.json({ ok: true, id: postId, reposted: p.reshares.some((x) => x && x.u === ctx.user.id), reposts: p.reposts.length, reshare: true });
+  }
+  const has = p.reposts.some((x) => x && x.u === ctx.user.id);
+  if (want && !has) {
+    p.reposts.push({ u: ctx.user.id, at: new Date().toISOString() });
+    notifyActivity({
+      toId: p.authorId,
+      kind: "repost",
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+      text: "🔁 " + ctx.user.name + " reposted your post",
+      emailSubject: ctx.user.name + " reposted your post on Rizz Plaza",
+      emailText: ctx.user.name + " reposted your post on Rizz Plaza — it is reaching new people.\n\nSee it in the Feed: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "feed" },
+    });
+  }
+  if (!want && has) p.reposts = p.reposts.filter((x) => !(x && x.u === ctx.user.id));
+  writeFeed(db);
+  try {
+    const sig = readReelSignals();
+    const urec = fyUserRec(sig, ctx.user.id, true);
+    const gk = "feed:" + postId;
+    if (want && !urec.reposted[gk]) {
+      urec.reposted[gk] = true;
+      fyBump(urec, p.authorId, 4, Date.now());
+      fyBumpStyleKeys(urec, styleKeysForCaption(p.text), 4, Date.now());
+    }
+    writeReelSignals(sig);
+  } catch (e) { /* affinity bookkeeping must never break a repost */ }
+  res.json({ ok: true, id: postId, reposted: p.reposts.some((x) => x && x.u === ctx.user.id), reposts: p.reposts.length });
+});
+// Owner-only insights: a signed-in non-owner gets 403, a guest 401.
+app.get("/api/feed/:id/insights", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readFeed();
+  const p = db.posts[String(req.params.id)];
+  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  if (p.authorId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Insights are only for your own posts" });
+  const counts = feedCounts(p);
+  const rates = {
+    likeRate: feedRatePct(counts.likes, counts.views),
+    shareRate: feedRatePct(counts.shares, counts.views),
+    commentRate: feedRatePct(counts.comments, counts.views),
+    repostRate: feedRatePct(counts.reposts, counts.views),
+  };
+  // Percentile callout — ONLY from a real comparison pool: Feed posts
+  // from the last 7 days that have views. Below the minimum pool the
+  // callout is omitted entirely; nothing is fabricated. The callout
+  // also only appears when the post actually lands in the top half —
+  // a "top 97%" line would be noise, not insight.
+  let callout = null;
+  const since = Date.now() - 7 * 24 * 3600 * 1000;
+  const pool = Object.values(db.posts).filter((q) =>
+    q && Date.parse(q.createdAt || "") >= since && typeof q.views === "number" && q.views > 0);
+  if (pool.length >= FEED_INSIGHTS_POOL_MIN) {
+    const greater = pool.filter((q) => feedRatePct(feedCounts(q).shares, q.views) > rates.shareRate).length;
+    const topPct = Math.ceil((100 * (greater + 1)) / pool.length);
+    if (topPct <= 50)
+      callout = { metric: "shareRate", topPct, pool: pool.length, text: "This post's share rate is in the top " + topPct + "% of posts in the last week" };
+  }
+  res.json({
+    ok: true,
+    post: { id: p.id, text: p.text || "", kind: p.kind || (p.file ? "photo" : "text"), url: p.file ? "/photos/feed/" + p.file : null, createdAt: p.createdAt },
+    counts,
+    rates,
+    callout,
+  });
+});
+
 // Delete one of my own Feed posts (and its media file).
 app.delete("/api/feed/:id", (req, res) => {
   const ctx = requireAccount(req, res);
@@ -7326,6 +7898,24 @@ const dmUpload = multer({
 // Shared delivery for text AND media messages: get-or-create the
 // thread, append, cap history, accept-on-reply, persist, count the
 // send against the rate limit, and queue the offline alert.
+// [RP-V7.99] Message-privacy gate shared by the text + media send
+// routes. Returns an error string when the recipient's dmPrivacy
+// setting refuses a NEW thread from this sender, else null. People
+// the recipient follows may always start a thread under "following";
+// an already-accepted thread is exempt (established conversation).
+function dmPrivacyError(db, ctx, other) {
+  const priv = settingsOf(other).dmPrivacy;
+  if (priv === "everyone") return null;
+  const t = db.threads[dmThreadKey(ctx.user.id, other.id)];
+  if (t && t.accepted) return null;
+  if (priv === "noone")
+    return other.name + " isn't accepting new messages right now";
+  // "following": only people the RECIPIENT follows may start a thread.
+  const sdb = readSocial();
+  if (socialFollowingIds(sdb, other.id).indexOf(ctx.user.id) < 0)
+    return other.name + " only accepts messages from people they follow";
+  return null;
+}
 function dmDeliver(ctx, other, msg) {
   const db = readDms();
   const key = dmThreadKey(ctx.user.id, other.id);
@@ -7355,8 +7945,23 @@ function dmDeliver(ctx, other, msg) {
   // [RP-V7.30] The message is stored and waits in the recipient's
   // inbox either way. If they have no live socket right now, also
   // queue an offline alert (deduped per sender per hour).
-  if (!acctIsOnline(other.id))
+  // [RP-V7.99] The recipient's notification preference for messages
+  // gates the offline alert; the message itself always lands.
+  if (!acctIsOnline(other.id) && settingsOf(other).notify.messages)
     queueOfflineDmAlert(other.id, ctx.user.id, ctx.user.name);
+  // [RP-V7.100] The bell feed records the message too — one row per
+  // sender while it is unread, refreshed as more land. Email/SMS for
+  // messages stay on the offline-alert path above.
+  notifyActivity({
+    toId: other.id,
+    kind: "dm",
+    actorId: ctx.user.id,
+    actorName: ctx.user.name,
+    text: "💬 " + ctx.user.name + " sent you a message",
+    go: { screen: "dm", id: ctx.user.id, name: ctx.user.name },
+    inAppOnly: true,
+    coalesceKey: "dm:" + ctx.user.id,
+  });
   return msg;
 }
 app.get("/api/dm/threads", (req, res) => {
@@ -7474,6 +8079,12 @@ app.post("/api/dm/send", (req, res) => {
       ok: false,
       error: "Messages are blocked between you and this person",
     });
+  // [RP-V7.99] The recipient's message privacy gates NEW threads;
+  // an accepted thread is an established conversation and replies
+  // always flow (the same accept-on-reply rule as requests).
+  const dmPrivErr = dmPrivacyError(db, ctx, other);
+  if (dmPrivErr)
+    return res.status(403).json({ ok: false, error: dmPrivErr });
   const msg = {
     id: crypto.randomBytes(8).toString("hex"),
     from: ctx.user.id,
@@ -7531,6 +8142,9 @@ app.post("/api/dm/media",
       const db = readDms();
       if (dmEitherBlocked(db, ctx.user.id, other.id))
         return fail(403, "Messages are blocked between you and this person");
+      // [RP-V7.99] Same message-privacy gate as text sends.
+      const dmPrivErrM = dmPrivacyError(db, ctx, other);
+      if (dmPrivErrM) return fail(403, dmPrivErrM);
       const isVideo = (req.file.mimetype || "").startsWith("video/");
       if (!isVideo && req.file.size > DM_PHOTO_MAX)
         return fail(413, "That photo is too big — 10 MB max");
@@ -7630,6 +8244,20 @@ app.post("/api/dm/unblock", (req, res) => {
   }
   res.json({ ok: true, blocked: false });
 });
+// [RP-V7.99] My blocked list (Settings shows it with Unblock), plus
+// the mutual hidden-id set the client uses to keep blocked members'
+// lives out of my Live Now / directory lists.
+app.get("/api/dm/blocked", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readDms();
+  const blocked = dmBlockedSet(db, ctx.user.id).map((id) => {
+    const u = ctx.db.users.find((x) => x.id === id);
+    if (u && !u.deletionAt) return { id, name: u.name };
+    return { id, name: "Deleted user", deleted: true };
+  });
+  res.json({ ok: true, blocked, hiddenIds: Array.from(blockHiddenIds(ctx.user.id)) });
+});
 
 // ---------------------------------------------------------------------------
 // RP-V7.30: offline DMs — member directory, account presence, and the
@@ -7722,6 +8350,155 @@ app.get("/api/members", (req, res) => {
   res.json({ ok: true, members });
 });
 
+
+// ---------------------------------------------------------------------------
+// [RP-V7.100] ACTIVITY NOTIFICATIONS (Branden, Oct 28: "Add notifications
+// when a person get a message and a follow or anything that's comes in
+// their profile" + "Notifications to their number and email" + "In
+// settings add the notifications there and if a person want it off or
+// on"). Every event that lands on a member — dm, follow, gift, like,
+// comment, repost, potwin — is delivered on up to three channels, each
+// gated by the member's own account-backed switches (per-event AND
+// per-channel; an OFF switch means nothing is sent for that
+// event/channel combination):
+//   1. IN-APP: the bell feed (the reminders list) records EVERY event —
+//      no cooldown, no digesting.
+//   2. EMAIL: via the V7.55 Resend transport, queued in the outbox.
+//   3. SMS: via the V7.55 Twilio transport — by default only messages
+//      and Daily Pot wins ever text (NOTIFY_SMS_KINDS), and a text
+//      NEVER goes to an under-18 account.
+// Anti-spam: the outbox coalesces a burst of one event type into a
+// single queued alert, and the drain sends at most one email + one SMS
+// per event type per member per 15 minutes (sentLog-checked). Pot wins
+// bypass the cooldown and always send; DMs keep their own
+// per-sender-per-hour rule (queueOfflineDmAlert). A member is never
+// notified about their own action, and a blocked pair never notifies
+// in either direction. notifyActivity NEVER throws — a notification
+// must not break the action that caused it.
+// ---------------------------------------------------------------------------
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot" };
+const NOTIFY_SMS_KINDS = { dm: true, potwin: true };
+const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
+const NOTIFY_REMINDERS_CAP = 120;
+function notifyPairBlocked(aId, bId) {
+  if (!aId || !bId || aId === bId) return false;
+  try {
+    return dmEitherBlocked(readDms(), aId, bId);
+  } catch (e) {
+    return false;
+  }
+}
+function notifyCooledDown(sentLog, toId, kind, channel) {
+  if (kind === "potwin" || kind === "dm") return false;
+  const since = Date.now() - NOTIFY_COOLDOWN_MS;
+  return (sentLog || []).some(
+    (s) =>
+      s &&
+      s.kind === kind &&
+      s.channel === channel &&
+      s.toAccountId === toId &&
+      Date.parse(s.at || "") > since
+  );
+}
+function queueActivityAlert(e) {
+  const db = readNotifyOutbox();
+  const now = Date.now();
+  // A burst of the same event type coalesces into the one pending
+  // alert (its count rides along for the digest line). Pot wins never
+  // coalesce — every win is its own alert.
+  if (e.kind !== "potwin") {
+    const pending = db.alerts.find(
+      (a) => a && a.kind === e.kind && a.toAccountId === e.toAccountId && a.kind !== "dm"
+    );
+    if (pending) {
+      pending.count = (pending.count || 1) + 1;
+      pending.at = new Date(now).toISOString();
+      writeNotifyOutbox(db);
+      return true;
+    }
+  }
+  db.alerts.push({
+    toAccountId: e.toAccountId,
+    kind: e.kind,
+    fromAccountId: e.fromAccountId || null,
+    fromName: String(e.fromName || "").slice(0, 40),
+    count: 1,
+    text: e.text || "",
+    emailSubject: e.emailSubject || "",
+    emailText: e.emailText || "",
+    smsText: e.smsText || "",
+    wantEmail: !!e.wantEmail,
+    wantSms: !!e.wantSms,
+    at: new Date(now).toISOString(),
+  });
+  writeNotifyOutbox(db);
+  return true;
+}
+function notifyActivity(o) {
+  try {
+    if (!o || !o.toId || !NOTIFY_SETTING_KEY[o.kind]) return;
+    if (o.actorId && o.actorId === o.toId) return; // never about your own action
+    if (o.actorId && notifyPairBlocked(o.toId, o.actorId)) return; // blocked pair: silence
+    const adb = readAccounts();
+    const u = adb.users.find((x) => x.id === o.toId);
+    if (!u || u.deletionAt) return;
+    const st = settingsOf(u);
+    if (st.notify[NOTIFY_SETTING_KEY[o.kind]] === false) return; // per-event switch off
+    // 1) IN-APP — the bell feed records everything.
+    if (st.notify.channels.inapp) {
+      if (!Array.isArray(u.reminders)) u.reminders = [];
+      const nowIso = new Date().toISOString();
+      let existing = null;
+      if (o.coalesceKey)
+        existing = u.reminders.find((r) => r && !r.read && r.ck === o.coalesceKey);
+      if (existing) {
+        existing.at = nowIso;
+        existing.n = (existing.n || 1) + 1;
+        existing.text = o.text + " · " + existing.n + " new";
+      } else {
+        const rem = {
+          id: crypto.randomBytes(8).toString("hex"),
+          kind: o.kind,
+          text: o.text,
+          at: nowIso,
+          read: false,
+          n: 1,
+        };
+        if (o.coalesceKey) rem.ck = o.coalesceKey;
+        if (o.go) rem.go = o.go;
+        u.reminders.push(rem);
+      }
+      while (u.reminders.length > NOTIFY_REMINDERS_CAP) u.reminders.shift();
+      writeAccounts(adb);
+    }
+    if (o.inAppOnly) return;
+    // 2) + 3) EMAIL / SMS — queued for the outbox drain, with the
+    // member's channel wishes snapshotted (the drain re-checks the
+    // live settings too, so turning a switch off also silences
+    // anything still queued).
+    const wantEmail = st.notify.channels.email && !!u.email;
+    const wantSms =
+      st.notify.channels.sms &&
+      !!u.phone &&
+      !!NOTIFY_SMS_KINDS[o.kind] &&
+      ageFromDob(u.dob) >= 18;
+    if (wantEmail || wantSms)
+      queueActivityAlert({
+        toAccountId: o.toId,
+        kind: o.kind,
+        fromAccountId: o.actorId || null,
+        fromName: o.actorName || "",
+        text: o.text,
+        emailSubject: o.emailSubject,
+        emailText: o.emailText,
+        smsText: o.smsText,
+        wantEmail,
+        wantSms,
+      });
+  } catch (e) {
+    /* a notification must never break the action that caused it */
+  }
+}
 const NOTIFY_FILE =
   process.env.NOTIFY_FILE ||
   path.join(path.dirname(PHOTO_DIR), "notify-outbox.json");
@@ -7800,6 +8577,20 @@ function queueOfflineDmAlert(toAccountId, fromAccountId, fromName) {
 // NOTIFY_DRAIN_MS overrides the cadence for tests; production 60 s.
 // ---------------------------------------------------------------------------
 let notifyDrainRunning = false;
+// [RP-V7.100] The drain now carries every notification kind, not just
+// DMs. Per recipient it segments entries by kind: DM entries keep the
+// V7.55 digest copy and their per-sender-per-hour rule; activity
+// entries (queued coalesced by queueActivityAlert) send their stored
+// copy. Every send is re-checked against the member's LIVE settings at
+// drain time — per-event switch, per-channel switch, teen SMS ban —
+// so an OFF switch silences even already-queued alerts. Activity kinds
+// are cooldown-checked per channel against sentLog (1 email + 1 SMS
+// per event type per 15 minutes; pot wins exempt). An entry leaves the
+// queue when it was delivered on at least one attempted channel, when
+// nothing it wants can be attempted (switch off / no provider for its
+// channels), or when its recipient is gone; a provider FAILURE on an
+// attempted channel keeps it queued for the next drain, and a
+// cooldown hold keeps it queued until the window lapses.
 async function sendOfflineAlerts() {
   if (notifyDrainRunning) return 0;
   const emailReady = notifyEmailReady();
@@ -7818,6 +8609,7 @@ async function sendOfflineAlerts() {
     }
     const adb = readAccounts();
     const deliveredKeys = new Set();
+    const sentLogNew = [];
     let sentCount = 0;
     for (const [toId, entries] of byRecipient) {
       const u = adb.users.find((x) => x.id === toId);
@@ -7825,45 +8617,123 @@ async function sendOfflineAlerts() {
         for (const e of entries) deliveredKeys.add(keyOf(e)); // undeliverable — drop
         continue;
       }
-      const names = [...new Set(entries.map((e) => e.fromName || "Someone"))];
-      const who =
-        names.length === 1
-          ? names[0]
-          : names.length === 2
-            ? names[0] + " and " + names[1]
-            : names[0] + " and " + (names.length - 1) + " others";
-      let reached = false;
-      if (emailReady && u.email) {
-        const ok = await notifySendEmail(
-          u.email,
-          "You have new Rizz Plaza messages 💬",
-          "Hi " + (u.name || "there") + " — you have new Rizz Plaza messages from " + who + ".\n\nOpen the Plaza to read and reply: https://rizzplaza.com\n\n— The Rizz Plaza team"
-        );
-        if (ok) reached = true;
+      const st = settingsOf(u);
+      const teen = ageFromDob(u.dob) < 18;
+      const byKind = new Map();
+      for (const e of entries) {
+        const k = e.kind || "dm";
+        if (!byKind.has(k)) byKind.set(k, []);
+        byKind.get(k).push(e);
       }
-      if (smsReady && u.phone) {
-        const ok = await notifySendSms(
-          u.phone,
-          "Rizz Plaza 💬 You have new messages from " + who + " — open https://rizzplaza.com to reply."
-        );
-        if (ok) reached = true;
-      }
-      if (reached) {
-        for (const e of entries) deliveredKeys.add(keyOf(e));
-        sentCount++;
+      for (const [kind, kEntries] of byKind) {
+        const setKey = NOTIFY_SETTING_KEY[kind];
+        if (setKey && st.notify[setKey] === false) {
+          for (const e of kEntries) deliveredKeys.add(keyOf(e)); // switch off — drop silently
+          continue;
+        }
+        if (kind === "dm") {
+          const names = [...new Set(kEntries.map((e) => e.fromName || "Someone"))];
+          const who =
+            names.length === 1
+              ? names[0]
+              : names.length === 2
+                ? names[0] + " and " + names[1]
+                : names[0] + " and " + (names.length - 1) + " others";
+          let attempted = 0;
+          let reached = false;
+          if (emailReady && u.email && st.notify.channels.email) {
+            attempted++;
+            const ok = await notifySendEmail(
+              u.email,
+              "You have new Rizz Plaza messages 💬",
+              "Hi " + (u.name || "there") + " — you have new Rizz Plaza messages from " + who + ".\n\nOpen the Plaza to read and reply: https://rizzplaza.com\n\n— The Rizz Plaza team"
+            );
+            if (ok) reached = true;
+          }
+          if (smsReady && u.phone && st.notify.channels.sms && !teen) {
+            attempted++;
+            const ok = await notifySendSms(
+              u.phone,
+              "Rizz Plaza 💬 You have new messages from " + who + " — open https://rizzplaza.com to reply."
+            );
+            if (ok) reached = true;
+          }
+          if (!attempted || reached) {
+            for (const e of kEntries) deliveredKeys.add(keyOf(e));
+            if (reached) sentCount++;
+          }
+          continue;
+        }
+        // Activity kinds: one coalesced entry per kind in practice
+        // (pot wins may carry several — each is its own alert).
+        for (const e of kEntries) {
+          const wantEmail = st.notify.channels.email && !!u.email;
+          const wantSms =
+            st.notify.channels.sms && !!u.phone && !!NOTIFY_SMS_KINDS[kind] && !teen;
+          if (!wantEmail && !wantSms) {
+            deliveredKeys.add(keyOf(e)); // every channel off for this kind — drop
+            continue;
+          }
+          let attempted = 0;
+          let reached = false;
+          let cooling = false;
+          if (wantEmail && emailReady) {
+            if (notifyCooledDown(db.sentLog, toId, kind, "email")) {
+              cooling = true;
+            } else {
+              attempted++;
+              let text = e.emailText || e.text || "";
+              if ((e.count || 1) > 1)
+                text += "\n\n(+" + (e.count - 1) + " more like this — open the Plaza to see them all.)";
+              const ok = await notifySendEmail(u.email, e.emailSubject || "Rizz Plaza", text);
+              if (ok) {
+                reached = true;
+                sentLogNew.push({ toAccountId: toId, kind, channel: "email", at: new Date().toISOString() });
+              }
+            }
+          }
+          if (wantSms && smsReady) {
+            if (notifyCooledDown(db.sentLog, toId, kind, "sms")) {
+              cooling = true;
+            } else {
+              attempted++;
+              const ok = await notifySendSms(
+                u.phone,
+                e.smsText || "Rizz Plaza — " + (e.text || "you have new activity") + " https://rizzplaza.com"
+              );
+              if (ok) {
+                reached = true;
+                sentLogNew.push({ toAccountId: toId, kind, channel: "sms", at: new Date().toISOString() });
+              }
+            }
+          }
+          if (reached) {
+            deliveredKeys.add(keyOf(e));
+            sentCount++;
+          } else if (!attempted && !cooling) {
+            // Nothing it wants can be attempted (e.g. it only wants a
+            // text and no SMS provider is configured yet): drop rather
+            // than queue forever — the bell feed already recorded it.
+            deliveredKeys.add(keyOf(e));
+          }
+          // attempted-but-failed or cooling: stays queued for a later drain.
+        }
       }
     }
-    if (deliveredKeys.size) {
+    if (deliveredKeys.size || sentLogNew.length) {
       const fresh = readNotifyOutbox();
       const deliveredEntries = fresh.alerts.filter((a) => deliveredKeys.has(keyOf(a)));
       fresh.alerts = fresh.alerts.filter((a) => !deliveredKeys.has(keyOf(a)));
       // [RP-V7.55] Delivered DM alerts leave a 1-hour tombstone so the
       // per-sender cooldown survives delivery (see queueOfflineDmAlert).
+      // [RP-V7.100] Channel sends also land in sentLog — they are what
+      // the 15-minute per-type cooldown reads.
       const cutoff = Date.now() - 2 * 3600 * 1000;
       fresh.sentLog = (fresh.sentLog || [])
         .concat(deliveredEntries.filter((a) => a.kind === "dm"))
+        .concat(sentLogNew)
         .filter((a) => Date.parse(a.at || "") > cutoff)
-        .slice(-500);
+        .slice(-1000);
       writeNotifyOutbox(fresh);
     }
     if (sentCount)
@@ -9147,6 +10017,19 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     "| host", hostShare, "c", held ? "(held)" : "", "| cut", platformCut, "c",
     charmsOnly ? "| CHARMS-ONLY (teen involved)" : ""
   );
+  // [RP-V7.100] The recipient hears about the gift — bell + email.
+  // (Idempotent retries return earlier and never reach this line, so a
+  // gift notifies exactly once.)
+  notifyActivity({
+    toId: recipient.id,
+    kind: "gift",
+    actorId: ctx.user.id,
+    actorName: ctx.user.name,
+    text: "🎁 " + ctx.user.name + " sent you a gift (" + cost + " charms)!",
+    emailSubject: "You got a gift on Rizz Plaza 🎁",
+    emailText: ctx.user.name + " sent you a gift (" + cost + " charms) on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    go: { screen: "ownprofile" },
+  });
   res.json(giftResponse);
 }));
 // RP-V7.22: Daily host rankings. A lightweight tally of charms gifted
