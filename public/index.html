@@ -8146,14 +8146,14 @@
         var viewsHtml = (meta && meta.id && window.fmtViews)
           ? '<span class="rpmedia-player-count" data-rpvcount>👁 ' + window.fmtViews(meta.views || 0) + "</span>" : "";
         openSheet(
-          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+          '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="pprof-player"><div class="rpmedia-player"><video src="' + escHtml(url) + '" controls autoplay playsinline></video>' + viewsHtml + '</div>' +
-          '<div><button type="button" class="btn-mini" data-act="backprof">← Back to ' + escHtml(p.name) + '\u2019s profile</button></div></div>'
+          '<div><button type="button" class="btn-mini" data-act="backprof">← Back to ' + escHtml(p.name) + '\u2019s profile</button></div></div></div>'
         );
         $("sheet").querySelectorAll("[data-act]").forEach(function (b) {
           b.addEventListener("click", function () {
             var act = b.getAttribute("data-act");
-            if (act === "close") closeSheet();
+            if (act === "close") { try { closeSheet(); } catch (e) { } var ov = $("overlay"); if (ov) ov.classList.remove("open"); } // [RP-V7.114] force-close fallback
             else if (act === "backprof") openProfilePage(p);
           });
         });
@@ -26886,6 +26886,15 @@ button.rp72-chip{ cursor:pointer; }
 .rpmedia-player { position: relative; }
 .rpmedia-player video { width: 100%; max-height: 62vh; border-radius: 12px; background: #000; display: block; }
 .rpmedia-player-count { position: absolute; left: 10px; bottom: 10px; color: #fff; font-size: 14px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.65); }
+/* [RP-V7.114] Media-player close fix: the floated .close-x could sit
+   under the positioned player box and never receive the tap. The
+   players now carry their own positioned close button above the
+   video, and the player clears the float line. */
+.rpmedia-wrap { position: relative; }
+.rpmedia-x { position: absolute; top: -2px; right: 0; z-index: 10; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(28,28,38,.94); color: #fff; font-size: 16px; font-weight: 800; cursor: pointer; pointer-events: auto; box-shadow: 0 2px 10px rgba(0,0,0,.45); }
+.rpmedia-player { clear: both; }
+.pprof-x { position: absolute; top: -2px; right: 0; z-index: 10; float: none; }
+
 .reel-views { display: inline-block; margin-top: 6px; color: #fff; font-size: 13px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
 </style>
 <script>
@@ -26963,14 +26972,23 @@ button.rp72-chip{ cursor:pointer; }
   window.rpViewsTileHTML = tileHTML;
   function wireSheetClose() {
     var x = document.querySelector("#sheet [data-act=close]");
-    if (x) x.addEventListener("click", function () { try { window.closeSheet(); } catch (e) { } });
+    if (!x || x.__rpwired) return;
+    x.__rpwired = true;
+    x.addEventListener("click", function (e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      var sh = document.getElementById("sheet");
+      if (sh) sh.querySelectorAll("video").forEach(function (v) { try { v.pause(); } catch (err) { } });
+      try { window.closeSheet(); } catch (err) { }
+      var ov = document.getElementById("overlay");
+      if (ov && ov.classList.contains("open")) ov.classList.remove("open"); // [RP-V7.114] force-close fallback
+    });
   }
   function openPhoto(it, upd) {
     if (typeof window.openSheet !== "function") return;
     window.openSheet(
-      '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+      '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close">✕</button>' +
       '<div class="rpmedia-photo-view"><img src="' + esc(it.src || "") + '" alt=""/>' +
-      '<span class="rpmedia-photo-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span></div>"
+      '<span class="rpmedia-photo-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span></div></div>"
     );
     wireSheetClose();
     var span = document.querySelector("[data-rpvcount]");
@@ -26983,9 +27001,9 @@ button.rp72-chip{ cursor:pointer; }
   function openReel(it, upd) {
     if (typeof window.openSheet !== "function") return;
     window.openSheet(
-      '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+      '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close">✕</button>' +
       '<div class="rpmedia-player"><video src="' + esc(it.src || "") + '" controls autoplay playsinline></video>' +
-      '<span class="rpmedia-player-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span></div>"
+      '<span class="rpmedia-player-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span></div></div>"
     );
     wireSheetClose();
     var span = document.querySelector("[data-rpvcount]");
