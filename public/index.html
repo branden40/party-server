@@ -805,6 +805,25 @@
       .mom-mode { flex: 1; border: 1.5px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 999px; padding: 9px 0; font-size: 14.5px; font-weight: 900; cursor: pointer; font-family: inherit; }
       .mom-mode.on { background: var(--rose); border-color: transparent; color: #fff; }
       .reel-card { position: relative; flex: none; scroll-snap-align: start; border-radius: 20px; overflow: hidden; background: #000; border: 1px solid var(--line); box-shadow: var(--shadow); aspect-ratio: 4/5; width: 100%; }
+      /* [RP-V7.123] Photo-set slideshow (full-screen pagers) + in-card flips */
+      .rp-show { position: absolute; inset: 0; }
+      .rp-show-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+      .rp-show-segs { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 4px; z-index: 6; pointer-events: none; }
+      .rp-show-seg { flex: 1; height: 3px; border-radius: 99px; background: rgba(255,255,255,.32); overflow: hidden; }
+      .rp-show-seg > i { display: block; height: 100%; width: 0%; background: #fff; border-radius: 99px; }
+      .rp-show-zone { position: absolute; top: 0; bottom: 0; width: 38%; z-index: 5; background: transparent; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+      .rp-show-zone.prev { left: 0; } .rp-show-zone.next { right: 0; }
+      .rp-show-count { position: absolute; top: 22px; right: 12px; z-index: 6; background: rgba(0,0,0,.55); color: #fff; font-size: 11.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; pointer-events: none; }
+      .feed-flip, .mom-flip { position: relative; }
+      .feed-flip .ff-zone, .mom-flip .ff-zone { position: absolute; top: 0; bottom: 0; width: 34%; background: transparent; border: 0; padding: 0; cursor: pointer; z-index: 3; -webkit-tap-highlight-color: transparent; }
+      .feed-flip .ff-zone.prev, .mom-flip .ff-zone.prev { left: 0; } .feed-flip .ff-zone.next, .mom-flip .ff-zone.next { right: 0; }
+      .ff-count { position: absolute; top: 8px; right: 8px; z-index: 4; background: rgba(0,0,0,.55); color: #fff; font-size: 11.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; pointer-events: none; }
+      .mom-pickstrip { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      .mom-pick { position: relative; width: 54px; height: 54px; border-radius: 10px; overflow: hidden; flex: none; }
+      .mom-pick img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .mom-pick .mom-pick-n { position: absolute; left: 3px; bottom: 3px; background: rgba(0,0,0,.6); color: #fff; font-size: 10px; font-weight: 800; border-radius: 6px; padding: 0 4px; }
+      .mom-pick .mom-pick-x { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: 0; background: rgba(0,0,0,.65); color: #fff; font-size: 11px; line-height: 1; cursor: pointer; padding: 0; }
+      .rpmedia-multi { position: absolute; top: 6px; right: 6px; z-index: 3; background: rgba(0,0,0,.55); color: #fff; font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px; pointer-events: none; }
       .reel-card video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
       .reel-shade { position: absolute; left: 0; right: 0; bottom: 0; height: 48%; background: linear-gradient(transparent, rgba(0,0,0,.74)); pointer-events: none; }
       .reel-meta { position: absolute; left: 12px; bottom: 12px; right: 78px; color: #fff; pointer-events: none; text-align: left; }
@@ -3222,7 +3241,7 @@
             <button class="btn-mini plaza-glow" id="btnMomentsBack" type="button">← Plaza</button>
             <h2>🎬 Reels</h2>
             <button class="btn-primary" style="width:auto; padding:10px 18px;" id="btnMomPost" type="button">＋ Post a photo</button>
-            <input type="file" id="momPhotoInput" accept="image/*" hidden />
+            <input type="file" id="momPhotoInput" accept="image/*" multiple hidden /> <!-- [RP-V7.123] multi-pick -->
             <button class="btn-primary" style="width:auto; padding:10px 18px; display:none;" id="btnReelPost" type="button">＋ Reel</button>
             <input type="file" id="reelVideoInput" accept="video/*" hidden />
           </div>
@@ -6872,8 +6891,24 @@
           k = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
           try { localStorage.setItem("rpDeviceKey.v1", k); } catch (e) { }
         }
-        Online.deviceKey = k;
-        return k;
+        /* [RP-V7.124] Per-TAB suffix: the device key lives in localStorage,
+           which every tab in the browser SHARES — so two Plaza tabs held
+           the same key and the server's ghost-eviction kept disconnecting
+           the older one, and the two tabs warred in a "Connection hiccup —
+           reconnecting" loop (Branden, Oct 29). A random per-tab id kept in
+           sessionStorage (one per tab, survives in-tab reloads) makes each
+           tab a distinct session to the eviction, while this tab's own
+           reconnects keep one stable key so its ghost is still evicted.
+           Branden: "We can't have these hiccups with people trying to
+           join me I will loose a lot of customers." */
+        var tab = "";
+        try { tab = sessionStorage.getItem("rpTabKey.v1") || ""; } catch (e) { }
+        if (!tab) {
+          tab = "t" + Math.random().toString(36).slice(2, 9);
+          try { sessionStorage.setItem("rpTabKey.v1", tab); } catch (e) { }
+        }
+        Online.deviceKey = (k + "-" + tab).slice(0, 40);
+        return Online.deviceKey;
       }
       function escHtml(s) {
         return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -18412,7 +18447,7 @@
       function rxPicker() { return window["rpEmoji" + "Picker"] || null; }
 
       /* ---------- Moments: the photo feed ---------- */
-      var Moments = { posts: [], seeded: false, pendingPhoto: null, openCommentsFor: null, repliedTo: {}, srvLoaded: false, migrating: false };
+      var Moments = { posts: [], seeded: false, pendingPhoto: null, pendingPhotos: [], openCommentsFor: null, repliedTo: {}, srvLoaded: false, migrating: false }; // [RP-V7.123] pendingPhotos = ordered picks; pendingPhoto mirrors [0]
       /* [RP-V7.94] The seeded demo Moments (fake posts by fake
          members — the "Maya" reel and friends) are ERASED. The
          feed shows real members' real posts only; an empty feed
@@ -18439,7 +18474,7 @@
       function momSrvPost(sp) {
         return {
           id: sp.id, srv: true, mine: !!sp.mine, name: sp.author || "Someone",
-          photo: sp.photo || "", caption: sp.caption || "", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
+          photo: sp.photo || "", urls: (sp.urls && sp.urls.length ? sp.urls.slice() : (sp.photo ? [sp.photo] : [])), /* [RP-V7.123] */ caption: sp.caption || "", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
           likeBase: 0, srvLikes: sp.likes || 0, liked: !!sp.myLiked, srvReposts: sp.reposts || 0, reposted: !!sp.myReposted, /* [RP-V7.89] */ gifts: 0,
           comments: Array.isArray(sp.comments) ? sp.comments : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
@@ -18498,6 +18533,21 @@
         }).catch(function () { Moments.migrating = false; });
       }
       function momMigrateOne(p, t) {
+        /* [RP-V7.123] a device-local SET migrates as ONE multi-photo post */
+        if (t && p && !p.srv && (p.urls || []).length > 1) {
+          momBuildSetFd123(p.caption || "", p.id, p.urls.slice(), null).then(function (fd) {
+            if (!fd) return null;
+            return fetch("/api/photo/post", { method: "POST", headers: { Authorization: "Bearer " + t }, body: fd })
+              .then(function (r) { return r.json().catch(function () { return null; }); });
+          }).then(function (j) {
+            if (j && j.ok && j.post) {
+              var idx = Moments.posts.indexOf(p);
+              if (idx >= 0) Moments.posts.splice(idx, 1, momSrvPost(j.post));
+              renderMoments();
+            }
+          }).catch(function () {});
+          return;
+        }
         var photo = p.photo || "";
         var cap = p.caption || "";
         function afterCreate(j) {
@@ -18557,64 +18607,91 @@
          on a later open. Signed out: device-local, exactly as
          before. */
       function momPublishLocal(cap) {
+        var picks123 = (Moments.pendingPhotos && Moments.pendingPhotos.length) ? Moments.pendingPhotos.slice() : (Moments.pendingPhoto ? [Moments.pendingPhoto] : []); // [RP-V7.123]
         Moments.posts.unshift({
           id: "mine" + Date.now(), mine: true, name: Online.name || me.name || "You",
-          photo: Moments.pendingPhoto, caption: cap || "Fresh from the Plaza 📸", when: "now",
+          photo: picks123[0] || Moments.pendingPhoto, urls: picks123, caption: cap || "Fresh from the Plaza 📸", when: "now",
           likeBase: 0, srvLikes: 0, likes: 0, liked: false, gifts: 0, comments: [],
           musicTrackId: (Moments.pendingSound ? Moments.pendingSound.trackId : null), musicStart: (Moments.pendingSound ? (Moments.pendingSound.start || 0) : null), musicVol: (Moments.pendingSound ? Moments.pendingSound.musicVol : null) /* [RP-V7.90] */
         });
         Moments.pendingPhoto = null;
+        Moments.pendingPhotos = []; /* [RP-V7.123] */
         Moments.pendingSound = null; /* [RP-V7.90] */
         closeSheet();
         renderMoments();
         var feed = $("momFeed"); if (feed) feed.scrollTop = 0;
         toast("📸 Your photo is live! Likes, comments and gifts will roll in here.", 3600);
       }
+      /* [RP-V7.123] Build the ONE FormData for a photo SET: ordered
+         picks in pick order — data: picks ride as files, hosted picks
+         ride as gallery URLs — plus the seq manifest the server uses
+         to interleave them, and the V7.90 music fields when a sound
+         is attached. A single pick produces the legacy shapes (one
+         file on "photos" / one photoUrl). Resolves null when a pick's
+         bytes can't be read. */
+      function momBuildSetFd123(cap, clientKey, picks, snd) {
+        var jobs = picks.map(function (src, i) {
+          if (/^data:image\//.test(src)) {
+            return fetch(src).then(function (r) { return r.blob(); }).then(function (blob) { return { kind: "f", blob: blob, name: "moment" + (i + 1) + ".jpg" }; });
+          }
+          return Promise.resolve({ kind: "u", url: src });
+        });
+        return Promise.all(jobs).then(function (parts) {
+          var fd = new FormData();
+          var urls = [], seq = [];
+          parts.forEach(function (pt) {
+            if (pt.kind === "f") { fd.append("photos", pt.blob, pt.name); seq.push("f"); }
+            else { urls.push(pt.url); seq.push("u"); }
+          });
+          if (urls.length) fd.append("photoUrls", JSON.stringify(urls));
+          fd.append("seq", seq.join(","));
+          fd.append("caption", cap || "");
+          fd.append("clientKey", clientKey);
+          if (snd) { fd.append("musicTrackId", snd.trackId); fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
+          return fd;
+        }).catch(function () { return null; });
+      }
       function momPublish(cap) {
         var t = momToken();
-        var photo = Moments.pendingPhoto;
+        var picks123 = (Moments.pendingPhotos && Moments.pendingPhotos.length) ? Moments.pendingPhotos.slice() : (Moments.pendingPhoto ? [Moments.pendingPhoto] : []); // [RP-V7.123]
         var snd = Moments.pendingSound || null; /* [RP-V7.90] */
-        if (!t || !photo) { momPublishLocal(cap); return; }
+        if (!t || !picks123.length) { momPublishLocal(cap); return; }
         var clientKey = "post" + Date.now().toString(36);
         function onOk(j) {
           if (j && j.ok && j.post) {
             Moments.posts.unshift(momSrvPost(j.post));
             Moments.pendingPhoto = null;
+            Moments.pendingPhotos = []; /* [RP-V7.123] */
             Moments.pendingSound = null; /* [RP-V7.90] */
             closeSheet();
             renderMoments();
             var feed = $("momFeed"); if (feed) feed.scrollTop = 0;
-            toast("📸 Your photo is live! Likes, comments and gifts will roll in here.", 3600);
+            toast(picks123.length > 1 ? "📸 Your " + picks123.length + "-photo set is live!" : "📸 Your photo is live! Likes, comments and gifts will roll in here.", 3600);
             return true;
           }
           return false;
         }
-        if (/^data:image\//.test(photo)) {
-          fetch(photo).then(function (r) { return r.blob(); }).then(function (blob) {
-            var fd = new FormData();
-            fd.append("photo", blob, "moment.jpg");
-            fd.append("caption", cap || "");
-            fd.append("clientKey", clientKey);
-            if (snd) { fd.append("musicTrackId", snd.trackId); fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
-            return fetch("/api/photo/post", { method: "POST", headers: { "Authorization": "Bearer " + t }, body: fd })
-              .then(function (r) { return r.json().catch(function () { return null; }); });
-          }).then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
-            .catch(function () { momPublishLocal(cap); });
-          return;
-        }
-        if (/^https?:\/\//.test(photo)) {
+        /* [RP-V7.123] EVERY signed-in publish rides the set builder:
+           hosted picks keep the exact legacy JSON shape for a lone
+           URL; anything else (one or many picks, files and/or URLs)
+           posts as ONE multipart set. */
+        if (picks123.length === 1 && /^https?:\/\//.test(picks123[0])) {
           fetch("/api/photo/post", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
-            body: JSON.stringify(snd ? { photoUrl: photo, caption: cap || "", clientKey: clientKey, musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : { photoUrl: photo, caption: cap || "", clientKey: clientKey }) /* [RP-V7.90] */
+            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : {}))
           }).then(function (r) { return r.json().catch(function () { return null; }); })
             .then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
             .catch(function () { momPublishLocal(cap); });
           return;
         }
-        momPublishLocal(cap);
+        momBuildSetFd123(cap, clientKey, picks123, snd).then(function (fd) {
+          if (!fd) { momPublishLocal(cap); return null; }
+          return fetch("/api/photo/post", { method: "POST", headers: { "Authorization": "Bearer " + t }, body: fd })
+            .then(function (r) { return r.json().catch(function () { return null; }); });
+        }).then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
+          .catch(function () { momPublishLocal(cap); });
       }
-
       function renderMoments() {
         var feed = $("momFeed"); if (!feed) return;
         if (!Moments.posts.length) {
@@ -18628,8 +18705,12 @@
           var av = p.mine
             ? (Online.myPhotoUrl ? '<img class="hud-photo" src="' + escHtml(Online.myPhotoUrl) + '" alt=""/>' : myFace())
             : personFace(p.srv ? { name: p.name } : p);
+          var pUrls123 = (p.urls && p.urls.length) ? p.urls : (p.photo ? [p.photo] : []); /* [RP-V7.123] */
+          var pIdx123 = Math.min(typeof p._fi === "number" ? p._fi : 0, Math.max(0, pUrls123.length - 1));
           var photo = p.photo
-            ? '<img src="' + p.photo + '" alt="Photo posted by ' + escHtml(p.name) + '"/>'
+            ? (pUrls123.length > 1
+              ? '<span class="mom-flip" style="display:block;"><img src="' + pUrls123[pIdx123] + '" alt="Photo posted by ' + escHtml(p.name) + '"/><button type="button" class="ff-zone prev" data-momflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-momflip="1" aria-label="Next photo"></button><span class="ff-count">🖼️ ' + (pIdx123 + 1) + '/' + pUrls123.length + '</span></span>'
+              : '<img src="' + p.photo + '" alt="Photo posted by ' + escHtml(p.name) + '"/>')
             : '<span class="mom-nomedia" aria-hidden="true"></span>'; /* [RP-V7.29] RE1 flat tile, no drawn backdrop */
           card.innerHTML =
             '<div class="mom-top"><span class="who-av">' + av + '</span><div><b>' + escHtml(p.name) + '</b><span>' + escHtml(p.when || "now") + ' · Reels</span></div>' +
@@ -18644,6 +18725,15 @@
               (p.mine ? "" : '<button class="mom-act gift" type="button">🎁 Gift</button>') +
             '</div>'; /* [RP-V7.107] reactions removed everywhere (Branden) */
           card.querySelector(".like").addEventListener("click", function () { momToggleLike(p.id); });
+          /* [RP-V7.123] in-card set flip (manual only — no auto-advance in feeds) */
+          card.querySelectorAll("[data-momflip]").forEach(function (z) {
+            z.addEventListener("click", function () {
+              var n = (p.urls || []).length; if (n < 2) return;
+              p._fi = (((typeof p._fi === "number" ? p._fi : 0) + parseInt(z.getAttribute("data-momflip"), 10)) % n + n) % n;
+              var im = card.querySelector(".mom-flip img"); if (im) im.src = p.urls[p._fi];
+              var ct = card.querySelector(".mom-flip .ff-count"); if (ct) ct.textContent = "🖼️ " + (p._fi + 1) + "/" + n;
+            });
+          });
           card.querySelector(".cmt").addEventListener("click", function () { openMomComments(p.id); });
           var rpb2 = card.querySelector(".repost");
           if (rpb2) rpb2.addEventListener("click", function () { momToggleRepost(p.id); }); // [RP-V7.89]
@@ -18807,70 +18897,420 @@
           momAppendComment(Online.name || me.name || "You", txt);
         });
       }
+      var momCapDraft123 = ""; // [RP-V7.123] caption survives composer re-renders while picking
+      function momSyncPicks123() { Moments.pendingPhoto = (Moments.pendingPhotos && Moments.pendingPhotos[0]) || null; } // [RP-V7.123]
       function openMomComposer() {
         if (isTeen()) { openTeenGateAll("Reels"); return; }
-        var has = !!Moments.pendingPhoto;
+        var ci0 = $("momCapInput"); if (ci0) momCapDraft123 = ci0.value; // [RP-V7.123]
+        var picks = Moments.pendingPhotos || [];
+        var has = picks.length > 0;
+        var strip = "";
+        if (picks.length > 1) {
+          strip = '<div class="mom-pickstrip">' + picks.map(function (src, i) {
+            return '<span class="mom-pick"><img src="' + src + '" alt="Photo ' + (i + 1) + ' of your set"/><span class="mom-pick-n">' + (i + 1) + '</span><button type="button" class="mom-pick-x" data-rmpick="' + i + '" aria-label="Remove photo ' + (i + 1) + '">✕</button></span>';
+          }).join("") + '</div>' +
+          '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">' + picks.length + ' photos — they post as ONE scrolling set.</p>';
+        }
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📸 Post a Photo</h3>' +
           (has
-            ? '<img src="' + Moments.pendingPhoto + '" alt="Your photo, ready to post" style="width:100%; border-radius:14px; display:block; margin-bottom:10px;"/>'
-            : '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Pick a photo to share with the Plaza. Fans can like it, comment — and send you gifts right on the post.</p>') +
+            ? '<img src="' + picks[0] + '" alt="Your photo, ready to post" style="width:100%; border-radius:14px; display:block; margin-bottom:10px;"/>' + strip
+            : '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Pick a photo to share with the Plaza — or pick up to 10 and they post as one scrolling set. Fans can like it, comment — and send you gifts right on the post.</p>') +
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
-            '<button class="btn-mini" id="btnMomPick">🖼️ ' + (has ? "Choose a different photo" : "Choose a photo") + '</button>' +
+            '<button class="btn-mini" id="btnMomPick">🖼️ ' + (has ? "Add / choose photos" : "Choose photos") + '</button>' +
             (Online.myPhotoUrl ? '<button class="btn-mini" id="btnMomUseOnline">Use my online photo</button>' : "") +
           '</div>' +
           '<div class="field" style="margin-top:12px;"><label for="momCapInput">Caption</label><input class="online-input-full" id="momCapInput" type="text" maxlength="140" placeholder="Say something about this shot…" autocomplete="off" /></div>' +
-          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnMomPublish">Post Photo</button></div>' +
+          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnMomPublish">' + (picks.length > 1 ? "Post " + picks.length + " Photos" : "Post Photo") + '</button></div>' +
           '<p class="age-note" style="margin-top:8px;">Photos follow the same community guidelines as live: no nudity or sexual content, ever.</p></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
+        var ci = $("momCapInput"); if (ci && momCapDraft123) ci.value = momCapDraft123; // [RP-V7.123]
         $("btnMomPick").addEventListener("click", function () { var inp = $("momPhotoInput"); if (inp) inp.click(); });
         var uo = $("btnMomUseOnline");
-        if (uo) uo.addEventListener("click", function () { Moments.pendingPhoto = Online.myPhotoUrl; openMomComposer(); var ci = $("momCapInput"); });
+        if (uo) uo.addEventListener("click", function () { Moments.pendingPhotos = [Online.myPhotoUrl]; momSyncPicks123(); openMomComposer(); });
+        Array.prototype.forEach.call($("sheet").querySelectorAll("[data-rmpick]"), function (b) {
+          b.addEventListener("click", function () {
+            Moments.pendingPhotos.splice(parseInt(b.getAttribute("data-rmpick"), 10), 1);
+            momSyncPicks123();
+            openMomComposer();
+          });
+        });
         $("btnMomPublish").addEventListener("click", function () {
           if (!Moments.pendingPhoto) { toast("Pick a photo first — photo posts start with a photo!"); return; }
           var cap = (($("momCapInput") && $("momCapInput").value) || "").trim();
+          momCapDraft123 = ""; // [RP-V7.123]
           momPublish(cap);
         });
       }
-      function openMoments() {
-        if (isTeen()) { openTeenGateAll("Reels"); return; }
-        if (!rpAdultOk()) { rpDoorGate("Reels", openMoments); return; }
-        closeSheet();
-        renderMoments();
-        show("screen-moments");
-        // [RP-V7.85] The server feed (member posts) merges in,
-        // then any device-only posts migrate up once. [RP-V7.94]
-        // No seeded demo posts ride along anymore — real only.
-        momLoadServer(function () { renderMoments(); momMigrateLocal(); });
-      }
-      ["btnMomentsHud", "btnMomentsPlaza"].forEach(function (id) {
-        var b = $(id); if (b) b.addEventListener("click", openMoments);
-      });
-      var momBack = $("btnMomentsBack"); if (momBack) momBack.addEventListener("click", function () { show("screen-plaza"); });
-      var momPost = $("btnMomPost"); if (momPost) momPost.addEventListener("click", openMomComposer);
       var momInput = $("momPhotoInput");
       if (momInput) momInput.addEventListener("change", function () {
-        var f = momInput.files && momInput.files[0];
+        /* [RP-V7.123] multi-pick: every chosen image is downscaled with
+           the same canvas recipe as before and appended to the pick
+           list IN PICK ORDER, up to 10 photos per post. */
+        var files = Array.prototype.slice.call(momInput.files || []);
         momInput.value = "";
-        if (!f) return;
-        if (!/^image\//.test(f.type || "")) { toast("That file isn\u2019t an image — pick a JPG, PNG or WebP photo."); return; }
-        var url = URL.createObjectURL(f);
-        var img = new Image();
-        img.onload = function () {
-          URL.revokeObjectURL(url);
-          var max = 900, scale = Math.min(1, max / Math.max(img.width, img.height));
-          var cv = document.createElement("canvas");
-          cv.width = Math.max(1, Math.round(img.width * scale));
-          cv.height = Math.max(1, Math.round(img.height * scale));
-          cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-          Moments.pendingPhoto = cv.toDataURL("image/jpeg", 0.85);
-          openMomComposer();
-        };
-        img.onerror = function () { URL.revokeObjectURL(url); toast("That image couldn\u2019t be read — try a different photo."); };
-        img.src = url;
+        var imgs = files.filter(function (f) { return /^image\//.test(f.type || ""); });
+        if (!imgs.length) { if (files.length) toast("Those files aren’t images — pick JPG, PNG or WebP photos."); return; }
+        var room = Math.max(0, 10 - (Moments.pendingPhotos || []).length);
+        if (!room) { toast("A photo post holds up to 10 photos — this set is full."); return; }
+        if (imgs.length > room) toast("Up to 10 photos per post — keeping the first " + room + " of these.");
+        var queue = imgs.slice(0, room);
+        var added = 0;
+        (function next() {
+          var f = queue.shift();
+          if (!f) { if (added) openMomComposer(); return; }
+          var url = URL.createObjectURL(f);
+          var img = new Image();
+          img.onload = function () {
+            URL.revokeObjectURL(url);
+            var max = 900, scale = Math.min(1, max / Math.max(img.width, img.height));
+            var cv = document.createElement("canvas");
+            cv.width = Math.max(1, Math.round(img.width * scale));
+            cv.height = Math.max(1, Math.round(img.height * scale));
+            cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+            Moments.pendingPhotos.push(cv.toDataURL("image/jpeg", 0.85));
+            momSyncPicks123();
+            added++;
+            next();
+          };
+          img.onerror = function () { URL.revokeObjectURL(url); toast("One image couldn’t be read — skipped it."); next(); };
+          img.src = url;
+        })();
       });
+
+      /* ================= [RP-V7.123] PHOTO SETS IN THE PAGERS =================
+         Photo posts with 2+ images play as a TikTok-style slideshow in
+         the full-screen pagers (the Reels pager — Branden: "and reels
+         the same" — and the Home For You pager): segment bars fill
+         over a ~3s dwell per photo, tap zones and horizontal swipes
+         move manually, and the set LOOPS until the member swipes to
+         the next post. A 1-photo post renders exactly as before (no
+         segment bars). The advance freezes while a sheet (comments /
+         gift) is open or the tab is hidden — the same pause
+         discipline the reels engine uses for video — and stops when
+         the card leaves the pager. For You signals: photo posts carry
+         no view/complete reporting anywhere in the app (the server
+         photo shape has no views), so nothing is fired per loop; the
+         state machine tracks "reached the end of the set" internally
+         (st.completed) only. */
+
+      /* Pure slideshow state — no DOM, so the verification harness can
+         drive it directly. auto() reports true exactly once: when the
+         LAST photo's dwell completes (the set was seen end to end)
+         before wrapping to the first photo. */
+      function rpShowState123(count) {
+        var n = Math.max(0, count | 0);
+        var st = { count: n, idx: 0, completed: false,
+          active: function () { return n >= 2; },
+          next: function () { if (n) st.idx = (st.idx + 1) % n; return st.idx; },
+          prev: function () { if (n) st.idx = (st.idx - 1 + n) % n; return st.idx; },
+          auto: function () {
+            if (n < 2) return false;
+            var done = st.idx === n - 1;
+            if (done && !st.completed) { st.completed = true; st.next(); return true; }
+            st.next(); return false;
+          } };
+        return st;
+      }
+
+      var rpShows123 = []; // live slideshow controllers
+      /* Mount a slideshow inside host (host becomes the stage). opts:
+         dwell ms per photo (default 3000), gate() -> false freezes
+         the advance. Returns { start, stop, destroy, state }. */
+      function rpShowMount123(host, urls, opts) {
+        opts = opts || {};
+        var dwell = opts.dwell || 3000;
+        var gate = opts.gate || function () { return true; };
+        var st = rpShowState123(urls.length);
+        var destroyed = false, timer = null, last = 0, elapsed = 0;
+        host.classList.add("rp-show");
+        var img = document.createElement("img");
+        img.className = "rp-show-img"; img.alt = ""; img.src = urls[0];
+        host.appendChild(img);
+        var segFills = [], countEl = null;
+        if (st.active()) {
+          var segs = document.createElement("div");
+          segs.className = "rp-show-segs";
+          urls.forEach(function () {
+            var sg = document.createElement("span"); sg.className = "rp-show-seg";
+            var fill = document.createElement("i"); sg.appendChild(fill);
+            segs.appendChild(sg); segFills.push(fill);
+          });
+          host.appendChild(segs);
+          countEl = document.createElement("span");
+          countEl.className = "rp-show-count";
+          host.appendChild(countEl);
+          ["prev", "next"].forEach(function (side) {
+            var z = document.createElement("button");
+            z.type = "button"; z.className = "rp-show-zone " + side;
+            z.setAttribute("aria-label", side === "prev" ? "Previous photo" : "Next photo");
+            z.addEventListener("click", function (e) {
+              e.stopPropagation();
+              if (side === "prev") st.prev(); else st.next();
+              show(true);
+            });
+            host.appendChild(z);
+          });
+          var tx = null;
+          host.addEventListener("touchstart", function (e) { tx = e.touches && e.touches[0] ? e.touches[0].clientX : null; }, { passive: true });
+          host.addEventListener("touchend", function (e) {
+            if (tx == null) return;
+            var x2 = e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientX : tx;
+            if (x2 - tx < -40) { st.next(); show(true); }
+            else if (x2 - tx > 40) { st.prev(); show(true); }
+            tx = null;
+          }, { passive: true });
+        }
+        function paint() {
+          if (countEl) countEl.textContent = "🖼️ " + (st.idx + 1) + "/" + st.count;
+          segFills.forEach(function (f, i) {
+            f.style.width = i < st.idx ? "100%" : (i === st.idx ? Math.min(100, elapsed / dwell * 100) + "%" : "0%");
+          });
+        }
+        function show(reset) { img.src = urls[st.idx]; if (reset) elapsed = 0; paint(); }
+        function tick() {
+          if (destroyed) return;
+          if (!host.isConnected) { destroy(); return; }
+          var now = Date.now();
+          if (last && gate() && !document.hidden) {
+            elapsed += now - last;
+            if (elapsed >= dwell) { st.auto(); show(true); }
+            else paint();
+          }
+          last = now;
+          timer = setTimeout(tick, 50);
+        }
+        function start() { if (!destroyed && !timer) { last = 0; tick(); } }
+        function stop() { if (timer) { clearTimeout(timer); timer = null; } }
+        function destroy() { destroyed = true; stop(); var i = rpShows123.indexOf(ctl); if (i >= 0) rpShows123.splice(i, 1); }
+        var ctl = { start: start, stop: stop, destroy: destroy, state: st };
+        rpShows123.push(ctl);
+        paint();
+        return ctl;
+      }
+      function rpShowStopAll123() { rpShows123.slice().forEach(function (c) { c.destroy(); }); }
+      /* Sheets (comments, gifts) ride #overlay.open — the same signal
+         the app already uses for "a sheet is up". */
+      function rpShowGate123() { var ov = document.getElementById("overlay"); return !(ov && ov.classList.contains("open")); }
+
+      /* ---- Pager photo items: the server photo feed, time-merged
+         into the Reels pager and the Home For You pager (the V7.119
+         interleave idea, applied to these two pagers only — the
+         Plaza Feed merge itself is untouched). Friends/Following
+         stay reels-only: the photo store has no friends filter. ---- */
+      var PagerPhotos123 = { loaded: false, items: [] };
+      var pagerPhotoAuthors123 = {};
+      function pagerPhotoMap123(sp) {
+        var urls = (sp.urls && sp.urls.length) ? sp.urls.slice() : (sp.photo ? [sp.photo] : []);
+        if (!urls.length) return null;
+        return {
+          id: "ph:" + sp.id, key: "ph:" + sp.id, photoPost: true, postId: sp.id,
+          url: urls[0], urls: urls,
+          author: sp.author || "Someone",
+          authorId: sp.mine ? (Online.acctId || "") : (pagerPhotoAuthors123[sp.author] || ""),
+          mine: !!sp.mine, caption: sp.caption || "", createdAt: sp.createdAt || "",
+          likes: sp.likes || 0, myLiked: !!sp.myLiked, reposts: sp.reposts || 0, myReposted: !!sp.myReposted,
+          comments: Array.isArray(sp.comments) ? sp.comments.slice() : [],
+          commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
+          music: sp.music || null
+        };
+      }
+      function pagerPhotosFetch123() {
+        var t = ""; try { t = reelToken() || ""; } catch (e) {}
+        if (!t) return;
+        fetch("/api/photo/posts", { headers: { Authorization: "Bearer " + t } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            if (!j || !j.ok || !Array.isArray(j.posts)) return;
+            PagerPhotos123.items = j.posts.map(pagerPhotoMap123).filter(Boolean);
+            PagerPhotos123.loaded = true;
+            /* author ids (gift parity) resolved by name, capped at 12
+               like the V7.119 feed enrichment */
+            var names = {}, need = [];
+            PagerPhotos123.items.forEach(function (it) { if (!it.mine && !it.authorId && !names[it.author]) { names[it.author] = 1; need.push(it.author); } });
+            need.slice(0, 12).forEach(function (nm) {
+              fetch("/api/social/profile?name=" + encodeURIComponent(nm), { headers: { Authorization: "Bearer " + t } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (pj) { if (pj && pj.id) pagerPhotoAuthors123[nm] = pj.id; })
+                .catch(function () {});
+            });
+            var rs = $("screen-reels"); if (rs && rs.classList.contains("active")) renderReels();
+            var hs = $("screen-home"); if (hs && hs.classList.contains("active")) renderHomePager();
+          })
+          .catch(function () {});
+      }
+      function pagerMerge123(reelItems) {
+        if (!PagerPhotos123.items.length) return reelItems;
+        var all = reelItems.map(function (it) { return { t: it.createdAt || "", it: it }; })
+          .concat(PagerPhotos123.items.map(function (it) { return { t: it.createdAt || "", it: it }; }));
+        all.sort(function (a, b) { return String(b.t).localeCompare(String(a.t)); });
+        var seen = {}, out = [];
+        all.forEach(function (w) { var k = w.it.key || w.it.id; if (k && seen[k]) return; if (k) seen[k] = 1; out.push(w.it); });
+        return out;
+      }
+
+      /* ---- photo-post actions for the pagers — the SAME endpoints
+         and payload shapes the V7.119 feed merge proved ---- */
+      function photoLikeToggle123(item, btn) {
+        var t = ""; try { t = reelToken() || ""; } catch (e) {}
+        var want = !item.myLiked;
+        item.myLiked = want;
+        item.likes = Math.max(0, (item.likes || 0) + (want ? 1 : -1));
+        if (btn) {
+          btn.classList.toggle("liked", want);
+          var n = btn.querySelector(".lc, .hp-n");
+          if (n) n.textContent = item.likes;
+          Juice.pop(btn);
+        }
+        if (!t) return;
+        fetch("/api/photo/like", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ id: item.postId, liked: want }) })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            if (j && typeof j.likes === "number") { item.likes = j.likes; var n2 = btn && btn.querySelector(".lc, .hp-n"); if (n2) n2.textContent = j.likes; }
+          })
+          .catch(function () {});
+      }
+      function photoRepostToggle123(item, btn) {
+        var t = ""; try { t = reelToken() || ""; } catch (e) {}
+        if (!t) { toast("Sign in to repost."); return; }
+        var want = !item.myReposted;
+        item.myReposted = want;
+        item.reposts = Math.max(0, (item.reposts || 0) + (want ? 1 : -1));
+        if (btn) { btn.classList.toggle("reposted", want); var n = btn.querySelector(".rc, .hp-n"); if (n) n.textContent = item.reposts; }
+        fetch("/api/photo/repost", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ id: item.postId, reposted: want }) })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            if (j && typeof j.reposts === "number") { item.reposts = j.reposts; var n2 = btn && btn.querySelector(".rc, .hp-n"); if (n2) n2.textContent = j.reposts; }
+            if (want) toast(j && j.reshare && item.mine ? "↻ Reshared to your followers" : "↻ Reposted to your followers");
+          })
+          .catch(function () {});
+      }
+      function openPhotoComments123(item) {
+        function listHtml() {
+          return (item.comments || []).map(function (c) {
+            return '<div class="reel-cmt"><span class="reel-ava sm" style="background:' + reelAvColor(c.name || "?") + '">' + escHtml(initialsOf(c.name || "?")) + '</span><div class="reel-cmt-body"><b>' + escHtml(c.name || "Someone") + '</b> <span class="reel-when">' + escHtml(reelWhen(c.ts)) + '</span><p>' + reelCaptionHtml(c.text || "") + '</p></div></div>';
+          }).join("") || '<p class="age-note" style="text-align:center;">No comments yet — start the conversation 💬</p>';
+        }
+        openSheet(
+          '<button class="close-x" data-act="close" aria-label="Close comments">✕</button>' +
+          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💬 Comments</h3>' +
+          '<div class="reel-cmt-list" id="photoCmtList123">' + listHtml() + '</div>' +
+          '<div class="reel-cmt-add"><input class="online-input-full" id="photoCmtInput123" type="text" maxlength="300" placeholder="Add a comment…" autocomplete="off"/><button class="btn-primary" style="width:auto; padding:10px 16px;" id="photoCmtSend123">Post</button></div>' +
+          '<p class="age-note">Be kind — comments follow the same guidelines as live. 🚫 No bullying, ever.</p></div>'
+        );
+        reelWireClose();
+        function send() {
+          var inp = $("photoCmtInput123"); var txt = inp ? inp.value.trim() : "";
+          if (!txt) return;
+          var t = ""; try { t = reelToken() || ""; } catch (e) {}
+          if (!t) { toast("Sign in to comment."); return; }
+          fetch("/api/reel/comment", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ kind: "photo", id: item.postId, text: txt }) })
+            .then(function (r) { return r.json().catch(function () { return null; }); })
+            .then(function (j) {
+              if (j && j.ok && j.comment) {
+                item.comments = (item.comments || []).concat([j.comment]);
+                item.commentCount = j.count;
+                var l = $("photoCmtList123"); if (l) l.innerHTML = listHtml();
+                if (inp) inp.value = "";
+                Juice.confettiBurst(6);
+              } else toast((j && j.error) || "That comment didn't post.");
+            })
+            .catch(function () { toast("That comment didn't post — check your connection."); });
+        }
+        var sb = $("photoCmtSend123"); if (sb) sb.addEventListener("click", send);
+        var ci = $("photoCmtInput123"); if (ci) ci.addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
+      }
+      function rpPhotoActsWire123(item, root) {
+        var heart = root.querySelector(".pp-heart");
+        if (heart) heart.addEventListener("click", function () { photoLikeToggle123(item, heart); });
+        var cmt = root.querySelector(".pp-cmt");
+        if (cmt) cmt.addEventListener("click", function () { openPhotoComments123(item); });
+        var gift = root.querySelector(".pp-gift");
+        if (gift) gift.addEventListener("click", function () { openGiftSheet(item.authorId || item.author, item.author); });
+        var share = root.querySelector(".pp-share");
+        if (share) share.addEventListener("click", function () { reelSharePost(item.author, item.caption, true); });
+        var rp = root.querySelector(".pp-repost");
+        if (rp) rp.addEventListener("click", function () { photoRepostToggle123(item, rp); });
+        var fb = root.querySelector(".reel-followbtn");
+        if (fb) fb.addEventListener("click", function () { reelToggleFollow(item.author, fb); });
+      }
+      function rpPhotoMusicChip123(item) {
+        if (item.music && item.music.trackId) {
+          return '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.music.trackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(item.music.name || (window.rpTrackName ? window.rpTrackName(item.music.trackId) : "Plaza sound")) + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.music.trackId) + '" aria-label="Favorite this sound">☆</button></div>';
+        }
+        return '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>";
+      }
+      /* Reels-pager photo card: mirrors reelCard's chrome, with the
+         slideshow (or single photo) where the video would be. */
+      function rpPhotoCard123(item) {
+        var card = document.createElement("div");
+        card.className = "reel-card";
+        card.setAttribute("data-photocard", item.postId);
+        var ctl = null;
+        if (item.urls.length > 1) {
+          var stage = document.createElement("div");
+          stage.style.cssText = "position:absolute; inset:0;";
+          card.appendChild(stage);
+          ctl = rpShowMount123(stage, item.urls, { gate: rpShowGate123 });
+        } else {
+          var im = document.createElement("img"); im.className = "rp-show-img"; im.src = item.url; im.alt = "Photo by " + item.author; card.appendChild(im);
+        }
+        var rest = document.createElement("div");
+        rest.innerHTML =
+          '<div class="reel-shade"></div>' +
+          '<div class="reel-meta"><span class="reel-author">' + escHtml(item.author) + '</span><span class="reel-when">' + escHtml(reelWhen(item.createdAt)) + (item.urls.length > 1 ? " · 🖼️ " + item.urls.length + " photos" : " · 📸 Photo") + "</span>" +
+          (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + rpPhotoMusicChip123(item) + "</div>" +
+          '<div class="reel-rail"><span class="reel-ava" style="background:' + reelAvColor(item.author) + '">' + escHtml(initialsOf(item.author)) + "</span>" +
+            '<button class="reel-act like pp-heart' + (item.myLiked ? " liked" : "") + '" type="button">❤️<span class="lc">' + (item.likes || 0) + "</span></button>" +
+            '<button class="reel-act cmt pp-cmt" type="button">💬<span class="cc">' + (item.commentCount || 0) + "</span></button>" +
+            '<button class="reel-act share pp-share" type="button">↗️<span>Share</span></button>' +
+            '<button class="reel-act repost pp-repost' + (item.myReposted ? " reposted" : "") + '" type="button">🔁<span class="rc">' + (item.reposts || 0) + "</span></button>" +
+            (item.mine ? "" : '<button class="reel-act gift pp-gift" type="button">🎁<span>Gift</span></button>') +
+          "</div>";
+        while (rest.firstChild) card.appendChild(rest.firstChild);
+        rpPhotoActsWire123(item, card);
+        card._rpPlay = function () { if (ctl) ctl.start(); };
+        card._rpPause = function () { if (ctl) ctl.stop(); var cn = card.querySelector(".pp-cmt .cc"); if (cn) cn.textContent = item.commentCount || 0; };
+        return card;
+      }
+      /* Home For You photo slide: mirrors homeSlide's chrome. */
+      function rpHomePhotoSlide123(item) {
+        var slide = document.createElement("div");
+        slide.className = "hp-slide";
+        slide.setAttribute("data-photocard", item.postId);
+        var ctl = null;
+        if (item.urls.length > 1) {
+          var stage = document.createElement("div");
+          stage.style.cssText = "position:absolute; inset:0;";
+          slide.appendChild(stage);
+          ctl = rpShowMount123(stage, item.urls, { gate: rpShowGate123 });
+        } else {
+          var im = document.createElement("img"); im.className = "rp-show-img"; im.src = item.url; im.alt = "Photo by " + item.author; slide.appendChild(im);
+        }
+        var shade = document.createElement("div"); shade.className = "hp-shade"; slide.appendChild(shade);
+        var meta = document.createElement("div"); meta.className = "hp-meta";
+        meta.innerHTML =
+          '<div class="hp-author"><span class="hp-author-av">Y</span><span>@' + escHtml(item.author) + "</span>" +
+          (item.mine ? "" : '<button type="button" class="hp-follow reel-followbtn' + (isFollowingName(item.author) ? " on" : "") + '">' + (isFollowingName(item.author) ? "Following" : "Follow") + "</button>") + "</div>" +
+          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") +
+          '<p class="hp-when">' + escHtml(reelWhen(item.createdAt)) + (item.urls.length > 1 ? " · 🖼️ " + item.urls.length + " photos" : " · 📸 Photo") + "</p>" +
+          (item.music ? '<span class="hp-snd rp-snd" data-tid="' + escHtml(item.music.trackId || "") + '" role="button">♪ ' + escHtml(item.music.name || "Plaza sound") + "</span>" : "");
+        slide.appendChild(meta);
+        var acts = document.createElement("div"); acts.className = "hp-actions";
+        acts.innerHTML =
+          '<button type="button" class="hp-act like pp-heart' + (item.myLiked ? " liked" : "") + '"><span class="hp-ico">❤️</span><span class="hp-n">' + (item.likes || 0) + "</span></button>" +
+          '<button type="button" class="hp-act pp-cmt"><span class="hp-ico">💬</span><span class="hp-n">' + (item.commentCount || 0) + "</span></button>" +
+          (item.mine ? "" : '<button type="button" class="hp-act pp-gift"><span class="hp-ico">🎁</span><span class="hp-n">Gift</span></button>') +
+          '<button type="button" class="hp-act pp-share"><span class="hp-ico">↗️</span><span class="hp-n">Share</span></button>' +
+          '<button type="button" class="hp-act pp-repost' + (item.myReposted ? " reposted" : "") + '"><span class="hp-ico">🔁</span><span class="hp-n">' + (item.reposts || 0) + "</span></button>";
+        slide.appendChild(acts);
+        rpPhotoActsWire123(item, slide);
+        slide._rpPlay = function () { if (ctl) ctl.start(); };
+        slide._rpPause = function () { if (ctl) ctl.stop(); var cn = slide.querySelector(".pp-cmt .hp-n"); if (cn) cn.textContent = item.commentCount || 0; };
+        return slide;
+      }
 
       /* ================= PLAZA REELS (RP-V7.3) =================
          User-posted short videos inside Moments, next to the photo feed.
@@ -19018,6 +19458,7 @@
               reelLoadMeta().forEach(function (m) { if (m.serverId && have[m.serverId]) reelDbDel(m.id); });
               if (Reels.mode === "reels") renderReels();
               renderHomePager(); // [RP-V7.113] the Home feed rides the same fetch
+          pagerPhotosFetch123(); // [RP-V7.123] photo posts join both pagers
               // Retry uploads for anything still only on this device.
               reelLoadMeta().forEach(function (m) { if (!m.serverId && !m.draft) reelTryUpload(m.id); });
             }
@@ -19187,6 +19628,7 @@
         return { liked: !!item.myHeart, count: item.heartLikes || 0 };
       }
       function reelPauseAll() {
+        rpShowStopAll123(); /* [RP-V7.123] */
         var feed = $("reelFeed"); if (!feed) return;
         var vs = feed.querySelectorAll("video");
         for (var i = 0; i < vs.length; i++) { try { vs[i].pause(); } catch (e) { } }
@@ -19205,7 +19647,7 @@
         for (var u in Reels.objUrls) { try { URL.revokeObjectURL(Reels.objUrls[u]); } catch (e) { } }
         Reels.objUrls = {};
         feed.innerHTML = "";
-        var items = reelFeedItems();
+        var items = Reels.friends ? reelFeedItems() : pagerMerge123(reelFeedItems()); // [RP-V7.123] photo posts join the pager (Friends stays reels-only)
         var barHtml = "";
         if (Reels.tagFilter) {
           var tf = Reels.tagFilter;
@@ -19241,7 +19683,7 @@
             });
           }, { root: feed, threshold: [0, 0.6, 1] });
         }
-        items.forEach(function (item) { feed.appendChild(reelCard(item)); });
+        items.forEach(function (item) { feed.appendChild(item.photoPost ? rpPhotoCard123(item) : reelCard(item)); }); // [RP-V7.123]
       }
       function reelTagsOf(caption) {
         var out = {}, m, re = /#([A-Za-z0-9_]+)/g, s = String(caption || "");
@@ -19756,13 +20198,15 @@
       }
       function homeItems() {
         if (HomeFeed.tab === "following") return (HomeFeed.friendsItems || []).filter(function (it) { return !!it.url; });
-        return reelFeedItems().filter(function (it) { return !!it.url && !it.pending; });
+        return pagerMerge123(reelFeedItems().filter(function (it) { return !!it.url && !it.pending; })); // [RP-V7.123] photo posts join For You
       }
       function hpPlay(slide) {
+        if (slide._rpPlay) { slide._rpPlay(); return; } // [RP-V7.123] photo slide
         var v = slide.querySelector("video"); if (!v) return;
         if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () { v.muted = true; v.play().catch(function () { }); }); }
       }
       function hpPause(slide, emit) {
+        if (slide._rpPause) { slide._rpPause(); return; } // [RP-V7.123] photo slide (no _trk — no view emit)
         var v = slide.querySelector("video"); if (!v) return;
         if (!v.paused) { try { v.pause(); } catch (e) { } }
         if (emit && slide._item && slide._trk) reelEmitView(slide._item, slide._trk, v);
@@ -19839,6 +20283,7 @@
         HomeFeed.sig = sig;
         if (HomeFeed.observer) { try { HomeFeed.observer.disconnect(); } catch (e) { } HomeFeed.observer = null; }
         pager.querySelectorAll("video").forEach(function (v) { try { v.pause(); } catch (e) { } });
+        rpShowStopAll123(); // [RP-V7.123] retire the old render's slideshows
         pager.innerHTML = "";
         if (!items.length) {
           pager.innerHTML = '<div class="hp-empty">' + (HomeFeed.tab === "following"
@@ -19846,7 +20291,7 @@
             : "No reels yet — be the first to post one 🎬") + "</div>";
           return;
         }
-        items.forEach(function (item) { pager.appendChild(homeSlide(item)); });
+        items.forEach(function (item) { pager.appendChild(item.photoPost ? rpHomePhotoSlide123(item) : homeSlide(item)); }); // [RP-V7.123]
         if ("IntersectionObserver" in window) {
           HomeFeed.observer = new IntersectionObserver(function (entries) {
             entries.forEach(function (en) {
@@ -28458,7 +28903,7 @@ button.rp72-chip{ cursor:pointer; }
     var media = it.kind === "reel"
       ? '<video src="' + esc(it.src || "") + '" muted playsinline preload="metadata"></video><span class="rpmedia-play">▶</span>'
       : '<img src="' + esc(it.src || "") + '" alt=""/>';
-    return '<button type="button" class="rpmedia-tile" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpsrc="' + esc(it.src || "") + '" data-rpviews="' + (it.views || 0) + '">' + media + '<span class="rpmedia-views">👁 ' + fmtViews(it.views || 0) + "</span></button>";
+    return '<button type="button" class="rpmedia-tile" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpsrc="' + esc(it.src || "") + '" data-rpviews="' + (it.views || 0) + '">' + media + (it.photoCount > 1 ? '<span class="rpmedia-multi">▦ ×' + it.photoCount + "</span>" : "") /* [RP-V7.123] */ + '<span class="rpmedia-views">👁 ' + fmtViews(it.views || 0) + "</span></button>";
   }
   window.rpViewsTileHTML = tileHTML;
   function wireSheetClose() {
@@ -28545,7 +28990,7 @@ button.rp72-chip{ cursor:pointer; }
   // the profile page so both render the same profile.
   function profItems(j) {
     var items = itemsFromProfile(j);
-    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, src: pp.photo, views: 0 }); });
+    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, src: pp.photo, views: 0, photoCount: (pp.urls || []).length || 1 /* [RP-V7.123] */ }); });
     (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, src: fp.src, views: fp.views || 0 }); }); // [RP-V7.109] their Feed posts too — all posts they made
     var order = {}; (j.pins || []).forEach(function (pn, ix) { order[pn.kind + ":" + pn.id] = ix; });
     var pinned = [], rest = [];
@@ -31631,14 +32076,22 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .story-cell .sc-ava { position: relative; width: 62px; height: 62px; margin: 0 auto; border-radius: 50%; }
 .story-cell .sc-ava img, .story-cell .sc-ava .sc-init { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: flex; align-items: center; justify-content: center; background: #33333f; color: #fff; font-weight: 900; font-size: 24px; }
 .story-cell .sc-name { display: block; margin-top: 5px; font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sc-ring { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #fe2c55; }
+/* [RP-V7.124] Branden (Oct 29): everybody's story ring gets the BRIGHT
+   glow — "that bright glow where people can see it" — so an unviewed story
+   is unmissable in every tray. Same family as the V7.116 Live glow:
+   layered red bloom + a gentle pulse. Viewed rings stay flat grey. */
+@keyframes storyGlowPulse {
+  0%, 100% { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #fe2c55, 0 0 12px 2px rgba(254,44,85,.65), 0 0 26px 6px rgba(254,44,85,.30); }
+  50% { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #fe2c55, 0 0 18px 5px rgba(254,44,85,.95), 0 0 38px 12px rgba(254,44,85,.50); }
+}
+.sc-ring { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #fe2c55, 0 0 16px 4px rgba(254,44,85,.85), 0 0 32px 10px rgba(254,44,85,.45); animation: storyGlowPulse 1.8s ease-in-out infinite; }
 .sc-ring-seen { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #5a5a66; }
 .sc-plus { position: absolute; right: -1px; bottom: -1px; width: 20px; height: 20px; border-radius: 50%; background: #fe2c55; color: #fff; font-size: 15px; font-weight: 900; line-height: 20px; text-align: center; border: 2px solid #0f0f14; }
-.rpdm-ava.sring-on { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #fe2c55; cursor: pointer; }
+.rpdm-ava.sring-on { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #fe2c55, 0 0 16px 4px rgba(254,44,85,.85), 0 0 32px 10px rgba(254,44,85,.45); animation: storyGlowPulse 1.8s ease-in-out infinite; cursor: pointer; } /* [RP-V7.124] story glow everywhere the ring shows */
 .rpdm-ava.sring-seen { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #5a5a66; cursor: pointer; }
-.pprof-avatar.sring-on img.p-photo, .pcard-avatar.sring-on img.p-photo, .pprof-avatar.sring-on .pface, .pcard-avatar.sring-on .pface { box-shadow: 0 0 0 3px #0f0f14, 0 0 0 6px #fe2c55; border-radius: 50%; }
+.pprof-avatar.sring-on img.p-photo, .pcard-avatar.sring-on img.p-photo, .pprof-avatar.sring-on .pface, .pcard-avatar.sring-on .pface { box-shadow: 0 0 0 3px #0f0f14, 0 0 0 6px #fe2c55, 0 0 16px 4px rgba(254,44,85,.85), 0 0 34px 10px rgba(254,44,85,.45); border-radius: 50%; } /* [RP-V7.124] */
 .pprof-avatar.sring-seen img.p-photo, .pcard-avatar.sring-seen img.p-photo, .pprof-avatar.sring-seen .pface, .pcard-avatar.sring-seen .pface { box-shadow: 0 0 0 3px #0f0f14, 0 0 0 6px #5a5a66; border-radius: 50%; }
-#pfPortrait.sring-on img, #pfPortrait.sring-on .pface { box-shadow: 0 0 0 3px #0f0f14, 0 0 0 6px #fe2c55; border-radius: 50%; }
+#pfPortrait.sring-on img, #pfPortrait.sring-on .pface { box-shadow: 0 0 0 3px #0f0f14, 0 0 0 6px #fe2c55, 0 0 16px 4px rgba(254,44,85,.85), 0 0 34px 10px rgba(254,44,85,.45); border-radius: 50%; } /* [RP-V7.124] */
 .story-profile-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; cursor: pointer; }
 .story-profile-row[hidden] { display: none; }
 .story-profile-row .sc-ava { position: relative; width: 52px; height: 52px; border-radius: 50%; flex: 0 0 auto; }
@@ -32430,7 +32883,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   function mapPhotoPost119(pp) {
     return {
       id: "photo:" + pp.id, _sid: pp.id, _store: "photo",
-      kind: "photo", url: pp.photo || "", text: pp.caption || "", createdAt: pp.createdAt || null,
+      kind: "photo", url: pp.photo || "", urls: (pp.urls && pp.urls.length ? pp.urls.slice() : (pp.photo ? [pp.photo] : [])), /* [RP-V7.123] */ text: pp.caption || "", createdAt: pp.createdAt || null,
       author: { id: null, name: pp.author || "Someone", photo: null },
       likes: pp.likes || 0, likedByMe: !!pp.myLiked,
       reposts: pp.reposts || 0, myReposted: !!pp.myReposted,
@@ -32502,7 +32955,15 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
         "</article>";
     }
     var media = "";
-    if (p.kind === "photo" && p.url) media = '<div class="feed-media"><img src="' + escF(p.url) + '" alt=""/></div>';
+    if (p.kind === "photo" && p.url) { /* [RP-V7.123] a set flips inside its card (manual only) */
+      if (p.urls && p.urls.length > 1) {
+        var fi123 = Math.min(typeof p._fi === "number" ? p._fi : 0, p.urls.length - 1);
+        media = '<div class="feed-media feed-flip"><img src="' + escF(p.urls[fi123]) + '" alt=""/>' +
+          '<button type="button" class="ff-zone prev" data-feed-flip="-1" aria-label="Previous photo"></button>' +
+          '<button type="button" class="ff-zone next" data-feed-flip="1" aria-label="Next photo"></button>' +
+          '<span class="ff-count">🖼️ ' + (fi123 + 1) + "/" + p.urls.length + "</span></div>";
+      } else media = '<div class="feed-media"><img src="' + escF(p.url) + '" alt=""/></div>';
+    }
     else if (p.kind === "video" && p.url) media = '<div class="feed-media"><video src="' + escF(p.url) + '" controls playsinline preload="metadata"></video></div>';
     var follow = "";
     if (!p.isSelf && p.author.id) follow = '<button type="button" class="feed-follow' + (p.iFollow ? " on" : "") + '" data-feed-act="follow">' + (p.iFollow ? "Following ✓" : "Follow") + "</button>";
@@ -32864,6 +33325,14 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   }
 
   /* ---------------- boot ---------------- */
+  /* [RP-V7.123] flip a photo set inside its Plaza feed card */
+  function flipFeedPost123(art, p, d) {
+    var n = (p.urls || []).length; if (n < 2 || !art) return;
+    p._fi = (((typeof p._fi === "number" ? p._fi : 0) + d) % n + n) % n;
+    var wrap = art.querySelector(".feed-flip"); if (!wrap) return;
+    var im = wrap.querySelector("img"); if (im) im.src = p.urls[p._fi];
+    var ct = wrap.querySelector(".ff-count"); if (ct) ct.textContent = "🖼️ " + (p._fi + 1) + "/" + n;
+  }
   function boot() {
     var home = $("btnFeedHome"); if (home) home.addEventListener("click", openFeed);
     var back = $("btnFeedBack"); if (back) back.addEventListener("click", function () { try { show("screen-plaza"); } catch (e) { } });
@@ -32871,7 +33340,27 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     var inp = $("feedFileInput"); if (inp) inp.addEventListener("change", function () { if (inp.files && inp.files[0]) onFilePicked(inp.files[0]); });
     var post = $("feedPostBtn"); if (post) post.addEventListener("click", onPost);
     var list = $("feedList");
+    if (list) { /* [RP-V7.123] a horizontal swipe flips a set inside its card */
+      var ftx123 = null;
+      list.addEventListener("touchstart", function (ev) { ftx123 = ev.touches && ev.touches[0] ? ev.touches[0].clientX : null; }, { passive: true });
+      list.addEventListener("touchend", function (ev) {
+        if (ftx123 == null) return;
+        var x2 = ev.changedTouches && ev.changedTouches[0] ? ev.changedTouches[0].clientX : ftx123;
+        var d = x2 - ftx123; ftx123 = null;
+        if (Math.abs(d) < 42) return;
+        var art = ev.target && ev.target.closest ? ev.target.closest("[data-fid]") : null;
+        var p = art ? findPost(art.getAttribute("data-fid")) : null;
+        if (p && p.urls && p.urls.length > 1) flipFeedPost123(art, p, d < 0 ? 1 : -1);
+      }, { passive: true });
+    }
     if (list) list.addEventListener("click", function (ev) {
+      var fz = ev.target && ev.target.closest ? ev.target.closest("[data-feed-flip]") : null; /* [RP-V7.123] */
+      if (fz) {
+        var fart = fz.closest("[data-fid]");
+        var fp = fart ? findPost(fart.getAttribute("data-fid")) : null;
+        if (fp) flipFeedPost123(fart, fp, parseInt(fz.getAttribute("data-feed-flip"), 10) || 1);
+        return;
+      }
       var btn = ev.target && ev.target.closest ? ev.target.closest("[data-feed-act]") : null;
       if (!btn) return;
       var art = btn.closest("[data-fid]");
@@ -33897,6 +34386,7 @@ body[data-holiday]:not([data-holiday=""]) .tab-btn.on .ti { color: var(--hol, #f
         if (!url) return;
         if (Cam.photoHook) { var hook = Cam.photoHook; Cam.photoHook = null; closeCamera(); hook(url); return; }
         Moments.pendingPhoto = url;
+        Moments.pendingPhotos = [url]; /* [RP-V7.123] a snapped photo starts a fresh pick list */
         Moments.pendingSound = Snd.attached ? { trackId: Snd.attached.trackId, start: Snd.attached.start || 0, musicVol: Snd.attached.musicVol } : null;
         closeCamera();
         openMomComposer();
