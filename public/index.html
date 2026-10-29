@@ -750,6 +750,7 @@
       .hp-act { display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; color: #fff; font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer; padding: 0; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
       .hp-act .hp-ico { font-size: 29px; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,.45)); }
       .hp-act.like.liked { color: #fe2c55; }
+      .hp-act.like .hp-ico { filter: drop-shadow(0 0 5px rgba(255,0,45,.95)) drop-shadow(0 0 13px rgba(255,0,45,.85)) drop-shadow(0 0 26px rgba(255,0,45,.55)); } /* [RP-V7.116] the love: very glowing red heart on the Home rail */
       .hp-views { color: rgba(255,255,255,.85); font-size: 11px; font-weight: 700; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
       .hp-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; color: #c9c9d6; font-weight: 700; font-size: 15px; line-height: 1.5; }
 
@@ -2231,6 +2232,14 @@
         font-weight: 700; font-size: 14.5px; line-height: 1.45; cursor: pointer;
       }
       .su-consent input { width: 22px; height: 22px; flex: none; margin-top: 1px; accent-color: var(--rose); cursor: pointer; }
+      /* [RP-V7.117] One-way-in tabs on the sign-up sheet. */
+      .su-mode { display: flex; gap: 8px; margin: 0 0 14px; }
+      .su-mode-btn { flex: 1; padding: 11px; border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff; font: 700 14.5px inherit; cursor: pointer; }
+      .su-mode-btn.on { background: var(--rose); border-color: transparent; }
+      /* [RP-V7.117] First-run profile-pass welcome bar. */
+      .pf-firstrun-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0 0 16px; padding: 13px 15px; border-radius: 14px; background: linear-gradient(135deg, rgba(254,44,85,.20), rgba(124,92,255,.16)); border: 1px solid rgba(254,44,85,.45); font-size: 14.5px; line-height: 1.45; }
+      .pf-firstrun-bar b { font-size: 16px; }
+      .pf-firstrun-bar span { flex: 1; min-width: 200px; font-weight: 600; }
 
       /* ---------- Live-room excitement package ---------- */
       #onlineScene { position: relative; }
@@ -2650,7 +2659,7 @@
         border: none; cursor: pointer; font-family: inherit; font-weight: 800; font-size: 13px;
         border-radius: 999px; padding: 8px 14px; color: #fff; background: #26262e;
       }
-      #ttbar .tt-pill.live { background: #fe2c55; }
+      #ttbar .tt-pill.live { background: linear-gradient(180deg, #ff2438, #d8001c); box-shadow: 0 0 16px rgba(255,30,50,.95), 0 0 38px rgba(255,0,40,.65), 0 0 64px rgba(255,0,40,.35); } /* [RP-V7.116] Live pill: very glowy true red (was flat Plaza pink) */
       .live-now-box { background: #0c0c12; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; }
       .plaza-card { border-radius: 18px; }
       .plaza-card h3 { font-size: 17px; font-weight: 800; letter-spacing: -.1px; }
@@ -2750,15 +2759,16 @@
           </div>
         </div>
       </section>
-      <!-- SCREEN: SIGN-UP (email + phone + consent, right after the age check) -->
+      <!-- SCREEN: SIGN-UP ([RP-V7.117] one way in: Google/Apple, or phone OR email + consent) -->
       <section class="screen" id="screen-signup">
         <div class="agegate-wrap">
           <div class="controls-card agegate-card">
             <h2>📝 Create your account</h2>
-            <p class="sub">Welcome to Rizz Plaza! <b>Sign up or log in to come in</b> — everyone joins with an <b>email</b> and a <b>mobile number</b>, or Google or Apple. We'll send reminders, special-event invites and offers — the big nights are better with a crowd.</p>
+            <p class="sub">Welcome to Rizz Plaza! <b>Sign up or log in to come in</b> — join with <b>Google</b> or <b>Apple</b>, or just your <b>email</b> or your <b>mobile number</b> — one way in is all it takes. We'll send reminders, special-event invites and offers — the big nights are better with a crowd.</p>
             <button class="btn-social" id="btnGoogle" type="button"><span class="g-badge">G</span> Continue with Google</button>
               <button class="btn-social" id="btnApple" type="button"><span class="a-badge"></span> Continue with Apple</button>
-              <div class="su-divider"><span>or sign up with email + phone</span></div>
+              <div class="su-divider"><span>or sign up with phone or email</span></div>
+              <div class="su-mode" id="suMode"><button type="button" class="su-mode-btn on" id="suModeEmail">✉️ Use email</button><button type="button" class="su-mode-btn" id="suModePhone">📱 Use phone</button></div>
               <div class="field">
               <label for="suEmail">Email address</label>
               <input type="email" id="suEmail" autocomplete="email" placeholder="you@example.com" />
@@ -2775,7 +2785,7 @@
             </label>
             <button class="btn-primary" id="btnSignupGo" style="width:100%; padding:13px;" disabled>Continue</button>
               <p class="age-note rp-legal" style="text-align:center; margin-top:10px;">By continuing you agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>
-            <p class="age-note" style="margin-top:10px;">Your email and number are only for party reminders, event invites and offers, and they're saved with your profile on this device. Unsubscribe anytime from your profile.</p>
+            <p class="age-note" style="margin-top:10px;">Your email or number is only for party reminders, event invites and offers, and it's saved with your profile on this device. Unsubscribe anytime from your profile.</p>
           </div>
         </div>
       </section>
@@ -4835,7 +4845,8 @@
           var a = null; try { a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); } catch (e) { }
           if (a && a.email) em = String(a.email).toLowerCase();
           if (a && a.phone) ph = suPhoneDigits(a.phone);
-          if (em && ph) me.contact = { email: em, phone: ph, consent: true };
+          // [RP-V7.117] one way in = one contact on file is enough.
+          if (em || ph) me.contact = { email: em, phone: ph, consent: true };
         } catch (e) { }
         try { var a61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a61 && window.rpApplyAccountProfile) window.rpApplyAccountProfile(a61); } catch (e) { } // [RP-V7.61] restore username + name + bio + photo from the account before entering
         rpHydrateAge();
@@ -6284,6 +6295,10 @@
         if (!pfSetup) {
           var sv0 = $("btnSaveProfile"); if (sv0) sv0.textContent = "Save profile";
           var bk0 = $("btnProfileBack"); if (bk0) bk0.hidden = false;
+          // [RP-V7.117] first-run artifacts never outlive the pass.
+          var frb0 = $("pfFirstRunBar"); if (frb0) frb0.remove();
+          document.querySelectorAll(".pf-finish-later").forEach(function (b) { b.remove(); });
+          pfFirstRunOn = false;
         }
         renderProfile();
         renderContactInfo();
@@ -6307,6 +6322,52 @@
     }
         show("screen-profile");
       }
+      /* [RP-V7.117] First-run profile pass (Branden, Oct 29: the
+         Profile setup he screenshotted stays EXACTLY as it is and
+         becomes the step right after a NEW sign-up): the member lands
+         in the existing setup (enterProfileSetup mode) with a welcome
+         bar on top and a Finish later escape beside every Next
+         button. Nothing here is a new profile — it is the same
+         account profile the whole Plaza sees, including the dating /
+         meet & greet rooms — and everything is skippable: whatever
+         is left undone can be finished anytime in the Profile tab.
+         Returning logins never see this; teen sign-ups keep today's
+         flow exactly (teen rules untouched). */
+      var pfFirstRunOn = false;
+      function pfFirstRunExit() {
+        pfFirstRunOn = false;
+        var bar = $("pfFirstRunBar"); if (bar) bar.remove();
+        document.querySelectorAll(".pf-finish-later").forEach(function (b) { b.remove(); });
+        pfSetup = false;
+        var sv = $("btnSaveProfile"); if (sv) sv.textContent = "Save profile";
+        var bk = $("btnProfileBack"); if (bk) bk.hidden = false;
+      }
+      window.rpFirstRunProfile = function () {
+        if (pfFirstRunOn) return;
+        if (typeof isTeen === "function" && isTeen()) return;
+        if (window.rpInviteLinkBlocksGeneric && window.rpInviteLinkBlocksGeneric()) return; // a share-link invite outranks the generic first run
+        pfFirstRunOn = true;
+        enterProfileSetup();
+        var card = document.querySelector("#screen-profile .controls-card");
+        if (card && !$("pfFirstRunBar")) {
+          var bar = document.createElement("div");
+          bar.id = "pfFirstRunBar"; bar.className = "pf-firstrun-bar";
+          bar.innerHTML = "<b>🎉 Welcome to Rizz Plaza!</b><span>Build your profile — your name, your face, your photos and your prompts. This is the profile everyone sees around the Plaza, including the dating &amp; meet &amp; greet rooms.</span>";
+          var sk = document.createElement("button");
+          sk.type = "button"; sk.className = "btn-mini"; sk.textContent = "Skip for now →";
+          sk.addEventListener("click", function () { pfFirstRunExit(); finishEnterParty(); toast("No rush — finish your profile anytime from the Profile tab. 👇", 3400); });
+          bar.appendChild(sk);
+          card.insertBefore(bar, card.firstChild);
+        }
+        document.querySelectorAll(".pf-next").forEach(function (nx) {
+          if (nx.parentNode.querySelector(".pf-finish-later")) return;
+          var fl = document.createElement("button");
+          fl.type = "button"; fl.className = "btn-mini pf-finish-later"; fl.textContent = "Finish later";
+          fl.addEventListener("click", function () { pfFirstRunExit(); finishEnterParty(); toast("Saved for later — your profile setup is always waiting in the Profile tab. 👇", 3400); });
+          nx.parentNode.appendChild(fl);
+        });
+        try { window.scrollTo(0, 0); } catch (e) { }
+      };
       $("btnProfile").addEventListener("click", openProfile);
       $("pfStatFollowing").addEventListener("click", openFollowingSheet);
       $("pfStatFollowers").addEventListener("click", openFollowersSheet);
@@ -16446,7 +16507,7 @@
       if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", rpBootHome);
       else rpBootHome();
 
-      /* ================= SIGN-UP (email + phone + consent) =================
+      /* ================= SIGN-UP ([RP-V7.117] one way in: phone OR email + consent) =================
          Onboarding step right after the age check: shown when the player
          taps "Enter the party" in the creator and no contact is on file.
          Submits POST to the party server's /api/subscribe; if the server
@@ -16486,14 +16547,21 @@
         var email = $("suEmail").value, phone = $("suPhone").value, consent = $("suConsent").checked;
         var eOk = suEmailOk(email), pOk = suPhoneOk(phone);
         var eErr = $("suEmailErr"), pErr = $("suPhoneErr");
-        // [RP-V7.48] BOTH email and phone are required (startup wall):
-        // once the form is engaged, a MISSING one shows a clear
-        // required-error too — not just a malformed one.
+        // [RP-V7.117] ONE way in: only the CHOSEN contact (Use email /
+        // Use phone tab) is validated and required — the other field
+        // is hidden and its error stays hidden. The missing-contact
+        // hint points at the other tab.
+        var byEmail = (typeof suMode !== "string" || suMode === "email");
         var engaged = !!(email.trim() || phone.trim() || consent);
-        if (!eOk && (email.trim() || engaged)) { eErr.textContent = email.trim() ? "That email doesn't look right — check for a typo (it should look like you@example.com)." : "Email is required — everyone signs up with an email and a mobile number."; eErr.hidden = false; }
-        else eErr.hidden = true;
-        if (!pOk && (phone.trim() || engaged)) { pErr.textContent = phone.trim() ? "Enter a 10-digit US mobile number — digits only is fine (e.g. 5551234567)." : "Mobile number is required — everyone signs up with an email and a mobile number."; pErr.hidden = false; }
-        else pErr.hidden = true;
+        if (byEmail) {
+          if (!eOk && (email.trim() || engaged)) { eErr.textContent = email.trim() ? "That email doesn't look right — check for a typo (it should look like you@example.com)." : "Email is required — or tap Use phone above to join with your number instead."; eErr.hidden = false; }
+          else eErr.hidden = true;
+          pErr.hidden = true;
+        } else {
+          if (!pOk && (phone.trim() || engaged)) { pErr.textContent = phone.trim() ? "Enter a 10-digit US mobile number — digits only is fine (e.g. 5551234567)." : "Mobile number is required — or tap Use email above to join with your email instead."; pErr.hidden = false; }
+          else pErr.hidden = true;
+          eErr.hidden = true;
+        }
         var uEl = $("suUser"), uOk = true;
         if (uEl) {
           var uv = uEl.value.trim();
@@ -16504,7 +16572,11 @@
             else uErr.hidden = true;
           }
         }
-        $("btnSignupGo").disabled = !(eOk && pOk && consent && uOk);
+        // [RP-V7.117] The password rule (≥8) joins the gate here too —
+        // the account module's gateSignupBtn only ever disables, so
+        // without this the button could light up on a short password.
+        var pwEl = $("suPass"), pwOk = !pwEl || pwEl.value.length >= 8;
+        $("btnSignupGo").disabled = !((byEmail ? eOk : pOk) && consent && uOk && pwOk);
       }
       function prefillSignup() {
         if (me.contact) {
@@ -16519,10 +16591,38 @@
         $(id).addEventListener("blur", syncSignupForm);
       });
       $("suConsent").addEventListener("change", syncSignupForm);
+      /* [RP-V7.117] TikTok-simple sign-up: ONE way in — Use email OR
+         Use phone. The tabs pick which contact the form asks for; the
+         other is never required, and switching tabs clears it so only
+         the chosen one is ever submitted. */
+      var suMode = "email";
+      function setSuMode(m, fromUser) {
+        suMode = m === "phone" ? "phone" : "email";
+        var eF = $("suEmail") ? ($("suEmail").closest(".field") || $("suEmail")) : null;
+        var pF = $("suPhone") ? ($("suPhone").closest(".field") || $("suPhone")) : null;
+        if (eF) eF.style.display = suMode === "email" ? "" : "none";
+        if (pF) pF.style.display = suMode === "phone" ? "" : "none";
+        var bE = $("suModeEmail"), bP = $("suModePhone");
+        if (bE) bE.classList.toggle("on", suMode === "email");
+        if (bP) bP.classList.toggle("on", suMode === "phone");
+        if (fromUser) {
+          if (suMode === "email" && $("suPhone")) $("suPhone").value = "";
+          if (suMode === "phone" && $("suEmail")) $("suEmail").value = "";
+        }
+        syncSignupForm();
+      }
+      window.rpSetSuMode = setSuMode;
+      window.rpSyncSuMode = function () { setSuMode(suMode, false); };
+      var suModeBtnE = $("suModeEmail"), suModeBtnP = $("suModePhone");
+      if (suModeBtnE) suModeBtnE.addEventListener("click", function () { setSuMode("email", true); });
+      if (suModeBtnP) suModeBtnP.addEventListener("click", function () { setSuMode("phone", true); });
+      setSuMode("email", false);
       $("btnSignupGo").addEventListener("click", function () {
         var email = $("suEmail").value.trim().toLowerCase();
         var phone = suPhoneDigits($("suPhone").value);
-        if (!suEmailOk(email) || !suPhoneOk(phone) || !$("suConsent").checked) { syncSignupForm(); return; }
+        // [RP-V7.117] mode-aware: only the chosen contact must check out.
+        var contactOk = (typeof suMode === "string" && suMode === "phone") ? suPhoneOk(phone) : suEmailOk(email);
+        if (!contactOk || !$("suConsent").checked) { syncSignupForm(); return; }
         // [RP-V7.48] STARTUP WALL: Continue no longer admits on a
         // local contact alone. Signed-out, the account module's
         // capture-phase handler creates the account (doSignup) and
@@ -16530,7 +16630,9 @@
         // an unreachable server) leaves the user on the wall.
         if (!rpAcctSignedIn()) return;
         me.contact = { email: email, phone: phone, consent: true };
-        sendOrQueue("subscribe", { email: email, phone: phone, displayName: me.name || "", consent: true, ts: Date.now() });
+        // [RP-V7.117] the reminder subscribe is email-keyed — a
+        // phone-only account simply skips it.
+        if (email) sendOrQueue("subscribe", { email: email, phone: phone, displayName: me.name || "", consent: true, ts: Date.now() });
         profileSaveSuppressed = false;
         saveProfile();
         toast("You're on the list! Reminders and event invites will land in your inbox and texts.");
@@ -16551,16 +16653,20 @@
         var el = $("pfContactInfo"); if (!el) return;
         var btn = $("btnUnsubToggle");
         var c = me.contact;
-        if (!c || !c.email) {
+        // [RP-V7.117] one contact is enough — email OR phone.
+        if (!c || (!c.email && !c.phone)) {
           el.textContent = "No email or phone on file yet — the sign-up step appears right after the age check when you first enter the party.";
           if (btn) btn.hidden = true;
           return;
         }
-        el.innerHTML = "Reminders go to <b>" + escHtml(maskEmail(c.email)) + "</b> and <b>" + escHtml(maskPhone(c.phone)) + "</b> — currently <b>" + (c.consent ? "ON" : "OFF") + "</b>.";
+        var where = [];
+        if (c.email) where.push("<b>" + escHtml(maskEmail(c.email)) + "</b>");
+        if (c.phone) where.push("<b>" + escHtml(maskPhone(c.phone)) + "</b>");
+        el.innerHTML = "Reminders go to " + where.join(" and ") + " — currently <b>" + (c.consent ? "ON" : "OFF") + "</b>.";
         if (btn) { btn.hidden = false; btn.textContent = c.consent ? "Unsubscribe from texts & emails" : "Turn reminders back on"; }
       }
       $("btnUnsubToggle").addEventListener("click", function () {
-        var c = me.contact; if (!c || !c.email) return;
+        var c = me.contact; if (!c || (!c.email && !c.phone)) return; // [RP-V7.117] phone-only counts too
         c.consent = !c.consent;
         if (c.consent) {
           sendOrQueue("subscribe", { email: c.email, phone: c.phone, displayName: me.name || "", consent: true, ts: Date.now() });
@@ -22279,7 +22385,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
   /* ================= social sign-in ================= */
   function rpSocial(w) {
     if (/^https?:$/.test(location.protocol)) { location.href = "/auth/" + w; }
-    else toast2("Social sign-in switches on at rizzplaza.com — email + phone works everywhere.", 3600);
+    else toast2("Social sign-in switches on at rizzplaza.com — email or phone works everywhere.", 3600);
   }
   var bg = $("btnGoogle"), ba = $("btnApple");
   if (bg) bg.addEventListener("click", function () { rpSocial("google"); });
@@ -22287,17 +22393,21 @@ body:not(.live-fs) #rp65How { display:none !important; }
   var q = null;
   try { q = new URLSearchParams(location.search); } catch (e) { }
   var auth = q ? q.get("auth") : null;
-  if (auth) {
+  // [RP-V7.117] A Google return carrying a handoff code (?auth=google
+  // &g=…) belongs to the account module, which exchanges the code for
+  // a session — leave the query in place for it and stay silent here.
+  var keepG = auth === "google" && !!(q && q.get("g"));
+  if (auth && !keepG) {
     try { history.replaceState(null, "", location.pathname + location.hash); } catch (e) { }
     setTimeout(function () {
-      if (auth === "off") toast2("Google/Apple sign-in isn't switched on yet — sign up with email + phone below 👇", 4400);
-      else if (auth === "err") toast2("That sign-in didn't finish — try again, or use email + phone.", 4400);
+      if (auth === "off") toast2("Google/Apple sign-in isn't switched on yet — sign up with your email or phone below 👇", 4400);
+      else if (auth === "err") toast2("That sign-in didn't finish — try again, or use email or phone.", 4400);
       else if (auth === "google" || auth === "apple") {
         var em = q.get("email") || "", nm = q.get("name") || "";
         var ei = $("suEmail");
         if (ei && em) { ei.value = em; ei.dispatchEvent(new Event("input", { bubbles: true })); }
         if (nm) { try { var P = JSON.parse(localStorage.getItem("datingGameProfile.v1") || "{}"); if (P && !P.name) { P.name = nm; localStorage.setItem("datingGameProfile.v1", JSON.stringify(P)); } } catch (e) { } }
-        toast2("✔ Signed in with " + (auth === "google" ? "Google" : "Apple") + " — email's filled in! Add your mobile number, tick the box, tap Continue.", 5600);
+        toast2("✔ Signed in with " + (auth === "google" ? "Google" : "Apple") + " — email's filled in! Add your password and date of birth, tick the box, tap Continue.", 5600);
       }
     }, 700);
   }
@@ -24682,12 +24792,27 @@ body:not(.live-fs) #rp65How { display:none !important; }
     var panel = document.createElement("div");
     panel.id = "suLoginPanel"; panel.hidden = true;
     panel.innerHTML = '<h3 style="margin:14px 0 6px;">👋 Welcome back — log in</h3>' +
-      '<div class="field"><label for="liEmail">Username or email</label><input type="text" id="liEmail" autocomplete="username" placeholder="your username or email" /></div>' +
+      '<div class="field"><label for="liEmail">Username, email or phone</label><input type="text" id="liEmail" autocomplete="username" placeholder="your username, email or phone" /></div>' +
       '<div class="field"><label for="liPass">Password</label><input type="password" id="liPass" autocomplete="current-password" placeholder="Your password" /></div>' +
       '<p class="age-note su-err" id="liErr" hidden></p>' +
       '<button class="btn-primary" id="btnLoginGo" type="button" style="width:100%; padding:13px;">Log in</button>' +
       '<button class="btn-mini" id="btnLoginBack" type="button" style="width:100%; padding:12px; margin-top:8px;">← Back to sign up</button>';
     card.appendChild(panel);
+    // [RP-V7.117] Google finish panel: a first-time Google member
+    // completes with ONLY a username + date of birth — no phone
+    // number, no Plaza password (they sign in with Google).
+    var gPanel = document.createElement("div");
+    gPanel.id = "suGooglePanel"; gPanel.hidden = true;
+    gPanel.innerHTML = '<h3 style="margin:14px 0 6px;">🎉 Almost done — Google has you verified</h3>' +
+      '<p class="age-note" style="margin:0 0 10px;">Signed in with Google as <b id="guEmail"></b>. Two last things and your account is ready — <b>no phone number and no Plaza password</b>: you\'ll sign in with Google.</p>' +
+      '<div class="field"><label for="guUser">Pick your username</label><input type="text" id="guUser" autocomplete="username" placeholder="e.g. party_star_23" maxlength="20" /><p class="age-note">3–20 characters — letters, numbers and underscores.</p><p class="age-note su-err" id="guUserErr" hidden></p></div>' +
+      '<div class="field"><label for="guDob">Date of birth (one time, for your account)</label><input type="date" id="guDob" /><p class="age-note su-err" id="guDobErr" hidden></p></div>' +
+      '<p class="age-note su-err" id="guErr" hidden></p>' +
+      '<button class="btn-primary" id="btnGoogleComplete" type="button" style="width:100%; padding:13px;">Create my account</button>' +
+      '<button class="btn-mini" id="btnGoogleBack" type="button" style="width:100%; padding:12px; margin-top:8px;">← Back to sign up</button>';
+    card.appendChild(gPanel);
+    $("btnGoogleBack").addEventListener("click", function () { showGooglePanel(false); });
+    $("btnGoogleComplete").addEventListener("click", doGoogleComplete);
     $("suPass").addEventListener("input", gateSignupBtn);
     ["suEmail", "suPhone", "suUser"].forEach(function (id) {
       var el = $(id);
@@ -24715,6 +24840,9 @@ body:not(.live-fs) #rp65How { display:none !important; }
     var bad = p.value.length > 0 && p.value.length < 8;
     if (e) { e.hidden = !bad; if (bad) e.textContent = "Password needs at least 8 characters."; }
     if (!passOk() || !userOk()) go.disabled = true;
+    // [RP-V7.117] this gate only ever disables — let the wall's own
+    // gate recompute the full one-way-in rule so Continue can light.
+    else { var se3 = $("suEmail"); if (se3) se3.dispatchEvent(new Event("input", { bubbles: true })); }
   }
   function setLoginMode(on) {
     var card = document.querySelector("#screen-signup .agegate-card");
@@ -24726,6 +24854,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     });
     var div = card.querySelector(".su-divider"); if (div) div.style.display = on ? "none" : "";
     var cl = card.querySelector(".su-consent"); if (cl) cl.style.display = on ? "none" : "";
+    var md = $("suMode"); if (md) md.style.display = on ? "none" : ""; // [RP-V7.117]
     ["suEmail", "suPhone", "suPass", "suDob", "suUser"].forEach(function (id) {
       var el = $(id); var f = el ? (el.closest(".field") || el) : null;
       if (f) f.style.display = on ? "none" : "";
@@ -24734,6 +24863,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     if (h) h.textContent = on ? "👋 Log in" : "📝 Create your account";
     if (on) { var le = $("liEmail"), se = $("suEmail"), su2 = $("suUser"); if (le && !le.value) le.value = (su2 && su2.value.trim()) || (se ? se.value : ""); }
     syncDobWrap();
+    try { if (window.rpSyncSuMode) window.rpSyncSuMode(); } catch (e) { } // [RP-V7.117] re-apply the chosen-contact visibility after the blanket restore
   }
   document.addEventListener("click", function (e) {
     if (!e.isTrusted) return;
@@ -24774,6 +24904,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
         try { if (window.rpSignupLiveInviteArm) window.rpSignupLiveInviteArm(dobOnFile()); } catch (e) { } // [RP-V7.63] arm the one-time live invite with the DOB this signup just collected (adult DOBs only — logins never arm it)
         try { if (window.rpInviteLinkAuthReady) window.rpInviteLinkAuthReady("signup"); } catch (e) { } // [RP-V7.65] a share-link invite routes the new member to the live/room that invited them (and outranks the generic invite)
         try { if (window.rpAuthGatePass) window.rpAuthGatePass(); } catch (e) { } // [RP-V7.48] account created — the wall lets you into the Plaza
+        try { if (window.rpFirstRunProfile) window.rpFirstRunProfile(); } catch (e) { } // [RP-V7.117] brand-new account → first-run profile pass (the existing setup screens, fully skippable)
       } else if (r.reachable && r.json) {
         // [RP-V7.80] A 403 here is the under-13 refusal — the
         // server's message shows as a clear refusal. (A 13–17 DOB
@@ -24793,7 +24924,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
   // onOk(user, pw) runs only on success; the sheet uses it to flow
   // into the app via finishLoginIntoApp, the Profile form stays put.
   function submitLogin(idv, pw, er, onOk) {
-    if (!idv || !pw) { if (er) { er.textContent = "Enter your username or email and password."; er.hidden = false; } return; }
+    if (!idv || !pw) { if (er) { er.textContent = "Enter your username, email or phone and password."; er.hidden = false; } return; }
     if (acctBusy) return;
     acctBusy = true;
     api("/api/account/login", "POST", { id: idv, username: idv, email: idv, password: pw }).then(function (r) {
@@ -24831,10 +24962,109 @@ body:not(.live-fs) #rp65How { display:none !important; }
     if (sp && user.phone) { sp.value = user.phone; sp.dispatchEvent(new Event("input", { bubbles: true })); }
     if (pass) { pass.value = pw; pass.dispatchEvent(new Event("input", { bubbles: true })); }
     if (sc && !sc.checked) { sc.checked = true; sc.dispatchEvent(new Event("change", { bubbles: true })); }
+    // [RP-V7.117] the wall gate now checks only the CHOSEN contact —
+    // point it at the contact this account actually has.
+    try { if (window.rpSetSuMode) window.rpSetSuMode(user.phone && !user.email ? "phone" : "email", false); } catch (e) { }
     setLoginMode(false);
     var go = $("btnSignupGo");
     setTimeout(function () { if (go && !go.disabled) go.click(); }, 80);
   }
+
+  /* ---------- [RP-V7.117] Google return: exchange / complete ---------- */
+  // The server's Google callback now returns /?auth=google&g=<code>.
+  // A known account exchanges the code for a session right here; a
+  // first-time Google member gets the finish panel (username + DOB
+  // only — no phone, no Plaza password).
+  function adoptSession(j, isNew) {
+    acct = { token: j.token, userId: j.user.id, email: j.user.email, name: j.user.name, username: j.user.username || "", phone: j.user.phone || "", profileType: j.user.profileType || "member", photo: j.user.photo || "", bio: j.user.bio || "", photos: Array.isArray(j.user.photos) ? j.user.photos.slice(0, 12) : [] };
+    saveAcct();
+    try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { }
+    try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(j.user.photo || null); } catch (e) { }
+    try { if (window.rpApplyAccountProfile) window.rpApplyAccountProfile(j.user); } catch (e) { }
+    fetchReminders(); renderAcctBox();
+    try { if (window.rpAuthGatePass) window.rpAuthGatePass(); } catch (e) { }
+    if (isNew) { try { if (window.rpFirstRunProfile) window.rpFirstRunProfile(); } catch (e) { } }
+  }
+  var googleCode = "";
+  function showGooglePanel(on, info) {
+    var card = document.querySelector("#screen-signup .agegate-card");
+    var panel = $("suGooglePanel");
+    if (!card || !panel) return;
+    panel.hidden = !on;
+    ["btnGoogle", "btnApple", "btnSignupGo", "suLoginLink"].forEach(function (id) {
+      var el = $(id); if (el) el.style.display = on ? "none" : "";
+    });
+    var lp = $("suLoginPanel"); if (lp) lp.hidden = true;
+    var div = card.querySelector(".su-divider"); if (div) div.style.display = on ? "none" : "";
+    var cl = card.querySelector(".su-consent"); if (cl) cl.style.display = on ? "none" : "";
+    var md = $("suMode"); if (md) md.style.display = on ? "none" : "";
+    ["suEmail", "suPhone", "suPass", "suDob", "suUser"].forEach(function (id) {
+      var el = $(id); var f = el ? (el.closest(".field") || el) : null;
+      if (f) f.style.display = on ? "none" : "";
+    });
+    var h = card.querySelector("h2");
+    if (h) h.textContent = on ? "🎉 Almost done" : "📝 Create your account";
+    if (on && info) {
+      googleCode = info.code || googleCode;
+      var ge = $("guEmail"); if (ge) ge.textContent = info.email || "";
+      var gu = $("guUser");
+      if (gu && !gu.value && info.email) {
+        var cand = String(info.email).split("@")[0].toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 20);
+        if (/^[A-Za-z0-9_]{3,20}$/.test(cand)) gu.value = cand;
+      }
+    }
+    if (!on) { syncDobWrap(); try { if (window.rpSyncSuMode) window.rpSyncSuMode(); } catch (e) { } }
+  }
+  function doGoogleComplete() {
+    var un = $("guUser") ? $("guUser").value.trim() : "";
+    var dob = $("guDob") ? $("guDob").value : "";
+    var eU = $("guUserErr"), eD = $("guDobErr"), eG = $("guErr");
+    if (eU) eU.hidden = true; if (eD) eD.hidden = true; if (eG) eG.hidden = true;
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(un)) { if (eU) { eU.textContent = "Usernames are 3–20 characters — letters, numbers and underscores only."; eU.hidden = false; } return; }
+    if (!dob) { if (eD) { eD.textContent = "Add your date of birth — one time, for your account."; eD.hidden = false; } return; }
+    if (acctBusy) return;
+    acctBusy = true;
+    api("/api/account/google/complete", "POST", { code: googleCode, username: un, dob: dob }).then(function (r) {
+      acctBusy = false;
+      if (r.json && r.json.ok && r.json.token) {
+        try { localStorage.setItem(DOB_KEY, dob); } catch (e) { } // so the age hydrate sees the DOB the gate pass is about to read
+        localSeed();
+        toast2("✅ You're in — welcome to Rizz Plaza!", 4200);
+        adoptSession(r.json, true);
+      } else if (r.reachable && r.json) {
+        if (eG) { eG.textContent = r.json.error || "That didn't go through — try again."; eG.hidden = false; }
+      } else {
+        if (eG) { eG.textContent = "Can't reach the Plaza right now — check your connection and try again."; eG.hidden = false; }
+      }
+    });
+  }
+  var googleInitDone = false;
+  function googleReturnInit() {
+    if (googleInitDone) return;
+    var q = null;
+    try { q = new URLSearchParams(location.search); } catch (e) { }
+    if (!q || q.get("auth") !== "google") return;
+    var code = q.get("g") || "";
+    if (!code) return;
+    googleInitDone = true;
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch (e) { }
+    buildSignupUI();
+    if (acctBusy) return;
+    acctBusy = true;
+    api("/api/account/google/exchange", "POST", { code: code }).then(function (r) {
+      acctBusy = false;
+      if (r.json && r.json.ok && r.json.token) {
+        if (r.json.deletionCancelled) toast2("Welcome back — your scheduled deletion was cancelled.", 6000);
+        else toast2("👋 Welcome back, " + r.json.user.name + "!", 3600);
+        adoptSession(r.json, false);
+      } else if (r.json && r.json.ok && r.json.needsProfile) {
+        showGooglePanel(true, { code: code, email: r.json.email || "", name: r.json.name || "" });
+      } else {
+        showAcctErr((r.json && r.json.error) || "That Google sign-in didn't finish — try again, or use a way in below.");
+      }
+    });
+  }
+  googleReturnInit();
 
   /* ---------- 🔔 bell in the app bar + reminders sheet ---------- */
   function buildBell() {
@@ -25027,7 +25257,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
       // the Profile page, not hidden inside the sign-up sheet. It
       // submits through the SAME shared login logic (submitLogin).
       box.innerHTML = '<h3 style="margin:2px 0 6px;">👋 Welcome back — log in</h3>' +
-        '<div class="field"><label for="pfLiEmail">Username or email</label><input type="text" id="pfLiEmail" autocomplete="username" placeholder="your username or email" /></div>' +
+        '<div class="field"><label for="pfLiEmail">Username, email or phone</label><input type="text" id="pfLiEmail" autocomplete="username" placeholder="your username, email or phone" /></div>' +
         '<div class="field"><label for="pfLiPass">Password</label><input type="password" id="pfLiPass" autocomplete="current-password" placeholder="Your password" /></div>' +
         '<p class="age-note su-err" id="pfLiErr" hidden></p>' +
         '<button class="btn-primary" id="pfLoginGo" type="button" style="width:100%; padding:13px;">Log in</button>' +
