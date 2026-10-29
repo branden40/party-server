@@ -717,6 +717,42 @@
       .mom-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
       .mom-head h2 { margin: 0; font-size: 24px; flex: 1; }
       .mom-feed { display: flex; flex-direction: column; gap: 18px; max-height: calc(100dvh - 190px); min-height: 320px; overflow-y: auto; scroll-snap-type: y proximity; padding: 2px 2px 14px; scrollbar-width: thin; }
+      /* [RP-V7.112] Reels flip ONE page at a time (Branden): hard snap,
+         never blow through to another person's video. */
+      #reelFeed { scroll-snap-type: y mandatory; }
+      #reelFeed .reel-card { scroll-snap-stop: always; max-height: calc(100dvh - 196px); }
+      /* ---------- [RP-V7.113] Home in the TikTok layout (Branden) ---------- */
+      #screen-plaza.home-feedmode > .home-classic { display: none !important; }
+      #screen-plaza:not(.home-feedmode) #homePager { display: none; }
+      #homeTop { position: relative; }
+      #homeStrip { display: flex; align-items: center; gap: 8px; padding: 10px 12px; z-index: 6; }
+      #screen-plaza.home-feedmode #homeStrip { position: absolute; top: 0; left: 0; right: 0; background: linear-gradient(180deg, rgba(0,0,0,.45), rgba(0,0,0,0)); }
+      #screen-plaza:not(.home-feedmode) #homeStrip { position: sticky; top: 0; background: #0a0a0f; border-bottom: 1px solid rgba(255,255,255,.08); }
+      #hsLive { display: flex; flex-direction: column; align-items: center; gap: 0; background: none; border: none; color: #fff; cursor: pointer; font-family: inherit; padding: 2px 4px; }
+      #hsLive .hs-tv { font-size: 17px; line-height: 1; }
+      #hsLive .hs-livetxt { font-size: 8.5px; font-weight: 900; letter-spacing: 1.5px; }
+      .hs-tabs { flex: 1 1 auto; display: flex; justify-content: center; gap: 20px; }
+      .hs-tabs button { background: none; border: none; color: rgba(255,255,255,.62); font-family: inherit; font-size: 15.5px; font-weight: 800; cursor: pointer; padding: 4px 1px; border-bottom: 2.5px solid transparent; text-shadow: 0 1px 6px rgba(0,0,0,.35); }
+      .hs-tabs button.on { color: #fff; border-bottom-color: #fff; }
+      #hsSearch { background: none; border: none; color: #fff; font-size: 19px; cursor: pointer; padding: 4px 6px; }
+      #homePager { height: calc(100dvh - 158px); min-height: 340px; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; background: #000; }
+      #homePager::-webkit-scrollbar { display: none; }
+      .hp-slide { position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; overflow: hidden; background: #000; }
+      .hp-slide video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+      .hp-grad { position: absolute; left: 0; right: 0; bottom: 0; height: 34%; background: linear-gradient(0deg, rgba(0,0,0,.55), rgba(0,0,0,0)); pointer-events: none; }
+      .hp-meta { position: absolute; left: 12px; right: 86px; bottom: 16px; color: #fff; z-index: 3; }
+      .hp-aname { background: none; border: none; color: #fff; font-family: inherit; font-size: 16.5px; font-weight: 900; cursor: pointer; padding: 0; text-shadow: 0 1px 8px rgba(0,0,0,.5); }
+      .hp-cap { margin: 6px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.4; text-shadow: 0 1px 6px rgba(0,0,0,.55); }
+      .hp-rail { position: absolute; right: 8px; bottom: 20px; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 17px; }
+      .hp-ava { position: relative; background: none; border: none; cursor: pointer; padding: 0; margin-bottom: 2px; }
+      .hp-ava-in { display: flex; align-items: center; justify-content: center; width: 47px; height: 47px; border-radius: 50%; border: 2px solid #fff; color: #fff; font-weight: 900; font-size: 19px; }
+      .hp-follow { position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); width: 19px; height: 19px; border-radius: 50%; background: #fe2c55; color: #fff; font-size: 14px; font-weight: 900; line-height: 19px; text-align: center; }
+      .hp-act { display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; color: #fff; font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer; padding: 0; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
+      .hp-act .hp-ico { font-size: 29px; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,.45)); }
+      .hp-act.like.liked { color: #fe2c55; }
+      .hp-views { color: rgba(255,255,255,.85); font-size: 11px; font-weight: 700; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
+      .hp-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; color: #c9c9d6; font-weight: 700; font-size: 15px; line-height: 1.5; }
+
       .mom-card { flex: none; scroll-snap-align: start; background: var(--panel); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow); }
       .mom-top { display: flex; align-items: center; gap: 9px; padding: 10px 12px; }
       .mom-top .who-av svg { width: 34px; height: 48px; }
@@ -750,6 +786,12 @@
       .reel-meta .rx-chip.mine { border-color: var(--rose); background: rgba(254,44,85,.45); color: #fff; }
       .rx-add { display: inline-flex; align-items: center; gap: 4px; border: 1.5px dashed rgba(127,127,140,.55); background: transparent; color: var(--ink-soft); border-radius: 999px; padding: 4px 10px; font-size: 13.5px; font-weight: 800; cursor: pointer; font-family: inherit; line-height: 1.25; }
       .reel-meta .rx-add { border-color: rgba(255,255,255,.45); color: #fff; }
+      /* [RP-V7.106] views + reactions ride the right rail on reels */
+      .reel-rail .reel-views { margin-top: 0; text-align: center; }
+      .reel-rail .rx-row { flex-direction: column; flex-wrap: nowrap; align-items: center; padding: 0; gap: 5px; pointer-events: auto; }
+      .reel-rail .rx-chip { border-color: rgba(255,255,255,.4); background: rgba(0,0,0,.5); color: #fff; }
+      .reel-rail .rx-chip.mine { border-color: var(--rose); background: rgba(254,44,85,.45); color: #fff; }
+      .reel-rail .rx-add { border-color: rgba(255,255,255,.45); color: #fff; }
       .rx-add:active, .rx-chip:active { transform: scale(.93); }
       .cmt-emoji { flex: none; width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--chip); font-size: 19px; line-height: 1; cursor: pointer; font-family: inherit; }
       .cmt-emoji:active { transform: scale(.92); }
@@ -2516,6 +2558,10 @@
         padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
       }
       body.has-tabs #tabbar { display: flex; }
+      /* [RP-V7.112] two equal groups around the create button keep the
+         + at the exact center no matter how many tabs each side has. */
+      #tabbar .tab-group { display: flex; flex: 1 1 0; min-width: 0; }
+      #tabbar .tab-create { flex: 0 0 52px; }
       body.has-tabs .screen.active { padding-bottom: 98px; }
       .tab-btn {
         flex: 1; background: none; border: none; cursor: pointer;
@@ -17229,8 +17275,7 @@
               '<button class="mom-act cmt" type="button">💬 <span class="cc">' + momCommentTotal(p) + '</span></button>' +
               ((p.srv) ? '<button class="mom-act repost' /* [RP-V7.101] own photos too — reshare */ + (p.reposted ? " reposted" : "") + '" type="button">🔁 <span class="rc">' + (p.srvReposts || 0) + '</span></button>' : "") + /* [RP-V7.89] server posts only — seed/demo posts have no server record to repost */
               (p.mine ? "" : '<button class="mom-act gift" type="button">🎁 Gift</button>') +
-            '</div>' +
-            '<div class="rx-row" data-rxrow="' + escHtml(p.id) + '"></div>';
+            '</div>'; /* [RP-V7.107] reactions removed everywhere (Branden) */
           card.querySelector(".like").addEventListener("click", function () { momToggleLike(p.id); });
           card.querySelector(".cmt").addEventListener("click", function () { openMomComments(p.id); });
           var rpb2 = card.querySelector(".repost");
@@ -17240,25 +17285,26 @@
             var t = e.target;
             if (t && t.classList && t.classList.contains("mom-tag") && window.rpOpenTagView) window.rpOpenTagView(t.getAttribute("data-mtag") || "");
           });
-          rxRenderRow(card.querySelector(".rx-row"), "photo", p.id);
           var gb = card.querySelector(".gift");
           if (gb) gb.addEventListener("click", function () {
-            openGiftSheet("npc:" + p.name, p.name, { local: true, onSent: function (g) {
+            // [RP-V7.104] Server photo posts send a REAL gift to the
+            // poster — the money ledger path (POST /api/money/gift,
+            // poster banks 70%), exactly like Feed gifts; the chip bumps
+            // only when a send is confirmed (onSent rides the server
+            // replay). The old npc/local simulation paid nobody.
+            // Non-server posts keep the local flow.
+            if (p.srv) openGiftSheet(p.name, p.name, { onSent: function (g) {
               p.gifts += g.cents;
               var chip = card.querySelector(".mom-gifted");
               if (chip) { chip.hidden = false; chip.textContent = "🎁 " + p.gifts.toLocaleString("en-US") + " charms gifted"; }
             }});
+            else openGiftSheet("npc:" + p.name, p.name, { local: true, onSent: function (g) {
+              p.gifts += g.cents;
+              var chip2 = card.querySelector(".mom-gifted");
+              if (chip2) { chip2.hidden = false; chip2.textContent = "🎁 " + p.gifts.toLocaleString("en-US") + " charms gifted"; }
+            }});
           });
           feed.appendChild(card);
-        });
-        // [RP-V7.51] Photo posts live on the client, so their reaction
-        // summaries come from the batch endpoint; rows re-render with
-        // the server's counts as soon as it answers.
-        rxFetchPhotos(Moments.posts.map(function (p) { return p.id; }), function () {
-          Moments.posts.forEach(function (p) {
-            var row = feed.querySelector('[data-rxrow="' + p.id + '"]');
-            if (row) rxRenderRow(row, "photo", p.id);
-          });
         });
       }
       /* [RP-V7.85] Like display count: the demo base (seeded posts)
@@ -17592,18 +17638,19 @@
         // plain newest-first list, exactly as before.
         var fyH = { "Accept": "application/json" };
         var fyT = reelToken(); if (fyT) fyH["Authorization"] = "Bearer " + fyT;
-        fetch("/api/reels", { headers: fyH })
+        fetch(Reels.friends ? "/api/reels?friends=1" : "/api/reels", { headers: fyH }) // [RP-V7.112]
           .then(function (r) { return r.json(); })
           .then(function (j) {
             if (j && j.ok && Array.isArray(j.reels)) {
               Reels.server = j.reels; Reels.serverOk = true;
-              Reels.ranked = !!j.ranked;
+              Reels.ranked = Reels.friends ? false : !!j.ranked; // [RP-V7.112] Friends is pure newest-first
               reelMigrateLocal();
               // A local blob whose server copy is confirmed in the feed can
               // be freed — the server copy replaces it in the feed.
               var have = {}; j.reels.forEach(function (r) { have[r.id] = true; });
               reelLoadMeta().forEach(function (m) { if (m.serverId && have[m.serverId]) reelDbDel(m.id); });
               if (Reels.mode === "reels") renderReels();
+              renderHomePager(); // [RP-V7.113] the Home feed rides the same fetch
               // Retry uploads for anything still only on this device.
               reelLoadMeta().forEach(function (m) { if (!m.serverId && !m.draft) reelTryUpload(m.id); });
             }
@@ -17742,7 +17789,7 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", caption: r.caption || "", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
@@ -17801,10 +17848,16 @@
         if (!items.length) {
           feed.innerHTML = barHtml + (Reels.tagFilter
             ? '<div class="mom-empty">No reels with #' + escHtml(Reels.tagFilter) + " yet — post the first one! 🎬</div>"
-            : '<div class="mom-empty">No Reels yet — be the first to post one! 🎬</div>' +
+            : Reels.friends
+              ? '<div class="mom-empty">No friend reels yet — follow people and their new reels will land here 👥</div>'
+              : '<div class="mom-empty">No Reels yet — be the first to post one! 🎬</div>' +
               (Reels.serverOk ? "" : '<div class="mom-empty" style="padding-top:0;">Reels go public on the live site — yours are saved on this device until then.</div>'));
           reelClearTagWire();
           return;
+        }
+        if (Reels.friends) { // [RP-V7.112] Friends: only followed authors' server reels, never my own or device-only posts
+          items = items.filter(function (it) { return it.server && !it.mine; });
+          barHtml = '<div class="reel-filterbar"><span>👥 Friends — latest reels from people you follow</span></div>';
         }
         if (barHtml) {
           var bd = document.createElement("div");
@@ -17897,8 +17950,7 @@
           '<div class="reel-meta"><span class="reel-author">' + escHtml(item.author) + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" +
           (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + chip + provHtml +
           (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : "Plaza sound") + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound">☆</button></div>' : '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>") +
-          '<span class="reel-views" data-rpviews="' + escHtml(item.id) + '">👁 ' + (window.fmtViews ? window.fmtViews(item.views || 0) : (item.views || 0)) + "</span>" +
-          '<div class="rx-row" data-rxrow="' + escHtml(item.id) + '"></div></div>' +
+          "</div>" +
           '<div class="reel-rail">' + avHtml +
             '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">❤️<span class="lc">' + lk.count + "</span></button>" +
             '<button class="reel-act cmt" type="button">💬<span class="cc">' + cmtCount + "</span></button>" +
@@ -17906,6 +17958,10 @@
             ((item.server) ? '<button class="reel-act repost' /* [RP-V7.101] own reels too — reshare */ + (item.myReposted ? " reposted" : "") + '" type="button">🔁<span class="rc">' + (item.reposts || 0) + "</span></button>" : "") + /* [RP-V7.89] */
             (item.mine ? "" : '<button class="reel-act gift" type="button">🎁<span>Gift</span></button>') +
             (canRemix ? '<button class="reel-act remix" type="button">🎬<span>Remix</span></button>' : "") +
+            /* [RP-V7.106] Branden: "Move the icons" — the 👁 views moved
+               from the bottom-left onto the rail. [RP-V7.107] the 😊
+               reactions that rode along are removed everywhere. */
+            '<span class="reel-views" data-rpviews="' + escHtml(item.id) + '">👁 ' + (window.fmtViews ? window.fmtViews(item.views || 0) : (item.views || 0)) + "</span>" +
           "</div>" +
           '<div class="reel-progress"><div class="reel-progress-track"><div class="reel-progress-fill"></div></div></div>';
         var vMine = card.querySelector('[data-rv="mine"]') || card.querySelector("video");
@@ -18073,15 +18129,18 @@
         var pc = card.querySelector(".reel-provchip");
         if (pc) pc.addEventListener("click", function () { reelOpenSource(item); });
         card.querySelector(".like").addEventListener("click", function () { reelToggleLike(item, card); });
-        if (item.server) rxSeed("reel", item.id, item.reactions, item.myReactions);
-        rxRenderRow(card.querySelector(".rx-row"), "reel", item.id);
         card.querySelector(".cmt").addEventListener("click", function () { openReelComments(item); });
         card.querySelector(".share").addEventListener("click", function () { reelShare(item); });
         var rpb = card.querySelector(".repost");
         if (rpb) rpb.addEventListener("click", function () { reelToggleRepost(item, card); }); // [RP-V7.89]
         var gb = card.querySelector(".gift");
         if (gb) gb.addEventListener("click", function () {
-          openGiftSheet("npc:" + item.author, item.author, { local: true, onSent: function () { } });
+          // [RP-V7.104] Server reels send a REAL gift to the poster — the
+          // money ledger path (POST /api/money/gift, poster banks 70%),
+          // exactly like Feed gifts. The old npc/local simulation paid
+          // nobody. Local items are always mine (no button renders).
+          if (item.server) openGiftSheet(item.authorId || item.author, item.author, { onSent: function () { } });
+          else openGiftSheet("npc:" + item.author, item.author, { local: true, onSent: function () { } });
         });
         var rb = card.querySelector(".remix");
         if (rb) rb.addEventListener("click", function () { openReelRemix(item); });
@@ -18271,6 +18330,7 @@
 
       /* ---- Photos / Reels mode toggle ---- */
       function setMomMode(mode) {
+        if (Reels.friends && !Reels._friendsEnter) { Reels.friends = false; window.__rpFriendsMode = false; Reels.server = []; } // [RP-V7.112] the Photos/Reels toggle exits Friends
         Reels.mode = mode === "reels" ? "reels" : "photos";
         var reels = Reels.mode === "reels";
         var mf = $("momFeed"), rf = $("reelFeed");
@@ -18286,10 +18346,191 @@
         if (tp) tp.classList.toggle("on", !reels);
         if (tr) tr.classList.toggle("on", reels);
         var h2 = document.querySelector(".mom-head h2");
-        if (h2) h2.textContent = reels ? "🎬 Reels" : "📸 Photos";
+        if (h2) h2.textContent = (Reels.friends && reels) ? "👥 Friends" : (reels ? "🎬 Reels" : "📸 Photos"); // [RP-V7.112]
         if (reels) { renderReels(); reelFetchFeed(); }
         else reelPauseAll();
       }
+      /* [RP-V7.112] Friends tab (bottom bar): the Reels screen showing
+         only people you follow. Entry rides the same buttons/gates as
+         Reels itself; the tab-bar Reels button calls rpReelsOpen to
+         leave Friends mode cleanly. */
+      window.rpFriendsOpen = function () {
+        Reels.friends = true; Reels._friendsEnter = true; window.__rpFriendsMode = true;
+        Reels.server = []; Reels.ranked = false;
+        var b = $("btnMomentsPlaza"); if (b) b.click();
+        setMomMode("reels");
+        Reels._friendsEnter = false;
+      };
+      window.rpReelsOpen = function () {
+        var wasFriends = !!Reels.friends;
+        if (wasFriends) { Reels.friends = false; window.__rpFriendsMode = false; Reels.server = []; }
+        var b = $("btnMomentsPlaza"); if (b) b.click();
+        if (wasFriends && Reels.mode === "reels") { renderReels(); reelFetchFeed(); }
+      };
+      /* ================= [RP-V7.113] HOME in the TikTok layout =================
+         Branden: the Home button should open this layout — a full-screen
+         video feed with the top strip (LIVE · tabs · search) and the
+         right rail. Strip tabs: Plaza (the classic home — Daily Pot,
+         rooms, Live Now, earnings), Following (people you follow),
+         For You (the ranked Plaza reels, default). Age rules ride the
+         existing gates: teens never see the feed (Plaza tab), and the
+         18+ door verifies once before the feed plays. */
+      var HomeFeed = { tab: "foryou", friendsItems: null, friendsLoaded: false, sig: "", observer: null };
+      function homeMapServer(r) {
+        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) };
+      }
+      function homeFetchFriends() {
+        var tok = reelToken();
+        if (!tok) { HomeFeed.friendsItems = []; HomeFeed.friendsLoaded = true; if (HomeFeed.tab === "following") renderHomePager(); return; }
+        fetch("/api/reels?friends=1", { headers: { "Accept": "application/json", "Authorization": "Bearer " + tok } })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { HomeFeed.friendsItems = (j && j.ok && Array.isArray(j.reels)) ? j.reels.map(homeMapServer) : []; HomeFeed.friendsLoaded = true; if (HomeFeed.tab === "following") renderHomePager(); })
+          .catch(function () { HomeFeed.friendsItems = []; HomeFeed.friendsLoaded = true; if (HomeFeed.tab === "following") renderHomePager(); });
+      }
+      function homeItems() {
+        if (HomeFeed.tab === "following") return (HomeFeed.friendsItems || []).filter(function (it) { return !!it.url; });
+        return reelFeedItems().filter(function (it) { return !!it.url && !it.pending; });
+      }
+      function hpPlay(slide) {
+        var v = slide.querySelector("video"); if (!v) return;
+        if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () { v.muted = true; v.play().catch(function () { }); }); }
+      }
+      function hpPause(slide, emit) {
+        var v = slide.querySelector("video"); if (!v) return;
+        if (!v.paused) { try { v.pause(); } catch (e) { } }
+        if (emit && slide._item && slide._trk) reelEmitView(slide._item, slide._trk, v);
+      }
+      function homeSlide(item) {
+        var slide = document.createElement("article");
+        slide.className = "hp-slide";
+        slide._item = item;
+        slide._trk = { acc: 0, startedAt: 0, maxFrac: 0, completed: false, lastT: 0 };
+        var lk = reelLikeState(item);
+        slide.innerHTML =
+          '<video src="' + escHtml(item.url) + '" loop playsinline preload="metadata"></video>' +
+          '<div class="hp-grad"></div>' +
+          '<div class="hp-meta"><button type="button" class="hp-aname">' + escHtml(item.author) + "</button>" +
+          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + "</div>" +
+          '<div class="hp-rail">' +
+          '<button type="button" class="hp-ava" aria-label="Open profile"><span class="hp-ava-in" style="background:' + reelAvColor(item.author) + '">' + escHtml(String(item.author || "?").charAt(0).toUpperCase()) + "</span>" + (item.mine ? "" : '<span class="hp-follow">+</span>') + "</button>" +
+          '<button type="button" class="hp-act like' + (lk.liked ? " liked" : "") + '"><span class="hp-ico">❤️</span><span class="lc">' + (lk.count || 0) + "</span></button>" +
+          '<button type="button" class="hp-act hp-comments"><span class="hp-ico">💬</span><span>' + (item.commentCount || 0) + "</span></button>" +
+          (item.mine ? "" : '<button type="button" class="hp-act hp-gift"><span class="hp-ico">🎁</span><span>Gift</span></button>') +
+          '<button type="button" class="hp-act hp-share"><span class="hp-ico">↗️</span><span>Share</span></button>' +
+          '<span class="hp-views">👁 ' + (item.views || 0) + "</span>" +
+          "</div>";
+        var v = slide.querySelector("video"), trk = slide._trk;
+        v.addEventListener("playing", function () { if (!trk.startedAt) trk.startedAt = Date.now(); });
+        v.addEventListener("timeupdate", function () {
+          if (!isFinite(v.duration) || !v.duration) return;
+          var ct = v.currentTime || 0;
+          if (trk.lastT && ct < trk.lastT - 2) trk.completed = true;
+          trk.lastT = ct;
+          if (ct / v.duration > trk.maxFrac) trk.maxFrac = ct / v.duration;
+        });
+        v.addEventListener("click", function () {
+          if (v.paused) hpPlay(slide);
+          else { if (trk.startedAt) { trk.acc += Date.now() - trk.startedAt; trk.startedAt = 0; } try { v.pause(); } catch (e) { } }
+        });
+        var prof = function () { if (item.authorId && window.rpDm && window.rpDm.openProfile) window.rpDm.openProfile(item.authorId, item.author); };
+        slide.querySelector(".hp-aname").addEventListener("click", prof);
+        var avaBtn = slide.querySelector(".hp-ava");
+        avaBtn.addEventListener("click", function (e) {
+          if (e.target.classList && e.target.classList.contains("hp-follow")) {
+            e.stopPropagation();
+            if (!item.authorId) return;
+            var tok = reelToken(); if (!tok) { toast("Sign in to follow ➕", 2600); return; }
+            fetch("/api/social/follow", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok }, body: JSON.stringify({ accountId: item.authorId }) })
+              .then(function (r) { return r.json(); })
+              .then(function (j) { if (j && j.ok) { var f = avaBtn.querySelector(".hp-follow"); if (f) f.style.display = "none"; toast("Following " + item.author + " ✓", 2200); } })
+              .catch(function () { });
+            return;
+          }
+          prof();
+        });
+        slide.querySelector(".like").addEventListener("click", function () { reelToggleLike(item, slide); });
+        slide.querySelector(".hp-comments").addEventListener("click", function () { openReelComments(item); });
+        var gb = slide.querySelector(".hp-gift");
+        if (gb) gb.addEventListener("click", function () { if (typeof openGiftSheet === "function") openGiftSheet(item.authorId || item.author, item.author); });
+        slide.querySelector(".hp-share").addEventListener("click", function () { reelShare(item); });
+        return slide;
+      }
+      function homeRenderGate(pager) {
+        if (HomeFeed.sig === "gate") return;
+        HomeFeed.sig = "gate";
+        pager.innerHTML = '<div class="hp-empty">🔞 This feed is 18+ — verified once, then it just plays.<br/><button type="button" class="btn-primary" id="hpVerify" style="margin-top:14px; width:auto; padding:11px 22px;">Verify my age</button></div>';
+        var b = $("hpVerify");
+        if (b) b.addEventListener("click", function () { HomeFeed.sig = ""; rpDoorGate("For You", function () { renderHomePager(); }); });
+      }
+      function renderHomePager() {
+        var pager = $("homePager"); if (!pager || HomeFeed.tab === "plaza") return;
+        if (typeof isTeen === "function" && isTeen()) { setHomeTab("plaza"); return; }
+        if (typeof rpAdultOk === "function" && !rpAdultOk()) { homeRenderGate(pager); return; }
+        var items = homeItems();
+        var sig = HomeFeed.tab + "|" + items.map(function (i) { return i.key; }).join(",");
+        if (sig === HomeFeed.sig) return;
+        HomeFeed.sig = sig;
+        if (HomeFeed.observer) { try { HomeFeed.observer.disconnect(); } catch (e) { } HomeFeed.observer = null; }
+        pager.querySelectorAll("video").forEach(function (v) { try { v.pause(); } catch (e) { } });
+        pager.innerHTML = "";
+        if (!items.length) {
+          pager.innerHTML = '<div class="hp-empty">' + (HomeFeed.tab === "following"
+            ? (reelToken() ? "No reels from people you follow yet 👥<br/>Follow someone and their new reels land here." : "Sign in to see your Following feed 👥")
+            : "No reels yet — be the first to post one 🎬") + "</div>";
+          return;
+        }
+        items.forEach(function (item) { pager.appendChild(homeSlide(item)); });
+        if ("IntersectionObserver" in window) {
+          HomeFeed.observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) {
+              if (en.intersectionRatio >= 0.6) hpPlay(en.target);
+              else hpPause(en.target, true);
+            });
+          }, { root: pager, threshold: [0, 0.6, 1] });
+          pager.querySelectorAll(".hp-slide").forEach(function (s) { HomeFeed.observer.observe(s); });
+        }
+      }
+      function setHomeTab(tab) {
+        HomeFeed.tab = tab;
+        var sec = $("screen-plaza"); if (!sec) return;
+        sec.classList.toggle("home-feedmode", tab !== "plaza");
+        document.querySelectorAll("#homeStrip [data-hs]").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-hs") === tab); });
+        if (tab === "following" && !HomeFeed.friendsLoaded) homeFetchFriends();
+        if (tab !== "plaza") { HomeFeed.sig = ""; renderHomePager(); }
+      }
+      window.__rpHomeReset = function () { // Home tab re-tap from the classic view returns to the feed
+        if (!$("screen-plaza") || !$("screen-plaza").classList.contains("active")) return false;
+        if (HomeFeed.tab !== "foryou") { setHomeTab("foryou"); return true; }
+        return false;
+      };
+      (function initHomeFeed() {
+        var sec = $("screen-plaza"); if (!sec || $("homeTop")) return;
+        Array.prototype.forEach.call(sec.children, function (el) { if (el.tagName !== "SCRIPT" && el.tagName !== "STYLE") el.classList.add("home-classic"); });
+        var top = document.createElement("div");
+        top.id = "homeTop";
+        top.innerHTML = '<div id="homeStrip">' +
+          '<button type="button" id="hsLive" aria-label="Go to the Live Stage"><span class="hs-tv">📺</span><span class="hs-livetxt">LIVE</span></button>' +
+          '<div class="hs-tabs">' +
+          '<button type="button" data-hs="plaza">Plaza</button>' +
+          '<button type="button" data-hs="following">Following</button>' +
+          '<button type="button" data-hs="foryou" class="on">For You</button>' +
+          "</div>" +
+          '<button type="button" id="hsSearch" aria-label="Search videos and pictures">🔍</button></div>' +
+          '<div id="homePager"></div>';
+        sec.insertBefore(top, sec.firstChild);
+        top.querySelectorAll("[data-hs]").forEach(function (b) { b.addEventListener("click", function () { setHomeTab(b.getAttribute("data-hs")); }); });
+        var lv = $("hsLive"); if (lv) lv.addEventListener("click", function () { var b = $("btnOnlineHome"); if (b) b.click(); });
+        var sr = $("hsSearch"); if (sr) sr.addEventListener("click", function () { if (window.rpReelsOpen) window.rpReelsOpen(); if (window.rpMediaSearch) setTimeout(function () { window.rpMediaSearch.engage(); }, 500); });
+        if (typeof isTeen === "function" && isTeen()) setHomeTab("plaza");
+        else { sec.classList.add("home-feedmode"); reelFetchFeed(); setTimeout(renderHomePager, 700); }
+        if (typeof window.show === "function" && !window.show.__rphome) {
+          var origShow = window.show;
+          var wrappedShow = function (id) { var r = origShow.apply(this, arguments); if (id === "screen-plaza") setTimeout(renderHomePager, 80); return r; };
+          wrappedShow.__rphome = true;
+          window.show = wrappedShow;
+        }
+      })();
+
 
       /* ---- Composer (record or upload) ---- */
       function reelClearPending() {
@@ -20103,13 +20344,18 @@
   .hol-deco, .hol-fall, .hol-deco > span, .hol-fall > span { pointer-events: none !important; }
   </style>
   <nav id="tabbar" aria-label="Main navigation">
+    <div class="tab-group">
     <button class="tab-btn" data-tab="home" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg></span>Home</button>
+    <button class="tab-btn" data-tab="friends" id="btnTabFriends" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c1-3.2 3-4.5 5.5-4.5s4.5 1.3 5.5 4.5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.6 14.7c2.3.2 4 1.5 5 4.3"/></svg></span>Friends</button>
     <button class="tab-btn" data-tab="live" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="6"/></svg></span>Live</button>
     <button class="tab-btn" data-tab="auctions" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20h16"/><path d="M6 16l7-7"/><path d="M12 4l8 8-3 3-8-8z"/></svg></span>Auctions</button>
+    </div>
     <button class="tab-btn tab-create" id="btnTabCreate" data-tab="create" type="button" aria-label="Create — open the camera"><span class="tab-plus" aria-hidden="true">+</span><span class="tab-plus-lbl" aria-hidden="true">&nbsp;</span></button>
+    <div class="tab-group">
     <button class="tab-btn" data-tab="moments" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9l5 3-5 3z"/></svg></span>Reels</button>
     <button class="tab-btn" data-tab="inbox" id="btnTabInbox" type="button"><span class="ti" style="position:relative;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3.5c5.2 0 9.5 3.3 9.5 7.4 0 4.1-4.3 7.4-9.5 7.4-1.2 0-2.4-.2-3.5-.6L3 20.5l.9-3.3C2.7 15.6 2.5 13.3 2.5 10.9 2.5 6.8 6.8 3.5 12 3.5z"/><circle cx="8" cy="10.9" r="1.15" fill="currentColor" stroke="none"/><circle cx="12" cy="10.9" r="1.15" fill="currentColor" stroke="none"/><circle cx="16" cy="10.9" r="1.15" fill="currentColor" stroke="none"/></svg><span id="rpDmBadge"></span></span>Inbox</button>
     <button class="tab-btn" data-tab="profile" type="button"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg></span>Profile</button>
+    </div>
   </nav>
   <script>
   (function () {
@@ -20135,18 +20381,21 @@
       bar.classList.toggle("teen-bar", teen);
       var ib94 = document.getElementById("btnTabInbox");
       if (ib94) ib94.style.display = teen ? "none" : "";
+      var fb112 = document.getElementById("btnTabFriends"); // [RP-V7.112] Friends rides the Reels gate — no tab for teens
+      if (fb112) fb112.style.display = teen ? "none" : "";
       var id = activeScreen();
       var ov = document.getElementById("overlay");
       var overlayOpen = ov && ov.classList.contains("open");
       var showBar = !!(id && SHOWABLE[id] && !overlayOpen && !document.fullscreenElement);
       document.body.classList.toggle("has-tabs", showBar);
       var cur = TABS[id];
+      if (id === "screen-moments" && window.__rpFriendsMode) cur = "friends"; // [RP-V7.112]
       var btns = bar.querySelectorAll(".tab-btn");
       for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("on", btns[i].getAttribute("data-tab") === cur);
     }
     function clickId(id) { var el = document.getElementById(id); if (el) { el.click(); return true; } return false; }
     function goHome() {
-      if (activeScreen() === "screen-plaza") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+      if (activeScreen() === "screen-plaza") { if (window.__rpHomeReset && window.__rpHomeReset()) return; window.scrollTo({ top: 0, behavior: "smooth" }); return; } // [RP-V7.113]
       if (typeof window.show === "function") { try { window.show("screen-plaza"); return; } catch (e) {} }
       var backs = ["btnProfileBack", "btnMomentsBack", "btnAuctionsBack", "btnOnlineLeave", "btnLeave"];
       for (var i = 0; i < backs.length; i++) { var el = document.getElementById(backs[i]); if (vis(el)) { el.click(); return; } }
@@ -20155,7 +20404,8 @@
       home: goHome,
       live: function () { clickId("btnOnlineHome"); },
       auctions: function () { clickId("btnAuctionsHome"); },
-      moments: function () { clickId("btnMomentsPlaza"); },
+      moments: function () { if (window.rpReelsOpen) window.rpReelsOpen(); else clickId("btnMomentsPlaza"); }, // [RP-V7.112] exits Friends mode
+      friends: function () { if (window.rpFriendsOpen) window.rpFriendsOpen(); }, // [RP-V7.112]
       inbox: function () { if (window.rpDm && window.rpDm.openInbox) window.rpDm.openInbox(); }, // [RP-V7.94]
       profile: function () { clickId("btnProfileHome"); }
     };
@@ -25008,14 +25258,15 @@ button.rp72-chip{ cursor:pointer; }
 .rpdm-tab { border: 1px solid rgba(255,255,255,.18); background: #1b1b23; color: #c9c9d6; font-family: inherit; font-weight: 800; font-size: 13px; border-radius: 999px; padding: 7px 14px; cursor: pointer; }
 .rpdm-tab.on { background: #fe2c55; border-color: #fe2c55; color: #fff; }
 .rpdm-tab .rpdm-cnt { background: rgba(255,255,255,.22); border-radius: 99px; padding: 0 6px; margin-left: 4px; font-size: 11px; }
-.rpdm-row { display: flex; gap: 10px; align-items: center; width: 100%; padding: 10px 4px; border: none; border-bottom: 1px solid rgba(255,255,255,.06); background: none; cursor: pointer; text-align: left; font-family: inherit; color: #fff; }
-.rpdm-ava { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; background: #33333f; color: #fff; font-weight: 900; font-size: 18px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.rpdm-row { display: flex; gap: 12px; align-items: center; width: 100%; padding: 12px 4px; border: none; border-bottom: 1px solid rgba(255,255,255,.06); background: none; cursor: pointer; text-align: left; font-family: inherit; color: #fff; } /* [RP-V7.111] TikTok-style rows */
+.rpdm-ava { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 50%; background: #33333f; color: #fff; font-weight: 900; font-size: 21px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .rpdm-ava img { width: 100%; height: 100%; object-fit: cover; }
 .rpdm-main { flex: 1 1 auto; min-width: 0; }
 .rpdm-namerow { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.rpdm-name { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rpdm-name { display: block; font-weight: 800; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* [RP-V7.111] */
+.rpdm-cam { flex: 0 0 auto; font-size: 21px; padding: 6px 2px 6px 6px; opacity: .85; cursor: pointer; } /* [RP-V7.111] */
 .rpdm-time { color: #9a9aad; font-size: 11px; font-weight: 700; white-space: nowrap; }
-.rpdm-prev { color: #9a9aad; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.rpdm-prev { display: block; color: #9a9aad; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; } /* [RP-V7.111] */
 .rpdm-row.unread .rpdm-prev { color: #fff; font-weight: 700; }
 .rpdm-unread { flex: 0 0 auto; background: #fe2c55; color: #fff; border-radius: 99px; font-size: 11px; font-weight: 900; padding: 2px 7px; }
 .rpdm-reqbtns { display: flex; gap: 6px; flex: 0 0 auto; }
@@ -25184,6 +25435,7 @@ button.rp72-chip{ cursor:pointer; }
     // wireInboxShell; backdrop-tap close stays as it was.
     var html = '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
       '<h3 style="margin:4px 0">💬 Messages</h3>' +
+      '<div class="story-tray rpdm-storytray" id="storyTrayInbox" hidden></div>' + // [RP-V7.110] stories rail at the top of the Inbox (Branden)
       '<div class="rpdm-tabs" id="rpDmTabs">' +
       '<button type="button" class="rpdm-tab' + (inboxTab === "inbox" ? " on" : "") + '" data-dmtab="inbox">Messages</button>' +
       '<button type="button" class="rpdm-tab' + (inboxTab === "requests" ? " on" : "") + '" data-dmtab="requests">Requests' + (reqN ? '<span class="rpdm-cnt">' + reqN + "</span>" : "") + "</button>" +
@@ -25192,6 +25444,9 @@ button.rp72-chip{ cursor:pointer; }
       '<div id="rpDmRows">' + inner + "</div>";
     window.openSheet(html);
     wireInboxShell();
+    // [RP-V7.110] fill the stories rail (the stories module renders
+    // into every .story-tray host, this one included, on refresh).
+    setTimeout(function () { if (window.RPStories) window.RPStories.refresh(); }, 30);
   }
   function wireInboxShell() {
     var cx = document.querySelector("#sheet [data-act=close]"); // [RP-V7.81]
@@ -25217,22 +25472,33 @@ button.rp72-chip{ cursor:pointer; }
       return;
     }
     box.innerHTML = list.map(function (t) {
+      var prev111 = t.lastText // [RP-V7.111] TikTok-style rows: name line, then preview · time
+        ? (t.startedByMe ? "You: " : "") + t.lastText + " · " + whenText(t.lastAt)
+        : "Say hi to " + t.user.name;
       var row = '<button type="button" class="rpdm-row' + (t.unread ? " unread" : "") + '" data-dmopen="' + esc(t.user.id) + '" data-dmname="' + esc(t.user.name) + '">' +
         avaHtml(t.user.name, t.user.deleted) +
-        '<span class="rpdm-main"><span class="rpdm-namerow"><span class="rpdm-name">' + esc(t.user.name) + '</span><span class="rpdm-time">' + esc(whenText(t.lastAt)) + '</span></span>' +
-        '<span class="rpdm-prev">' + (t.startedByMe ? "You: " : "") + esc(t.lastText || "") + "</span></span>";
+        '<span class="rpdm-main"><span class="rpdm-name">' + esc(t.user.name) + '</span>' +
+        '<span class="rpdm-prev">' + esc(prev111) + "</span></span>";
       if (inboxTab === "requests") {
         row += '<span class="rpdm-reqbtns">' +
           '<span class="btn-mini" data-dmacc="' + esc(t.user.id) + '">Accept</span>' +
           '<span class="btn-mini" data-dmdel="' + esc(t.user.id) + '">Delete</span></span>';
-      } else if (t.unread) {
-        row += '<span class="rpdm-unread">' + (t.unread > 99 ? "99+" : t.unread) + "</span>";
+      } else {
+        if (t.unread) row += '<span class="rpdm-unread">' + (t.unread > 99 ? "99+" : t.unread) + "</span>";
+        row += '<span class="rpdm-cam" data-dmcam="' + esc(t.user.id) + '" data-dmname="' + esc(t.user.name) + '" role="button" aria-label="Send a photo">📷</span>'; // [RP-V7.111]
       }
       return row + "</button>";
     }).join("");
     box.querySelectorAll("[data-dmopen]").forEach(function (rowEl) {
       rowEl.addEventListener("click", function () {
         openConversation(rowEl.getAttribute("data-dmopen"), rowEl.getAttribute("data-dmname"));
+      });
+    });
+    box.querySelectorAll("[data-dmcam]").forEach(function (cam) { // [RP-V7.111] row camera: open the thread with the photo picker up
+      cam.addEventListener("click", function (e) {
+        e.stopPropagation();
+        openConversation(cam.getAttribute("data-dmcam"), cam.getAttribute("data-dmname"));
+        setTimeout(function () { var f = $("rpDmFile"); if (f) f.click(); }, 400);
       });
     });
     box.querySelectorAll("[data-dmacc]").forEach(function (b) {
@@ -25436,7 +25702,11 @@ button.rp72-chip{ cursor:pointer; }
     if (vp) vp.addEventListener("click", function () {
       if (typeof window.closeSheet === "function") window.closeSheet();
       stopPoll();
-      toast2("Tap " + conv.name + "'s photo in the plaza, a room, or 🔴 Live Now to see their full profile.", 4200);
+      // [RP-V7.108] View profile actually OPENS the member's profile
+      // (Branden: the old directions toast "should not show when you
+      // try to click on someone profile"). Same sheet the People
+      // directory uses — photo, stats, photos & reels, follow/message.
+      openMemberProfile(conv.userId, conv.name, null);
     });
     var rp = $("rpDmReportBtn");
     if (rp) rp.addEventListener("click", openDmReport);
@@ -25674,11 +25944,12 @@ button.rp72-chip{ cursor:pointer; }
       '<div class="pprof-stats">' +
       '<div class="pprof-stat"><b id="rpMpFollowing">–</b><small>Following</small></div>' +
       '<div class="pprof-stat"><b id="rpMpFollowers">–</b><small>Followers</small></div>' +
-      '<div class="pprof-stat"><b id="rpMpReels">–</b><small>Reels</small></div></div>' +
+      '<div class="pprof-stat"><b id="rpMpLikes">–</b><small>Likes</small></div></div>' +
       '<p class="pprof-bio" id="rpMpBio" hidden></p>' +
+      '<a class="pprof-link" id="rpMpLink" href="#" target="_blank" rel="noopener" hidden></a>' +
       '<p class="age-note" id="rpMpExtra" hidden></p>' +
       '<div class="pprof-actions" id="rpMpActions"></div>' +
-      '<h4 class="pprof-gridtitle">📸 Photos & Reels</h4>' +
+      '<h4 class="pprof-gridtitle">📸 Posts</h4>' +
       '<div class="rpmedia-grid bleed" id="rpMpGrid"></div>' +
       "</div>";
     window.openSheet(html);
@@ -25709,9 +25980,11 @@ button.rp72-chip{ cursor:pointer; }
       if (u && j.username) { u.textContent = "@" + j.username; u.hidden = false; }
       var f1 = $("rpMpFollowing"); if (f1) f1.textContent = j.followingCount;
       var f2 = $("rpMpFollowers"); if (f2) f2.textContent = j.followersCount;
-      var f3 = $("rpMpReels"); if (f3) f3.textContent = j.reelsCount;
+      var f3 = $("rpMpLikes"); if (f3) f3.textContent = j.likesTotal || 0; // [RP-V7.109] third stat is Likes, like every profile
       var bio = $("rpMpBio");
-      if (bio && j.testimony) { bio.textContent = "\u201C" + j.testimony + "\u201D"; bio.hidden = false; }
+      var bioTxt109 = j.bio ? j.bio : (j.testimony ? "\u201C" + j.testimony + "\u201D" : "");
+      if (bio && bioTxt109) { bio.textContent = bioTxt109; bio.hidden = false; }
+      var lk109 = $("rpMpLink"); if (lk109 && j.link) { lk109.hidden = false; lk109.href = j.link; lk109.textContent = "🔗 " + j.link.replace(/^https?:\/\//, ""); }
       var badges = [];
       var mpTypeBadge = rpDmTypeBadge(j.profileType); // [RP-V7.39] star badge — streamer + creator only
       if (mpTypeBadge) badges.push('<span class="pcard-badge top">' + esc(mpTypeBadge) + "</span>");
@@ -25727,7 +26000,7 @@ button.rp72-chip{ cursor:pointer; }
       // page: photos + reels, 👁 counts bottom-left, tiles touch.
       var mg = $("rpMpGrid");
       if (mg && window.rpViewsItemsFromProfile && window.rpViewsFillGrid) {
-        window.rpViewsFillGrid(mg, window.rpViewsItemsFromProfile(j), { emptyHtml: "" });
+        window.rpViewsFillGrid(mg, (window.rpProfItems ? window.rpProfItems(j) : window.rpViewsItemsFromProfile(j)), { emptyHtml: "" }); // [RP-V7.109] the full post set, same as the profile page
       }
       renderMemberActions(accountId, name, self, j);
     });
@@ -26764,6 +27037,7 @@ button.rp72-chip{ cursor:pointer; }
   function profItems(j) {
     var items = itemsFromProfile(j);
     (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, src: pp.photo, views: 0 }); });
+    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, src: fp.src, views: fp.views || 0 }); }); // [RP-V7.109] their Feed posts too — all posts they made
     var order = {}; (j.pins || []).forEach(function (pn, ix) { order[pn.kind + ":" + pn.id] = ix; });
     var pinned = [], rest = [];
     items.forEach(function (it) { (order[it.kind + ":" + it.id] !== undefined ? pinned : rest).push(it); });
@@ -29842,6 +30116,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 /* [RP-V7.70] Plaza Stories — tray, rings, viewer (original code, Plaza styling) */
 .story-tray { display: flex; gap: 14px; overflow-x: auto; padding: 12px 4px 6px; scrollbar-width: none; }
 .story-tray::-webkit-scrollbar { display: none; }
+.story-tray.rpdm-storytray { padding: 10px 2px 4px; margin: 2px 0 8px; border-bottom: 1px solid rgba(255,255,255,.07); } /* [RP-V7.110] */
 .story-tray[hidden] { display: none; }
 .story-cell { flex: 0 0 auto; width: 68px; text-align: center; background: none; border: none; padding: 0; cursor: pointer; font-family: inherit; color: inherit; }
 .story-cell .sc-ava { position: relative; width: 62px; height: 62px; margin: 0 auto; border-radius: 50%; }
@@ -30004,7 +30279,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
        teen-lock hiding here; the tray simply renders wherever this
        surface is reachable. Posting stays gated per control. */
     var show = !!tray;
-    ["storyTrayHome", "storyTrayReels"].forEach(function (id) {
+    ["storyTrayHome", "storyTrayReels", "storyTrayInbox"].forEach(function (id) {
       var el = $(id); if (!el) return;
       el.hidden = !show;
       if (!show) { el.innerHTML = ""; return; }
@@ -30023,6 +30298,8 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
         });
       });
     });
+    var ib110 = $("storyTrayInbox"); // [RP-V7.110] in the Inbox, with no story up, the first bubble reads "Create" (TikTok-style, Branden's screenshot)
+    if (ib110 && show && !myEntry()) { var nm110 = ib110.querySelector('[data-story-mine="1"] .sc-name'); if (nm110) nm110.textContent = "Create"; }
     var row = $("storyProfileRow");
     if (row) {
       row.hidden = !show;
@@ -30888,6 +31165,10 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     var ta = $("feedText");
     var text = ta ? ta.value.trim() : "";
     if (!pendingFile && !text) { toastF("Write something, or add a photo or video first.", 3400); return; }
+    // [RP-V7.105] Same seatbelt as the server: a bare media word with no
+    // file attached is a photo post that lost its photo — stop it here
+    // with the reason instead of letting it land on the Feed.
+    if (!pendingFile && /^(photo|video|reel)$/i.test(text)) { toastF("Your " + text.toLowerCase() + " didn't attach — tap 📷 Photo or video to pick it, then Post.", 4200); return; }
     posting = true;
     var btn = $("feedPostBtn"); if (btn) { btn.disabled = true; btn.textContent = "Posting…"; }
     var done = function () { posting = false; if (btn) { btn.disabled = false; btn.textContent = "Post"; } };
