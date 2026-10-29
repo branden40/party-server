@@ -1952,13 +1952,14 @@ function photoUpload(handler) {
 }
 
 // [RP-V7.123] Multi-photo posts: one photo post can carry a SET of up
-// to 10 pictures. photoUploadSet runs the same shared multer `upload`
+// to 35 pictures ([RP-V7.125] cap raised 10 → 35 to match TikTok, at
+// Branden's direction). photoUploadSet runs the same shared multer `upload`
 // with .fields — files arrive on "photos" (the set field) and/or the
 // legacy single "photo" — under the same JSON error discipline as
 // photoUpload, and normalizes everything the route needs onto
 // req.photoFiles123 (the ordered uploaded-file queue). Non-multipart
 // (JSON) requests pass through untouched, exactly as before.
-const PHOTO_SET_MAX123 = 10;
+const PHOTO_SET_MAX123 = 35; // [RP-V7.125] was 10 in V7.123
 function photoUploadSet(handler) {
   return (req, res) => {
     upload.fields([{ name: "photo", maxCount: 1 }, { name: "photos", maxCount: PHOTO_SET_MAX123 }])(req, res, (err) => {
@@ -2534,7 +2535,7 @@ const reelUpload = multer({
       cb(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${ext}`);
     },
   }),
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max per reel
+  limits: { fileSize: 100 * 1024 * 1024 }, // [RP-V7.126] 100 MB max per reel (was 25 MB in V7.125 and earlier)
   fileFilter: (req, file, cb) => {
     if (REEL_VIDEO_TYPES[file.mimetype]) cb(null, true);
     else cb(new Error("Only MP4, WebM or MOV videos are allowed"));
@@ -2933,7 +2934,7 @@ app.post("/api/reel", (req, res) => {
       const tooBig = err.code === "LIMIT_FILE_SIZE";
       return res.status(tooBig ? 413 : 400).json({
         ok: false,
-        error: tooBig ? "That video is over the 25 MB reel limit" : err.message,
+        error: tooBig ? "That video is over the 100 MB reel limit" : err.message, // [RP-V7.126]
       });
     }
     if (!req.file)

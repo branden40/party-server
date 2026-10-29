@@ -18916,7 +18916,7 @@
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📸 Post a Photo</h3>' +
           (has
             ? '<img src="' + picks[0] + '" alt="Your photo, ready to post" style="width:100%; border-radius:14px; display:block; margin-bottom:10px;"/>' + strip
-            : '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Pick a photo to share with the Plaza — or pick up to 10 and they post as one scrolling set. Fans can like it, comment — and send you gifts right on the post.</p>') +
+            : '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Pick a photo to share with the Plaza — or pick up to 35 and they post as one scrolling set. Fans can like it, comment — and send you gifts right on the post.</p>') +
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
             '<button class="btn-mini" id="btnMomPick">🖼️ ' + (has ? "Add / choose photos" : "Choose photos") + '</button>' +
             (Online.myPhotoUrl ? '<button class="btn-mini" id="btnMomUseOnline">Use my online photo</button>' : "") +
@@ -18948,14 +18948,14 @@
       if (momInput) momInput.addEventListener("change", function () {
         /* [RP-V7.123] multi-pick: every chosen image is downscaled with
            the same canvas recipe as before and appended to the pick
-           list IN PICK ORDER, up to 10 photos per post. */
+           list IN PICK ORDER, up to 35 photos per post [RP-V7.125]. */
         var files = Array.prototype.slice.call(momInput.files || []);
         momInput.value = "";
         var imgs = files.filter(function (f) { return /^image\//.test(f.type || ""); });
         if (!imgs.length) { if (files.length) toast("Those files aren’t images — pick JPG, PNG or WebP photos."); return; }
-        var room = Math.max(0, 10 - (Moments.pendingPhotos || []).length);
-        if (!room) { toast("A photo post holds up to 10 photos — this set is full."); return; }
-        if (imgs.length > room) toast("Up to 10 photos per post — keeping the first " + room + " of these.");
+        var room = Math.max(0, 35 - (Moments.pendingPhotos || []).length);
+        if (!room) { toast("A photo post holds up to 35 photos — this set is full."); return; }
+        if (imgs.length > room) toast("Up to 35 photos per post — keeping the first " + room + " of these.");
         var queue = imgs.slice(0, room);
         var added = 0;
         (function next() {
@@ -19334,8 +19334,8 @@
       var REEL_META_KEY = "rpReelsMeta.v1";
       var REEL_LIKES_KEY = "rpReelLikes.v1";
       var REEL_COMMENTS_KEY = "rpReelComments.v1";
-      var REEL_MAX_BYTES = 25 * 1024 * 1024;
-      var REEL_MAX_SECS = 60;
+      var REEL_MAX_BYTES = 100 * 1024 * 1024; /* [RP-V7.126] was 25 MB */
+      var REEL_MAX_SECS = 180; /* [RP-V7.126] uploads up to 3 minutes (was 60s); the in-app recorder keeps its own 15s/60s lengths */
 
       function reelLoadMeta() {
         try { var m = JSON.parse(localStorage.getItem(REEL_META_KEY) || "[]"); return Array.isArray(m) ? m : []; } catch (e) { return []; }
@@ -20410,7 +20410,7 @@
           "</div>" +
           '<p id="reelStatus" style="text-align:center; font-weight:800; min-height:20px; margin:0 0 4px;">' + (stage === "preview" ? "🎬 Your reel, looping." : "") + "</p>" +
           mid + draftsHtml +
-          '<p class="age-note" style="margin-top:10px;">Reels follow the same community guidelines as live: no nudity or sexual content, ever. Max 60 seconds · 25 MB · 18+ only.</p></div>'
+          '<p class="age-note" style="margin-top:10px;">Reels follow the same community guidelines as live: no nudity or sexual content, ever. Max 3 minutes · 100 MB · 18+ only.</p></div>'
         );
         var pv = $("reelPreview");
         if (pv && has) {
@@ -20520,7 +20520,7 @@
         if (bR) bR.hidden = false;
         if (bS) bS.hidden = true;
         if (!blob.size) { var st0 = $("reelStatus"); if (st0) st0.textContent = "That recording came out empty — try again!"; return; }
-        if (blob.size > REEL_MAX_BYTES) { var st1 = $("reelStatus"); if (st1) st1.textContent = "That recording is over 25 MB — try a shorter one!"; return; }
+        if (blob.size > REEL_MAX_BYTES) { var st1 = $("reelStatus"); if (st1) st1.textContent = "That recording is over 100 MB — try a shorter one!"; return; }
         Reels.pendingBlob = blob;
         Reels.pendingSecs = secs;
         Reels.pendingUrl = URL.createObjectURL(blob);
@@ -20634,12 +20634,12 @@
         if (!f) return;
         var capEl = $("reelCapInput"); if (capEl) Reels.pendingCaption = (capEl.value || "").trim();
         if (!/^video\//.test(f.type || "") && !/\.(mp4|mov|webm|m4v)$/i.test(f.name || "")) { toast("That file is not a video — pick an MP4, MOV or WebM clip."); return; }
-        if (f.size > REEL_MAX_BYTES) { toast("That video is " + Math.round(f.size / 1048576) + " MB — reels cap at 25 MB. Trim it and try again!"); return; }
+        if (f.size > REEL_MAX_BYTES) { toast("That video is " + Math.round(f.size / 1048576) + " MB — reels cap at 100 MB. Trim it and try again!"); return; }
         var url = URL.createObjectURL(f);
         reelProbeSecs(url).then(function (secs) {
           if (isFinite(secs) && secs > REEL_MAX_SECS + 0.6) {
             URL.revokeObjectURL(url);
-            toast("That video is " + Math.round(secs) + "s — reels cap at 60 seconds. Trim it and try again!");
+            toast("That video is " + Math.round(secs) + "s — reels cap at 3 minutes. Trim it and try again!");
             return;
           }
           reelClearPending();
@@ -20860,7 +20860,7 @@
         var st = $("duetStatus"), bR = $("btnDuetRec"), bS = $("btnDuetStop");
         if (bS) bS.style.display = "none";
         if (!blob.size || blob.size > REEL_MAX_BYTES) {
-          if (st) st.textContent = !blob.size ? "That take came out empty — try again!" : "That take is over 25 MB — try a shorter one!";
+          if (st) st.textContent = !blob.size ? "That take came out empty — try again!" : "That take is over 100 MB — try a shorter one!";
           if (bR) bR.style.display = "";
           return;
         }
