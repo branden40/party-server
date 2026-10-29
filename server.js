@@ -2610,7 +2610,19 @@ app.get("/api/reels", (req, res) => {
   } catch (e) {
     fyUser = null;
   }
-  const allRanked = fyUser ? fyRankReels(fyUser, newest) : newest;
+  // [RP-V7.112] Friends feed (?friends=1): only reels from accounts
+  // the caller follows, newest first, no For You ranking (TikTok's
+  // Friends tab, Branden). Guests get an empty list.
+  let friendsOnly = req.query.friends === "1";
+  let baseList = newest;
+  if (friendsOnly) {
+    if (!fyUser) return res.json({ ok: true, reels: [], friends: true });
+    let fset = new Set();
+    try { fset = new Set(socialFollowingIds(readSocial(), fyUser.id)); } catch (e) { }
+    const adbF = readAccounts();
+    baseList = newest.filter((r) => { const k = reelAuthorKeyFor(adbF, r); return k && fset.has(k); });
+  }
+  const allRanked = (!friendsOnly && fyUser) ? fyRankReels(fyUser, baseList) : baseList;
   // [RP-V7.99] Mutual block invisibility for signed-in callers:
   // blocked (either direction) authors' reels leave the list.
   let all = allRanked;
@@ -6741,6 +6753,19 @@ app.get("/api/social/profile", (req, res) => {
       if (fp && fp.authorId === target.id && Array.isArray(fp.likes))
         likesTotal += fp.likes.length;
   } catch (e) { }
+  // [RP-V7.109] The member's Feed posts with media join the profile —
+  // Branden: every profile shows the TikTok-style top and ALL the posts
+  // they made at the bottom. Tiles in the same shape the Liked tab
+  // already uses for feed posts.
+  let feedPosts = [];
+  try {
+    const fdb109 = readFeed();
+    feedPosts = Object.values(fdb109.posts || {})
+      .filter((fp) => fp && fp.authorId === target.id && fp.file)
+      .map((fp) => ({ id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "" }))
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .slice(0, 60);
+  } catch (e) { }
   const liveNow = [...liveRegistry.values()].some((e) => e && e.name === target.name);
   const pinRefs = (Array.isArray(target.pins) ? target.pins : [])
     .filter((x) => x && (x.kind === "reel" || x.kind === "photopost") && typeof x.id === "string").slice(0, 3);
@@ -6842,7 +6867,7 @@ app.get("/api/social/profile", (req, res) => {
     bio: typeof target.bio === "string" ? target.bio : "",
     link: typeof target.link === "string" ? target.link : "",
     liveNow,
-    likesTotal, photoPosts,
+    likesTotal, photoPosts, feedPosts,
     pins: pinRefs, pinnedItems, collections,
     likedPrivate, liked,
     reposts: reposts86, // [RP-V7.89]
@@ -7481,6 +7506,14 @@ app.post("/api/feed/post",
         return fail(400, "Posts are " + FEED_TEXT_MAX + " characters max");
       if (!req.file && !text)
         return fail(400, "Write something, or add a photo or video");
+      // [RP-V7.105] A text-only post whose whole text is a bare media
+      // word ("Photo" / "Video" / "Reel") is the signature of a photo
+      // post whose attachment never landed — one reached the Feed on
+      // Oct 26, 2026 during profile/avatar photo work. Branden's rule:
+      // that must never show on the Feed. Real sentences mentioning
+      // those words are untouched.
+      if (!req.file && /^(photo|video|reel)$/i.test(text))
+        return fail(400, "That post was just the word \"" + text + "\" with nothing attached — pick the photo or video and tap Post again.");
       let kind = "text";
       if (req.file) {
         const isVideo = (req.file.mimetype || "").startsWith("video/");
