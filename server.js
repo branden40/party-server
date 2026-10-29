@@ -975,16 +975,24 @@ app.post("/api/account/signup", (req, res) => {
   const profileType = normProfileType(b.profileType);
   const password = String(b.password || "");
   const dob = String(b.dob || "").trim().slice(0, 10);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+  // [RP-V7.117] TikTok-simple sign-up: ONE way in. The member picks
+  // Google, phone OR email — email and phone are no longer both
+  // required. At least one contact is still mandatory (it is the
+  // account-recovery + deletion-hold identifier); each contact that
+  // IS provided must be well-formed, and the V7.35 normalization +
+  // one-contact-per-account uniqueness checks below stay (they
+  // no-op on an empty value, so a missing contact never collides).
+  if (!email && !phone)
+    return res.status(400).json({
+      ok: false,
+      error: "Add an email address or a mobile phone number to join",
+    });
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     return res.status(400).json({ ok: false, error: "Invalid email" });
-  // [RP-V7.48] Phone is REQUIRED at sign-up (the startup wall build
-  // retired guest browsing): a missing/empty number is a 400, exactly
-  // like a bad email. The V7.35 normalization + one-phone-per-account
-  // uniqueness check below is untouched.
-  if (!phone || !normPhoneKey(phone))
+  if (phone && !normPhoneKey(phone))
     return res
       .status(400)
-      .json({ ok: false, error: "A mobile phone number is required" });
+      .json({ ok: false, error: "That phone number doesn't look right" });
   if (!USERNAME_RE.test(username))
     return res.status(400).json({
       ok: false,
@@ -1027,38 +1035,34 @@ app.post("/api/account/signup", (req, res) => {
       ok: false,
       error: "That email is already registered",
     });
-  if (phoneTaken(db, phone, null))
+  if (phone && phoneTaken(db, phone, null))
     return res.status(409).json({
       ok: false,
       error: "That phone number is already registered",
     });
-  // [RP-V7.52] Reserve all three identifiers synchronously BEFORE
-  // the insert work, and re-check against a fresh read at insert
+  // [RP-V7.52] Reserve the identifiers synchronously BEFORE the
+  // insert work, and re-check against a fresh read at insert
   // (audit H2): two sign-ups racing the same normalized email,
   // phone or username can no longer both pass — the second sees
   // either the reservation or the inserted record and gets the
-  // same 409s as a sequential duplicate. Sequential behavior and
-  // every message above are unchanged.
-  const resKeys = [
-    "u:" + usernameKey(username),
-    "e:" + normEmailKey(email),
-    "p:" + normPhoneKey(phone),
-  ];
-  if (signupReservations.has(resKeys[0]))
+  // same 409s as a sequential duplicate. [RP-V7.117] Only the
+  // identifiers actually provided are reserved now: an empty
+  // contact must never reserve (or collide on) the shared empty
+  // key, or every single-contact sign-up would block the next.
+  const resKeys = ["u:" + usernameKey(username)];
+  if (email) resKeys.push("e:" + normEmailKey(email));
+  if (phone) resKeys.push("p:" + normPhoneKey(phone));
+  for (const k of resKeys) {
+    if (!signupReservations.has(k)) continue;
     return res.status(409).json({
       ok: false,
-      error: "That username is taken — try another",
+      error: k.startsWith("e:")
+        ? "That email is already registered"
+        : k.startsWith("p:")
+          ? "That phone number is already registered"
+          : "That username is taken — try another",
     });
-  if (signupReservations.has(resKeys[1]))
-    return res.status(409).json({
-      ok: false,
-      error: "That email is already registered",
-    });
-  if (signupReservations.has(resKeys[2]))
-    return res.status(409).json({
-      ok: false,
-      error: "That phone number is already registered",
-    });
+  }
   for (const k of resKeys) signupReservations.add(k);
   try {
     const fresh = readAccounts();
@@ -1067,12 +1071,12 @@ app.post("/api/account/signup", (req, res) => {
         ok: false,
         error: "That username is taken — try another",
       });
-    if (emailTaken(fresh, email, null))
+    if (email && emailTaken(fresh, email, null))
       return res.status(409).json({
         ok: false,
         error: "That email is already registered",
       });
-    if (phoneTaken(fresh, phone, null))
+    if (phone && phoneTaken(fresh, phone, null))
       return res.status(409).json({
         ok: false,
         error: "That phone number is already registered",
@@ -1081,7 +1085,9 @@ app.post("/api/account/signup", (req, res) => {
     const salt = crypto.randomBytes(16).toString("hex");
     const user = {
       id: crypto.randomBytes(12).toString("hex"),
-      name: name || email.split("@")[0],
+      // [RP-V7.117] a phone-only sign-up has no email to derive a
+      // display name from — fall back to the username.
+      name: name || (email ? email.split("@")[0] : username),
       username,
       email,
       phone,
@@ -1099,7 +1105,7 @@ app.post("/api/account/signup", (req, res) => {
     writeAccounts(fresh);
     sendAccountEmail(user, "welcome");
     sendAccountSms(user, "welcome"); // [RP-V7.55] email AND phone, per Branden's rule
-    console.log("[accounts] signup", user.email);
+    console.log("[accounts] signup", user.email || user.phone);
     res.status(201).json({ ok: true, token, user: publicAccount(user) });
   } finally {
     for (const k of resKeys) signupReservations.delete(k);
@@ -1118,15 +1124,25 @@ app.post("/api/account/login", (req, res) => {
     sweepPendingDeletions();
   } catch (e) {}
   const b = req.body || {};
-  const ident = String(b.id || b.username || b.email || "")
+  const identRaw = String(b.id || b.username || b.email || "")
     .trim()
-    .toLowerCase()
     .slice(0, 120);
+  const ident = identRaw.toLowerCase();
   const password = String(b.password || "");
   const db = readAccounts();
-  const user = db.users.find(
-    (u) => u.email === ident || usernameKey(u.username) === ident
+  // [RP-V7.117] Login identifier: username OR email OR phone. Email
+  // and username match first (unchanged); only when neither hits and
+  // the identifier actually looks like a phone number does the
+  // normalized-phone pass run — so a digits-y username can never be
+  // shadowed by someone else's phone record.
+  let user = db.users.find(
+    (u) => (u.email && u.email === ident) || usernameKey(u.username) === ident
   );
+  if (!user && identRaw && /^[+\d][\d\s().-]*$/.test(identRaw)) {
+    const pk = normPhoneKey(identRaw);
+    if (pk)
+      user = db.users.find((u) => u.phone && normPhoneKey(u.phone) === pk);
+  }
   let ok = false;
   if (user) {
     const calc = Buffer.from(hashPassword(password, user.salt), "hex");
@@ -1135,9 +1151,10 @@ app.post("/api/account/login", (req, res) => {
   }
   if (!ok) {
     noteLoginAttempt(ip);
-    return res
-      .status(401)
-      .json({ ok: false, error: "Wrong username/email or password" });
+    return res.status(401).json({
+      ok: false,
+      error: "Wrong username, email, phone or password",
+    });
   }
   // [RP-V7.37] A successful login inside the 30-day window CANCELS the
   // scheduled deletion — nothing was ever removed, so the account is
@@ -1152,9 +1169,10 @@ app.post("/api/account/login", (req, res) => {
       finalizeAccountDeletion(user.id);
     } catch (e) {}
     noteLoginAttempt(ip);
-    return res
-      .status(401)
-      .json({ ok: false, error: "Wrong username/email or password" });
+    return res.status(401).json({
+      ok: false,
+      error: "Wrong username, email, phone or password",
+    });
   }
   if (user.deletionAt) {
     delete user.deletionAt;
@@ -1164,7 +1182,7 @@ app.post("/api/account/login", (req, res) => {
   user.lastLoginAt = new Date().toISOString();
   const token = newAccountToken(db, user.id);
   writeAccounts(db);
-  console.log("[accounts] login", user.email);
+  console.log("[accounts] login", user.email || user.phone || user.username);
   res.json({ ok: true, token, user: publicAccount(user), deletionCancelled });
 });
 function accountMeHandler(req, res) {
@@ -9172,7 +9190,13 @@ app.post("/api/faith/pass", (req, res) => {
 // server: GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET (free, Google Cloud) and
 // APPLE_CLIENT_ID + APPLE_CLIENT_SECRET (Apple Developer). Without keys the
 // routes bounce back with ?auth=off and the game explains + falls back to
-// email + phone sign-up. Success returns /?auth=google|apple&name=&email=.
+// email or phone sign-up. [RP-V7.117] A verified Google return now hands
+// the client a short-lived one-time code (below) instead of putting the
+// email in the URL: the client exchanges it for a real session
+// (/api/account/google/exchange) or, for a first-time Google user,
+// completes the account with only a username + DOB
+// (/api/account/google/complete) — no phone, no Plaza password. Apple
+// keeps the older name/email prefill return.
 // ---------------------------------------------------------------------------
 function siteOrigin(req) {
   const proto = String(req.headers["x-forwarded-proto"] || "https").split(",")[0].trim();
@@ -9199,8 +9223,140 @@ app.get("/auth/google/callback", async (req, res) => {
     const infoRes = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(tok.id_token));
     const info = await infoRes.json();
     if (!info || info.aud !== cid || !info.email) return res.redirect("/?auth=err");
-    res.redirect("/?auth=google&name=" + encodeURIComponent(info.name || "") + "&email=" + encodeURIComponent(info.email));
+    // [RP-V7.117] Verified Google identity → one-time handoff code.
+    // The account is matched by the verified (normalized) email, so
+    // an existing member who signed up with that email signs straight
+    // in, and a first-timer is routed to the username + DOB finish.
+    const gEmail = normEmailKey(info.email);
+    const gName = String(info.name || "").replace(/[<>&"']/g, "").trim().slice(0, 80);
+    let gdb = readAccounts();
+    let gUser = gdb.users.find((u) => u.email && normEmailKey(u.email) === gEmail) || null;
+    if (gUser && gUser.deletionAt && Date.parse(gUser.deletionAt) <= Date.now()) {
+      try { finalizeAccountDeletion(gUser.id); } catch (e) {}
+      gdb = readAccounts();
+      gUser = gdb.users.find((u) => u.email && normEmailKey(u.email) === gEmail) || null;
+    }
+    const gCode = googleHandoffPut({ email: gEmail, name: gName, userId: gUser ? gUser.id : null });
+    res.redirect("/?auth=google&g=" + encodeURIComponent(gCode));
   } catch (e) { res.redirect("/?auth=err"); }
+});
+// [RP-V7.117] Google handoff store: code → { email, name, userId|null,
+// exp }. In-memory only (10-minute life) — a server restart simply
+// makes the member tap Continue with Google again.
+const GOOGLE_HANDOFF_TTL_MS = 10 * 60 * 1000;
+const googleHandoffs = new Map();
+function googleHandoffPut(rec) {
+  const now = Date.now();
+  for (const [k, v] of googleHandoffs) if (v.exp <= now) googleHandoffs.delete(k);
+  const code = crypto.randomBytes(24).toString("hex");
+  googleHandoffs.set(code, { email: rec.email, name: rec.name || "", userId: rec.userId || null, exp: now + GOOGLE_HANDOFF_TTL_MS });
+  return code;
+}
+function googleHandoffGet(code) {
+  const rec = googleHandoffs.get(String(code || ""));
+  if (!rec) return null;
+  if (rec.exp <= Date.now()) { googleHandoffs.delete(String(code || "")); return null; }
+  return rec;
+}
+// [RP-V7.117] Shared by the Google exchange/complete routes: mirrors
+// the password-login deletion semantics exactly — a past-due pending
+// deletion is finalized and refused; an in-window one is cancelled
+// and the member is welcomed back whole.
+function googleSessionFor(user, db) {
+  if (user.deletionAt && Date.parse(user.deletionAt) <= Date.now()) {
+    try { finalizeAccountDeletion(user.id); } catch (e) {}
+    return null;
+  }
+  let deletionCancelled = false;
+  if (user.deletionAt) {
+    delete user.deletionAt;
+    delete user.deletionRequestedAt;
+    deletionCancelled = true;
+  }
+  user.lastLoginAt = new Date().toISOString();
+  const token = newAccountToken(db, user.id);
+  writeAccounts(db);
+  console.log("[accounts] login (google)", user.email || user.username);
+  return { token, deletionCancelled };
+}
+app.post("/api/account/google/exchange", (req, res) => {
+  const code = String((req.body || {}).code || "");
+  const rec = googleHandoffGet(code);
+  if (!rec)
+    return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
+  if (!rec.userId)
+    // First-time Google user: the code stays alive so the complete
+    // call below can use it; the client asks only username + DOB.
+    return res.json({ ok: true, needsProfile: true, email: rec.email, name: rec.name });
+  googleHandoffs.delete(code);
+  try { sweepPendingDeletions(); } catch (e) {}
+  const db = readAccounts();
+  const user = db.users.find((u) => u.id === rec.userId) || null;
+  if (!user)
+    return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
+  const sess = googleSessionFor(user, db);
+  if (!sess)
+    return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
+  res.json({ ok: true, token: sess.token, user: publicAccount(user), deletionCancelled: sess.deletionCancelled });
+});
+app.post("/api/account/google/complete", (req, res) => {
+  const b = req.body || {};
+  const code = String(b.code || "");
+  const rec = googleHandoffGet(code);
+  if (!rec || rec.userId)
+    return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
+  const username = String(b.username || "").trim().slice(0, 20);
+  const dob = String(b.dob || "").trim().slice(0, 10);
+  if (!USERNAME_RE.test(username))
+    return res.status(400).json({ ok: false, error: "Pick a username — 3–20 characters, letters, numbers and underscores only" });
+  if (!dob)
+    return res.status(400).json({ ok: false, error: "Date of birth required" });
+  const age = ageFromDob(dob);
+  if (age < 0)
+    return res.status(400).json({ ok: false, error: "That date of birth doesn't look right" });
+  if (age < 13)
+    return res.status(403).json({ ok: false, error: "You must be 13 or older to join Rizz Plaza" });
+  const db = readAccounts();
+  // The verified email may have been registered while the member was
+  // finishing this form — then this is simply their sign-in.
+  const existing = db.users.find((u) => u.email && normEmailKey(u.email) === rec.email) || null;
+  if (existing) {
+    googleHandoffs.delete(code);
+    const sess = googleSessionFor(existing, db);
+    if (!sess)
+      return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
+    return res.json({ ok: true, token: sess.token, user: publicAccount(existing), deletionCancelled: sess.deletionCancelled, linked: true });
+  }
+  if (usernameTaken(db, username))
+    return res.status(409).json({ ok: false, error: "That username is taken — try another" });
+  googleHandoffs.delete(code);
+  const now = new Date().toISOString();
+  const salt = crypto.randomBytes(16).toString("hex");
+  const user = {
+    id: crypto.randomBytes(12).toString("hex"),
+    name: rec.name || username,
+    username,
+    email: rec.email,
+    phone: "",
+    profileType: normProfileType(null),
+    // No Plaza password is ever set for a Google account: the stored
+    // hash is of a random secret nobody knows, so password login can
+    // never match it (and never an empty password). The member signs
+    // in with Google, which re-matches this account by email.
+    passHash: hashPassword(crypto.randomBytes(32).toString("hex"), salt),
+    salt,
+    dob,
+    createdAt: now,
+    lastLoginAt: now,
+    reminders: [],
+  };
+  seedWelcomeReminders(user);
+  db.users.push(user);
+  const token = newAccountToken(db, user.id);
+  writeAccounts(db);
+  sendAccountEmail(user, "welcome");
+  console.log("[accounts] signup (google)", user.email);
+  res.status(201).json({ ok: true, token, user: publicAccount(user) });
 });
 app.get("/auth/apple", (req, res) => {
   const cid = process.env.APPLE_CLIENT_ID;
