@@ -9776,7 +9776,7 @@ const MONEY_GIFT_TABLE = {
   // Rizz Supernova / The Crown Jewel / Plaza Diamond, 100000 charms
   // each, prestige — ids + prices mirror the client's GIFT_SHOP
   // exactly; the catalog is now 36 gifts.
-  supernova: 100000, crownjewel: 100000, plazadiamond: 100000,
+  supernova: 75000, crownjewel: 85000, plazadiamond: 100000, // [RP-V7.136] Branden's repricing: $750 / $850 / $1,000
 };
 function emptyMoney() {
   return {
