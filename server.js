@@ -1475,11 +1475,12 @@ function ffPerson144(u, why) {
   if (!photo) { try { const ph = accountPhotos(u); if (ph && ph[0]) photo = ph[0]; } catch (e) { } }
   return { id: u.id, name: u.name, username: u.username || "", photo, why };
 }
-function ffExcluded144(meId, followingSet) {
+function ffExcluded144(meId, followingSet, extraExcluded) {
   // ids that must never be suggested to me: me, people I already
   // follow, and blocked pairs (either direction, the DM block map).
   const out = new Set([meId]);
   for (const id of followingSet) out.add(id);
+  if (Array.isArray(extraExcluded)) for (const id of extraExcluded) out.add(id);
   try {
     const dms = readDms();
     for (const id of dmBlockedSet(dms, meId)) out.add(id);
@@ -7452,33 +7453,76 @@ app.get("/api/social/suggestions", (req, res) => {
   const meId = ctx.user.id;
   const sdb = readSocial();
   const following = socialFollowingIds(sdb, meId);
-  const excluded = ffExcluded144(meId, following);
-  const people = [];
-  const seen = new Set();
+  // [RP-V7.144] THE BRAIN: dismissals live on the ACCOUNT record
+  // (server-side, every device) — a person I swiped away here never
+  // resurfaces on any of my devices.
+  const dismissed = Array.isArray(ctx.user.ffDismissed) ? ctx.user.ffDismissed : [];
+  const excluded = ffExcluded144(meId, following, dismissed);
   const byId = new Map(ctx.db.users.map((u) => [u.id, u]));
-  const addById = (id, why) => {
-    if (!id || excluded.has(id) || seen.has(id)) return;
+  // [RP-V7.144] THE ALGORITHM: the SAME shared For You interest
+  // profile that ranks Reels/Live/Stories/Feed (reel-signals author
+  // affinity, decayed on read) also ranks and surfaces people here.
+  // Affinity boosts graph candidates and, on its own, surfaces
+  // creators whose posts/lives I keep engaging with.
+  const now = Date.now();
+  let myRec = null;
+  try { myRec = fyUserRec(readReelSignals(), meId, false); } catch (e) { }
+  const affOf = (id) => {
+    if (!myRec || !myRec.authorAff) return 0;
+    const v = fyDecayed(myRec.authorAff[id], now);
+    return Number.isFinite(v) ? v : 0;
+  };
+  const cand = new Map(); // id -> { why, score }
+  const put = (id, why, score) => {
+    if (!id || excluded.has(id)) return;
     const u = byId.get(id);
     if (!u || u.deletionAt) return;
-    seen.add(id);
-    people.push(ffPerson144(u, why));
+    const cur = cand.get(id);
+    if (!cur || score > cur.score) cand.set(id, { why, score });
   };
-  for (const id of socialFollowerIds(sdb, meId)) addById(id, "Follows you");
+  for (const id of socialFollowerIds(sdb, meId))
+    put(id, "Follows you", 100 + affOf(id));
   const mutual = new Map();
   for (const fid of following) {
-    for (const cand of socialFollowingIds(sdb, fid)) {
-      if (excluded.has(cand) || seen.has(cand)) continue;
-      if (!mutual.has(cand)) mutual.set(cand, { n: 0, via: fid });
-      mutual.get(cand).n++;
+    for (const c of socialFollowingIds(sdb, fid)) {
+      if (excluded.has(c)) continue;
+      if (!mutual.has(c)) mutual.set(c, { n: 0, via: fid });
+      mutual.get(c).n++;
     }
   }
-  const ranked = Array.from(mutual.entries()).sort((a, b2) => b2[1].n - a[1].n);
-  for (const [cand, info] of ranked) {
+  for (const [c, info] of mutual) {
     const viaU = byId.get(info.via);
     const viaName = viaU ? viaU.name : "someone you follow";
-    addById(cand, info.n > 1 ? "Followed by " + viaName + " and " + (info.n - 1) + " more you follow" : "Followed by " + viaName);
+    put(c, info.n > 1 ? "Followed by " + viaName + " and " + (info.n - 1) + " more you follow" : "Followed by " + viaName, 40 + 8 * info.n + affOf(c));
   }
-  res.json({ ok: true, people: people.slice(0, 30), mySocials: socialsOf(ctx.user) });
+  if (myRec && myRec.authorAff) {
+    for (const authorId of Object.keys(myRec.authorAff)) {
+      const aff = affOf(authorId);
+      if (aff >= 6) put(authorId, "From your For You — you engage with their posts", 20 + aff);
+    }
+  }
+  const people = Array.from(cand.entries())
+    .sort((a, b2) => b2[1].score - a[1].score)
+    .slice(0, 30)
+    .map(([id, info]) => { const p = ffPerson144(byId.get(id), info.why); p.dismiss = true; return p; });
+  res.json({ ok: true, people, mySocials: socialsOf(ctx.user) });
+});
+
+// [RP-V7.144] Dismiss a suggestion — stored on the account (the
+// brain rule), capped at 500 ids, oldest dropped first.
+app.post("/api/social/suggestions/dismiss", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const targetId = String((req.body || {}).accountId || "");
+  const target = ctx.db.users.find((u) => u.id === targetId);
+  if (!target) return res.status(404).json({ ok: false, error: "Account not found" });
+  const cur = Array.isArray(ctx.user.ffDismissed) ? ctx.user.ffDismissed.slice() : [];
+  if (cur.indexOf(targetId) < 0) {
+    cur.push(targetId);
+    ctx.user.ffDismissed = cur.slice(-500);
+    writeAccounts(ctx.db);
+  }
+  res.json({ ok: true, dismissed: targetId });
 });
 
 
