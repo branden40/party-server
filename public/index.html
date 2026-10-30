@@ -7294,7 +7294,7 @@
             // binding always lands first. Guests and the teen
             // wall-pass hold no token and simply skip this.
             try { var ptok = rpAcctToken(); if (ptok) socket.emit("acct-presence", { token: ptok }); } catch (e) { }
-            socket.emit("join", { name: Online.name, avatar: onlineAvatarPayload(), room: Online.room, age: myAge(), key: onlineDeviceKey() }); // [RP-V7.24] stable device key — the server evicts my ghost on re-join
+            socket.emit("join", { name: Online.name, avatar: onlineAvatarPayload(), room: Online.room, age: myAge(), key: onlineDeviceKey(), lt: (window.rpLiveLinkToks && window.rpLiveLinkToks[Online.room]) || undefined }); // [RP-V7.24] stable device key — the server evicts my ghost on re-join // [RP-V7.138] lt: a private-link token for this room, when one brought me here
             if (typeof liveRegistrySyncHost === "function") liveRegistrySyncHost(); // [RP-V7.28] a host mid-live re-registers on every (re)connect
             if (typeof voiceReclaimFloors === "function") voiceReclaimFloors(); // [RP-V7.48] mid-talk on a channel? re-claim its floor — the server transfers it to this socket (device-keyed floors)
           });
@@ -7315,6 +7315,40 @@
             try {
               toast((d && d.error) || "This room is 18+.", 3600);
               if (Online.state === "connecting") failOnline();
+            } catch (e) { }
+          });
+          socket.on("live-private", function (d) { // [RP-V7.138] the server refused a private (or kicked-from) live: clean message, no partial room state
+            try {
+              toast((d && d.error) || "🔒 This live is private — the host invites who joins.", 4200);
+              if (Online.state === "connecting") { failOnline(); return; }
+              if (d && d.room && Online.room === d.room && typeof window.rpRejoinLobby138 === "function") window.rpRejoinLobby138();
+            } catch (e) { }
+          });
+          socket.on("live-kicked", function (d) { // [RP-V7.138] the host removed me — the server already deleted my player record
+            try {
+              toast("The host removed you from this live.", 4200);
+              if (typeof Live !== "undefined" && Live.active && typeof iAmHost === "function" && !iAmHost()) liveTeardown(true);
+              if (typeof window.rpRejoinLobby138 === "function") window.rpRejoinLobby138();
+            } catch (e) { }
+          });
+          socket.on("live-access", function (d) { // [RP-V7.138] my private-room state, straight from the server (register / invite / un-invite / link reset)
+            try {
+              if (!d || typeof Live === "undefined") return;
+              var sig = JSON.stringify([!!d.priv, d.token || "", (d.invited || []).slice().sort()]);
+              var changed = sig !== Live.privSig;
+              Live.privSig = sig;
+              Live.privOn = !!d.priv;
+              Live.privInvited = Array.isArray(d.invited) ? d.invited.slice() : [];
+              Live.privToken = d.token || null;
+              if (changed && document.querySelector && document.querySelector("#sheet .lv-priv-panel")) openLiveHostTools();
+            } catch (e) { }
+          });
+          socket.on("live-kick-ack", function (d) { // [RP-V7.138] my kick landed — drop them from my people list too
+            try {
+              if (!d || !d.id || typeof Live === "undefined") return;
+              if (Live.stage.indexOf(d.id) >= 0) { Live.stage = Live.stage.filter(function (s) { return s !== d.id; }); closeLivePeer(d.id); }
+              delete Online.players[d.id];
+              renderLivePanel();
             } catch (e) { }
           });
           socket.on("stage-request", function (d) { // [RP-V7.52] dedicated stage-request relay (audit H3): same handling as the legacy live-req proto
@@ -9554,6 +9588,13 @@
         names: {},             // id -> display name (from signal senders)
         requests: {},          // host-side join requests: id -> name
         invited: {},           // host-side: requester ids already invited
+        privOn: false,         // [RP-V7.138] this live is a private room (host-side; the server is authoritative and pushes it back via live-access)
+        privInvited: [],       // [RP-V7.138] account ids invited to my private live
+        privInvitedNames: {},  // [RP-V7.138] account id -> display name, for the invited list
+        privToken: null,       // [RP-V7.138] my private-link token (server-minted, never chosen here)
+        privSig: "",           // [RP-V7.138] last live-access payload signature (change detection)
+        setupPriv: false,      // [RP-V7.138] the go-live setup's Private room toggle
+        setupInviteIds: [],    // [RP-V7.138] account ids picked in setup — invited the moment the live starts
         myPendingReq: false,   // I asked to join and am waiting on the host
         myStream: null, camOn: true, micOn: true,
         filterId: "none", fx: null,   // live camera filter: chosen look + the canvas pipeline state
@@ -9682,13 +9723,14 @@
             if (lv.topic) e.topic = lv.topic;
             if (lv.photo) e.photo = lv.photo;
             if (lv.hostAccountId) e.hostAccountId = lv.hostAccountId; // [RP-V7.40]
+            if (lv.priv != null) e.priv = !!lv.priv; // [RP-V7.138] private lives are badged for the people allowed to see them
             e.pot = lv.pot || null; // [RP-V7.41] Plaza Pot state rides the snapshot
             if (typeof lv.watchers === "number") e.watchers = lv.watchers; // [RP-V7.63] carried for the signup invite's busiest-live pick
             if (lv.startedAt) e.startedAt = lv.startedAt; // [RP-V7.63] …and its earliest-started tie-break
             e.seen = now; e.reg = true; e.regKey = lv.key || e.regKey || "";
             if (foundId !== key && lv.hostId) { Live.directory[key] = e; delete Live.directory[foundId]; }
           } else {
-            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, pot: lv.pot || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0 }; // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite
+            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, pot: lv.pot || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0 }; // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
           }
         });
         Live.regRooms = rooms;
@@ -9787,6 +9829,14 @@
       var InviteLink = { pending: null, authReady: false, sawSync: false, attempted: false };
       var INVITE_LINK_KEY = "rpPendingInvite.v1";
       function inviteLinkStash(inv) { try { sessionStorage.setItem(INVITE_LINK_KEY, JSON.stringify(inv)); } catch (e) { } }
+      /* [RP-V7.138] Private-link tokens live apart from the stash (the
+         stash is consumed once; the token must ride every join to the
+         room for the rest of the tab session, rejoins included). */
+      function rpLiveLinkTokSet(room, lt) {
+        if (!room || !lt) return;
+        window.rpLiveLinkToks = window.rpLiveLinkToks || {};
+        window.rpLiveLinkToks[room] = String(lt).slice(0, 64);
+      }
       function inviteLinkRead() {
         try { var s = sessionStorage.getItem(INVITE_LINK_KEY); if (!s) return null; var j = JSON.parse(s); return (j && (j.kind === "live" || j.kind === "room") && j.room) ? j : null; } catch (e) { return null; }
       }
@@ -9799,14 +9849,16 @@
         var q = null;
         try { q = new URLSearchParams(location.search || ""); } catch (e) { }
         if (!q) return;
-        var live = q.get("live"), room = q.get("room");
+        var live = q.get("live"), room = q.get("room"), lt = q.get("lt");
         if (!live && !room) return;
         var inv = live ? { kind: "live", room: String(live).slice(0, 120), at: Date.now() } : { kind: "room", room: String(room).slice(0, 120), at: Date.now() };
+        if (lt) inv.lt = String(lt).slice(0, 64); // [RP-V7.138] a private link's token rides the stash
         if (!inv.room) return;
         InviteLink.pending = inv;
         inviteLinkStash(inv);
+        if (inv.lt) rpLiveLinkTokSet(inv.room, inv.lt);
         try {
-          q.delete("live"); q.delete("room");
+          q.delete("live"); q.delete("room"); q.delete("lt"); // [RP-V7.138] the token leaves the address bar too
           var rest = q.toString();
           history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
         } catch (e) { }
@@ -9832,8 +9884,14 @@
         InviteLink.pending = null;
         inviteLinkClear(); // consumed exactly once, whatever happens next
         if (inv.kind === "room") { joinOnlineRoomFromHome(inv.room); return; } // the room flow applies its own teen / door gates
+        if (inv.lt) rpLiveLinkTokSet(inv.room, inv.lt);
         if (teen) { openLiveFromList(inv.room); return; } // teen-locked: joinOnlineRoomFromHome shows the standard teen gate and never enters
         if (inviteLinkDirectoryHas(inv.room)) { openLiveFromList(inv.room); return; }
+        // [RP-V7.138] a private live is hidden from my directory BY
+        // DESIGN — with a link token in hand, go to the door and let
+        // the server decide (a dead token or an ended live comes back
+        // as the clean private/ended message, never a crash).
+        if (inv.lt) { openLiveFromList(inv.room); return; }
         toast("That live has ended — here's what's on now", 4200);
         try { show("screen-plaza"); } catch (e) { }
       }
@@ -9857,7 +9915,7 @@
          20s registry heartbeat, independent of the 8s in-room state. */
       function liveRegistrySyncHost() {
         if (!Online.socket || !Live.active || !Live.hostWasMe) return;
-        try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting" }); } catch (e) { }
+        try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn }); } catch (e) { } // [RP-V7.138] priv: my Private room toggle — the server mints the link token
         startRegBeat();
       }
       function startRegBeat() {
@@ -9869,7 +9927,7 @@
           // deferred room switch, player record not ready), the live used to
           // stay invisible forever — live-register is idempotent and also
           // refreshes lastBeat server-side, so the entry self-heals in ≤20s.
-          try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting" }); } catch (e) { }
+          try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn }); } catch (e) { } // [RP-V7.138] priv rides every re-assert too
         }, 20000);
       }
       function stopRegBeat() { if (Live.regBeat) { clearInterval(Live.regBeat); Live.regBeat = null; } }
@@ -9880,6 +9938,7 @@
       function liveRowHTML(e) {
         var av = '<span class="lnr-av">' + (e.photo ? '<img src="' + escHtml(e.photo) + '" alt=""/>' : personFace({ name: e.name })) + '</span>';
         var folBadge = (!e.mine && isFollowingName(e.name)) ? ' <span class="lnr-follow">⭐ Following</span>' : "";
+        var privBadge = e.priv ? ' <span class="lnr-follow">🔒 Private</span>' : ""; // [RP-V7.138]
         var fyBadge = (!e.mine && e.forYou) ? ' <span class="lnr-fy">✨ For You</span>' : "";
         var riseBadge = (!e.mine && e.rising) ? ' <span class="lnr-rising">🔥 Rising</span>' : "";
         var pushBadge = (!e.mine && e.testPush) ? ' <span class="lnr-fy">🆕 New</span>' : "";
@@ -9891,12 +9950,107 @@
             ((e.pot.burstAt && (e.pot.total || 0) >= Math.ceil(e.pot.burstAt * 0.75)) ? " 💥" : "") + "</span>"
           : "";
         return '<button class="live-now-row" data-lnroom="' + escHtml(e.room) + '">' + av +
-          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + fyBadge + riseBadge + pushBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i>' + potLine + '</span>' +
+          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + privBadge + fyBadge + riseBadge + pushBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i>' + potLine + '</span>' +
           '<span class="lnr-n">👁 ' + (e.n || 1) + " watching</span></button>";
       }
       /* Tap a 🔴 Live Now / lobby entry: join that host's live room. */
       function openLiveFromList(room) {
+        // [RP-V7.138] A private live I'm not invited to never reaches
+        // my directory (the server hides it), so a room that isn't
+        // listed, isn't mine, and carries no link token I hold is
+        // either private-to-me or already over — say so plainly
+        // instead of walking into a door the server would refuse.
+        // Skipped until the first registry sync lands (regAt), so a
+        // bell-invite tap in the first seconds still goes through and
+        // lets the server decide.
+        if (room && typeof room === "string" && room.indexOf("live-") === 0 && room !== myLiveRoomId() && Live.regAt &&
+            !inviteLinkDirectoryHas(room) && !(window.rpLiveLinkToks && window.rpLiveLinkToks[room])) {
+          toast("🔒 That live is private or has ended.", 3600);
+          return;
+        }
         joinOnlineRoomFromHome(room);
+      }
+      window.rpOpenLiveFromList138 = openLiveFromList; // [RP-V7.138] the reminders module routes live-invite taps through here
+      /* [RP-V7.138] After a private-refusal or a kick, settle back
+         into the Live Stage lobby: a switch-room emit (the proper
+         leave, when the server still holds my record in another
+         room) plus a fresh join emit (recreates the record a kick
+         deleted, and always returns a fresh room-state). The refused
+         room itself is never re-entered and never half-joined. */
+      window.rpRejoinLobby138 = function () {
+        try {
+          if (!Online.socket || Online.state !== "on") return;
+          Online.room = LIVE_ROOM_ID; Online.players = {};
+          Online.socket.emit("switch-room", { room: LIVE_ROOM_ID });
+          Online.socket.emit("join", { name: Online.name, avatar: (typeof onlineAvatarPayload === "function" ? onlineAvatarPayload() : Online.avatar), room: LIVE_ROOM_ID, age: (typeof myAge === "function" ? myAge() : 0), key: (typeof onlineDeviceKey === "function" ? onlineDeviceKey() : "") });
+          show("screen-online");
+          if (typeof updateLivePanel === "function") updateLivePanel();
+        } catch (e) { }
+      };
+      /* [RP-V7.138] HOST KICK: ask the server to remove this person
+         from my live. The server validates I'm the host, drops their
+         socket from the room, and blocks their rejoin for the rest of
+         this session. Locally I clear their stage seat at once so the
+         panel agrees with what everyone else sees. */
+      function liveKick138(id) {
+        if (!iAmHost() || !Online.socket || !id || id === Online.myId) return;
+        var nm = liveName(id);
+        try { Online.socket.emit("live-kick", { to: id }); } catch (e) { }
+        if (Live.stage.indexOf(id) >= 0) { Live.stage = Live.stage.filter(function (s) { return s !== id; }); closeLivePeer(id); }
+        delete Live.requests[id]; delete Live.invited[id];
+        addChatSystem("🚪 You kicked " + nm + " out of this live — they can't rejoin it.");
+        liveSendState();
+        renderLivePanel();
+        liveSyncPeers();
+      }
+      /* [RP-V7.138] Invite picker: my followers + the people I follow
+         (from /api/social/me). In the go-live setup it edits a local
+         id list (invites fire the moment the live starts); inside a
+         running live it invites / un-invites through the server at
+         once. Done returns to wherever the picker was opened from. */
+      function rpOpenInvitePicker138(opts) {
+        opts = opts || {};
+        if (typeof acctRec !== "function" || !acctRec()) { toast("Sign in to invite people to a private live."); return; }
+        openSheet('<button class="close-x" data-act="close" aria-label="Close">✕</button><div class="game-box"><h3 style="text-align:center;">👥 Invite to your private live</h3><p class="age-note">Loading your people…</p></div>');
+        api("/api/social/me", "GET").then(function (r) {
+          if (!r.json || !r.json.ok) { toast("Couldn't load your followers — try again."); return; }
+          var seen = {}, people = [];
+          (r.json.following || []).concat(r.json.followers || []).forEach(function (b) { if (b && b.id && !seen[b.id]) { seen[b.id] = 1; people.push(b); } });
+          render138(people);
+        }).catch(function () { toast("Couldn't load your followers — try again."); });
+        function isIn(id) { return opts.live ? Live.privInvited.indexOf(id) >= 0 : Live.setupInviteIds.indexOf(id) >= 0; }
+        function render138(people) {
+          var html = '<button class="close-x" data-act="close" aria-label="Close">✕</button><div class="game-box"><h3 style="text-align:center;">👥 Invite to your private live</h3>' +
+            '<p class="age-note">Invited members get a 🔔 bell note and can join right away. Anyone with your private link can join too — reset the link in Host tools to cut old copies off.</p>';
+          if (!people.length) html += '<p class="age-note">No followers or follows yet — you can still share your private link from Host tools once you\'re live.</p>';
+          people.forEach(function (b) {
+            html += '<div class="lv-people-row"><span class="grow"><b>' + escHtml(b.name || "Member") + '</b></span><button class="btn-mini" data-inv="' + escHtml(b.id) + '">' + (isIn(b.id) ? "Un-invite" : "Invite") + '</button></div>';
+          });
+          html += '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-mini" data-act="close2" type="button">Done</button></div></div>';
+          openSheet(html);
+          wireLiveSheetClose();
+          var sheet = $("sheet");
+          function done138() { closeSheet(); if (typeof opts.onDone === "function") opts.onDone(); }
+          sheet.querySelectorAll("[data-act=close],[data-act=close2]").forEach(function (x) { x.addEventListener("click", done138); });
+          sheet.querySelectorAll("[data-inv]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              var id = btn.getAttribute("data-inv");
+              var person = null;
+              people.forEach(function (x) { if (x.id === id) person = x; });
+              if (isIn(id)) {
+                if (opts.live) { try { Online.socket.emit("live-uninvite", { toAccountId: id }); } catch (e) { } Live.privInvited = Live.privInvited.filter(function (x) { return x !== id; }); }
+                else Live.setupInviteIds = Live.setupInviteIds.filter(function (x) { return x !== id; });
+                btn.textContent = "Invite";
+              } else {
+                if (opts.live) { try { Online.socket.emit("live-invite", { toAccountId: id }); } catch (e) { } if (Live.privInvited.indexOf(id) < 0) Live.privInvited.push(id); }
+                else if (Live.setupInviteIds.indexOf(id) < 0) Live.setupInviteIds.push(id);
+                if (person) Live.privInvitedNames[id] = person.name || "Member";
+                btn.textContent = "Un-invite";
+              }
+              if (typeof opts.onChange === "function") opts.onChange();
+            });
+          });
+        }
       }
       function iAmHost() { return Live.active && Live.hostId === Online.myId; }
       function iAmOnStage() { return Live.active && Live.stage.indexOf(Online.myId) >= 0; }
@@ -12497,6 +12651,7 @@
         }, function () { /* camera denied: the avatar placeholder stays; Go LIVE surfaces the camera help sheet */ });
       }
       function openLiveSetup() {
+        if (Live.active && typeof iAmHost === "function" && iAmHost()) Live.setupPriv = !!Live.privOn; // [RP-V7.138] editing my running live: the toggle starts from its real state
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box"><h3 style="text-align:center;">🔴 Set up your live</h3>' +
@@ -12506,6 +12661,11 @@
           '<div class="field"><label>Topic</label><div class="lv-topics" id="lvTopics">' +
             LIVE_TOPICS.map(function (t) { return '<button type="button" class="lv-topic' + (t === Live.setupTopic ? " sel" : "") + '" data-topic="' + t + '">' + t + '</button>'; }).join("") +
             '</div></div>' +
+          '<div class="field"><label>Who can join</label><div class="lv-topics" id="lvPrivTopics">' +
+            '<button type="button" class="lv-topic' + (Live.setupPriv ? "" : " sel") + '" data-priv="0">🌐 Public</button>' +
+            '<button type="button" class="lv-topic' + (Live.setupPriv ? " sel" : "") + '" data-priv="1">🔒 Private room</button>' +
+            '</div><p class="age-note" id="lvPrivNote">' + (Live.setupPriv ? "Only people you invite — or anyone with your private link — can join. Your live stays hidden from 🔴 Live Now for everyone else." : "Anyone can find and join your live from 🔴 Live Now.") + '</p>' +
+            '<button class="btn-mini" id="lvSetupInvite" type="button" style="display:' + (Live.setupPriv ? "" : "none") + ';">👥 Invite people' + (Live.setupInviteIds.length ? " · " + Live.setupInviteIds.length + " picked" : "") + '</button></div>' +
           '<p class="age-note">This live is <b>your own</b> \u2014 you\u2019re the host, and you can invite up to 11 viewers up on camera with you (12 on stage max). Your camera and mic are used <b>only while you\u2019re live</b>, and people find and join your live from the 🔴 Live Now list. Keep it clean \u2014 the guidelines you accepted apply on camera too.</p>' +
           '<button class="btn-primary lv-golive" id="btnLiveStart2" type="button">🔴 Go LIVE</button>' +
           '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" data-act="close2">Not now</button></div></div>'
@@ -12526,6 +12686,22 @@
             sheet.querySelectorAll("[data-topic]").forEach(function (x) { x.classList.toggle("sel", x === b); });
           });
         });
+        // [RP-V7.138] Private room toggle + setup invites
+        sheet.querySelectorAll("[data-priv]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            Live.setupPriv = b.getAttribute("data-priv") === "1";
+            sheet.querySelectorAll("[data-priv]").forEach(function (x) { x.classList.toggle("sel", x === b); });
+            var note = $("lvPrivNote");
+            if (note) note.textContent = Live.setupPriv ? "Only people you invite — or anyone with your private link — can join. Your live stays hidden from 🔴 Live Now for everyone else." : "Anyone can find and join your live from 🔴 Live Now.";
+            var ib = $("lvSetupInvite");
+            if (ib) ib.style.display = Live.setupPriv ? "" : "none";
+          });
+        });
+        var lvInvBtn = $("lvSetupInvite");
+        if (lvInvBtn) lvInvBtn.addEventListener("click", function () {
+          Live.setupTitle = ($("lvTitle").value || "").trim(); // keep the typed title across the picker round-trip
+          rpOpenInvitePicker138({ live: false, onDone: function () { openLiveSetup(); } });
+        });
         // [RP-V7.63] reached from the host ••• menu WHILE LIVE, this
         // sheet is an editor: no second camera preview (the broadcast
         // owns the camera) and the start button becomes a save.
@@ -12539,6 +12715,7 @@
           stopLivePreview();
           closeSheet();
           if (Live.active && iAmHost()) {
+            Live.privOn = !!Live.setupPriv; // [RP-V7.138] the register below carries the new privacy state to the server
             // [RP-V7.63] editing mid-live: re-announce the new
             // title/topic — never restart a running broadcast.
             try { liveRegistrySyncHost(); } catch (e) { }
@@ -12567,9 +12744,13 @@
           var at = Date.now();
           if (Online.room !== myRoom) {
             // announce in the room I'm leaving, so the people here can find
-            // my live in their 🔴 Live Now list and tap through to watch
-            protoSend({ k: "live-on", room: myRoom, at: at, title: (Live.title || "").slice(0, 30), topic: Live.topic || "Chatting" });
-            sendLiveMeta(); // my home + interests, for their ✨ For You ranking
+            // my live in their 🔴 Live Now list and tap through to watch —
+            // [RP-V7.138] a PRIVATE live is never announced to the room at
+            // large; invited people find it through their bell + list.
+            if (!Live.setupPriv) {
+              protoSend({ k: "live-on", room: myRoom, at: at, title: (Live.title || "").slice(0, 30), topic: Live.topic || "Chatting" });
+              sendLiveMeta(); // my home + interests, for their ✨ For You ranking
+            }
             switchOnlineRoom(myRoom);
           }
           Live.myStream = stream; Live.camOn = true; Live.micOn = true;
@@ -12581,6 +12762,7 @@
           Live.roomId = myRoom;
           Live.stage = [Online.myId];
           Live.hearts = 0; Live.requests = {}; Live.invited = {}; Live.myPendingReq = false;
+          Live.privOn = !!Live.setupPriv; Live.privInvited = []; Live.privToken = null; Live.privSig = ""; // [RP-V7.138] fresh session: privacy from the setup toggle; invites + token come from the server
           EngLog[Online.myId] = []; // a fresh broadcast starts with a clean engagement score
           Live.directory[Online.myId] = { room: myRoom, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: Online.myPhotoUrl || null, n: 1, seen: Date.now(), city: me.city || "", state: me.state || "", ints: (me.interests || []).slice(0, 8) };
           pruneDirRoom(myRoom, Online.myId); // [RP-V7.24]
@@ -12600,7 +12782,25 @@
           });
           startLiveHeartbeat();
           liveRegistrySyncHost(); // [RP-V7.28] list this live in the server registry so Home finds it
-          addChatSystem("🔴 You're LIVE — this is your own live room, and viewers join you from 🔴 Live Now!");
+          // [RP-V7.138] setup invites go out the moment the live exists:
+          // the server adds them, bell-notes them, and refreshes their
+          // lists. The server only accepts an invite from a host who is
+          // standing in their own live room, and the room switch can be
+          // gate-deferred — so the flush retries for a few seconds
+          // (the server dedupes: an invite for someone already invited
+          // sends no second bell note).
+          if (Live.privOn && Live.setupInviteIds.length && Online.socket) {
+            var pendingInv138 = Live.setupInviteIds.slice(0, 200);
+            Live.setupInviteIds = [];
+            var invTries138 = 0;
+            var invTimer138 = setInterval(function () {
+              invTries138++;
+              if (!Live.active || !Live.hostWasMe || !Online.socket || invTries138 > 6) { clearInterval(invTimer138); return; }
+              pendingInv138.forEach(function (aid) { try { Online.socket.emit("live-invite", { toAccountId: aid }); } catch (e) { } });
+              if (Live.privInvited.length >= pendingInv138.length) clearInterval(invTimer138);
+            }, 900);
+          }
+          addChatSystem(Live.privOn ? "🔒 You're LIVE in a PRIVATE room — only invited people and your private link can get in. Manage both in 🛠 Host tools." : "🔴 You're LIVE — this is your own live room, and viewers join you from 🔴 Live Now!");
           emojiBurst("🔴", 8);
           renderLivePanel();
           if (typeof renderLiveNow === "function") renderLiveNow();
@@ -13079,8 +13279,10 @@
             : (p ? faceHTML(p, false) : personFace({ name: liveName(id) }));
           var btns = "";
           if (host && id !== Online.myId) {
-            if (role === "stage") btns = '<button class="btn-mini" data-mute="' + id + '">🔇 Mute mic</button><button class="btn-mini" data-remove="' + id + '">Remove</button>';
-            else if (role === "viewer") btns = '<button class="btn-mini" data-hide="' + id + '">Mute &amp; Hide</button>';
+            // [RP-V7.138] Kick out rides beside the existing controls on
+            // stage guests AND viewers alike — the server enforces it.
+            if (role === "stage") btns = '<button class="btn-mini" data-mute="' + id + '">🔇 Mute mic</button><button class="btn-mini" data-remove="' + id + '">Remove</button><button class="btn-mini" data-kick="' + id + '">🚪 Kick out</button>';
+            else if (role === "viewer") btns = '<button class="btn-mini" data-hide="' + id + '">Mute &amp; Hide</button><button class="btn-mini" data-kick="' + id + '">🚪 Kick out</button>';
           }
           return '<div class="lv-people-row"><span class="who-av" data-pid="' + id + '" style="cursor:pointer;">' + av + '</span><span class="grow" data-pid="' + id + '" style="cursor:pointer;"><b>' + escHtml(liveName(id)) + "</b><br/><span style=\"font-size:12px; color:var(--ink-soft); font-weight:700;\">" + role + (id === Online.myId ? " · You" : "") + '</span></span>' + btns + "</div>";
         }
@@ -13091,6 +13293,27 @@
         if (Online.myId && Live.stage.indexOf(Online.myId) < 0 && !host) html += rowFor(Online.myId, "viewer");
         viewers.forEach(function (id) { html += rowFor(id, "viewer"); });
         if (!viewers.length && Live.stage.length <= 1) html += '<p class="age-note">Just you in here so far — hit 📣 Invite in the room to pull a crowd in.</p>';
+        if (host) {
+          // [RP-V7.138] Private room controls: status, the private
+          // link (copy / reset), invites, and the invited list.
+          html += '<div class="lv-priv-panel" style="margin-top:14px; border-top:1px solid rgba(255,255,255,.12); padding-top:12px;"><h4 style="margin:0 0 6px;">' + (Live.privOn ? "🔒 Private room" : "🌐 Public live") + '</h4>';
+          if (Live.privOn) {
+            html += '<p class="age-note">Only invited members — and anyone with your private link — can join. Everyone else never sees this live.</p>';
+            if (Live.privToken) {
+              html += '<input type="text" readonly id="lvPrivLinkBox" value="' + escHtml(PUBLIC_LINK + "?live=" + encodeURIComponent(Online.room || "") + "&lt=" + Live.privToken) + '" style="width:100%; box-sizing:border-box; margin:6px 0;" />' +
+                '<div class="btn-row" style="justify-content:center;"><button class="btn-mini" id="lvPrivCopy" type="button">📋 Copy link</button><button class="btn-mini" id="lvPrivReset" type="button">♻️ Reset link</button></div>';
+            } else html += '<p class="age-note">Getting your private link…</p>';
+            html += '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" id="lvPrivInviteBtn" type="button">👥 Invite people</button><button class="btn-mini" id="lvPrivPublic" type="button">Make public</button></div>';
+            if (Live.privInvited.length) {
+              html += '<p class="age-note" style="margin-top:10px;">Invited:</p>' + Live.privInvited.map(function (aid) {
+                return '<div class="lv-people-row"><span class="grow"><b>' + escHtml(Live.privInvitedNames[aid] || "A member") + '</b></span><button class="btn-mini" data-uninvite="' + escHtml(aid) + '">Un-invite</button></div>';
+              }).join("");
+            }
+          } else {
+            html += '<p class="age-note">Anyone can find and join this live from 🔴 Live Now.</p><div class="btn-row" style="justify-content:center;"><button class="btn-mini" id="lvPrivMake" type="button">🔒 Make private</button></div>';
+          }
+          html += '</div>';
+        }
         if (host) html += '<div class="btn-row" style="justify-content:center; margin-top:14px;"><button class="btn-mini" id="lvEndLiveBtn">⏹ End Live</button><button class="btn-mini" data-act="close2">Done</button></div>';
         else html += '<div class="btn-row" style="justify-content:center; margin-top:14px;"><button class="btn-mini" data-act="close2">Done</button></div>';
         html += "</div>";
@@ -13117,6 +13340,34 @@
         sheet.querySelectorAll("[data-hide]").forEach(function (b) {
           b.addEventListener("click", function () { closeSheet(); liveMuteHide(b.getAttribute("data-hide")); });
         });
+        // [RP-V7.138] kick + private-room wiring
+        sheet.querySelectorAll("[data-kick]").forEach(function (b) {
+          b.addEventListener("click", function () { closeSheet(); liveKick138(b.getAttribute("data-kick")); });
+        });
+        sheet.querySelectorAll("[data-uninvite]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var aid = b.getAttribute("data-uninvite");
+            try { Online.socket.emit("live-uninvite", { toAccountId: aid }); } catch (e) { }
+            Live.privInvited = Live.privInvited.filter(function (x) { return x !== aid; });
+            openLiveHostTools();
+          });
+        });
+        var pvMake = $("lvPrivMake");
+        if (pvMake) pvMake.addEventListener("click", function () { Live.privOn = true; liveRegistrySyncHost(); setTimeout(function () { try { Online.socket.emit("live-access-get", {}); } catch (e) { } openLiveHostTools(); }, 350); });
+        var pvPub = $("lvPrivPublic");
+        if (pvPub) pvPub.addEventListener("click", function () { Live.privOn = false; Live.privToken = null; liveRegistrySyncHost(); setTimeout(function () { openLiveHostTools(); }, 350); });
+        var pvCopy = $("lvPrivCopy");
+        if (pvCopy) pvCopy.addEventListener("click", function () {
+          var box = $("lvPrivLinkBox"); if (!box) return;
+          var link = box.value;
+          function copied() { toast("📋 Private link copied — anyone with it can join this live."); }
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(copied).catch(function () { box.select(); toast("Link selected — copy it to share."); });
+          else { box.select(); toast("Link selected — copy it to share."); }
+        });
+        var pvReset = $("lvPrivReset");
+        if (pvReset) pvReset.addEventListener("click", function () { try { Online.socket.emit("live-link-reset", {}); } catch (e) { } toast("♻️ New private link on the way — the old one stops working now."); });
+        var pvInv = $("lvPrivInviteBtn");
+        if (pvInv) pvInv.addEventListener("click", function () { rpOpenInvitePicker138({ live: true, onDone: function () { openLiveHostTools(); } }); });
         var end = $("lvEndLiveBtn");
         if (end) end.addEventListener("click", function () { closeSheet(); liveEndMine(); });
       }
@@ -13189,6 +13440,7 @@
         var text = "I'm live on Rizz Plaza — come watch!";
         var liveKey = liveInviteRoomKey();
         var url = liveKey ? PUBLIC_LINK + "?live=" + encodeURIComponent(liveKey) : PUBLIC_LINK; // [RP-V7.65] the link names THIS live — the boot invite router takes a signed-in guest straight to it
+        if (Live.privOn && iAmHost() && Live.privToken) url += "&lt=" + encodeURIComponent(Live.privToken); // [RP-V7.138] hosting a private live: my share IS the private link
         shareCopiedFlag = false;
         var payload = title + "\n" + text + "\n" + url;
         var encPayload = encodeURIComponent(payload);
@@ -15124,6 +15376,7 @@
         Live.roomId = null; Live.pendingMeta = null; Live.pendingStage = null; Live.stageAsm = null;
         Live.wantSetup = false;
         Live.requests = {}; Live.invited = {}; Live.myPendingReq = false;
+        Live.privOn = false; Live.privInvited = []; Live.privToken = null; Live.privSig = ""; // [RP-V7.138] the session's privacy state ends with the live
         Live.camOn = true; Live.micOn = true; Live.hearts = 0; Live.watchKey = "";
         liveDirectoryList(); // refreshes broadcastKnown from what remains listed
         if (typeof renderLiveNow === "function") renderLiveNow();
@@ -17877,7 +18130,7 @@
         dropSelfFromRoomCount(Online.room); // [RP-V7.48] I leave the old room's cached count when I switch away
         Online.room = room; Online.players = {};
         noteRoomVisit(room); // ✨ For You: state/city rooms I visit mark where I'm based
-        Online.socket.emit("switch-room", { room: room });
+        Online.socket.emit("switch-room", { room: room, lt: (window.rpLiveLinkToks && window.rpLiveLinkToks[room]) || undefined }); // [RP-V7.138] lt: my private-link token for this room, when a link brought me here
         // [RP-V7.39] landing in my own live room while hosting — including a
         // door-gate-deferred switch (the gate callback re-runs this function)
         // that completes after liveStartHosting's own register already fired
@@ -25751,6 +26004,9 @@ body:not(.live-fs) #rp65How { display:none !important; }
         if (typeof show === "function") show("screen-profile");
       } else if (go.screen === "plaza") {
         if (typeof show === "function") show("screen-plaza");
+      } else if (go.screen === "live") { // [RP-V7.138] a private-live invite tap lands in the live
+        if (typeof window.rpOpenLiveFromList138 === "function" && go.room) window.rpOpenLiveFromList138(go.room);
+        else if (typeof show === "function") show("screen-online");
       }
     } catch (e) { }
   }
@@ -35117,9 +35373,9 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
   // [RP-V7.100] Notifications: 7 per-event switches x 3 per-channel
   // switches, all account-backed. SMS still only ever carries messages
   // + Daily Pot wins server-side; the "Text me" switch gates those.
-  var NOTIFY_KEYS = ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts"]; // [RP-V7.129]
+  var NOTIFY_KEYS = ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts", "liveinvites"]; // [RP-V7.129] // [RP-V7.138] + liveinvites
   function defNotify() {
-    return { messages: true, follows: true, gifts: true, likes: true, comments: true, reposts: true, dailypot: true, channels: { inapp: true, email: true, sms: true } };
+    return { messages: true, follows: true, gifts: true, likes: true, comments: true, reposts: true, dailypot: true, liveinvites: true, channels: { inapp: true, email: true, sms: true } };
   }
   var DEF = { letterStyle: "default", dmPrivacy: "everyone", notify: defNotify() };
   var cur = { letterStyle: DEF.letterStyle, dmPrivacy: DEF.dmPrivacy, notify: defNotify() };
@@ -35216,6 +35472,7 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
       togRow("messages", "💬 Messages", cur.notify.messages) +
       togRow("follows", "👋 Follows", cur.notify.follows) +
       togRow("posts", "🎬 New posts", cur.notify.posts) + // [RP-V7.129] alerts when someone you follow posts
+      togRow("liveinvites", "🔒 Live invites", cur.notify.liveinvites) + // [RP-V7.138] private-live invites (bell + email; never a text)
       togRow("gifts", "🎁 Gifts", cur.notify.gifts) +
       togRow("likes", "❤️ Likes", cur.notify.likes) +
       togRow("comments", "✍️ Comments", cur.notify.comments) +
