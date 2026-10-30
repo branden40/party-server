@@ -3050,6 +3050,171 @@ app.post("/api/reel", (req, res) => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// [RP-V7.133] Share INTO the Plaza (Web Share Target). Another app's
+// share menu POSTs a video/photo (or just text/a link) to /share-target
+// from the OS share sheet. That POST cannot carry the member's Plaza
+// session — tokens live in localStorage, not cookies — so the share is
+// parked here UNCLAIMED under an unguessable id and the browser is
+// redirected into the app as /?sharein=<id>. The first signed-in call
+// to GET /api/share-in/:id claims the record; only the claimant can
+// read it, fetch the file, or consume it. Records + files die after
+// 2 hours (boot + interval sweep at the bottom, deletion-sweep
+// pattern). Nothing here trusts the share itself: the client feeds the
+// file through the normal composers, so every posting rule (age
+// gates, caps, moderation) applies exactly as for a picked file.
+// ---------------------------------------------------------------------------
+const SHAREIN_DIR = path.join(PHOTO_DIR, "sharein");
+fs.mkdirSync(SHAREIN_DIR, { recursive: true });
+const SHAREIN_FILE =
+  process.env.SHAREIN_FILE || path.join(path.dirname(PHOTO_DIR), "sharein.json");
+const SHAREIN_TTL_MS = 2 * 3600 * 1000;
+const SHAREIN_EXTS = {
+  "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov",
+  "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+  "image/gif": "gif", "image/heic": "heic", "image/heif": "heif",
+};
+const shareInMap = new Map();
+function shareInLoad() {
+  try {
+    const arr = JSON.parse(fs.readFileSync(SHAREIN_FILE, "utf8"));
+    if (Array.isArray(arr))
+      for (const r of arr) if (r && r.id) shareInMap.set(r.id, r);
+  } catch { /* first boot: no store yet */ }
+}
+function shareInSave() {
+  try {
+    const tmp = SHAREIN_FILE + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(Array.from(shareInMap.values()), null, 2));
+    fs.renameSync(tmp, SHAREIN_FILE);
+  } catch (e) {
+    console.log("[sharein] save failed:", e && e.message);
+  }
+}
+function shareInDrop(rec) {
+  shareInMap.delete(rec.id);
+  if (rec.path) fs.unlink(rec.path, () => {});
+}
+function sweepShareIn() {
+  const now = Date.now();
+  let changed = false;
+  for (const rec of Array.from(shareInMap.values())) {
+    if (!rec.createdAt || now - rec.createdAt > SHAREIN_TTL_MS) {
+      shareInDrop(rec);
+      changed = true;
+    }
+  }
+  if (changed) shareInSave();
+  return changed;
+}
+shareInLoad();
+try { sweepShareIn(); } catch (e) {} // boot sweep — the interval is at the bottom
+const shareInUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, SHAREIN_DIR),
+    filename: (req, file, cb) => {
+      const ext = SHAREIN_EXTS[file.mimetype] || "bin";
+      cb(null, `${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${ext}`);
+    },
+  }),
+  limits: { fileSize: 100 * 1024 * 1024, files: 1 }, // 100 MB — the reel cap
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype && (file.mimetype.startsWith("video/") || file.mimetype.startsWith("image/")))
+      cb(null, true);
+    else cb(new Error("Only video or image files can be shared in"));
+  },
+});
+app.post("/share-target", (req, res) => {
+  shareInUpload.single("media")(req, res, (err) => {
+    if (err) {
+      // No file / wrong type / over the cap: never a raw error page —
+      // the member lands in the app and the client shows one toast.
+      if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
+      return res.redirect(303, "/?sharein_error=1");
+    }
+    const b = req.body || {};
+    const text = String(b.text || "").replace(/[<>&"]/g, "").trim().slice(0, 500);
+    const url = String(b.url || "").trim().slice(0, 500);
+    const title = String(b.title || "").replace(/[<>&"]/g, "").trim().slice(0, 200);
+    if (!req.file && !text && !url && !title)
+      return res.redirect(303, "/?sharein_error=1");
+    const rec = {
+      id: crypto.randomBytes(16).toString("hex"), // 128-bit, unguessable
+      path: req.file ? req.file.path : null,
+      name: req.file ? String(req.file.originalname || "").slice(0, 120) : "",
+      mime: req.file ? req.file.mimetype : "",
+      kind: req.file
+        ? (req.file.mimetype.startsWith("video/") ? "video" : "image")
+        : "link",
+      text,
+      url,
+      title,
+      createdAt: Date.now(),
+      claimedBy: null,
+    };
+    shareInMap.set(rec.id, rec);
+    shareInSave();
+    console.log("[sharein] parked", rec.id, rec.kind, req.file ? req.file.size + " bytes" : "no file");
+    res.redirect(303, "/?sharein=" + rec.id);
+  });
+});
+// Shared gate for the three claim-side routes: a signed-in account, an
+// existing record, and — once claimed — the claimant only.
+function shareInForUser(req, res, mayClaim) {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return null;
+  const id = reelCleanId(req.params.id);
+  const rec = id ? shareInMap.get(id) : null;
+  if (!rec) {
+    res.status(404).json({ ok: false, error: "That share is gone — it may have expired." });
+    return null;
+  }
+  if (!rec.claimedBy && mayClaim) {
+    rec.claimedBy = ctx.user.id;
+    shareInSave();
+  }
+  if (rec.claimedBy !== ctx.user.id) {
+    res.status(403).json({ ok: false, error: "That share was already claimed by another account." });
+    return null;
+  }
+  return { ctx, rec };
+}
+app.get("/api/share-in/:id", (req, res) => {
+  const got = shareInForUser(req, res, true); // first authed read claims it
+  if (!got) return;
+  const rec = got.rec;
+  res.json({
+    ok: true,
+    kind: rec.kind,
+    name: rec.name || "",
+    text: rec.text || "",
+    url: rec.url || "",
+    title: rec.title || "",
+    hasFile: !!rec.path,
+  });
+});
+app.get("/api/share-in/:id/file", (req, res) => {
+  const got = shareInForUser(req, res, false); // claimant only
+  if (!got) return;
+  const rec = got.rec;
+  if (!rec.path)
+    return res.status(404).json({ ok: false, error: "That share had no file." });
+  res.type(rec.mime || "application/octet-stream");
+  const stream = fs.createReadStream(rec.path);
+  stream.on("error", () => {
+    if (!res.headersSent)
+      res.status(404).json({ ok: false, error: "That share's file is gone." });
+  });
+  stream.pipe(res);
+});
+app.post("/api/share-in/:id/consume", (req, res) => {
+  const got = shareInForUser(req, res, false); // claimant only
+  if (!got) return;
+  shareInDrop(got.rec);
+  shareInSave();
+  res.json({ ok: true });
+});
+
 // RP-V7.9: only a reel's own author may turn Duet & Stitch on or off for
 // it. Same trust pattern as the upload route: a valid account token whose
 // account name matches the entry's author. Guests who posted without an
@@ -11701,4 +11866,15 @@ const storySweepTimer = setInterval(() => {
   } catch (e) {}
 }, 10 * 60 * 1000);
 if (storySweepTimer.unref) storySweepTimer.unref();
+
+// [RP-V7.133] Share-in expiry sweep: once on boot (already run beside
+// the store load above), then every 10 minutes — a parked share and
+// its file die 2 hours after the share sheet sent them, claimed or
+// not, so nothing shared in can linger on the disk.
+const shareInSweepTimer = setInterval(() => {
+  try {
+    sweepShareIn();
+  } catch (e) {}
+}, 10 * 60 * 1000);
+if (shareInSweepTimer.unref) shareInSweepTimer.unref();
 
