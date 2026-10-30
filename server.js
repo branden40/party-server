@@ -817,7 +817,7 @@ function publicAccount(u) {
   // [RP-V7.88] face rides along too: photo stays the EFFECTIVE face
   // (every surface already reads it); facePhoto is the member's own
   // uploaded photo, kept apart so switching back never loses it.
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u), settings: settingsOf(u) };
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u), settings: settingsOf(u), socials: socialsOf(u) }; // [RP-V7.144] linked handles on other apps (Find friends)
 }
 // [RP-V7.62] The gallery as the rest of the app sees it: the stored
 // array when the record has one. A legacy account that only ever set
@@ -1445,6 +1445,49 @@ function normProfileLink(v) {
   return u.toString();
 }
 
+
+// ---------------------------------------------------------------------------
+// [RP-V7.144] FIND FRIENDS (Branden, Oct 30, 2026: "Suggest friends
+// on live plaza from contacts like phone numbers Facebook accounts
+// instagram accounts and TikTok accounts and Snapchat accounts").
+// The same machinery the big apps use, with their limits: phone
+// contacts match against members' phones on file; the other networks
+// expose NO friend lists to outside apps, so members link their own
+// handles (stored on the account) and friends find them BY HANDLE.
+// PRIVACY, non-negotiable: numbers sent for matching are used for
+// that one lookup and NEVER written to any store or log; only
+// existing members are ever returned — a number with no member
+// behind it is indistinguishable from any other no-result.
+const SOCIAL_NETWORKS_144 = ["instagram", "tiktok", "snapchat", "facebook"];
+const SOCIAL_NETWORK_LABEL_144 = { instagram: "Instagram", tiktok: "TikTok", snapchat: "Snapchat", facebook: "Facebook" };
+function normSocialHandle144(v) {
+  if (typeof v !== "string") return null;
+  return v.trim().replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._-]/g, "").slice(0, 30);
+}
+function socialsOf(u) {
+  const src = u && u.socials && typeof u.socials === "object" && !Array.isArray(u.socials) ? u.socials : {};
+  const out = {};
+  for (const n of SOCIAL_NETWORKS_144) out[n] = typeof src[n] === "string" ? src[n] : "";
+  return out;
+}
+function ffPerson144(u, why) {
+  let photo = u.photo || null;
+  if (!photo) { try { const ph = accountPhotos(u); if (ph && ph[0]) photo = ph[0]; } catch (e) { } }
+  return { id: u.id, name: u.name, username: u.username || "", photo, why };
+}
+function ffExcluded144(meId, followingSet) {
+  // ids that must never be suggested to me: me, people I already
+  // follow, and blocked pairs (either direction, the DM block map).
+  const out = new Set([meId]);
+  for (const id of followingSet) out.add(id);
+  try {
+    const dms = readDms();
+    for (const id of dmBlockedSet(dms, meId)) out.add(id);
+    for (const u of Object.keys(dms.blocks || {}))
+      if (dmBlockedSet(dms, u).indexOf(meId) >= 0) out.add(u);
+  } catch (e) { }
+  return out;
+}
 app.post("/api/account/profile", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -1495,6 +1538,23 @@ app.post("/api/account/profile", (req, res) => {
     if (extBad94)
       return res.status(400).json({ ok: false, error: "That profile value isn't one of the Plaza's choices" });
     if (JSON.stringify(nx94) !== JSON.stringify(cur94)) { ctx.user.extProfile = nx94; changed = true; }
+  }
+  // [RP-V7.144] Linked handles on other apps (Find friends): only
+  // the four known networks are stored, handles are normalized
+  // (no @, lowercase), an empty string clears, absent keys change
+  // nothing. A non-string value is a 400, the V7.94 discipline.
+  if (b.socials && typeof b.socials === "object" && !Array.isArray(b.socials)) {
+    const curSoc = socialsOf(ctx.user);
+    const nxSoc = { instagram: curSoc.instagram, tiktok: curSoc.tiktok, snapchat: curSoc.snapchat, facebook: curSoc.facebook };
+    let socBad = false;
+    for (const net of SOCIAL_NETWORKS_144) {
+      if (!(net in b.socials)) continue;
+      if (typeof b.socials[net] !== "string") { socBad = true; break; }
+      nxSoc[net] = normSocialHandle144(b.socials[net]);
+    }
+    if (socBad)
+      return res.status(400).json({ ok: false, error: "Handles must be text — just your username on that app" });
+    if (JSON.stringify(nxSoc) !== JSON.stringify(curSoc)) { ctx.user.socials = nxSoc; changed = true; }
   }
   // [RP-V7.86] Liked-tab privacy: private = only the owner sees it.
   if (typeof b.likedPrivate === "boolean" && b.likedPrivate !== !!ctx.user.likedPrivate) {
@@ -7338,6 +7398,89 @@ app.get("/api/social/my-likers", (req, res) => {
   out.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
   res.json({ ok: true, total: out.length, likers: out.slice(0, 120) });
 });
+
+// [RP-V7.144] FIND FRIENDS — contact + handle matching. Read-only:
+// this route writes NOTHING (the privacy rule above). Matches are
+// members only; already-followed, blocked and pending-deletion
+// accounts are excluded, as is the caller.
+app.post("/api/social/find-friends", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const meId = ctx.user.id;
+  const b = req.body || {};
+  const sdb = readSocial();
+  const excluded = ffExcluded144(meId, socialFollowingIds(sdb, meId));
+  const people = [];
+  const seen = new Set();
+  const addUser = (u, why) => {
+    if (!u || excluded.has(u.id) || u.deletionAt || seen.has(u.id)) return;
+    seen.add(u.id);
+    people.push(ffPerson144(u, why));
+  };
+  if (Array.isArray(b.phones)) {
+    const keys = new Set();
+    for (const raw of b.phones.slice(0, 500)) {
+      const k = normPhoneKey(raw);
+      if (k && k.length >= 7) keys.add(k);
+    }
+    if (keys.size) {
+      for (const u of ctx.db.users) {
+        if (!u.phone) continue;
+        if (keys.has(normPhoneKey(u.phone))) addUser(u, "From your contacts");
+      }
+    }
+  }
+  if (typeof b.handle === "string" && SOCIAL_NETWORKS_144.indexOf(b.network) >= 0) {
+    const h = normSocialHandle144(b.handle);
+    if (h) {
+      for (const u of ctx.db.users) {
+        if (socialsOf(u)[b.network] === h)
+          addUser(u, SOCIAL_NETWORK_LABEL_144[b.network] + " @" + h);
+      }
+    }
+  }
+  res.json({ ok: true, people: people.slice(0, 60) });
+});
+
+// [RP-V7.144] YOU MAY KNOW — Plaza-graph suggestions: people who
+// follow me that I don't follow back first, then friends-of-friends
+// by mutual count. Also returns my own linked handles so the Find
+// friends sheet can prefill its "your handles" form from one call.
+app.get("/api/social/suggestions", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const meId = ctx.user.id;
+  const sdb = readSocial();
+  const following = socialFollowingIds(sdb, meId);
+  const excluded = ffExcluded144(meId, following);
+  const people = [];
+  const seen = new Set();
+  const byId = new Map(ctx.db.users.map((u) => [u.id, u]));
+  const addById = (id, why) => {
+    if (!id || excluded.has(id) || seen.has(id)) return;
+    const u = byId.get(id);
+    if (!u || u.deletionAt) return;
+    seen.add(id);
+    people.push(ffPerson144(u, why));
+  };
+  for (const id of socialFollowerIds(sdb, meId)) addById(id, "Follows you");
+  const mutual = new Map();
+  for (const fid of following) {
+    for (const cand of socialFollowingIds(sdb, fid)) {
+      if (excluded.has(cand) || seen.has(cand)) continue;
+      if (!mutual.has(cand)) mutual.set(cand, { n: 0, via: fid });
+      mutual.get(cand).n++;
+    }
+  }
+  const ranked = Array.from(mutual.entries()).sort((a, b2) => b2[1].n - a[1].n);
+  for (const [cand, info] of ranked) {
+    const viaU = byId.get(info.via);
+    const viaName = viaU ? viaU.name : "someone you follow";
+    addById(cand, info.n > 1 ? "Followed by " + viaName + " and " + (info.n - 1) + " more you follow" : "Followed by " + viaName);
+  }
+  res.json({ ok: true, people: people.slice(0, 30), mySocials: socialsOf(ctx.user) });
+});
+
 
 
 // ---------------------------------------------------------------------------
