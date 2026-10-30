@@ -5885,6 +5885,7 @@
       /* ---------- Home page entries ---------- */
       $("btnOnlineHome").addEventListener("click", enterLiveStageCard);
       $("btnAuctionsHome").addEventListener("click", openAuctions);
+      $("btnMomentsPlaza").addEventListener("click", function () { show("screen-moments"); try { if (typeof setMomMode === "function") setMomMode("reels"); } catch (e) { } }); // [RP-V7.130] this home-entry button was never wired — the bottom-bar Reels + Friends tabs both funnel through it (rpReelsOpen/rpFriendsOpen click it), so all three read as dead
       $("btnEarnHome").addEventListener("click", openEarnSheet);
       $("btnSupportHome").addEventListener("click", openSupportSheet);
       $("btnSupportPf").addEventListener("click", openSupportSheet);
@@ -20187,7 +20188,8 @@
         var wasFriends = !!Reels.friends;
         if (wasFriends) { Reels.friends = false; window.__rpFriendsMode = false; Reels.server = []; }
         var b = $("btnMomentsPlaza"); if (b) b.click();
-        if (wasFriends && Reels.mode === "reels") { renderReels(); reelFetchFeed(); }
+        if (Reels.mode !== "reels") setMomMode("reels"); // [RP-V7.130] the Reels tab lands on the reels feed (the button handler does this too; belt and suspenders if the click path changes)
+        else if (wasFriends) { renderReels(); reelFetchFeed(); }
       };
       /* ================= [RP-V7.113] HOME in the TikTok layout =================
          Branden: the Home button should open this layout — a full-screen
