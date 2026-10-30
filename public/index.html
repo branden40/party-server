@@ -3351,6 +3351,8 @@
             <button class="btn-mini" id="btnAucEarnings" type="button">💰 My earnings</button>
             <input type="file" id="aucPhotoInput" accept="image/*" hidden />
           </div>
+          <!-- [RP-V7.140] sales-event banner (Black Friday / Cyber Monday) — filled by rpSalesApply() while a sales window is open -->
+          <div class="auc-event-banner" id="aucEventBanner" hidden></div>
           <p style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px;">Real items, live bidding — the full live-selling setup. List an item with photos and details, run it as a live auction or pin it at a Buy Now price, and the winner checks out with Stripe. Auctions run in the online room you're in — you can build your listings any time, then start them once you're connected.</p>
           <div id="aucBody"></div>
           <div class="auc-rules">
@@ -17212,10 +17214,16 @@
         { id: "halloween", icon: "🎃", name: "Halloween", event: "Halloween Costume Live", mo: 9, da: 31, pre: 3, post: 1, deco: ["🎃", "👻", "🦇", "🕸️", "🍬"], accent: "#ff9a3d", gifts: [["Jack-o'-Lantern", "🎃", 35], ["Ghost Buddy", "👻", 25], ["Candy Bucket", "🍬", 15]] },
         { id: "veterans", icon: "🎖️", name: "Veterans Day", event: "Veterans Day Honor Live", mo: 10, da: 11, pre: 3, post: 1, deco: ["🎖️", "🕊️", "⭐", "🕯️", "❤️"], accent: "#c2d1f0", gifts: [["Medal of Honor", "🎖️", 40], ["Salute Star", "⭐", 25], ["Thank-You Wreath", "💐", 30]] },
         { id: "thanksgiving", icon: "🦃", name: "Thanksgiving", event: "Thankful Hearts Live", nth: [10, 4, 4], pre: 3, post: 3, deco: ["🦃", "🍂", "🥧", "🌽", "🍁"], accent: "#e0a458", gifts: [["Thankful Turkey", "🦃", 40], ["Harvest Wreath", "🌾", 30], ["Pumpkin Pie", "🥧", 25]] },
+        { id: "blackfriday", icon: "🛍️", name: "Black Friday", event: "Black Friday Sales Live", afterId: "thanksgiving", afterDays: 1, pre: 3, post: 2, sales: true, deco: ["🏷️", "🛍️", "🛒", "💳", "🎁"], accent: "#fe2c55", gifts: [["Price Tag", "🏷️", 15], ["Shopping Bag", "🛍️", 30], ["Golden Cart", "🛒", 45]] },
+        { id: "cybermonday", icon: "💻", name: "Cyber Monday", event: "Cyber Monday Sales Live", afterId: "thanksgiving", afterDays: 4, pre: 3, post: 1, sales: true, deco: ["💻", "🏷️", "🛍️", "📦", "⚡"], accent: "#ff4d6d", gifts: [["Deal Box", "📦", 25], ["Lightning Deal", "⚡", 35], ["Saver Card", "💳", 20]] },
         { id: "christmas", icon: "🎄", name: "Christmas", event: "Christmas Live Week", mo: 11, da: 25, pre: 3, post: 1, deco: ["🎄", "🎅", "❄️", "🔔", "⛄"], accent: "#7be0a3", gifts: [["Santa Visit", "🎅", 60], ["Christmas Tree", "🎄", 50], ["Snow Globe", "🔮", 30]] }
       ];
       function holDate(h, y) {
         if (h.easter) return easterSunday(y);
+        if (h.afterId) { // [RP-V7.140] relative dates — Black Friday is the day after Thanksgiving, Cyber Monday is Thanksgiving + 4
+          for (var hi = 0; hi < HOLIDAYS.length; hi++) if (HOLIDAYS[hi].id === h.afterId) { var bd = holDate(HOLIDAYS[hi], y); return new Date(bd.getFullYear(), bd.getMonth(), bd.getDate() + h.afterDays); }
+          return new Date(y, 10, 27); // unreachable fallback
+        }
         if (h.nth) return nthWeekday(y, h.nth[0], h.nth[1], h.nth[2]);
         if (h.last) return lastWeekday(y, h.last[0], h.last[1]); // [RP-V7.54]
         return new Date(y, h.mo, h.da);
@@ -17233,9 +17241,33 @@
         return out;
       }
       function activeHoliday() {
-        var n = Date.now(), occ = holOccurrences();
-        for (var i = 0; i < occ.length; i++) if (n >= occ[i].start.getTime() && n <= occ[i].end.getTime()) return occ[i];
-        return null;
+        var n = Date.now(), occ = holOccurrences(), first = null, sales = null;
+        for (var i = 0; i < occ.length; i++) {
+          if (n < occ[i].start.getTime() || n > occ[i].end.getTime()) continue;
+          if (!first) first = occ[i];
+          /* [RP-V7.140] a SALES event (Black Friday / Cyber Monday) takes over
+             the Plaza theme once its DAY arrives, even inside Thanksgiving's
+             longer window — from Black Friday through Cyber Monday the sales
+             stretch is the live story. Before its day it never pre-empts the
+             season, so Thanksgiving keeps its own day. */
+          if (occ[i].h.sales && n >= occ[i].date.getTime() && (!sales || occ[i].date.getTime() > sales.date.getTime())) sales = occ[i];
+        }
+        return sales || first;
+      }
+      /* [RP-V7.140] the SALES layer for Auctions: the sales event whose
+         window is open, build-up days included. Inside the overlap the
+         event whose day has arrived (latest first) wins, so in 2026
+         Auctions reads Black Friday Nov 24–29 and Cyber Monday Nov 30–Dec 1,
+         one continuous sales stretch. */
+      function activeSalesEvent() {
+        var n = Date.now(), occ = holOccurrences(), arrived = null, open = null;
+        for (var i = 0; i < occ.length; i++) {
+          if (!occ[i].h.sales) continue;
+          if (n < occ[i].start.getTime() || n > occ[i].end.getTime()) continue;
+          if (!open) open = occ[i];
+          if (n >= occ[i].date.getTime() && (!arrived || occ[i].date.getTime() > arrived.date.getTime())) arrived = occ[i];
+        }
+        return arrived || open;
       }
       function nextHoliday() {
         var n = Date.now(), occ = holOccurrences();
@@ -17499,11 +17531,12 @@
         }
         Party.giftEarned = {};
       }
-      /* [RP-V7.87] falling-decor builder: 8 pieces per scene, staggered with
-         negative delays so the sky is already alive when a window opens. */
+      /* [RP-V7.87] falling-decor builder: pieces per scene, staggered with
+         negative delays so the sky is already alive when a window opens.
+         [RP-V7.140] 8 → 12 pieces — the owner's bar is a FULL dressing. */
       function rpHolFallHtml(deco) {
         var out = "";
-        for (var i = 0; i < 8; i++) {
+        for (var i = 0; i < 12; i++) {
           var left = 4 + ((i * 37) % 90);
           var size = 15 + ((i * 11) % 10);
           var dur = 9 + ((i * 5) % 8);
@@ -17522,7 +17555,7 @@
           document.body.setAttribute("data-holiday", id);
           if (live) document.documentElement.style.setProperty("--hol", live.h.accent);
           document.querySelectorAll(".hol-deco").forEach(function (el) {
-            el.innerHTML = live ? live.h.deco.concat(live.h.deco).map(function (d, i) { return "<span style=\"animation-delay:" + (-(i * 0.43) % 3.6).toFixed(2) + "s;animation-duration:" + (3.1 + ((i * 7) % 9) / 7).toFixed(2) + "s\">" + d + "</span>"; }).join("") : "";
+            el.innerHTML = live ? live.h.deco.concat(live.h.deco, live.h.deco).map(function (d, i) { return "<span style=\"animation-delay:" + (-(i * 0.43) % 3.6).toFixed(2) + "s;animation-duration:" + (3.1 + ((i * 7) % 9) / 7).toFixed(2) + "s\">" + d + "</span>"; }).join("") : "";
           });
           document.querySelectorAll(".hol-fall").forEach(function (el) {
             el.innerHTML = live ? rpHolFallHtml(live.h.deco) : "";
@@ -17552,6 +17585,75 @@
         }
         var earnLine = $("earnNextEvent");
         if (earnLine) earnLine.innerHTML = holidayEarnLine();
+        rpSalesApply(); // [RP-V7.140] sales-event layer (Auctions framing + body[data-sales])
+        rpDressEnsure(); // [RP-V7.140] structural holiday dressing nodes (Halloween layer)
+      }
+
+      /* ================= [RP-V7.140] SALES EVENTS — Black Friday + Cyber Monday =================
+         Branden (Oct 30, 2026): "add Black Friday and Cyber Monday for sales
+         for auction live." Both live in the HOLIDAYS table with sales:true;
+         this layer frames them where selling happens. Event dressing only —
+         auction prices stay bid-driven and no discount is ever claimed. */
+      var RP_SALES = { key: "__init" };
+      function rpSalesApply() {
+        var s = activeSalesEvent();
+        var nowMs = Date.now();
+        var phase = !s ? "" : (nowMs < s.date.getTime() ? "before" : (nowMs <= new Date(s.date.getFullYear(), s.date.getMonth(), s.date.getDate(), 23, 59, 59).getTime() ? "day" : "after"));
+        var key = s ? s.h.id + ":" + phase : "";
+        if (key === RP_SALES.key) return;
+        RP_SALES.key = key;
+        document.body.setAttribute("data-sales", s ? s.h.id : "");
+        var b = $("aucEventBanner");
+        if (!b) return;
+        if (!s) { b.hidden = true; b.innerHTML = ""; return; }
+        var ends = s.end.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+        var dayTxt = s.date.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+        var msg;
+        if (phase === "day") msg = "is LIVE in Auctions — <b>Prime Time auction night, 8 PM ET!</b> The biggest live-selling night of the year, right here on the Plaza. · ends " + ends;
+        else if (phase === "before") msg = "is coming to Auctions — the big night is <b>" + dayTxt + "</b>, Prime Time 8 PM ET. Hosts: get your listings ready! · sale stretch ends " + ends;
+        else msg = "is LIVE in Auctions — the sales stretch runs through <b>" + ends + "</b>. Hosts are live-selling all stretch long!";
+        b.hidden = false;
+        b.innerHTML = s.h.icon + " <b>" + escHtml(s.h.name) + " Sales</b> " + msg;
+      }
+      /* ================= [RP-V7.140] HALLOWEEN DRESSING — structural layer =================
+         Branden (Oct 30, 2026): the Halloween cobwebs "is very little" — and
+         for ALL holidays: "make it look worth it." The garland + falling
+         emoji alone read as a garnish, so Halloween gets a structural layer
+         on top: layered corner webs, dangling spiders, flying bats and a
+         pumpkin row inside every scene, webs on the Home cards, pumpkins
+         flanking the event banner and riding the section headers. Pure
+         CSS/SVG + emoji, pointer-events:none throughout, and every rule is
+         gated on body[data-holiday="halloween"] so the layer vanishes the
+         moment the window closes. Chrome stays clean: scene dressing sits
+         inside the V7.94 decor band (below the top bar, above the bottom
+         bar), nothing covers buttons, the tab bar, live controls, video
+         or the live stage. Fun only — no horror, nothing demonic. */
+      var RP_DRESS = { done: false };
+      function rpDressEnsure() {
+        if (RP_DRESS.done) return;
+        RP_DRESS.done = true;
+        var inner = '<i class="hw-web tl"></i><i class="hw-web tr"></i><i class="hw-web tl big"></i><i class="hw-web tr big"></i>' +
+          '<span class="hw-spider s1">🕷️</span><span class="hw-spider s2">🕷️</span><span class="hw-spider s3">🕷️</span>' +
+          '<span class="hw-bat b1">🦇</span><span class="hw-bat b2">🦇</span>' +
+          '<span class="hw-pumpkins">🎃 🎃 🎃</span>';
+        document.querySelectorAll(".scene").forEach(function (sc) {
+          var d = document.createElement("div");
+          d.className = "hw-dress";
+          d.setAttribute("aria-hidden", "true");
+          d.innerHTML = inner;
+          sc.appendChild(d);
+        });
+        /* a pumpkin rides each section header outside the scenes */
+        [["#screen-auctions .auc-head h2"], ["#screen-moments .mom-head h2"], ["#screen-feed .mom-head h2"]].forEach(function (sel) {
+          var h = document.querySelector(sel[0]);
+          if (h && !h.querySelector(".hw-h2pump")) {
+            var p = document.createElement("span");
+            p.className = "hw-h2pump";
+            p.setAttribute("aria-hidden", "true");
+            p.textContent = " 🎃";
+            h.appendChild(p);
+          }
+        });
       }
 
       var PARTY_EVENTS = [
@@ -33896,6 +33998,53 @@ body[data-holiday]:not([data-holiday=""]) #screen-plaza .plaza-card h3 { box-sha
 body[data-holiday]:not([data-holiday=""]) .tab-btn.active .ti,
 body[data-holiday]:not([data-holiday=""]) .tab-btn.on .ti { color: var(--hol, #fe2c55); }
 @media (prefers-reduced-motion: reduce) { .hol-deco > span, .hol-fall > span, body[data-holiday]:not([data-holiday=""]) .hol-banner { animation: none; } }
+</style>
+<style id="rp7140Css">
+/* ================= [RP-V7.140] DRESSING DENSITY + SALES EVENTS =================
+   The owner's bar (Branden, Oct 30, 2026): every holiday must LOOK worth
+   it — a full visible transformation, never a token banner. Halloween
+   gets the structural layer below (built by rpDressEnsure); Black Friday
+   + Cyber Monday get the sales layer. All of it is pointer-events:none,
+   gated on body[data-holiday="halloween"] / body[data-sales], and stays
+   out of the chrome zones: nothing over buttons, the tab bar, live
+   controls, video, reels or the live stage. */
+.hw-dress { display: none; }
+body[data-holiday="halloween"] .hw-dress { display: block; position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; }
+body[data-holiday="halloween"] .scene .hw-dress { top: 108px; bottom: 84px; } /* the V7.94 scene chrome band */
+.hw-dress > * { pointer-events: none !important; }
+.hw-web { position: absolute; width: 92px; height: 92px; opacity: .8; background-repeat: no-repeat; background-size: contain; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23dfe8ff' stroke-width='1.7'%3E%3Cpath d='M1 1 L99 99'/%3E%3Cpath d='M1 1 L99 52'/%3E%3Cpath d='M1 1 L52 99'/%3E%3Cpath d='M1 1 L99 16'/%3E%3Cpath d='M1 1 L16 99'/%3E%3Cpath d='M30 1 A30 30 0 0 0 1 30'/%3E%3Cpath d='M58 1 A58 58 0 0 0 1 58'/%3E%3Cpath d='M86 1 A86 86 0 0 0 1 86'/%3E%3C/g%3E%3C/svg%3E"); }
+.hw-web.tl { top: 0; left: 0; }
+.hw-web.tr { top: 0; right: 0; transform: scaleX(-1); }
+.hw-web.big { width: 150px; height: 150px; opacity: .45; }
+.hw-spider { position: absolute; top: 0; font-size: 19px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); animation: hwDangle 5.2s ease-in-out infinite alternate; }
+.hw-spider::before { content: ""; position: absolute; left: 50%; bottom: 100%; width: 1.5px; height: 44px; background: linear-gradient(rgba(230,238,255,0), rgba(230,238,255,.75)); }
+.hw-spider.s1 { left: 16%; }
+.hw-spider.s2 { left: 54%; font-size: 15px; animation-delay: -2.1s; }
+.hw-spider.s2::before { height: 30px; }
+.hw-spider.s3 { left: 84%; animation-delay: -3.7s; }
+.hw-spider.s3::before { height: 58px; }
+@keyframes hwDangle { from { transform: translateY(0); } to { transform: translateY(13px); } }
+.hw-bat { position: absolute; top: 12px; font-size: 21px; opacity: .9; animation: hwFly 17s linear infinite; }
+.hw-bat.b2 { top: 46px; font-size: 16px; animation-duration: 23s; animation-delay: -11s; }
+@keyframes hwFly { 0% { left: -8%; transform: translateY(0) scaleX(1); } 48% { transform: translateY(10px) scaleX(1); } 50% { left: 102%; transform: translateY(4px) scaleX(-1); } 98% { transform: translateY(12px) scaleX(-1); } 100% { left: -8%; transform: translateY(0) scaleX(-1); } }
+.hw-pumpkins { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-size: 25px; letter-spacing: 10px; filter: drop-shadow(0 3px 6px rgba(0,0,0,.55)); }
+.hw-h2pump { display: none; }
+body[data-holiday="halloween"] .hw-h2pump { display: inline; }
+body[data-holiday="halloween"] #screen-plaza .online-card { position: relative; }
+body[data-holiday="halloween"] #screen-plaza .online-card::before { content: ""; position: absolute; top: 0; right: 0; width: 64px; height: 64px; opacity: .55; pointer-events: none; transform: scaleX(-1); background-repeat: no-repeat; background-size: contain; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23dfe8ff' stroke-width='1.7'%3E%3Cpath d='M1 1 L99 99'/%3E%3Cpath d='M1 1 L99 52'/%3E%3Cpath d='M1 1 L52 99'/%3E%3Cpath d='M1 1 L99 16'/%3E%3Cpath d='M1 1 L16 99'/%3E%3Cpath d='M30 1 A30 30 0 0 0 1 30'/%3E%3Cpath d='M58 1 A58 58 0 0 0 1 58'/%3E%3Cpath d='M86 1 A86 86 0 0 0 1 86'/%3E%3C/g%3E%3C/svg%3E"); }
+body[data-holiday="halloween"] .hol-banner { position: relative; padding-left: 42px !important; padding-right: 42px !important; }
+body[data-holiday="halloween"] .hol-banner::before { content: "🎃"; position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: 20px; }
+body[data-holiday="halloween"] .hol-banner::after { content: "🎃"; position: absolute; right: 11px; top: 50%; transform: translateY(-50%); font-size: 20px; }
+body[data-holiday="halloween"] .auc-photo::after { content: ""; position: absolute; right: 0; bottom: 0; width: 56px; height: 56px; opacity: .6; pointer-events: none; transform: scale(-1); background-repeat: no-repeat; background-size: contain; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23dfe8ff' stroke-width='1.7'%3E%3Cpath d='M1 1 L99 99'/%3E%3Cpath d='M1 1 L99 52'/%3E%3Cpath d='M1 1 L52 99'/%3E%3Cpath d='M1 1 L99 16'/%3E%3Cpath d='M1 1 L16 99'/%3E%3Cpath d='M30 1 A30 30 0 0 0 1 30'/%3E%3Cpath d='M58 1 A58 58 0 0 0 1 58'/%3E%3Cpath d='M86 1 A86 86 0 0 0 1 86'/%3E%3C/g%3E%3C/svg%3E"); }
+/* ---- sales events in Auctions (Black Friday / Cyber Monday) ---- */
+.auc-event-banner { margin: 0 0 12px; padding: 12px 14px; border-radius: 16px; text-align: center; font-weight: 700; font-size: 14.5px; color: #fff; background: linear-gradient(120deg, #fe2c55, #ff5a3d); border: 2px solid rgba(255,255,255,.35); box-shadow: 0 0 26px -4px rgba(254,44,85,.8); animation: holBannerPulse 2.6s ease-in-out infinite alternate; }
+.auc-event-banner[hidden] { display: none !important; }
+body[data-sales]:not([data-sales=""]) .auc-photo::before { content: "🏷️ SALE"; position: absolute; left: 10px; bottom: 10px; z-index: 2; background: #fe2c55; color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .06em; border-radius: 999px; padding: 4px 10px; box-shadow: 0 4px 12px rgba(0,0,0,.4); pointer-events: none; }
+body[data-sales="blackfriday"] .auc-panel .auc-strip-top::after { content: "🏷️ BLACK FRIDAY SALE"; flex: none; margin-left: 8px; background: #fe2c55; color: #fff; font-size: 10.5px; font-weight: 900; letter-spacing: .05em; border-radius: 999px; padding: 3px 9px; }
+body[data-sales="cybermonday"] .auc-panel .auc-strip-top::after { content: "🏷️ CYBER MONDAY SALE"; flex: none; margin-left: 8px; background: #fe2c55; color: #fff; font-size: 10.5px; font-weight: 900; letter-spacing: .05em; border-radius: 999px; padding: 3px 9px; }
+body[data-sales="blackfriday"] .ap-head::after { content: "🏷️ BLACK FRIDAY"; flex: none; background: #fe2c55; color: #fff; font-size: 10.5px; font-weight: 900; letter-spacing: .05em; border-radius: 999px; padding: 3px 9px; }
+body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"; flex: none; background: #fe2c55; color: #fff; font-size: 10.5px; font-weight: 900; letter-spacing: .05em; border-radius: 999px; padding: 3px 9px; }
+@media (prefers-reduced-motion: reduce) { .hw-spider, .hw-bat, .auc-event-banner { animation: none; } }
 </style>
 <script>
 (function () {
