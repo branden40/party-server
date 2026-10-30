@@ -16386,7 +16386,7 @@
       function ffToken144() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : null; } catch (e) { return null; } }
       function ffRow144(p) {
         return '<div class="fol-row" data-ffid="' + escHtml(p.id) + '" data-ffname="' + escHtml(p.name) + '"><span class="fol-av">' + personFace({ name: p.name, photo: p.photo }) + '</span>' +
-          '<span class="fol-meta"><b>' + escHtml(p.name) + '</b><i>' + (p.username ? "@" + escHtml(p.username) + " · " : "") + escHtml(p.why || "") + '</i></span>' +
+          '<span class="fol-meta"><b>' + escHtml(p.name) + '</b><i>' + (p.username ? "@" + escHtml(p.username) + " · " : "") + escHtml(p.why || "") + (p.contactName && p.contactName.toLowerCase() !== String(p.name).toLowerCase() ? " · in your contacts as " + escHtml(p.contactName) : "") + '</i></span>' +
           '<button type="button" class="btn-mini" data-fffollow="' + escHtml(p.id) + '">Follow</button>' +
           (p.dismiss ? '<button type="button" class="btn-mini" data-ffdismiss="' + escHtml(p.id) + '" aria-label="Not interested" title="Not interested">✕</button>' : '') + '</div>';
       }
@@ -16447,7 +16447,7 @@
         var canPick = !!(navigator.contacts && navigator.contacts.select);
         openSheet('<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box" style="text-align:left;" data-ffsheet="1"><h3 style="text-align:center;">🔍 Find friends</h3>' +
-          '<p class="age-note">Numbers are matched and forgotten — never stored, never shared. Only Plaza members ever show up.</p>' +
+          '<p class="age-note">Numbers and names are matched and forgotten — never stored, never shared. Only Plaza members ever show up.</p>' +
           '<h4 style="margin:12px 0 4px;">📱 From your contacts</h4>' +
           (canPick ? '<button type="button" class="btn-mini" id="ffPick">Pick contacts</button> ' : '') +
           '<div style="display:flex;gap:8px;margin-top:6px;"><input class="rpdm-input" id="ffPhones" type="text" placeholder="Paste phone numbers…" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMatch">Match</button></div>' +
@@ -16476,12 +16476,12 @@
         });
         var pickBtn = $("ffPick");
         if (pickBtn) pickBtn.addEventListener("click", function () {
-          navigator.contacts.select(["tel"], { multiple: true }).then(function (cs) {
-            var nums = [];
-            (cs || []).forEach(function (c) { (c.tel || []).forEach(function (t) { nums.push(t); }); });
-            if (!nums.length) return;
+          navigator.contacts.select(["name", "tel"], { multiple: true }).then(function (cs) {
+            var pairs = [];
+            (cs || []).forEach(function (c) { var nm = (c.name && c.name[0]) || ""; (c.tel || []).forEach(function (t) { pairs.push({ name: nm, phone: t }); }); });
+            if (!pairs.length) return;
             $("ffContactsRes").innerHTML = '<p class="empty-note">Matching…</p>';
-            post({ phones: nums }).then(function (j) { ffRenderInto144($("ffContactsRes"), j && j.people, "None of those contacts are on the Plaza yet."); })
+            post({ phones: pairs }).then(function (j) { ffRenderInto144($("ffContactsRes"), j && j.people, "None of those contacts are on the Plaza yet."); })
               .catch(function () { ffRenderInto144($("ffContactsRes"), null, "Couldn't match right now — try again in a moment."); });
           }).catch(function () { });
         });
