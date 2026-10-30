@@ -5877,13 +5877,15 @@ const RP_EVENT_FILM_SLUGS = {
   mothers: "mothersday", fathers: "fathersday", juneteenth: "juneteenth",
   july4: "july4", birthday: "plazabirthday", halloween: "halloween",
   thanksgiving: "thanksgiving", christmas: "christmas",
+  blackfriday: null, cybermonday: null, // [RP-V7.140] sales events — no commissioned event films, standard films play
   mlk: null, stpatricks: null, cinco: null, memorial: null,
   summer: null, laborday: null, veterans: null,
 };
 // Calendar rules mirrored from the client's HOLIDAYS table (RP-V7.54):
 // { mo, da } fixed date · { nth: [mo, weekday, n] } nth weekday of the
 // month · { last: [mo, weekday] } last weekday of the month ·
-// { easter: true } Easter Sunday (Gregorian computus).
+// { easter: true } Easter Sunday (Gregorian computus) ·
+// { after: [id, days] } days after another event (RP-V7.140 sales events).
 const RP_EVENT_CALENDAR = [
   { id: "newyear", name: "New Year's Day", mo: 0, da: 1, pre: 3, post: 1 },
   { id: "mlk", name: "Martin Luther King Jr. Day", nth: [0, 1, 3], pre: 3, post: 1 },
@@ -5902,6 +5904,8 @@ const RP_EVENT_CALENDAR = [
   { id: "halloween", name: "Halloween", mo: 9, da: 31, pre: 3, post: 1 },
   { id: "veterans", name: "Veterans Day", mo: 10, da: 11, pre: 3, post: 1 },
   { id: "thanksgiving", name: "Thanksgiving", nth: [10, 4, 4], pre: 3, post: 3 },
+  { id: "blackfriday", name: "Black Friday", after: ["thanksgiving", 1], pre: 3, post: 2 }, // [RP-V7.140]
+  { id: "cybermonday", name: "Cyber Monday", after: ["thanksgiving", 4], pre: 3, post: 1 }, // [RP-V7.140]
   { id: "christmas", name: "Christmas", mo: 11, da: 25, pre: 3, post: 1 },
 ];
 function rpEasterMonthDay(y) {
@@ -5914,6 +5918,10 @@ function rpEasterMonthDay(y) {
 function rpEventDayNum(y, mo, da) { return Math.floor(Date.UTC(y, mo, da) / 86400000); }
 function rpEventDateDayNum(h, y) {
   if (h.easter) { const ed = rpEasterMonthDay(y); return rpEventDayNum(y, ed.mo, ed.da); }
+  if (h.after) { // [RP-V7.140] relative dates — Black Friday = Thanksgiving + 1, Cyber Monday = Thanksgiving + 4
+    const base = RP_EVENT_CALENDAR.find((x) => x.id === h.after[0]);
+    if (base) return rpEventDateDayNum(base, y) + h.after[1];
+  }
   if (h.nth) {
     const first = new Date(Date.UTC(y, h.nth[0], 1)).getUTCDay();
     const da = 1 + ((h.nth[1] - first + 7) % 7) + 7 * (h.nth[2] - 1);
