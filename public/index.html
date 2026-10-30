@@ -2669,6 +2669,15 @@
         content: ""; display: block; width: 38px; height: 4px; border-radius: 2px;
         background: rgba(255,255,255,.28); margin: -6px auto 14px;
       }
+      /* [RP-V7.133] Sheet gesture isolation: scroll/touch momentum inside
+         a sheet never chains to the page, and while a sheet is open the
+         page behind it is scroll-locked. The :has rule syncs off the
+         overlay's .open class itself, so every open/close path (the
+         openSheet/closeSheet pair, sheetCloser, the media force-close)
+         is covered; the sheet-system script adds the same lock inline
+         for browsers without :has. */
+      .overlay, .sheet { overscroll-behavior: contain; }
+      body:has(.overlay.open) { overflow: hidden; }
       #tabbar { background: #000000; border-top: 1px solid rgba(255,255,255,.08); backdrop-filter: none; -webkit-backdrop-filter: none; }
       .tab-btn { color: #8f8f9d; }
       .tab-btn.on { color: #ffffff; }
@@ -2739,6 +2748,25 @@
     </style>
   <script>/* [RP-V7.99] Letter style: the saved choice paints from the first frame (the account restore re-confirms it after login). */
   (function(){try{var a=JSON.parse(localStorage.getItem("rpAcct.v1")||"null");var s=a&&a.settings&&a.settings.letterStyle;var ok={roman:1,royal:1,slab:1,blackletter:1,vintage:1,elegant:1,script:1,calligraphy:1,handwritten:1,signature:1,brush:1,bubble:1,comic:1,retro:1,arcade:1,display:1,condensed:1,typewriter:1,mono:1,outline:1,neon:1,techno:1,rounded:1,chunky:1,pirate:1,deco:1,marker:1,chalk:1,stencil:1,school:1,luxury:1};if(s&&ok[s])document.documentElement.setAttribute("data-font",s);}catch(e){}})();
+  </script>
+  <script>
+    /* [RP-V7.133] Share INTO the Plaza: the OS share sheet lands back
+       here as /?sharein=<id> (or ?sharein_error=1). Stash the id before
+       anything else runs, then clean the URL — the share-in module at
+       the end of the body picks it up once sign-in state is known. */
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search || "");
+        var sid = q.get("sharein"), serr = q.get("sharein_error");
+        if (sid) { try { sessionStorage.setItem("rpShareIn.v1", JSON.stringify({ id: sid, at: Date.now() })); } catch (e) { } }
+        if (serr) { try { sessionStorage.setItem("rpShareIn.v1", JSON.stringify({ error: 1, at: Date.now() })); } catch (e) { } }
+        if (sid || serr) {
+          q.delete("sharein"); q.delete("sharein_error");
+          var rest = q.toString();
+          history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+        }
+      } catch (e) { }
+    })();
   </script>
   </head>
   <body>
@@ -5498,6 +5526,76 @@
       function openSheet(html) { $("sheet").innerHTML = html; $("overlay").classList.add("open"); }
       function closeSheet() { $("overlay").classList.remove("open"); currentGuest = null; AudioFX.setArcade(false); }
       $("overlay").addEventListener("click", function (e) { if (e.target === $("overlay")) closeSheet(); });
+      /* [RP-V7.133] Gesture isolation for every sheet on #sheet
+         (Branden, on the 🔔 Reminders sheet: a swipe on the sheet
+         dragged the WHOLE page with it — "make it only take reminders
+         pop up"). The CSS above carries overscroll-behavior: contain
+         and the :has scroll lock; this block adds (a) the same body
+         lock as an inline style, synced by a MutationObserver off the
+         overlay's class so it can never desync from any open/close
+         path, and (b) swipe-down-to-dismiss: a downward drag starting
+         on the handle/header — or anywhere with the sheet scrolled to
+         its top — moves ONLY the sheet, and letting go past ~90px
+         closes it. The sheet's own scrolling (up, or down while it
+         still has somewhere to scroll) is never touched. */
+      (function () {
+        var ov = $("overlay"), sh = $("sheet");
+        if (!ov || !sh) return;
+        function syncSheetLock133() {
+          document.body.style.overflow = ov.classList.contains("open") ? "hidden" : "";
+        }
+        try {
+          new MutationObserver(syncSheetLock133).observe(ov, { attributes: true, attributeFilter: ["class"] });
+        } catch (e) { }
+        syncSheetLock133();
+        var dragY = null, dragDy = 0, dragOn = false;
+        sh.addEventListener("touchstart", function (e) {
+          dragOn = false; dragDy = 0;
+          if (!e.touches || e.touches.length !== 1) { dragY = null; return; }
+          var t = e.target;
+          if (t && t.closest && t.closest("input, textarea, select, video")) { dragY = null; return; }
+          dragY = e.touches[0].clientY;
+        }, { passive: true });
+        sh.addEventListener("touchmove", function (e) {
+          if (dragY === null || !e.touches || e.touches.length !== 1) return;
+          var dy = e.touches[0].clientY - dragY;
+          if (!dragOn) {
+            if (dy > 8 && sh.scrollTop <= 0) {
+              dragOn = true;
+              sh.style.transition = "none";
+            } else if (dy < -2 || sh.scrollTop > 0) {
+              dragY = null; /* the sheet's own scroll owns this gesture */
+              return;
+            } else return;
+          }
+          if (dy < 0) dy = 0;
+          dragDy = dy;
+          if (e.cancelable) e.preventDefault();
+          sh.style.transform = "translateY(" + dy + "px)";
+        }, { passive: false });
+        function dragEnd133() {
+          if (dragOn && dragDy > 10) {
+            /* swallow the click the swipe would otherwise drop on
+               whatever sits under the finger once the sheet is gone */
+            var sup = function (ev) {
+              ev.stopPropagation(); ev.preventDefault();
+              document.removeEventListener("click", sup, true);
+            };
+            document.addEventListener("click", sup, true);
+            setTimeout(function () { document.removeEventListener("click", sup, true); }, 400);
+          }
+          if (dragOn) {
+            var shouldClose = dragDy > 90;
+            sh.style.transition = "transform .22s ease";
+            sh.style.transform = "";
+            setTimeout(function () { sh.style.transition = ""; }, 240);
+            if (shouldClose) closeSheet();
+          }
+          dragY = null; dragOn = false; dragDy = 0;
+        }
+        sh.addEventListener("touchend", dragEnd133);
+        sh.addEventListener("touchcancel", dragEnd133);
+      })();
 
       function chemBar(g) {
         var lbl = isTeen()
@@ -20584,6 +20682,7 @@
         setMomMode("reels");
         toast("🎬 Your Reel is posted!", 3200);
         reelTryUpload(meta.id);
+        try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
       }
       function reelSaveDraft() {
         if (!Reels.pendingBlob) { toast("Record or upload a video first! 🎬"); return; }
@@ -20639,6 +20738,7 @@
           setMomMode("reels");
           toast("🎬 Your Reel is posted!", 3200);
           reelTryUpload(meta.id);
+          try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
         });
       }
       function reelDeleteDraft(id) {
@@ -20648,10 +20748,11 @@
         openReelComposer();
         toast("Draft deleted.");
       }
-      var reelInput = $("reelVideoInput");
-      if (reelInput) reelInput.addEventListener("change", function () {
-        var f = reelInput.files && reelInput.files[0];
-        reelInput.value = "";
+      /* [RP-V7.133] reelAcceptVideoFile is the #reelVideoInput change
+         handler's core, extracted verbatim so the Share-In flow hands a
+         shared video into the exact same composer path (same probes,
+         same caps, same preview). Behavior for the picker is unchanged. */
+      function reelAcceptVideoFile(f) {
         if (!f) return;
         var capEl = $("reelCapInput"); if (capEl) Reels.pendingCaption = (capEl.value || "").trim();
         if (!/^video\//.test(f.type || "") && !/\.(mp4|mov|webm|m4v)$/i.test(f.name || "")) { toast("That file is not a video — pick an MP4, MOV or WebM clip."); return; }
@@ -20671,6 +20772,20 @@
           Reels.stage = "preview";
           openReelComposer();
         });
+      }
+      /* [RP-V7.133] Share-In bridge: preset the caption (the composer
+         reads Reels.pendingCaption on open), then the same accept path. */
+      try {
+        window.rpReelShareIn133 = function (f, caption) {
+          if (caption) Reels.pendingCaption = caption;
+          reelAcceptVideoFile(f);
+        };
+      } catch (e) { }
+      var reelInput = $("reelVideoInput");
+      if (reelInput) reelInput.addEventListener("change", function () {
+        var f = reelInput.files && reelInput.files[0];
+        reelInput.value = "";
+        reelAcceptVideoFile(f);
       });
 
       /* ================= DUET & STITCH (RP-V7.9) =================
@@ -25413,6 +25528,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
         try { if (window.rpInviteLinkAuthReady) window.rpInviteLinkAuthReady("signup"); } catch (e) { } // [RP-V7.65] a share-link invite routes the new member to the live/room that invited them (and outranks the generic invite)
         try { if (window.rpAuthGatePass) window.rpAuthGatePass(); } catch (e) { } // [RP-V7.48] account created — the wall lets you into the Plaza
         try { if (window.rpFirstRunProfile) window.rpFirstRunProfile(); } catch (e) { } // [RP-V7.118] brand-new account → first-run profile pass (the existing setup screens, fully skippable)
+        try { if (window.rpShareInAuthReady133) window.rpShareInAuthReady133(); } catch (e) { } // [RP-V7.133] a pending share-in resumes right after sign-in
       } else if (r.reachable && r.json) {
         // [RP-V7.80] A 403 here is the under-13 refusal — the
         // server's message shows as a clear refusal. (A 13–17 DOB
@@ -25451,6 +25567,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
         fetchReminders(); renderAcctBox();
         if (onOk) onOk(r.json.user, pw);
         try { if (window.rpInviteLinkAuthReady) window.rpInviteLinkAuthReady("login"); } catch (e) { } // [RP-V7.65] a share-link invite routes a logging-in guest to the live/room that invited them
+        try { if (window.rpShareInAuthReady133) window.rpShareInAuthReady133(); } catch (e) { } // [RP-V7.133] a pending share-in resumes right after sign-in
       } else if (r.reachable && r.json) {
         if (er) { er.textContent = r.json.error || "Login didn't go through."; er.hidden = false; }
       } else {
@@ -25492,6 +25609,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     fetchReminders(); renderAcctBox();
     try { if (window.rpAuthGatePass) window.rpAuthGatePass(); } catch (e) { }
     if (isNew) { try { if (window.rpFirstRunProfile) window.rpFirstRunProfile(); } catch (e) { } }
+    try { if (window.rpShareInAuthReady133) window.rpShareInAuthReady133(); } catch (e) { } // [RP-V7.133] a pending share-in resumes right after sign-in
   }
   var googleCode = "";
   function showGooglePanel(on, info) {
@@ -33307,6 +33425,9 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     pv.hidden = false;
     $("feedPvX").addEventListener("click", clearPending);
   }
+  /* [RP-V7.133] Share-In bridges: the feed picker's own accept + open,
+     reused verbatim by the share-in module. */
+  try { window.rpFeedAcceptFile133 = onFilePicked; window.rpFeedOpen133 = openFeed; } catch (e) { }
   function onPost() {
     if (posting) return;
     if (!acctRec()) { toastF("Sign in to post 📰", 3600); return; }
@@ -33340,6 +33461,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
           clearPending();
           render();
           toastF("Posted to the Feed 📰", 2600);
+          try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
         } else toastF((r.json && r.json.error) || "That post didn't go up — try again.", 3600);
       })
       .catch(function () { done(); toastF("That post didn't go up — try again.", 3600); });
@@ -35219,6 +35341,148 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
   if (sb) sb.addEventListener("click", openSettings);
   loadLocal();
   refreshHidden();
+})();
+</script>
+<script>
+/* =====================================================================
+   [RP-V7.133] Share INTO the Plaza — client half of the Web Share
+   Target. The OS share sheet POSTs to /share-target (no Plaza session
+   can ride that POST — tokens live in localStorage), the server parks
+   the share under an unguessable id and redirects here as
+   /?sharein=<id>; the head script stashed the id in sessionStorage
+   (rpShareIn.v1) and cleaned the URL. Once the member is signed in,
+   this module claims the record, downloads the file, and hands it
+   into the EXISTING composers — the reel picker path for video, the
+   Feed path for images and text — so every posting rule downstream
+   (age gates, caps, moderation) is the app's own, unchanged.
+   ===================================================================== */
+(function () {
+  "use strict";
+  var KEY = "rpShareIn.v1";
+  var armedId = null;  // record sitting in a composer; consumed when the post lands
+  var working = false; // a continuation is already in flight
+  function toast133(msg, ms) { try { if (window.toast) window.toast(msg, ms || 3200); } catch (e) { } }
+  function acct133() {
+    try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a : null; }
+    catch (e) { return null; }
+  }
+  function stash133() {
+    try { var s = JSON.parse(sessionStorage.getItem(KEY) || "null"); return (s && typeof s === "object") ? s : null; }
+    catch (e) { return null; }
+  }
+  function clearStash133() { try { sessionStorage.removeItem(KEY); } catch (e) { } }
+  function api133(path, opts) {
+    var a = acct133();
+    if (!a) return Promise.reject(new Error("signed out"));
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    opts.headers["Authorization"] = "Bearer " + a.token;
+    return fetch(path, opts);
+  }
+  /* Called by the reel + feed composers the moment a post succeeds:
+     the parked share is deleted server-side. */
+  window.rpShareInPosted133 = function () {
+    if (!armedId) return;
+    var id = armedId; armedId = null;
+    api133("/api/share-in/" + encodeURIComponent(id) + "/consume", { method: "POST" }).catch(function () { });
+  };
+  /* Called by the sign-in paths right after a session lands. */
+  window.rpShareInAuthReady133 = function () { setTimeout(run133, 350); };
+  /* The age door / teen gate may stand in front of a gated screen:
+     wait until the screen actually becomes active, then run fn. If it
+     never does (a teen at an 18+ door), give up quietly — the parked
+     share expires on its own and nothing posts. */
+  function whenActive133(screenId, fn) {
+    var tries = 0;
+    (function poll() {
+      var el = document.getElementById(screenId);
+      if (el && el.classList.contains("active")) { fn(); return; }
+      if (++tries > 80) { armedId = null; return; }
+      setTimeout(poll, 1500);
+    })();
+  }
+  function captionOf133(rec) {
+    var parts = [];
+    if (rec.text) parts.push(rec.text);
+    if (rec.url && (!rec.text || rec.text.indexOf(rec.url) < 0)) parts.push(rec.url);
+    if (!parts.length && rec.title) parts.push(rec.title);
+    return parts.join(" ").trim().slice(0, 500);
+  }
+  function handOff133(rec, file) {
+    var caption = captionOf133(rec);
+    armedId = rec.id;
+    clearStash133(); // handed off — never nag again on later loads
+    if (rec.kind === "video" && file) {
+      try { if (window.rpReelsOpen) window.rpReelsOpen(); } catch (e) { }
+      whenActive133("screen-moments", function () {
+        if (window.rpReelShareIn133) {
+          window.rpReelShareIn133(file, caption.slice(0, 140));
+          toast133("📥 Shared video received — add your caption and post.");
+        } else {
+          armedId = null;
+          toast133("That shared video couldn't be opened — try uploading it from the ＋ button.");
+        }
+      });
+      return;
+    }
+    /* Images and text/link shares land in the Feed composer. */
+    try { if (window.rpFeedOpen133) window.rpFeedOpen133(); } catch (e) { }
+    whenActive133("screen-feed", function () {
+      if (file && window.rpFeedAcceptFile133) window.rpFeedAcceptFile133(file);
+      if (caption) {
+        var ta = document.getElementById("feedText");
+        if (ta) {
+          ta.value = caption;
+          try { ta.dispatchEvent(new Event("input", { bubbles: true })); } catch (e) { }
+        }
+      }
+      toast133(file ? "📥 Shared photo received — add your caption and post." : "📥 Shared text received — tap Post when you're ready.");
+    });
+  }
+  function run133() {
+    if (working) return;
+    var s = stash133();
+    if (!s) return;
+    if (s.error) { clearStash133(); toast133("That share didn't come through — try again"); return; }
+    if (!s.id) { clearStash133(); return; }
+    if (!acct133()) return; // signed out: the sign-in hooks re-run us
+    working = true;
+    api133("/api/share-in/" + encodeURIComponent(s.id))
+      .then(function (r) {
+        return r.json().catch(function () { return null; })
+          .then(function (j) { return { status: r.status, j: j }; });
+      })
+      .then(function (o) {
+        working = false;
+        if (!o.j || !o.j.ok) {
+          clearStash133();
+          if (o.status === 403) toast133("That share was already claimed on this device.");
+          return;
+        }
+        var rec = o.j; rec.id = s.id;
+        if (!rec.hasFile) { handOff133(rec, null); return; }
+        api133("/api/share-in/" + encodeURIComponent(s.id) + "/file")
+          .then(function (r) { if (!r.ok) throw new Error("file " + r.status); return r.blob(); })
+          .then(function (blob) {
+            var name = rec.name || (rec.kind === "video" ? "shared-video.mp4" : "shared-photo.jpg");
+            var file;
+            try { file = new File([blob], name, { type: blob.type || "" }); }
+            catch (e) {
+              file = blob;
+              try { Object.defineProperty(file, "name", { value: name }); } catch (e2) { }
+            }
+            handOff133(rec, file);
+          })
+          .catch(function () {
+            clearStash133();
+            toast133("That shared file couldn't be loaded — it may have expired.");
+          });
+      })
+      .catch(function () { working = false; /* offline etc. — the flag stays for the next load or sign-in */ });
+  }
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", function () { setTimeout(run133, 600); });
+  else setTimeout(run133, 600);
 })();
 </script>
 
