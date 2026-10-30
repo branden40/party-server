@@ -33774,6 +33774,20 @@ body[data-holiday]:not([data-holiday=""]) .tab-btn.on .ti { color: var(--hol, #f
     #tabbar .tab-btn[data-tab="home"], #tabbar .tab-btn[data-tab="live"], #tabbar .tab-btn[data-tab="auctions"], #tabbar .tab-btn[data-tab="moments"], #tabbar .tab-btn[data-tab="inbox"], #tabbar .tab-btn[data-tab="profile"] { flex: 1 1 0%; }
     #tabbar.teen-bar .tab-btn[data-tab="home"], #tabbar.teen-bar .tab-btn[data-tab="live"], #tabbar.teen-bar .tab-btn[data-tab="auctions"] { flex: 2 1 0%; }
     #tabbar.teen-bar .tab-btn[data-tab="moments"], #tabbar.teen-bar .tab-btn[data-tab="profile"] { flex: 3 1 0%; }
+    /* [RP-V7.135] Branden (Oct 29): "line these up and center them
+       perfectly" — the whole bar becomes ONE even grid. The two
+       .tab-group wrappers turn into display:contents, so every tab and
+       the + button is a direct column of #tabbar at exactly the same
+       width (1/8 each for adults), icon + label centered in its cell.
+       This supersedes the V7.112 two-group split and the V7.94 teen
+       2:3 split: in teen mode the hidden Friends/Inbox buttons simply
+       drop out and the remaining six columns re-flow to equal widths,
+       still perfectly lined up. The + keeps its pink pill, centered
+       in its own column between Auctions and Reels. */
+    #tabbar .tab-group { display: contents; }
+    #tabbar > .tab-btn, #tabbar > .tab-create { flex: 1 1 0% !important; min-width: 0; align-items: center; }
+    #tabbar .tab-create { justify-content: flex-start; }
+    #tabbar .tab-plus { margin-left: auto; margin-right: auto; }
     #camScreen {
       position: fixed; inset: 0; z-index: 80; background: #000;
       display: none; flex-direction: column; overflow: hidden;
