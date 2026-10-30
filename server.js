@@ -1458,8 +1458,8 @@ function normProfileLink(v) {
 // that one lookup and NEVER written to any store or log; only
 // existing members are ever returned — a number with no member
 // behind it is indistinguishable from any other no-result.
-const SOCIAL_NETWORKS_144 = ["instagram", "tiktok", "snapchat", "facebook"];
-const SOCIAL_NETWORK_LABEL_144 = { instagram: "Instagram", tiktok: "TikTok", snapchat: "Snapchat", facebook: "Facebook" };
+const SOCIAL_NETWORKS_144 = ["instagram", "tiktok", "snapchat", "facebook", "x", "youtube", "twitch", "threads"]; // [RP-V7.145] + X, YouTube, Twitch, Threads (Branden's pick, Oct 30)
+const SOCIAL_NETWORK_LABEL_144 = { instagram: "Instagram", tiktok: "TikTok", snapchat: "Snapchat", facebook: "Facebook", x: "X", youtube: "YouTube", twitch: "Twitch", threads: "Threads" };
 function normSocialHandle144(v) {
   if (typeof v !== "string") return null;
   return v.trim().replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9._-]/g, "").slice(0, 30);
@@ -1546,7 +1546,8 @@ app.post("/api/account/profile", (req, res) => {
   // nothing. A non-string value is a 400, the V7.94 discipline.
   if (b.socials && typeof b.socials === "object" && !Array.isArray(b.socials)) {
     const curSoc = socialsOf(ctx.user);
-    const nxSoc = { instagram: curSoc.instagram, tiktok: curSoc.tiktok, snapchat: curSoc.snapchat, facebook: curSoc.facebook };
+    const nxSoc = {};
+    for (const netKey of SOCIAL_NETWORKS_144) nxSoc[netKey] = curSoc[netKey]; // [RP-V7.145] built from the network list, never a fixed four
     let socBad = false;
     for (const net of SOCIAL_NETWORKS_144) {
       if (!(net in b.socials)) continue;
