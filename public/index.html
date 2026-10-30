@@ -2750,6 +2750,23 @@
   (function(){try{var a=JSON.parse(localStorage.getItem("rpAcct.v1")||"null");var s=a&&a.settings&&a.settings.letterStyle;var ok={roman:1,royal:1,slab:1,blackletter:1,vintage:1,elegant:1,script:1,calligraphy:1,handwritten:1,signature:1,brush:1,bubble:1,comic:1,retro:1,arcade:1,display:1,condensed:1,typewriter:1,mono:1,outline:1,neon:1,techno:1,rounded:1,chunky:1,pirate:1,deco:1,marker:1,chalk:1,stencil:1,school:1,luxury:1};if(s&&ok[s])document.documentElement.setAttribute("data-font",s);}catch(e){}})();
   </script>
   <script>
+    /* [RP-V7.134] Bio-link href normalizer: members type bare domains
+       ("yourstore.com" — the settings placeholder invites it); stored raw,
+       they became relative URLs inside rizzplaza.com and the profile link
+       tapped nowhere. Normalize at render (fixes every existing link) and
+       at save. Anything that isn't a plausible web address yields "" and
+       the link stays hidden. */
+    window.rpLinkHref134 = function (v) {
+      var s = String(v == null ? "" : v).trim();
+      if (!s) return "";
+      if (/^https?:\/\//i.test(s)) return s;
+      if (s.indexOf("//") === 0) return "https:" + s;
+      if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return ""; // non-web scheme — never link it
+      if (!/\s/.test(s) && s.indexOf(".") > 0) return "https://" + s;
+      return "";
+    };
+  </script>
+  <script>
     /* [RP-V7.133] Share INTO the Plaza: the OS share sheet lands back
        here as /?sharein=<id> (or ?sharein_error=1). Stash the id before
        anything else runs, then clean the URL — the share-in module at
@@ -8330,7 +8347,7 @@
             var bioTxt = j.bio ? j.bio : (j.testimony ? "“" + j.testimony + "”" : "");
             if (bioTxt) { bio.textContent = bioTxt; bio.hidden = false; }
           }
-          var lkEl = $("pprofLink"); if (lkEl && j.link) { lkEl.hidden = false; lkEl.href = j.link; lkEl.textContent = "🔗 " + j.link.replace(/^https?:\/\//, ""); }
+          var lkEl = $("pprofLink"); if (lkEl) { var lh134 = window.rpLinkHref134 ? window.rpLinkHref134(j.link) : ""; if (lh134) { lkEl.hidden = false; lkEl.href = lh134; lkEl.textContent = "🔗 " + String(j.link).replace(/^https?:\/\//, ""); } else { lkEl.hidden = true; } }
           rpRenderColls86(p, j, isSelf);
           var items86 = (window.rpProfItems ? window.rpProfItems(j) : []);
           if (!window.rpViewsFillGrid) { grid.innerHTML = '<p class="age-note" style="grid-column:1/-1;">No photos or reels yet.</p>'; }
@@ -25279,7 +25296,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
   window.rpSaveAccountProfile = function (name, bio, link, ext) {
     if (!acct || !acct.token) return Promise.resolve(false);
     var body86 = { name: name, bio: bio };
-    if (typeof link === "string") body86.link = link; // [RP-V7.86] the one link under the bio
+    if (typeof link === "string") body86.link = (window.rpLinkHref134 ? window.rpLinkHref134(link) : link); // [RP-V7.86] the one link under the bio · [RP-V7.134] stored normalized so it is always tappable
     if (ext && typeof ext === "object") body86.ext = ext; // [RP-V7.94] gender & siblings save to the account too
     return api("/api/account/profile", "POST", body86).then(function (r) {
       if (r.json && r.json.ok && r.json.user) { applyAccountUser(r.json.user); acctBoxSig = ""; renderAcctBox(); return true; }
@@ -28059,7 +28076,7 @@ button.rp72-chip{ cursor:pointer; }
       var bio = $("rpMpBio");
       var bioTxt109 = j.bio ? j.bio : (j.testimony ? "\u201C" + j.testimony + "\u201D" : "");
       if (bio && bioTxt109) { bio.textContent = bioTxt109; bio.hidden = false; }
-      var lk109 = $("rpMpLink"); if (lk109 && j.link) { lk109.hidden = false; lk109.href = j.link; lk109.textContent = "🔗 " + j.link.replace(/^https?:\/\//, ""); }
+      var lk109 = $("rpMpLink"); if (lk109) { var lh109 = window.rpLinkHref134 ? window.rpLinkHref134(j.link) : ""; if (lh109) { lk109.hidden = false; lk109.href = lh109; lk109.textContent = "🔗 " + String(j.link).replace(/^https?:\/\//, ""); } else { lk109.hidden = true; } }
       var badges = [];
       var mpTypeBadge = rpDmTypeBadge(j.profileType); // [RP-V7.39] star badge — streamer + creator only
       if (mpTypeBadge) badges.push('<span class="pcard-badge top">' + esc(mpTypeBadge) + "</span>");
