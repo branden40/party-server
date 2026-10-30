@@ -121,6 +121,7 @@ function livesSnapshot() {
       photo: e.photo,
       startedAt: e.startedAt,
       watchers,
+      priv: !!e.priv, // [RP-V7.138] private lives are badged for the people allowed to see them
       pot: potSnapshotFrom(potsDb, e.key, e.startedAt), // [RP-V7.41] null unless a pot is open/drawn here; [RP-V7.49] terminal pots from a previous live are scoped out
     };
   });
@@ -219,7 +220,10 @@ function livesPayloadFor(socket, snap, pre) {
   // watcher count) AND its own accounts/signals/social re-reads — all
   // synchronous on the event loop, so a broadcast to S sockets did
   // S× the disk work and stalled every other request behind it.
-  const shot = snap || livesSnapshot();
+  // [RP-V7.138] Private lives are filtered out BEFORE ranking/lifting:
+  // a socket that isn't the host or an invited member never learns the
+  // live exists — not even as a slot in its For You order.
+  const shot = (snap || livesSnapshot()).filter((e) => liveVisibleTo138(socket, e));
   const acctId = socket && socket.data && socket.data.accountId;
   if (!acctId) return { lives: potLiftOrder(shot) };
   const user = ((pre && pre.accounts) || readAccounts()).users.find((u) => u.id === acctId);
@@ -249,8 +253,90 @@ setInterval(() => {
   for (const [k, e] of [...liveRegistry]) {
     if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); } // [RP-V7.41] a stale live is an ended live — settle its pot
   }
+  for (const k of [...liveAccess138.keys()]) if (!liveRegistry.has(k) && changed) endLiveAccess138(k); // [RP-V7.138] access state dies with its live
   if (changed) broadcastLives();
 }, LIVE_SWEEP_MS);
+// ---------------------------------------------------------------------------
+// [RP-V7.138] PRIVATE LIVES + HOST KICK — per-session access state for
+// personal lives, keyed by the host's device key (the registry key):
+//   priv:       the host flipped the Private room toggle for this session
+//   invited:    account ids the host invited (bell-notified, may enter)
+//   token:      the unguessable private-link token (128-bit hex) or null
+//   linkGuests: account ids that entered through the link this session
+//   kicked / kickedKeys: this session's blocklist — account ids and
+//     device keys the host kicked out; they cannot rejoin THIS live for
+//     its duration (not a platform ban; the next live starts clean).
+// Memory only, exactly like the registry itself: when the live ends
+// the access state dies with it (endLiveAccess138 runs at every site
+// that ends a registry entry).
+// ---------------------------------------------------------------------------
+const liveAccess138 = new Map();
+function liveAccessFor138(key) {
+  let a = liveAccess138.get(key);
+  if (!a) {
+    a = { priv: false, invited: new Set(), token: null, linkGuests: new Set(), kicked: new Set(), kickedKeys: new Set() };
+    liveAccess138.set(key, a);
+  }
+  return a;
+}
+function endLiveAccess138(key) { liveAccess138.delete(key); }
+function newLiveToken138() { return crypto.randomBytes(16).toString("hex"); }
+function sanitizeDevKey138(k) {
+  const s = String(k || "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40);
+  return s.length >= 8 ? s : "";
+}
+// May this socket SEE the registry entry in its lives list? Public
+// lives: everyone. Private lives: the host and invited members only.
+function liveVisibleTo138(socket, e) {
+  if (!e || !e.priv) return true;
+  if (!socket) return false;
+  if (clientKeys.get(socket.id) === e.key) return true; // the host's own socket
+  const acctId = socket.data && socket.data.accountId;
+  if (!acctId) return false;
+  if (e.hostAccountId && e.hostAccountId === acctId) return true;
+  const acc = liveAccess138.get(e.key);
+  return !!(acc && acc.invited.has(acctId));
+}
+// Door check for a live-<key> room, run AFTER the age/account gate
+// (socketMayEnterRoom). Returns null when the socket may enter, or a
+// "live-private" refusal payload. The host always enters their own
+// room. A kicked account or device key is refused even with a valid
+// invite or link — a kick in a private live strips invite + link
+// access for the session.
+function liveJoinRefusal138(socket, room, data) {
+  if (!room || room.indexOf("live-") !== 0) return null;
+  const key = room.slice(5);
+  const myKey = clientKeys.get(socket.id) || sanitizeDevKey138(data && data.key);
+  if (myKey && myKey === key) return null; // the host's own room
+  const acc = liveAccess138.get(key);
+  const reg = liveRegistry.get(key);
+  if (!acc && !reg) return null; // no live session here — just an empty room
+  const acctId = socket.data && socket.data.accountId;
+  if (acc && ((acctId && acc.kicked.has(acctId)) || (myKey && acc.kickedKeys.has(myKey))))
+    return { room, reason: "kicked", error: "The host removed you from this live." };
+  const isPriv = acc ? acc.priv : !!(reg && reg.priv);
+  if (!isPriv) return null;
+  if (acc && acctId && acc.invited.has(acctId)) return null;
+  const tok = String((data && data.lt) || "").slice(0, 64);
+  if (acc && tok && acc.token && tok === acc.token) {
+    if (acctId) acc.linkGuests.add(acctId);
+    return null;
+  }
+  return { room, reason: "private", error: "🔒 This live is private — the host invites who joins." };
+}
+// The host's authoritative private-room state, pushed on every change
+// (register, invite, un-invite, link reset) so their panel is never stale.
+function emitLiveAccess138(socket, key) {
+  const acc = liveAccess138.get(key);
+  if (!acc || !socket) return;
+  socket.emit("live-access", {
+    room: "live-" + key,
+    priv: !!acc.priv,
+    invited: [...acc.invited],
+    token: acc.priv ? acc.token : null,
+  });
+}
+
 // room -> live auction state (Whatnot-style bidding)
 const auctions = new Map();
 // [RP-V7.80] Full-scan F3: the server socket auction enforces the
@@ -681,6 +767,7 @@ function settingsOf(u) {
       reposts: n.reposts !== false,
       dailypot: n.dailypot !== false,
       posts: n.posts !== false, // [RP-V7.129] new-post alerts, default on
+      liveinvites: n.liveinvites !== false, // [RP-V7.138] private-live invites, default ON
       // [RP-V7.100] Per-channel switches (Settings -> Notifications ->
       // "Reach me by"): the bell feed, email, and text messages. All
       // default ON; SMS still only ever carries messages + Daily Pot
@@ -1420,7 +1507,7 @@ app.post("/api/account/settings", (req, res) => {
   if (!ctx) return;
   const b = req.body || {};
   const cur = settingsOf(ctx.user);
-  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
   if ("letterStyle" in b) {
     if (LETTER_STYLE_IDS.indexOf(b.letterStyle) < 0)
       return res.status(400).json({ ok: false, error: "That letter style isn't one of the Plaza's choices" });
@@ -1432,7 +1519,7 @@ app.post("/api/account/settings", (req, res) => {
     nx.dmPrivacy = b.dmPrivacy;
   }
   if (b.notify && typeof b.notify === "object" && !Array.isArray(b.notify)) {
-    for (const k of ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts"])
+    for (const k of ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts", "liveinvites"])
       if (typeof b.notify[k] === "boolean") nx.notify[k] = b.notify[k];
     if (b.notify.channels && typeof b.notify.channels === "object" && !Array.isArray(b.notify.channels)) {
       for (const ck of ["inapp", "email", "sms"])
@@ -8717,7 +8804,7 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts" }; // [RP-V7.129] post alerts
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites" }; // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true };
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 // [RP-V7.129] NEW-POST ALERTS: when a member posts, every follower gets
@@ -11140,6 +11227,12 @@ io.on("connection", (socket) => {
       socket.emit("room-gate", roomGatePayload(room));
       return;
     }
+    // [RP-V7.138] Private-live door, AFTER the age/account gate: a
+    // non-invited, non-link join to a private (or kicked-from) live is
+    // refused before any player record exists — the client gets a
+    // clean "live-private" note and never sees partial room state.
+    const privRefusalJoin = liveJoinRefusal138(socket, room, data);
+    if (privRefusalJoin) { socket.emit("live-private", privRefusalJoin); return; }
     // [RP-V7.24] A reconnecting client keeps its identity via a stable
     // per-device key: if an older socket still holds the same key, it
     // is a ghost (its connection died but the ping timeout hasn't
@@ -11317,6 +11410,10 @@ io.on("connection", (socket) => {
       socket.emit("room-gate", roomGatePayload(room));
       return;
     }
+    // [RP-V7.138] Same private-live door as join: a refused switch
+    // leaves the player exactly where they were.
+    const privRefusalSwitch = liveJoinRefusal138(socket, room, data);
+    if (privRefusalSwitch) { socket.emit("live-private", privRefusalSwitch); return; }
     socket.leave(p.room);
     socket.to(p.room).emit("player-left", { id: p.id });
     p.room = room;
@@ -11329,7 +11426,7 @@ io.on("connection", (socket) => {
     const swKey = clientKeys.get(socket.id);
     if (swKey) {
       const reg = liveRegistry.get(swKey);
-      if (reg && reg.room !== room) { liveRegistry.delete(swKey); broadcastLives(); potLiveEnded(swKey); } // [RP-V7.41] walking out ends the live — settle its pot
+      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); } // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too
     }
     socket.to(room).emit("player-joined", p);
   });
@@ -11345,6 +11442,14 @@ io.on("connection", (socket) => {
     if (p.room !== wantRoom) return; // sanity: only from inside your own live room
     const now = Date.now();
     const prev = liveRegistry.get(devKey);
+    // [RP-V7.138] Private-room state rides the register: the host's
+    // toggle is authoritative here; the invite token is minted
+    // server-side (never trusted from the client) the first time a
+    // private session needs one, and dropped when the live goes public.
+    const acc138 = liveAccessFor138(devKey);
+    if (typeof data.priv === "boolean") acc138.priv = data.priv;
+    if (acc138.priv && !acc138.token) acc138.token = newLiveToken138();
+    if (!acc138.priv) acc138.token = null;
     liveRegistry.set(devKey, {
       key: devKey,
       room: p.room,
@@ -11354,8 +11459,10 @@ io.on("connection", (socket) => {
       photo: p.photoUrl || null,
       startedAt: prev ? prev.startedAt : now,
       lastBeat: now,
+      priv: acc138.priv,
     });
     broadcastLives();
+    emitLiveAccess138(socket, devKey);
   });
 
   socket.on("live-beat", (data = {}) => {
@@ -11383,6 +11490,7 @@ io.on("connection", (socket) => {
         photo: p.photoUrl || null,
         startedAt: now,
         lastBeat: now,
+        priv: !!(liveAccess138.get(devKey) && liveAccess138.get(devKey).priv), // [RP-V7.138] beat-heal keeps the privacy flag
       });
       broadcastLives();
       return;
@@ -11394,7 +11502,125 @@ io.on("connection", (socket) => {
   socket.on("live-unregister", () => {
     const devKey = clientKeys.get(socket.id);
     if (!devKey) return;
-    if (liveRegistry.delete(devKey)) { broadcastLives(); potLiveEnded(devKey); } // [RP-V7.41] settle the pot of the ended live
+    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); } // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it
+  });
+
+  // [RP-V7.138] PRIVATE LIVE controls — invite / un-invite / link
+  // reset / state read. Only the host of the live may run them: the
+  // sender must be standing in their OWN live room (the same sanity
+  // rule as live-register), validated server-side on every call.
+  function hostLiveCtx138() {
+    const p = players.get(socket.id);
+    const key = clientKeys.get(socket.id);
+    if (!p || !key) return null;
+    if (p.room !== ("live-" + key).slice(0, 40)) return null;
+    return { p, key, acc: liveAccessFor138(key) };
+  }
+  function pushLivesToAccount138(toId) {
+    const sids = acctSockets.get(toId);
+    if (!sids) return;
+    for (const sid of [...sids]) {
+      const s2 = io.sockets.sockets.get(sid);
+      if (s2) { try { s2.emit("lives-update", livesPayloadFor(s2)); } catch (e) { /* a half-dead socket must not break the invite */ } }
+    }
+  }
+  socket.on("live-invite", (data = {}) => {
+    const ctx = hostLiveCtx138();
+    if (!ctx) return;
+    const toId = String(data.toAccountId || "").slice(0, 40);
+    if (!toId || toId === (socket.data && socket.data.accountId)) return;
+    const adb = readAccounts();
+    const target = adb.users.find((u) => u.id === toId);
+    if (!target || target.deletionAt) return;
+    const wasIn = ctx.acc.invited.has(toId);
+    ctx.acc.invited.add(toId);
+    ctx.acc.kicked.delete(toId); // re-inviting forgives a kick for this session
+    emitLiveAccess138(socket, ctx.key);
+    // The invitee's live list refreshes at once (the private live is
+    // visible to them now), and the bell note takes them straight in.
+    pushLivesToAccount138(toId);
+    if (!wasIn) {
+      notifyActivity({
+        toId,
+        kind: "liveinvite",
+        actorId: socket.data.accountId || null,
+        actorName: ctx.p.name,
+        text: "🔒 " + ctx.p.name + " invited you to their private live",
+        emailSubject: ctx.p.name + " invited you to a private live on Rizz Plaza",
+        emailText: ctx.p.name + " invited you to their private live on Rizz Plaza. Open the app and tap the invite to join.\n\n— The Rizz Plaza team",
+        go: { screen: "live", room: ctx.p.room },
+        inAppOnly: ageFromDob(target.dob) < 18, // teens: in-app only, like every kind
+      });
+    }
+  });
+  socket.on("live-uninvite", (data = {}) => {
+    const ctx = hostLiveCtx138();
+    if (!ctx) return;
+    const toId = String(data.toAccountId || "").slice(0, 40);
+    ctx.acc.invited.delete(toId);
+    // Link access is separate: someone who came in through the link
+    // keeps the seat they have; un-invite closes future invite joins.
+    // (Removing someone who is INSIDE is what live-kick is for.)
+    emitLiveAccess138(socket, ctx.key);
+    pushLivesToAccount138(toId);
+  });
+  socket.on("live-link-reset", () => {
+    const ctx = hostLiveCtx138();
+    if (!ctx) return;
+    ctx.acc.token = newLiveToken138(); // the old link dies this instant
+    emitLiveAccess138(socket, ctx.key);
+  });
+  socket.on("live-access-get", () => {
+    const ctx = hostLiveCtx138();
+    if (!ctx) return;
+    emitLiveAccess138(socket, ctx.key);
+  });
+
+  // [RP-V7.138] HOST KICK — every live, member lives and themed-room
+  // lives alike. Only the live's host can kick, validated server-side:
+  // the sender's device key must own the live playing in this room
+  // (their own personal live room, or the room's registry entry).
+  // The target's player record is removed, their client is told, and
+  // their account + device key join this session's blocklist —
+  // rejoining THIS live is refused until it ends. Other lives and
+  // rooms are untouched (this is not a platform ban).
+  socket.on("live-kick", (data = {}) => {
+    const me = players.get(socket.id);
+    if (!me) return;
+    const target = players.get(String(data.to || ""));
+    if (!target || target.id === socket.id || target.room !== me.room) return;
+    const myKey = clientKeys.get(socket.id);
+    if (!myKey) return;
+    let sessionKey = null;
+    if (me.room === ("live-" + myKey).slice(0, 40)) sessionKey = myKey;
+    else {
+      for (const e of liveRegistry.values()) {
+        if (e.room === me.room && e.key === myKey) { sessionKey = e.key; break; }
+      }
+    }
+    if (!sessionKey) return; // not the host of this live — no kick power here
+    const room = me.room;
+    const tsock = io.sockets.sockets.get(target.id);
+    const tAcct = tsock && tsock.data ? tsock.data.accountId : null;
+    const tKey = clientKeys.get(target.id);
+    const acc = liveAccessFor138(sessionKey);
+    if (tAcct) { acc.kicked.add(tAcct); acc.invited.delete(tAcct); acc.linkGuests.delete(tAcct); }
+    if (tKey) acc.kickedKeys.add(tKey);
+    // A running auction hosted by the target in this room dies with
+    // their exit (mirrors the ghost-eviction rule).
+    const oa = auctions.get(room);
+    if (oa && oa.hostId === target.id) endAuction(room, true);
+    // A pending stage request from the target dies with them.
+    const pend = stageRequests.get(socket.id);
+    if (pend) { pend.delete(target.id); if (!pend.size) stageRequests.delete(socket.id); }
+    releaseFloorsHeldBy(floorHolderId(target.id), target.id);
+    io.to(target.id).emit("live-kicked", { room, byName: me.name });
+    io.to(room).emit("player-left", { id: target.id });
+    players.delete(target.id);
+    chatTimes.delete(target.id);
+    if (tsock) tsock.leave(room);
+    socket.emit("live-kick-ack", { id: target.id, name: target.name });
+    broadcastLives(); // watcher counts changed
   });
 
   // Safety hook: a player reports another player.
@@ -11756,6 +11982,7 @@ io.on("connection", (socket) => {
         }
       if (!otherHoldsKey) {
         liveRegistry.delete(discKey);
+        endLiveAccess138(discKey); // [RP-V7.138] access state ends with the live
         broadcastLives();
         potLiveEnded(discKey);
       }
