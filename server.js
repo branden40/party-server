@@ -7420,15 +7420,52 @@ app.post("/api/social/find-friends", (req, res) => {
     people.push(ffPerson144(u, why));
   };
   if (Array.isArray(b.phones)) {
-    const keys = new Set();
+    // [RP-V7.146] Contacts arrive as plain numbers (paste path) or
+    // { name, phone } pairs (Contact Picker path — Branden: "make
+    // the numbers and social media sync people names"). The NAME a
+    // member keeps for a contact rides back on that member's row
+    // ("in your contacts as …") so they recognize the person, and a
+    // picked contact whose number matches nobody can still surface
+    // a member with the exact same full name, honestly labeled as a
+    // maybe. Names get the same privacy rule as numbers: used for
+    // this one lookup, never stored, never logged.
+    const entries = [];
     for (const raw of b.phones.slice(0, 500)) {
-      const k = normPhoneKey(raw);
-      if (k && k.length >= 7) keys.add(k);
+      if (typeof raw === "string") {
+        const k = normPhoneKey(raw);
+        if (k && k.length >= 7) entries.push({ key: k, name: "" });
+      } else if (raw && typeof raw === "object") {
+        const k = normPhoneKey(raw.phone || raw.tel || "");
+        if (k && k.length >= 7)
+          entries.push({ key: k, name: String(raw.name || "").replace(/[<>&"']/g, "").trim().slice(0, 60) });
+      }
     }
-    if (keys.size) {
+    const keyName = new Map();
+    for (const e of entries) if (!keyName.has(e.key)) keyName.set(e.key, e.name);
+    const matchedKeys = new Set();
+    if (keyName.size) {
       for (const u of ctx.db.users) {
         if (!u.phone) continue;
-        if (keys.has(normPhoneKey(u.phone))) addUser(u, "From your contacts");
+        const k = normPhoneKey(u.phone);
+        if (!keyName.has(k)) continue;
+        matchedKeys.add(k);
+        const before = people.length;
+        addUser(u, "From your contacts");
+        if (people.length > before && keyName.get(k))
+          people[people.length - 1].contactName = keyName.get(k);
+      }
+    }
+    let fbCount = 0;
+    for (const e of entries) {
+      if (fbCount >= 10) break;
+      if (!e.name || matchedKeys.has(e.key)) continue;
+      const nm = e.name.toLowerCase().replace(/\s+/g, " ");
+      if (nm.split(" ").length < 2) continue; // full names only — never a first-name guess
+      for (const u of ctx.db.users) {
+        if (String(u.name || "").trim().toLowerCase().replace(/\s+/g, " ") !== nm) continue;
+        const before = people.length;
+        addUser(u, "Same name as your contact " + e.name);
+        if (people.length > before) fbCount++;
       }
     }
   }
