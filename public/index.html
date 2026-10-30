@@ -16376,6 +16376,134 @@
           });
       }
 
+
+      // [RP-V7.144] FIND FRIENDS — suggest friends from phone contacts
+      // (matched against members' phones, numbers never stored), from
+      // other apps BY HANDLE (members link their IG/TikTok/Snap/FB
+      // handles; nobody can read another app's friend list), plus You
+      // may know from the Plaza's own graph. Same sheet idiom as Who
+      // liked you (V7.142).
+      function ffToken144() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : null; } catch (e) { return null; } }
+      function ffRow144(p) {
+        return '<div class="fol-row" data-ffid="' + escHtml(p.id) + '" data-ffname="' + escHtml(p.name) + '"><span class="fol-av">' + personFace({ name: p.name, photo: p.photo }) + '</span>' +
+          '<span class="fol-meta"><b>' + escHtml(p.name) + '</b><i>' + (p.username ? "@" + escHtml(p.username) + " · " : "") + escHtml(p.why || "") + '</i></span>' +
+          '<button type="button" class="btn-mini" data-fffollow="' + escHtml(p.id) + '">Follow</button>' +
+          (p.dismiss ? '<button type="button" class="btn-mini" data-ffdismiss="' + escHtml(p.id) + '" aria-label="Not interested" title="Not interested">✕</button>' : '') + '</div>';
+      }
+      function ffWire144(box) {
+        if (!box) return;
+        box.querySelectorAll("[data-fffollow]").forEach(function (btn) {
+          btn.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            var tk = ffToken144(); if (!tk || btn.disabled) return;
+            btn.disabled = true; btn.textContent = "…";
+            fetch("/api/social/follow", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tk }, body: JSON.stringify({ accountId: btn.getAttribute("data-fffollow") }) })
+              .then(function (r) { return r.ok ? r.json() : null; })
+              .then(function (j) { if (j && j.ok) { btn.textContent = "Following ✓"; } else { btn.disabled = false; btn.textContent = "Follow"; showToast("Couldn't follow — try again in a moment."); } })
+              .catch(function () { btn.disabled = false; btn.textContent = "Follow"; });
+          });
+        });
+        box.querySelectorAll("[data-ffdismiss]").forEach(function (btn) {
+          btn.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            var tk = ffToken144(); if (!tk || btn.disabled) return;
+            btn.disabled = true;
+            fetch("/api/social/suggestions/dismiss", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tk }, body: JSON.stringify({ accountId: btn.getAttribute("data-ffdismiss") }) })
+              .then(function (r) { return r.ok ? r.json() : null; })
+              .then(function (j) {
+                var row = btn.closest("[data-ffid]");
+                if (j && j.ok && row) row.remove(); else btn.disabled = false;
+              })
+              .catch(function () { btn.disabled = false; });
+          });
+        });
+        box.querySelectorAll("[data-ffid]").forEach(function (row) {
+          row.addEventListener("click", function () {
+            var id = row.getAttribute("data-ffid"), nm = row.getAttribute("data-ffname");
+            closeSheet(); if (window.rpDm && rpDm.openProfile) rpDm.openProfile(id, nm);
+          });
+        });
+      }
+      function ffRenderInto144(el, people, emptyText) {
+        if (!el) return;
+        el.innerHTML = (people && people.length) ? people.map(ffRow144).join("") : '<p class="empty-note">' + emptyText + '</p>';
+        ffWire144(el);
+      }
+      function openFindFriends() {
+        var tk = ffToken144();
+        if (!tk) { showToast("Sign in to find friends."); return; }
+        var canPick = !!(navigator.contacts && navigator.contacts.select);
+        openSheet('<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+          '<div class="game-box" style="text-align:left;" data-ffsheet="1"><h3 style="text-align:center;">🔍 Find friends</h3>' +
+          '<p class="age-note">Numbers are matched and forgotten — never stored, never shared. Only Plaza members ever show up.</p>' +
+          '<h4 style="margin:12px 0 4px;">📱 From your contacts</h4>' +
+          (canPick ? '<button type="button" class="btn-mini" id="ffPick">Pick contacts</button> ' : '') +
+          '<div style="display:flex;gap:8px;margin-top:6px;"><input class="rpdm-input" id="ffPhones" type="text" placeholder="Paste phone numbers…" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMatch">Match</button></div>' +
+          '<div id="ffContactsRes"></div>' +
+          '<h4 style="margin:14px 0 4px;">🔗 From other apps — by username</h4>' +
+          '<div style="display:flex;gap:8px;"><select class="rpdm-input" id="ffNet" style="flex:none;width:118px;"><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="snapchat">Snapchat</option><option value="facebook">Facebook</option></select>' +
+          '<input class="rpdm-input" id="ffHandle" type="text" placeholder="@their-username" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffFind">Find</button></div>' +
+          '<div id="ffHandleRes"></div>' +
+          '<h4 style="margin:14px 0 4px;">👥 You may know</h4><div id="ffSugRes"><p class="empty-note">Loading…</p></div>' +
+          '<h4 style="margin:14px 0 4px;">✏️ Your handles — so friends can find you</h4>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+          '<input class="rpdm-input" id="ffSoc-instagram" type="text" placeholder="Instagram @" autocomplete="off"/>' +
+          '<input class="rpdm-input" id="ffSoc-tiktok" type="text" placeholder="TikTok @" autocomplete="off"/>' +
+          '<input class="rpdm-input" id="ffSoc-snapchat" type="text" placeholder="Snapchat @" autocomplete="off"/>' +
+          '<input class="rpdm-input" id="ffSoc-facebook" type="text" placeholder="Facebook @" autocomplete="off"/></div>' +
+          '<button type="button" class="btn-mini" id="ffSaveHandles" style="margin-top:8px;">Save my handles</button>' +
+          '<div style="margin-top:14px;"><button type="button" class="btn-mini" id="ffBrowse">Browse everyone →</button></div>' +
+          '</div>');
+        $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
+        var H = { "Authorization": "Bearer " + tk, "Content-Type": "application/json" };
+        var post = function (body) { return fetch("/api/social/find-friends", { method: "POST", headers: H, body: JSON.stringify(body) }).then(function (r) { return r.ok ? r.json() : null; }); };
+        var matchBtn = $("ffMatch");
+        if (matchBtn) matchBtn.addEventListener("click", function () {
+          var raw = ($("ffPhones").value || "").split(/[\n,; ]+/).filter(Boolean);
+          if (!raw.length) { showToast("Add at least one phone number first."); return; }
+          $("ffContactsRes").innerHTML = '<p class="empty-note">Matching…</p>';
+          post({ phones: raw }).then(function (j) { ffRenderInto144($("ffContactsRes"), j && j.people, "No Plaza members match those numbers yet — when they join, they'll show up here."); })
+            .catch(function () { ffRenderInto144($("ffContactsRes"), null, "Couldn't match right now — try again in a moment."); });
+        });
+        var pickBtn = $("ffPick");
+        if (pickBtn) pickBtn.addEventListener("click", function () {
+          navigator.contacts.select(["tel"], { multiple: true }).then(function (cs) {
+            var nums = [];
+            (cs || []).forEach(function (c) { (c.tel || []).forEach(function (t) { nums.push(t); }); });
+            if (!nums.length) return;
+            $("ffContactsRes").innerHTML = '<p class="empty-note">Matching…</p>';
+            post({ phones: nums }).then(function (j) { ffRenderInto144($("ffContactsRes"), j && j.people, "None of those contacts are on the Plaza yet."); })
+              .catch(function () { ffRenderInto144($("ffContactsRes"), null, "Couldn't match right now — try again in a moment."); });
+          }).catch(function () { });
+        });
+        var findBtn = $("ffFind");
+        if (findBtn) findBtn.addEventListener("click", function () {
+          var h = ($("ffHandle").value || "").trim(); if (!h) { showToast("Type their username first."); return; }
+          $("ffHandleRes").innerHTML = '<p class="empty-note">Looking…</p>';
+          post({ network: $("ffNet").value, handle: h }).then(function (j) { ffRenderInto144($("ffHandleRes"), j && j.people, "No Plaza member has linked that handle yet."); })
+            .catch(function () { ffRenderInto144($("ffHandleRes"), null, "Couldn't search right now — try again in a moment."); });
+        });
+        fetch("/api/social/suggestions", { headers: { "Authorization": "Bearer " + tk } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            ffRenderInto144($("ffSugRes"), j && j.people, "No suggestions yet — they build as people join and follow.");
+            if (j && j.mySocials) ["instagram", "tiktok", "snapchat", "facebook"].forEach(function (n) { var inp = $("ffSoc-" + n); if (inp) inp.value = j.mySocials[n] || ""; });
+          })
+          .catch(function () { ffRenderInto144($("ffSugRes"), null, "Couldn't load suggestions right now."); });
+        var saveBtn = $("ffSaveHandles");
+        if (saveBtn) saveBtn.addEventListener("click", function () {
+          var soc = {};
+          ["instagram", "tiktok", "snapchat", "facebook"].forEach(function (n) { var inp = $("ffSoc-" + n); soc[n] = inp ? inp.value : ""; });
+          fetch("/api/account/profile", { method: "POST", headers: H, body: JSON.stringify({ socials: soc }) })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) { showToast(j && j.ok ? "Saved — friends can find you by these now. 🔗" : "Couldn't save — try again."); })
+            .catch(function () { showToast("Couldn't save — try again."); });
+        });
+        var browseBtn = $("ffBrowse");
+        if (browseBtn) browseBtn.addEventListener("click", function () { closeSheet(); if (window.rpDm && rpDm.openPeople) rpDm.openPeople(""); });
+      }
+      window.rpFindFriends = { open: openFindFriends };
+
       /* ================= PROFILE PERSISTENCE (this device) =================
          The full profile — look/wardrobe, name, bio, age range, looking-for,
          interests, vibe, relationship status and the server-hosted online
@@ -20244,7 +20372,7 @@
       function friendsEmptyHtml128() {
         if (!Reels._friendsLoaded) return '<div class="mom-empty">Loading your friends\' reels\u2026 \uD83D\uDC65</div>';
         return '<div class="mom-empty">\uD83D\uDC65 No reels from people you follow yet.<br>When someone you follow posts a reel, it lands right here.</div>' +
-          '<div class="mom-empty" style="padding-top:0;"><button type="button" class="btn-mini plaza-glow" id="btnFriendsFind128">Find people to follow</button></div>';
+          '<div class="mom-empty" style="padding-top:0;"><button type="button" class="btn-mini plaza-glow" id="btnFriendsFind128">Find friends</button></div>';
       }
       function renderReels() {
         var feed = $("reelFeed"); if (!feed) return;
@@ -20276,7 +20404,7 @@
               (Reels.serverOk ? "" : '<div class="mom-empty" style="padding-top:0;">Reels go public on the live site — yours are saved on this device until then.</div>'));
           reelClearTagWire();
           var ff128 = document.getElementById("btnFriendsFind128"); // [RP-V7.128]
-          if (ff128) ff128.addEventListener("click", function () { if (window.rpDm && window.rpDm.openPeople) window.rpDm.openPeople(""); });
+          if (ff128) ff128.addEventListener("click", function () { if (window.rpFindFriends) window.rpFindFriends.open(); else if (window.rpDm && window.rpDm.openPeople) window.rpDm.openPeople(""); }); // [RP-V7.144] Find friends first, directory as fallback
           return;
         }
         if (Reels.friends) { // [RP-V7.112] Friends: only followed authors' server reels, never my own or device-only posts
@@ -28415,6 +28543,7 @@ button.rp72-chip{ cursor:pointer; }
       '<div class="rpdm-title">Find people</div>' +
       '<button class="close-x" data-act="close" aria-label="Close" style="float:none;margin:0 0 0 auto">✕</button></div>' +
       '<div class="rppl-searchrow"><input class="rpdm-input" id="rpPlSearch" type="text" maxlength="40" placeholder="Search by name or @username…" autocomplete="off" value="' + esc(peopleQuery) + '"/></div>' +
+      '<button type="button" class="btn-mini" id="rpPlFF144" style="margin:0 0 8px;">🔍 Find friends from contacts &amp; other apps</button>' +
       '<p class="age-note" style="margin:2px 0 6px">Message anyone here anytime — even when they\'re offline. It\'ll be waiting in their inbox. 💬</p>' +
       '<div id="rpPlRows">' + inner + "</div>";
     window.openSheet(html);
@@ -28422,6 +28551,8 @@ button.rp72-chip{ cursor:pointer; }
     if (back) back.addEventListener("click", function () { openInbox(); });
     var cxp = document.querySelector("#sheet [data-act=close]"); // [RP-V7.81]
     if (cxp) cxp.addEventListener("click", function () { if (typeof window.closeSheet === "function") window.closeSheet(); });
+    var ffb144 = $("rpPlFF144"); // [RP-V7.144]
+    if (ffb144) ffb144.addEventListener("click", function () { if (window.rpFindFriends) window.rpFindFriends.open(); });
     var inp = $("rpPlSearch");
     if (inp) {
       inp.addEventListener("input", function () {
