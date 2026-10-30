@@ -16427,6 +16427,46 @@
           });
         });
       }
+      function ffNetUrl149(net, handle) { // [RP-V7.149] anyone's public profile page on the other app
+        var h = String(handle || "").replace(/^@+/, "").trim();
+        if (!h) return "";
+        var enc = encodeURIComponent(h);
+        switch (net) {
+          case "instagram": return "https://www.instagram.com/" + enc + "/";
+          case "tiktok": return "https://www.tiktok.com/@" + enc;
+          case "snapchat": return "https://www.snapchat.com/add/" + enc;
+          case "facebook": return "https://www.facebook.com/" + enc;
+          case "x": return "https://x.com/" + enc;
+          case "youtube": return "https://www.youtube.com/@" + enc;
+          case "twitch": return "https://www.twitch.tv/" + enc;
+          case "threads": return "https://www.threads.net/@" + enc;
+        }
+        return "";
+      }
+      function ffLookupCard149(el, net, handle) { // [RP-V7.149] the person ON the other app — member or not: open their profile there, or invite them in
+        if (!el) return;
+        var url = ffNetUrl149(net, handle);
+        if (!url) return;
+        var label = FF_NET_LABELS144[net] || net;
+        var h = String(handle || "").replace(/^@+/, "").trim();
+        var card = document.createElement("div");
+        card.className = "fol-row";
+        card.style.marginTop = "8px";
+        card.innerHTML = '<span class="fol-av">🌐</span>' +
+          '<span class="fol-meta"><b>@' + escHtml(h) + '</b><i>on ' + escHtml(label) + '</i></span>' +
+          '<button type="button" class="btn-mini" data-ffopen149="1">Open on ' + escHtml(label) + ' ↗</button>' +
+          '<button type="button" class="btn-mini" data-ffinvite149="1">Invite</button>';
+        el.appendChild(card);
+        var ob = card.querySelector("[data-ffopen149]");
+        if (ob) ob.addEventListener("click", function (ev) { ev.stopPropagation(); window.open(url, "_blank", "noopener"); });
+        var ib = card.querySelector("[data-ffinvite149]");
+        if (ib) ib.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          var text = "I am on Rizz Plaza — live rooms, real people, daily pots. Come find me! Join free:";
+          if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: text, url: "https://rizzplaza.com" }).catch(function () {}); }
+          else if (navigator.clipboard) { navigator.clipboard.writeText(text + " https://rizzplaza.com").then(function () { showToast("Invite copied — paste it anywhere. 📩"); }).catch(function () {}); }
+        });
+      }
       function ffRenderInto144(el, people, emptyText) {
         if (!el) return;
         el.innerHTML = (people && people.length) ? ('<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;"><span class="age-note" style="flex:1;">' + people.length + (people.length === 1 ? " friend" : " friends") + ' on the Plaza</span>' + (people.length > 1 ? '<button type="button" class="btn-mini" data-ffaddall="1">Add all</button>' : "") + '</div>' + people.map(ffRow144).join("")) : '<p class="empty-note">' + emptyText + '</p>';
@@ -16463,7 +16503,7 @@
           (canPick ? '<button type="button" class="btn-mini" id="ffPick">Pick contacts</button> ' : '') +
           '<div style="display:flex;gap:8px;margin-top:6px;"><input class="rpdm-input" id="ffPhones" type="text" placeholder="Paste phone numbers…" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMatch">Match</button></div>' +
           '<div id="ffContactsRes"></div>' +
-          '<h4 style="margin:14px 0 4px;">🔗 From other apps — by username</h4>' +
+          '<h4 style="margin:14px 0 4px;">🔗 Find anyone on other apps</h4>' +
           '<div style="display:flex;gap:8px;"><select class="rpdm-input" id="ffNet" style="flex:none;width:118px;"><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="snapchat">Snapchat</option><option value="facebook">Facebook</option><option value="x">X</option><option value="youtube">YouTube</option><option value="twitch">Twitch</option><option value="threads">Threads</option></select>' +
           '<input class="rpdm-input" id="ffHandle" type="text" placeholder="@their-username" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffFind">Find</button></div>' +
           '<div id="ffHandleRes"></div>' +
@@ -16500,8 +16540,9 @@
         var findBtn = $("ffFind");
         if (findBtn) findBtn.addEventListener("click", function () {
           var h = ($("ffHandle").value || "").trim(); if (!h) { showToast("Type their username first."); return; }
+          var net149 = $("ffNet").value;
           $("ffHandleRes").innerHTML = '<p class="empty-note">Looking…</p>';
-          post({ network: $("ffNet").value, handle: h }).then(function (j) { ffRenderInto144($("ffHandleRes"), j && j.people, "No Plaza member has linked that handle yet."); })
+          post({ network: net149, handle: h }).then(function (j) { ffRenderInto144($("ffHandleRes"), j && j.people, "No Plaza member has linked that handle yet — here they are on the app itself:"); ffLookupCard149($("ffHandleRes"), net149, h); })
             .catch(function () { ffRenderInto144($("ffHandleRes"), null, "Couldn't search right now — try again in a moment."); });
         });
         fetch("/api/social/suggestions", { headers: { "Authorization": "Bearer " + tk } })
