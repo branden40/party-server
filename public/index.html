@@ -6505,6 +6505,9 @@
         var sv = $("btnSaveProfile"); if (sv) sv.textContent = "Save profile";
         var bk = $("btnProfileBack"); if (bk) bk.hidden = false;
       }
+      function pfFirstRunFriendsStep() { // [RP-V7.147] the sign-up sync step: after the profile pass, new members sync contacts + socials and one-tap Add the friends already on the Plaza
+        try { if (window.rpFindFriends) window.rpFindFriends.open({ onboarding: true }); } catch (e) { }
+      }
       window.rpFirstRunProfile = function () {
         if (pfFirstRunOn) return;
         if (typeof isTeen === "function" && isTeen()) return;
@@ -6518,7 +6521,7 @@
           bar.innerHTML = "<b>🎉 Welcome to Rizz Plaza!</b><span>Build your profile — your name, your face, your photos and your prompts. This is the profile everyone sees around the Plaza, including the dating &amp; meet &amp; greet rooms.</span>";
           var sk = document.createElement("button");
           sk.type = "button"; sk.className = "btn-mini"; sk.textContent = "Skip for now →";
-          sk.addEventListener("click", function () { pfFirstRunExit(); finishEnterParty(); toast("No rush — finish your profile anytime from the Profile tab. 👇", 3400); });
+          sk.addEventListener("click", function () { pfFirstRunExit(); finishEnterParty(); pfFirstRunFriendsStep(); });
           bar.appendChild(sk);
           card.insertBefore(bar, card.firstChild);
         }
@@ -6526,7 +6529,7 @@
           if (nx.parentNode.querySelector(".pf-finish-later")) return;
           var fl = document.createElement("button");
           fl.type = "button"; fl.className = "btn-mini pf-finish-later"; fl.textContent = "Finish later";
-          fl.addEventListener("click", function () { pfFirstRunExit(); finishEnterParty(); toast("Saved for later — your profile setup is always waiting in the Profile tab. 👇", 3400); });
+          fl.addEventListener("click", function () { pfFirstRunExit(); finishEnterParty(); pfFirstRunFriendsStep(); });
           nx.parentNode.appendChild(fl);
         });
         try { window.scrollTo(0, 0); } catch (e) { }
@@ -6555,7 +6558,7 @@
         } catch (e) { }
         updatePfMeter();
         renderCardPreview();
-        if (pfSetup) { pfSetup = false; finishEnterParty(); return; }
+        if (pfSetup) { var fr147 = pfFirstRunOn; if (fr147) pfFirstRunExit(); pfSetup = false; finishEnterParty(); if (fr147) pfFirstRunFriendsStep(); return; } // [RP-V7.147] first-run saves flow into the friends step
         toast("Profile saved — looking good, " + me.name + "!");
       });
       $("btnPhotoAdd").addEventListener("click", function () { $("photoInput").click(); });
@@ -16387,7 +16390,7 @@
       function ffRow144(p) {
         return '<div class="fol-row" data-ffid="' + escHtml(p.id) + '" data-ffname="' + escHtml(p.name) + '"><span class="fol-av">' + personFace({ name: p.name, photo: p.photo }) + '</span>' +
           '<span class="fol-meta"><b>' + escHtml(p.name) + '</b><i>' + (p.username ? "@" + escHtml(p.username) + " · " : "") + escHtml(p.why || "") + (p.contactName && p.contactName.toLowerCase() !== String(p.name).toLowerCase() ? " · in your contacts as " + escHtml(p.contactName) : "") + '</i></span>' +
-          '<button type="button" class="btn-mini" data-fffollow="' + escHtml(p.id) + '">Follow</button>' +
+          '<button type="button" class="btn-mini" data-fffollow="' + escHtml(p.id) + '">Add</button>' +
           (p.dismiss ? '<button type="button" class="btn-mini" data-ffdismiss="' + escHtml(p.id) + '" aria-label="Not interested" title="Not interested">✕</button>' : '') + '</div>';
       }
       function ffWire144(box) {
@@ -16399,8 +16402,8 @@
             btn.disabled = true; btn.textContent = "…";
             fetch("/api/social/follow", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tk }, body: JSON.stringify({ accountId: btn.getAttribute("data-fffollow") }) })
               .then(function (r) { return r.ok ? r.json() : null; })
-              .then(function (j) { if (j && j.ok) { btn.textContent = "Following ✓"; } else { btn.disabled = false; btn.textContent = "Follow"; showToast("Couldn't follow — try again in a moment."); } })
-              .catch(function () { btn.disabled = false; btn.textContent = "Follow"; });
+              .then(function (j) { if (j && j.ok) { btn.textContent = "✓ Added"; } else { btn.disabled = false; btn.textContent = "Add"; showToast("Couldn't add — try again in a moment."); } })
+              .catch(function () { btn.disabled = false; btn.textContent = "Add"; });
           });
         });
         box.querySelectorAll("[data-ffdismiss]").forEach(function (btn) {
@@ -16426,8 +16429,14 @@
       }
       function ffRenderInto144(el, people, emptyText) {
         if (!el) return;
-        el.innerHTML = (people && people.length) ? people.map(ffRow144).join("") : '<p class="empty-note">' + emptyText + '</p>';
+        el.innerHTML = (people && people.length) ? ('<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;"><span class="age-note" style="flex:1;">' + people.length + (people.length === 1 ? " friend" : " friends") + ' on the Plaza</span>' + (people.length > 1 ? '<button type="button" class="btn-mini" data-ffaddall="1">Add all</button>' : "") + '</div>' + people.map(ffRow144).join("")) : '<p class="empty-note">' + emptyText + '</p>';
         ffWire144(el);
+        var aaBtn147 = el.querySelector("[data-ffaddall]");
+        if (aaBtn147) aaBtn147.addEventListener("click", function () {
+          aaBtn147.disabled = true; aaBtn147.textContent = "Adding…";
+          el.querySelectorAll("[data-fffollow]").forEach(function (b) { if (!b.disabled) b.click(); });
+          setTimeout(function () { aaBtn147.textContent = "✓ All added"; }, 700);
+        });
       }
       var ffMySoc144 = {};
       var FF_NET_LABELS144 = { instagram: "Instagram", tiktok: "TikTok", snapchat: "Snapchat", facebook: "Facebook", x: "X", youtube: "YouTube", twitch: "Twitch", threads: "Threads" };
@@ -16441,13 +16450,15 @@
         var sel = $("ffSocNet"), inp = $("ffSocHandle");
         if (sel && inp) inp.value = ffMySoc144[sel.value] || "";
       }
-      function openFindFriends() {
+      function openFindFriends(opts) {
+        var onb147 = !!(opts && opts.onboarding); // [RP-V7.147] the sign-up step
         var tk = ffToken144();
         if (!tk) { showToast("Sign in to find friends."); return; }
         var canPick = !!(navigator.contacts && navigator.contacts.select);
         openSheet('<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
-          '<div class="game-box" style="text-align:left;" data-ffsheet="1"><h3 style="text-align:center;">🔍 Find friends</h3>' +
+          '<div class="game-box" style="text-align:left;" data-ffsheet="1"><h3 style="text-align:center;">' + (onb147 ? "👋 Find your friends" : "🔍 Find friends") + '</h3>' +
           '<p class="age-note">Numbers and names are matched and forgotten — never stored, never shared. Only Plaza members ever show up.</p>' +
+          (onb147 ? '<p class="age-note" style="text-align:center;">You just joined with your number and email — now sync your contacts and your other apps. Friends already on the Plaza show up here: tap <b>Add</b> and they are your people. Link your own handles below so friends can find you too.</p>' : '') +
           '<h4 style="margin:12px 0 4px;">📱 From your contacts</h4>' +
           (canPick ? '<button type="button" class="btn-mini" id="ffPick">Pick contacts</button> ' : '') +
           '<div style="display:flex;gap:8px;margin-top:6px;"><input class="rpdm-input" id="ffPhones" type="text" placeholder="Paste phone numbers…" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMatch">Match</button></div>' +
@@ -16462,6 +16473,7 @@
           '<input class="rpdm-input" id="ffSocHandle" type="text" placeholder="@your-username" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffSaveHandles">Save</button></div>' +
           '<div id="ffSocList" style="margin-top:6px;"></div>' +
           '<div style="margin-top:14px;"><button type="button" class="btn-mini" id="ffBrowse">Browse everyone →</button></div>' +
+          (onb147 ? '<button type="button" class="btn-primary" id="ffDone147" style="width:100%;margin-top:12px;">Done — take me in →</button>' : '') +
           '</div>');
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         var H = { "Authorization": "Bearer " + tk, "Content-Type": "application/json" };
@@ -16515,6 +16527,8 @@
         });
         var browseBtn = $("ffBrowse");
         if (browseBtn) browseBtn.addEventListener("click", function () { closeSheet(); if (window.rpDm && rpDm.openPeople) rpDm.openPeople(""); });
+        var doneBtn147 = $("ffDone147");
+        if (doneBtn147) doneBtn147.addEventListener("click", function () { closeSheet(); showToast("Welcome to the Plaza! 🎉"); });
       }
       window.rpFindFriends = { open: openFindFriends };
 
