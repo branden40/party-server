@@ -5577,7 +5577,7 @@ const DAILYPOT_HISTORY_FILE =
 // [RP-V7.43] Milestone shouts: the day's total crossing one of these
 // (via gift growth, or rollover-in the moment the day opens) broadcasts
 // dailypot-milestone exactly once per threshold per day.
-const DAILY_POT_MILESTONES = [2500, 5000, 10000, 25000, 50000, 100000];
+const DAILY_POT_MILESTONES = [2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000]; // [RP-V7.143] +250K/+500K for the T5/T6 pots
 const DAILY_POT_SEED = 1000;
 const DAILY_POT_MATCH_PCT = 2; // platform growth match, % of ANY gift's charm value
 const DAILY_POT_MATCH_CAP = 10000;
@@ -5597,10 +5597,20 @@ const DAILY_POT_BURST_COPY = "Bursts tonight between 7 and 9 PM ET — be here!"
 // DAILY_POT_SEED_OVERRIDE (env, default 0 = auto) forces that seed
 // with a proportional cap (10x the seed) when set > 0.
 const DAILY_POT_TIERS = [
-  { tier: 4, minVolume: 250000, seed: 10000, cap: 100000 },
-  { tier: 3, minVolume: 100000, seed: 5000, cap: 50000 },
-  { tier: 2, minVolume: 25000, seed: 2500, cap: 25000 },
-  { tier: 1, minVolume: 0, seed: 1000, cap: 10000 },
+  // [RP-V7.143] Tiers 5-6 (Branden delegated the call Oct 30, 2026:
+  // "do what you think is best ... save me money and make most
+  // money"). Seed/cap ratios DECLINE as volume grows (T6 seed is 1%
+  // of its threshold vs T2's 10%), so the pot's worst-case cost stays
+  // a shrinking slice of the day that funds it; the winner range
+  // widens ONLY at T5/T6 so a giant crowd keeps a real chance to win
+  // (more winners = more daily returners = more pack sales). Tiers
+  // 1-4 are byte-identical to V7.42/V7.66, winners 1..5 included.
+  { tier: 6, minVolume: 5000000, seed: 50000, cap: 500000, winMin: 10, winMax: 25 },
+  { tier: 5, minVolume: 1000000, seed: 25000, cap: 250000, winMin: 5, winMax: 10 },
+  { tier: 4, minVolume: 250000, seed: 10000, cap: 100000, winMin: 1, winMax: 5 },
+  { tier: 3, minVolume: 100000, seed: 5000, cap: 50000, winMin: 1, winMax: 5 },
+  { tier: 2, minVolume: 25000, seed: 2500, cap: 25000, winMin: 1, winMax: 5 },
+  { tier: 1, minVolume: 0, seed: 1000, cap: 10000, winMin: 1, winMax: 5 },
 ];
 // [RP-V7.77] BE-THERE RULE (Branden, Oct 26, 2026: "Add a be-there
 // rule to the Daily Pots too" — mirroring the live Plaza Pot's
@@ -6255,7 +6265,13 @@ function dpRunBurst(db, rec) {
     );
     return { noburst: true, reason: "presence" };
   }
-  const drawCount = 1 + crypto.randomInt(DAILY_POT_MAX_WINNERS); // [RP-V7.66] tonight's winner count: 1..5
+  // [RP-V7.143] The count is drawn inside the DAY's tier range
+  // (rec.winMin..winMax, stamped at rollover): 1..5 at Tiers 1-4
+  // (V7.66 unchanged), 5..10 at Tier 5, 10..25 at Tier 6. Records
+  // opened before V7.143 carry no range and fall back to 1..5.
+  const dpWinMin = Math.max(1, rec.winMin || 1);
+  const dpWinMax = Math.max(dpWinMin, rec.winMax || DAILY_POT_MAX_WINNERS);
+  const drawCount = dpWinMin + crypto.randomInt(dpWinMax - dpWinMin + 1);
   const n = Math.min(drawCount, entrants.length);
   for (let i = entrants.length - 1; i > 0; i--) {
     const j = crypto.randomInt(i + 1);
@@ -6388,13 +6404,15 @@ function dpTierForNewDay(dateStr, potClass) {
       tier: 0, // 0 = manual override (state still exposes seed + cap)
       seed: DAILY_POT_SEED_OVERRIDE,
       cap: DAILY_POT_SEED_OVERRIDE * 10,
+      winMin: 1,
+      winMax: DAILY_POT_MAX_WINNERS,
       prevVolume: null,
     };
   const prevVolume = dpGiftVolumeOn(dpDatePlus(dateStr, -1), potClass);
   for (const t of DAILY_POT_TIERS)
     if (prevVolume >= t.minVolume)
-      return { tier: t.tier, seed: t.seed, cap: t.cap, prevVolume };
-  return { tier: 1, seed: DAILY_POT_SEED, cap: DAILY_POT_MATCH_CAP, prevVolume };
+      return { tier: t.tier, seed: t.seed, cap: t.cap, winMin: t.winMin, winMax: t.winMax, prevVolume };
+  return { tier: 1, seed: DAILY_POT_SEED, cap: DAILY_POT_MATCH_CAP, winMin: 1, winMax: DAILY_POT_MAX_WINNERS, prevVolume };
 }
 function dpFreshRec(dateStr, rolledIn, potClass) {
   const cls = potClass === "teen" ? "teen" : "adult";
@@ -6405,6 +6423,8 @@ function dpFreshRec(dateStr, rolledIn, potClass) {
     tier: t.tier,
     seed: t.seed,
     matchCap: t.cap,
+    winMin: t.winMin || 1, // [RP-V7.143] this day's winner-count range (from its tier)
+    winMax: t.winMax || DAILY_POT_MAX_WINNERS,
     prevVolume: t.prevVolume,
     rolledIn: rolledIn || 0,
     match: 0,
