@@ -7287,6 +7287,38 @@ app.get("/api/social/profile", (req, res) => {
     reposts: reposts86, // [RP-V7.89]
   });
 });
+// [RP-V7.142] WHO LIKED ME (Branden, Oct 30, 2026: "When I click on
+// likes it don't show me who liked me"). The profile Likes stat was a
+// dead <div>; it now opens a list built from the SAME durable like
+// records the likesTotal aggregate counts: reel heartLikes, photo-post
+// like sets, live-story likes and feed-post likes — liker identities
+// resolved from the accounts store, deleted accounts skipped, own
+// likes skipped. Read-only; nothing new is stored.
+app.get("/api/social/my-likers", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const meId = ctx.user.id;
+  const out = [];
+  const pushLikes = (ids, what, snippet, at) => {
+    if (!Array.isArray(ids)) return;
+    for (let i = ids.length - 1; i >= 0; i--) {
+      const uid = ids[i];
+      if (!uid || uid === meId) continue;
+      const u = ctx.db.users.find((x) => x.id === uid);
+      if (!u || u.deletionAt) continue;
+      let photo = u.photo || null;
+      if (!photo) { try { const ph = accountPhotos(u); if (ph && ph[0]) photo = ph[0]; } catch (e) { } }
+      out.push({ id: u.id, name: u.name, username: u.username || "", photo, what, snippet: String(snippet || "").slice(0, 60), at: at || null });
+    }
+  };
+  try { for (const r of listReels()) if (r && reelAuthorKeyFor(ctx.db, r) === meId) pushLikes(r.heartLikes, "reel", r.caption || "", r.createdAt || null); } catch (e) { }
+  try { const lk142 = readPhotoLikes(); for (const p of readPhotoPosts().posts) if (p && p.owner === meId) pushLikes(lk142.photos ? lk142.photos[p.id] : null, "photo", p.caption || "", p.ts || null); } catch (e) { }
+  try { const nowMs = Date.now(); const sdb142 = readStories(); for (const s of Object.values(sdb142.stories || {})) if (s && s.authorId === meId && Date.parse(s.expiresAt) > nowMs) pushLikes(s.likes, "story", "", s.createdAt || null); } catch (e) { }
+  try { const fdb142 = readFeed(); for (const fp of Object.values(fdb142.posts || {})) if (fp && fp.authorId === meId) pushLikes(fp.likes, "post", fp.text || "", fp.createdAt || null); } catch (e) { }
+  out.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  res.json({ ok: true, total: out.length, likers: out.slice(0, 120) });
+});
+
 
 // ---------------------------------------------------------------------------
 // RP-V7.7: direct messages between ACCOUNTS. Threads live in dms.json
