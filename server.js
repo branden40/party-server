@@ -310,18 +310,29 @@ function liveJoinRefusal138(socket, room, data) {
   if (myKey && myKey === key) return null; // the host's own room
   const acc = liveAccess138.get(key);
   const reg = liveRegistry.get(key);
-  if (!acc && !reg) return null; // no live session here — just an empty room
+  const tok = String((data && data.lt) || "").slice(0, 64);
+  // [RP-V7.141] A join carrying a private-link token names a specific
+  // session: if that session isn't here anymore, the honest answer is
+  // "ended" — never silent admission into an empty room (the pre-fix
+  // behavior that left link guests standing in a dead room). The Live
+  // Stage lobby ("live-stage") is not a personal live and is exempt.
+  if (!acc && !reg) {
+    if (tok && room !== "live-stage") return { room, reason: "ended", error: "That live has ended." };
+    return null; // no live session here — just an empty room
+  }
   const acctId = socket.data && socket.data.accountId;
   if (acc && ((acctId && acc.kicked.has(acctId)) || (myKey && acc.kickedKeys.has(myKey))))
     return { room, reason: "kicked", error: "The host removed you from this live." };
   const isPriv = acc ? acc.priv : !!(reg && reg.priv);
   if (!isPriv) return null;
   if (acc && acctId && acc.invited.has(acctId)) return null;
-  const tok = String((data && data.lt) || "").slice(0, 64);
   if (acc && tok && acc.token && tok === acc.token) {
     if (acctId) acc.linkGuests.add(acctId);
     return null;
   }
+  // [RP-V7.141] They knocked WITH a link and it didn't match (reset
+  // or mistyped): say the link is the problem, not the room.
+  if (tok) return { room, reason: "badlink", error: "This link isn't valid anymore." };
   return { room, reason: "private", error: "🔒 This live is private — the host invites who joins." };
 }
 // The host's authoritative private-room state, pushed on every change
