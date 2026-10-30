@@ -16429,6 +16429,18 @@
         el.innerHTML = (people && people.length) ? people.map(ffRow144).join("") : '<p class="empty-note">' + emptyText + '</p>';
         ffWire144(el);
       }
+      var ffMySoc144 = {};
+      var FF_NET_LABELS144 = { instagram: "Instagram", tiktok: "TikTok", snapchat: "Snapchat", facebook: "Facebook", x: "X", youtube: "YouTube", twitch: "Twitch", threads: "Threads" };
+      function ffSocSync144() {
+        var list = $("ffSocList");
+        if (list) {
+          var parts = [];
+          Object.keys(FF_NET_LABELS144).forEach(function (n) { if (ffMySoc144[n]) parts.push(FF_NET_LABELS144[n] + " @" + escHtml(ffMySoc144[n])); });
+          list.innerHTML = parts.length ? '<p class="age-note">Linked: ' + parts.join(" · ") + "</p>" : '<p class="age-note">No handles linked yet.</p>';
+        }
+        var sel = $("ffSocNet"), inp = $("ffSocHandle");
+        if (sel && inp) inp.value = ffMySoc144[sel.value] || "";
+      }
       function openFindFriends() {
         var tk = ffToken144();
         if (!tk) { showToast("Sign in to find friends."); return; }
@@ -16441,17 +16453,14 @@
           '<div style="display:flex;gap:8px;margin-top:6px;"><input class="rpdm-input" id="ffPhones" type="text" placeholder="Paste phone numbers…" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMatch">Match</button></div>' +
           '<div id="ffContactsRes"></div>' +
           '<h4 style="margin:14px 0 4px;">🔗 From other apps — by username</h4>' +
-          '<div style="display:flex;gap:8px;"><select class="rpdm-input" id="ffNet" style="flex:none;width:118px;"><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="snapchat">Snapchat</option><option value="facebook">Facebook</option></select>' +
+          '<div style="display:flex;gap:8px;"><select class="rpdm-input" id="ffNet" style="flex:none;width:118px;"><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="snapchat">Snapchat</option><option value="facebook">Facebook</option><option value="x">X</option><option value="youtube">YouTube</option><option value="twitch">Twitch</option><option value="threads">Threads</option></select>' +
           '<input class="rpdm-input" id="ffHandle" type="text" placeholder="@their-username" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffFind">Find</button></div>' +
           '<div id="ffHandleRes"></div>' +
           '<h4 style="margin:14px 0 4px;">👥 You may know</h4><div id="ffSugRes"><p class="empty-note">Loading…</p></div>' +
           '<h4 style="margin:14px 0 4px;">✏️ Your handles — so friends can find you</h4>' +
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-          '<input class="rpdm-input" id="ffSoc-instagram" type="text" placeholder="Instagram @" autocomplete="off"/>' +
-          '<input class="rpdm-input" id="ffSoc-tiktok" type="text" placeholder="TikTok @" autocomplete="off"/>' +
-          '<input class="rpdm-input" id="ffSoc-snapchat" type="text" placeholder="Snapchat @" autocomplete="off"/>' +
-          '<input class="rpdm-input" id="ffSoc-facebook" type="text" placeholder="Facebook @" autocomplete="off"/></div>' +
-          '<button type="button" class="btn-mini" id="ffSaveHandles" style="margin-top:8px;">Save my handles</button>' +
+          '<div style="display:flex;gap:8px;"><select class="rpdm-input" id="ffSocNet" style="flex:none;width:118px;"><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="snapchat">Snapchat</option><option value="facebook">Facebook</option><option value="x">X</option><option value="youtube">YouTube</option><option value="twitch">Twitch</option><option value="threads">Threads</option></select>' +
+          '<input class="rpdm-input" id="ffSocHandle" type="text" placeholder="@your-username" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffSaveHandles">Save</button></div>' +
+          '<div id="ffSocList" style="margin-top:6px;"></div>' +
           '<div style="margin-top:14px;"><button type="button" class="btn-mini" id="ffBrowse">Browse everyone →</button></div>' +
           '</div>');
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -16487,16 +16496,21 @@
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (j) {
             ffRenderInto144($("ffSugRes"), j && j.people, "No suggestions yet — they build as people join and follow.");
-            if (j && j.mySocials) ["instagram", "tiktok", "snapchat", "facebook"].forEach(function (n) { var inp = $("ffSoc-" + n); if (inp) inp.value = j.mySocials[n] || ""; });
+            if (j && j.mySocials) { ffMySoc144 = j.mySocials; ffSocSync144(); }
           })
           .catch(function () { ffRenderInto144($("ffSugRes"), null, "Couldn't load suggestions right now."); });
+        var socNetSel = $("ffSocNet");
+        if (socNetSel) socNetSel.addEventListener("change", function () { ffSocSync144(); });
         var saveBtn = $("ffSaveHandles");
         if (saveBtn) saveBtn.addEventListener("click", function () {
-          var soc = {};
-          ["instagram", "tiktok", "snapchat", "facebook"].forEach(function (n) { var inp = $("ffSoc-" + n); soc[n] = inp ? inp.value : ""; });
+          var net = socNetSel ? socNetSel.value : "instagram";
+          var soc = {}; soc[net] = $("ffSocHandle") ? $("ffSocHandle").value : "";
           fetch("/api/account/profile", { method: "POST", headers: H, body: JSON.stringify({ socials: soc }) })
             .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (j) { showToast(j && j.ok ? "Saved — friends can find you by these now. 🔗" : "Couldn't save — try again."); })
+            .then(function (j) {
+              if (j && j.ok) { if (j.user && j.user.socials) ffMySoc144 = j.user.socials; ffSocSync144(); showToast("Saved — friends can find you by it now. 🔗"); }
+              else showToast("Couldn't save — try again.");
+            })
             .catch(function () { showToast("Couldn't save — try again."); });
         });
         var browseBtn = $("ffBrowse");
