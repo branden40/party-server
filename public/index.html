@@ -16929,8 +16929,11 @@
         { id: "jet", art: "img/gifts/jet.webp", name: "Private Jet", icon: "🛩️", cents: 10000, tier: "prestige", fx: "across" },
         { id: "yacht", art: "img/gifts/yacht.webp", name: "Golden Yacht", icon: "🛥️", cents: 15000, tier: "prestige", fx: "across" },
         { id: "phoenix", art: "img/gifts/phoenix.webp", name: "Phoenix Rising", icon: "🦅", cents: 25000, tier: "prestige", fx: "phoenix" },
-        { id: "universe", art: "img/gifts/universe.webp", name: "The Universe", icon: "🪐", cents: 50000, tier: "prestige", fx: "universe" }
-      ];
+        { id: "universe", art: "img/gifts/universe.webp", name: "The Universe", icon: "🪐", cents: 50000, tier: "prestige", fx: "universe" },
+        { id: "supernova", art: "img/gifts/supernova.webp", name: "Rizz Supernova", icon: "💥", cents: 100000, tier: "prestige", fx: "supernova" },
+        { id: "crownjewel", art: "img/gifts/crownjewel.webp", name: "The Crown Jewel", icon: "👑", cents: 100000, tier: "prestige", fx: "crownjewel" },
+        { id: "plazadiamond", art: "img/gifts/plazadiamond.webp", name: "Plaza Diamond", icon: "💎", cents: 100000, tier: "prestige", fx: "plazadiamond" }
+      ]; // [RP-V7.132] +3 gifts — the $1,000 tier (Branden, Oct 29, 2026: all three, 100000 charms each, prestige). Catalog now 36 gifts.
       function giftById(id) { for (var i = 0; i < GIFT_SHOP.length; i++) if (GIFT_SHOP[i].id === id) return GIFT_SHOP[i]; return null; }
       function giftByName(nm) { for (var i = 0; i < GIFT_SHOP.length; i++) if (GIFT_SHOP[i].name === nm) return GIFT_SHOP[i]; return null; }
       function giftPriceLabel(cents) {
@@ -18265,7 +18268,7 @@
         if (isTeen()) { openTeenGateAll("Charm packs"); return; }
         if (!rpAdultOk()) { rpDoorGate("Charm packs", openCharmShop); return; }
         var rows = CHARM_PACKS.map(function (p, i) {
-          return '<div class="pack-row"><span class="pi">⭐</span><div class="pt"><b>' + p.charms.toLocaleString("en-US") + ' charms' + (p.tag ? '<span class="pack-tag">' + escHtml(p.tag) + '</span>' : "") + '</b><span>Send gifts from ' + giftPriceLabel(1) + ' to ' + giftPriceLabel(50000) + ' — 1 charm = 1¢ of gift value</span></div><button class="btn-mini" data-pack="' + i + '">' + moneyLabel(p.price) + '</button></div>';
+          return '<div class="pack-row"><span class="pi">⭐</span><div class="pt"><b>' + p.charms.toLocaleString("en-US") + ' charms' + (p.tag ? '<span class="pack-tag">' + escHtml(p.tag) + '</span>' : "") + '</b><span>Send gifts from ' + giftPriceLabel(1) + ' to ' + giftPriceLabel(100000) + ' — 1 charm = 1¢ of gift value</span></div><button class="btn-mini" data-pack="' + i + '">' + moneyLabel(p.price) + '</button></div>'; // [RP-V7.132] top gift is now $1,000 (see giftPriceLabel(100000) in the label above)
         }).join("");
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
@@ -22507,8 +22510,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
      it for the gift's emoji in place: never a broken-image glyph. Ids
      with no shipped art (holiday gifts, ad-hoc gifts) keep the drawn
      SVG art / orb they had. */
-  var GIFT_ART_IDS = { heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1 }; // [RP-V7.82] +5 gifts
-  var GIFT_ICONS = { heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟" }; // [RP-V7.82] +5 gifts
+  var GIFT_ART_IDS = { heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1 }; // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons)
+  var GIFT_ICONS = { heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎" }; // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier)
   window.rpGiftImgErr = function (img) {
     if (!img || !img.parentNode) return;
     var s = document.createElement("span");
@@ -22533,7 +22536,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1 }; // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; until then shows fall back to the animated art
+  var GIFT_FILM_IDS = { heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1 }; // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still)
   window.rpGiftFilmIds = GIFT_FILM_IDS;
   window.rpGiftFilmUrl = function (id) { return window.rpResolveGiftFilm(id); };
   /* [RP-V7.81] EVENT-FILM RESOLVER + T-REX GRAND SHOW.
@@ -22610,7 +22613,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     return rpArt(id, icon);
   }
   window.rpShowArtHtml = rpShowArtHtml;
-  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel", "Thunderbolt": "thunderbolt", "Heart Burst": "heartburst", "Guardian Palm": "guardianpalm", "Gold Gloves": "goldgloves", "Star Surge": "starsurge" }; // [RP-V7.82] +5 gifts
+  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel", "Thunderbolt": "thunderbolt", "Heart Burst": "heartburst", "Guardian Palm": "guardianpalm", "Gold Gloves": "goldgloves", "Star Surge": "starsurge", "Rizz Supernova": "supernova", "The Crown Jewel": "crownjewel", "Plaza Diamond": "plazadiamond" }; // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier)
 
   /* ---------- gift panel: swap emoji for rendered art ---------- */
   function swapCell(c) {
