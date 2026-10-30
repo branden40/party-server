@@ -415,6 +415,25 @@ Object.keys(RP_GIFT_ART_7132).forEach((gid) => {
   });
 });
 
+// [RP-V7.137] The three new prestige gifts' ANIMATED ART (Golden
+// Eagle / Pegasus of Light / Aurora Crown), embedded as base64 and
+// served by the routes below — the exact pattern RP-V7.132 set for
+// the $1,000 tier. Same reasoning: the GitHub push path is text-only,
+// and a gift whose art 404s shows broken; the films ride separately
+// as a file drop into public/giftfx-<id>.mp4, and until they land
+// the client falls back to this animated art (never a still). Each
+// WebP: 320x320, 40 frames @ 42ms, infinite loop — the catalog art
+// spec (universe.webp).
+const RP_GIFT_ART_7137 = require("./giftart7137.js");
+Object.keys(RP_GIFT_ART_7137).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7137[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
@@ -9777,6 +9796,10 @@ const MONEY_GIFT_TABLE = {
   // each, prestige — ids + prices mirror the client's GIFT_SHOP
   // exactly; the catalog is now 36 gifts.
   supernova: 75000, crownjewel: 85000, plazadiamond: 100000, // [RP-V7.136] Branden's repricing: $750 / $850 / $1,000
+  // [RP-V7.137] +3 gifts (Branden approved Oct 30, 2026): Golden Eagle
+  // / Pegasus of Light / Aurora Crown, prestige — ids + prices mirror
+  // the client's GIFT_SHOP exactly; the catalog is now 39 gifts.
+  goldeneagle: 20000, pegasus: 30000, auroracrown: 40000,
 };
 function emptyMoney() {
   return {
