@@ -19925,7 +19925,7 @@
         /* [RP-V7.123] multi-pick: every chosen image is downscaled with
            the same canvas recipe as before and appended to the pick
            list IN PICK ORDER, up to 35 photos per post [RP-V7.125]. */
-        Moments.fromCam156 = false; // [RP-V7.156]
+        if (Moments.camUpload156) { Moments.fromCam156 = true; Moments.camUpload156 = false; try { closeCamera(); } catch (e) { } } else Moments.fromCam156 = false; // [RP-V7.157]
         var files = Array.prototype.slice.call(momInput.files || []);
         momInput.value = "";
         var imgs = files.filter(function (f) { return /^image\//.test(f.type || ""); });
@@ -21722,6 +21722,7 @@
       if (reelInput) reelInput.addEventListener("change", function () {
         var f = reelInput.files && reelInput.files[0];
         reelInput.value = "";
+        if (Cam.uploadPick157) { Cam.uploadPick157 = false; try { closeCamera(); } catch (e) { } } // [RP-V7.157]
         reelAcceptVideoFile(f);
       });
 
@@ -34873,6 +34874,9 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     }
     .cam-lens .fx-sw { width: 100%; height: 100%; border-radius: 50%; }
     .cam-lens.sel { border-color: #fe2c55; box-shadow: 0 0 0 3px rgba(254,44,85,.35); }
+    #camUploadBtn { position: absolute; left: 16px; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; cursor: pointer; color: #fff; padding: 0; }
+    #camUploadBtn .cam-up-ic { width: 46px; height: 46px; border-radius: 12px; background: rgba(30,30,38,.85); border: 2px solid rgba(255,255,255,.75); display: flex; align-items: center; justify-content: center; font-size: 22px; box-sizing: border-box; }
+    #camUploadBtn .cam-up-lb { font-size: 11px; font-weight: 800; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
     #camShutter {
       position: relative; display: block; margin: 2px auto 0; width: 74px; height: 74px; border-radius: 50%;
       border: 5px solid #fff; background: #fe2c55; cursor: pointer;
@@ -35047,6 +35051,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       <button type="button" id="camShutter" aria-label="Record or capture"></button>
       <div id="camTimer"></div>
     </div>
+    <button type="button" id="camUploadBtn" aria-label="Upload from your phone"><span class="cam-up-ic">🖼️</span><span class="cam-up-lb">Upload</span></button>
   </div>
 
   <div class="rp-ovl" id="sndSheet" aria-hidden="true">
@@ -35738,6 +35743,11 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         });
       });
       el("camShutter").addEventListener("click", shutterTap);
+      el("camUploadBtn").addEventListener("click", function () { /* [RP-V7.157] the + sequence's gallery step, on the camera itself */
+        if (Cam.recording) return;
+        if (Cam.mode === "photo") { Moments.camUpload156 = true; var mi = document.getElementById("momPhotoInput"); if (mi) mi.click(); }
+        else { Cam.uploadPick157 = true; var ri = document.getElementById("reelVideoInput"); if (ri) ri.click(); }
+      });
       /* picker */
       el("sndClose").addEventListener("click", closePicker);
       el("sndSearch").addEventListener("input", renderPicker);
