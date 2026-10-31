@@ -4584,9 +4584,9 @@ function pruneViews(db, today) {
     const it = db.items[k];
     if (!it || typeof it !== "object") { delete db.items[k]; continue; }
     if (it.seen && typeof it.seen === "object") {
-      for (const vk of Object.keys(it.seen)) {
-        if (it.seen[vk] !== today) delete it.seen[vk];
-      }
+      // [RP-V7.162] seen stamps are PERMANENT — a viewer counts at most
+      // ONCE per item, ever (Branden: "It should only show I looked at it
+      // once"). The old per-day pruning is gone; stamps stay.
     } else it.seen = {};
     if (!(it.count > 0) && !Object.keys(it.seen).length) delete db.items[k];
   }
@@ -4603,7 +4603,7 @@ function recordMediaView(db, itemKey, viewerKey, today) {
   let it = db.items[itemKey];
   if (!it || typeof it !== "object") it = db.items[itemKey] = { count: 0, seen: {} };
   if (!it.seen || typeof it.seen !== "object") it.seen = {};
-  if (it.seen[viewerKey] === today) return { views: mediaViewCount(db, itemKey), counted: false };
+  if (it.seen[viewerKey]) return { views: mediaViewCount(db, itemKey), counted: false }; // [RP-V7.162] once per viewer per item, EVER (was: once per day)
   it.seen[viewerKey] = today;
   it.count = (typeof it.count === "number" && it.count > 0 ? Math.floor(it.count) : 0) + 1;
   pruneViews(db, today);
