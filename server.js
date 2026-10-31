@@ -531,6 +531,22 @@ Object.keys(RP_GIFT_ART_7137).forEach((gid) => {
   });
 });
 
+// [RP-V7.166] Golden Ascension's ANIMATED ART, same embedded-art
+// pattern (RP-V7.132 / RP-V7.137): base64 in the sibling module
+// giftart7166.js, served by the route below. The film rides
+// separately as a file drop into public/giftfx-ascension.mp4, and
+// until it lands the client falls back to this animated art
+// (never a still). WebP: 320x320, 40 frames @ 42ms, infinite loop.
+const RP_GIFT_ART_7166 = require("./giftart7166.js");
+Object.keys(RP_GIFT_ART_7166).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7166[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
@@ -10228,6 +10244,10 @@ const MONEY_GIFT_TABLE = {
   // / Pegasus of Light / Aurora Crown, prestige — ids + prices mirror
   // the client's GIFT_SHOP exactly; the catalog is now 39 gifts.
   goldeneagle: 20000, pegasus: 30000, auroracrown: 40000,
+  // [RP-V7.166] +1 gift (Branden, Oct 31, 2026): Golden Ascension
+  // $500, prestige — id + price mirror the client's GIFT_SHOP
+  // exactly; the catalog is now 40 gifts.
+  ascension: 50000,
 };
 function emptyMoney() {
   return {
