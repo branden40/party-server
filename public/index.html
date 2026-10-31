@@ -33475,13 +33475,15 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
       '<button type="button" class="btn-primary" style="width:auto; padding:12px 20px;" id="storyRecBtn">🎥 Record</button>' +
       '<button type="button" class="btn-mini" id="storyCamBtn">📷 Take photo</button>' +
-      '<button type="button" class="btn-mini" id="storyUpBtn">📁 Upload</button></div>' +
+      '<button type="button" class="btn-mini" id="storyUpBtn">📁 Upload photo</button>' +
+      '<button type="button" class="btn-mini" id="storyVidBtn">🎬 Upload video</button></div>' +
       '<p class="age-note">Photo or video · videos up to 50 MB · photos up to 10 MB · gone in 24 hours.</p></div>'
     );
     var sh = $("sheet");
     var cx = sh && sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { window.closeSheet(); });
     $("storyRecBtn").addEventListener("click", function () { $("storyRecInput").click(); });
     $("storyUpBtn").addEventListener("click", function () { $("storyFileInput").click(); });
+    $("storyVidBtn").addEventListener("click", function () { $("storyVidInput").click(); }); // [RP-V7.164] a real, labeled video upload
     $("storyCamBtn").addEventListener("click", function () {
       /* [RP-V7.99] Take photo borrows the Plaza camera's photo mode
          (full-resolution capture); the shot comes back as a File and
@@ -33833,10 +33835,13 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     var rec = document.createElement("input");
     rec.type = "file"; rec.accept = "video/*"; rec.setAttribute("capture", "environment"); rec.hidden = true; rec.id = "storyRecInput";
     var up = document.createElement("input");
-    up.type = "file"; up.accept = "image/*,video/*"; up.hidden = true; up.id = "storyFileInput";
-    document.body.appendChild(rec); document.body.appendChild(up);
+    up.type = "file"; up.accept = "image/*"; up.hidden = true; up.id = "storyFileInput";
+    var vid = document.createElement("input");
+    vid.type = "file"; vid.accept = "video/*"; vid.hidden = true; vid.id = "storyVidInput";
+    document.body.appendChild(rec); document.body.appendChild(up); document.body.appendChild(vid);
     rec.addEventListener("change", function () { if (rec.files && rec.files[0]) onStoryFile(rec.files[0]); rec.value = ""; });
     up.addEventListener("change", function () { if (up.files && up.files[0]) onStoryFile(up.files[0]); up.value = ""; });
+    vid.addEventListener("change", function () { if (vid.files && vid.files[0]) onStoryFile(vid.files[0]); vid.value = ""; });
     setTimeout(loadTray, 900);
     setInterval(loadTray, 90000);
     document.addEventListener("visibilitychange", function () { if (!document.hidden) loadTray(); });
