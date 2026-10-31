@@ -563,6 +563,22 @@ Object.keys(RP_GIFT_ART_7167).forEach((gid) => {
   });
 });
 
+// [RP-V7.168] Titan Clash's ANIMATED ART, same embedded-art
+// pattern: base64 in the sibling module giftart7168.js, served by
+// the route below. The film rides separately as a file drop into
+// public/giftfx-titanclash.mp4, and until it lands the client
+// falls back to this animated art (never a still). WebP: 320x320,
+// 40 frames @ 42ms, infinite loop.
+const RP_GIFT_ART_7168 = require("./giftart7168.js");
+Object.keys(RP_GIFT_ART_7168).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7168[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
@@ -10245,7 +10261,7 @@ const MONEY_GIFT_TABLE = {
   fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500,
   loveballoon: 600, guardianpalm: 700, airplane: 800, moneygun: 999,
   castle: 1000, volcano: 2000, lion: 2500, dragon: 3000, meteor: 4000,
-  whale: 4500, galaxy: 5000, starsurge: 5500, diamonds: 6000,
+  whale: 4500, galaxy: 5000, titanclash: 5000, starsurge: 5500, diamonds: 6000,
   rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10000, yacht: 15000,
   phoenix: 25000, universe: 50000,
   // [RP-V7.82] +5 gifts (heartburst/thunderbolt small, goldgloves/
@@ -10264,6 +10280,9 @@ const MONEY_GIFT_TABLE = {
   // $500, prestige — id + price mirror the client's GIFT_SHOP
   // exactly; the catalog is now 40 gifts.
   ascension: 50000,
+  // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
+  // — id + price mirror the client's GIFT_SHOP exactly (in the
+  // tier line above, after galaxy); catalog now 42 gifts.
   // [RP-V7.167] +1 gift (Branden, Oct 31, 2026): Nebula Dragon
   // $100 — id + price mirror the client's GIFT_SHOP exactly
   // (in the tier line above, after jet); catalog now 41 gifts.
