@@ -751,6 +751,29 @@
       .hp-aname { background: none; border: none; color: #fff; font-family: inherit; font-size: 16.5px; font-weight: 900; cursor: pointer; padding: 0; text-shadow: 0 1px 8px rgba(0,0,0,.5); }
       .hp-cap { margin: 6px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.4; text-shadow: 0 1px 6px rgba(0,0,0,.55); }
       .hp-rail { position: absolute; right: 8px; bottom: 20px; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 17px; }
+      .pd-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+      .pd-desc { flex: 1; min-height: 76px; background: #17171c; border: 1px solid #2a2a33; border-radius: 12px; color: #fff; padding: 10px 12px; font: inherit; font-size: 15px; resize: vertical; box-sizing: border-box; }
+      .pd-thumb { width: 74px; height: 98px; object-fit: cover; border-radius: 10px; flex: none; background: #17171c; }
+      .pd-thumb-empty { display: flex; align-items: center; justify-content: center; font-size: 30px; }
+      .pd-chips { display: flex; gap: 8px; margin: 4px 0 6px; }
+      .pd-chip { background: #26262e; color: #fff; border: 0; border-radius: 9px; padding: 8px 13px; font-weight: 800; font-size: 14px; cursor: pointer; }
+      .pd-rows { border-top: 1px solid #232329; margin-top: 6px; }
+      .pd-row { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; border-bottom: 1px solid #1d1d23; color: #fff; padding: 13px 2px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; text-align: left; box-sizing: border-box; }
+      .pd-ic { width: 22px; text-align: center; flex: none; }
+      .pd-lb { flex: 1; }
+      .pd-val { color: #9a9aa5; font-weight: 700; font-size: 13px; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pd-chv { color: #9a9aa5; font-size: 18px; }
+      .pd-sub { padding: 8px 2px 12px; border-bottom: 1px solid #1d1d23; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .pd-sub[hidden] { display: none; }
+      .pd-sub .online-input-full { flex: 1; }
+      .pd-aud { background: #26262e; color: #fff; border: 0; border-radius: 999px; padding: 8px 14px; font-weight: 800; cursor: pointer; }
+      .pd-aud.on { background: #fe2c55; }
+      .pd-bar { display: flex; gap: 10px; margin-top: 16px; }
+      .pd-drafts { flex: 1; background: #26262e; color: #fff; border: 0; border-radius: 999px; padding: 14px 10px; font-weight: 900; font-size: 15px; cursor: pointer; }
+      .pd-post { flex: 1.4; background: #fe2c55; color: #fff; border: 0; border-radius: 999px; padding: 14px 10px; font-weight: 900; font-size: 15px; cursor: pointer; }
+      .pd-back { position: absolute; top: 10px; left: 12px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: #26262e; color: #fff; font-size: 24px; line-height: 1; cursor: pointer; z-index: 3; }
+      .rp-metaline156 { display: flex; gap: 12px; flex-wrap: wrap; margin: 2px 0 4px; font-size: 13px; font-weight: 700; color: #e8e8ee; }
+      .rp-metaline156 a { text-decoration: none; }
       .hp-actions { position: absolute; right: 8px; bottom: 20px; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 17px; } /* [RP-V7.150] photo slides use .hp-actions — it never had positioning, so photo buttons piled at the top-left (Branden's circled screenshot, Oct 30); now they ride the same bottom rail as video posts */
       .hp-ava { position: relative; background: none; border: none; cursor: pointer; padding: 0; margin-bottom: 2px; }
       .hp-ava-in { display: flex; align-items: center; justify-content: center; width: 47px; height: 47px; border-radius: 50%; border: 2px solid #fff; color: #fff; font-weight: 900; font-size: 19px; }
@@ -19276,7 +19299,7 @@
       function momSrvPost(sp) {
         return {
           id: sp.id, srv: true, mine: !!sp.mine, name: sp.author || "Someone",
-          photo: sp.photo || "", urls: (sp.urls && sp.urls.length ? sp.urls.slice() : (sp.photo ? [sp.photo] : [])), /* [RP-V7.123] */ caption: sp.caption || "", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
+          photo: sp.photo || "", urls: (sp.urls && sp.urls.length ? sp.urls.slice() : (sp.photo ? [sp.photo] : [])), /* [RP-V7.123] */ caption: sp.caption || "", location: sp.location || "", link: sp.link || "", audience: sp.audience || "everyone", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
           likeBase: 0, srvLikes: sp.likes || 0, liked: !!sp.myLiked, srvReposts: sp.reposts || 0, reposted: !!sp.myReposted, /* [RP-V7.89] */ gifts: 0,
           comments: Array.isArray(sp.comments) ? sp.comments : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
@@ -19412,13 +19435,14 @@
         var picks123 = (Moments.pendingPhotos && Moments.pendingPhotos.length) ? Moments.pendingPhotos.slice() : (Moments.pendingPhoto ? [Moments.pendingPhoto] : []); // [RP-V7.123]
         Moments.posts.unshift({
           id: "mine" + Date.now(), mine: true, name: Online.name || me.name || "You",
-          photo: picks123[0] || Moments.pendingPhoto, urls: picks123, caption: cap || "Fresh from the Plaza 📸", when: "now",
+          photo: picks123[0] || Moments.pendingPhoto, urls: picks123, caption: cap || "Fresh from the Plaza 📸", location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", when: "now",
           likeBase: 0, srvLikes: 0, likes: 0, liked: false, gifts: 0, comments: [],
           musicTrackId: (Moments.pendingSound ? Moments.pendingSound.trackId : null), musicStart: (Moments.pendingSound ? (Moments.pendingSound.start || 0) : null), musicVol: (Moments.pendingSound ? Moments.pendingSound.musicVol : null) /* [RP-V7.90] */
         });
         Moments.pendingPhoto = null;
         Moments.pendingPhotos = []; /* [RP-V7.123] */
         Moments.pendingSound = null; /* [RP-V7.90] */
+        momAfterPublish156(); // [RP-V7.156]
         closeSheet();
         renderMoments();
         var feed = $("momFeed"); if (feed) feed.scrollTop = 0;
@@ -19449,6 +19473,9 @@
           fd.append("seq", seq.join(","));
           fd.append("caption", cap || "");
           fd.append("clientKey", clientKey);
+          if (postMeta156.location) fd.append("location", postMeta156.location); // [RP-V7.156]
+          if (postMeta156.link) fd.append("link", postMeta156.link);
+          if (postMeta156.audience && postMeta156.audience !== "everyone") fd.append("audience", postMeta156.audience);
           if (snd) { fd.append("musicTrackId", snd.trackId); fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
           return fd;
         }).catch(function () { return null; });
@@ -19477,6 +19504,7 @@
         });
       }
       function momPublishReal153(cap) {
+        postDetailsSync156("mom"); // [RP-V7.156]
         var t = momToken();
         var picks123 = (Moments.pendingPhotos && Moments.pendingPhotos.length) ? Moments.pendingPhotos.slice() : (Moments.pendingPhoto ? [Moments.pendingPhoto] : []); // [RP-V7.123]
         var snd = Moments.pendingSound || null; /* [RP-V7.90] */
@@ -19488,6 +19516,7 @@
             Moments.pendingPhoto = null;
             Moments.pendingPhotos = []; /* [RP-V7.123] */
             Moments.pendingSound = null; /* [RP-V7.90] */
+            momAfterPublish156(); // [RP-V7.156]
             closeSheet();
             renderMoments();
             var feed = $("momFeed"); if (feed) feed.scrollTop = 0;
@@ -19504,7 +19533,7 @@
           fetch("/api/photo/post", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
-            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : {}))
+            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : {}, (postMeta156.location || postMeta156.link || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience } : {}))
           }).then(function (r) { return r.json().catch(function () { return null; }); })
             .then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
             .catch(function () { momPublishLocal(cap); });
@@ -19541,7 +19570,7 @@
             '<div class="mom-top"><span class="who-av">' + av + '</span><div><b>' + escHtml(p.name) + '</b><span>' + escHtml(p.when || "now") + ' · Reels</span></div>' +
             (p.gifts > 0 ? '<span class="mom-gifted">🎁 ' + p.gifts.toLocaleString("en-US") + ' charms gifted</span>' : '<span class="mom-gifted" hidden></span>') + '</div>' +
             '<div class="mom-photo">' + photo + '</div>' +
-            '<p class="mom-cap"><b>' + escHtml(p.name) + '</b>' + momCaptionHtml(p.caption || "") + '</p>' + /* [RP-V7.89] hashtags tappable */
+            '<p class="mom-cap"><b>' + escHtml(p.name) + '</b>' + momCaptionHtml(p.caption || "") + '</p>' + postMetaLineHtml156(p) + /* [RP-V7.89] hashtags tappable */
             (p.musicTrackId ? '<button type="button" class="mom-snd rp-snd" data-tid="' + escHtml(p.musicTrackId) + '">♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(p.musicTrackId) : "Plaza sound") + ' · tap to play</button>' : "") + /* [RP-V7.90] */
             '<div class="mom-acts">' +
               '<button class="mom-act like' + (p.liked ? " liked" : "") + '" type="button">❤️ <span class="lc">' + momLikeCount(p) + '</span></button>' +
@@ -19724,6 +19753,122 @@
       }
       var momCapDraft123 = ""; // [RP-V7.123] caption survives composer re-renders while picking
       function momSyncPicks123() { Moments.pendingPhoto = (Moments.pendingPhotos && Moments.pendingPhotos[0]) || null; } // [RP-V7.123]
+      /* ================= [RP-V7.156] TikTok-sequence post details =================
+         Branden: pressing + runs TikTok's posting sequence — shoot/pick,
+         edit, then a details page with a description + preview, the
+         # Hashtags and @ Mention chips, Location, Add link, the audience
+         row ("Everyone can view this post"), More options, Share to, and
+         the Drafts / Post bottom bar. State rides postMeta156: the
+         publish paths read it, the server stores it, feeds display
+         location + link, and the audience is enforced server-side. Back
+         rule (Branden): the X exit lives only on the FIRST page; every
+         later page gets a back arrow. */
+      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true };
+      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true }; }
+      function postToken156() { try { var r = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (r && r.token) || ""; } catch (e) { return ""; } }
+      function postAudText156() { return postMeta156.audience === "followers" ? "Followers can view this post" : postMeta156.audience === "onlyme" ? "Only you can view this post" : "Everyone can view this post"; }
+      function postDetailsSync156(k) {
+        var li = $(k + "LocInput"); if (li) postMeta156.location = (li.value || "").trim().slice(0, 60);
+        var ki = $(k + "LinkInput"); if (ki) { var u = (ki.value || "").trim(); if (u && !/^https?:\/\//i.test(u)) u = "https://" + u; postMeta156.link = u.slice(0, 300); }
+      }
+      function postDetailsHtml156(k, opts) {
+        opts = opts || {};
+        return '<div class="pd-chips">' +
+          '<button type="button" class="pd-chip" id="' + k + 'TagBtn"># Hashtags</button>' +
+          '<button type="button" class="pd-chip" id="' + k + 'MenBtn">@ Mention</button></div>' +
+          '<div class="pd-rows">' +
+          '<button type="button" class="pd-row" id="' + k + 'LocRow"><span class="pd-ic">📍</span><span class="pd-lb">Location</span><span class="pd-val" id="' + k + 'LocVal">' + (postMeta156.location ? escHtml(postMeta156.location) : "Add") + '</span><span class="pd-chv">›</span></button>' +
+          '<div class="pd-sub" id="' + k + 'LocBox" hidden><input class="online-input-full" id="' + k + 'LocInput" type="text" maxlength="60" placeholder="Add a place…" autocomplete="off" value="' + escHtml(postMeta156.location) + '" /></div>' +
+          '<button type="button" class="pd-row" id="' + k + 'LinkRow"><span class="pd-ic">🔗</span><span class="pd-lb">Add link</span><span class="pd-val" id="' + k + 'LinkVal">' + (postMeta156.link ? "Added" : "Add") + '</span><span class="pd-chv">›</span></button>' +
+          '<div class="pd-sub" id="' + k + 'LinkBox" hidden><input class="online-input-full" id="' + k + 'LinkInput" type="url" maxlength="300" placeholder="https://…" autocomplete="off" value="' + escHtml(postMeta156.link) + '" /></div>' +
+          '<button type="button" class="pd-row" id="' + k + 'AudRow"><span class="pd-ic">🌐</span><span class="pd-lb" id="' + k + 'AudVal">' + postAudText156() + '</span><span class="pd-chv">›</span></button>' +
+          '<div class="pd-sub" id="' + k + 'AudBox" hidden>' +
+            [["everyone", "🌐 Everyone"], ["followers", "👥 Followers"], ["onlyme", "🔒 Only me"]].map(function (a) { return '<button type="button" class="pd-aud' + (postMeta156.audience === a[0] ? " on" : "") + '" data-pdaud="' + a[0] + '">' + a[1] + '</button>'; }).join("") +
+          '</div>' +
+          (opts.remix ? '<div class="pd-row" style="cursor:default;"><span class="pd-ic">⚙</span><span class="pd-lb">More options</span></div><div class="pd-sub"><span style="flex:1; font-weight:700;">Allow duet, stitch & remix</span><button type="button" class="pd-aud' + (postMeta156.remix ? " on" : "") + '" id="' + k + 'RemixBtn">' + (postMeta156.remix ? "On" : "Off") + '</button></div>' : "") +
+          '<button type="button" class="pd-row" id="' + k + 'ShareRow"><span class="pd-ic">↗</span><span class="pd-lb">Share to</span><span class="pd-val">Invite friends</span><span class="pd-chv">›</span></button>' +
+          '</div>';
+      }
+      function postDetailsWire156(k, capId, reopen) {
+        var tag = $(k + "TagBtn"); if (tag) tag.addEventListener("click", function () { var c = $(capId); if (!c) return; var v = c.value || ""; c.value = v + (v && !/\s$/.test(v) ? " " : "") + "#"; c.focus(); try { c.setSelectionRange(c.value.length, c.value.length); } catch (e) { } toast("Type your hashtag — hashtags power discovery on the Plaza 🔎"); });
+        var men = $(k + "MenBtn"); if (men) men.addEventListener("click", function () { postMentionOpen156(k, capId, reopen); });
+        ["Loc", "Link", "Aud"].forEach(function (p) {
+          var row = $(k + p + "Row"); if (row) row.addEventListener("click", function () { var b = $(k + p + "Box"); if (b) { b.hidden = !b.hidden; var i = $(k + p + "Input"); if (i && !b.hidden) i.focus(); } });
+        });
+        var sheet = $("sheet");
+        if (sheet) sheet.querySelectorAll("[data-pdaud]").forEach(function (b) { b.addEventListener("click", function () { postMeta156.audience = b.getAttribute("data-pdaud"); var v = $(k + "AudVal"); if (v) v.textContent = postAudText156(); sheet.querySelectorAll("[data-pdaud]").forEach(function (x) { x.classList.toggle("on", x === b); }); }); });
+        var rx = $(k + "RemixBtn"); if (rx) rx.addEventListener("click", function () { postMeta156.remix = !postMeta156.remix; rx.textContent = postMeta156.remix ? "On" : "Off"; rx.classList.toggle("on", postMeta156.remix); });
+        var sh = $(k + "ShareRow"); if (sh) sh.addEventListener("click", function () {
+          var url = "https://rizzplaza.com";
+          if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: "Join me on Rizz Plaza 🎉", url: url }).catch(function () { }); return; }
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { toast("Plaza link copied — send it to a friend! 🔗"); }, function () { toast("Share this link: " + url); });
+          else toast("Share this link: " + url);
+        });
+      }
+      function postMentionOpen156(k, capId, reopen) {
+        var c0 = $(capId); var draft = c0 ? c0.value : "";
+        if (capId === "momCapInput") momCapDraft123 = draft;
+        if (capId === "reelCapInput") Reels.pendingCaption = draft;
+        postDetailsSync156(k);
+        var tk = postToken156();
+        if (!tk) { toast("Sign in to mention members"); return; }
+        openSheet('<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">@ Mention</h3><p class="age-note" style="text-align:center;">Loading members…</p><div id="pdMenList156"></div><div class="btn-row" style="justify-content:center; margin-top:10px;"><button type="button" class="btn-mini" id="pdMenBack156">← Back to post</button></div></div>');
+        $("pdMenBack156").addEventListener("click", function () { reopen(); });
+        fetch("/api/social/suggestions", { headers: { "Authorization": "Bearer " + tk } }).then(function (r) { return r.json(); }).then(function (j) {
+          var box = $("pdMenList156"); if (!box) return;
+          var people = (j && j.people) || [];
+          if (!people.length) { box.innerHTML = '<p class="empty-note">No members to mention yet — you can still type @username in the description.</p>'; return; }
+          box.innerHTML = people.slice(0, 30).map(function (p) { return '<div class="fol-row"><span class="fol-av">' + personFace({ name: p.name, photo: p.photo }) + '</span><span class="fol-meta"><b>' + escHtml(p.name) + "</b><i>@" + escHtml(p.username || "") + '</i></span><button type="button" class="btn-mini" data-pdmen="' + escHtml(p.username || "") + '">Mention</button></div>'; }).join("");
+          box.querySelectorAll("[data-pdmen]").forEach(function (b) { b.addEventListener("click", function () { var u = b.getAttribute("data-pdmen"); reopen(); var c = $(capId); if (c && u) { var v = c.value || ""; c.value = v + (v && !/\s$/.test(v) ? " " : "") + "@" + u + " "; c.focus(); } }); });
+        }).catch(function () { var box = $("pdMenList156"); if (box) box.innerHTML = '<p class="empty-note">Could not load members — type @username in the description instead.</p>'; });
+      }
+      function postMetaLineHtml156(p) {
+        if (!p || (!p.location && !p.link)) return "";
+        var h = "";
+        if (p.location) h += '<span>📍 ' + escHtml(p.location) + "</span>";
+        if (p.link) h += '<a href="' + escHtml(p.link) + '" target="_blank" rel="noopener" style="color:#7ecbff; font-weight:800;">🔗 ' + escHtml(String(p.link).replace(/^https?:\/\//, "")) + "</a>";
+        return '<p class="rp-metaline156">' + h + "</p>";
+      }
+      /* ---- photo drafts (local, like reel drafts) ---- */
+      var MOM_DRAFT_KEY156 = "rpMomDrafts.v1";
+      function momDraftsLoad156() { try { return JSON.parse(localStorage.getItem(MOM_DRAFT_KEY156) || "[]"); } catch (e) { return []; } }
+      function momDraftsSave156(list) { try { localStorage.setItem(MOM_DRAFT_KEY156, JSON.stringify(list)); return true; } catch (e) { return false; } }
+      function momSaveDraft156() {
+        postDetailsSync156("mom");
+        var cap = (($("momCapInput") && $("momCapInput").value) || "").trim();
+        var picks = (Moments.pendingPhotos || []).slice();
+        if (!picks.length && !cap) { toast("Pick a photo or write something first — a draft needs a little something 📝"); return; }
+        var list = momDraftsLoad156();
+        list.unshift({ id: "md" + Date.now().toString(36), ts: Date.now(), caption: cap, photos: picks, meta: { location: postMeta156.location, link: postMeta156.link, audience: postMeta156.audience } });
+        if (!momDraftsSave156(list.slice(0, 10))) { toast("That draft is too big to store on this device — try fewer photos."); return; }
+        Moments.pendingPhotos = []; momSyncPicks123(); momCapDraft123 = ""; postMetaReset156();
+        closeSheet(); toast("🗂 Saved to Drafts — find it next time you post a photo.");
+      }
+      function momDraftsHtml156() {
+        var list = momDraftsLoad156(); if (!list.length) return "";
+        return '<div class="reel-drafts"><h4 style="margin:0 0 4px;">🗂 Drafts (' + list.length + ")</h4>" + list.map(function (d) {
+          return '<div class="reel-draft-row">' + (d.photos && d.photos[0] ? '<img src="' + d.photos[0] + '" alt="" style="width:34px; height:34px; object-fit:cover; border-radius:8px;"/>' : "") + '<span class="dc">' + escHtml(d.caption || "Untitled photo post") + '</span><button type="button" data-mdresume="' + d.id + '">Resume</button><button type="button" data-mddel="' + d.id + '">Delete</button></div>';
+        }).join("") + "</div>";
+      }
+      function momDraftsWire156() {
+        var sheet = $("sheet"); if (!sheet) return;
+        sheet.querySelectorAll("[data-mdresume]").forEach(function (b) { b.addEventListener("click", function () {
+          var d = momDraftsLoad156().filter(function (x) { return x.id === b.getAttribute("data-mdresume"); })[0]; if (!d) return;
+          Moments.pendingPhotos = (d.photos || []).slice(); momSyncPicks123(); momCapDraft123 = d.caption || "";
+          Moments.resumedDraft156 = d.id;
+          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true };
+          openMomComposer();
+        }); });
+        sheet.querySelectorAll("[data-mddel]").forEach(function (b) { b.addEventListener("click", function () {
+          momDraftsSave156(momDraftsLoad156().filter(function (x) { return x.id !== b.getAttribute("data-mddel"); }));
+          openMomComposer();
+        }); });
+      }
+      function momAfterPublish156() {
+        if (Moments.resumedDraft156) { momDraftsSave156(momDraftsLoad156().filter(function (x) { return x.id !== Moments.resumedDraft156; })); Moments.resumedDraft156 = null; }
+        postMetaReset156();
+      }
+
       function openMomComposer() {
         if (isTeen()) { openTeenGateAll("Reels"); return; }
         var ci0 = $("momCapInput"); if (ci0) momCapDraft123 = ci0.value; // [RP-V7.123]
@@ -19737,24 +19882,27 @@
           '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">' + picks.length + ' photos — they post as ONE scrolling set.</p>';
         }
         openSheet(
-          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+          '<button class="pd-back" id="btnMomBack156" aria-label="Back">‹</button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📸 Post a Photo</h3>' +
-          (has
-            ? '<img src="' + picks[0] + '" alt="Your photo, ready to post" style="width:100%; border-radius:14px; display:block; margin-bottom:10px;"/>' + strip
-            : '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Pick a photo to share with the Plaza — or pick up to 35 and they post as one scrolling set. Fans can like it, comment — and send you gifts right on the post.</p>') +
+          '<div class="pd-head">' +
+            '<textarea class="pd-desc" id="momCapInput" maxlength="140" rows="3" placeholder="Add description…" autocomplete="off"></textarea>' +
+            (has ? '<img class="pd-thumb" src="' + picks[0] + '" alt="Preview of your post"/>' : '<span class="pd-thumb pd-thumb-empty">📸</span>') +
+          '</div>' +
+          (has ? strip : '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Pick a photo to share with the Plaza — or pick up to 35 and they post as one scrolling set. Fans can like it, comment — and send you gifts right on the post.</p>') +
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
             '<button class="btn-mini" id="btnMomPick">🖼️ ' + (has ? "Add / choose photos" : "Choose photos") + '</button>' +
             (Online.myPhotoUrl ? '<button class="btn-mini" id="btnMomUseOnline">Use my online photo</button>' : "") +
           '</div>' +
-          '<div class="field" style="margin-top:12px;"><label for="momCapInput">Caption</label><input class="online-input-full" id="momCapInput" type="text" maxlength="140" placeholder="Say something about this shot…" autocomplete="off" /></div>' +
-          '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnMomPublish">' + (picks.length > 1 ? "Post " + picks.length + " Photos" : "Post Photo") + '</button></div>' +
+          postDetailsHtml156("mom", {}) +
+          momDraftsHtml156() +
+          '<div class="pd-bar"><button type="button" class="pd-drafts" id="btnMomDraft156">🗂 Drafts</button><button type="button" class="pd-post" id="btnMomPublish">⬆ ' + (picks.length > 1 ? "Post " + picks.length + " Photos" : "Post") + '</button></div>' +
           '<p class="age-note" style="margin-top:8px;">Photos follow the same community guidelines as live: no nudity or sexual content, ever.</p></div>'
         );
-        $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
+        var mb156 = $("btnMomBack156"); if (mb156) mb156.addEventListener("click", function () { closeSheet(); if (Moments.fromCam156) { Moments.fromCam156 = false; openCamera(); } }); // [RP-V7.156] back, not exit — returns to the camera when the shot came from there
         var ci = $("momCapInput"); if (ci && momCapDraft123) ci.value = momCapDraft123; // [RP-V7.123]
         $("btnMomPick").addEventListener("click", function () { var inp = $("momPhotoInput"); if (inp) inp.click(); });
         var uo = $("btnMomUseOnline");
-        if (uo) uo.addEventListener("click", function () { Moments.pendingPhotos = [Online.myPhotoUrl]; momSyncPicks123(); openMomComposer(); });
+        if (uo) uo.addEventListener("click", function () { Moments.fromCam156 = false; Moments.pendingPhotos = [Online.myPhotoUrl]; momSyncPicks123(); openMomComposer(); });
         Array.prototype.forEach.call($("sheet").querySelectorAll("[data-rmpick]"), function (b) {
           b.addEventListener("click", function () {
             Moments.pendingPhotos.splice(parseInt(b.getAttribute("data-rmpick"), 10), 1);
@@ -19768,12 +19916,16 @@
           momCapDraft123 = ""; // [RP-V7.123]
           momPublish(cap);
         });
+        postDetailsWire156("mom", "momCapInput", function () { openMomComposer(); }); // [RP-V7.156]
+        momDraftsWire156(); // [RP-V7.156]
+        var mdb156 = $("btnMomDraft156"); if (mdb156) mdb156.addEventListener("click", momSaveDraft156); // [RP-V7.156]
       }
       var momInput = $("momPhotoInput");
       if (momInput) momInput.addEventListener("change", function () {
         /* [RP-V7.123] multi-pick: every chosen image is downscaled with
            the same canvas recipe as before and appended to the pick
            list IN PICK ORDER, up to 35 photos per post [RP-V7.125]. */
+        Moments.fromCam156 = false; // [RP-V7.156]
         var files = Array.prototype.slice.call(momInput.files || []);
         momInput.value = "";
         var imgs = files.filter(function (f) { return /^image\//.test(f.type || ""); });
@@ -19935,7 +20087,7 @@
           url: urls[0], urls: urls,
           author: sp.author || "Someone",
           authorId: sp.mine ? (Online.acctId || "") : (pagerPhotoAuthors123[sp.author] || ""),
-          mine: !!sp.mine, caption: sp.caption || "", createdAt: sp.createdAt || "",
+          mine: !!sp.mine, caption: sp.caption || "", location: sp.location || "", link: sp.link || "", audience: sp.audience || "everyone", createdAt: sp.createdAt || "",
           likes: sp.likes || 0, myLiked: !!sp.myLiked, reposts: sp.reposts || 0, myReposted: !!sp.myReposted,
           comments: Array.isArray(sp.comments) ? sp.comments.slice() : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
@@ -20086,7 +20238,7 @@
         rest.innerHTML =
           '<div class="reel-shade"></div>' +
           '<div class="reel-meta"><span class="reel-author">' + escHtml(item.author) + '</span><span class="reel-when">' + escHtml(reelWhen(item.createdAt)) + (item.urls.length > 1 ? " · 🖼️ " + item.urls.length + " photos" : " · 📸 Photo") + "</span>" +
-          (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + rpPhotoMusicChip123(item) + "</div>" +
+          (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) + rpPhotoMusicChip123(item) + "</div>" +
           '<div class="reel-rail"><span class="reel-ava" style="background:' + reelAvColor(item.author) + '">' + escHtml(initialsOf(item.author)) + "</span>" +
             '<button class="reel-act like pp-heart' + (item.myLiked ? " liked" : "") + '" type="button">❤️<span class="lc">' + (item.likes || 0) + "</span></button>" +
             '<button class="reel-act cmt pp-cmt" type="button">💬<span class="cc">' + (item.commentCount || 0) + "</span></button>" +
@@ -20119,7 +20271,7 @@
         meta.innerHTML =
           '<div class="hp-author"><span class="hp-author-av">Y</span><span>@' + escHtml(item.author) + "</span>" +
           (item.mine ? "" : '<button type="button" class="hp-follow reel-followbtn' + (isFollowingName(item.author) ? " on" : "") + '">' + (isFollowingName(item.author) ? "Following" : "Follow") + "</button>") + "</div>" +
-          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") +
+          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) +
           '<p class="hp-when">' + escHtml(reelWhen(item.createdAt)) + (item.urls.length > 1 ? " · 🖼️ " + item.urls.length + " photos" : " · 📸 Photo") + "</p>" +
           (item.music ? '<span class="hp-snd rp-snd" data-tid="' + escHtml(item.music.trackId || "") + '" role="button">♪ ' + escHtml(item.music.name || "Plaza sound") + "</span>" : "");
         slide.appendChild(meta);
@@ -20404,6 +20556,9 @@
           if (meta.sourceAuthor) fd.append("sourceAuthor", meta.sourceAuthor);
           if (meta.kind === "stitch") { fd.append("stitchStart", String(meta.stitchStart || 0)); fd.append("stitchDur", String(meta.stitchDur || 5)); }
           fd.append("allowRemix", meta.allowRemix === false ? "false" : "true");
+          if (meta.location) fd.append("location", meta.location); // [RP-V7.156]
+          if (meta.link) fd.append("link", meta.link);
+          if (meta.audience && meta.audience !== "everyone") fd.append("audience", meta.audience);
           if (meta.musicTrackId) { fd.append("musicTrackId", meta.musicTrackId); fd.append("musicStart", String(meta.musicStart || 0)); fd.append("musicVol", String(meta.musicVol != null ? meta.musicVol : 0.8)); fd.append("origVol", String(meta.origVol != null ? meta.origVol : 1)); } /* [RP-V7.90] */
           var headers = {};
           var tok = reelToken(); if (tok) headers["Authorization"] = "Bearer " + tok;
@@ -20424,12 +20579,12 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
           if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
-          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", createdAt: m.createdAt || "", url: "", pending: true, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, allowRemix: m.allowRemix !== false, musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
+          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, allowRemix: m.allowRemix !== false, musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
         });
         if (Reels.ranked) {
           // [RP-V7.40] the server already ordered its reels For You —
@@ -20595,7 +20750,7 @@
           '<div class="reel-shade"></div>' +
           '<div class="reel-play">▶</div>' +
           '<div class="reel-meta"><span class="reel-author">' + escHtml(item.author) + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" +
-          (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + chip + provHtml +
+          (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) + chip + provHtml +
           (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : "Plaza sound") + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound">☆</button></div>' : '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>") +
           "</div>" +
           '<div class="reel-rail">' + avHtml +
@@ -21025,7 +21180,7 @@
          18+ door verifies once before the feed plays. */
       var HomeFeed = { tab: "foryou", friendsItems: null, friendsLoaded: false, sig: "", observer: null };
       function homeMapServer(r) {
-        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) };
+        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) };
       }
       function homeFetchFriends() {
         var tok = reelToken();
@@ -21060,7 +21215,7 @@
           '<video src="' + escHtml(item.url) + '" loop playsinline preload="metadata"></video>' +
           '<div class="hp-grad"></div>' +
           '<div class="hp-meta"><button type="button" class="hp-aname">' + escHtml(item.author) + "</button>" +
-          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + "</div>" +
+          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) + "</div>" +
           '<div class="hp-rail">' +
           '<button type="button" class="hp-ava" aria-label="Open profile"><span class="hp-ava-in" style="background:' + reelAvColor(item.author) + '">' + escHtml(String(item.author || "?").charAt(0).toUpperCase()) + "</span>" + (item.mine ? "" : '<span class="hp-follow">+</span>') + "</button>" +
           '<button type="button" class="hp-act like' + (lk.liked ? " liked" : "") + '"><span class="hp-ico">❤️</span><span class="lc">' + (lk.count || 0) + "</span></button>" +
@@ -21222,12 +21377,13 @@
             "</div>";
         } else {
           mid =
-            '<div class="field" style="margin-top:4px;"><label for="reelCapInput">Caption</label><input class="online-input-full" id="reelCapInput" type="text" maxlength="140" placeholder="Say something… add #hashtags so people find it" autocomplete="off" /></div>' +
-            '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:12px;">' +
-              '<button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnReelPublish" type="button">Post Reel</button>' +
-              '<button class="btn-mini" id="btnReelDraft" type="button">💾 Save draft</button>' +
-              '<button class="btn-mini" id="btnReelBackPrev" type="button">← Preview</button>' +
-            "</div>";
+            '<div class="pd-head">' +
+              '<textarea class="pd-desc" id="reelCapInput" maxlength="140" rows="3" placeholder="Add description…" autocomplete="off"></textarea>' +
+              '<span class="pd-thumb pd-thumb-empty">🎬</span>' +
+            '</div>' +
+            postDetailsHtml156("reel", { remix: true }) +
+            '<div class="pd-bar"><button type="button" class="pd-drafts" id="btnReelDraft">🗂 Drafts</button><button type="button" class="pd-post" id="btnReelPublish">⬆ Post</button></div>' +
+            '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" id="btnReelBackPrev" type="button">← Preview</button></div>';
         }
         if (Reels.remix && stage !== "pick") mid = reelRemixChipHtml() + mid;
         var draftsHtml = "";
@@ -21241,7 +21397,9 @@
             }).join("") + "</div>";
         }
         openSheet(
-          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+          (stage === "pick"
+            ? '<button class="close-x" data-act="close" aria-label="Close">✕</button>'
+            : '<button class="pd-back" id="btnReelTopBack" aria-label="Back">‹</button>') + // [RP-V7.156] Branden: X only on the first page; later pages get a back arrow
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">🎬 Post a Reel</h3>' +
           '<div class="reel-prevwrap">' +
             '<video id="reelPreview" playsinline loop muted style="width:100%; max-height:46vh; border-radius:14px; display:none; margin-bottom:10px; background:#000;"></video>' +
@@ -21259,7 +21417,12 @@
         }
         var ci = $("reelCapInput"); if (ci && Reels.pendingCaption) ci.value = Reels.pendingCaption;
         var rxb = $("btnReelRemixX"); if (rxb) rxb.addEventListener("click", function () { Reels.remix = null; openReelComposer(); });
-        $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { reelStopRecord(true); closeSheet(); });
+        var cxr156 = $("sheet").querySelector("[data-act=close]"); if (cxr156) cxr156.addEventListener("click", function () { reelStopRecord(true); closeSheet(); });
+          var tb156 = $("btnReelTopBack"); if (tb156) tb156.addEventListener("click", function () { // [RP-V7.156] back one step in the sequence
+            if (Reels.stage === "details") { var c9 = $("reelCapInput"); if (c9) Reels.pendingCaption = (c9.value || "").trim(); Reels.stage = "preview"; }
+            else Reels.stage = "pick";
+            openReelComposer();
+          });
         if (stage === "pick") {
           $("btnReelPick").addEventListener("click", function () { var inp = $("reelVideoInput"); if (inp) inp.click(); });
           $("btnReelRec").addEventListener("click", reelStartRecord);
@@ -21280,6 +21443,7 @@
             var c2 = $("reelCapInput"); if (c2) Reels.pendingCaption = (c2.value || "").trim();
             Reels.stage = "preview"; openReelComposer();
           });
+          postDetailsWire156("reel", "reelCapInput", function () { openReelComposer(); }); // [RP-V7.156]
         }
         $("sheet").querySelectorAll("[data-dresume]").forEach(function (b) { b.addEventListener("click", function () { reelResumeDraft(b.getAttribute("data-dresume")); }); });
         $("sheet").querySelectorAll("[data-dpost]").forEach(function (b) { b.addEventListener("click", function () { reelPostDraft(b.getAttribute("data-dpost")); }); });
@@ -21428,6 +21592,8 @@
         var blob = Reels.pendingBlob;
         var draftId = Reels.editingDraftId;
         var meta = reelPublishBlob(blob, cap);
+        postDetailsSync156("reel"); // [RP-V7.156]
+        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false }); // [RP-V7.156]
         if (Reels.pendingSound && Reels.pendingSound.trackId) {
           reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol });
         }
@@ -21442,6 +21608,7 @@
         closeSheet();
         setMomMode("reels");
         toast("🎬 Your Reel is posted!", 3200);
+        postMetaReset156(); // [RP-V7.156]
         reelTryUpload(meta.id);
         try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
       }
@@ -21449,8 +21616,9 @@
         if (!Reels.pendingBlob) { toast("Record or upload a video first! 🎬"); return; }
         var capEl = $("reelCapInput");
         var cap = capEl ? (capEl.value || "").trim() : (Reels.pendingCaption || "");
+        postDetailsSync156("reel"); // [RP-V7.156]
         if (Reels.editingDraftId) {
-          reelUpdateMeta(Reels.editingDraftId, { caption: cap });
+          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false }); // [RP-V7.156]
           if (Reels.remix) { reelUpdateMeta(Reels.editingDraftId, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
           Reels.editingDraftId = null;
         } else {
@@ -21458,7 +21626,7 @@
             id: "draft" + Date.now() + Math.floor(Math.random() * 100000),
             draft: true,
             author: reelMyName(), caption: cap,
-            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: true
+            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
           };
           var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
           if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }); }
@@ -21482,17 +21650,26 @@
           Reels.pendingSecs = 0;
           Reels.pendingSound = m.musicTrackId ? { trackId: m.musicTrackId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : null; /* [RP-V7.90] */
           Reels.pendingCaption = m.caption || "";
+          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false }; // [RP-V7.156]
           Reels.remix = m.kind ? { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur } : null;
           Reels.editingDraftId = id;
           Reels.stage = "preview";
           openReelComposer();
         });
       }
-      function reelPostDraft(id) {
+      function reelPostDraft(id) { // [RP-V7.156] drafts post through the V7.153 screen too — no side door
         var m = reelMetaById(id); if (!m) return;
         reelDbGet(id).then(function (blob) {
           if (!blob) { toast("That draft's video is no longer on this device."); return; }
+          rpReelScreen153(blob, function (bad) {
+            if (bad) { toast("🚫 This video can't be posted — no nudity on Plaza Reels.", 4200); return; }
+            reelPostDraftGo156(id, m, blob);
+          });
+        });
+      }
+      function reelPostDraftGo156(id, m, blob) {
           var meta = reelPublishBlob(blob, m.caption || "");
+          reelUpdateMeta(meta.id, { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", allowRemix: m.allowRemix !== false }); // [RP-V7.156]
           if (m.kind) reelUpdateMeta(meta.id, { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur });
           reelRemoveMeta(id); reelDbDel(id);
           closeSheet();
@@ -21500,7 +21677,6 @@
           toast("🎬 Your Reel is posted!", 3200);
           reelTryUpload(meta.id);
           try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
-        });
       }
       function reelDeleteDraft(id) {
         reelRemoveMeta(id);
@@ -35394,6 +35570,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         if (Cam.photoHook) { var hook = Cam.photoHook; Cam.photoHook = null; closeCamera(); hook(url); return; }
         Moments.pendingPhoto = url;
         Moments.pendingPhotos = [url]; /* [RP-V7.123] a snapped photo starts a fresh pick list */
+        Moments.fromCam156 = true; // [RP-V7.156] the composer's back arrow returns to the camera
         Moments.pendingSound = Snd.attached ? { trackId: Snd.attached.trackId, start: Snd.attached.start || 0, musicVol: Snd.attached.musicVol } : null;
         closeCamera();
         openMomComposer();
