@@ -3835,7 +3835,7 @@
         {
           id: "teen", name: "Teen Hangout", topic: "Teens · Chill & Chat", cls: "room-teen", scene: "scene-teen", disco: false,
           desc: "Meet & Greet theme: Teen Hangout — a chill all-ages hangout made for teens: chat, hearts and good vibes. No gifts, no selling, no dating — just your people.",
-          note: "Meet & Greet · Teen Hangout — pull up a chair: chat, tap some hearts, and hang out. House rules: no foul language, no selling, no auctions, no nudity.",
+          note: "Meet & Greet · Teen Hangout — pull up a chair: chat, tap some hearts, and hang out. House rules: keep it ALL positive \u2014 no nudity, no sexual content, no foul language, nothing negative, no selling, no auctions.",
           guests: []
         },
         {
@@ -7196,7 +7196,7 @@
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">\u2715</button>' +
           '<div class="game-box" style="text-align:center;"><h3>🛋️ One quick step — your display name</h3>' +
-          '<p>Hang out live with real people in the <b>Teen Hangout</b> — chat, hearts and likes, open to all ages. House rules: no foul language, no selling, no auctions, no nudity. You\u2019ll appear with your display name:</p>' +
+          '<p>Hang out live with real people in the <b>Teen Hangout</b> — chat, hearts and likes, open to all ages. House rules: keep it ALL positive \u2014 no nudity, no sexual content, no foul language, nothing negative, no selling, no auctions. You\u2019ll appear with your display name:</p>' +
           '<input class="online-input-full" id="onlineNameInput" type="text" maxlength="16" autocomplete="off" value="' + escHtml(savedOnlineName()) + '" />' +
           '<p style="margin-top:12px;">Chat is live — be kind, and keep it clean.</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnOnlineJoin">🛋️ Enter the Teen Hangout</button></div></div>'
@@ -7872,6 +7872,7 @@
           return;
         }
         if (Online.room === "teen" && window.rpTeenGuardChat && !window.rpTeenGuardChat(text)) { if (input && typeof textArg !== "string") input.value = ""; return; }
+        if (Online.room !== "teen" && isTeen() && window.rpTeenGuardText && !window.rpTeenGuardText(text)) { if (input && typeof textArg !== "string") input.value = ""; return; } // [RP-V7.155] a teen's own words in Fellowship stay all-positive too (block only, no kick)
         Online.lastChatText = text; Online.lastChatAt = Date.now();
         if (input && typeof textArg !== "string") input.value = "";
         Online.socket.emit("chat", { text: text });
@@ -8544,6 +8545,7 @@
       }
       function uploadOnlinePhoto(file) {
         if (Online.room === "teen" && window.rpTeenPhotoGate) { window.rpTeenPhotoGate(file, function () { uploadOnlinePhotoCore(file); }); return; }
+        if (isTeen() && window.rpTeenPhotoGateSoft) { window.rpTeenPhotoGateSoft(file, function () { uploadOnlinePhotoCore(file); }, function () { }); return; } // [RP-V7.155] teen's own uploads, anywhere
         uploadOnlinePhotoCore(file);
       }
       function uploadOnlinePhotoCore(file) {
@@ -31226,6 +31228,25 @@ button.rp72-chip{ cursor:pointer; }
   var STRONG = ["fuck", "shit", "bitch", "whore", "slut", "cunt", "nigger", "nigga", "faggot", "porn",
     "penis", "vagina", "masturbate", "blowjob", "asshole", "motherfucker", "dickhead"]
     .map(function (p) { return norm(p); });
+  /* [RP-V7.155] Branden's teen standard: nothing negative, all positive.
+     Bullying/insult words and put-down/threat phrases join the language
+     filter; self-harm phrases are their own class — blocked with a
+     supportive notice, NEVER a kick. */
+  var NEG_WORDS = ("loser losers ugly stupid dumb idiot idiots moron morons pathetic worthless useless lame suck sucks sucky sucker trash garbage freak freaks weirdo weirdos creep creeps dumbest stupidest disgusting gross nasty bully bullies bullying").split(" ");
+  NEG_WORDS.forEach(function (w) { WORDSET[norm(w)] = 1; });
+  var NEG_PHRASES = ["shut up", "i hate you", "hate you", "you suck", "you are ugly", "youre ugly", "ur ugly", "you are stupid", "youre stupid", "you are dumb", "no one likes you", "nobody likes you", "no one loves you", "everyone hates you", "kill you", "i will kill", "ill kill you", "beat you up", "i will beat", "hurt you", "i will hurt", "punch you", "fight you", "end yourself", "you should die", "go die", "drop dead", "better off dead"]
+    .map(function (p) { return norm(p); });
+  PHRASES = PHRASES.concat(NEG_PHRASES);
+  var SELFHARM = ["kill myself", "killing myself", "end my life", "want to die", "wanna die", "hurt myself", "hurting myself", "cut myself", "cutting myself", "harm myself", "suicide", "suicidal", "no reason to live", "dont want to live", "do not want to live"]
+    .map(function (p) { return norm(p); });
+  function selfHarm(text) {
+    var n = norm(text); if (!n) return false;
+    var padded = " " + n + " ";
+    for (var j = 0; j < SELFHARM.length; j++) if (padded.indexOf(" " + SELFHARM[j] + " ") >= 0) return true;
+    return false;
+  }
+  var KIND_NOTE = "\uD83D\uDC9B You matter, and you are not alone. If you are feeling low, please talk to a trusted adult, counselor or family member \u2014 or call/text 988 (US) any time, day or night. The Plaza is a positive place and you belong here.";
+  var POS_NOTE = "\uD83D\uDC9B Teen Plaza is all positive \u2014 that message was blocked to keep it that way.";
   function profane(text) {
     var n = norm(text);
     if (!n) return false;
@@ -31239,7 +31260,13 @@ button.rp72-chip{ cursor:pointer; }
   }
   window.rpTeenGuardChat = function (text) {
     if (!inTeenOnline()) return true;
+    if (selfHarm(text)) { notice(KIND_NOTE); return false; } // [RP-V7.155] care, never a kick
     if (profane(text)) { kick(KICK_LANG); return false; }
+    return true;
+  };
+  window.rpTeenGuardText = function (text) { // [RP-V7.155] a teen's own words anywhere teen-accessible: block the negative, never kick outside Teen Hangout
+    if (selfHarm(text)) { notice(KIND_NOTE); return false; }
+    if (profane(text)) { notice(POS_NOTE); return false; }
     return true;
   };
 
@@ -31301,6 +31328,21 @@ button.rp72-chip{ cursor:pointer; }
       analyzeImage(img, function (bad) {
         try { URL.revokeObjectURL(url); } catch (e) { }
         if (bad) kick(KICK_PHOTO); else proceed();
+      });
+    };
+    img.onerror = function () { try { URL.revokeObjectURL(url); } catch (e) { } proceed(); };
+    img.src = url;
+  };
+  window.rpTeenPhotoGateSoft = function (file, proceed, blocked) { // [RP-V7.155] the same photo check with a gentle outcome — for a teen's own uploads anywhere
+    if (!file) { proceed(); return; }
+    var url, img;
+    try { url = URL.createObjectURL(file); } catch (e) { proceed(); return; }
+    img = new Image();
+    img.onload = function () {
+      analyzeImage(img, function (bad) {
+        try { URL.revokeObjectURL(url); } catch (e) { }
+        if (bad) { notice("\uD83D\uDEAB That photo isn't allowed here \u2014 Teen Plaza stays all positive: no nudity, nothing sexual."); if (blocked) blocked(); }
+        else proceed();
       });
     };
     img.onerror = function () { try { URL.revokeObjectURL(url); } catch (e) { } proceed(); };
