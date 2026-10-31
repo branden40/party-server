@@ -6029,7 +6029,7 @@ const RP_EVENT_CALENDAR = [
   { id: "summer", name: "Summer Splash", mo: 7, da: 15, pre: 3, post: 2 },
   { id: "laborday", name: "Labor Day", nth: [8, 1, 1], pre: 3, post: 1 },
   { id: "birthday", name: "Plaza Birthday Bash", mo: 9, da: 18, pre: 3, post: 3 },
-  { id: "halloween", name: "Halloween", mo: 9, da: 31, pre: 3, post: 1 },
+  /* [RP-V7.161] Halloween removed from the calendar (Branden, Oct 31, 2026) — /api/event-now never reports it. */
   { id: "veterans", name: "Veterans Day", mo: 10, da: 11, pre: 3, post: 1 },
   { id: "thanksgiving", name: "Thanksgiving", nth: [10, 4, 4], pre: 3, post: 3 },
   { id: "blackfriday", name: "Black Friday", after: ["thanksgiving", 1], pre: 3, post: 2 }, // [RP-V7.140]
