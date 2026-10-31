@@ -2905,6 +2905,19 @@ app.get("/api/reels", (req, res) => {
       }
     } catch (e) { /* block filtering must never break reels */ }
   }
+  // [RP-V7.156] Audience filter: onlyme = author only; followers = author + their followers.
+  try {
+    const adb156 = readAccounts();
+    const fol156 = fyUser ? new Set(socialFollowingIds(readSocial(), fyUser.id)) : new Set();
+    all = all.filter((r) => {
+      const a = r.audience || "everyone";
+      if (a === "everyone") return true;
+      if (!fyUser) return false;
+      const k = reelAuthorKeyFor(adb156, r);
+      if (k && k === fyUser.id) return true;
+      return a === "followers" && !!k && fol156.has(k);
+    });
+  } catch (e) { /* audience filtering must never break reels */ }
   const vdb64 = readViews(); // [RP-V7.64] public tile counts ride along
   const list = all.slice(0, 100).map((r) => {
     // RP-V7.9: remix entries carry their provenance; resolve the source
@@ -2915,6 +2928,9 @@ app.get("/api/reels", (req, res) => {
       id: r.id,
       author: r.author,
       caption: r.caption,
+      location: r.location || "",
+      link: r.link || "",
+      audience: r.audience || "everyone",
       createdAt: r.createdAt,
       url: "/reel-files/" + r.file,
       kind: r.kind || null,
@@ -3174,6 +3190,11 @@ app.post("/api/reel", (req, res) => {
       .replace(/[<>&"]/g, "")
       .trim()
       .slice(0, 140);
+    // [RP-V7.156] Post details: location, link, audience (audience needs an account author).
+    const rb156 = req.body || {};
+    const loc156 = String(rb156.location || "").replace(/[<>&"']/g, "").trim().slice(0, 60);
+    const link156 = /^https?:\/\//i.test(String(rb156.link || "").trim()) ? String(rb156.link || "").trim().slice(0, 300) : "";
+    const aud156 = (rb156.audience === "followers" || rb156.audience === "onlyme") ? rb156.audience : "everyone";
     // RP-V7.9 Duet & Stitch: optional remix metadata. A duet/stitch entry
     // stores a REFERENCE to its source reel (never a copy) — the feed
     // plays both halves from their own files. stitchDur is hard-clamped
@@ -3220,6 +3241,9 @@ app.post("/api/reel", (req, res) => {
       ...(stitchStart !== null ? { stitchStart } : {}),
       ...(stitchDur !== null ? { stitchDur } : {}),
       allowRemix,
+      ...(loc156 ? { location: loc156 } : {}),
+      ...(link156 ? { link: link156 } : {}),
+      ...(aud156 !== "everyone" && authorUser ? { audience: aud156 } : {}),
       ...(musicTrackId ? { musicTrackId, musicStart, musicVol, origVol } : {}),
     });
     if (musicTrackId) soundTouchUse(authorUser ? authorUser.id : null, musicTrackId);
@@ -4169,6 +4193,9 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb) {
     photo: p.photo,
     urls: photoUrlsOf123(p), // [RP-V7.123] the full set; photo above stays urls[0] for every older reader
     caption: p.caption || "",
+    location: p.location || "",
+    link: p.link || "",
+    audience: p.audience || "everyone",
     createdAt: p.ts || null,
     mine: !!uid && uid === p.owner,
     likes: set.length,
@@ -4199,6 +4226,10 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
   try {
     const b = req.body || {};
     const caption = reelCleanCommentText(b.caption);
+    // [RP-V7.156] Post details (TikTok sequence): location, link, audience.
+    const loc156 = String(b.location || "").replace(/[<>&"']/g, "").trim().slice(0, 60);
+    const link156 = /^https?:\/\//i.test(String(b.link || "").trim()) ? String(b.link || "").trim().slice(0, 300) : "";
+    const aud156 = (b.audience === "followers" || b.audience === "onlyme") ? b.audience : "everyone";
     const clientKey = reelCleanId(b.clientKey);
     const db = readPhotoPosts();
     if (clientKey) {
@@ -4280,6 +4311,9 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       photo: urls[0],
       urls, // [RP-V7.123] the full ordered set; `photo` stays urls[0]
       caption,
+      ...(loc156 ? { location: loc156 } : {}),
+      ...(link156 ? { link: link156 } : {}),
+      ...(aud156 !== "everyone" ? { audience: aud156 } : {}),
       clientKey: clientKey || null,
       ts: new Date().toISOString(),
       ...(musicTrackId ? { musicTrackId, musicStart: reelNum(b.musicStart, 0, 3600) || 0, musicVol: reelNum(b.musicVol, 0, 1) ?? 0.8 } : {}),
@@ -4316,6 +4350,17 @@ app.get("/api/photo/posts", (req, res) => {
       if (h99.size) rawPosts99 = rawPosts99.filter((p) => !(p && h99.has(p.owner)));
     } catch (e) { /* block filtering must never break photo posts */ }
   }
+  // [RP-V7.156] Audience: onlyme = owner only; followers = owner + members who follow the owner.
+  try {
+    const fol156 = uid ? new Set(socialFollowingIds(readSocial(), uid)) : new Set();
+    rawPosts99 = rawPosts99.filter((p) => {
+      const a = (p && p.audience) || "everyone";
+      if (a === "everyone") return true;
+      if (!uid) return false;
+      if (p.owner === uid) return true;
+      return a === "followers" && fol156.has(p.owner);
+    });
+  } catch (e) { /* audience filtering must never break photo posts */ }
   const posts = rawPosts99
     .slice(0, PHOTO_POSTS_RETURN)
     .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb));
