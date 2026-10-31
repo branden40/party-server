@@ -19451,7 +19451,30 @@
           return fd;
         }).catch(function () { return null; });
       }
-      function momPublish(cap) {
+      var momScreenBusy153 = false;
+      function momScreenDone153(cap, picks, badIdx) {
+        momScreenBusy153 = false;
+        if (!badIdx.length) { momPublishReal153(cap); return; }
+        var kept = picks.filter(function (_, i) { return badIdx.indexOf(i) < 0; });
+        Moments.pendingPhotos = kept.slice();
+        momSyncPicks123();
+        toast(badIdx.length === picks.length ? "🚫 That can't be posted — nudity and sexual content aren't allowed on Plaza photos." : "🚫 " + badIdx.length + " photo" + (badIdx.length > 1 ? "s were" : " was") + " removed from the set — nudity and sexual content aren't allowed on Plaza photos.", 4200);
+        if (kept.length) openMomComposer();
+      }
+      function momPublish(cap) { // [RP-V7.153] the screen runs first — every door (files, camera, online photo) publishes through here
+        if (momScreenBusy153) return;
+        var picks0 = (Moments.pendingPhotos && Moments.pendingPhotos.length) ? Moments.pendingPhotos.slice() : (Moments.pendingPhoto ? [Moments.pendingPhoto] : []);
+        if (!picks0.length || !window.rpAnalyzeImage) { momPublishReal153(cap); return; }
+        momScreenBusy153 = true;
+        var badIdx = [], n = 0;
+        picks0.forEach(function (src, i) {
+          var im = new Image();
+          im.onload = function () { window.rpAnalyzeImage(im, function (bad) { if (bad) badIdx.push(i); if (++n === picks0.length) momScreenDone153(cap, picks0, badIdx); }); };
+          im.onerror = function () { if (++n === picks0.length) momScreenDone153(cap, picks0, badIdx); };
+          im.src = src;
+        });
+      }
+      function momPublishReal153(cap) {
         var t = momToken();
         var picks123 = (Moments.pendingPhotos && Moments.pendingPhotos.length) ? Moments.pendingPhotos.slice() : (Moments.pendingPhoto ? [Moments.pendingPhoto] : []); // [RP-V7.123]
         var snd = Moments.pendingSound || null; /* [RP-V7.90] */
@@ -21355,7 +21378,48 @@
       function reelRemoveMeta(id) {
         reelSaveMeta(reelLoadMeta().filter(function (m) { return m.id !== id; }));
       }
-      function reelPublish() {
+      var reelScreenBusy153 = false;
+      function rpReelScreen153(blob, cb) { // [RP-V7.153] sample 3 frames; any flag blocks. Unreadable video is never blocked on a guess.
+        if (!window.rpAnalyzeImage || !blob) { cb(false); return; }
+        var url;
+        try { url = URL.createObjectURL(blob); } catch (e) { cb(false); return; }
+        var v = document.createElement("video");
+        v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = url;
+        var done = false;
+        function finish(bad) { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch (e) { } cb(bad); }
+        setTimeout(function () { finish(false); }, 9000);
+        v.addEventListener("loadedmetadata", function () {
+          var dur = v.duration || 0;
+          if (!dur || !isFinite(dur)) { finish(false); return; }
+          var spots = [0.15, 0.5, 0.85], i = 0;
+          var cv = document.createElement("canvas");
+          function step() {
+            if (i >= spots.length) { finish(false); return; }
+            try { v.currentTime = Math.min(dur - 0.05, Math.max(0.05, dur * spots[i])); } catch (e) { finish(false); }
+          }
+          v.addEventListener("seeked", function () {
+            try {
+              var w = v.videoWidth || 16, h = v.videoHeight || 16;
+              cv.width = w; cv.height = h;
+              cv.getContext("2d").drawImage(v, 0, 0, w, h);
+              window.rpAnalyzeImage(cv, function (bad) { if (bad) finish(true); else { i++; step(); } });
+            } catch (e) { finish(false); }
+          });
+          step();
+        });
+        v.addEventListener("error", function () { finish(false); });
+      }
+      function reelPublish() { // [RP-V7.153] the screen runs first
+        if (reelScreenBusy153) return;
+        if (!Reels.pendingBlob) { reelPublishReal153(); return; }
+        reelScreenBusy153 = true;
+        rpReelScreen153(Reels.pendingBlob, function (bad) {
+          reelScreenBusy153 = false;
+          if (bad) { toast("🚫 This video can't be posted — nudity and sexual content aren't allowed on Plaza Reels.", 4200); return; }
+          reelPublishReal153();
+        });
+      }
+      function reelPublishReal153() {
         if (!Reels.pendingBlob) { toast("Record or upload a video first! 🎬"); return; }
         var capEl = $("reelCapInput");
         var cap = capEl ? (capEl.value || "").trim() : (Reels.pendingCaption || "");
@@ -31227,6 +31291,7 @@ button.rp72-chip{ cursor:pointer; }
       cb(ratio >= 0.52 && zHit >= 5 && centerR >= 0.55);
     } catch (e) { cb(false); }
   }
+  window.rpAnalyzeImage = analyzeImage; // [RP-V7.153] shared with the Reels/Photos sexual-content screen below
   window.rpTeenPhotoGate = function (file, proceed) {
     if (!file) { proceed(); return; }
     var url, img;
