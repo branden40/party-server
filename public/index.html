@@ -15599,7 +15599,7 @@
           Reels.pendingUrl = URL.createObjectURL(b);
           if (ss > REEL_MAX_SECS + 0.6) { // long live: open straight into the trimmer
             Reels.mustTrim = true; Reels.trimOpen = true; Reels.trimStart = 0; Reels.trimEnd = REEL_MAX_SECS;
-            toast("That live ran " + liveRecClock171(ss) + " — trim it to 3:00 or less with the ✂ Trim tool!", 4600);
+            toast("That live ran " + liveRecClock171(ss) + " — trim it to 5:00 or less with the ✂ Trim tool!", 4600);
           }
           Reels.stage = "preview";
           openReelComposer();
@@ -20468,8 +20468,8 @@
       var REEL_META_KEY = "rpReelsMeta.v1";
       var REEL_LIKES_KEY = "rpReelLikes.v1";
       var REEL_COMMENTS_KEY = "rpReelComments.v1";
-      var REEL_MAX_BYTES = 100 * 1024 * 1024; /* [RP-V7.126] was 25 MB */
-      var REEL_MAX_SECS = 180; /* [RP-V7.126] uploads up to 3 minutes (was 60s); [RP-V7.178] the in-app recorder offers 15s/60s/3min (Reels.maxSecs) */
+      var REEL_MAX_BYTES = 500 * 1024 * 1024; /* [RP-V7.126] was 25 MB; [RP-V7.179] 500 MB — a full 5-minute take at the camera's 12 Mbps top-HD rate is ~450 MB */
+      var REEL_MAX_SECS = 300; /* [RP-V7.126] 3 minutes; [RP-V7.179] posts up to 5 minutes — Branden's ladder: 5 min first, raised again as the crowd grows; the in-app recorder offers 15s/60s/3min/5min (Reels.maxSecs) */
 
       function reelLoadMeta() {
         try { var m = JSON.parse(localStorage.getItem(REEL_META_KEY) || "[]"); return Array.isArray(m) ? m : []; } catch (e) { return []; }
@@ -21567,6 +21567,7 @@
               '<button class="reel-len' + (Reels.maxSecs === 15 ? " on" : "") + '" id="btnReelLen15" type="button">15s</button>' +
               '<button class="reel-len' + (Reels.maxSecs === 60 ? " on" : "") + '" id="btnReelLen60" type="button">60s</button>' +
               '<button class="reel-len' + (Reels.maxSecs === 180 ? " on" : "") + '" id="btnReelLen180" type="button">3min</button>' + // [RP-V7.178]
+              '<button class="reel-len' + (Reels.maxSecs === 300 ? " on" : "") + '" id="btnReelLen300" type="button">5min</button>' + // [RP-V7.179]
               '<button class="reel-len' + (Reels.countdown ? " on" : "") + '" id="btnReelCountTgl" type="button">⏱ 3s timer</button>' +
             "</div>" +
             '<div class="reel-recbar" id="reelRecBar"><i></i></div>';
@@ -21647,6 +21648,7 @@
           $("btnReelLen15").addEventListener("click", function () { Reels.maxSecs = 15; openReelComposer(); });
           $("btnReelLen60").addEventListener("click", function () { Reels.maxSecs = 60; openReelComposer(); });
           $("btnReelLen180").addEventListener("click", function () { Reels.maxSecs = 180; openReelComposer(); }); // [RP-V7.178]
+          $("btnReelLen300").addEventListener("click", function () { Reels.maxSecs = 300; openReelComposer(); }); // [RP-V7.179]
           $("btnReelCountTgl").addEventListener("click", function () { Reels.countdown = !Reels.countdown; openReelComposer(); });
         } else if (stage === "preview") {
           $("btnReelRetake").addEventListener("click", function () {
@@ -21671,7 +21673,7 @@
             var len = w ? (w.e - w.s) : (Reels.pendingSecs || 0);
             if (len > REEL_MAX_SECS + 0.6) {
               Reels.trimOpen = true; reelTrimUi169();
-              var stt = $("reelStatus"); if (stt) stt.textContent = "✂ Your cut is " + reelTrimClock169(len) + " — trim it to 3:00 or less to post.";
+              var stt = $("reelStatus"); if (stt) stt.textContent = "✂ Your cut is " + reelTrimClock169(len) + " — trim it to 5:00 or less to post.";
               return;
             }
             Reels.mustTrim = false;
@@ -21944,7 +21946,7 @@
         reelProbeSecs(url).then(function (secs) {
           if (isFinite(secs) && secs > REEL_MAX_SECS + 0.6) {
             // [RP-V7.169] No more dead end: a too-long video opens in the
-            // trimmer and posts as its cut (3:00 max), like YouTube/TikTok.
+            // trimmer and posts as its cut (5:00 max), like YouTube/TikTok.
             reelClearPending();
             Reels.pendingBlob = f;
             Reels.pendingSecs = Math.round(secs);
@@ -21954,7 +21956,7 @@
             Reels.trimStart = 0; Reels.trimEnd = REEL_MAX_SECS;
             Reels.stage = "preview";
             openReelComposer();
-            toast("That video is " + Math.round(secs) + "s — trim it to 3:00 or less with the ✂ Trim tool!", 4600);
+            toast("That video is " + Math.round(secs) + "s — trim it to 5:00 or less with the ✂ Trim tool!", 4600);
             return;
           }
           reelClearPending();
@@ -35314,7 +35316,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         <span class="cam-len" id="camLenWrap">
           <button type="button" data-len="15">15s</button>
           <button type="button" data-len="60" class="on">60s</button>
-          <button type="button" data-len="180">3min</button> <!-- [RP-V7.178] TikTok-length set: 15s / 60s / 3min -->
+          <button type="button" data-len="180">3min</button>
+          <button type="button" data-len="300">5min</button> <!-- [RP-V7.178] 15s/60s/3min; [RP-V7.179] + 5min -->
         </span>
         <button type="button" id="camModeVideo" class="on">VIDEO</button>
         <button type="button" id="camModePhoto">PHOTO</button>
