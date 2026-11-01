@@ -10562,30 +10562,31 @@
         if (recipe && recipe.fun) fxDrawFun(ctx, w, h);
         ctx.restore();
       }
-      /* ---------- [RP-V7.181] BEAUTY — real skin work in the paint path ----------
-         Branden (Nov 1, 2026): "filters to make your face look pretty
-         and smooth like TikTok filters", at full HD. The October
-         beauty looks were pulled because they did not work — they
-         never reached the recording. These run inside fxPaint, so
-         they are in the preview AND in every recorded/broadcast
-         frame. Smooth blends a blurred copy of the frame into the
-         tracked face oval (feathered, two passes) and lays a whisper
-         of the sharp frame back over it ('overlay'), so skin evens
-         out while eyes and lips keep their definition — the classic
-         frequency split. No face in frame = a gentle full-frame
-         blend, never a frozen or broken effect. */
-      var fxBeautyScratch = null, fxBeautyTiny = null;
-      /* [RP-V7.183] The blur is a DOWNSCALE blur (shrink the frame to
-         a tiny canvas, draw it back up smoothed, twice) — never
-         ctx.filter. iPhone Safari silently ignores ctx.filter, which
-         is why V7.181's Brighten did nothing and Smooth Skin blended
-         a sharp copy (Branden, Nov 1, 2026: "the skin brightness and
-         beauty skin don't work"). Blend-mode passes below are all
-         filter-free for the same reason. */
-      function fxBeautyBlur(src, w, h, radius) {
-        if (!fxBeautyScratch) fxBeautyScratch = document.createElement("canvas");
-        if (!fxBeautyTiny) fxBeautyTiny = document.createElement("canvas");
-        var c = fxBeautyScratch, t = fxBeautyTiny;
+      /* ---------- [RP-V7.185] BEAUTY — built the way TikTok/Snap do it ----------
+   Branden (Nov 1, 2026): Brighten/Glow/Smooth "don't work good —
+   go look at TikTok and Snapchat smooth skin." Their pipeline is:
+   (1) map the face, (2) build a SKIN MASK that follows the real
+   face contour with the eyes, brows and lips cut OUT, (3) smooth
+   and even the tone only inside that mask, (4) brighten the face,
+   not the whole picture. The V7.181/183 engine blurred a soft
+   ellipse over everything and brightened the whole frame —
+   vaseline, not beauty. This build runs the real architecture on
+   the 468 landmarks the tracker already produces: the mask is the
+   face-oval contour path with holes punched for eyes/brows/lips
+   (grown 1.35x so lashes and lip edges keep full detail),
+   feathered by blurring the MASK itself. Smooth blends a blurred
+   copy through the mask at real strength, a heavy-blur pass evens
+   skin TONE (the invisible half of "pretty"), and an overlay pass
+   hands detail back. Brighten screens the FACE only — the room
+   behind you no longer washes out. Still zero ctx.filter (iPhone
+   ignores it, V7.183); blur is the downscale double-pass. The
+   fxMaybeDetect gate above was fixed in this same build: the
+   tracker previously ran for fun lenses only. */
+      var fxBScr = [null, null], fxBTiny = [null, null];
+      function fxBeautyBlur(src, w, h, radius, slot) {
+        slot = slot || 0;
+        if (!fxBScr[slot]) { fxBScr[slot] = document.createElement("canvas"); fxBTiny[slot] = document.createElement("canvas"); }
+        var c = fxBScr[slot], t = fxBTiny[slot];
         if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
         var f = Math.max(3, Math.min(28, Math.round(radius * 2.2)));
         var tw = Math.max(2, Math.round(w / f)), th = Math.max(2, Math.round(h / f));
@@ -10600,86 +10601,136 @@
         btx.drawImage(t, 0, 0, w, h);
         return c;
       }
-      function fxFaceOval181(w, h) {
+      var FX_OVAL185 = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+      var FX_EYE_L185 = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246];
+      var FX_EYE_R185 = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398];
+      var FX_BROW_L185 = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
+      var FX_BROW_R185 = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276];
+      var FX_LIPS185 = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
+      var fxMaskRaw185 = null, fxLayer185 = null;
+      function fxPoly185(c, pts, idxs, w, h, grow) {
+        var cx = 0, cy = 0, i, p;
+        for (i = 0; i < idxs.length; i++) { p = pts[idxs[i]]; if (!p) return false; cx += p.x * w; cy += p.y * h; }
+        cx /= idxs.length; cy /= idxs.length;
+        c.beginPath();
+        for (i = 0; i < idxs.length; i++) {
+          p = pts[idxs[i]];
+          var x = cx + (p.x * w - cx) * grow, y = cy + (p.y * h - cy) * grow;
+          if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+        }
+        c.closePath();
+        return true;
+      }
+      function fxSkinMask185(w, h) {
         var fx = Live.fx; if (!fx || !fx.face) return null;
         if (Date.now() - fx.faceAt > 450) return null;
-        var lm = fx.face, S = fx.smooth;
-        function P(i) {
-          var s = S && S.pts && S.pts[i];
-          if (s) return { x: s.x * w, y: s.y * h };
-          var p = lm[i]; return p ? { x: p.x * w, y: p.y * h } : null;
-        }
-        var top = P(10), chin = P(152), sl = P(234), sr = P(454);
-        if (!top || !chin || !sl || !sr) return null;
-        return { cx: (sl.x + sr.x) / 2, cy: (top.y + chin.y) / 2, rx: Math.abs(sr.x - sl.x) * 0.62, ry: Math.abs(chin.y - top.y) * 0.60 };
+        var pts = (fx.smooth && fx.smooth.pts && fx.smooth.pts.length >= 400) ? fx.smooth.pts : fx.face;
+        if (!pts || pts.length < 400) return null;
+        if (!fxMaskRaw185) fxMaskRaw185 = document.createElement("canvas");
+        var mc = fxMaskRaw185;
+        if (mc.width !== w || mc.height !== h) { mc.width = w; mc.height = h; }
+        var m = mc.getContext("2d");
+        m.save();
+        m.globalCompositeOperation = "source-over"; m.globalAlpha = 1;
+        m.clearRect(0, 0, w, h);
+        m.fillStyle = "#ffffff";
+        if (!fxPoly185(m, pts, FX_OVAL185, w, h, 1.0)) { m.restore(); return null; }
+        m.fill();
+        m.globalCompositeOperation = "destination-out";
+        var holes = [FX_EYE_L185, FX_EYE_R185, FX_BROW_L185, FX_BROW_R185, FX_LIPS185];
+        for (var i = 0; i < holes.length; i++) { if (fxPoly185(m, pts, holes[i], w, h, 1.35)) m.fill(); }
+        m.restore();
+        return fxBeautyBlur(mc, w, h, Math.max(2, Math.round(w * 0.006)), 1);
       }
-      function fxBeautySmooth(ctx, src, w, h, strength) {
-        var blur = fxBeautyBlur(src, w, h, Math.max(2, Math.min(10, w * 0.008)));
-        var ov = fxFaceOval181(w, h);
+      function fxMasked185(ctx, content, mask, blend, alpha, w, h) {
+        if (!fxLayer185) fxLayer185 = document.createElement("canvas");
+        var L = fxLayer185;
+        if (L.width !== w || L.height !== h) { L.width = w; L.height = h; }
+        var l = L.getContext("2d");
+        l.save();
+        l.globalCompositeOperation = "source-over"; l.globalAlpha = 1;
+        l.clearRect(0, 0, w, h);
+        l.drawImage(content, 0, 0, w, h);
+        l.globalCompositeOperation = "destination-in";
+        l.drawImage(mask, 0, 0, w, h);
+        l.restore();
         ctx.save();
-        if (ov) {
-          function pass(rx, ry, a, img, op) {
-            ctx.save();
-            ctx.beginPath(); ctx.ellipse(ov.cx, ov.cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
-            ctx.globalCompositeOperation = op || "source-over";
-            ctx.globalAlpha = a;
-            ctx.drawImage(img, 0, 0, w, h);
-            ctx.restore();
-          }
-          pass(ov.rx * 1.18, ov.ry * 1.14, strength * 0.38, blur);
-          pass(ov.rx, ov.ry, strength * 0.62, blur);
-          pass(ov.rx, ov.ry, 0.15, src, "overlay");
-        } else {
-          ctx.globalAlpha = strength * 0.30;
-          ctx.drawImage(blur, 0, 0, w, h);
-        }
+        ctx.globalCompositeOperation = blend; ctx.globalAlpha = alpha;
+        ctx.drawImage(L, 0, 0, w, h);
+        ctx.restore();
+      }
+      function fxMaskedFill185(ctx, color, mask, blend, alpha, w, h) {
+        if (!fxLayer185) fxLayer185 = document.createElement("canvas");
+        var L = fxLayer185;
+        if (L.width !== w || L.height !== h) { L.width = w; L.height = h; }
+        var l = L.getContext("2d");
+        l.save();
+        l.globalCompositeOperation = "source-over"; l.globalAlpha = 1;
+        l.clearRect(0, 0, w, h);
+        l.fillStyle = color; l.fillRect(0, 0, w, h);
+        l.globalCompositeOperation = "destination-in";
+        l.drawImage(mask, 0, 0, w, h);
+        l.restore();
+        ctx.save();
+        ctx.globalCompositeOperation = blend; ctx.globalAlpha = alpha;
+        ctx.drawImage(L, 0, 0, w, h);
         ctx.restore();
       }
       function fxBeautyFrame(ctx, src, w, h, kind) {
-        try {
-          if (kind === "smooth") { fxBeautySmooth(ctx, src, w, h, 0.85); return; }
-          if (kind === "rosy") {
-            fxBeautySmooth(ctx, src, w, h, 0.45);
+        var mask = null;
+        try { mask = fxSkinMask185(w, h); } catch (e) { mask = null; }
+        var radius = Math.max(2, Math.min(10, w * 0.008));
+        var bigRadius = Math.max(4, Math.min(22, w * 0.02));
+        if (!mask) {
+          if (kind === "bright") {
             ctx.save();
-            ctx.globalCompositeOperation = "soft-light";
-            ctx.globalAlpha = 0.55; ctx.fillStyle = "rgb(255,105,80)";
-            ctx.fillRect(0, 0, w, h);
-            ctx.restore();
-            ctx.save();
-            ctx.globalCompositeOperation = "overlay"; // [RP-V7.183] filter-free colour pop
-            ctx.globalAlpha = 0.20; ctx.drawImage(src, 0, 0, w, h);
-            ctx.restore();
-            return;
+            ctx.globalCompositeOperation = "screen"; ctx.globalAlpha = 0.38; ctx.drawImage(src, 0, 0, w, h);
+            ctx.globalCompositeOperation = "overlay"; ctx.globalAlpha = 0.16; ctx.drawImage(src, 0, 0, w, h);
+            ctx.restore(); return;
           }
-          if (kind === "glow") {
-            var blur = fxBeautyBlur(src, w, h, Math.max(4, Math.min(22, w * 0.02)));
-            ctx.save();
-            ctx.globalCompositeOperation = "soft-light";
-            ctx.globalAlpha = 0.42; ctx.drawImage(blur, 0, 0, w, h);
-            ctx.restore();
-            ctx.save();
-            ctx.globalCompositeOperation = "screen"; // [RP-V7.183] filter-free lift
-            ctx.globalAlpha = 0.16; ctx.drawImage(src, 0, 0, w, h);
-            ctx.restore();
-            return;
-          }
-          /* bright — [RP-V7.183] 'screen' with the frame itself is a
-             true brighten (the classic screen blend); a light
-             'overlay' self-pass puts back the contrast screen
-             washes out. No ctx.filter anywhere (iPhone ignores it). */
+          var bb = fxBeautyBlur(src, w, h, kind === "glow" ? bigRadius : radius, 0);
           ctx.save();
-          ctx.globalCompositeOperation = "screen";
-          ctx.globalAlpha = 0.38; ctx.drawImage(src, 0, 0, w, h);
-          ctx.globalCompositeOperation = "overlay";
-          ctx.globalAlpha = 0.16; ctx.drawImage(src, 0, 0, w, h);
-          ctx.restore();
-        } catch (e) { }
+          if (kind === "glow") {
+            ctx.globalCompositeOperation = "soft-light"; ctx.globalAlpha = 0.42; ctx.drawImage(bb, 0, 0, w, h);
+            ctx.globalCompositeOperation = "screen"; ctx.globalAlpha = 0.16; ctx.drawImage(src, 0, 0, w, h);
+          } else if (kind === "rosy") {
+            ctx.globalAlpha = 0.45; ctx.drawImage(bb, 0, 0, w, h);
+            ctx.globalCompositeOperation = "soft-light"; ctx.globalAlpha = 0.30; ctx.fillStyle = "rgba(255,110,95,1)"; ctx.fillRect(0, 0, w, h);
+            ctx.globalCompositeOperation = "overlay"; ctx.globalAlpha = 0.20; ctx.drawImage(src, 0, 0, w, h);
+          } else {
+            ctx.globalAlpha = 0.30; ctx.drawImage(bb, 0, 0, w, h);
+          }
+          ctx.restore(); return;
+        }
+        if (kind === "smooth") {
+          var mid = fxBeautyBlur(src, w, h, radius, 0);
+          fxMasked185(ctx, mid, mask, "source-over", 0.62, w, h);
+          var heavy = fxBeautyBlur(src, w, h, bigRadius, 0);
+          fxMasked185(ctx, heavy, mask, "soft-light", 0.30, w, h);
+          fxMasked185(ctx, src, mask, "overlay", 0.22, w, h);
+          return;
+        }
+        if (kind === "glow") {
+          var halo = fxBeautyBlur(src, w, h, bigRadius, 0);
+          fxMasked185(ctx, halo, mask, "soft-light", 0.50, w, h);
+          fxMasked185(ctx, src, mask, "screen", 0.20, w, h);
+          fxMaskedFill185(ctx, "rgba(255,214,170,1)", mask, "soft-light", 0.18, w, h);
+          return;
+        }
+        if (kind === "rosy") {
+          var sm = fxBeautyBlur(src, w, h, radius, 0);
+          fxMasked185(ctx, sm, mask, "source-over", 0.50, w, h);
+          fxMaskedFill185(ctx, "rgba(255,110,95,1)", mask, "soft-light", 0.38, w, h);
+          fxMasked185(ctx, src, mask, "overlay", 0.20, w, h);
+          return;
+        }
+        /* bright: the FACE brightens; the room behind stays put */
+        fxMasked185(ctx, src, mask, "screen", 0.42, w, h);
+        fxMasked185(ctx, src, mask, "overlay", 0.18, w, h);
+        ctx.save();
+        ctx.globalCompositeOperation = "screen"; ctx.globalAlpha = 0.08; ctx.drawImage(src, 0, 0, w, h);
+        ctx.restore();
       }
-      /* ---------- [RP-V7.181] PHOTOGRAPHIC LENS ART ----------
-         Real-object photos (alpha WebP) served at /img/lenses/<id>.webp
-         replace the drawn props as they load; until one arrives (or if
-         it never does) the drawing below is the lens. Santa Hat is
-         the first: photorealistic velvet + fur, not a cartoon. */
       var fxLensImgs181 = {};
       function fxLensArtImg(id) {
         var im = fxLensImgs181[id];
@@ -10841,7 +10892,7 @@
       }
       function fxMaybeDetect(fx, video, ts) {
         var r = fxRecipe(Live.filterId);
-        if (!r || !r.fun) return;
+        if (!r || !(r.fun || r.warp || r.beauty)) return; // [RP-V7.185] the tracker used to run for FUN lenses only — a beauty pick froze face tracking in ~450ms, so the masked beauty path almost never engaged
         fxEnsureFaceMesh();
         if (FxMesh.state !== "ready" || !FxMesh.mesh) return;
         if (fx.detectBusy && ts - fx.lastDetect < 1200) return; // a send is still in flight
