@@ -1899,6 +1899,10 @@
          itself wears the Teen Hangout layout — see the RP-V7.47 room
          stage module near the end of the file) */
       .room-golive-scene { background: var(--rose); color: #fff; border-color: transparent; font-weight: 900; }
+      /* [RP-V7.170] Go LIVE beacon: green glow while anyone is live in any
+         room, red glow while nobody is. */
+      #btnRoomGoLive.rp-beacon-on { border-color: rgba(46,230,107,.95) !important; box-shadow: 0 0 16px rgba(46,230,107,.9), 0 0 34px rgba(46,230,107,.4), inset 0 0 10px rgba(46,230,107,.28) !important; }
+      #btnRoomGoLive.rp-beacon-off { border-color: rgba(255,59,59,.95) !important; box-shadow: 0 0 16px rgba(255,59,59,.9), 0 0 34px rgba(255,59,59,.4), inset 0 0 10px rgba(255,59,59,.28) !important; }
       .online-input {
         flex: 1; min-width: 0; border: 2px solid var(--line); background: var(--bg); color: var(--ink);
         border-radius: 999px; padding: 11px 16px; font-weight: 700; font-size: 15px; font-family: inherit;
@@ -6069,6 +6073,7 @@
         else rc.at = Date.now(); // re-stamp: the reduced count is fresh knowledge
       }
       function renderLiveNow() {
+        try { rpGoLiveBeacon170(); } catch (e) { } // [RP-V7.170]
         var list = $("liveNowList"); if (!list) return;
         var seen = {};
         var html = "";
@@ -9691,6 +9696,21 @@
       /* The 🔴 Live Now directory: entries heard from live announcements or
          seen in a live room. Stale entries (not refreshed in 30 min) are
          pruned; the host's own entry is flagged so the UI can label it. */
+      /* [RP-V7.170] Go LIVE beacon (Branden): the room Go LIVE button is a
+         Plaza-wide live light — glowing GREEN while someone is live in any
+         room, glowing RED while nobody is. "Someone" = the same lives the
+         Live Now list may show this member, so private lives never leak. */
+      function rpGoLiveBeacon170() {
+        var b = document.getElementById("btnRoomGoLive"); if (!b) return;
+        var n = 0;
+        try { n = liveDirectoryList().length; } catch (e) { n = 0; }
+        var on = n > 0;
+        b.classList.toggle("rp-beacon-on", on);
+        b.classList.toggle("rp-beacon-off", !on);
+        var want = (on ? "\uD83D\uDFE2" : "\uD83D\uDD34") + " Go LIVE";
+        if (b.textContent !== want) b.textContent = want;
+      }
+      setInterval(function () { try { rpGoLiveBeacon170(); } catch (e) { } }, 8000);
       function liveDirectoryList() {
         var now = Date.now();
         Object.keys(Live.directory).forEach(function (id) {
