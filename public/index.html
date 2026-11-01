@@ -885,6 +885,11 @@
       .reel-tag { pointer-events: auto; background: none; border: none; color: #7dd7ff; font: inherit; font-weight: 800; cursor: pointer; padding: 0; }
       .reel-filterbar { flex: none; display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-weight: 800; font-size: 13.5px; }
       .reel-filterbar button { margin-left: auto; border: none; background: var(--chip); color: var(--ink); border-radius: 999px; padding: 5px 12px; font-weight: 900; cursor: pointer; font-family: inherit; }
+      .rp-trimbar169 { position:relative; height:10px; border-radius:6px; background:rgba(255,255,255,.12); margin:12px 0 4px; overflow:hidden; }
+      .rp-trimwin169 { position:absolute; top:0; bottom:0; background:linear-gradient(90deg, #fe2c55, #ff7d9c); border-radius:6px; }
+      .rp-trimlab169 { display:flex; align-items:center; gap:10px; font-weight:800; font-size:13px; margin-top:8px; }
+      .rp-trimlab169 span { width:38px; }
+      .rp-trimlab169 input[type=range] { flex:1; accent-color:#fe2c55; }
       .reel-lenbar { display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
       .reel-len { border: 1.5px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 999px; padding: 6px 16px; font-weight: 900; cursor: pointer; font-family: inherit; font-size: 13.5px; }
       .reel-len.on { background: var(--rose); border-color: transparent; color: #fff; }
@@ -20560,6 +20565,7 @@
           if (meta.sourceId) fd.append("sourceId", meta.sourceId);
           if (meta.sourceAuthor) fd.append("sourceAuthor", meta.sourceAuthor);
           if (meta.kind === "stitch") { fd.append("stitchStart", String(meta.stitchStart || 0)); fd.append("stitchDur", String(meta.stitchDur || 5)); }
+          if (typeof meta.trimStart === "number" && typeof meta.trimEnd === "number") { fd.append("trimStart", String(meta.trimStart)); fd.append("trimEnd", String(meta.trimEnd)); } // [RP-V7.169]
           fd.append("allowRemix", meta.allowRemix === false ? "false" : "true");
           if (meta.location) fd.append("location", meta.location); // [RP-V7.156]
           if (meta.link) fd.append("link", meta.link);
@@ -20584,12 +20590,12 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
           if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
-          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, allowRemix: m.allowRemix !== false, musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
+          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
         });
         if (Reels.ranked) {
           // [RP-V7.40] the server already ordered its reels For You —
@@ -20782,6 +20788,14 @@
             Reels.objUrls[item.key] = url;
             vMine.src = url;
           });
+        }
+        /* [RP-V7.169] Trim window: a trimmed reel plays only its cut,
+           looping inside it. */
+        if (!isDuet && !isStitch && typeof item.trimStart === "number" && typeof item.trimEnd === "number" && item.trimEnd > item.trimStart) {
+          (function (v, ts, te) {
+            v.addEventListener("loadedmetadata", function () { try { if (v.currentTime < ts - 0.05) v.currentTime = ts; } catch (e) { } });
+            v.addEventListener("timeupdate", function () { if (v.currentTime >= te - 0.03) { try { v.currentTime = ts; } catch (e) { } } });
+          })(vMine, item.trimStart, item.trimEnd);
         }
         /* Stitch sequencing: the source segment plays first, then hands
            over to my video, which loops. */
@@ -21348,6 +21362,41 @@
         if (Reels.pendingUrl) { try { URL.revokeObjectURL(Reels.pendingUrl); } catch (e) { } }
         Reels.pendingBlob = null; Reels.pendingUrl = null; Reels.pendingSecs = 0;
         Reels.pendingSound = null; /* [RP-V7.90] */
+        Reels.trimStart = null; Reels.trimEnd = null; Reels.mustTrim = false; Reels.trimOpen = false; /* [RP-V7.169] */
+      }
+      /* [RP-V7.169] Reel trimmer — the YouTube/TikTok cut: pick a start and
+         an end, only that part posts. The record stores the window and
+         every player plays only [trimStart, trimEnd]. */
+      function reelTrimClock169(sec) { sec = Math.max(0, Math.round(sec || 0)); var m = Math.floor(sec / 60), q = sec % 60; return m + ":" + (q < 10 ? "0" : "") + q; }
+      function reelTrimWin169() {
+        if (typeof Reels.trimStart !== "number" || typeof Reels.trimEnd !== "number") return null;
+        if (!(Reels.trimEnd > Reels.trimStart)) return null;
+        var full = Reels.pendingSecs || 0;
+        if (!Reels.mustTrim && full && Reels.trimStart <= 0.05 && Reels.trimEnd >= full - 0.05) return null;
+        return { s: Reels.trimStart, e: Reels.trimEnd };
+      }
+      function reelTrimMeta169(id) { var w = reelTrimWin169(); if (w) reelUpdateMeta(id, { trimStart: Math.round(w.s * 10) / 10, trimEnd: Math.round(w.e * 10) / 10 }); }
+      function reelTrimLabels169() {
+        var dur = Reels.pendingSecs || 0; if (!dur) return;
+        var sv = $("trimStartVal"), ev = $("trimEndVal"), lv = $("trimLenVal"), wb = $("trimWinBar");
+        if (sv) sv.textContent = reelTrimClock169(Reels.trimStart);
+        if (ev) ev.textContent = reelTrimClock169(Reels.trimEnd);
+        if (lv) lv.textContent = reelTrimClock169(Math.max(0, (Reels.trimEnd || 0) - (Reels.trimStart || 0)));
+        if (wb) { wb.style.left = ((Reels.trimStart || 0) / dur * 100) + "%"; wb.style.width = (Math.max(0, (Reels.trimEnd || 0) - (Reels.trimStart || 0)) / dur * 100) + "%"; }
+      }
+      function reelTrimUi169() {
+        var box = $("reelTrimBox"); if (!box) return;
+        var dur = Reels.pendingSecs || 0;
+        if (typeof Reels.trimStart !== "number") Reels.trimStart = 0;
+        if (typeof Reels.trimEnd !== "number") Reels.trimEnd = dur || 0;
+        var show = !!Reels.trimOpen || !!Reels.mustTrim;
+        box.style.display = show ? "block" : "none";
+        var b = $("btnReelTrim"); if (b) b.textContent = show ? "✂ Trimming…" : "✂ Trim";
+        if (!dur) return;
+        var sRg = $("trimStartRg"), eRg = $("trimEndRg");
+        if (sRg) sRg.value = String(Math.round(Reels.trimStart / dur * 1000));
+        if (eRg) eRg.value = String(Math.round(Reels.trimEnd / dur * 1000));
+        reelTrimLabels169();
       }
       function openReelComposer() {
         if (isTeen()) { openTeenGateAll("Reels"); return; }
@@ -21379,6 +21428,16 @@
             '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
               '<button class="btn-mini" id="btnReelRetake" type="button">↩ Retake</button>' +
               '<button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnReelUse" type="button">✓ Use this video</button>' +
+            "</div>" +
+            '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:8px;">' +
+              '<button class="btn-mini" id="btnReelTrim" type="button">✂ Trim</button>' +
+            "</div>" +
+            '<div id="reelTrimBox" style="display:none; margin-top:10px; padding:12px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.04);">' +
+              '<div style="display:flex; justify-content:space-between; font-weight:800; font-size:13px;"><span>▶ Start <span id="trimStartVal">0:00</span></span><span>Length <span id="trimLenVal">0:00</span></span><span>End <span id="trimEndVal">0:00</span> ⏸</span></div>' +
+              '<div class="rp-trimbar169"><div class="rp-trimwin169" id="trimWinBar"></div></div>' +
+              '<label class="rp-trimlab169"><span>Start</span><input type="range" id="trimStartRg" min="0" max="1000" value="0"></label>' +
+              '<label class="rp-trimlab169"><span>End</span><input type="range" id="trimEndRg" min="0" max="1000" value="1000"></label>' +
+              '<p style="margin:6px 0 0; text-align:center; color:var(--ink-soft); font-weight:700; font-size:12px;">Drag Start and End to cut your clip — only the part between them posts.</p>' +
             "</div>";
         } else {
           mid =
@@ -21419,6 +21478,11 @@
           pv.src = Reels.pendingUrl; pv.style.display = "block";
           var pp = pv.play(); if (pp && pp.catch) pp.catch(function () { });
           pv.addEventListener("click", function () { if (pv.paused) { var p3 = pv.play(); if (p3 && p3.catch) p3.catch(function () { }); } else pv.pause(); });
+          pv.addEventListener("loadedmetadata", function () { /* [RP-V7.169] */
+            if (!Reels.pendingSecs && isFinite(pv.duration) && pv.duration > 0) { Reels.pendingSecs = Math.round(pv.duration); if (typeof Reels.trimEnd !== "number") Reels.trimEnd = Reels.pendingSecs; reelTrimUi169(); }
+            var w0 = reelTrimWin169(); if (w0 && pv.currentTime < w0.s) { try { pv.currentTime = w0.s; } catch (e) { } }
+          });
+          pv.addEventListener("timeupdate", function () { var w1 = reelTrimWin169(); if (w1 && pv.currentTime >= w1.e) { try { pv.currentTime = w1.s; } catch (e) { } } });
         }
         var ci = $("reelCapInput"); if (ci && Reels.pendingCaption) ci.value = Reels.pendingCaption;
         var rxb = $("btnReelRemixX"); if (rxb) rxb.addEventListener("click", function () { Reels.remix = null; openReelComposer(); });
@@ -21440,7 +21504,30 @@
             reelClearPending(); Reels.editingDraftId = null; Reels.pendingCaption = ""; Reels.stage = "pick";
             openReelComposer();
           });
-          $("btnReelUse").addEventListener("click", function () { Reels.stage = "details"; openReelComposer(); });
+          var tgl169 = $("btnReelTrim"); if (tgl169) tgl169.addEventListener("click", function () { Reels.trimOpen = !Reels.trimOpen; reelTrimUi169(); });
+          var sRg169 = $("trimStartRg"), eRg169 = $("trimEndRg");
+          var trimFromSliders169 = function (which) {
+            var dur = Reels.pendingSecs || 0; if (!dur || !sRg169 || !eRg169) return;
+            var sv2 = (Number(sRg169.value) || 0) / 1000 * dur, ev2 = (Number(eRg169.value) || 0) / 1000 * dur;
+            var pvx = $("reelPreview");
+            if (which === "s") { if (ev2 - sv2 < 1) sv2 = Math.max(0, ev2 - 1); Reels.trimStart = sv2; if (pvx) { try { pvx.currentTime = sv2; } catch (err) { } } }
+            else { if (ev2 - sv2 < 1) ev2 = Math.min(dur, sv2 + 1); Reels.trimEnd = ev2; if (pvx) { try { pvx.currentTime = Math.max(Reels.trimStart || 0, ev2 - 1.5); } catch (err2) { } } }
+            reelTrimUi169();
+          };
+          if (sRg169) sRg169.addEventListener("input", function () { trimFromSliders169("s"); });
+          if (eRg169) eRg169.addEventListener("input", function () { trimFromSliders169("e"); });
+          reelTrimUi169();
+          $("btnReelUse").addEventListener("click", function () { /* [RP-V7.169] an over-cap cut cannot advance */
+            var w = reelTrimWin169();
+            var len = w ? (w.e - w.s) : (Reels.pendingSecs || 0);
+            if (len > REEL_MAX_SECS + 0.6) {
+              Reels.trimOpen = true; reelTrimUi169();
+              var stt = $("reelStatus"); if (stt) stt.textContent = "✂ Your cut is " + reelTrimClock169(len) + " — trim it to 3:00 or less to post.";
+              return;
+            }
+            Reels.mustTrim = false;
+            Reels.stage = "details"; openReelComposer();
+          });
         } else {
           $("btnReelPublish").addEventListener("click", reelPublish);
           $("btnReelDraft").addEventListener("click", reelSaveDraft);
@@ -21599,6 +21686,7 @@
         var meta = reelPublishBlob(blob, cap);
         postDetailsSync156("reel"); // [RP-V7.156]
         reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false }); // [RP-V7.156]
+        reelTrimMeta169(meta.id); // [RP-V7.169]
         if (Reels.pendingSound && Reels.pendingSound.trackId) {
           reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol });
         }
@@ -21625,6 +21713,7 @@
         if (Reels.editingDraftId) {
           reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false }); // [RP-V7.156]
           if (Reels.remix) { reelUpdateMeta(Reels.editingDraftId, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
+          reelTrimMeta169(Reels.editingDraftId); // [RP-V7.169]
           Reels.editingDraftId = null;
         } else {
           var meta = {
@@ -21636,6 +21725,7 @@
           var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
           if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }); }
           if (Reels.remix) { reelUpdateMeta(meta.id, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
+          reelTrimMeta169(meta.id); // [RP-V7.169]
           Reels.memBlobs[meta.id] = Reels.pendingBlob;
           reelDbPut(meta.id, Reels.pendingBlob).catch(function () { });
         }
@@ -21654,6 +21744,7 @@
           Reels.pendingUrl = URL.createObjectURL(blob);
           Reels.pendingSecs = 0;
           Reels.pendingSound = m.musicTrackId ? { trackId: m.musicTrackId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : null; /* [RP-V7.90] */
+          Reels.trimStart = (typeof m.trimStart === "number") ? m.trimStart : null; Reels.trimEnd = (typeof m.trimEnd === "number") ? m.trimEnd : null; Reels.trimOpen = Reels.trimStart != null; Reels.mustTrim = false; /* [RP-V7.169] */
           Reels.pendingCaption = m.caption || "";
           postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false }; // [RP-V7.156]
           Reels.remix = m.kind ? { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur } : null;
@@ -21676,6 +21767,7 @@
           var meta = reelPublishBlob(blob, m.caption || "");
           reelUpdateMeta(meta.id, { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", allowRemix: m.allowRemix !== false }); // [RP-V7.156]
           if (m.kind) reelUpdateMeta(meta.id, { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur });
+          if (typeof m.trimStart === "number" && typeof m.trimEnd === "number") reelUpdateMeta(meta.id, { trimStart: m.trimStart, trimEnd: m.trimEnd }); // [RP-V7.169]
           reelRemoveMeta(id); reelDbDel(id);
           closeSheet();
           setMomMode("reels");
@@ -21698,12 +21790,22 @@
         if (!f) return;
         var capEl = $("reelCapInput"); if (capEl) Reels.pendingCaption = (capEl.value || "").trim();
         if (!/^video\//.test(f.type || "") && !/\.(mp4|mov|webm|m4v)$/i.test(f.name || "")) { toast("That file is not a video — pick an MP4, MOV or WebM clip."); return; }
-        if (f.size > REEL_MAX_BYTES) { toast("That video is " + Math.round(f.size / 1048576) + " MB — reels cap at 100 MB. Trim it and try again!"); return; }
+        if (f.size > REEL_MAX_BYTES) { toast("That video is " + Math.round(f.size / 1048576) + " MB — reels cap at 100 MB."); return; }
         var url = URL.createObjectURL(f);
         reelProbeSecs(url).then(function (secs) {
           if (isFinite(secs) && secs > REEL_MAX_SECS + 0.6) {
-            URL.revokeObjectURL(url);
-            toast("That video is " + Math.round(secs) + "s — reels cap at 3 minutes. Trim it and try again!");
+            // [RP-V7.169] No more dead end: a too-long video opens in the
+            // trimmer and posts as its cut (3:00 max), like YouTube/TikTok.
+            reelClearPending();
+            Reels.pendingBlob = f;
+            Reels.pendingSecs = Math.round(secs);
+            Reels.pendingUrl = url;
+            Reels.editingDraftId = null;
+            Reels.mustTrim = true; Reels.trimOpen = true;
+            Reels.trimStart = 0; Reels.trimEnd = REEL_MAX_SECS;
+            Reels.stage = "preview";
+            openReelComposer();
+            toast("That video is " + Math.round(secs) + "s — trim it to 3:00 or less with the ✂ Trim tool!", 4600);
             return;
           }
           reelClearPending();
