@@ -579,6 +579,20 @@ Object.keys(RP_GIFT_ART_7168).forEach((gid) => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// [RP-V7.181] Photographic lens art — real-object photos (alpha WebP)
+// that replace the drawn props in the camera as they load; the client
+// falls back to its drawing until the photo arrives. Santa Hat first.
+const RP_LENS_ART_7181 = require("./lensart7181.js");
+Object.keys(RP_LENS_ART_7181).forEach((lid) => {
+  app.get("/img/lenses/" + lid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_LENS_ART_7181[lid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
