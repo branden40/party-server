@@ -37286,6 +37286,19 @@ document.addEventListener("click", function (e) {
   }
 }, true);
 </script>
+<style>
+/* [RP-V7.190] Safe-area pack 3 (Branden, Nov 1, 2026 — "The buttons are
+   still at the top of every page"): V7.187 cleared the bars that carry
+   their own pin (#ttbar, #homeStrip, .scene-top), but the inner screens
+   still start flush at the top of the page, so their first row — the
+   Reels/Feed head with its back and + Reel buttons, the Auctions head,
+   the Profile card, the sign-up and age-check cards — slides under the
+   iPhone status bar. Every screen now carries the inset itself, except
+   the two full-bleed scene screens (room + online), whose .scene-top
+   already carries it. env() resolves to 0 in browser tabs and on
+   Android, so nothing changes there. */
+.screen:not(#screen-room):not(#screen-online) { padding-top: env(safe-area-inset-top, 0px); }
+</style>
 </body>
 </html>
 
