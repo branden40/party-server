@@ -15317,6 +15317,10 @@
             renderLiveRequests();
             break;
           }
+          case "bat-view": { // [RP-V7.174] my host is in a battle: remember the opponent so this screen can open the split-screen tile
+            Live.batOpp = o.opp ? String(o.opp) : null; Live.batOppName = o.oppName || "Host"; Live.batEnds = +o.ends || 0;
+            break;
+          }
           case "live-unreq": { // [RP-V7.173] a viewer withdrew their join request
             if (!iAmHost()) return;
             if (Live.requests[fromId]) { delete Live.requests[fromId]; delete Live.invited[fromId]; renderLiveRequests(); }
@@ -36839,6 +36843,54 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
   box-shadow: 0 0 8px rgba(254,44,85,.4) !important;
 }
 </style>
+
+<script>
+/* [RP-V7.174] SPLIT-SCREEN BATTLES — TikTok-style: while a battle runs,
+   both hosts appear side by side on every screen in both lives.
+   Battlers peer with each other (lower socket id offers); viewers of
+   either live open their own receive-only feed from the opposing host
+   (viewer offers, host answers with its stream). Signaling rides the
+   battle socket relay (t:"rtc", server passthrough). The opponent tile
+   (#rpBatTile) lives inside #liveGrid next to the host tile; the Live
+   renderer wipes that grid on tile changes, so a 1s tick re-asserts
+   the tile and the split class. */
+(function () {
+  var pcs = {};          // socketId -> { pc, ice:[], remoteSet }
+  var tilePeer = null;   // whose stream fills the battle tile
+  var tileStream = null;
+  var boundSock = null, cssDone = false, lastViewSend = 0;
+  function $(id) { return document.getElementById(id); }
+  function sock() { try { return Online && Online.socket; } catch (e) { return null; } }
+  function me() { try { return Online && Online.myId; } catch (e) { return null; } }
+  function bat() { try { return window.Bat || null; } catch (e) { return null; } }
+  function myOut() { try { if (typeof liveOutStream === "function") { var s = liveOutStream(); if (s) return s; } } catch (e) { } try { return (typeof Live !== "undefined" && Live.myStream) || null; } catch (e) { return null; } }
+  function ensureCss() { if (cssDone) return; cssDone = true; var st = document.createElement("style"); st.textContent = "#liveGrid.rp-split{display:grid !important;grid-template-columns:1fr 1fr !important;gap:3px}#liveGrid.rp-split .live-tile{min-height:36vh}#rpBatTile{position:relative;background:#101014;border-radius:10px;overflow:hidden;min-height:36vh}#rpBatTile video{width:100%;height:100%;object-fit:cover;display:block}#rpBatTile .rp-bat-name{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;z-index:2}#rpBatTile .rp-bat-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#bbb;font-size:12px;font-weight:700;text-align:center;padding:8px}"; document.head.appendChild(st); }
+  function oppName() { var B = bat(); if (B && B.active && tilePeer === B.oppId) return B.oppName; try { if (typeof Live !== "undefined" && Live.batOppName) return Live.batOppName; } catch (e) { } return "Opponent"; }
+  function showTile() { ensureCss(); var grid = $("liveGrid"); if (!grid) return; grid.classList.add("rp-split"); var t = $("rpBatTile"); if (!t) { t = document.createElement("div"); t.id = "rpBatTile"; t.innerHTML = '<div class="rp-bat-wait">⚔️ Connecting to the other host…</div><div class="rp-bat-name"></div>'; grid.appendChild(t); } var nm = t.querySelector(".rp-bat-name"); if (nm) nm.textContent = "⚔️ " + (oppName() || "Opponent"); if (tileStream) { var v = t.querySelector("video"); if (!v) { v = document.createElement("video"); v.autoplay = true; v.setAttribute("playsinline", ""); t.insertBefore(v, t.firstChild); } if (v.srcObject !== tileStream) v.srcObject = tileStream; var w = t.querySelector(".rp-bat-wait"); if (w) w.remove(); } }
+  function hideTile() { var grid = $("liveGrid"); if (grid) grid.classList.remove("rp-split"); var t = $("rpBatTile"); if (t) t.remove(); tileStream = null; }
+  function closePc(id) { var r = pcs[id]; if (tilePeer === id) { tilePeer = null; hideTile(); } if (!r) return; delete pcs[id]; try { r.pc.close(); } catch (e) { } }
+  function mkPc(id) { var pc; try { pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }); } catch (e) { return null; } var rec = pcs[id] = { pc: pc, ice: [], remoteSet: false }; pc.onicecandidate = function (ev) { var s = sock(); if (ev.candidate && s) s.emit("battle", { t: "rtc", to: id, kind: "ice", ice: ev.candidate }); }; pc.ontrack = function (ev) { if (ev.streams && ev.streams[0] && id === tilePeer) { tileStream = ev.streams[0]; showTile(); } }; pc.onconnectionstatechange = function () { if (pc.connectionState === "failed" || pc.connectionState === "closed") closePc(id); }; return rec; }
+  function flushIce(rec) { var q = rec.ice.splice(0); q.forEach(function (c) { rec.pc.addIceCandidate(c).catch(function () { }); }); }
+  function addMine(rec) { var out = myOut(); if (!out) return; out.getTracks().forEach(function (tr) { try { rec.pc.addTrack(tr, out); } catch (e) { } }); }
+  function sendRtc(id, kind, sdp, view) { var s = sock(); if (s) s.emit("battle", { t: "rtc", to: id, kind: kind, sdp: sdp || null, view: view ? 1 : 0 }); }
+  function offerTo(id, viewOnly) { var rec = pcs[id] || mkPc(id); if (!rec) return; if (viewOnly) { try { rec.pc.addTransceiver("video", { direction: "recvonly" }); rec.pc.addTransceiver("audio", { direction: "recvonly" }); } catch (e) { } } else addMine(rec); rec.pc.createOffer().then(function (o) { return rec.pc.setLocalDescription(o); }).then(function () { sendRtc(id, "offer", rec.pc.localDescription, viewOnly); }).catch(function () { }); }
+  function onRtc(m) { if (!m || m.t !== "rtc" || !m.from) return; var id = m.from; var B = bat();
+    if (m.kind === "offer") { if (!(B && B.active)) return; if (Object.keys(pcs).length >= 14 && !pcs[id]) return; var rec = pcs[id] || mkPc(id); if (!rec) return; rec.pc.setRemoteDescription(m.sdp).then(function () { rec.remoteSet = true; flushIce(rec); addMine(rec); return rec.pc.createAnswer(); }).then(function (a) { return rec.pc.setLocalDescription(a); }).then(function () { sendRtc(id, "answer", rec.pc.localDescription, 0); }).catch(function () { });
+    } else if (m.kind === "answer") { var r2 = pcs[id]; if (!r2) return; r2.pc.setRemoteDescription(m.sdp).then(function () { r2.remoteSet = true; flushIce(r2); }).catch(function () { });
+    } else if (m.kind === "ice" && m.ice) { var r3 = pcs[id]; if (!r3) return; if (r3.remoteSet) r3.pc.addIceCandidate(m.ice).catch(function () { }); else r3.ice.push(m.ice); } }
+  function desired() { var B = bat(); var my = me(); if (!my) return null; if (B && B.active && B.oppId) return { id: B.oppId, init: String(my) < String(B.oppId), view: false }; try { if (typeof Live !== "undefined" && Live.active && Live.batOpp && Live.batOpp !== my && Date.now() < (Live.batEnds || 0) + 4000) return { id: Live.batOpp, init: true, view: true }; } catch (e) { } return null; }
+  setInterval(function () { var s = sock(); if (s && boundSock !== s) { boundSock = s; try { s.on("battle", onRtc); } catch (e) { } }
+    var B = bat(); var my = me();
+    if (B && B.active && B.oppId && my) { try { if (typeof Live !== "undefined" && Live.active && Live.hostId === my && Date.now() - lastViewSend > 5000) { lastViewSend = Date.now(); if (window.rpProtoSend) rpProtoSend({ k: "bat-view", opp: B.oppId, oppName: B.oppName || "Host", ends: B.endsAt || 0 }); } } catch (e) { } }
+    var d = desired();
+    if (!d) { if (tilePeer) closePc(tilePeer); Object.keys(pcs).forEach(function (id) { closePc(id); }); return; }
+    if (tilePeer !== d.id) { if (tilePeer) closePc(tilePeer); tilePeer = d.id; tileStream = null; if (d.init) offerTo(d.id, d.view); }
+    else if (!pcs[d.id] && d.init) offerTo(d.id, d.view);
+    if (!$("rpBatTile") || !$("liveGrid") || !$("liveGrid").classList.contains("rp-split")) showTile(); else if (tileStream) showTile();
+    if (!(B && B.active)) { Object.keys(pcs).forEach(function (id) { if (id !== tilePeer) closePc(id); }); }
+  }, 1000);
+})();
+</script>
 
 </body>
 </html>
