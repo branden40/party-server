@@ -593,6 +593,19 @@ Object.keys(RP_LENS_ART_7181).forEach((lid) => {
   });
 });
 
+// [RP-V7.186] Host soundboard clips (licensed Pixabay SFX carried
+// as base64 in sfxart7186.js — the connector is text-only) served
+// as real MP3s at /sfx/<id>.mp3 for the live soundboard.
+const RP_SFX_ART_7186 = require("./sfxart7186.js");
+Object.keys(RP_SFX_ART_7186).forEach((sid) => {
+  app.get("/sfx/" + sid + ".mp3", (req, res) => {
+    const buf = Buffer.from(RP_SFX_ART_7186[sid].split(",")[1], "base64");
+    res.set("Content-Type", "audio/mpeg");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
@@ -11640,6 +11653,11 @@ function socketIdForKey(devKey) {
 // Map(requesterSocketId -> at). The server tracks them so a host's
 // answer is relayed only for a request it actually received.
 const stageRequests = new Map();
+// [RP-V7.186] Soundboard: last-fired timestamp per live (devKey) —
+// the server-side cooldown so the board cannot be spammed even from
+// a tampered client.
+const sfxLast186 = new Map();
+const RP_SFX_IDS_7186 = new Set(["wild", "applause", "laugh", "airhorn", "drumroll", "chaching", "trombone", "buzzer", "sting"]);
 
 io.on("connection", (socket) => {
   // Player enters the party
@@ -12138,6 +12156,25 @@ io.on("connection", (socket) => {
       fromName: p.name,
     });
     socket.emit("stage-request-ack", { ok: true });
+  });
+
+  // [RP-V7.186] SOUNDBOARD relay: HOST-ONLY. The sender must be
+  // inside their OWN live room (p.room === "live-" + their key) with
+  // a registered live; the sound id must be on the board; one sound
+  // per 2.5s per live. Viewers (everyone else in the room) receive
+  // it; the host plays locally on the tap, so the sender is excluded.
+  socket.on("live-sfx", (data = {}) => {
+    const p = players.get(socket.id);
+    const devKey = clientKeys.get(socket.id);
+    if (!p || !devKey) return;
+    if (p.room !== "live-" + devKey) return;
+    if (!liveRegistry.has(devKey)) return;
+    const id = String((data && data.id) || "");
+    if (!RP_SFX_IDS_7186.has(id)) return;
+    const now = Date.now();
+    if (now - (sfxLast186.get(devKey) || 0) < 2500) return;
+    sfxLast186.set(devKey, now);
+    socket.to(p.room).emit("live-sfx", { id });
   });
   socket.on("stage-respond", (data = {}) => {
     const pend = stageRequests.get(socket.id);
