@@ -36891,6 +36891,31 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
   }, 1000);
 })();
 </script>
+<style>
+/* ============ RP-V7.175: DAY MODE — white by day, dark by night ============
+   Automatic by the device clock: 7:00 AM-7:00 PM = DAY (white), all
+   other hours = the standard near-black night look. No picker, no
+   settings — it just follows the time. The app's surfaces are
+   variable-driven (--bg/--panel/--ink/--ink-soft/--line/--chip), so
+   day is a palette swap plus fixes for the hardcoded pieces (tab
+   bar, glow-button text). Full-screen live (#liveFs) re-scopes the
+   DARK palette: text and chrome over video never change. */
+body.rp-day { --bg:#ffffff; --panel:#ffffff; --panel-2:#f1f1f4; --ink:#16161c; --ink-soft:#5d5d6d; --line:rgba(0,0,0,.13); --chip:rgba(0,0,0,.06); --shadow:0 10px 34px rgba(0,0,0,.14); background:#ffffff; color-scheme:light; }
+body.rp-day #liveFs { --bg:#000000; --panel:#17171f; --panel-2:#1f1f2a; --ink:#f7f7fa; --ink-soft:#a8a8bb; --line:rgba(255,255,255,.13); --chip:rgba(255,255,255,.09); color-scheme:dark; }
+body.rp-day #tabbar { background:rgba(255,255,255,.9) !important; border-top:1px solid rgba(0,0,0,.1) !important; }
+body.rp-day #tabbar button { color:#16161c; }
+body.rp-day .btn-primary, body.rp-day .follow-btn, body.rp-day .feed-follow { color:#16161c !important; background:rgba(254,44,85,.10) !important; box-shadow:0 0 8px rgba(254,44,85,.35), inset 0 0 8px rgba(254,44,85,.10) !important; }
+body.rp-day .follow-btn.on, body.rp-day .feed-follow.on { color:#5d5d6d !important; border-color:rgba(0,0,0,.25) !important; background:rgba(0,0,0,.04) !important; box-shadow:none !important; }
+body.rp-day .btn-mini, body.rp-day .scene-btn, body.rp-day .chip-btn, body.rp-day .action-btn, body.rp-day .btn-social, body.rp-day .feed-act.util, body.rp-day .wo-post-btn, body.rp-day .wo-alt-btn, body.rp-day .speed-btn, body.rp-day .city-pick-btn, body.rp-day .ptt-btn, body.rp-day .rp618-btn, body.rp-day .rp620-btn, body.rp-day .rp622-btn, body.rp-day .rp65-fanbtn, body.rp-day .rp65-chalbtn, body.rp-day .rp66-btn, body.rp-day .rp71-btn, body.rp-day .rp72-btn, body.rp-day .rpfd-door-btn { color:#16161c !important; background:rgba(254,44,85,.05) !important; box-shadow:0 0 6px rgba(254,44,85,.25), inset 0 0 6px rgba(254,44,85,.06) !important; }
+body.rp-day .close-x { color:#16161c !important; }
+body.rp-day input, body.rp-day textarea, body.rp-day select { color:#16161c; }
+</style>
+<script>
+/* [RP-V7.175] Day/night clock: white 7 AM-7 PM device-local, dark else.
+   Re-checked every minute and whenever the app returns to the front,
+   so an open app flips itself at the boundary. */
+(function () { function apply() { try { var h = new Date().getHours(); var day = h >= 7 && h < 19; if (document.body) document.body.classList.toggle("rp-day", day); } catch (e) { } } apply(); if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", apply); setInterval(apply, 60000); document.addEventListener("visibilitychange", function () { if (!document.hidden) apply(); }); })();
+</script>
 
 </body>
 </html>
