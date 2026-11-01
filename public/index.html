@@ -10338,10 +10338,11 @@
         b.hidden = !show;
         if (!show) return;
         var pend = !!Live.myPendingReq;
-        b.disabled = pend;
+        b.disabled = false; // [RP-V7.173] TikTok-style: while pending the button stays live — a tap WITHDRAWS the request
         b.classList.toggle("on", pend);
+        b.setAttribute("aria-label", pend ? "Cancel my join request" : "Request to join the stage");
         var sp = b.querySelector("span");
-        if (sp) sp.textContent = pend ? "Sent" : "Join";
+        if (sp) sp.textContent = pend ? "Sent ✖" : "Join";
       }
       function renderLiveRequests() {
         var wrap = $("liveRequests"); if (!wrap) return;
@@ -12972,6 +12973,14 @@
         toast("🙋 Request sent! If " + Live.hostName + " adds you, you'll get a camera invite here.");
         renderLiveControls();
       }
+      function liveCancelReq173() { // [RP-V7.173] TikTok-style withdraw: tap Join again to take the request back
+        if (!Live.myPendingReq) return;
+        Live.myPendingReq = false;
+        protoSend({ k: "live-unreq" });
+        toast("✖ Request withdrawn.");
+        renderLiveControls();
+        syncRailJoinBtn();
+      }
       function liveInvite(id) {
         if (!iAmHost() || Live.invited[id]) return;
         if (Live.stage.length >= LIVE_MAX_STAGE) { toast("The stage is full — 12 people max (you + 11 guests)."); return; }
@@ -13266,7 +13275,7 @@
           html += '<button type="button" class="btn-mini" id="lvMoreMic">' + (Live.micOn ? "🎙 Mic on — tap to mute" : "🎙 Mic off — tap to unmute") + '</button>';
         }
         if (!host && Live.hostId) html += '<button type="button" class="btn-mini" id="lvMoreGift">🎁 Send a gift</button>';
-        if (!host && !onStage) html += '<button type="button" class="btn-mini" id="lvMoreJoin"' + (Live.myPendingReq ? " disabled" : "") + '>' + (Live.myPendingReq ? "⏳ Request sent — waiting for the host…" : "🙋 Request to Join the stage") + '</button>';
+        if (!host && !onStage) html += '<button type="button" class="btn-mini" id="lvMoreJoin">' + (Live.myPendingReq ? "✖ Cancel my request (sent — waiting for the host)" : "🙋 Request to Join the stage") + '</button>'; // [RP-V7.173]
         html += '<button type="button" class="btn-mini" id="lvMoreViewers">' + (host ? "🛠 Host tools & viewers" : "👥 Who's watching") + '</button>';
         html += '<button type="button" class="btn-mini" id="lvMoreInvite">📣 Invite the room</button>';
         html += '<button type="button" class="btn-mini" id="lvMoreShare">🔗 Share this live</button>';
@@ -13290,7 +13299,7 @@
         wire("lvMoreCam", function () { closeSheet(); liveToggleCam(); });
         wire("lvMoreMic", function () { closeSheet(); liveToggleMic(); });
         wire("lvMoreGift", function () { closeSheet(); openGiftSheet(Live.hostId, Live.hostName); });
-        wire("lvMoreJoin", function () { closeSheet(); liveRequestJoin(); });
+        wire("lvMoreJoin", function () { closeSheet(); if (Live.myPendingReq) liveCancelReq173(); else liveRequestJoin(); }); // [RP-V7.173]
         wire("lvMoreViewers", function () { closeSheet(); openLiveHostTools(); });
         wire("lvMoreInvite", function () {
           closeSheet();
@@ -13950,7 +13959,7 @@
         var shareBtn = $("lvRailShare");
         if (shareBtn) shareBtn.addEventListener("click", shareLive);
         var joinBtn = $("lvRailJoin"); // [RP-V7.28] bottom-row request-to-join
-        if (joinBtn) joinBtn.addEventListener("click", function () { liveRequestJoin(); syncRailJoinBtn(); });
+        if (joinBtn) joinBtn.addEventListener("click", function () { if (Live.myPendingReq) liveCancelReq173(); else liveRequestJoin(); syncRailJoinBtn(); }); // [RP-V7.173]
         var invite = $("lvRailInvite");
         if (invite) invite.addEventListener("click", function () {
           if (!Live.active) return;
@@ -15306,6 +15315,11 @@
               toast("🙋 " + Live.requests[fromId] + " wants to join your live!");
             }
             renderLiveRequests();
+            break;
+          }
+          case "live-unreq": { // [RP-V7.173] a viewer withdrew their join request
+            if (!iAmHost()) return;
+            if (Live.requests[fromId]) { delete Live.requests[fromId]; delete Live.invited[fromId]; renderLiveRequests(); }
             break;
           }
           case "live-add": {
