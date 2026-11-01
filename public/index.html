@@ -22265,7 +22265,7 @@
       if (reelInput) reelInput.addEventListener("change", function () {
         var f = reelInput.files && reelInput.files[0];
         reelInput.value = "";
-        if (Cam.uploadPick157) { Cam.uploadPick157 = false; try { closeCamera(); } catch (e) { } } // [RP-V7.157]
+        if (window.rpCamUpPick157) { window.rpCamUpPick157 = false; try { if (window.rpCloseCamera) window.rpCloseCamera(); } catch (e) { } } // [RP-V7.191] was a bare Cam reference — Cam is local to the camera module, so this threw and killed every file pick since V7.157
         reelAcceptVideoFile(f);
       });
 
@@ -36306,7 +36306,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       el("camUploadBtn").addEventListener("click", function () { /* [RP-V7.157] the + sequence's gallery step, on the camera itself */
         if (Cam.recording) return;
         if (Cam.mode === "photo") { Moments.camUpload156 = true; var mi = document.getElementById("momPhotoInput"); if (mi) mi.click(); }
-        else { Cam.uploadPick157 = true; var ri = document.getElementById("reelVideoInput"); if (ri) ri.click(); }
+        else { Cam.uploadPick157 = true; window.rpCamUpPick157 = true; /* [RP-V7.191] window flag: the reel input handler lives outside this module and cannot see Cam */ var ri = document.getElementById("reelVideoInput"); if (ri) ri.click(); }
       });
       /* picker */
       el("sndClose").addEventListener("click", closePicker);
