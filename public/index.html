@@ -10493,6 +10493,10 @@
          no color/beauty grades, ever. */
       var LIVE_FILTERS = [
         { id: "none", name: "Original", group: "Fun", icon: "🚫" },
+        { id: "beauty-smooth", name: "Smooth Skin", group: "Beauty", beauty: "smooth", icon: "✨" },
+        { id: "beauty-glow", name: "Glow", group: "Beauty", beauty: "glow", icon: "🌟" },
+        { id: "beauty-bright", name: "Brighten", group: "Beauty", beauty: "bright", icon: "☀️" },
+        { id: "beauty-rosy", name: "Rosy", group: "Beauty", beauty: "rosy", icon: "🌸" },
         { id: "dogface", name: "Dog Face", group: "Fun", fun: true, icon: "🐶" },
         { id: "flowercrown", name: "Flower Crown", group: "Fun", fun: true, icon: "🌸" },
         { id: "bigsmile", name: "Big Mouth", group: "Warp", fun: true, warp: "bigsmile", icon: "😄" },
@@ -10554,9 +10558,118 @@
         }
         ctx.drawImage(src, 0, 0, w, h);
         if (recipe && recipe.warp) fxWarpFrame(ctx, src, w, h, recipe.warp);
+        if (recipe && recipe.beauty) fxBeautyFrame(ctx, src, w, h, recipe.beauty); // [RP-V7.181]
         if (recipe && recipe.fun) fxDrawFun(ctx, w, h);
         ctx.restore();
       }
+      /* ---------- [RP-V7.181] BEAUTY — real skin work in the paint path ----------
+         Branden (Nov 1, 2026): "filters to make your face look pretty
+         and smooth like TikTok filters", at full HD. The October
+         beauty looks were pulled because they did not work — they
+         never reached the recording. These run inside fxPaint, so
+         they are in the preview AND in every recorded/broadcast
+         frame. Smooth blends a blurred copy of the frame into the
+         tracked face oval (feathered, two passes) and lays a whisper
+         of the sharp frame back over it ('overlay'), so skin evens
+         out while eyes and lips keep their definition — the classic
+         frequency split. No face in frame = a gentle full-frame
+         blend, never a frozen or broken effect. */
+      var fxBeautyScratch = null;
+      function fxBeautyBlur(src, w, h, radius) {
+        if (!fxBeautyScratch) fxBeautyScratch = document.createElement("canvas");
+        var c = fxBeautyScratch;
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+        var btx = c.getContext("2d");
+        btx.save();
+        try { btx.filter = "blur(" + radius + "px)"; } catch (e) { }
+        btx.globalCompositeOperation = "source-over";
+        btx.globalAlpha = 1;
+        btx.drawImage(src, 0, 0, w, h);
+        btx.restore();
+        return c;
+      }
+      function fxFaceOval181(w, h) {
+        var fx = Live.fx; if (!fx || !fx.face) return null;
+        if (Date.now() - fx.faceAt > 450) return null;
+        var lm = fx.face, S = fx.smooth;
+        function P(i) {
+          var s = S && S.pts && S.pts[i];
+          if (s) return { x: s.x * w, y: s.y * h };
+          var p = lm[i]; return p ? { x: p.x * w, y: p.y * h } : null;
+        }
+        var top = P(10), chin = P(152), sl = P(234), sr = P(454);
+        if (!top || !chin || !sl || !sr) return null;
+        return { cx: (sl.x + sr.x) / 2, cy: (top.y + chin.y) / 2, rx: Math.abs(sr.x - sl.x) * 0.62, ry: Math.abs(chin.y - top.y) * 0.60 };
+      }
+      function fxBeautySmooth(ctx, src, w, h, strength) {
+        var blur = fxBeautyBlur(src, w, h, Math.max(2, Math.min(10, w * 0.008)));
+        var ov = fxFaceOval181(w, h);
+        ctx.save();
+        if (ov) {
+          function pass(rx, ry, a, img, op) {
+            ctx.save();
+            ctx.beginPath(); ctx.ellipse(ov.cx, ov.cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
+            ctx.globalCompositeOperation = op || "source-over";
+            ctx.globalAlpha = a;
+            ctx.drawImage(img, 0, 0, w, h);
+            ctx.restore();
+          }
+          pass(ov.rx * 1.18, ov.ry * 1.14, strength * 0.38, blur);
+          pass(ov.rx, ov.ry, strength * 0.62, blur);
+          pass(ov.rx, ov.ry, 0.15, src, "overlay");
+        } else {
+          ctx.globalAlpha = strength * 0.30;
+          ctx.drawImage(blur, 0, 0, w, h);
+        }
+        ctx.restore();
+      }
+      function fxBeautyFrame(ctx, src, w, h, kind) {
+        try {
+          if (kind === "smooth") { fxBeautySmooth(ctx, src, w, h, 0.85); return; }
+          if (kind === "rosy") {
+            fxBeautySmooth(ctx, src, w, h, 0.45);
+            ctx.save();
+            ctx.globalCompositeOperation = "soft-light";
+            ctx.globalAlpha = 0.55; ctx.fillStyle = "rgb(255,105,80)";
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+            ctx.save();
+            try { ctx.filter = "saturate(1.14) brightness(1.04)"; } catch (e) { }
+            ctx.globalAlpha = 0.5; ctx.drawImage(src, 0, 0, w, h);
+            ctx.restore();
+            return;
+          }
+          if (kind === "glow") {
+            var blur = fxBeautyBlur(src, w, h, Math.max(4, Math.min(22, w * 0.02)));
+            ctx.save();
+            ctx.globalCompositeOperation = "soft-light";
+            ctx.globalAlpha = 0.42; ctx.drawImage(blur, 0, 0, w, h);
+            ctx.restore();
+            ctx.save();
+            try { ctx.filter = "brightness(1.06) saturate(1.06)"; } catch (e) { }
+            ctx.globalAlpha = 0.45; ctx.drawImage(src, 0, 0, w, h);
+            ctx.restore();
+            return;
+          }
+          /* bright */
+          ctx.save();
+          try { ctx.filter = "brightness(1.13) contrast(1.04) saturate(1.10)"; } catch (e) { }
+          ctx.globalAlpha = 1; ctx.drawImage(src, 0, 0, w, h);
+          ctx.restore();
+        } catch (e) { }
+      }
+      /* ---------- [RP-V7.181] PHOTOGRAPHIC LENS ART ----------
+         Real-object photos (alpha WebP) served at /img/lenses/<id>.webp
+         replace the drawn props as they load; until one arrives (or if
+         it never does) the drawing below is the lens. Santa Hat is
+         the first: photorealistic velvet + fur, not a cartoon. */
+      var fxLensImgs181 = {};
+      function fxLensArtImg(id) {
+        var im = fxLensImgs181[id];
+        if (!im) { im = new Image(); im.src = "/img/lenses/" + id + ".webp"; fxLensImgs181[id] = im; }
+        return (im.complete && im.naturalWidth > 0) ? im : null;
+      }
+
       /* ---------- [RP-V7.115] FACE WARPS ----------
          Snapchat's signature category, done as a real mesh warp: the
          frame is first drawn normally, then a coarse grid over the
@@ -11827,6 +11940,15 @@
         santahat: function (ctx, G) {
           fxHeadFrame(ctx, G.top, G.ang);
           var w = G.fw, h = G.fh;
+          /* [RP-V7.181] the photographic hat (real velvet + fur)
+             replaces the drawing once it has loaded. */
+          var __photo = fxLensArtImg("santahat");
+          if (__photo) {
+            fxContact(ctx, 0.01 * w, 0.07 * h, 0.44 * w, 0.08 * h, 0.28);
+            var __pw = 1.06 * w, __ph = __pw * __photo.naturalHeight / __photo.naturalWidth;
+            ctx.drawImage(__photo, -0.53 * w, 0.07 * h - __ph, __pw, __ph);
+            return;
+          }
           function cone() {
             ctx.beginPath();
             ctx.moveTo(-0.4 * w, 0.02 * h);
@@ -12469,9 +12591,10 @@
         var canvas = document.createElement("canvas");
         var ctx = canvas.getContext("2d");
         var fx = Live.fx = { mode: mode, src: srcStream, video: video, canvas: canvas, ctx: ctx, stream: null, raf: 0, last: 0, face: null, faceAt: 0, smooth: null, detectBusy: false, lastDetect: 0, detCanvas: null, detCtx: null };
+        var fxCapPx = mode === "preview" ? 1920 : 640; // [RP-V7.181] the camera keeps full HD (Branden: highest pixels for filters); the live broadcast keeps the 640 perf cap
         function size() {
           var vw = video.videoWidth || 640, vh = video.videoHeight || 480;
-          var s = Math.min(1, 640 / Math.max(vw, vh)); // processing cap: 640px long edge
+          var s = Math.min(1, fxCapPx / Math.max(vw, vh)); // processing cap: fxCapPx long edge
           canvas.width = Math.max(2, Math.round(vw * s));
           canvas.height = Math.max(2, Math.round(vh * s));
         }
@@ -12487,7 +12610,7 @@
           if (ts - fx.last < 33) return; // ~30fps paint rate
           fx.last = ts;
           if (video.readyState < 2) return;
-          if (video.videoWidth && Math.abs(canvas.width - Math.round(video.videoWidth * Math.min(1, 640 / Math.max(video.videoWidth, video.videoHeight)))) > 4) size();
+          if (video.videoWidth && Math.abs(canvas.width - Math.round(video.videoWidth * Math.min(1, fxCapPx / Math.max(video.videoWidth, video.videoHeight)))) > 4) size();
           fxMaybeDetect(fx, video, ts);
           fxPaint(ctx, video, canvas.width, canvas.height, fxRecipe(Live.filterId));
         }
