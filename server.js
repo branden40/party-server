@@ -12077,6 +12077,10 @@ io.on("connection", (socket) => {
     else if (t === "decline") io.to(other.id).emit("battle", { t: "decline", from: socket.id, fromName: p.name });
     else if (t === "score") io.to(other.id).emit("battle", { t: "score", from: socket.id, pts: Math.max(0, parseInt(data.pts, 10) || 0) });
     else if (t === "end") io.to(other.id).emit("battle", { t: "end", from: socket.id });
+    // [RP-V7.174] split-screen battles: WebRTC signaling between the two
+    // battlers (and viewers asking a battler for their stream) rides the
+    // battle relay untouched — SDP/ICE payloads pass through as-is.
+    else if (t === "rtc") io.to(other.id).emit("battle", { t: "rtc", from: socket.id, kind: String(data.kind || ""), view: data.view ? 1 : 0, sdp: data.sdp || null, ice: data.ice || null });
     else if (t === "accept") {
       const endsAt = Date.now() + mins * 60000;
       io.to(other.id).emit("battle", { t: "accept", from: socket.id, fromName: p.name, endsAt });
