@@ -18098,7 +18098,6 @@
         { id: "whale", art: "img/gifts/whale.webp", name: "Whale Dive", icon: "🐋", cents: 4500, tier: "big", fx: "burst" },
         { id: "galaxy", art: "img/gifts/galaxy.webp", name: "Galaxy", icon: "🌌", cents: 5000, tier: "big", fx: "galaxy" },
         { id: "titanclash", art: "titanclash", name: "Titan Clash", icon: "⚔️", cents: 5000, tier: "big", fx: "titanclash" },
-        { id: "rizzuniverse", art: "rizzuniverse", name: "Rizz Plaza Universe", icon: "🌐", cents: 5000, tier: "big", fx: "rizzuniverse" },
         { id: "starsurge", art: "img/gifts/starsurge.webp", name: "Star Surge", icon: "🌟", cents: 5500, tier: "big", fx: "burst" },
         { id: "diamonds", art: "img/gifts/diamonds.webp", name: "Diamond Shower", icon: "💎", cents: 6000, tier: "big", fx: "rain" },
         { id: "rocket", art: "img/gifts/rocket.webp", name: "Rocket", icon: "🚀", cents: 7500, tier: "big", fx: "launch" },
@@ -21173,8 +21172,9 @@
         }
         var following = (typeof isFollowingName === "function") ? isFollowingName(item.author) : false;
         var initial = escHtml(String(item.author || "?").trim().charAt(0).toUpperCase() || "?");
+        var lvRoom189 = (!item.mine && typeof rpReelLiveRoom189 === "function") ? rpReelLiveRoom189(item.author, item.authorId) : null;
         var avHtml = item.mine ? "" :
-          '<div class="reel-avwrap"><div class="reel-av" style="background:' + reelAvColor(item.author) + '">' + initial + "</div>" +
+          '<div class="reel-avwrap' + (lvRoom189 ? " is-live189" : "") + '" data-author189="' + escHtml(item.author || "") + '" data-authorid189="' + escHtml(item.authorId || "") + '" data-live-room="' + escHtml(lvRoom189 || "") + '"><div class="reel-av" style="background:' + reelAvColor(item.author) + '">' + initial + "</div>" + (lvRoom189 ? '<span class="reel-livebadge189">LIVE</span>' : "") +
           '<button class="reel-follow' + (following ? " on" : "") + '" type="button" aria-label="Follow ' + escHtml(item.author) + '">' + (following ? "✓" : "＋") + "</button></div>";
         var videoHtml;
         if (isDuet && hasSrc) {
@@ -24108,8 +24108,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
      it for the gift's emoji in place: never a broken-image glyph. Ids
      with no shipped art (holiday gifts, ad-hoc gifts) keep the drawn
      SVG art / orb they had. */
-  var GIFT_ART_IDS = { rizzuniverse: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
-  var GIFT_ICONS = { rizzuniverse: "🌐", titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️" }; // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
+  var GIFT_ART_IDS = { titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
+  var GIFT_ICONS = { titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️" }; // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
   window.rpGiftImgErr = function (img) {
     if (!img || !img.parentNode) return;
     var s = document.createElement("span");
@@ -24134,7 +24134,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { rizzuniverse: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
+  var GIFT_FILM_IDS = { titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
   window.rpGiftFilmIds = GIFT_FILM_IDS;
   window.rpGiftFilmUrl = function (id) { return window.rpResolveGiftFilm(id); };
   /* [RP-V7.81] EVENT-FILM RESOLVER + T-REX GRAND SHOW.
@@ -24211,7 +24211,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     return rpArt(id, icon);
   }
   window.rpShowArtHtml = rpShowArtHtml;
-  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel", "Thunderbolt": "thunderbolt", "Heart Burst": "heartburst", "Guardian Palm": "guardianpalm", "Gold Gloves": "goldgloves", "Star Surge": "starsurge", "Rizz Supernova": "supernova", "The Crown Jewel": "crownjewel", "Plaza Diamond": "plazadiamond", "Golden Eagle": "goldeneagle", "Pegasus of Light": "pegasus", "Aurora Crown": "auroracrown", "Golden Ascension": "ascension", "Nebula Dragon": "nebuladragon", "Titan Clash": "titanclash", "Rizz Plaza Universe": "rizzuniverse" }; // [RP-V7.188] +1 // [RP-V7.168] +1 // [RP-V7.167] +1 // [RP-V7.166] +1 // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
+  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel", "Thunderbolt": "thunderbolt", "Heart Burst": "heartburst", "Guardian Palm": "guardianpalm", "Gold Gloves": "goldgloves", "Star Surge": "starsurge", "Rizz Supernova": "supernova", "The Crown Jewel": "crownjewel", "Plaza Diamond": "plazadiamond", "Golden Eagle": "goldeneagle", "Pegasus of Light": "pegasus", "Aurora Crown": "auroracrown", "Golden Ascension": "ascension", "Nebula Dragon": "nebuladragon", "Titan Clash": "titanclash" }; // [RP-V7.168] +1 // [RP-V7.167] +1 // [RP-V7.166] +1 // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
 
   /* ---------- gift panel: swap emoji for rendered art ---------- */
   function swapCell(c) {
@@ -37214,6 +37214,78 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
 #homeStrip { top: env(safe-area-inset-top, 0px); }
 .scene-top { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
 </style>
+<style>
+/* [RP-V7.189] LIVE ring on feed/reel avatars (Branden, Nov 1, 2026 —
+   the TikTok button he screenshotted): when a post's author is live,
+   their rail avatar gets a glowing pulsing Plaza-red ring, a LIVE tag
+   on top, and tapping the avatar walks straight into their live. The
+   + follow chip underneath is unchanged. */
+.reel-avwrap.is-live189 { cursor: pointer; }
+.reel-avwrap.is-live189 .reel-av { border-color: #fe2c55; animation: reelLivePulse189 1.5s ease-in-out infinite; }
+@keyframes reelLivePulse189 {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(254,44,85,.55), 0 0 10px 2px rgba(254,44,85,.55); }
+  50% { box-shadow: 0 0 0 3px rgba(254,44,85,.9), 0 0 20px 7px rgba(254,44,85,.9); }
+}
+.reel-livebadge189 { position: absolute; top: -7px; left: 50%; transform: translateX(-50%); z-index: 3; background: linear-gradient(180deg, #ff2438, #d8001c); color: #fff; font-size: 8px; font-weight: 900; letter-spacing: .5px; line-height: 1; padding: 2.5px 5px 2px; border-radius: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.45); pointer-events: none; }
+</style>
+<script>
+/* [RP-V7.189] LIVE ring logic. The match source is
+   liveDirectoryList() — the same list Live Now shows, so a private
+   live only rings for people allowed to see it (host + invited);
+   it can never leak. Matching is by account id when both sides
+   carry one, else by display name (the same key the follow system
+   uses for feed authors). A light paint pass keeps rings current
+   as lives start and end while someone scrolls. */
+function rpReelLiveRoom189(author, authorId) {
+  try {
+    if (typeof liveDirectoryList !== "function") return null;
+    var list = liveDirectoryList();
+    var an = String(author || "").toLowerCase();
+    for (var x = 0; x < list.length; x++) {
+      var e = list[x];
+      if (!e || !e.room || e.mine) continue;
+      if (authorId && e.hostAccountId && String(e.hostAccountId) === String(authorId)) return e.room;
+      if (an && String(e.name || "").toLowerCase() === an) return e.room;
+    }
+  } catch (err) { }
+  return null;
+}
+function rpReelLivePaint189() {
+  try {
+    document.querySelectorAll(".reel-avwrap[data-author189]").forEach(function (w) {
+      var room = rpReelLiveRoom189(w.getAttribute("data-author189"), w.getAttribute("data-authorid189"));
+      var has = w.classList.contains("is-live189");
+      if (room && !has) {
+        w.classList.add("is-live189");
+        w.setAttribute("data-live-room", room);
+        var b = document.createElement("span");
+        b.className = "reel-livebadge189"; b.textContent = "LIVE";
+        w.appendChild(b);
+      } else if (!room && has) {
+        w.classList.remove("is-live189");
+        w.setAttribute("data-live-room", "");
+        var old = w.querySelector(".reel-livebadge189");
+        if (old) old.remove();
+      } else if (room && has) {
+        w.setAttribute("data-live-room", room);
+      }
+    });
+  } catch (err) { }
+}
+setInterval(rpReelLivePaint189, 2500);
+document.addEventListener("click", function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  var av = t.closest(".reel-av");
+  if (!av) return;
+  var w = av.closest(".reel-avwrap");
+  var room = w && w.getAttribute("data-live-room");
+  if (room && typeof openLiveFromList === "function") {
+    e.preventDefault(); e.stopPropagation();
+    openLiveFromList(room);
+  }
+}, true);
+</script>
 </body>
 </html>
 
