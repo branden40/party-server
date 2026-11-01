@@ -12763,6 +12763,7 @@
       }
       function openLiveSetup() {
         if (Live.active && typeof iAmHost === "function" && iAmHost()) Live.setupPriv = !!Live.privOn; // [RP-V7.138] editing my running live: the toggle starts from its real state
+        else Live.setupPriv = false; // [RP-V7.172] a NEW live always starts Public (Branden: "soon as a person goes live it should show public") — private is a fresh choice for that one live, never a leftover from the last one
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
           '<div class="game-box"><h3 style="text-align:center;">🔴 Set up your live</h3>' +
@@ -15315,6 +15316,19 @@
           case "live-join": {
             if (Live.active && Live.hostId) engRecord(Live.hostId, fromId, "stage", 1); // 🔥 a viewer coming up on stage is strong engagement — every device in the room hears this
             if (!iAmHost()) return;
+            // [RP-V7.172] Joining the stage is BY REQUEST ONLY (Branden):
+            // the host seats only people they invited — and approving a
+            // request IS an invite (liveInvite sets Live.invited). An
+            // uninvited join turns into a join request, never a seat.
+            // Entering the room to watch is untouched: that door stays open.
+            if (Live.stage.indexOf(fromId) < 0 && !Live.invited[fromId]) {
+              if (!Live.requests[fromId]) {
+                Live.requests[fromId] = fromName || liveName(fromId);
+                addChatSystem("🙋 " + (fromName || liveName(fromId)) + " wants to join your live — Add or Dismiss under 🙋 Join requests.");
+              }
+              renderLiveRequests();
+              break;
+            }
             delete Live.requests[fromId]; delete Live.invited[fromId];
             if (Live.stage.indexOf(fromId) < 0) {
               if (Live.stage.length >= LIVE_MAX_STAGE) { protoSend({ k: "live-full", to: fromId }); return; }
