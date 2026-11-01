@@ -20469,7 +20469,7 @@
       var REEL_LIKES_KEY = "rpReelLikes.v1";
       var REEL_COMMENTS_KEY = "rpReelComments.v1";
       var REEL_MAX_BYTES = 100 * 1024 * 1024; /* [RP-V7.126] was 25 MB */
-      var REEL_MAX_SECS = 180; /* [RP-V7.126] uploads up to 3 minutes (was 60s); the in-app recorder keeps its own 15s/60s lengths */
+      var REEL_MAX_SECS = 180; /* [RP-V7.126] uploads up to 3 minutes (was 60s); [RP-V7.178] the in-app recorder offers 15s/60s/3min (Reels.maxSecs) */
 
       function reelLoadMeta() {
         try { var m = JSON.parse(localStorage.getItem(REEL_META_KEY) || "[]"); return Array.isArray(m) ? m : []; } catch (e) { return []; }
@@ -21566,6 +21566,7 @@
             '<div class="reel-lenbar">' +
               '<button class="reel-len' + (Reels.maxSecs === 15 ? " on" : "") + '" id="btnReelLen15" type="button">15s</button>' +
               '<button class="reel-len' + (Reels.maxSecs === 60 ? " on" : "") + '" id="btnReelLen60" type="button">60s</button>' +
+              '<button class="reel-len' + (Reels.maxSecs === 180 ? " on" : "") + '" id="btnReelLen180" type="button">3min</button>' + // [RP-V7.178]
               '<button class="reel-len' + (Reels.countdown ? " on" : "") + '" id="btnReelCountTgl" type="button">⏱ 3s timer</button>' +
             "</div>" +
             '<div class="reel-recbar" id="reelRecBar"><i></i></div>';
@@ -21645,6 +21646,7 @@
           $("btnReelStop").addEventListener("click", function () { reelStopRecord(false); });
           $("btnReelLen15").addEventListener("click", function () { Reels.maxSecs = 15; openReelComposer(); });
           $("btnReelLen60").addEventListener("click", function () { Reels.maxSecs = 60; openReelComposer(); });
+          $("btnReelLen180").addEventListener("click", function () { Reels.maxSecs = 180; openReelComposer(); }); // [RP-V7.178]
           $("btnReelCountTgl").addEventListener("click", function () { Reels.countdown = !Reels.countdown; openReelComposer(); });
         } else if (stage === "preview") {
           $("btnReelRetake").addEventListener("click", function () {
@@ -35312,6 +35314,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         <span class="cam-len" id="camLenWrap">
           <button type="button" data-len="15">15s</button>
           <button type="button" data-len="60" class="on">60s</button>
+          <button type="button" data-len="180">3min</button> <!-- [RP-V7.178] TikTok-length set: 15s / 60s / 3min -->
         </span>
         <button type="button" id="camModeVideo" class="on">VIDEO</button>
         <button type="button" id="camModePhoto">PHOTO</button>
