@@ -580,6 +580,21 @@ Object.keys(RP_GIFT_ART_7168).forEach((gid) => {
 });
 
 // ---------------------------------------------------------------------------
+// [RP-V7.188] Rizz Plaza Universe's ANIMATED ART — embedded base64 WebP
+// (320x320, 40 frames @ 42ms, infinite loop) served from the sibling
+// module; the film giftfx-rizzuniverse.mp4 is uploaded separately and
+// the client falls back to this animated art until it lands (never a
+// still).
+const RP_GIFT_ART_7188 = require("./giftart7188.js");
+Object.keys(RP_GIFT_ART_7188).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7188[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+// ---------------------------------------------------------------------------
 // [RP-V7.181] Photographic lens art — real-object photos (alpha WebP)
 // that replace the drawn props in the camera as they load; the client
 // falls back to its drawing until the photo arrives. Santa Hat first.
@@ -10301,7 +10316,7 @@ const MONEY_GIFT_TABLE = {
   fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500,
   loveballoon: 600, guardianpalm: 700, airplane: 800, moneygun: 999,
   castle: 1000, volcano: 2000, lion: 2500, dragon: 3000, meteor: 4000,
-  whale: 4500, galaxy: 5000, titanclash: 5000, starsurge: 5500, diamonds: 6000,
+  whale: 4500, galaxy: 5000, titanclash: 5000, rizzuniverse: 5000, starsurge: 5500, diamonds: 6000,
   rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10000, yacht: 15000,
   phoenix: 25000, universe: 50000,
   // [RP-V7.82] +5 gifts (heartburst/thunderbolt small, goldgloves/
