@@ -37197,6 +37197,22 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
 .sfx-pop186 { position: absolute; bottom: 16%; z-index: 39; pointer-events: none; animation: sfxRise186 2.6s ease-out forwards; }
 @keyframes sfxRise186 { 0% { transform: translateY(0) scale(.7); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateY(-46vh) scale(1.15) rotate(14deg); opacity: 0; } }
 </style>
+<style>
+/* [RP-V7.187] SAFE AREA — the bars V7.176 missed (Branden, Nov 1,
+   2026: "Buttons still at the top of the screen"). V7.176 padded
+   the page wrap, which fixed in-flow headers (Moments/Feed) — but
+   the home app bar (#ttbar) and the Home tab strip (#homeStrip)
+   are STICKY at top:0, so they pin themselves under the iPhone
+   status bar no matter what the page does, and the room screens'
+   top bar (.scene-top: Switch room / Go LIVE / Share / Leave)
+   never carried an inset at all. The bars themselves now carry
+   the clearance, the same pattern the live top bar, story viewer
+   and camera already use. env() resolves to 0 in browser tabs and
+   on Android, so nothing changes there. */
+#ttbar { padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
+#homeStrip { top: env(safe-area-inset-top, 0px); }
+.scene-top { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+</style>
 </body>
 </html>
 
