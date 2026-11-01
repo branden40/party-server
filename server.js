@@ -2987,6 +2987,8 @@ app.get("/api/reels", (req, res) => {
       sourceUrl: src ? "/reel-files/" + src.file : null,
       stitchStart: typeof r.stitchStart === "number" ? r.stitchStart : null,
       stitchDur: typeof r.stitchDur === "number" ? r.stitchDur : null,
+      trimStart: typeof r.trimStart === "number" ? r.trimStart : null,
+      trimEnd: typeof r.trimEnd === "number" ? r.trimEnd : null,
       allowRemix: r.allowRemix !== false,
       // [RP-V7.90] the reel's attached sound (reference + mix), if any.
       musicTrackId: r.musicTrackId || null,
@@ -3259,6 +3261,14 @@ app.post("/api/reel", (req, res) => {
       if (stitchStart === null) stitchStart = 0;
       if (stitchDur === null) stitchDur = 5;
     }
+    // [RP-V7.169] Trim window: the poster's cut. Players play only
+    // [trimStart, trimEnd]; the window is hard-capped at the 180s reel cap.
+    let trimStart = reelNum(rb.trimStart, 0, 86400),
+      trimEnd = reelNum(rb.trimEnd, 0, 86400);
+    if (trimStart === null || trimEnd === null || trimEnd - trimStart < 1 || trimEnd - trimStart > 180.6) {
+      trimStart = null;
+      trimEnd = null;
+    }
     const allowRemix = !(
       rb.allowRemix === "false" ||
       rb.allowRemix === "0" ||
@@ -3288,6 +3298,7 @@ app.post("/api/reel", (req, res) => {
       ...(sourceAuthor ? { sourceAuthor } : {}),
       ...(stitchStart !== null ? { stitchStart } : {}),
       ...(stitchDur !== null ? { stitchDur } : {}),
+      ...(trimStart !== null ? { trimStart, trimEnd } : {}),
       allowRemix,
       ...(loc156 ? { location: loc156 } : {}),
       ...(link156 ? { link: link156 } : {}),
@@ -4746,6 +4757,8 @@ function mediaSearchReelItem(r, all, vdb) {
     sourceUrl: src ? "/reel-files/" + src.file : null,
     stitchStart: typeof r.stitchStart === "number" ? r.stitchStart : null,
     stitchDur: typeof r.stitchDur === "number" ? r.stitchDur : null,
+    trimStart: typeof r.trimStart === "number" ? r.trimStart : null,
+    trimEnd: typeof r.trimEnd === "number" ? r.trimEnd : null,
     allowRemix: r.allowRemix !== false,
     views: mediaViewCount(vdb, "reel:" + r.id),
     reactions: rxSummarize(r.reactions, null).counts,
