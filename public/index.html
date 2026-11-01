@@ -3324,7 +3324,7 @@
       <section class="screen" id="screen-moments">
         <div class="mom-wrap">
           <div class="mom-head">
-            <button class="btn-mini plaza-glow" id="btnMomentsBack" type="button">← Plaza</button>
+            <button class="btn-mini plaza-glow" id="btnMomentsBack" type="button">‹ Plaza</button>
             <h2>🎬 Reels</h2>
             <button class="btn-primary" style="width:auto; padding:10px 18px;" id="btnMomPost" type="button">＋ Post a photo</button>
             <input type="file" id="momPhotoInput" accept="image/*" multiple hidden /> <!-- [RP-V7.123] multi-pick -->
@@ -3361,7 +3361,7 @@
       <section class="screen" id="screen-feed">
         <div class="mom-wrap">
           <div class="mom-head">
-            <button class="btn-mini plaza-glow" id="btnFeedBack" type="button">← Plaza</button>
+            <button class="btn-mini plaza-glow" id="btnFeedBack" type="button">‹ Plaza</button>
             <h2>📰 Plaza Feed</h2>
           </div>
           <p style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px;">The open Plaza wall — post a thought, a photo or a short video. Tap ❤️ to like, 🎁 to gift the poster (real charms, same as live), follow people you like, and 🔗 share the good stuff. 18+ only.</p>
@@ -3383,7 +3383,7 @@
       <section class="screen" id="screen-auctions">
         <div class="auc-wrap">
           <div class="auc-head">
-            <button class="btn-mini plaza-glow" id="btnAuctionsBack" type="button">← Plaza</button>
+            <button class="btn-mini plaza-glow" id="btnAuctionsBack" type="button">‹ Plaza</button>
             <h2>🔨 Live Auctions</h2>
             <button class="btn-mini" id="btnAucSell" type="button">＋ Sell an item</button>
             <button class="btn-mini" id="btnAucEarnings" type="button">💰 My earnings</button>
@@ -36916,7 +36916,18 @@ body.rp-day input, body.rp-day textarea, body.rp-day select { color:#16161c; }
    so an open app flips itself at the boundary. */
 (function () { function apply() { try { var h = new Date().getHours(); var day = h >= 7 && h < 19; if (document.body) document.body.classList.toggle("rp-day", day); } catch (e) { } } apply(); if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", apply); setInterval(apply, 60000); document.addEventListener("visibilitychange", function () { if (!document.hidden) apply(); }); })();
 </script>
-
+<style>
+/* ============ RP-V7.176: HOME-SCREEN SAFE AREA ============
+   In standalone (Add to Home Screen) mode iOS overlays the status
+   bar on the page, so screen headers that start at y=0 slide under
+   the clock and their buttons can't be tapped (Branden's shot: the
+   Moments header crushed at the top). The app shell now starts
+   below the safe-area inset — env() is 0 in a normal browser tab
+   and on desktop, so only the overlaid contexts move. Fixed
+   full-screen layers (live, camera, story viewer) already carry
+   their own insets and are unaffected. */
+.wrap { padding-top: env(safe-area-inset-top, 0px); }
+</style>
 </body>
 </html>
 
