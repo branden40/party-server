@@ -20014,10 +20014,10 @@
             '<p class="mom-cap"><b>' + escHtml(p.name) + '</b>' + momCaptionHtml(p.caption || "") + '</p>' + postMetaLineHtml156(p) + /* [RP-V7.89] hashtags tappable */
             (p.musicTrackId ? '<button type="button" class="mom-snd rp-snd" data-tid="' + escHtml(p.musicTrackId) + '">♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(p.musicTrackId) : "Plaza sound") + ' · tap to play</button>' : "") + /* [RP-V7.90] */
             '<div class="mom-acts">' +
-              '<button class="mom-act like' + (p.liked ? " liked" : "") + '" type="button">❤️ <span class="lc">' + momLikeCount(p) + '</span></button>' +
-              '<button class="mom-act cmt" type="button">💬 <span class="cc">' + momCommentTotal(p) + '</span></button>' +
-              ((p.srv) ? '<button class="mom-act repost' /* [RP-V7.101] own photos too — reshare */ + (p.reposted ? " reposted" : "") + '" type="button">🔁 <span class="rc">' + (p.srvReposts || 0) + '</span></button>' : "") + /* [RP-V7.89] server posts only — seed/demo posts have no server record to repost */
-              (p.mine ? "" : '<button class="mom-act gift" type="button">🎁 Gift</button>') +
+              '<button class="mom-act like' + (p.liked ? " liked" : "") + '" type="button">' + RPICO.heart + ' <span class="lc">' + momLikeCount(p) + '</span></button>' +
+              '<button class="mom-act cmt" type="button">' + RPICO.comment + ' <span class="cc">' + momCommentTotal(p) + '</span></button>' +
+              ((p.srv) ? '<button class="mom-act repost' /* [RP-V7.101] own photos too — reshare */ + (p.reposted ? " reposted" : "") + '" type="button">' + RPICO.repost + ' <span class="rc">' + (p.srvReposts || 0) + '</span></button>' : "") + /* [RP-V7.89] server posts only — seed/demo posts have no server record to repost */
+              (p.mine ? "" : '<button class="mom-act gift" type="button">' + RPICO.gift + ' Gift</button>') +
             '</div>'; /* [RP-V7.107] reactions removed everywhere (Branden) */
           card.querySelector(".like").addEventListener("click", function () { momToggleLike(p.id); });
           /* [RP-V7.123] in-card set flip (manual only — no auto-advance in feeds) */
@@ -20331,12 +20331,12 @@
           '</div>' +
           (has ? strip : '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Pick a photo to share with the Plaza — or pick up to 35 and they post as one scrolling set. Fans can like it, comment — and send you gifts right on the post.</p>') +
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
-            '<button class="btn-mini" id="btnMomPick">🖼️ ' + (has ? "Add / choose photos" : "Choose photos") + '</button>' +
+            '<button class="btn-mini" id="btnMomPick">' + (has ? "Add / choose photos" : "Choose photos") + '</button>' +
             (Online.myPhotoUrl ? '<button class="btn-mini" id="btnMomUseOnline">Use my online photo</button>' : "") +
           '</div>' +
           postDetailsHtml156("mom", {}) +
           momDraftsHtml156() +
-          '<div class="pd-bar"><button type="button" class="pd-drafts" id="btnMomDraft156">🗂 Drafts</button><button type="button" class="pd-post" id="btnMomPublish">⬆ ' + (picks.length > 1 ? "Post " + picks.length + " Photos" : "Post") + '</button></div>' +
+          '<div class="pd-bar"><button type="button" class="pd-drafts" id="btnMomDraft156">Drafts</button><button type="button" class="pd-post" id="btnMomPublish">' + (picks.length > 1 ? "Post " + picks.length + " Photos" : "Post") + '</button></div>' +
           '<p class="age-note" style="margin-top:8px;">Photos follow the same community guidelines as live: no nudity or sexual content, ever.</p></div>'
         );
         var mb156 = $("btnMomBack156"); if (mb156) mb156.addEventListener("click", function () { closeSheet(); if (Moments.fromCam156) { Moments.fromCam156 = false; openCamera(); } }); // [RP-V7.156] back, not exit — returns to the camera when the shot came from there
@@ -20681,11 +20681,11 @@
           '<div class="reel-meta"><span class="reel-author">' + escHtml(item.author) + '</span><span class="reel-when">' + escHtml(reelWhen(item.createdAt)) + (item.urls.length > 1 ? " · 🖼️ " + item.urls.length + " photos" : " · 📸 Photo") + "</span>" +
           (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) + rpPhotoMusicChip123(item) + "</div>" +
           '<div class="reel-rail"><span class="reel-ava" style="background:' + reelAvColor(item.author) + '">' + escHtml(initialsOf(item.author)) + "</span>" +
-            '<button class="reel-act like pp-heart' + (item.myLiked ? " liked" : "") + '" type="button">❤️<span class="lc">' + (item.likes || 0) + "</span></button>" +
-            '<button class="reel-act cmt pp-cmt" type="button">💬<span class="cc">' + (item.commentCount || 0) + "</span></button>" +
-            '<button class="reel-act share pp-share" type="button">↗️<span>Share</span></button>' +
-            '<button class="reel-act repost pp-repost' + (item.myReposted ? " reposted" : "") + '" type="button">🔁<span class="rc">' + (item.reposts || 0) + "</span></button>" +
-            (item.mine ? "" : '<button class="reel-act gift pp-gift" type="button">🎁<span>Gift</span></button>') +
+            '<button class="reel-act like pp-heart' + (item.myLiked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + (item.likes || 0) + "</span></button>" +
+            '<button class="reel-act cmt pp-cmt" type="button">' + RPICO.comment + '<span class="cc">' + (item.commentCount || 0) + "</span></button>" +
+            '<button class="reel-act share pp-share" type="button">' + RPICO.share + '<span>Share</span></button>' +
+            '<button class="reel-act repost pp-repost' + (item.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + (item.reposts || 0) + "</span></button>" +
+            (item.mine ? "" : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + '<span>Gift</span></button>') +
           "</div>";
         while (rest.firstChild) card.appendChild(rest.firstChild);
         rpPhotoActsWire123(item, card);
@@ -20718,11 +20718,11 @@
         slide.appendChild(meta);
         var acts = document.createElement("div"); acts.className = "hp-actions";
         acts.innerHTML =
-          '<button type="button" class="hp-act like pp-heart' + (item.myLiked ? " liked" : "") + '"><span class="hp-ico">❤️</span><span class="hp-n">' + (item.likes || 0) + "</span></button>" +
-          '<button type="button" class="hp-act pp-cmt"><span class="hp-ico">💬</span><span class="hp-n">' + (item.commentCount || 0) + "</span></button>" +
-          (item.mine ? "" : '<button type="button" class="hp-act pp-gift"><span class="hp-ico">🎁</span><span class="hp-n">Gift</span></button>') +
-          '<button type="button" class="hp-act pp-share"><span class="hp-ico">↗️</span><span class="hp-n">Share</span></button>' +
-          '<button type="button" class="hp-act pp-repost' + (item.myReposted ? " reposted" : "") + '"><span class="hp-ico">🔁</span><span class="hp-n">' + (item.reposts || 0) + "</span></button>";
+          '<button type="button" class="hp-act like pp-heart' + (item.myLiked ? " liked" : "") + '"><span class="hp-ico">' + RPICO.heart + '</span><span class="hp-n">' + (item.likes || 0) + "</span></button>" +
+          '<button type="button" class="hp-act pp-cmt"><span class="hp-ico">' + RPICO.comment + '</span><span class="hp-n">' + (item.commentCount || 0) + "</span></button>" +
+          (item.mine ? "" : '<button type="button" class="hp-act pp-gift"><span class="hp-ico">' + RPICO.gift + '</span><span class="hp-n">Gift</span></button>') +
+          '<button type="button" class="hp-act pp-share"><span class="hp-ico">' + RPICO.share + '</span><span class="hp-n">Share</span></button>' +
+          '<button type="button" class="hp-act pp-repost' + (item.myReposted ? " reposted" : "") + '"><span class="hp-ico">' + RPICO.repost + '</span><span class="hp-n">' + (item.reposts || 0) + "</span></button>";
         slide.appendChild(acts);
         rpPhotoActsWire123(item, slide);
         slide._rpPlay = function () { if (ctl) ctl.start(); };
@@ -21197,12 +21197,12 @@
           (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : "Plaza sound") + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound">☆</button></div>' : '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>") +
           "</div>" +
           '<div class="reel-rail">' + avHtml +
-            '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">❤️<span class="lc">' + lk.count + "</span></button>" +
-            '<button class="reel-act cmt" type="button">💬<span class="cc">' + cmtCount + "</span></button>" +
-            '<button class="reel-act share" type="button">↗️<span>Share</span></button>' +
-            ((item.server) ? '<button class="reel-act repost' /* [RP-V7.101] own reels too — reshare */ + (item.myReposted ? " reposted" : "") + '" type="button">🔁<span class="rc">' + (item.reposts || 0) + "</span></button>" : "") + /* [RP-V7.89] */
-            (item.mine ? "" : '<button class="reel-act gift" type="button">🎁<span>Gift</span></button>') +
-            (canRemix ? '<button class="reel-act remix" type="button">🎬<span>Remix</span></button>' : "") +
+            '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + lk.count + "</span></button>" +
+            '<button class="reel-act cmt" type="button">' + RPICO.comment + '<span class="cc">' + cmtCount + "</span></button>" +
+            '<button class="reel-act share" type="button">' + RPICO.share + '<span>Share</span></button>' +
+            ((item.server) ? '<button class="reel-act repost' /* [RP-V7.101] own reels too — reshare */ + (item.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + (item.reposts || 0) + "</span></button>" : "") + /* [RP-V7.89] */
+            (item.mine ? "" : '<button class="reel-act gift" type="button">' + RPICO.gift + '<span>Gift</span></button>') +
+            (canRemix ? '<button class="reel-act remix" type="button">' + RPICO.remix + '<span>Remix</span></button>' : "") +
             /* [RP-V7.106] Branden: "Move the icons" — the 👁 views moved
                from the bottom-left onto the rail. [RP-V7.107] the 😊
                reactions that rode along are removed everywhere. */
@@ -21669,10 +21669,10 @@
           (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) + "</div>" +
           '<div class="hp-rail">' +
           '<button type="button" class="hp-ava" aria-label="Open profile"><span class="hp-ava-in" style="background:' + reelAvColor(item.author) + '">' + escHtml(String(item.author || "?").charAt(0).toUpperCase()) + "</span>" + (item.mine ? "" : '<span class="hp-follow">+</span>') + "</button>" +
-          '<button type="button" class="hp-act like' + (lk.liked ? " liked" : "") + '"><span class="hp-ico">❤️</span><span class="lc">' + (lk.count || 0) + "</span></button>" +
-          '<button type="button" class="hp-act hp-comments"><span class="hp-ico">💬</span><span>' + (item.commentCount || 0) + "</span></button>" +
-          (item.mine ? "" : '<button type="button" class="hp-act hp-gift"><span class="hp-ico">🎁</span><span>Gift</span></button>') +
-          '<button type="button" class="hp-act hp-share"><span class="hp-ico">↗️</span><span>Share</span></button>' +
+          '<button type="button" class="hp-act like' + (lk.liked ? " liked" : "") + '"><span class="hp-ico">' + RPICO.heart + '</span><span class="lc">' + (lk.count || 0) + "</span></button>" +
+          '<button type="button" class="hp-act hp-comments"><span class="hp-ico">' + RPICO.comment + '</span><span>' + (item.commentCount || 0) + "</span></button>" +
+          (item.mine ? "" : '<button type="button" class="hp-act hp-gift"><span class="hp-ico">' + RPICO.gift + '</span><span>Gift</span></button>') +
+          '<button type="button" class="hp-act hp-share"><span class="hp-ico">' + RPICO.share + '</span><span>Share</span></button>' +
           '<span class="hp-views">👁 ' + (item.views || 0) + "</span>" +
           "</div>";
         var v = slide.querySelector("video"), trk = slide._trk;
@@ -21880,7 +21880,7 @@
               '<span class="pd-thumb pd-thumb-empty">🎬</span>' +
             '</div>' +
             postDetailsHtml156("reel", { remix: true }) +
-            '<div class="pd-bar"><button type="button" class="pd-drafts" id="btnReelDraft">🗂 Drafts</button><button type="button" class="pd-post" id="btnReelPublish">⬆ Post</button></div>' +
+            '<div class="pd-bar"><button type="button" class="pd-drafts" id="btnReelDraft">Drafts</button><button type="button" class="pd-post" id="btnReelPublish">Post</button></div>' +
             '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" id="btnReelBackPrev" type="button">← Preview</button></div>';
         }
         if (Reels.remix && stage !== "pick") mid = reelRemixChipHtml() + mid;
@@ -37298,6 +37298,45 @@ document.addEventListener("click", function (e) {
    already carries it. env() resolves to 0 in browser tabs and on
    Android, so nothing changes there. */
 .screen:not(#screen-room):not(#screen-online) { padding-top: env(safe-area-inset-top, 0px); }
+</style>
+<script>
+/* [RP-V7.192] Clean line icons for the reel/photo rail buttons — one
+   shared set, drawn as stroke SVGs (currentColor), replacing the stock
+   emoji glyphs in the render strings above. */
+window.RPICO = {
+  heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="hf" d="M12 20.3C6.4 16.9 3.6 13.6 3.6 10.2 3.6 7.6 5.6 5.6 8.05 5.6c1.6 0 3.05.85 3.95 2.15.9-1.3 2.35-2.15 3.95-2.15 2.45 0 4.45 2 4.45 4.6 0 3.4-2.8 6.7-8.4 10.1z"/></svg>',
+  comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4H4v10.5h1.3v4.9l4.9-4.9H20z"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14.5v-10"/><path d="M6.8 9.3L12 4.1l5.2 5.2"/><path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5"/></svg>',
+  repost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 3.5L20 7l-3.5 3.5"/><path d="M4 13v-2a3.5 3.5 0 0 1 3.5-3.5H20"/><path d="M7.5 20.5L4 17l3.5-3.5"/><path d="M20 11v2a3.5 3.5 0 0 1-3.5 3.5H4"/></svg>',
+  gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="9.5"/><path d="M3.5 6.8h17V10h-17z"/><path d="M12 6.8v12.7"/><path d="M12 6.8C9.6 6.8 8 5.7 8 4.2 8 3.1 8.8 2.4 9.8 2.4 11.3 2.4 12 4.2 12 6.8zm0 0c2.4 0 4-1.1 4-2.6 0-1.1-.8-1.8-1.8-1.8C12.7 2.4 12 4.2 12 6.8z"/></svg>',
+  remix: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7.5" width="12" height="11.5" rx="2.5"/><path d="M8.5 7.5v-1A2.5 2.5 0 0 1 11 4h7.5A2.5 2.5 0 0 1 21 6.5v7.5a2.5 2.5 0 0 1-2.5 2.5H17"/><path d="M7.6 10.7l4 2.55-4 2.55z" fill="currentColor" stroke="none"/></svg>'
+};
+</script>
+<style>
+/* [RP-V7.192] TikTok-style buttons (Branden, Nov 1, 2026 — "These buttons
+   are not clean" on the reel rail, then the circled Post a Photo sheet:
+   "upgrade to TikTok style buttons"). RAILS: bare white line icons with
+   the count directly underneath and a soft shadow for legibility —
+   TikTok's rail exactly; a liked heart fills Plaza red. COMPOSERS
+   (photo + reel share .pd-bar): Drafts/Post drop their emoji prefixes
+   and the full-pill radius for TikTok's flat rounded-rect; the photo
+   pick pills drop the V7.165 glow for the same flat dark TikTok look.
+   Scope: reel + photo rails and the two composer sheets ONLY — top
+   bars, the bottom tab bar and the live rail are untouched. */
+.reel-act { gap: 1px; text-shadow: none; }
+.reel-act > svg { width: 31px; height: 31px; filter: drop-shadow(0 1px 5px rgba(0,0,0,.55)); }
+.reel-act > span { text-shadow: 0 1px 5px rgba(0,0,0,.65); }
+.reel-act.liked > svg .hf { fill: #fe2c55; stroke: #fe2c55; }
+.reel-act:active > svg { transform: scale(.9); }
+.hp-act .hp-ico { font-size: 0; filter: none; }
+.hp-act.like .hp-ico { filter: none; }
+.hp-act .hp-ico > svg { display: block; width: 33px; height: 33px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
+.hp-act.like.liked .hp-ico > svg .hf { fill: #fe2c55; stroke: #fe2c55; }
+.hp-act.reposted { color: #25d0a5; }
+.mom-act svg { width: 20px; height: 20px; flex: none; }
+.mom-act.liked svg .hf { fill: #fe2c55; stroke: #fe2c55; }
+.pd-drafts, .pd-post { border-radius: 10px; }
+#btnMomPick, #btnMomUseOnline { background: #26262e !important; border: 1px solid rgba(255,255,255,.16) !important; box-shadow: none !important; border-radius: 10px !important; }
 </style>
 </body>
 </html>
