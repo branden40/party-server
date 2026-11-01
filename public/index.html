@@ -10574,18 +10574,30 @@
          out while eyes and lips keep their definition — the classic
          frequency split. No face in frame = a gentle full-frame
          blend, never a frozen or broken effect. */
-      var fxBeautyScratch = null;
+      var fxBeautyScratch = null, fxBeautyTiny = null;
+      /* [RP-V7.183] The blur is a DOWNSCALE blur (shrink the frame to
+         a tiny canvas, draw it back up smoothed, twice) — never
+         ctx.filter. iPhone Safari silently ignores ctx.filter, which
+         is why V7.181's Brighten did nothing and Smooth Skin blended
+         a sharp copy (Branden, Nov 1, 2026: "the skin brightness and
+         beauty skin don't work"). Blend-mode passes below are all
+         filter-free for the same reason. */
       function fxBeautyBlur(src, w, h, radius) {
         if (!fxBeautyScratch) fxBeautyScratch = document.createElement("canvas");
-        var c = fxBeautyScratch;
+        if (!fxBeautyTiny) fxBeautyTiny = document.createElement("canvas");
+        var c = fxBeautyScratch, t = fxBeautyTiny;
         if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-        var btx = c.getContext("2d");
-        btx.save();
-        try { btx.filter = "blur(" + radius + "px)"; } catch (e) { }
-        btx.globalCompositeOperation = "source-over";
-        btx.globalAlpha = 1;
-        btx.drawImage(src, 0, 0, w, h);
-        btx.restore();
+        var f = Math.max(3, Math.min(28, Math.round(radius * 2.2)));
+        var tw = Math.max(2, Math.round(w / f)), th = Math.max(2, Math.round(h / f));
+        if (t.width !== tw || t.height !== th) { t.width = tw; t.height = th; }
+        var ttx = t.getContext("2d"), btx = c.getContext("2d");
+        ttx.globalCompositeOperation = "source-over"; ttx.globalAlpha = 1;
+        btx.globalCompositeOperation = "source-over"; btx.globalAlpha = 1;
+        btx.imageSmoothingEnabled = true;
+        ttx.drawImage(src, 0, 0, tw, th);
+        btx.drawImage(t, 0, 0, w, h);
+        ttx.drawImage(c, 0, 0, tw, th);
+        btx.drawImage(t, 0, 0, w, h);
         return c;
       }
       function fxFaceOval181(w, h) {
@@ -10634,8 +10646,8 @@
             ctx.fillRect(0, 0, w, h);
             ctx.restore();
             ctx.save();
-            try { ctx.filter = "saturate(1.14) brightness(1.04)"; } catch (e) { }
-            ctx.globalAlpha = 0.5; ctx.drawImage(src, 0, 0, w, h);
+            ctx.globalCompositeOperation = "overlay"; // [RP-V7.183] filter-free colour pop
+            ctx.globalAlpha = 0.20; ctx.drawImage(src, 0, 0, w, h);
             ctx.restore();
             return;
           }
@@ -10646,15 +10658,20 @@
             ctx.globalAlpha = 0.42; ctx.drawImage(blur, 0, 0, w, h);
             ctx.restore();
             ctx.save();
-            try { ctx.filter = "brightness(1.06) saturate(1.06)"; } catch (e) { }
-            ctx.globalAlpha = 0.45; ctx.drawImage(src, 0, 0, w, h);
+            ctx.globalCompositeOperation = "screen"; // [RP-V7.183] filter-free lift
+            ctx.globalAlpha = 0.16; ctx.drawImage(src, 0, 0, w, h);
             ctx.restore();
             return;
           }
-          /* bright */
+          /* bright — [RP-V7.183] 'screen' with the frame itself is a
+             true brighten (the classic screen blend); a light
+             'overlay' self-pass puts back the contrast screen
+             washes out. No ctx.filter anywhere (iPhone ignores it). */
           ctx.save();
-          try { ctx.filter = "brightness(1.13) contrast(1.04) saturate(1.10)"; } catch (e) { }
-          ctx.globalAlpha = 1; ctx.drawImage(src, 0, 0, w, h);
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = 0.38; ctx.drawImage(src, 0, 0, w, h);
+          ctx.globalCompositeOperation = "overlay";
+          ctx.globalAlpha = 0.16; ctx.drawImage(src, 0, 0, w, h);
           ctx.restore();
         } catch (e) { }
       }
@@ -11945,8 +11962,8 @@
           var __photo = fxLensArtImg("santahat");
           if (__photo) {
             fxContact(ctx, 0.01 * w, 0.07 * h, 0.44 * w, 0.08 * h, 0.28);
-            var __pw = 1.06 * w, __ph = __pw * __photo.naturalHeight / __photo.naturalWidth;
-            ctx.drawImage(__photo, -0.53 * w, 0.07 * h - __ph, __pw, __ph);
+            var __pw = 0.98 * w, __ph = __pw * __photo.naturalHeight / __photo.naturalWidth; // [RP-V7.183] fit pass: nearer the drawn hat's proven footprint
+            ctx.drawImage(__photo, -0.49 * w, 0.09 * h - __ph, __pw, __ph);
             return;
           }
           function cone() {
