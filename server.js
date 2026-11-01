@@ -2795,7 +2795,7 @@ const reelUpload = multer({
       cb(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${ext}`);
     },
   }),
-  limits: { fileSize: 100 * 1024 * 1024 }, // [RP-V7.126] 100 MB max per reel (was 25 MB in V7.125 and earlier)
+  limits: { fileSize: 500 * 1024 * 1024 }, // [RP-V7.179] 500 MB max per reel — a full 5-min take at the camera's 12 Mbps top-HD rate (was 100 MB in V7.126)
   fileFilter: (req, file, cb) => {
     if (REEL_VIDEO_TYPES[file.mimetype]) cb(null, true);
     else cb(new Error("Only MP4, WebM or MOV videos are allowed"));
@@ -3265,7 +3265,7 @@ app.post("/api/reel", (req, res) => {
     // [trimStart, trimEnd]; the window is hard-capped at the 180s reel cap.
     let trimStart = reelNum(rb.trimStart, 0, 86400),
       trimEnd = reelNum(rb.trimEnd, 0, 86400);
-    if (trimStart === null || trimEnd === null || trimEnd - trimStart < 1 || trimEnd - trimStart > 180.6) {
+    if (trimStart === null || trimEnd === null || trimEnd - trimStart < 1 || trimEnd - trimStart > 300.6 /* [RP-V7.179] 5-minute posts */) {
       trimStart = null;
       trimEnd = null;
     }
@@ -3379,7 +3379,7 @@ const shareInUpload = multer({
       cb(null, `${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${ext}`);
     },
   }),
-  limits: { fileSize: 100 * 1024 * 1024, files: 1 }, // 100 MB — the reel cap
+  limits: { fileSize: 500 * 1024 * 1024, files: 1 }, // [RP-V7.179] 500 MB — the reel cap
   fileFilter: (req, file, cb) => {
     if (file.mimetype && (file.mimetype.startsWith("video/") || file.mimetype.startsWith("image/")))
       cb(null, true);
