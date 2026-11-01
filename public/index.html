@@ -3254,6 +3254,10 @@
             </div>
             <div id="lvToolsTray" hidden>
               <div class="lv-tray-head"><b>🧰 Live tools</b><span><button type="button" class="btn-mini" id="lvTrayMore">More options</button> <button type="button" class="btn-mini" id="lvTrayClose">✕ Close</button></span></div>
+              <div id="sfxBar186" hidden>
+                <div class="sfx-title186">🔊 Soundboard <span>Host only — the whole live hears it. One sound at a time.</span></div>
+                <div class="sfx-grid186" id="sfxGrid186"></div>
+              </div>
             </div>
           </div>
           <div class="live-controls" id="liveControls"></div>
@@ -7420,7 +7424,96 @@
               renderLivePanel();
             } catch (e) { }
           });
-          socket.on("stage-request", function (d) { // [RP-V7.52] dedicated stage-request relay (audit H3): same handling as the legacy live-req proto
+          /* ---------- [RP-V7.186] HOST SOUNDBOARD ----------
+         Branden (Nov 1, 2026): build the full TikTok-style board.
+         Host-only pads inside the Live tools tray (live controls
+         live inside the live, per his rule). The host's tap plays
+         locally at once and emits "live-sfx"; the server checks
+         host + live and relays to everyone else in the live, who
+         hear the clip (served from /sfx/<id>.mp3) and see the show:
+         a name chip for every sound, and for Crowd Goes Wild a
+         full emoji burst (a show, never the like counter — hearts
+         still count real taps only). 2.5s cooldown, enforced on
+         both the client and the server. */
+      var RP_SFX186 = [
+        { id: "wild", e: "📣", n: "Crowd Goes Wild" },
+        { id: "applause", e: "👏", n: "Applause" },
+        { id: "laugh", e: "😂", n: "Laughter" },
+        { id: "airhorn", e: "📯", n: "Air Horn" },
+        { id: "drumroll", e: "🥁", n: "Drum Roll" },
+        { id: "chaching", e: "💰", n: "Cha-Ching" },
+        { id: "trombone", e: "🎺", n: "Sad Trombone" },
+        { id: "buzzer", e: "🚨", n: "Buzzer" },
+        { id: "sting", e: "🎬", n: "Dramatic Sting" }
+      ];
+      var RP_SFX_MAP186 = {};
+      RP_SFX186.forEach(function (x) { RP_SFX_MAP186[x.id] = x; });
+      var sfxAudio186 = {}, sfxLast186c = 0, sfxBuilt186 = false, sfxChipTimer186 = null;
+      function sfxBuild186() {
+        if (sfxBuilt186) return;
+        var grid = $("sfxGrid186"); if (!grid) return;
+        sfxBuilt186 = true;
+        RP_SFX186.forEach(function (x) {
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "sfx-pad186"; b.setAttribute("data-sfx", x.id);
+          b.innerHTML = '<span class="e">' + x.e + "</span>" + x.n;
+          b.addEventListener("click", function () { sfxFire186(x.id); });
+          grid.appendChild(b);
+        });
+      }
+      function sfxSync186() {
+        var bar = $("sfxBar186"); if (!bar) return;
+        var show = false;
+        try { show = document.body.classList.contains("live-fs") && iAmHost(); } catch (e) { }
+        if (show) { sfxBuild186(); bar.hidden = false; } else bar.hidden = true;
+      }
+      setInterval(sfxSync186, 1200);
+      function sfxPlay186(id) {
+        var a = sfxAudio186[id];
+        if (!a) { a = new Audio("/sfx/" + id + ".mp3"); a.preload = "auto"; sfxAudio186[id] = a; }
+        try { a.pause(); a.currentTime = 0; } catch (e) { }
+        var pr = a.play(); if (pr && pr.catch) pr.catch(function () { });
+      }
+      function sfxShow186(id) {
+        var fs = $("liveFs"); if (!fs) return;
+        var meta = RP_SFX_MAP186[id]; if (!meta) return;
+        if (id === "wild") {
+          var glyphs = ["🎉", "👏", "🙌", "❤️", "⭐", "🎊"];
+          for (var i = 0; i < 26; i++) {
+            var sp = document.createElement("span");
+            sp.className = "sfx-pop186";
+            sp.textContent = glyphs[i % glyphs.length];
+            sp.style.left = (4 + Math.random() * 90) + "%";
+            sp.style.fontSize = (20 + Math.random() * 18) + "px";
+            sp.style.animationDelay = (Math.random() * 0.35) + "s";
+            fs.appendChild(sp);
+            (function (el) { setTimeout(function () { el.remove(); }, 3200); })(sp);
+          }
+        }
+        var chip = $("sfxChip186");
+        if (!chip) { chip = document.createElement("div"); chip.id = "sfxChip186"; fs.appendChild(chip); }
+        chip.textContent = meta.e + " " + meta.n;
+        chip.classList.add("on");
+        if (sfxChipTimer186) clearTimeout(sfxChipTimer186);
+        sfxChipTimer186 = setTimeout(function () { chip.classList.remove("on"); }, 2100);
+      }
+      function sfxPadLock186() {
+        var pads = document.querySelectorAll(".sfx-pad186");
+        pads.forEach(function (p) { p.classList.add("locked"); });
+        setTimeout(function () { pads.forEach(function (p) { p.classList.remove("locked"); }); }, 2500);
+      }
+      function sfxFire186(id) {
+        var now = Date.now();
+        if (now - sfxLast186c < 2500) return;
+        sfxLast186c = now;
+        sfxPlay186(id); sfxShow186(id); sfxPadLock186();
+        try { socket.emit("live-sfx", { id: id }); } catch (e) { }
+      }
+      socket.on("live-sfx", function (d) {
+        if (!d || !RP_SFX_MAP186[d.id]) return;
+        sfxPlay186(d.id); sfxShow186(d.id);
+      });
+      socket.on("stage-request", function (d) { // [RP-V7.52] dedicated stage-request relay (audit H3): same handling as the legacy live-req proto
             if (!d || !d.fromId || d.fromId === Online.myId) return;
             if (!iAmHost() || Live.stage.indexOf(d.fromId) >= 0) return;
             if (!Live.requests[d.fromId]) {
@@ -37089,6 +37182,21 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
 })();
 </script>
 
+<style>
+/* [RP-V7.186] Soundboard: pads in the Live tools tray + the show
+   layer inside the live screen. */
+.sfx-title186 { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.sfx-title186 span { display: block; font-weight: 400; font-size: 11px; color: rgba(255,255,255,.65); margin-top: 2px; }
+.sfx-grid186 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.sfx-pad186 { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 4px; border-radius: 12px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.07); color: #fff; font-size: 11px; cursor: pointer; }
+.sfx-pad186 .e { font-size: 22px; line-height: 1; }
+.sfx-pad186:active { transform: scale(.94); }
+.sfx-pad186.locked { opacity: .45; pointer-events: none; }
+#sfxChip186 { position: absolute; top: 12%; left: 50%; transform: translate(-50%, -8px); z-index: 40; background: rgba(8,8,16,.82); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 999px; padding: 8px 16px; font-size: 15px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; }
+#sfxChip186.on { opacity: 1; transform: translate(-50%, 0); }
+.sfx-pop186 { position: absolute; bottom: 16%; z-index: 39; pointer-events: none; animation: sfxRise186 2.6s ease-out forwards; }
+@keyframes sfxRise186 { 0% { transform: translateY(0) scale(.7); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateY(-46vh) scale(1.15) rotate(14deg); opacity: 0; } }
+</style>
 </body>
 </html>
 
