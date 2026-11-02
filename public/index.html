@@ -2718,22 +2718,10 @@
       #tabbar { background: #000000; border-top: 1px solid rgba(255,255,255,.08); backdrop-filter: none; -webkit-backdrop-filter: none; }
       .tab-btn { color: #8f8f9d; }
       .tab-btn.on { color: #ffffff; }
-      /* ---- Plaza home: sticky app bar + feed cards ---- */
-      #ttbar {
-        position: sticky; top: 0; z-index: 30;
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 12px 2px 10px; margin: 0 0 6px;
-        background: rgba(0,0,0,.88); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-        border-bottom: 1px solid rgba(255,255,255,.07);
-      }
-      #ttbar .tt-word { font-size: 21px; font-weight: 900; letter-spacing: -.3px; color: #fff; }
-      #ttbar .tt-word span { color: var(--rose); }
-      #ttbar .tt-actions { display: flex; gap: 8px; }
-      #ttbar .tt-pill {
-        border: none; cursor: pointer; font-family: inherit; font-weight: 800; font-size: 13px;
-        border-radius: 999px; padding: 8px 14px; color: #fff; background: #26262e;
-      }
-      #ttbar .tt-pill.live { background: linear-gradient(180deg, #ff2438, #d8001c); box-shadow: 0 0 16px rgba(255,30,50,.95), 0 0 38px rgba(255,0,40,.65), 0 0 64px rgba(255,0,40,.35); } /* [RP-V7.116] Live pill: very glowy true red (was flat Plaza pink) */
+      /* ---- Plaza home: feed cards ---- */
+      /* [RP-V7.202] #ttbar styles removed with the bar itself (TikTok-only
+         design pass). The notifications bell now rides in #homeStrip: */
+      #rpBell { position: relative; background: none; border: none; color: #fff; font-size: 19px; line-height: 1; cursor: pointer; padding: 4px 2px; font-family: inherit; }
       .live-now-box { background: #0c0c12; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; }
       .plaza-card { border-radius: 18px; }
       .plaza-card h3 { font-size: 17px; font-weight: 800; letter-spacing: -.1px; }
@@ -25278,27 +25266,7 @@
   })();
   </script>
 
-  <script>
-  /* RP-TIKTOK-MODE: sticky app bar on the Plaza home */
-  (function () {
-    var plaza = document.getElementById("screen-plaza");
-    if (!plaza || document.getElementById("ttbar")) return;
-    var bar = document.createElement("div");
-    bar.id = "ttbar";
-    bar.innerHTML = '<div class="tt-word">Rizz<span>Plaza</span></div>' +
-      '<div class="tt-actions">' +
-      '<button class="tt-pill live" type="button" id="ttLive">🔴 Live</button>' +
-      '<button class="tt-pill" type="button" id="ttSell">🔨 Sell</button>' +
-      '</div>';
-    plaza.insertBefore(bar, plaza.firstChild);
-    function wire(id, target) {
-      var b = document.getElementById(id);
-      if (b) b.addEventListener("click", function () { var t = document.getElementById(target); if (t) t.click(); });
-    }
-    wire("ttLive", "btnOnlineHome");
-    wire("ttSell", "btnAuctionsHome");
-  })();
-  </script>
+  <!-- [RP-V7.202] The old wordmark app bar (#ttbar) is GONE — Branden's TikTok-only design pass (Nov 2, 2026): Home now carries ONE top bar, the TikTok strip (#homeStrip: LIVE · Plaza/Following/For You · search · bell). Its Live pill duplicated the strip's LIVE button and its Sell pill duplicated the bottom-bar Auctions slot, so nothing became unreachable. The notifications bell moved into the strip (buildBell). -->
 <style>
 /* ============ RP-V5: social sign-in, gift visuals, live battle ============ */
 .btn-social{ display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:12px; margin:0 0 10px; border-radius:10px; border:1px solid rgba(255,255,255,.16); background:#ffffff; color:#111; font:600 15px inherit; cursor:pointer; }
@@ -28510,7 +28478,9 @@ body:not(.live-fs) #rp65How { display:none !important; }
 
   /* ---------- 🔔 bell in the app bar + reminders sheet ---------- */
   function buildBell() {
-    var actions = document.querySelector("#ttbar .tt-actions");
+    /* [RP-V7.202] the bell rides in the TikTok strip now that #ttbar is
+       gone (design pass); the old app-bar home stays as a fallback. */
+    var actions = document.querySelector("#homeStrip") || document.querySelector("#ttbar .tt-actions");
     if (!actions || $("rpBell")) return;
     var b = document.createElement("button");
     b.type = "button"; b.className = "tt-pill"; b.id = "rpBell";
@@ -38543,7 +38513,6 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
    the clearance, the same pattern the live top bar, story viewer
    and camera already use. env() resolves to 0 in browser tabs and
    on Android, so nothing changes there. */
-#ttbar { padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
 #homeStrip { top: env(safe-area-inset-top, 0px); }
 .scene-top { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
 </style>
