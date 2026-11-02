@@ -5074,7 +5074,7 @@
           '<button class="close-x" data-act="close" aria-label="Close">\u2715</button>' +
           '<div class="game-box"><h3>' + area + ' is 18+</h3>' +
           '<p>The dating rooms, the Meet &amp; Greet rooms, the state rooms and the auctions are adults-only \u2014 everyone inside them is 18 or older.</p>' +
-          '<p>Your Plaza is big too: the \u26ea Christian Fellowship prayer room, the Teen Hangout, the \u2b50 Live Stage and every live (you can go live yourself!), Reels, Stories, the Feed and both pots \u2014 under-18s play in charms only, and you earn them by the thousands. And when you turn 18, every room here will be waiting.</p>' +
+          '<p>Your Plaza is big too: the \u26ea Christian Fellowship prayer room, the Teen Hangout, the \u2b50 Live Stage and every live (you can go live yourself!), Reels, Messages with other teens, Stories, the Feed and both pots \u2014 under-18s play in charms only, and you earn them by the thousands. And when you turn 18, every room here will be waiting.</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-mini" data-act="chapel">\u26ea Go to the prayer room</button><button class="btn-mini" data-act="teenhang">🛋️ Teen Hangout</button><button class="btn-mini" data-act="prof">My profile</button></div></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -25149,10 +25149,11 @@
       } catch (e) { return false; }
     }
     function sync() {
-      var teen = teenBar(); // [RP-V7.94] teen accounts (13-17) render NO Inbox tab
+      var teen = teenBar();
       bar.classList.toggle("teen-bar", teen);
-      var ib94 = document.getElementById("btnTabInbox");
-      if (ib94) ib94.style.display = teen ? "none" : "";
+      // [RP-V7.212] The Inbox tab renders for teen accounts too
+      // (teen-to-teen DMs, Branden, Nov 2, 2026) — no longer hidden.
+      // The Friends tab below stays teen-hidden, exactly as before.
       var fb112 = document.getElementById("btnTabFriends"); // [RP-V7.112] Friends rides the Reels gate — no tab for teens
       if (fb112) fb112.style.display = teen ? "none" : "";
       var id = activeScreen();
@@ -29303,6 +29304,7 @@ button.rp72-chip{ cursor:pointer; }
   var S = {
     loaded: false, userId: "", tokenSeen: "",
     dirByKey: {},      /* followKey -> accountId, unique display names only */
+    dirClassByKey: {}, /* [RP-V7.212] followKey -> ageClass, same unique-name rule */
     followingIds: {},  /* accountId -> true */
     followingList: [], /* [{id, name}] from /api/social/me */
     followersList: [], /* [{id, name}] from /api/social/me */
@@ -29347,15 +29349,17 @@ button.rp72-chip{ cursor:pointer; }
   function counts() { return { following: S.followingCount, followers: S.followersCount }; }
 
   function ingestDirectory(users) {
-    var tally = {}, byKey = {};
+    var tally = {}, byKey = {}, classByKey = {};
     (users || []).forEach(function (u) {
       if (!u || !u.id || !u.name) return;
       var k = key(u.name); if (!k) return;
       tally[k] = (tally[k] || 0) + 1;
       byKey[k] = u.id;
+      if (u.ageClass) classByKey[k] = u.ageClass; // [RP-V7.212]
     });
     S.dirByKey = {};
-    Object.keys(byKey).forEach(function (k) { if (tally[k] === 1) S.dirByKey[k] = byKey[k]; });
+    S.dirClassByKey = {};
+    Object.keys(byKey).forEach(function (k) { if (tally[k] === 1) { S.dirByKey[k] = byKey[k]; if (classByKey[k]) S.dirClassByKey[k] = classByKey[k]; } });
   }
   function ingestMe(j) {
     S.userId = j.id || S.userId;
@@ -29473,7 +29477,7 @@ button.rp72-chip{ cursor:pointer; }
   function reset() {
     S.loaded = false; bridge.loaded = false;
     S.userId = ""; S.tokenSeen = "";
-    S.dirByKey = {}; S.followingIds = {};
+    S.dirByKey = {}; S.dirClassByKey = {}; S.followingIds = {};
     S.followingList = []; S.followersList = [];
     S.followingCount = 0; S.followersCount = 0;
     if (typeof syncFollowButtons === "function") syncFollowButtons();
@@ -30340,6 +30344,29 @@ button.rp72-chip{ cursor:pointer; }
     for (i = 0; i < list.length; i++) if (key(list[i].name) === k) return list[i].id;
     return (st.dirByKey && st.dirByKey[k]) || null;
   }
+  /* [RP-V7.212] Teen DMs are teen-to-teen only: the age class of a
+     member by display name, when the social state knows it (follow
+     lists + the unique-name directory carry the server's ageClass).
+     null = unknown — entry points still show and the server wall is
+     the guarantee; a KNOWN cross-class pairing is never offered. */
+  var DM_CROSS_CLASS_MSG = "Teens and adults can't message each other on Rizz Plaza \u2014 teen accounts message other teens, and adult accounts message other adults.";
+  function classOfName(name) {
+    var st = null;
+    try { st = window.rpSocial && window.rpSocial.state; } catch (e) { }
+    if (!st || !st.loaded) return null;
+    var k = key(name); if (!k) return null;
+    var i, list;
+    list = st.followingList || [];
+    for (i = 0; i < list.length; i++) if (key(list[i].name) === k && list[i].ageClass) return list[i].ageClass;
+    list = st.followersList || [];
+    for (i = 0; i < list.length; i++) if (key(list[i].name) === k && list[i].ageClass) return list[i].ageClass;
+    return (st.dirClassByKey && st.dirClassByKey[k]) || null;
+  }
+  function dmCrossClassName(name) {
+    var c = classOfName(name);
+    if (!c) return false;
+    return (c === "teen") !== isTeenGuest();
+  }
   function photoFor(name) {
     try {
       if (typeof followPhotoFor === "function") { var p = followPhotoFor(name); if (p) return p; }
@@ -30371,14 +30398,14 @@ button.rp72-chip{ cursor:pointer; }
   /* [RP-V7.94] Messages live in the bottom-bar Inbox tab now
      (Branden, Oct 27 — supersedes the V7.91 Profile pill). The tab
      carries the #rpDmBadge span, so setBadge/refreshBadge keep
-     working untouched; the tab is wired to this same openInbox,
-     and teen accounts never render the tab at all. */
+     working untouched; the tab is wired to this same openInbox.
+     [RP-V7.212] Teen accounts render the tab too now — teen-to-teen
+     DMs; the server refuses teen/adult pairings at send time. */
 
   /* ---------------- inbox (Messages / Requests) ---------------- */
   var inboxTab = "inbox", inboxData = null;
   function openInbox() {
     stopPoll();
-    if (isTeenGuest()) return;
     if (!acctRec()) { toast2("Messages need an account — sign up or log in first 💬", 4000); return; }
     if (typeof window.openSheet !== "function") { toast2("Open Messages from the Plaza home 💬", 3000); return; }
     renderInboxShell('<p class="age-note" style="margin-top:10px">Loading your messages…</p>');
@@ -30732,11 +30759,11 @@ button.rp72-chip{ cursor:pointer; }
 
   /* ---------------- 💬 Message buttons beside Follow buttons ---------------- */
   function injectButtons() {
-    if (isTeenGuest()) return;
     var mine = myKeys();
     document.querySelectorAll("[data-follow]").forEach(function (fb) {
       var name = fb.getAttribute("data-follow");
       if (!name || mine[key(name)]) return;
+      if (dmCrossClassName(name)) return; // [RP-V7.212] no Message button across the teen/adult line
       var parent = fb.parentNode;
       if (!parent) return;
       var kids = parent.children, found = false, i;
@@ -30753,17 +30780,17 @@ button.rp72-chip{ cursor:pointer; }
     });
   }
   function onMessageName(name) {
-    if (!name || isTeenGuest()) return;
+    if (!name) return;
     if (!acctRec()) { toast2("Messages need an account — sign up or log in to message " + name + " 💬", 4200); return; }
     var id = resolveName(name);
-    if (id) { openConversation(id, name); return; }
+    if (id) { if (dmCrossClassName(name)) { toast2(DM_CROSS_CLASS_MSG, 4600); return; } openConversation(id, name); return; } // [RP-V7.212]
     toast2("Finding " + name + "…", 1600);
     try { if (window.rpSocial && window.rpSocial.load) window.rpSocial.load(); } catch (e) { }
     var tries = 0;
     var iv = setInterval(function () {
       tries++;
       var id2 = resolveName(name);
-      if (id2) { clearInterval(iv); openConversation(id2, name); }
+      if (id2) { clearInterval(iv); if (dmCrossClassName(name)) { toast2(DM_CROSS_CLASS_MSG, 4600); return; } openConversation(id2, name); } // [RP-V7.212]
       else if (tries >= 8) {
         clearInterval(iv);
         toast2(name + " doesn't have a Rizz Plaza account yet — messages need an account 💬", 4400);
@@ -30790,7 +30817,6 @@ button.rp72-chip{ cursor:pointer; }
   var peopleQuery = "", peopleTimer = null;
   function openPeople(q) {
     stopPoll();
-    if (isTeenGuest()) return;
     if (!acctRec()) { toast2("Find people needs an account — sign up or log in first 💬", 4000); return; }
     if (typeof window.openSheet !== "function") return;
     peopleQuery = q || "";
@@ -30986,9 +31012,13 @@ button.rp72-chip{ cursor:pointer; }
       return;
     }
     var following = j ? !!j.iFollow : false;
+    // [RP-V7.212] No Message button across the teen/adult line: the
+    // profile payload carries the member's age class (the server
+    // refuses cross-class sends regardless of what the UI shows).
+    var cross212 = !!(j && j.ageClass) && ((j.ageClass === "teen") !== isTeenGuest());
     box.innerHTML =
       '<button type="button" class="follow-btn big' + (following ? " on" : "") + '" id="rpMpFollow">' + (following ? "Following" : "+ Follow") + "</button>" +
-      '<button type="button" class="follow-btn big" id="rpMpMsg">💬 Message</button>';
+      (cross212 ? "" : '<button type="button" class="follow-btn big" id="rpMpMsg">💬 Message</button>');
     var fb = $("rpMpFollow");
     if (fb) fb.addEventListener("click", function () {
       var on = fb.classList.contains("on");
