@@ -7155,7 +7155,9 @@ function socialBrief(accountsDb, id) {
   // brief is rendered (lists + the counts computed from them).
   if (!u || u.deletionAt) return null;
   // [RP-V7.37] the profile-type label rides along for cards/lists.
-  return { id: u.id, name: u.name, profileType: profileTypeOf(u), profileTypeLabel: profileTypeLabel(u) };
+  // [RP-V7.212] ageClass rides the brief so clients can hide DM
+  // entry points across the teen/adult line (class only, no DOB).
+  return { id: u.id, name: u.name, profileType: profileTypeOf(u), profileTypeLabel: profileTypeLabel(u), ageClass: accountAgeClass(u) };
 }
 function socialSetFollow(db, followerId, followeeId, on) {
   const cur = socialFollowingIds(db, followerId);
@@ -7317,7 +7319,7 @@ app.get("/api/social/directory", (req, res) => {
   const users = ctx.db.users
     .filter((u) => u.id === ctx.user.id || !hidden99.has(u.id))
     .slice(0, 500)
-    .map((u) => ({ id: u.id, name: u.name }));
+    .map((u) => ({ id: u.id, name: u.name, ageClass: accountAgeClass(u) })); // [RP-V7.212] class for DM entry-point visibility
   res.json({ ok: true, users });
 });
 // [RP-V7.28] Full public profile for the person card + profile page.
@@ -7577,6 +7579,7 @@ app.get("/api/social/profile", (req, res) => {
     username: target.username || null,
     profileType: profileTypeOf(target),
     profileTypeLabel: profileTypeLabel(target),
+    ageClass: accountAgeClass(target), // [RP-V7.212] class only, no DOB
     // [RP-V7.50] the account's stored photo, live-player fallback
     photo: target.photo || livePhotoForAccount(target),
     followersCount: socialFollowerIds(sdb, target.id).length,
@@ -8873,6 +8876,22 @@ function dmPrivacyError(db, ctx, other) {
     return other.name + " only accepts messages from people they follow";
   return null;
 }
+
+// [RP-V7.212] Teen DMs are TEEN-TO-TEEN ONLY (Branden, Nov 2, 2026):
+// every DM create/send checks BOTH parties' CURRENT age classes via
+// accountAgeClass — the same source the money/gate code uses. A teen
+// and an adult can never message each other in either direction;
+// teen-to-teen and adult-to-adult pass. The class is read fresh at
+// send time, so an existing thread stops accepting sends the moment
+// the two parties' classes differ (for example when one side turns
+// 18 before the other): the history stays readable, new sends are
+// refused here (and at the media route below).
+function dmAgeClassError(ctx, other) {
+  if (!ctx || !ctx.user || !other) return null;
+  if (accountAgeClass(ctx.user) === accountAgeClass(other)) return null;
+  return "Teens and adults can't message each other on Rizz Plaza \u2014 teen accounts message other teens, and adult accounts message other adults.";
+}
+
 function dmDeliver(ctx, other, msg) {
   const db = readDms();
   const key = dmThreadKey(ctx.user.id, other.id);
@@ -9042,6 +9061,10 @@ app.post("/api/dm/send", (req, res) => {
   const dmPrivErr = dmPrivacyError(db, ctx, other);
   if (dmPrivErr)
     return res.status(403).json({ ok: false, error: dmPrivErr });
+  // [RP-V7.212] The teen/adult wall (both directions, current class).
+  const dmAgeErr = dmAgeClassError(ctx, other);
+  if (dmAgeErr)
+    return res.status(403).json({ ok: false, error: dmAgeErr });
   const msg = {
     id: crypto.randomBytes(8).toString("hex"),
     from: ctx.user.id,
@@ -9102,6 +9125,10 @@ app.post("/api/dm/media",
       // [RP-V7.99] Same message-privacy gate as text sends.
       const dmPrivErrM = dmPrivacyError(db, ctx, other);
       if (dmPrivErrM) return fail(403, dmPrivErrM);
+      // [RP-V7.212] The teen/adult wall, same as text sends
+      // (fail() above already unlinks the stored upload).
+      const dmAgeErrM = dmAgeClassError(ctx, other);
+      if (dmAgeErrM) return fail(403, dmAgeErrM);
       const isVideo = (req.file.mimetype || "").startsWith("video/");
       if (!isVideo && req.file.size > DM_PHOTO_MAX)
         return fail(413, "That photo is too big — 10 MB max");
@@ -9296,6 +9323,7 @@ app.get("/api/members", (req, res) => {
       name: u.name,
       profileType: profileTypeOf(u),
       profileTypeLabel: profileTypeLabel(u),
+      ageClass: accountAgeClass(u), // [RP-V7.212] class only, no DOB
       // [RP-V7.50] the account's stored photo wins; the live-player
       // name match remains as the fallback for accounts without one.
       photo: u.photo || (nameCount[k] === 1 ? photoByName[k] || null : null),
