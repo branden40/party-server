@@ -610,6 +610,21 @@ Object.keys(RP_GIFT_ART_7197).forEach((gid) => {
   });
 });
 // ---------------------------------------------------------------------------
+// [RP-V7.199] World Tree's ANIMATED ART — embedded base64 WebP
+// (320x320, 40 frames @ 24fps, infinite loop) served from the sibling
+// module; the film giftfx-worldtree.mp4 is uploaded separately and
+// the client falls back to this animated art until it lands (never a
+// still).
+const RP_GIFT_ART_7199 = require("./giftart7199.js");
+Object.keys(RP_GIFT_ART_7199).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7199[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+// ---------------------------------------------------------------------------
 // [RP-V7.181] Photographic lens art — real-object photos (alpha WebP)
 // that replace the drawn props in the camera as they load; the client
 // falls back to its drawing until the photo arrives. Santa Hat first.
@@ -10328,7 +10343,7 @@ const PREMIUM_PLANS = {
 const MONEY_GIFT_TABLE = {
   heart: 1, rose: 5, coffee: 10, icecream: 25, donut: 30, clap: 50,
   heartburst: 60, thunderbolt: 75, fingerheart: 99, kiss: 100,
-  fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500,
+  fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500, worldtree: 500, // [RP-V7.199] +World Tree 500 ($5, Branden Nov 1, 2026) — catalog now 45 gifts
   loveballoon: 600, guardianpalm: 700, airplane: 800, moneygun: 999,
   castle: 1000, volcano: 2000, lion: 2500, plazaape: 2500, dragon: 3000, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts
   whale: 4500, galaxy: 5000, titanclash: 5000, rizzuniverse: 5000, starsurge: 5500, diamonds: 6000,
