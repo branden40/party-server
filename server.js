@@ -11516,6 +11516,66 @@ app.post("/api/owner/store-sales", lockedHandler("owner-store-sales", (req, res)
   writeMoney(mdb);
   res.json({ ok: true, storeCents: mdb.ownerStore.storeCents, at: mdb.ownerStore.at });
 }));
+// ---------------------------------------------------------------------------
+// [RP-V7.209] OWNER-ONLY CHARM GRANT (Branden, Nov 2, 2026). Before
+// this build the server had NO path that credits charms to an
+// account by hand — balances moved only via purchases, claims,
+// pot wins and gift settlements — so the owner could not comp
+// test charms onto his own teen test account (@Popstar) for
+// teen-side gifting tests. POST /api/owner/grant-charms accepts
+// EITHER the owner session (the exact check /api/owner/sales
+// uses: the signed-in account is rpOwnerUserId) OR the
+// OWNER_PUSH_SECRET in the body (the exact pattern
+// /api/owner/store-sales uses; 404 for everyone else, and 404
+// for the secret path while no secret is configured). Body:
+// { username, amount } — the account resolves by usernameKey
+// (trim + lowercase, the signup-normalization rule). Semantics
+// follow the age-class wall: a TEEN target is credited in the
+// teen GIFT BALANCE only (giftBals — charms-only, never the
+// main balance, never anything money-touching); an ADULT target
+// is credited in the main charm balance. Every grant is written
+// to the money ledger (type "owner-grant") and logged.
+// ---------------------------------------------------------------------------
+app.post("/api/owner/grant-charms", lockedHandler("owner-grant-charms", (req, res) => {
+  const body = req.body || {};
+  const adb = readAccounts();
+  // Gate 1: the owner session (same check as GET /api/owner/sales).
+  const sessionUser = accountForToken(adb, req);
+  const ownerId = rpOwnerUserId(adb);
+  const viaSession = !!(sessionUser && ownerId && sessionUser.id === ownerId);
+  // Gate 2: the push secret (same pattern as POST /api/owner/store-sales).
+  const want = String(process.env.OWNER_PUSH_SECRET || "");
+  const viaSecret = !!want && String(body.secret || "") === want;
+  if (!viaSession && !viaSecret) return res.status(404).json({ ok: false, error: "not-found" });
+  const key = usernameKey(body.username);
+  if (!key) return res.status(400).json({ ok: false, error: "bad-username" });
+  const target = (adb.users || []).find((u) => u && usernameKey(u.username) === key);
+  if (!target) return res.status(404).json({ ok: false, error: "no-such-user" });
+  const amount = Number(body.amount);
+  if (!Number.isSafeInteger(amount) || amount <= 0) return res.status(400).json({ ok: false, error: "bad-amount" });
+  const ageClass = accountAgeClass(target);
+  const mdb = readMoney();
+  let credited, before, after;
+  if (ageClass === "teen") {
+    if (!mdb.giftBals || typeof mdb.giftBals !== "object" || Array.isArray(mdb.giftBals)) mdb.giftBals = {};
+    before = mdb.giftBals[target.id] || 0;
+    after = before + amount;
+    mdb.giftBals[target.id] = after;
+    credited = "giftBal";
+  } else {
+    before = mdb.balances[target.id] || 0;
+    after = before + amount;
+    mdb.balances[target.id] = after;
+    credited = "balance";
+  }
+  moneyTx(mdb, {
+    type: "owner-grant", from: null, to: target.id,
+    charms: amount, cents: 0, cut: 0, ref: credited,
+  });
+  writeMoney(mdb);
+  console.log("[owner] grant-charms", target.username, ageClass, credited, before, "->", after, "via", viaSession ? "session" : "secret");
+  res.json({ ok: true, username: target.username, ageClass, credited, amount, before, after });
+}));
 app.post("/api/money/connect/onboard", async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
