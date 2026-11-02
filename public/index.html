@@ -3339,8 +3339,8 @@
           </div>
           <!-- [RP-V7.70] Plaza Stories tray (same tray as Home). -->
           <div class="story-tray" id="storyTrayReels" hidden></div>
-          <p id="momIntro" style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px;">Scroll the feed, tap ❤️ to like, 💬 to comment — and hit 🎁 Gift on any post to send its poster a real gift. Gifts bank toward their earnings, same as on the Live Stage. 18+ only.</p>
-          <p id="reelIntro" style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px; display:none;">Short videos from the Plaza — tap a reel to play or pause, ❤️ to like, 💬 to comment — and 🎁 Gift sends its poster a real gift, same as Photos. 60 seconds max. 18+ only.</p>
+          <p id="momIntro" style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px;">Scroll the feed, tap ❤️ to like, 💬 to comment — and hit 🎁 Gift on any post to send its poster a real gift. Gifts bank toward their earnings, same as on the Live Stage.</p>
+          <p id="reelIntro" style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px; display:none;">Short videos from the Plaza — tap a reel to play or pause, ❤️ to like, 💬 to comment — and 🎁 Gift sends its poster a real gift, same as Photos. 60 seconds max.</p>
           <div class="mom-modebar">
             <button class="mom-mode on" id="btnMomModePhotos" type="button">📸 Photos</button>
             <button class="mom-mode" id="btnMomModeReels" type="button">🎬 Reels</button>
@@ -5044,7 +5044,7 @@
         });
       }
 
-      var TEEN_ONLY_18 = ["screen-room", "screen-online", "screen-moments", "screen-auctions", "screen-feed"];
+      var TEEN_ONLY_18 = ["screen-room", "screen-online", "screen-auctions", "screen-feed"]; // [RP-V7.211] Reels opened to teens (Branden, Nov 2 2026: "Add reels to teens") — screen-moments is no longer teen-locked; teens watch AND post
       // [RP-V7.75] Live rooms (the Live Stage + personal lives) are
       // all-ages for signed-in accounts — the one carve-out in the
       // teen lock. Mirrors the server's isLiveRoom classification.
@@ -5066,15 +5066,15 @@
         $("sheet").querySelector("[data-act=online]").addEventListener("click", function () { closeSheet(); enterLiveStageCard(); });
       }
       // [RP-V7.75] The remaining 18+ areas (dating / Meet & Greet /
-      // state rooms, Reels, auctions) show this gate to under-18
-      // players; lives, Stories, the Feed and the pots are all-ages
+      // state rooms, auctions) show this gate to under-18
+      // players; lives, Reels [RP-V7.211], Stories, the Feed and the pots are all-ages
       // and never land here.
       function openTeenGateAll(area) {
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">\u2715</button>' +
           '<div class="game-box"><h3>' + area + ' is 18+</h3>' +
-          '<p>The dating rooms, the Meet &amp; Greet rooms, the state rooms, Reels and the auctions are adults-only \u2014 everyone inside them is 18 or older.</p>' +
-          '<p>Your Plaza is big too: the \u26ea Christian Fellowship prayer room, the Teen Hangout, the \u2b50 Live Stage and every live (you can go live yourself!), Stories, the Feed and both pots \u2014 under-18s play in charms only, and you earn them by the thousands. And when you turn 18, every room here will be waiting.</p>' +
+          '<p>The dating rooms, the Meet &amp; Greet rooms, the state rooms and the auctions are adults-only \u2014 everyone inside them is 18 or older.</p>' +
+          '<p>Your Plaza is big too: the \u26ea Christian Fellowship prayer room, the Teen Hangout, the \u2b50 Live Stage and every live (you can go live yourself!), Reels, Stories, the Feed and both pots \u2014 under-18s play in charms only, and you earn them by the thousands. And when you turn 18, every room here will be waiting.</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-mini" data-act="chapel">\u26ea Go to the prayer room</button><button class="btn-mini" data-act="teenhang">🛋️ Teen Hangout</button><button class="btn-mini" data-act="prof">My profile</button></div></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -17272,7 +17272,7 @@
           '<details style="margin:4px 0;"><summary><b>How do auctions work?</b></summary><p style="margin:6px 0;">In 🔨 Live Auction you can bid on live items, or tap ＋ Sell an item to list your own. Winners pay bid + shipping, sellers ship the item. All sales are final unless an item never ships — and counterfeits are never allowed.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>How do I earn and cash out?</b></summary><p style="margin:6px 0;">Hosts earn charms from gifts, and sellers keep 90% of auction sales. When your balance reaches $20 you can cash out once a day through Stripe — see the 💰 Earn card.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>Is Rizz Plaza free?</b></summary><p style="margin:6px 0;">Yes — joining, the rooms, going live, and the fellowship room are all free. Gift charm packs and Premium are optional extras.</p></details>' +
-          '<details style="margin:4px 0;"><summary><b>Who can use the prayer room?</b></summary><p style="margin:6px 0;">Everyone — the Christian Fellowship room is all-ages (Teen Hangout too): chapel, prayer wall, and Bible study. Lives, Stories and the Feed are open to all ages as well; the dating rooms, state rooms, Reels and auctions stay 18+.</p></details>' +
+          '<details style="margin:4px 0;"><summary><b>Who can use the prayer room?</b></summary><p style="margin:6px 0;">Everyone — the Christian Fellowship room is all-ages (Teen Hangout too): chapel, prayer wall, and Bible study. Lives, Stories, Reels and the Feed are open to all ages as well; the dating rooms, state rooms and auctions stay 18+.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>How do I report a player?</b></summary><p style="margin:6px 0;">Tap the ⚠️ Report button on their card — it hides them from you right away and flags them for the team. Nudity is never tolerated here.</p></details>' +
           '<h4 style="margin:16px 0 4px;">✉️ Message the team</h4>' +
           '<label style="display:block; margin:8px 0;">Your name<input type="text" id="supName" maxlength="80" autocomplete="name" placeholder="Your name" style="width:100%;" /></label>' +
@@ -21652,7 +21652,7 @@
       }
 
       function openMomComposer() {
-        if (isTeen()) { openTeenGateAll("Reels"); return; }
+        // [RP-V7.211] teen gate removed — the Moments section (Photos + Reels) is open to teen accounts
         var ci0 = $("momCapInput"); if (ci0) momCapDraft123 = ci0.value; // [RP-V7.123]
         var picks = Moments.pendingPhotos || [];
         var has = picks.length > 0;
@@ -23172,7 +23172,7 @@
         reelTrimLabels169();
       }
       function openReelComposer() {
-        if (isTeen()) { openTeenGateAll("Reels"); return; }
+        // [RP-V7.211] teen gate removed — teens post reels through the normal composer
         reelDuetCleanup();
         var has = !!Reels.pendingBlob;
         var stage = Reels.stage || "pick";
@@ -23246,7 +23246,7 @@
           "</div>" +
           '<p id="reelStatus" style="text-align:center; font-weight:800; min-height:20px; margin:0 0 4px;">' + (stage === "preview" ? "🎬 Your reel, looping." : "") + "</p>" +
           mid + draftsHtml +
-          '<p class="age-note" style="margin-top:10px;">Reels follow the same community guidelines as live: no nudity or sexual content, ever. Max 3 minutes · 100 MB · 18+ only.</p></div>'
+          '<p class="age-note" style="margin-top:10px;">Reels follow the same community guidelines as live: no nudity or sexual content, ever. Max 3 minutes · 100 MB.</p></div>'
         );
         var pv = $("reelPreview");
         if (pv && has) {
@@ -23319,7 +23319,7 @@
         $("sheet").querySelectorAll("[data-ddel]").forEach(function (b) { b.addEventListener("click", function () { reelDeleteDraft(b.getAttribute("data-ddel")); }); });
       }
       function reelStartRecord() {
-        if (isTeen()) { openTeenGateAll("Reels"); return; }
+        // [RP-V7.211] teen gate removed — teens record reels in the composer
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
           toast("Recording is not supported on this device — upload a video instead! 📁");
           return;
@@ -23713,7 +23713,7 @@
         Reels.duetBlob = null;
       }
       function openDuetStudio(item) {
-        if (isTeen()) { openTeenGateAll("Reels"); return; }
+        // [RP-V7.211] teen gate removed — Duet is part of the open Reels section
         if (!item.url) { toast("That reel has no playable video — Duet can't start."); return; }
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
           toast("Recording isn't supported on this device, so Duet can't start here.");
@@ -23869,7 +23869,7 @@
 
       /* ---- Stitch studio: pick the ≤5s window, then record a response ---- */
       function openStitchStudio(item) {
-        if (isTeen()) { openTeenGateAll("Reels"); return; }
+        // [RP-V7.211] teen gate removed — Stitch is part of the open Reels section
         if (!item.url) { toast("That reel has no playable video — Stitch can't start."); return; }
         reelProbeSecs(item.url).then(function (dur) {
           if (!isFinite(dur) || dur <= 0) {
@@ -23933,7 +23933,7 @@
       (function wireReels() {
         var tp = $("btnMomModePhotos"), tr = $("btnMomModeReels");
         if (tp) tp.addEventListener("click", function () { setMomMode("photos"); });
-        if (tr) tr.addEventListener("click", function () { if (isTeen()) { openTeenGateAll("Reels"); return; } setMomMode("reels"); });
+        if (tr) tr.addEventListener("click", function () { setMomMode("reels"); }); // [RP-V7.211] teen gate removed — the in-screen Reels tab is open to teens
         var bpm = $("btnMomPost");
         if (bpm) bpm.addEventListener("click", function () { openMomComposer(); }); // [RP-V7.152] the Photos header's Post a photo button never had a listener — dead on tap (Branden, Oct 30); the composer carries the teen gate itself
         var br = $("btnReelPost");
@@ -37506,7 +37506,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       }
       if (Cam.mode === "video") {
         if (Cam.recording) { stopRecording(); return; }
-        if (typeof isTeen === "function" && isTeen()) { openTeenGateAll("Reels"); return; }
+        // [RP-V7.211] teen gate removed — teens record reel videos in the + camera too
         if (Cam.timer) countdown(Cam.timer, beginRecord); else beginRecord();
       } else {
         if (Cam.timer) countdown(Cam.timer, capturePhoto); else capturePhoto();
