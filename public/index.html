@@ -695,6 +695,20 @@
       .gfx.big, .gfx.prestige { pointer-events: auto; cursor: pointer; }
       .gfx-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 65%, rgba(30,16,54,.88), rgba(2,2,10,.96) 75%); opacity: 0; }
       .gfx.big .gfx-bg, .gfx.prestige .gfx-bg { animation: gfxBgIn .5s ease forwards; }
+      /* [RP-V7.207] reference correction (Branden: "Look at TikTok
+         gifting"): small/medium shows carry NO backdrop — their
+         media blends straight into the live room picture, TikTok
+         style. The .gfx-bg stays transparent for them; only the
+         cinematic big/prestige shows keep their designed backdrop. */
+      /* [RP-V7.207] Fix 1c iteration (pixel-proven, same finding as
+         the big stage): .gfx is a fixed stacking context, so media-
+         level blend inside it never reaches the room — the overlay
+         ITSELF blends screen against the page instead, and the whole
+         float/burst show (hero, copies, particles) composites into
+         the live picture. The sender cap's white/gold text screens
+         through readable; its dark pill glass is part of the show
+         layer, not a backdrop. */
+      .gfx.small, .gfx.medium { mix-blend-mode: screen; }
       .gfx.space .gfx-bg { background: #01020a; }
       @keyframes gfxBgIn { to { opacity: 1; } }
       .gfx-stage { position: absolute; inset: 0; }
@@ -19397,16 +19411,20 @@
         { id: "donut", art: "img/gifts/donut.webp", name: "Donut", icon: "🍩", cents: 30, tier: "small", fx: "float" },
         { id: "clap", art: "img/gifts/clap.webp", name: "Clap", icon: "👏", cents: 50, tier: "small", fx: "float" },
         { id: "heartburst", art: "img/gifts/heartburst.webp", name: "Heart Burst", icon: "💖", cents: 60, tier: "small", fx: "float" },
+        { id: "honeybee", art: "img/gifts/honeybee.webp", name: "Honey Bee", icon: "🐝", cents: 60, tier: "small", fx: "float" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "thunderbolt", art: "img/gifts/thunderbolt.webp", name: "Thunderbolt", icon: "⚡", cents: 75, tier: "small", fx: "float" },
+        { id: "bubblewand", art: "img/gifts/bubblewand.webp", name: "Bubble Wand", icon: "🫧", cents: 99, tier: "small", fx: "float" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "fingerheart", art: "img/gifts/fingerheart.webp", name: "Finger Heart", icon: "🫰", cents: 99, tier: "small", fx: "float" },
         { id: "kiss", art: "img/gifts/kiss.webp", name: "Kiss", icon: "💋", cents: 100, tier: "small", fx: "float" },
         { id: "fireworks", art: "img/gifts/fireworks.webp", name: "Fireworks", icon: "🎆", cents: 200, tier: "medium", fx: "burst" },
         { id: "motorcycle", art: "img/gifts/motorcycle.webp", name: "Motorcycle", icon: "🏍️", cents: 300, tier: "medium", fx: "across" },
         { id: "goldgloves", art: "img/gifts/goldgloves.webp", name: "Gold Gloves", icon: "🥊", cents: 450, tier: "medium", fx: "burst" },
+        { id: "peacock", art: "img/gifts/peacock.webp", name: "Peacock Fan", icon: "🦚", cents: 450, tier: "medium", fx: "burst" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "sportscar", art: "img/gifts/sportscar.webp", name: "Sports Car", icon: "🏎️", cents: 500, tier: "medium", fx: "across" },
         { id: "worldtree", art: "worldtree", name: "World Tree", icon: "🌳", cents: 500, tier: "medium", fx: "rise" }, // [RP-V7.199] +1 gift (Branden, Nov 1, 2026): World Tree $5, after Sports Car
         { id: "loveballoon", art: "img/gifts/loveballoon.webp", name: "Love Balloon", icon: "🎈", cents: 600, tier: "medium", fx: "rise" },
         { id: "guardianpalm", art: "img/gifts/guardianpalm.webp", name: "Guardian Palm", icon: "🖐️", cents: 700, tier: "medium", fx: "burst" },
+        { id: "carousel", art: "img/gifts/carousel.webp", name: "Neon Carousel", icon: "🎠", cents: 700, tier: "medium", fx: "rise" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "airplane", art: "img/gifts/airplane.webp", name: "Airplane", icon: "✈️", cents: 800, tier: "medium", fx: "across" },
         { id: "moneygun", art: "img/gifts/moneygun.webp", name: "Money Gun", icon: "💸", cents: 999, tier: "medium", fx: "across" },
         { id: "castle", art: "img/gifts/castle.webp", name: "Castle", icon: "🏰", cents: 1000, tier: "medium", fx: "rise" },
@@ -19421,6 +19439,7 @@
         { id: "rizzuniverse", art: "rizzuniverse", name: "Rizz Plaza Universe", icon: "🌐", cents: 5000, tier: "big", fx: "rizzuniverse" }, // [RP-V7.197] restored — V7.188 entry lost in the V7.189 stack
         { id: "starsurge", art: "img/gifts/starsurge.webp", name: "Star Surge", icon: "🌟", cents: 5500, tier: "big", fx: "burst" },
         { id: "diamonds", art: "img/gifts/diamonds.webp", name: "Diamond Shower", icon: "💎", cents: 6000, tier: "big", fx: "rain" },
+        { id: "emeraldelephant", art: "img/gifts/emeraldelephant.webp", name: "Emerald Elephant", icon: "🐘", cents: 6000, tier: "big", fx: "rise" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "rocket", art: "img/gifts/rocket.webp", name: "Rocket", icon: "🚀", cents: 7500, tier: "big", fx: "launch" },
         { id: "ferriswheel", art: "img/gifts/ferriswheel.webp", name: "Ferris Wheel", icon: "🎡", cents: 9900, tier: "big", fx: "rise" },
         { id: "jet", art: "img/gifts/jet.webp", name: "Private Jet", icon: "🛩️", cents: 10000, tier: "prestige", fx: "across" },
@@ -20476,8 +20495,9 @@
             if (window.rpFilmStepDown && window.rpFilmStepDown(vid)) return;
             if (!vid.parentNode) return;
             var im2 = document.createElement("img");
-            im2.className = "gfx-artimg"; im2.src = art; im2.alt = "";
-            im2.style.width = px + "px"; im2.style.height = px + "px";
+            // [RP-V7.207] the art fallback inherits the failed film's className + full inline style, so caller-set float/burst positioning and animation survive the swap.
+            im2.className = vid.className; im2.src = art; im2.alt = "";
+            im2.style.cssText = vid.style.cssText;
             im2.onerror = function () {
               if (!im2.parentNode) return;
               var s2 = document.createElement("span");
@@ -20533,12 +20553,12 @@
       function giftFxFloat(g, fromName, toName) {
         var ov = giftFxOverlay("small");
         var stage = ov.querySelector(".gfx-stage");
-        var n = giftFxReduced() ? 3 : 9;
+        var n = 1; // [RP-V7.207] Branden: small-gift float-up is ONE copy of the art ("This should only have one")
         for (var i = 0; i < n; i++) {
-          var s = giftArtImg(g, Math.round(84 + Math.random() * 26)); // [RP-V7.27] floating copies are the animated art
+          var s = giftArtImg(g, 110); // [RP-V7.207] the single floating copy, fixed size — was Math.round(84 + Math.random() * 26) [RP-V7.27]
           if (!s) { s = document.createElement("span"); s.textContent = g.icon || "🎁"; s.style.fontSize = (26 + Math.random() * 22) + "px"; }
           s.classList.add("gfx-p");
-          s.style.left = (28 + Math.random() * 44) + "%";
+          s.style.left = "calc(50% - 55px)"; // [RP-V7.207] the single copy floats up centered
           s.style.bottom = "5%";
           s.style.animation = "gfxFloatUp " + Math.round(1300 + Math.random() * 700) + "ms ease-out " + (i * 90) + "ms both";
           stage.appendChild(s);
@@ -25297,7 +25317,7 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
 @keyframes rpBannerIn{ from{ opacity:0; transform:translateX(-18px) scale(.92);} to{ opacity:1; transform:none;} }
 @keyframes rpPop{ 0%{ transform:scale(1);} 40%{ transform:scale(1.45);} 100%{ transform:scale(1);} }
 #rpStage{ position:fixed; inset:0; z-index:68; pointer-events:none; display:flex; align-items:center; justify-content:center; }
-.rp-stage-art.film{ width:min(94vw,520px); height:auto; aspect-ratio:16/9; }
+.rp-stage-art.film{ width:100vw; max-width:none; height:auto; aspect-ratio:16/9; } /* [RP-V7.207] correction: stage film spans the full screen width, blended into the live picture */
 .rp-stage-art .rp-gift-film{ width:100%; height:100%; border-radius:0; }
 .rp-banner .rp-gift-film{ border-radius:0; }
 /* [RP-V7.81] T-REX GRAND SHOW — the big/prestige tier's full-screen show
@@ -25313,7 +25333,69 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
 .rp-trex-melt{ position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(ellipse at center, transparent 52%, rgba(5,5,10,.55) 82%, #05050a 100%); }
 .gfx-film{ mix-blend-mode:screen; }
-#rpStage .rp-stage-bg{ position:absolute; inset:0; background:radial-gradient(ellipse at center, rgba(0,0,0,.12) 30%, rgba(0,0,0,.55) 100%); animation:rpFade 3.5s forwards; }
+#rpStage .rp-stage-bg{ position:absolute; inset:0; background:transparent; /* [RP-V7.207] reference correction: NO black card under big shows — the backdrop stays transparent so the screen blend composites the film into the LIVE PICTURE behind the stage (TikTok gifting). The element remains only to carry the rpFade timing. */ animation:rpFade 3.5s forwards; }
+/* [RP-V7.207] Fix 1c, as corrected by Branden's reference —
+   "Look at TikTok gifting if you don't see the blended in with
+   screen": a TikTok gift show composites DIRECTLY into the live
+   picture, full-bleed — no stage card, no rectangle, the live
+   still alive behind and around the subject. So: the Fix 1b radial
+   masks are GONE (a mask's falloff reads as a frame — he circled
+   the leftovers on all four demo gifts), the stage backdrop is
+   TRANSPARENT again (the solid black card from Fix 1 hid the
+   live), and the blend does all the work: every gift-show picture
+   is shot on pure black, so mix-blend-mode:screen makes the black
+   itself transparent and the subject lands IN the live scene.
+   The stage film already blends inline (rpShowArtHtml) and .gfx
+   film elements blend via .gfx-film; the rules below extend that
+   same blend to the art <img>s and give stage media the full
+   screen width. A rectangle whose background has vanished cannot
+   show a frame — there is no letterbox band either, because the
+   band is black and the black is transparent. Scoped to the
+   gift-show overlays only: shop tiles, banners and feed
+   thumbnails never blend. The one exception is a full-color SCENE
+   film (see RP_SCENE_FILMS at the stage builder): it has no black
+   to blend away, so it plays full-screen cover — the film becomes
+   the whole picture while it plays, like a TikTok scene gift. */
+.gfx .gfx-stage .gfx-artimg{ mix-blend-mode:screen; }
+#rpStage .rp-stage-art img.rp-gift-img{ mix-blend-mode:screen; }
+#rpStage .rp-stage-art:has(> img.rp-gift-img){ width:100vw; height:100vw; max-width:none; max-height:none; }
+.rp-stage-art.film, #rpStage .rp-stage-art:has(> img.rp-gift-img){ filter:none; } /* no box-shaped drop shadow under a blended show */
+#rpStage.scene .rp-stage-art{ position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; }
+#rpStage.scene .rp-stage-art video.rp-gift-film{ mix-blend-mode:normal !important; }
+/* [RP-V7.207] Fix 1c iteration (pixel-proven): the media-level blend
+   alone cannot reach the live picture — #rpStage is a fixed stacking
+   context, so the film blended only against the stage's own
+   transparent backdrop and its black rendered as a black band over
+   the room (measured (0,0,0) where the room is (38,38,46)). Blending
+   the STAGE ITSELF against the page composites the whole show into
+   the live picture, TikTok-style: the film's black becomes the live
+   behind it, the subject lands in the scene. Scene stages composite
+   normally (cover) and the T-Rex stage keeps its own melt design. */
+#rpStage:not(.trex):not(.scene){ mix-blend-mode:screen; }
+/* [RP-V7.207] Fix 1d — Branden approved the Whale (scene cover,
+   untouched) but circled the LION paused at the roar: the blend
+   dissolves the film's BLACK, but the lion film's background is a
+   starfield — bright nebula content, not black — so its rectangle
+   survived the blend. A wider radial mask (the first idea) only
+   fades toward the corners: farthest-corner geometry still keeps
+   ~79% alpha at the edge midpoints, the straight step survives at
+   ~79% strength, and the falloff reads as its own frame — verified
+   in an offline composite of the roar frame and rejected. So this
+   is real KEYING instead: the SVG filter #rpKeyA (defs injected by
+   pumpStage next to the stage) rewrites the stage film's alpha
+   from its own luminance with a crush curve — alpha 0 at
+   luminance <= 18/255, ramping to solid at 80/255. Measured on the
+   roar frame (film t~3.5s, starfield densest): the film's edge
+   strips sit at luminance <= 7 and the halo at <= 33 (p90), so the
+   haze keys OUT entirely; the bright mane/face stays solid;
+   individual bright stars survive as sparse floating points —
+   a TikTok alpha gift. No rectangle, no straight edge, no falloff
+   line. Stage films only: scene stages keep cover, the T-Rex
+   stage keeps its melt, .gfx float/burst keep the 1c blend, and
+   the art fallback keeps blending (this rule matches the <video>
+   only). If a platform ignores url() filters, the film degrades
+   to the 1c blend look, never to a break. */
+#rpStage:not(.trex):not(.scene) .rp-stage-art video.rp-gift-film{ filter:url(#rpKeyA); }
 .rp-stage-art{ position:relative; width:min(55vw,300px); height:min(55vw,300px); filter:drop-shadow(0 18px 42px rgba(0,0,0,.6)); } /* [RP-V7.27] big-show scale: ~55% of width */
 .rp-stage-art svg{ width:100%; height:100%; }
 .rp-stage-art.pop{ animation:rpStagePop 3.5s cubic-bezier(.2,.7,.3,1) forwards; }
@@ -25409,8 +25491,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
      it for the gift's emoji in place: never a broken-image glyph. Ids
      with no shipped art (holiday gifts, ad-hoc gifts) keep the drawn
      SVG art / orb they had. */
-  var GIFT_ART_IDS = { worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
-  var GIFT_ICONS = { worldtree: "🌳", rizzuniverse: "🌐", plazaape: "🦍", titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️" }; // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
+  var GIFT_ART_IDS = { honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
+  var GIFT_ICONS = { honeybee: "🐝", bubblewand: "🫧", peacock: "🦚", carousel: "🎠", emeraldelephant: "🐘", worldtree: "🌳", rizzuniverse: "🌐", plazaape: "🦍", titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️" }; // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
   window.rpGiftImgErr = function (img) {
     if (!img || !img.parentNode) return;
     var s = document.createElement("span");
@@ -25435,7 +25517,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
+  var GIFT_FILM_IDS = { honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
   window.rpGiftFilmIds = GIFT_FILM_IDS;
   window.rpGiftFilmUrl = function (id) { return window.rpResolveGiftFilm(id); };
   /* [RP-V7.81] EVENT-FILM RESOLVER + T-REX GRAND SHOW.
@@ -25565,6 +25647,23 @@ body:not(.live-fs) #rp65How { display:none !important; }
   /* ---------- big-gift full-screen stage ---------- */
   var stageQ = [], stageBusy = false;
   function rpBigStage(g, fromName, toName) { stageQ.push({ g: g, f: fromName, t: toName }); pumpStage(); }
+  /* [RP-V7.207] Full-color SCENE films: a few big gifts' films are
+     real full-color scenes, not black-background shows (Whale Dive's
+     underwater film), so the screen blend cannot erase their frame.
+     Those play FULL-SCREEN COVER on the stage instead (the .scene
+     rules above) — the film becomes the screen, so there are no
+     edges. Add a gift's id here when a scene film ships for it —
+     Sea Kings, Fire Dunk and Ice Drift are shot as scenes. Every
+     other gift stays on the blend path. */
+  var RP_SCENE_FILMS = { whale: 1 };
+  /* [RP-V7.207] Fix 1d keying defs (see the #rpKeyA note in the CSS
+     above): alpha := luminance (Rec.709 weights, computed on the
+     sRGB values via color-interpolation-filters="sRGB"), then a
+     linear crush — 0 at <=18/255, solid at >=80/255 (slope 4.113,
+     intercept -0.2903). Injected into every stage's HTML; only the
+     non-scene, non-T-Rex stage film references it (CSS selector),
+     so scene and T-Rex stages carry it unused. */
+  var RP_KEY_DEFS = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="rpKeyA" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0.213 0.715 0.072 0 0"/><feComponentTransfer><feFuncA type="linear" slope="4.113" intercept="-0.2903"/></feComponentTransfer></filter></defs></svg>';
   function pumpStage() {
     if (stageBusy || !stageQ.length) return;
     stageBusy = true;
@@ -25588,6 +25687,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
        swaps back to the normal film/art path invisibly (and remembers
        for the session). */
     var useTrex = !window.__rpTrexBad;
+    var isScene = !useTrex && !!RP_SCENE_FILMS[sgid === "diamond" ? "diamonds" : sgid]; // [RP-V7.207] scene film -> full-screen cover stage
     var artHtml;
     if (useTrex) {
       ov.className = "trex";
@@ -25597,7 +25697,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
     } else {
       artHtml = rpShowArtHtml(sgid, g.icon, "full");
     }
-    ov.innerHTML = '<div class="rp-stage-bg"></div>' + (useTrex ? "" : sparks) + '<div class="rp-stage-art ' + (useTrex ? "" : motion + (sFilm ? " film" : "")) + '">' + artHtml + '</div><div class="rp-stage-plate"><b>' + esc(it.f || "Someone") + "</b> sent <b>" + esc(it.t || "the host") + '</b><br><span style="font-size:16px;font-weight:800">' + esc(g.name || "Gift") + '</span> · <span class="gp">' + priceLabel(g.cents) + "</span></div>";
+    if (isScene) ov.className = "scene"; // [RP-V7.207] scene stage: the film covers the whole screen
+    ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + (useTrex ? "" : sparks) + '<div class="rp-stage-art ' + (useTrex || isScene ? "" : motion + (sFilm ? " film" : "")) + '">' + artHtml + '</div><div class="rp-stage-plate"><b>' + esc(it.f || "Someone") + "</b> sent <b>" + esc(it.t || "the host") + '</b><br><span style="font-size:16px;font-weight:800">' + esc(g.name || "Gift") + '</span> · <span class="gp">' + priceLabel(g.cents) + "</span></div>";
     document.body.appendChild(ov);
     window.__rpStageTimer = setTimeout(function () { var o2 = $("rpStage"); if (o2) o2.remove(); stageBusy = false; window.__rpStageTimer = 0; pumpStage(); }, useTrex ? 10200 : 3560);
     if (useTrex) {
@@ -36441,6 +36542,11 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .rp-os-row{ display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-top:1px solid rgba(255,255,255,.08); font-size:14px; }
 .rp-os-row b{ color:#fff; }
 .rp-os-note{ font-size:12px; opacity:.65; margin-top:8px; }
+/* [RP-V7.209] Grant charms panel — same card family as the sales board. */
+.rp-og-row{ display:flex; gap:8px; margin:8px 0; }
+.rp-og-row input{ flex:1; min-width:0; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:9px 10px; color:#fff; font-size:14px; }
+.rp-owner-grant button{ background:#f5c542; color:#141414; border:none; border-radius:10px; padding:9px 16px; font-size:14px; font-weight:800; cursor:pointer; }
+.rp-owner-grant button:disabled{ opacity:.5; cursor:default; }
 /* ================= [RP-V7.87] HOLIDAY DECOR — the Plaza TRANSFORMS =================
    Restores the decor the C5 clean pass flattened (garland killed, banner
    flattened, scene glow zeroed) and takes it to the owner's bar: animated and
@@ -36575,6 +36681,65 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       .catch(function () { return null; });
   }
   function osStop() { if (osTimer) { clearInterval(osTimer); osTimer = null; } }
+  /* [RP-V7.209] Owner-only "Grant charms" panel. It rides the EXACT
+     owner signal of the sales board above: it is created only inside
+     rpOwnerSalesInit after GET /api/owner/sales has answered ok for
+     this account, and removed wherever the board is removed — for
+     every other member it never enters the DOM. It is a SIBLING of
+     the sales panel (not part of its innerHTML), so the board's
+     5-minute re-render never wipes a typed grant or its result. On
+     Grant it POSTs /api/owner/grant-charms with this account's
+     session token (same auth as osFetch); the server credits a teen
+     target's gift balance only, or an adult target's main balance,
+     and the result line shows the endpoint's answer plainly. */
+  function osGrantEnsure(panel) {
+    if (document.getElementById("rpOwnerGrant")) return;
+    if (!panel || !panel.parentNode) return;
+    var g = document.createElement("div");
+    g.className = "rp-owner-sales rp-owner-grant";
+    g.id = "rpOwnerGrant";
+    g.innerHTML = '<h4>🎁 Grant charms</h4>' +
+      '<div class="rp-og-row"><input id="rpOgUser" type="text" placeholder="Username" autocomplete="off" autocapitalize="none">' +
+      '<input id="rpOgAmt" type="number" min="1" step="1" placeholder="Amount" inputmode="numeric"></div>' +
+      '<button type="button" id="rpOgBtn">Grant</button>' +
+      '<div class="rp-os-note" id="rpOgResult">Teens are credited to their gift balance; adults to their main balance.</div>';
+    panel.parentNode.insertBefore(g, panel.nextSibling);
+    document.getElementById("rpOgBtn").addEventListener("click", osGrantGo);
+  }
+  function osGrantGo() {
+    var uEl = document.getElementById("rpOgUser"), aEl = document.getElementById("rpOgAmt"),
+        rEl = document.getElementById("rpOgResult"), btn = document.getElementById("rpOgBtn");
+    if (!uEl || !aEl || !rEl || !btn) return;
+    var username = String(uEl.value || "").trim();
+    var amount = Number(aEl.value);
+    if (!username) { rEl.textContent = "Enter a username."; return; }
+    if (!isFinite(amount) || Math.floor(amount) !== amount || amount <= 0) { rEl.textContent = "Enter a whole amount above zero."; return; }
+    var t = osToken();
+    if (!t || typeof fetch !== "function") { rEl.textContent = "✗ Not signed in."; return; }
+    btn.disabled = true;
+    rEl.textContent = "Granting…";
+    fetch("/api/owner/grant-charms", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+      body: JSON.stringify({ username: username, amount: amount })
+    }).then(function (r) {
+      return r.json().then(function (j) { return { status: r.status, j: j }; }, function () { return { status: r.status, j: null }; });
+    }).then(function (res) {
+      btn.disabled = false;
+      var j = res.j;
+      if (j && j.ok) {
+        var pocket = j.credited === "giftBal" ? "gift balance" : "main balance";
+        rEl.textContent = "✓ Granted " + (Number(j.amount) || 0).toLocaleString("en-US") + " charms to @" + j.username +
+          " (" + j.ageClass + ") → " + pocket + ": " + (Number(j.before) || 0).toLocaleString("en-US") +
+          " → " + (Number(j.after) || 0).toLocaleString("en-US");
+      } else {
+        rEl.textContent = "✗ " + (j && j.error ? j.error : ("Grant failed (HTTP " + res.status + ")"));
+      }
+    }).catch(function () {
+      btn.disabled = false;
+      rEl.textContent = "✗ Network error — grant not sent.";
+    });
+  }
   window.rpOwnerSalesInit = function () {
     osFetch().then(function (d) {
       var sheet = document.getElementById("sheet");
@@ -36582,6 +36747,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       var panel = document.getElementById("rpOwnerSales");
       if (!d) { /* not the owner (or offline): the panel never renders */
         if (panel) panel.remove();
+        var gp0 = document.getElementById("rpOwnerGrant");
+        if (gp0) gp0.remove();
         osStop();
         return;
       }
@@ -36593,13 +36760,14 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         host.appendChild(panel);
       }
       panel.innerHTML = window.rpOwnerSalesRender(d) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
+      osGrantEnsure(panel);
       if (!osTimer) {
         osTimer = setInterval(function () {
           if (!document.getElementById("rpOwnerSales")) { osStop(); return; }
           osFetch().then(function (d2) {
             var p2 = document.getElementById("rpOwnerSales");
             if (!p2) { osStop(); return; }
-            if (!d2) { p2.remove(); osStop(); return; }
+            if (!d2) { p2.remove(); var gp2 = document.getElementById("rpOwnerGrant"); if (gp2) gp2.remove(); osStop(); return; }
             p2.innerHTML = window.rpOwnerSalesRender(d2) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
           });
         }, 300000);
