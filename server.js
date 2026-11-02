@@ -12556,6 +12556,47 @@ const deletionSweepTimer = setInterval(() => {
 }, 10 * 60 * 1000);
 if (deletionSweepTimer.unref) deletionSweepTimer.unref();
 
+// ---------------------------------------------------------------------------
+// [RP-V7.195] One-time test-account purge (Branden approved Nov 1, 2026,
+// after a platform scan found ~28 Mike test/probe accounts and no bot
+// activity). Runs ONCE at boot; a marker file next to accounts.json
+// records completion so later boots skip it. Targets are an explicit
+// list (username keys + display names) from the Nov 1 census — never
+// pattern-matched beyond that list, never the owner, and any account
+// holding charms or earnings is skipped as a safety stop. miketest763
+// is deliberately EXCLUDED: the Stripe Connect clear-watch logs in as
+// that account until its Nov 8, 2026 horizon; it goes after that.
+// ---------------------------------------------------------------------------
+const RP_PURGE195_MARKER = path.join(path.dirname(ACCOUNTS_FILE), "purge-test-accounts-v1.json");
+const RP_PURGE195_USERNAMES = new Set(["mikefind_b148", "mikebis781886", "mikehold578692", "mikeio816112", "mikesoak839525", "miketrial337886", "prod7143ended", "prod7141ga", "prod7141host", "prod7142host", "plaza_probe_1101", "plaza_fix_1101", "testuser123", "fix1101", "mikeprobe7117", "mikeprobe7117b", "mikeprobe7117c", "mikeprobe7117d", "mikeprobe1101", "bugmeas_1103", "rpscan1101"]);
+const RP_PURGE195_NAMES = new Set(["mike probe", "mike searcher", "mike findable", "probe 7133", "probe author", "probe posts", "probe viewer", "probe ended", "probe ga", "probe host", "probe1101test", "fix1101", "testuser", "rp scan"]);
+const RP_OWNER_ID_195 = "587a22ee9d72254f69d6d701";
+function rpPurgeTestAccounts195() {
+  if (fs.existsSync(RP_PURGE195_MARKER)) return;
+  const db = readAccounts();
+  const mdb = readMoney();
+  const purged = [], skipped = [];
+  for (const u of db.users.slice()) {
+    if (u.id === RP_OWNER_ID_195) continue;
+    const uk = usernameKey(u.username || "");
+    const nm = String(u.name || "").trim().toLowerCase();
+    if (!RP_PURGE195_USERNAMES.has(uk) && !RP_PURGE195_NAMES.has(nm)) continue;
+    const bal = (mdb.balances && mdb.balances[u.id]) || 0;
+    const earn = mdb.earnings && mdb.earnings[u.id];
+    let cents = 0;
+    if (earn) { cents += earn.availableCents || 0; for (const h of earn.held || []) cents += (h && h.cents) || 0; }
+    if (bal > 0 || cents > 0) { skipped.push({ id: u.id, username: u.username || "", name: u.name || "", why: "holds value" }); continue; }
+    finalizeAccountDeletion(u.id);
+    const after = readAccounts();
+    if (!after.users.find((x) => x.id === u.id)) purged.push({ id: u.id, username: u.username || "", name: u.name || "" });
+    else skipped.push({ id: u.id, username: u.username || "", name: u.name || "", why: "finalize did not remove" });
+  }
+  fs.writeFileSync(RP_PURGE195_MARKER, JSON.stringify({ doneAt: new Date().toISOString(), purged: purged, skipped: skipped }, null, 2));
+  console.log("[RP-V7.195] test-account purge:", purged.length, "purged,", skipped.length, "skipped");
+}
+try { rpPurgeTestAccounts195(); } catch (e) { console.log("[RP-V7.195] purge failed:", e && e.message); }
+
+
 // [RP-V7.41] Plaza Pot orphan sweep: once on boot, then every 60s.
 // Any open pot whose live is no longer in the registry is settled by
 // the lifecycle rule (entries -> auto-draw, none -> seed refund), so a
