@@ -688,6 +688,24 @@ Object.keys(RP_SFX_ART_7186).forEach((sid) => {
   });
 });
 
+
+// [RP-V7.208] Weekly gifts (Nov 2, 2026) — ANIMATED ART for the five new
+// gifts, embedded base64 WebP (320x320, 40 frames, infinite loop) in the
+// sibling module giftart7208.js, served at /img/gifts/<id>.webp ahead of
+// express.static (same recipe as RP-V7.199/204). Their films
+// giftfx-<id>.mp4 ride Branden's guided GitHub upload into public/;
+// until they land, shows fall back to this animated art (never a still).
+const RP_GIFT_ART_7208 = require("./giftart7208.js");
+Object.keys(RP_GIFT_ART_7208).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7208[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+console.log("[RP-V7.208] weekly gift art:", Object.keys(RP_GIFT_ART_7208).join(", "));
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
@@ -10402,6 +10420,10 @@ const MONEY_GIFT_TABLE = {
   // $500, prestige — id + price mirror the client's GIFT_SHOP
   // exactly; the catalog is now 40 gifts.
   ascension: 50000,
+  // [RP-V7.208] +5 weekly gifts (Nov 2, 2026): honeybee 60 + bubblewand 99 (small),
+  // peacock 450 + carousel 700 (medium), emeraldelephant 6000 (big) — ids + prices mirror
+  // the client's GIFT_SHOP exactly; the catalog is now 50 gifts.
+  honeybee: 60, bubblewand: 99, peacock: 450, carousel: 700, emeraldelephant: 6000,
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
