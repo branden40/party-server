@@ -21028,7 +21028,7 @@
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
           if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
-          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
+          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, /* [RP-V7.198] own posted reel keeps its server link so the rail can repost it */ likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
         });
         if (Reels.ranked) {
           // [RP-V7.40] the server already ordered its reels For You —
@@ -21202,7 +21202,7 @@
             '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + lk.count + "</span></button>" +
             '<button class="reel-act cmt" type="button">' + RPICO.comment + '<span class="cc">' + cmtCount + "</span></button>" +
             '<button class="reel-act share" type="button">' + RPICO.share + '<span>Share</span></button>' +
-            ((item.server) ? '<button class="reel-act repost' /* [RP-V7.101] own reels too — reshare */ + (item.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + (item.reposts || 0) + "</span></button>" : "") + /* [RP-V7.89] */
+            ((item.server || item.serverId) ? '<button class="reel-act repost' /* [RP-V7.198] local copies of your own posted reels too — Branden: "I need to add a repost button here" (his own reel in the Reels tab rendered as the on-device copy, which had no button) */ /* [RP-V7.101] own reels too — reshare */ + (item.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + (item.reposts || 0) + "</span></button>" : "") + /* [RP-V7.89] */
             (item.mine ? "" : '<button class="reel-act gift" type="button">' + RPICO.gift + '<span>Gift</span></button>') +
             (canRemix ? '<button class="reel-act remix" type="button">' + RPICO.remix + '<span>Remix</span></button>' : "") +
             /* [RP-V7.106] Branden: "Move the icons" — the 👁 views moved
@@ -21487,7 +21487,7 @@
         fetch("/api/reel/repost", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok },
-          body: JSON.stringify({ reelId: item.id, reposted: want }),
+          body: JSON.stringify({ reelId: item.server ? item.id : item.serverId, reposted: want }), // [RP-V7.198]
           keepalive: true
         }).then(function (r) { return r.json().catch(function () { return null; }); })
           .then(function (j) {
@@ -21500,7 +21500,7 @@
           }).catch(function () { });
       }
       function reelToggleRepost(item, card) {
-        if (!item.server) return;
+        if (!item.server && !item.serverId) return; // [RP-V7.198] local copy of a posted reel reposts through its serverId
         if (!reelToken()) { toast("Sign in to repost 🔁", 3200); return; }
         var btn = card.querySelector(".repost"), rc = card.querySelector(".rc");
         var want = !item.myReposted;
