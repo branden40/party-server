@@ -625,6 +625,27 @@ Object.keys(RP_GIFT_ART_7199).forEach((gid) => {
   });
 });
 // ---------------------------------------------------------------------------
+// [RP-V7.206] Branden-approved gift-art redos #2 (Nov 2, 2026):
+// Golden Lion (new fantasy art) and Whale Dive (real-life art).
+// Same recipe as the RP-V7.204 routes: art embedded as data URIs in
+// giftart7206.js, decoded once at boot, served ahead of the static
+// files so the live routes answer with these bytes.
+const RP_GIFT_ART_7206 = {};
+try {
+  const m = require("./giftart7206.js");
+  for (const k of Object.keys(m)) {
+    RP_GIFT_ART_7206[k] = Buffer.from(String(m[k]).split(",")[1], "base64");
+  }
+  console.log("[RP-V7.206] gift art overrides:", Object.keys(RP_GIFT_ART_7206).join(", "));
+} catch (e) { console.log("[RP-V7.206] gift art module load failed:", e && e.message); }
+app.get("/img/gifts/:file", (req, res, next) => {
+  const id = String(req.params.file || "").replace(/\.webp$/i, "");
+  const buf = RP_GIFT_ART_7206[id];
+  if (!buf) return next();
+  res.setHeader("Content-Type", "image/webp");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.send(buf);
+});
 // [RP-V7.204] REDONE gift art (Branden, Nov 2, 2026): ten gifts got new
 // out-of-this-world animated art — clap, coffee (take 2), icecream,
 // sportscar, motorcycle, fingerheart, rose, kiss, loveballoon,
