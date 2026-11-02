@@ -625,6 +625,22 @@ Object.keys(RP_GIFT_ART_7199).forEach((gid) => {
   });
 });
 // ---------------------------------------------------------------------------
+// [RP-V7.204] REDONE gift art (Branden, Nov 2, 2026): ten gifts got new
+// out-of-this-world animated art — clap, coffee (take 2), icecream,
+// sportscar, motorcycle, fingerheart, rose, kiss, loveballoon,
+// moneygun — split across three sibling modules (push-size limits).
+// Same URLs as the old static files; registered before
+// express.static, so the new art shadows the old files.
+const RP_GIFT_ART_7204 = Object.assign({}, require("./giftart7204a.js"), require("./giftart7204b.js"), require("./giftart7204c.js"));
+Object.keys(RP_GIFT_ART_7204).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7204[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+// ---------------------------------------------------------------------------
 // [RP-V7.181] Photographic lens art — real-object photos (alpha WebP)
 // that replace the drawn props in the camera as they load; the client
 // falls back to its drawing until the photo arrives. Santa Hat first.
