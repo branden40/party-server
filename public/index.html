@@ -19440,6 +19440,7 @@
         { id: "volcano", art: "img/gifts/volcano.webp", name: "Volcano", icon: "🌋", cents: 2000, tier: "big", fx: "volcano" },
         { id: "lion", art: "img/gifts/lion.webp", name: "Golden Lion", icon: "🦁", cents: 2500, tier: "big", fx: "lion" },
         { id: "plazaape", art: "plazaape", name: "Plaza Ape", icon: "🦍", cents: 2500, tier: "big", fx: "plazaape" }, // [RP-V7.197] +1 gift (Branden, Nov 1, 2026): Plaza Ape $25, after Golden Lion
+        { id: "fattuesday", art: "img/gifts/fattuesday.webp", name: "Fat Tuesday Frenzy", icon: "🎭", cents: 2500, tier: "big", fx: "fattuesday" }, // [RP-V7.221] +1 gift (Branden, Nov 3, 2026): Fat Tuesday Frenzy $25 — Mardi Gras parade gone wild, after Plaza Ape
         { id: "dragon", art: "img/gifts/dragon.webp", name: "Dragon", icon: "🐉", cents: 3000, tier: "big", fx: "across" },
         { id: "meteor", art: "img/gifts/meteor.webp", name: "Meteor Shower", icon: "☄️", cents: 4000, tier: "big", fx: "meteor" },
         { id: "whale", art: "img/gifts/whale.webp", name: "Whale Dive", icon: "🐋", cents: 4500, tier: "big", fx: "burst" },
@@ -19525,7 +19526,8 @@
         if (live) {
           html += '<div class="gift-tier">' + live.h.icon + ' <b>Limited time</b> · ' + escHtml(live.h.name) + ' gifts</div><div class="gift-grid">' +
             live.h.gifts.map(function (g, i) {
-              return '<button class="gift-cell big' + (giftSpend < g[2] ? " cant" : "") + '" data-hol="' + i + '"><span class="gi">' + g[1] + '</span><b>' + escHtml(g[0]) + '</b><span>' + giftPriceLabel(g[2]) + '</span><small>' + g[2] + ' charms · limited</small></button>';
+              var ha220 = (window.rpHolArtId && window.rpHolArtId(g[0])) || null; var gi220 = ha220 ? giftImgHTML({ art: "img/gifts/" + ha220 + ".webp", icon: g[1] }) : g[1]; // [RP-V7.220] Thanksgiving gifts show their animated art in the panel; the other holiday gifts keep their emoji
+              return '<button class="gift-cell big' + (giftSpend < g[2] ? " cant" : "") + '" data-hol="' + i + '"><span class="gi">' + gi220 + '</span><b>' + escHtml(g[0]) + '</b><span>' + giftPriceLabel(g[2]) + '</span><small>' + g[2] + ' charms · limited</small></button>';
             }).join("") + '</div>';
         }
         html += GIFT_TIERS.map(function (t) {
@@ -20659,6 +20661,7 @@
         if (g.art) return g.art;
         var ge = g.id ? giftById(g.id) : null; if (ge && ge.art) return ge.art;
         var gn = g.name ? giftByName(g.name) : null; if (gn && gn.art) return gn.art;
+        var ha220 = (g.name && window.rpHolArtId) ? window.rpHolArtId(g.name) : null; if (ha220) return "img/gifts/" + ha220 + ".webp"; // [RP-V7.220]
         return null;
       }
       function giftArtImg(g, px) {
@@ -20759,12 +20762,14 @@
            lower-center, appearing IN PLACE with a scale-in pop; no
            travel path. Keyed live (WebGL) like every tier: no box. */
         var heroPx = Math.round(window.innerWidth || 400); // [RP-V7.218 section 8] band-fill: the appear hero takes the FULL bottom-band width (owner: "all gifts take up whole bottom screen space") -- the 50vw/300px cap is gone; a film hero's keyed canvas height follows the film raster (16:9 = the band box), an art hero's keyed square fills the width
+        var holFit220 = !!((g && g.name && window.rpHolArtId) ? window.rpHolArtId(g.name) : null); // [RP-V7.220 fix] resolves ONLY for the three Thanksgiving gifts
+        if (holFit220) heroPx = Math.round(Math.min((window.innerWidth || 400) * 0.9, (window.innerHeight || 800) * 0.35)); // [RP-V7.220 fix] the holiday hero fits WHOLE inside the bottom band with margin; its keyed canvas dissolves the black ground into the room -- no box, no rectangle (Branden: "No box no rectangle shapes only blend in with screen")
         var dur217 = (window.RpShowDur ? window.RpShowDur(g) : 5200); // [RP-V7.219] fallback literal x2 with the table
         var s = giftArtImg(g, heroPx);
         if (!s) { s = document.createElement("span"); s.textContent = g.icon || "🎁"; s.style.fontSize = "110px"; }
         s.classList.add("gfx-p");
         s.style.left = "50%";
-        s.style.bottom = "17%"; /* [RP-V7.218] small-gift appear seats in the band zone with the stage shows (box top ~58% on a 440x880 screen) */
+        s.style.bottom = holFit220 ? "14.5%" : "17%"; /* [RP-V7.218] small-gift appear seats in the band zone with the stage shows (box top ~58% on a 440x880 screen) -- [RP-V7.220 fix] the smaller holiday hero seats lower so its whole square sits inside the band (top edge ~50.5%) */
         s.style.animation = "gfxAppear217 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
         stage.appendChild(s);
         if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g); }
@@ -25816,8 +25821,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
      it for the gift's emoji in place: never a broken-image glyph. Ids
      with no shipped art (holiday gifts, ad-hoc gifts) keep the drawn
      SVG art / orb they had. */
-  var GIFT_ART_IDS = { honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
-  var GIFT_ICONS = { honeybee: "🐝", bubblewand: "🫧", peacock: "🦚", carousel: "🎠", emeraldelephant: "🐘", worldtree: "🌳", rizzuniverse: "🌐", plazaape: "🦍", titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️" }; // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
+  var GIFT_ART_IDS = { honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1, thankfulturkey: 1, harvestwreath: 1, pumpkinpie: 1 }; // [RP-V7.220] +3 Thanksgiving holiday art ids (name-resolved via HOL_ART_IDS; no films) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
+  var GIFT_ICONS = { honeybee: "🐝", bubblewand: "🫧", peacock: "🦚", carousel: "🎠", emeraldelephant: "🐘", worldtree: "🌳", rizzuniverse: "🌐", plazaape: "🦍", titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️", fattuesday: "🎭", thankfulturkey: "🦃", harvestwreath: "🌾", pumpkinpie: "🥧" }; // [RP-V7.220] +3 Thanksgiving fallback icons // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
   window.rpGiftImgErr = function (img) {
     if (!img || !img.parentNode) return;
     var s = document.createElement("span");
@@ -25842,7 +25847,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1 }; // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
+  var GIFT_FILM_IDS = { honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1 }; // [RP-V7.221] +1 — giftfx-fattuesday.mp4 ships as a file drop into public/ (guided upload); until it lands, shows fall back to the animated art (never a still). // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
   window.rpGiftFilmIds = GIFT_FILM_IDS;
   window.rpGiftFilmUrl = function (id) { return window.rpResolveGiftFilm(id); };
   /* [RP-V7.81] EVENT-FILM RESOLVER + T-REX GRAND SHOW.
@@ -25919,7 +25924,22 @@ body:not(.live-fs) #rp65How { display:none !important; }
     return rpArt(id, icon);
   }
   window.rpShowArtHtml = rpShowArtHtml;
-  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel", "Thunderbolt": "thunderbolt", "Heart Burst": "heartburst", "Guardian Palm": "guardianpalm", "Gold Gloves": "goldgloves", "Star Surge": "starsurge", "Rizz Supernova": "supernova", "The Crown Jewel": "crownjewel", "Plaza Diamond": "plazadiamond", "Golden Eagle": "goldeneagle", "Pegasus of Light": "pegasus", "Aurora Crown": "auroracrown", "Golden Ascension": "ascension", "Nebula Dragon": "nebuladragon", "Titan Clash": "titanclash", "Rizz Plaza Universe": "rizzuniverse", "Plaza Ape": "plazaape", "World Tree": "worldtree" }; // [RP-V7.199] +World Tree // [RP-V7.197] +Plaza Ape; Rizz Plaza Universe restored (V7.188 entry lost in the V7.189 stack) // [RP-V7.168] +1 // [RP-V7.167] +1 // [RP-V7.166] +1 // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
+  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel", "Thunderbolt": "thunderbolt", "Heart Burst": "heartburst", "Guardian Palm": "guardianpalm", "Gold Gloves": "goldgloves", "Star Surge": "starsurge", "Rizz Supernova": "supernova", "The Crown Jewel": "crownjewel", "Plaza Diamond": "plazadiamond", "Golden Eagle": "goldeneagle", "Pegasus of Light": "pegasus", "Aurora Crown": "auroracrown", "Golden Ascension": "ascension", "Nebula Dragon": "nebuladragon", "Titan Clash": "titanclash", "Rizz Plaza Universe": "rizzuniverse", "Plaza Ape": "plazaape", "World Tree": "worldtree", "Fat Tuesday Frenzy": "fattuesday" };
+  /* [RP-V7.220] Thanksgiving holiday-gift animated art: holiday gifts
+     ride wire id "hol" whatever their name, so their art resolves BY
+     NAME. Only the three Thanksgiving gifts have art; the other 54
+     holiday gifts have no entry here and render exactly as before. */
+  var HOL_ART_IDS = { "Thankful Turkey": "thankfulturkey", "Harvest Wreath": "harvestwreath", "Pumpkin Pie": "pumpkinpie" };
+  window.rpHolArtId = function (name) { return HOL_ART_IDS[name] || null; };
+  /* [RP-V7.220] art-id resolution for banner rows: holiday gifts reach
+     the banner with id "hol" (sender side) or the generic id "gift"
+     (receiver side, giftObserved's by-value fallback) — both resolve
+     their art by name here. Main-catalog ids pass through untouched. */
+  function rpArtIdFor(g) {
+    if (!g) return "gift";
+    if (g.id && g.id !== "hol" && g.id !== "gift") return g.id;
+    return HOL_ART_IDS[g.name] || NAME2ID[g.name] || g.id || "gift";
+  } // [RP-V7.199] +World Tree // [RP-V7.197] +Plaza Ape; Rizz Plaza Universe restored (V7.188 entry lost in the V7.189 stack) // [RP-V7.168] +1 // [RP-V7.167] +1 // [RP-V7.166] +1 // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
 
   /* ---------- gift panel: swap emoji for rendered art ---------- */
   function swapCell(c) {
@@ -25975,7 +25995,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     var row = document.createElement("div");
     row.className = "rp-banner";
     row.setAttribute("data-key", key);
-    row.innerHTML = '<span class="av">' + esc((c.fromName || "S").slice(0, 1).toUpperCase()) + "</span>" + rpShowArtHtml(c.g.id || NAME2ID[c.g.name] || "gift", c.g.icon, 42) + "<span><b>" + esc(c.fromName || "Someone") + "</b> sent <b>" + esc(c.g.name || "Gift") + '</b></span><span class="rp-combo"' + (c.n > 1 ? "" : ' style="display:none"') + ">" + (c.n > 1 ? "×" + c.n : "") + "</span>";
+    row.innerHTML = '<span class="av">' + esc((c.fromName || "S").slice(0, 1).toUpperCase()) + "</span>" + rpShowArtHtml(rpArtIdFor(c.g), c.g.icon, 42) + "<span><b>" + esc(c.fromName || "Someone") + "</b> sent <b>" + esc(c.g.name || "Gift") + '</b></span><span class="rp-combo"' + (c.n > 1 ? "" : ' style="display:none"') + ">" + (c.n > 1 ? "×" + c.n : "") + "</span>";
     box.appendChild(row);
     c.row = row;
   }
@@ -26155,7 +26175,7 @@ var RP_SHOW_DUR = {
   galaxy: 14600, phoenix: 15800,
   auroracrown: 10000, pegasus: 10000, goldeneagle: 10000, yacht: 10000, jet: 10000, nebuladragon: 10000,
   ferriswheel: 10000, rocket: 10000, diamonds: 10000, emeraldelephant: 10000, starsurge: 10000,
-  titanclash: 10000, rizzuniverse: 10000, dragon: 10000, lion: 10000, plazaape: 10000, meteor: 9200,
+  titanclash: 10000, rizzuniverse: 10000, dragon: 10000, lion: 10000, plazaape: 10000, fattuesday: 10000, meteor: 9200,
   whale: 9600,
   castle: 8000, airplane: 8000, guardianpalm: 8000, carousel: 8000, loveballoon: 8000,
   sportscar: 8000, worldtree: 8000, goldgloves: 8000, peacock: 8000, motorcycle: 8000,
@@ -26476,15 +26496,31 @@ function rpStageMedia(div, gid, icon) {
        min(74vw,400px) cap is gone; the keyed canvas cover-crops the
        art into the box (subject centered), the raw-img fallback
        cover-fits via object-fit below. */
-    div.style.width = "100vw";
-    div.style.height = "calc(100vw * 9 / 16)";
+    /* [RP-V7.220 fix] Branden's presentation rule, verbatim: "No box
+       no rectangle shapes only blend in with screen." The three
+       Thanksgiving arts are square subjects and now show WHOLE: a
+       square box that fits inside the bottom band (bottom edge at
+       the band's 87% line, top edge ~51%), keyed below with NO
+       cover-crop (and contain on the raw fallback), so the art's
+       black ground dissolves into the live picture and only the
+       solid subject shows -- no box, no rectangle, no band edge,
+       nothing cropped. Main-catalog gifts keep the band-fill cover
+       treatment, untouched. */
+    var holFit220 = (aid === "thankfulturkey" || aid === "harvestwreath" || aid === "pumpkinpie");
+    if (holFit220) {
+      div.style.width = "min(92vw, 36vh)";
+      div.style.height = "min(92vw, 36vh)";
+    } else {
+      div.style.width = "100vw";
+      div.style.height = "calc(100vw * 9 / 16)";
+    }
     var img = document.createElement("img");
     img.className = "rp-gift-img";
     img.alt = "";
-    img.style.width = "100%"; img.style.height = "100%"; img.style.objectFit = "cover";
+    img.style.width = "100%"; img.style.height = "100%"; img.style.objectFit = holFit220 ? "contain" : "cover";
     img.onerror = function () { emojiFallback(); };
     if (RpKey.supported()) {
-      var h = RpKey.attach(img, { cover: true }); // [RP-V7.218 section 8] cover-crop into the band box
+      var h = RpKey.attach(img, holFit220 ? {} : { cover: true }); // [RP-V7.218 section 8] cover-crop into the band box -- [RP-V7.220 fix] holiday arts attach with NO crop: the whole square texture keys into the square fit box above
       if (h) {
         ctl.h = h;
         h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
@@ -26569,6 +26605,7 @@ function stageStreakBump(key, add) {
       sparks += '<span class="rp-spark" style="left:50%;top:70%;--dx:' + Math.round(Math.cos(ang) * dist) + "px;--dy:" + Math.round(Math.sin(ang) * dist) + 'px;animation-delay:' + (i * 0.03) + 's"></span>';
     }
     var sgid = g.id || NAME2ID[g.name] || "gift";
+    if (sgid === "hol") sgid = HOL_ART_IDS[g.name] || sgid; // [RP-V7.220] the stage show plays the holiday gift's own animated art (keyed band, artMode)
     var said = sgid === "diamond" ? "diamonds" : sgid;
     var sFilm = !!(window.rpGiftFilmIds && window.rpGiftFilmIds[said]);
     var isScene = !!RP_SCENE_FILMS[said]; // [RP-V7.218] scene CONTENT class — no longer full-screen cover
@@ -26665,8 +26702,9 @@ function stageStreakBump(key, add) {
     if (!o) return;
     setTimeout(function () {
       var feed = $("liveGiftFeed"); if (!feed) return;
+      /* [RP-V7.220] holiday gift names resolve to their animated art in the feed swap below (HOL_ART_IDS) */
       var row = feed.querySelector(".lgf-row:not([data-rp])");
-      if (row) { row.setAttribute("data-rp", "1"); var gi = row.querySelector(".gi"); if (gi) gi.innerHTML = rpArt(NAME2ID[o.g] || "gift", o.ic); }
+      if (row) { row.setAttribute("data-rp", "1"); var gi = row.querySelector(".gi"); if (gi) gi.innerHTML = rpArt(NAME2ID[o.g] || HOL_ART_IDS[o.g] || "gift", o.ic); }
     }, 90);
     try { rpBatOnGift(o, fromId, fromName); } catch (e) { }
   };
