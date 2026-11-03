@@ -11127,7 +11127,12 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     type: "gift-sent", cents: giftValueCents, cut: platformCut,
   }));
   moneyTx(db, Object.assign({}, txBase, {
-    type: "gift-received", cents: hostShare, cut: platformCut,
+    // [RP-V7.217] Honesty Fix: the stored activity record carries the
+    // charms-only flag, so the receiver's Earn history can label the
+    // entry "charms-only" and never render it as a $ figure (this
+    // record's cents are already 0 for charms-only gifts by
+    // construction above; no money figure moves for them anywhere).
+    type: "gift-received", cents: hostShare, cut: platformCut, charmsOnly,
   }));
   const giftResponse = {
     ok: true,
