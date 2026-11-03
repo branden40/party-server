@@ -10459,6 +10459,37 @@ const MONEY_GIFT_TABLE = {
   // $100 — id + price mirror the client's GIFT_SHOP exactly
   // (in the tier line above, after jet); catalog now 41 gifts.
 };
+// [RP-V7.219] HOLIDAY GIFTS — mirror of the client HOLIDAYS catalog
+// (limited-time event gifts). All 57 instances ride the one wire id
+// "hol" (see the gift handler below), so this table is keyed by the
+// only discriminator the wire carries: the charm price. The client
+// instances, by event (name price): newyear: Fireworks Show 60,
+// Golden Toast 30, Confetti Cannon 20 · mlk: Dove of Peace 35,
+// Unity Candle 20, Dream Bell 25 · valentines: Bouquet of Roses 40,
+// Heart Balloon 25, Love Letter 15 · stpatricks: Lucky Clover 25,
+// Rainbow's End 40, Leprechaun Hat 20 · easter: Golden Easter Egg
+// 35, Bunny Buddy 30, Spring Bouquet 25 · cinco: Piñata Party 35,
+// Fiesta Taco 20, Mariachi Trumpet 30 · mothers: Bouquet for Mom
+// 40, Flower Crown 30, Sweet Treat Box 20 · memorial: Poppy Wreath
+// 30, Candle of Remembrance 20, Dove of Honor 35 · juneteenth:
+// Freedom Bell 30, Unity Drum 25, Heritage Star 35 · fathers: Best
+// Dad Trophy 40, BBQ Platter 25, Dad's Toolbox 20 · july4:
+// Fireworks Show 60, Liberty Cake 35, Sparkler Wand 20 · summer:
+// Surfboard 35, Beach Umbrella 25, Watermelon Slice 15 · laborday:
+// Golden Wrench 20, Picnic Basket 30, Grill Master Platter 25 ·
+// birthday: Birthday Cake 45, Party Popper 20, Cupcake Tower 30 ·
+// veterans: Medal of Honor 40, Salute Star 25, Thank-You Wreath 30
+// · thanksgiving: Thankful Turkey 40, Harvest Wreath 30, Pumpkin
+// Pie 25 · blackfriday: Price Tag 15, Shopping Bag 30, Golden Cart
+// 45 · cybermonday: Deal Box 25, Lightning Deal 35, Saver Card 20 ·
+// christmas: Santa Visit 60, Christmas Tree 50, Snow Globe 30.
+// (Halloween has no entry — removed from the calendar RP-V7.161.)
+// A "hol" send whose amount is not one of these prices is rejected
+// as an unknown gift: the server never charges an amount its own
+// catalog tables do not list.
+const MONEY_HOLIDAY_GIFT_PRICES = {
+  15: 15, 20: 20, 25: 25, 30: 30, 35: 35, 40: 40, 45: 45, 50: 50, 60: 60,
+};
 function emptyMoney() {
   return {
     balances: {},
@@ -11022,10 +11053,42 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     if (seen && seen.response)
       return res.json(Object.assign({}, seen.response, { deduped: true }));
   }
+  // [RP-V7.219] COMBO BATCH: b.count = how many units this one tap
+  // sends (the panel picker sends 1/10/50/100/500/1000; a pill tap sends
+  // 1). The batch is validated as a TOTAL up front — a sender who
+  // cannot cover every unit is rejected whole, nothing partial — and
+  // then processed as N iterations of the single-gift logic below:
+  // per-unit ledger pair, per-unit host credit at the normal split
+  // (large-gift hold included), per-unit rank / Plaza Pot / Daily Pot
+  // credit, per-unit charmsOnly determination (the flag is a property
+  // of the sender/recipient pair, identical for every unit). The
+  // idempotency key above is per BATCH (the client embeds the count
+  // in its attempt signature), so a retried batch replays the stored
+  // response and never double-charges. Cap: 1000 — a count ABOVE
+  // the cap is rejected whole (count-over-cap, nothing lands),
+  // never silently clamped to the cap.
+  let count = Math.floor(Number(b.count));
+  if (!Number.isFinite(count) || count < 1) count = 1;
+  if (count > 1000)
+    return res.status(400).json({ ok: false, error: "count-over-cap", cap: 1000 });
   const giftId = String(b.giftId || "");
-  const cost = MONEY_GIFT_TABLE[giftId];
+  let cost = MONEY_GIFT_TABLE[giftId];
+  if (!cost && giftId === "hol") {
+    // [RP-V7.219] Holiday gift: every holiday gift rides this one
+    // id and the wire carries only its charm amount, so validate
+    // the amount against the server's own holiday catalog prices
+    // (MONEY_HOLIDAY_GIFT_PRICES above). An amount the catalog
+    // never offered stays an unknown gift — the charged price
+    // always comes from the server's table, never from the wire.
+    // From here the send is identical to any regular gift: the
+    // V7.219 batch total, spend-source checks, per-unit 70/30
+    // settlement (large-gift hold included), ledger pair, pot
+    // matches and the charmsOnly teen path all key off `cost`.
+    cost = MONEY_HOLIDAY_GIFT_PRICES[Math.floor(Number(b.charms) || 0)];
+  }
   if (!cost)
     return res.status(400).json({ ok: false, error: "Unknown gift" });
+  const totalCost = cost * count; // [RP-V7.219] the batch's full price
   const sentCharms = Math.floor(Number(b.charms) || 0);
   if (sentCharms <= 0)
     return res.status(400).json({ ok: false, error: "Invalid charm amount" });
@@ -11069,71 +11132,83 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   const charmsOnly = senderTeen || ageFromDob(recipient.dob) < 18;
   let giftBal = (db.giftBals && db.giftBals[ctx.user.id]) || 0;
   if (senderTeen) {
-    if (giftBal < cost)
+    if (giftBal < totalCost)
       return res.status(400).json({
         ok: false,
         error: "insufficient-charms",
         message: "Earn or win charms to gift",
         balance,
         giftBal,
-        needed: cost,
+        needed: totalCost,
       });
-  } else if (balance < cost) {
+  } else if (balance < totalCost) {
     return res.status(400).json({
       ok: false,
       error: "insufficient-charms",
       balance,
-      needed: cost,
+      needed: totalCost,
     });
   }
   if (senderTeen) {
-    giftBal -= cost;
+    giftBal -= totalCost;
     db.giftBals[ctx.user.id] = giftBal;
   } else {
-    db.balances[ctx.user.id] = balance - cost;
+    db.balances[ctx.user.id] = balance - totalCost;
   }
+  // [RP-V7.219] per-unit settlement: the loop body IS the pre-V7.219
+  // single-gift logic — each unit credits the recipient (charms for a
+  // charms-only unit; the 70/30 earnings split with the large-gift
+  // hold for an adult-to-adult unit) and writes its own ledger pair.
+  // The response totals below accumulate across units, so a count of
+  // 1 produces exactly the pre-batch ledger and response.
   let giftValueCents = 0;
   let hostShare = 0;
   let platformCut = 0;
   let held = false;
-  if (charmsOnly) {
-    db.balances[recipient.id] = (db.balances[recipient.id] || 0) + cost;
-  } else {
-    giftValueCents = cost * CHARM_CENT_VALUE;
-    hostShare = Math.floor((giftValueCents * GIFT_HOST_PCT) / 100);
-    platformCut = giftValueCents - hostShare;
-    const earn = moneyEarningsFor(db, recipient.id);
-    if (giftValueCents >= LARGE_GIFT_HOLD_CENTS) {
-      earn.held.push({
-        cents: hostShare,
-        unlockAt: new Date(
-          Date.now() + HOLD_DAYS * 24 * 3600 * 1000
-        ).toISOString(),
-        reason: "large-gift",
-      });
-      held = true;
+  for (let u = 0; u < count; u++) {
+    let uValue = 0, uShare = 0, uCut = 0;
+    if (charmsOnly) {
+      db.balances[recipient.id] = (db.balances[recipient.id] || 0) + cost;
     } else {
-      earn.availableCents += hostShare;
+      uValue = cost * CHARM_CENT_VALUE;
+      uShare = Math.floor((uValue * GIFT_HOST_PCT) / 100);
+      uCut = uValue - uShare;
+      const earn = moneyEarningsFor(db, recipient.id);
+      if (uValue >= LARGE_GIFT_HOLD_CENTS) {
+        earn.held.push({
+          cents: uShare,
+          unlockAt: new Date(
+            Date.now() + HOLD_DAYS * 24 * 3600 * 1000
+          ).toISOString(),
+          reason: "large-gift",
+        });
+        held = true;
+      } else {
+        earn.availableCents += uShare;
+      }
+      earn.totalEarnedCents += uShare;
     }
-    earn.totalEarnedCents += hostShare;
+    giftValueCents += uValue;
+    hostShare += uShare;
+    platformCut += uCut;
+    const txBase = {
+      from: ctx.user.id,
+      to: recipient.id,
+      charms: cost,
+      ref: giftId,
+    };
+    moneyTx(db, Object.assign({}, txBase, {
+      type: "gift-sent", cents: uValue, cut: uCut,
+    }));
+    moneyTx(db, Object.assign({}, txBase, {
+      // [RP-V7.217] Honesty Fix: the stored activity record carries the
+      // charms-only flag, so the receiver's Earn history can label the
+      // entry "charms-only" and never render it as a $ figure (this
+      // record's cents are already 0 for charms-only gifts by
+      // construction above; no money figure moves for them anywhere).
+      type: "gift-received", cents: uShare, cut: uCut, charmsOnly,
+    }));
   }
-  const txBase = {
-    from: ctx.user.id,
-    to: recipient.id,
-    charms: cost,
-    ref: giftId,
-  };
-  moneyTx(db, Object.assign({}, txBase, {
-    type: "gift-sent", cents: giftValueCents, cut: platformCut,
-  }));
-  moneyTx(db, Object.assign({}, txBase, {
-    // [RP-V7.217] Honesty Fix: the stored activity record carries the
-    // charms-only flag, so the receiver's Earn history can label the
-    // entry "charms-only" and never render it as a $ figure (this
-    // record's cents are already 0 for charms-only gifts by
-    // construction above; no money figure moves for them anywhere).
-    type: "gift-received", cents: hostShare, cut: platformCut, charmsOnly,
-  }));
   const giftResponse = {
     ok: true,
     balance: db.balances[ctx.user.id],
@@ -11147,8 +11222,12 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     // post-gift earned/won gift balance (teen spend source — for an
     // adult sender it simply reports their stored value, unused).
     charmsOnly,
-    recipientCharms: charmsOnly ? cost : 0,
+    recipientCharms: charmsOnly ? totalCost : 0,
     giftBal,
+    // [RP-V7.219] batch size (1 for a classic single send). charged
+    // above stays the per-unit cost; hostShareCents is the batch
+    // total across units, as are giftValueCents-side effects.
+    units: count,
   };
   // [RP-V7.52] The idempotency record lands in the SAME write as
   // the debit itself, so a retry can never slip between the charge
@@ -11168,7 +11247,9 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     }
   }
   writeMoney(db);
-  rankCreditDaily(recipient.id, recipient.name, cost);
+  // [RP-V7.219] the daily-rank credit is per unit, exactly as if the
+  // sender had tapped N times (rankCreditDaily counts gifts +1 each).
+  for (let u = 0; u < count; u++) rankCreditDaily(recipient.id, recipient.name, cost);
   // [RP-V7.40] Gifting is the strongest interest signal there is: +4
   // affinity from the gifter toward the host, into the SAME interest
   // store the Reels + live rankings read. Per gift EVENT only — the
@@ -11185,7 +11266,8 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // charm value, capped at the seed). Pot accounting only, in its own
   // try/catch for the same reason as the affinity hook above.
   try {
-    potOnGift(recipient.id, cost);
+    // [RP-V7.219] the 10% Plaza Pot match is per unit.
+    for (let u = 0; u < count; u++) potOnGift(recipient.id, cost);
   } catch (e) { /* pot bookkeeping must never break a gift */ }
   // [RP-V7.42] Daily Pot growth match: EVERY gift on the Plaza also
   // grows the SENDER's class Daily Pot by 2% of its charm value
@@ -11193,24 +11275,31 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // AND its own class's Daily Pot; both matches are platform-side
   // and the split above is final. [RP-V7.77]
   try {
-    dailyPotOnGift(cost, senderTeen ? "teen" : "adult");
+    // [RP-V7.219] the 2% Daily Pot match is per unit.
+    for (let u = 0; u < count; u++) dailyPotOnGift(cost, senderTeen ? "teen" : "adult");
   } catch (e) { /* daily pot bookkeeping must never break a gift */ }
   console.log(
-    "[money] gift", giftId, cost, "charms:", ctx.user.name, "->", recipient.name,
+    "[money] gift", giftId, cost, count > 1 ? "x" + count : "", "charms:", ctx.user.name, "->", recipient.name,
     "| host", hostShare, "c", held ? "(held)" : "", "| cut", platformCut, "c",
     charmsOnly ? "| CHARMS-ONLY (teen involved)" : ""
   );
   // [RP-V7.100] The recipient hears about the gift — bell + email.
   // (Idempotent retries return earlier and never reach this line, so a
-  // gift notifies exactly once.)
+  // gift notifies exactly once.) [RP-V7.219] A batch notifies ONCE,
+  // with the batch total in the text — one tap must not fire 100
+  // bells/emails; every other effect of the batch is per unit.
   notifyActivity({
     toId: recipient.id,
     kind: "gift",
     actorId: ctx.user.id,
     actorName: ctx.user.name,
-    text: "🎁 " + ctx.user.name + " sent you a gift (" + cost + " charms)!",
+    text: count > 1
+      ? "🎁 " + ctx.user.name + " sent you " + count + " gifts (" + totalCost + " charms)!"
+      : "🎁 " + ctx.user.name + " sent you a gift (" + cost + " charms)!",
     emailSubject: "You got a gift on Rizz Plaza 🎁",
-    emailText: ctx.user.name + " sent you a gift (" + cost + " charms) on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    emailText: count > 1
+      ? ctx.user.name + " sent you " + count + " gifts (" + totalCost + " charms) on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team"
+      : ctx.user.name + " sent you a gift (" + cost + " charms) on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
     go: { screen: "ownprofile" },
   });
   res.json(giftResponse);
