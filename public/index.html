@@ -20610,13 +20610,13 @@
            objects measure ~45-60% width, center-bottom) — centered,
            lower-center, appearing IN PLACE with a scale-in pop; no
            travel path. Keyed live (WebGL) like every tier: no box. */
-        var heroPx = Math.round(Math.min((window.innerWidth || 400) * 0.5, 300));
+        var heroPx = Math.round(window.innerWidth || 400); // [RP-V7.218 section 8] band-fill: the appear hero takes the FULL bottom-band width (owner: "all gifts take up whole bottom screen space") -- the 50vw/300px cap is gone; a film hero's keyed canvas height follows the film raster (16:9 = the band box), an art hero's keyed square fills the width
         var dur217 = (window.RpShowDur ? window.RpShowDur(g) : 2600);
         var s = giftArtImg(g, heroPx);
         if (!s) { s = document.createElement("span"); s.textContent = g.icon || "🎁"; s.style.fontSize = "110px"; }
         s.classList.add("gfx-p");
         s.style.left = "50%";
-        s.style.bottom = "20%";
+        s.style.bottom = "17%"; /* [RP-V7.218] small-gift appear seats in the band zone with the stage shows (box top ~58% on a 440x880 screen) */
         s.style.animation = "gfxAppear217 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
         stage.appendChild(s);
         if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g); }
@@ -20628,7 +20628,7 @@
       function giftFxBurst(g, fromName, toName) {
         var ov = giftFxOverlay("medium");
         var stage = ov.querySelector(".gfx-stage");
-        var hero = fxHero(g, (g.tier === "big" || g.tier === "prestige") ? 240 : 200); // [RP-V7.27]
+        var hero = fxHero(g, Math.round(window.innerWidth || 400)); // [RP-V7.218 section 8] band-fill: the burst hero takes the full bottom-band width (was 240/200 at [RP-V7.27])
         hero.style.animation = "gfxPop 2100ms cubic-bezier(.2,.7,.3,1) both";
         stage.appendChild(hero);
         if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g); // [RP-V7.217] hero keyed live — no box
@@ -25477,6 +25477,102 @@ canvas.rp-key-canvas{ display:block; }
    entrance beat at the 2.6 s float life), hold, gentle fade — no
    travel path up the screen (owner correction, Nov 3 2026). */
 @keyframes gfxAppear217 { 0% { transform:translateX(-50%) scale(.55); opacity:0; } 16% { transform:translateX(-50%) scale(1.05); opacity:1; } 24% { transform:translateX(-50%) scale(1); } 84% { transform:translateX(-50%) scale(1); opacity:1; } 100% { transform:translateX(-50%) scale(1.02); opacity:0; } }
+/* [RP-V7.218] THE SUPERNOVA STANDARD (owner, Nov 3 2026, from his own
+   phone test of V7.217: "I love the supernova — it's perfect the way it
+   shows. The bottom half of the screen should show all gifts that way,
+   like TikTok, but see through so it don't block the screen, names and
+   people hosting it."). EVERY gift show now lives in the BOTTOM-HALF
+   BAND and is SEE-THROUGH:
+   - The stage flexes to the bottom with a 13vh pad: every show box
+     (film band, keyed canvas, art hero) starts at or below the
+     screen's vertical midpoint and ends above the bottom chat zone.
+     Host face, host name bar, and top furniture are never covered.
+   - Keyed shows (cutout class) carry true alpha via RpKey (normal
+     compositing) — the room reads around the subject.
+   - Blend-class scene films (wall-to-wall, unkeyable) play in the band
+     with the stage's screen blend: their dark ground vanishes into
+     the room, their bright subject adds over it — no opaque cover.
+   - Ghost-class scene films (a character/scene that neither keying
+     nor blending preserves) play in the band at 0.88 opacity, normal
+     compositing: the room ghosts through, the show never hard-blocks.
+   Placement: specificity is kept at or above the legacy stage rules
+   (#rpStage:not(.trex):not(.scene) at (1,2,0)); !important is used
+   only where the legacy SVG-filter rule would otherwise re-apply. */
+#rpStage{ align-items:flex-end; padding-bottom:13vh; box-sizing:border-box; }
+.rp-stage-art.film.portrait{ width:auto; height:min(36vh,150vw); aspect-ratio:720/1280; } /* portrait cap = the band's full depth (bottom edge 87% -> top edge 51%): a 44vh box would start at 43%, inside the top half */
+#rpStage .rp-stage-art.film:has(> img.rp-gift-img){ width:100vw; height:auto; aspect-ratio:16/9; }
+#rpStage .rp-stage-art.film:has(> img.rp-gift-img) img.rp-gift-img{ width:100%; height:100%; object-fit:cover; }
+/* band-blend: the video's own screen blend does the see-through; the
+   legacy SVG luminance filter must NOT re-apply to a raw band video. */
+#rpStage.bandblend218 .rp-stage-art video.rp-gift-film{ filter:none !important; mix-blend-mode:screen; }
+/* band-ghost: normal composite at reduced opacity; defeats the legacy
+   stage screen-blend rule (which would otherwise apply once the
+   .scene class is gone). */
+#rpStage.ghost218{ mix-blend-mode:normal !important; }
+#rpStage.ghost218 .rp-stage-art video.rp-gift-film{ filter:none !important; mix-blend-mode:normal !important; opacity:.88; }
+/* [RP-V7.218 addendum] band-ghost FEATHER: the ghost film window melts
+   into the room at all four borders -- no frame line (the owner's core
+   complaint is boxes/frames). Two crossed linear-gradient masks,
+   intersected, fade the media alpha to 0 at every edge: 11% of width
+   on X, 13% of height on Y. Covers the ghost band's video AND the art
+   img rpGiftVidErr swaps into the same band on a film-file failure.
+   Opacity .88 and all band geometry unchanged; blend + keyed classes
+   untouched (blend melts by compositing, keyed carries true alpha). */
+#rpStage.ghost218 .rp-stage-art video.rp-gift-film,
+#rpStage.ghost218 .rp-stage-art img.rp-gift-img{
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
+  mask-composite: intersect;
+}
+/* [RP-V7.218 section 8] band-BLEND FEATHER (owner: "Take off the
+   rectangular edge -- leave no edges, only blended images"): screen
+   blend melts the blend band in a dark room, but over a BRIGHT room
+   the blend saturates toward white and the film frame's borders can
+   still read as a soft rectangle. The same crossed-gradient feather
+   as the ghost band now fades the blend band's media alpha to 0 at
+   all four borders, so the film's contribution vanishes at its frame
+   in every room. Covers the band's video AND the art img rpGiftVidErr
+   swaps in on a film failure (an opaque raster composited by the
+   stage screen blend -- the same haze-frame risk). Geometry, blend
+   mode and opacity unchanged. */
+#rpStage.bandblend218 .rp-stage-art video.rp-gift-film,
+#rpStage.bandblend218 .rp-stage-art img.rp-gift-img{
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
+  mask-composite: intersect;
+}
+/* [RP-V7.218 section 8] band-KEYED feather: scene films routed
+   through the luma-key player (RP_BAND_KEYED in pumpStage -- the
+   "clear and see through" winners) render on a canvas in the same
+   band box; the canvas and any no-WebGL fallback media in that band
+   get the same edge feather, so the keyed band has no frame line
+   either. The hidden texture feeders (.rp-key-src -- 8px, opacity
+   .001) are excluded: they are never visible. */
+#rpStage.bandkeyed218 .rp-stage-art canvas.rp-key-canvas,
+#rpStage.bandkeyed218 .rp-stage-art video.rp-gift-film:not(.rp-key-src),
+#rpStage.bandkeyed218 .rp-stage-art img.rp-gift-img:not(.rp-key-src){
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
+  mask-composite: intersect;
+}
+/* [RP-V7.218 section 8] portrait films COVER the full-width band
+   (owner: "make sure all gifts take up whole bottom screen space"):
+   the pillar window is gone -- a portrait scene film plays in the
+   same 100vw x 16/9 band box as every other show, its media
+   cover-cropped into it (object-fit:cover on the raw film; the
+   shader cover-crop on the keyed canvas), feathered at the borders.
+   This rule sits after the section-7 portrait cap and overrides it;
+   it also lifts the one keyed portrait film (titanclash, via its
+   .portrait class) into the same band box. */
+.rp-stage-art.film.portrait{ width:100vw; height:auto; aspect-ratio:16/9; }
+/* medium burst heroes/particles seat in the band zone (hero box at
+   ~72% of height; the burst spray itself is transient particles). */
+.gfx.medium .gfx-hero{ top:72%; }
+.gfx.medium .gfx-p{ top:72% !important; }
+
 .rp-stage-art{ position:relative; width:min(55vw,300px); height:min(55vw,300px); filter:drop-shadow(0 18px 42px rgba(0,0,0,.6)); } /* [RP-V7.27] big-show scale: ~55% of width */
 .rp-stage-art svg{ width:100%; height:100%; }
 .rp-stage-art.pop{ animation:rpStagePop 3.5s cubic-bezier(.2,.7,.3,1) forwards; }
@@ -25795,7 +25891,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      edges. Add a gift's id here when a scene film ships for it —
      Sea Kings, Fire Dunk and Ice Drift are shot as scenes. Every
      other gift stays on the blend path. */
-  var RP_SCENE_FILMS = { whale: 1, ascension: 1, supernova: 1, nebuladragon: 1, ferriswheel: 1 }; // [RP-V7.217] scene class EXTENDED by measurement (border-luma + frame reads, see REPORT): these five films are full-frame shows with no floatable subject on a dark ground — they play as intentional full-screen cover. All other live films are CUTOUT class and key at runtime.
+  var RP_SCENE_FILMS = { whale: 1, ascension: 1, supernova: 1, nebuladragon: 1, ferriswheel: 1 }; // [RP-V7.218] scene CONTENT class (full-frame films, no floatable subject on a dark ground). [RP-V7.217] played them as full-screen cover; [RP-V7.218] the Supernova standard moves them into the bottom-half band instead: RP_BAND_BLEND (supernova, ferriswheel, nebuladragon) plays the film with the stage screen blend so its dark ground vanishes into the room, RP_BAND_GHOST (ascension, whale) plays it at 0.88 opacity, normal compositing — in both cases the room reads through and the top half is never covered. All other live films are CUTOUT class and key at runtime.
   /* [RP-V7.207] Fix 1d keying defs (see the #rpKeyA note in the CSS
      above): alpha := luminance (Rec.709 weights, computed on the
      sRGB values via color-interpolation-filters="sRGB"), then a
@@ -25887,7 +25983,7 @@ var RpKey = (function () {
     } catch (e) { supCache = false; }
     return supCache;
   }
-  var VSH = "attribute vec2 aPos;varying vec2 vUv;void main(){vUv=vec2(aPos.x*0.5+0.5,aPos.y*0.5+0.5);gl_Position=vec4(aPos,0.0,1.0);}";
+  var VSH = "attribute vec2 aPos;varying vec2 vUv;uniform vec4 uCrop;void main(){vec2 uv0=aPos*0.5+0.5;vUv=uCrop.xy+uv0*uCrop.zw;gl_Position=vec4(aPos,0.0,1.0);}"; /* [RP-V7.218 section 8] uCrop = cover-crop window (offset.xy, scale.zw); identity (0,0,1,1) unless attach opts into cover */
   var FSH = [
     "precision mediump float;",
     "varying vec2 vUv;",
@@ -25949,7 +26045,9 @@ var RpKey = (function () {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.clearColor(0, 0, 0, 0);
-    return { gl: gl, tex: tex, uTexel: gl.getUniformLocation(pr, "uTexel") };
+    var uCropLoc = gl.getUniformLocation(pr, "uCrop");
+    if (uCropLoc) gl.uniform4f(uCropLoc, 0, 0, 1, 1);
+    return { gl: gl, tex: tex, uTexel: gl.getUniformLocation(pr, "uTexel"), uCrop: uCropLoc };
   }
   /* Backing store = the element's device pixels, capped at the
      source's native pixels (never an upscaled small canvas, never
@@ -25990,6 +26088,20 @@ var RpKey = (function () {
         gl.bindTexture(gl.TEXTURE_2D, G.tex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cur);
       } catch (e) { return; }
+      /* [RP-V7.218 section 8] cover: sample a centered window of the
+         source whose aspect equals the canvas box, so a band hero
+         fills its box without distortion (portrait film in the 16:9
+         band, square art in the band box). */
+      if (opts.cover && G.uCrop) {
+        var bw = cv.clientWidth || 0, bh = cv.clientHeight || 0;
+        var sw = cur.videoWidth || cur.naturalWidth || 0, sh = cur.videoHeight || cur.naturalHeight || 0;
+        if (bw && bh && sw && sh) {
+          var ba = bw / bh, sa = sw / sh, cox = 0, coy = 0, csx = 1, csy = 1;
+          if (sa > ba) { csx = ba / sa; cox = (1 - csx) / 2; }
+          else if (ba > sa) { csy = sa / ba; coy = (1 - csy) / 2; }
+          gl.uniform4f(G.uCrop, cox, coy, csx, csy);
+        }
+      }
       gl.uniform2f(G.uTexel, 1 / (cur.videoWidth || cur.naturalWidth || 2), 1 / (cur.videoHeight || cur.naturalHeight || 2));
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       frames++;
@@ -26137,15 +26249,20 @@ function rpStageMedia(div, gid, icon) {
        like everything else — never stretched into the film box,
        never an opaque rectangle. */
     div.classList.remove("film");
-    div.style.width = "min(74vw, 400px)";
-    div.style.height = "min(74vw, 400px)";
+    /* [RP-V7.218 section 8] band-fill: art heroes take the full
+       bottom band box (100vw x 16/9) like every other show -- the
+       min(74vw,400px) cap is gone; the keyed canvas cover-crops the
+       art into the box (subject centered), the raw-img fallback
+       cover-fits via object-fit below. */
+    div.style.width = "100vw";
+    div.style.height = "calc(100vw * 9 / 16)";
     var img = document.createElement("img");
     img.className = "rp-gift-img";
     img.alt = "";
     img.style.width = "100%"; img.style.height = "100%"; img.style.objectFit = "cover";
     img.onerror = function () { emojiFallback(); };
     if (RpKey.supported()) {
-      var h = RpKey.attach(img, {});
+      var h = RpKey.attach(img, { cover: true }); // [RP-V7.218 section 8] cover-crop into the band box
       if (h) {
         ctl.h = h;
         h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
@@ -26168,7 +26285,7 @@ function rpStageMedia(div, gid, icon) {
     v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true; v.preload = "auto";
     var stepped = false;
     if (RpKey.supported()) {
-      var h = RpKey.attach(v, {});
+      var h = RpKey.attach(v, { cover: true }); // [RP-V7.218 section 8] band heroes cover-crop into the band box
       if (h) {
         ctl.h = h;
         h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
@@ -26226,21 +26343,48 @@ function stageStreakBump(key) {
     var sparks = "";
     for (var i = 0; i < 18; i++) {
       var ang = (i / 18) * 6.283, dist = 90 + (i % 5) * 26;
-      sparks += '<span class="rp-spark" style="left:50%;top:44%;--dx:' + Math.round(Math.cos(ang) * dist) + "px;--dy:" + Math.round(Math.sin(ang) * dist) + 'px;animation-delay:' + (i * 0.03) + 's"></span>';
+      sparks += '<span class="rp-spark" style="left:50%;top:70%;--dx:' + Math.round(Math.cos(ang) * dist) + "px;--dy:" + Math.round(Math.sin(ang) * dist) + 'px;animation-delay:' + (i * 0.03) + 's"></span>';
     }
     var sgid = g.id || NAME2ID[g.name] || "gift";
     var said = sgid === "diamond" ? "diamonds" : sgid;
     var sFilm = !!(window.rpGiftFilmIds && window.rpGiftFilmIds[said]);
-    var isScene = !!RP_SCENE_FILMS[said]; // [RP-V7.217] measured scene class -> full-screen cover, no matte, no seam
+    var isScene = !!RP_SCENE_FILMS[said]; // [RP-V7.218] scene CONTENT class — no longer full-screen cover
+    /* [RP-V7.218] The Supernova standard: band treatments by measured
+       content. Supernova (wall-to-wall spiral, border luma 84) and
+       ferriswheel (all-bright neon, border 69.6) and nebuladragon
+       (bright iridescent dragon over a dark starfield) survive the
+       stage screen blend — their dark ground vanishes into the room
+       and the bright subject adds over it, so they play in the band
+       with the blend. Ascension (portrait character scene, border
+       110 — the character's dark outfit would dissolve under a
+       blend and its bright sky would survive a key as a rectangle)
+       and whale (full-color ocean, mid-tone water everywhere) survive
+       NEITHER — they play in the band at 0.88 opacity instead. */
+    var RP_BAND_BLEND = { supernova: 1, ferriswheel: 1, nebuladragon: 1 };
+    var RP_BAND_GHOST = { ascension: 1, whale: 1 };
+    /* [RP-V7.218 section 8] scene films rendered by the luma-key
+       player instead of the stage blend -- the "clear and see
+       through" winners of the F4 comparison (REPORT section 8): the
+       bright subject stays solid in BOTH rooms and only the dark
+       surroundings dissolve, where the blend saturates to a haze
+       over a bright room. Empty = every scene film blends/ghosts. */
+    var RP_BAND_KEYED = { supernova: 1, ferriswheel: 1, nebuladragon: 1 };
+    var RP_BAND_PORTRAIT = { ascension: 1, nebuladragon: 1 };
     ov.setAttribute("data-gid", sgid);
     ov.setAttribute("data-icon", g.icon || GIFT_ICONS[said] || "🎁");
     ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + sparks;
     ov.querySelector(".rp-stage-bg").style.animationDuration = dur + "ms";
     var artDiv = document.createElement("div");
     if (isScene) {
-      ov.className = "scene";
-      artDiv.className = "rp-stage-art";
-      artDiv.innerHTML = rpShowArtHtml(sgid, g.icon, "full");
+      artDiv.className = "rp-stage-art film";
+      if (RP_PORTRAIT_FILMS[said] || RP_BAND_PORTRAIT[said]) artDiv.classList.add("portrait");
+      if (RP_BAND_KEYED[said]) {
+        ov.classList.add("bandkeyed218");
+        stageCtl = rpStageMedia(artDiv, sgid, g.icon || GIFT_ICONS[said]);
+      } else {
+        ov.classList.add(RP_BAND_GHOST[said] ? "ghost218" : "bandblend218");
+        artDiv.innerHTML = rpShowArtHtml(sgid, g.icon, "full");
+      }
     } else {
       artDiv.className = "rp-stage-art " + motion + (sFilm ? " film" : "");
       if (RP_PORTRAIT_FILMS[said]) artDiv.classList.add("portrait");
