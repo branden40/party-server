@@ -625,6 +625,37 @@ Object.keys(RP_GIFT_ART_7199).forEach((gid) => {
   });
 });
 // ---------------------------------------------------------------------------
+// [RP-V7.220] Thanksgiving holiday gifts' ANIMATED ART — embedded
+// base64 WebP (320x320, ~4s infinite loops) served from the sibling
+// module giftart7220.js. The three gifts (Thankful Turkey, Harvest
+// Wreath, Pumpkin Pie) ride wire id "hol"; the client resolves their
+// art by name (HOL_ART_IDS) to these routes. Display only — the
+// "hol" settlement and every price stay exactly as they were.
+const RP_GIFT_ART_7220 = require("./giftart7220.js");
+Object.keys(RP_GIFT_ART_7220).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7220[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+// ---------------------------------------------------------------------------
+// [RP-V7.221] Fat Tuesday Frenzy's ANIMATED ART — embedded base64
+// WebP (320x320, 24 frames @ 8fps, 3.0s infinite loop) served from
+// the sibling module; the film giftfx-fattuesday.mp4 is uploaded
+// separately (guided file drop into public/) and the client falls
+// back to this animated art until it lands (never a still).
+const RP_GIFT_ART_7221 = require("./giftart7221.js");
+Object.keys(RP_GIFT_ART_7221).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7221[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+// ---------------------------------------------------------------------------
 // [RP-V7.206] Branden-approved gift-art redos #2 (Nov 2, 2026):
 // Golden Lion (new fantasy art) and Whale Dive (real-life art).
 // Same recipe as the RP-V7.204 routes: art embedded as data URIs in
@@ -10428,7 +10459,7 @@ const MONEY_GIFT_TABLE = {
   heartburst: 60, thunderbolt: 75, fingerheart: 99, kiss: 100,
   fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500, worldtree: 500, // [RP-V7.199] +World Tree 500 ($5, Branden Nov 1, 2026) — catalog now 45 gifts
   loveballoon: 600, guardianpalm: 700, airplane: 800, moneygun: 999,
-  castle: 1000, volcano: 2000, lion: 2500, plazaape: 2500, dragon: 3000, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts
+  castle: 1000, volcano: 2000, lion: 2500, plazaape: 2500, fattuesday: 2500, dragon: 3000, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts // [RP-V7.221] +Fat Tuesday Frenzy 2500 ($25, Branden Nov 3, 2026) — catalog now 51 gifts
   whale: 4500, galaxy: 5000, titanclash: 5000, rizzuniverse: 5000, starsurge: 5500, diamonds: 6000,
   rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10000, yacht: 15000,
   phoenix: 25000, universe: 50000,
