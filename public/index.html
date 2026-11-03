@@ -19580,6 +19580,29 @@
         var n = $("giftNotice");
         if (n) { n.textContent = "This is your own live — viewers use this catalog to gift you. You can't send gifts to yourself."; n.classList.add("show"); }
       }
+      // [RP-V7.217] Sender-echo dedupe: my own gift broadcast comes back
+      // around the room, and when the relay's fromId does not match my
+      // Online id the fromId guard in giftObserved cannot catch it —
+      // the show rendered TWICE (owner-verified Nov 3, 2026: banner /
+      // plate text doubling). Every broadcast now carries a one-time
+      // nonce registered here; giftObserved consumes a match instead
+      // of re-rendering. A fingerprint fallback (my name + gift +
+      // target + value, 9 s window) covers relays that strip fields.
+      var rpGiftEchoes = [];
+      function rpGiftEchoRegister(p) {
+        rpGiftEchoes.push({ n: p.n || "", g: p.g || "", to: p.to || "", v: p.v || 0, at: Date.now() });
+        if (rpGiftEchoes.length > 24) rpGiftEchoes.splice(0, rpGiftEchoes.length - 24);
+      }
+      function rpGiftEchoConsume(o, fromName) {
+        var now = Date.now(), i;
+        for (i = rpGiftEchoes.length - 1; i >= 0; i--) { if (now - rpGiftEchoes[i].at > 9000) rpGiftEchoes.splice(i, 1); }
+        for (i = 0; i < rpGiftEchoes.length; i++) {
+          var e = rpGiftEchoes[i];
+          if (o.n && e.n && o.n === e.n) { rpGiftEchoes.splice(i, 1); return true; }
+          if (!o.n && e.g === (o.g || "") && e.to === (o.to || "") && e.v === o.v && fromName && (Online.name || "") === fromName) { rpGiftEchoes.splice(i, 1); return true; }
+        }
+        return false;
+      }
       function sendGift(targetId, targetName, g, opts) {
         opts = opts || {};
         if (!opts.local && targetId === Online.myId) { toast("This is your own live — viewers use the gift catalog to gift you.", 3200); return; } // [RP-V7.39] self-send hard stop — no debit, no emit, no feed entry
@@ -19598,7 +19621,13 @@
           toast("🎁 You sent the " + g.name + " (" + giftPriceLabel(cost) + ") to " + (targetName || "them") + " — it banks toward their earnings!", 3600);
           return;
         }
-        var sent = Online.state === "on" && protoSend({ k: "gift", to: targetId, tn: targetName || "", g: g.name, ic: g.icon, v: cost });
+        // [RP-V7.217] the broadcast carries the echo nonce (above) and,
+        // when the money ledger settled this gift charms-only, co: 1 —
+        // receivers render charms for it, never a $ price (Honesty Fix).
+        var gp217 = { k: "gift", to: targetId, tn: targetName || "", g: g.name, ic: g.icon, v: cost, n: "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) };
+        if (opts && opts.__co) gp217.co = 1;
+        var sent = Online.state === "on" && protoSend(gp217);
+        if (sent) rpGiftEchoRegister(gp217);
         if (sent) {
           if (targetName) affinityBump(targetName, "g"); // ✨ For You memory: I gifted this host
           var bonus = Math.round(cost * giftBonusNow());
@@ -19622,14 +19651,24 @@
         if (o.tn) Party.names[o.to] = o.tn;
         if (o.to === Online.myId && fromId !== Online.myId) {
           awardCharms(o.v + bonus, null);
-          bankGiftEarnings(o.v + bonus, fromName, o.g || "gift");
+          // [RP-V7.217] Honesty Fix: a charms-only gift (o.co — teen on
+          // either side) banks CHARMS, never earnings: it stays out of
+          // the earnings ledger and is never described as money.
+          if (!o.co) bankGiftEarnings(o.v + bonus, fromName, o.g || "gift");
           emojiBurst(o.ic || "🎁", 10);
-          toast("🎁 " + fromName + " sent you a " + (o.g || "gift") + " — +" + (o.v + bonus) + " charms banked toward your earnings" + (bonus ? " (includes the +25% event bonus!)" : "") + "!", 4200);
-          addChatSystem("🎁 " + fromName + " gifted you a " + (o.g || "gift") + " (+" + (o.v + bonus) + " charms toward your earnings).");
+          if (o.co) {
+            toast("🎁 " + fromName + " sent you a " + (o.g || "gift") + " — +" + (o.v + bonus) + " charms (charms-only gift — no money in it).", 4200);
+            addChatSystem("🎁 " + fromName + " gifted you a " + (o.g || "gift") + " (+" + (o.v + bonus) + " charms · charms-only).");
+          } else {
+            toast("🎁 " + fromName + " sent you a " + (o.g || "gift") + " — +" + (o.v + bonus) + " charms banked toward your earnings" + (bonus ? " (includes the +25% event bonus!)" : "") + "!", 4200);
+            addChatSystem("🎁 " + fromName + " gifted you a " + (o.g || "gift") + " (+" + (o.v + bonus) + " charms toward your earnings).");
+          }
         }
         /* Live Stage: gifts play for the whole room — feed + animation. */
-        if (typeof inLiveRoom === "function" && inLiveRoom() && fromId !== Online.myId) {
-          var gg = giftByName(o.g || "") || { id: "gift", name: o.g || "Gift", icon: o.ic || "🎁", cents: o.v, tier: o.v >= 2000 ? "big" : (o.v >= 200 ? "medium" : "small"), fx: o.v >= 2000 ? "burst" : "float" };
+        // [RP-V7.217] a consumed echo (my own broadcast coming back) renders nothing twice.
+        if (typeof inLiveRoom === "function" && inLiveRoom() && fromId !== Online.myId && !rpGiftEchoConsume(o, fromName)) {
+          var gg0 = giftByName(o.g || "") || { id: "gift", name: o.g || "Gift", icon: o.ic || "🎁", cents: o.v, tier: o.v >= 2000 ? "big" : (o.v >= 200 ? "medium" : "small"), fx: o.v >= 2000 ? "burst" : "float" };
+          var gg = o.co ? Object.assign({}, gg0, { __co: 1 }) : gg0; // [RP-V7.217] the charms-only marker rides a copy — the shared catalog entry is never mutated
           var toNm = o.to === Online.myId ? (Online.name || "You") : (o.tn || liveName(o.to));
           liveGiftFeedShow(fromName, toNm, gg, o.v);
           if (o.to === Live.hostId || o.to === Online.myId) playGiftFx(gg, fromName, toNm);
@@ -20465,7 +20504,8 @@
       var GiftFx = { playing: false, queue: [] };
       function giftFxReduced() { return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
       function giftFxCaption(fromName, toName, g) {
-        return "<b>" + escHtml(fromName || "Someone") + "</b> sent <b>" + escHtml(toName || "them") + "</b> the <b>" + (g.icon || "🎁") + " " + escHtml(g.name || "Gift") + "</b> · " + giftPriceLabel(g.cents || 0);
+        // [RP-V7.217] Honesty Fix: an observed charms-only gift (g.__co) captions in charms — never a $ price to the receiver.
+        return "<b>" + escHtml(fromName || "Someone") + "</b> sent <b>" + escHtml(toName || "them") + "</b> the <b>" + (g.icon || "🎁") + " " + escHtml(g.name || "Gift") + "</b> · " + ((g && g.__co) ? (g.cents || 0).toLocaleString("en-US") + " charms · charms-only" : giftPriceLabel(g.cents || 0));
       }
       function giftFxOverlay(cls) {
         var ov = document.createElement("div");
@@ -20562,20 +20602,28 @@
       function giftFxFloat(g, fromName, toName) {
         var ov = giftFxOverlay("small");
         var stage = ov.querySelector(".gfx-stage");
-        var n = 1; // [RP-V7.207] Branden: small-gift float-up is ONE copy of the art ("This should only have one")
-        for (var i = 0; i < n; i++) {
-          var s = giftArtImg(g, 110); // [RP-V7.207] the single floating copy, fixed size — was Math.round(84 + Math.random() * 26) [RP-V7.27]
-          if (!s) { s = document.createElement("span"); s.textContent = g.icon || "🎁"; s.style.fontSize = (26 + Math.random() * 22) + "px"; }
-          s.classList.add("gfx-p");
-          s.style.left = "calc(50% - 55px)"; // [RP-V7.207] the single copy floats up centered
-          s.style.bottom = "5%";
-          s.style.animation = "gfxFloatUp " + Math.round(1300 + Math.random() * 700) + "ms ease-out " + (i * 90) + "ms both";
-          stage.appendChild(s);
-        }
+        /* [RP-V7.217] Owner correction (Nov 3, 2026 — supersedes the
+           Nov 2 float-up rule): "the small gifts float to the top of
+           the screen — it should be bigger and just appear to the
+           screen and blend in." ONE copy (his V7.207 rule stands),
+           at hero size — 50% of screen width (spec: solo center-
+           objects measure ~45-60% width, center-bottom) — centered,
+           lower-center, appearing IN PLACE with a scale-in pop; no
+           travel path. Keyed live (WebGL) like every tier: no box. */
+        var heroPx = Math.round(Math.min((window.innerWidth || 400) * 0.5, 300));
+        var dur217 = (window.RpShowDur ? window.RpShowDur(g) : 2600);
+        var s = giftArtImg(g, heroPx);
+        if (!s) { s = document.createElement("span"); s.textContent = g.icon || "🎁"; s.style.fontSize = "110px"; }
+        s.classList.add("gfx-p");
+        s.style.left = "50%";
+        s.style.bottom = "20%";
+        s.style.animation = "gfxAppear217 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
+        stage.appendChild(s);
+        if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g); }
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
         ov.appendChild(cap);
-        setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 2300);
+        setTimeout(function () { if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); }, dur217); // [RP-V7.217] overlay life = the appear animation's life
       }
       function giftFxBurst(g, fromName, toName) {
         var ov = giftFxOverlay("medium");
@@ -20583,12 +20631,13 @@
         var hero = fxHero(g, (g.tier === "big" || g.tier === "prestige") ? 240 : 200); // [RP-V7.27]
         hero.style.animation = "gfxPop 2100ms cubic-bezier(.2,.7,.3,1) both";
         stage.appendChild(hero);
+        if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g); // [RP-V7.217] hero keyed live — no box
         var parts = g.fx === "burst" ? ["✨", "🎇", "💥", g.icon] : [g.icon, "✨", "⭐"];
         var n = giftFxReduced() ? 5 : 18;
         for (var i = 0; i < n; i++) {
           var pv = parts[i % parts.length];
           var s = null;
-          if (pv === (g.icon || "🎁")) s = giftArtImg(g, Math.round(40 + Math.random() * 18)); // [RP-V7.27] gift-glyph particles are the art; sparkles stay sparkles
+          if (pv === (g.icon || "🎁")) s = (window.RpKeySticker && window.RpKeySticker(g, Math.round(40 + Math.random() * 18))) || null; // [RP-V7.217] gift-glyph particles are the pixel-keyed art sticker (emoji until the sticker is cached) — never an opaque box
           if (!s) { s = document.createElement("span"); s.textContent = pv; s.style.fontSize = (18 + Math.random() * 20) + "px"; }
           s.classList.add("gfx-p");
           s.style.left = "50%"; s.style.top = "50%";
@@ -20607,7 +20656,7 @@
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
         ov.appendChild(cap);
         try { Juice.shake(2); } catch (e) { }
-        setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 2400);
+        setTimeout(function () { if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); }, (window.RpShowDur ? window.RpShowDur(g) : 4000)); // [RP-V7.217] burst lives for the gift's duration
       }
       function giftFxPump() {
         if (GiftFx.playing || !GiftFx.queue.length) return;
@@ -20732,20 +20781,25 @@
         LiveGifts.total += v; LiveGifts.count++;
         var key = fromName || "Someone";
         LiveGifts.bySender[key] = (LiveGifts.bySender[key] || 0) + v;
+        if (g && g.__co) { LiveGifts.coTotal = (LiveGifts.coTotal || 0) + v; LiveGifts.bySenderCo = LiveGifts.bySenderCo || {}; LiveGifts.bySenderCo[key] = (LiveGifts.bySenderCo[key] || 0) + v; } // [RP-V7.217] charms-only charms tracked apart so the session $ figure below never includes them
         var feed = $("liveGiftFeed");
         if (feed) {
           var row = document.createElement("div");
           row.className = "lgf-row";
-          row.innerHTML = '<span class="gi">' + (g.icon || "🎁") + '</span><span><b>' + escHtml(fromName || "Someone") + '</b> sent <b>' + escHtml(toName || "the host") + '</b> a ' + escHtml(g.name || "gift") + '</span><span class="gv">' + giftPriceLabel(v) + '</span>';
+          var gv217 = (g && g.__co) ? (v || 0).toLocaleString("en-US") + " charms · charms-only" : giftPriceLabel(v); // [RP-V7.217] the feed line reads charms for a charms-only gift
+          row.innerHTML = '<span class="gi">' + (g.icon || "🎁") + '</span><span><b>' + escHtml(fromName || "Someone") + '</b> sent <b>' + escHtml(toName || "the host") + '</b> a ' + escHtml(g.name || "gift") + '</span><span class="gv">' + gv217 + '</span>';
           feed.insertBefore(row, feed.firstChild);
           while (feed.children.length > 30) feed.removeChild(feed.lastChild);
-          try { pushLiveComment("", "🎁 " + (fromName || "Someone") + " sent " + (toName || "the host") + " a " + (g.icon || "🎁") + " " + (g.name || "gift") + " · " + giftPriceLabel(v), "gift"); } catch (e) { }
+          try { pushLiveComment("", "🎁 " + (fromName || "Someone") + " sent " + (toName || "the host") + " a " + (g.icon || "🎁") + " " + (g.name || "gift") + " · " + gv217, "gift"); } catch (e) { }
         }
         var tot = $("liveGiftTotals");
         if (tot) {
           var top = null, topV = 0;
           Object.keys(LiveGifts.bySender).forEach(function (k) { if (LiveGifts.bySender[k] > topV) { topV = LiveGifts.bySender[k]; top = k; } });
-          tot.textContent = "🎁 Gifts this session: " + LiveGifts.total.toLocaleString("en-US") + " charms (" + moneyLabel(LiveGifts.total) + ")" + (top ? " · Top gifter: " + top + " (" + giftPriceLabel(topV) + ")" : "");
+          // [RP-V7.217] the session $ figure counts only non-charms-only charms; a fully charms-only top gifter is labeled in charms.
+          var topCo = (top && LiveGifts.bySenderCo && LiveGifts.bySenderCo[top]) || 0;
+          var topLbl = topCo >= topV ? (topV || 0).toLocaleString("en-US") + " charms · charms-only" : giftPriceLabel(topV - topCo);
+          tot.textContent = "🎁 Gifts this session: " + LiveGifts.total.toLocaleString("en-US") + " charms (" + moneyLabel(LiveGifts.total - (LiveGifts.coTotal || 0)) + ")" + (top ? " · Top gifter: " + top + " (" + topLbl + ")" : "");
         }
       }
       /* ---------- earnings & Stripe Connect cash-out ---------- */
@@ -25406,6 +25460,23 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
    only). If a platform ignores url() filters, the film degrades
    to the 1c blend look, never to a break. */
 #rpStage:not(.trex):not(.scene) .rp-stage-art video.rp-gift-film{ filter:url(#rpKeyA); }
+/* [RP-V7.217] WebGL-keyed shows carry true alpha: the stage and the
+   float/burst overlays composite NORMALLY once their media is keyed
+   (the screen blend remains only as the no-WebGL fallback path).
+   Texture feeders stay compositor-alive at 8px / opacity .001 and
+   never take the old SVG filter or blend. Portrait stage films take
+   their own aspect box; the on-show streak badge is gold like the
+   banner combo. */
+#rpStage.rp-keyed{ mix-blend-mode:normal !important; } /* [RP-V7.217] !important: the legacy #rpStage:not(.trex):not(.scene) screen rule outranks (1,1,0) at (1,2,0) — without it keyed stage shows keep screen-blending (pale wash in bright rooms) */
+.gfx.rp-keyed{ mix-blend-mode:normal !important; }
+.rp-key-src{ position:absolute !important; left:0 !important; bottom:0 !important; top:auto !important; width:8px !important; height:8px !important; opacity:.001 !important; pointer-events:none !important; filter:none !important; mix-blend-mode:normal !important; }
+canvas.rp-key-canvas{ display:block; }
+.rp-stage-art.film.portrait{ width:min(49vh,94vw); height:auto; aspect-ratio:720/1280; }
+.rp-stage-streak{ color:#f5b93f; font-weight:900; font-size:17px; }
+/* [RP-V7.217] small-gift APPEAR: scale-in pop in place (~0.42 s
+   entrance beat at the 2.6 s float life), hold, gentle fade — no
+   travel path up the screen (owner correction, Nov 3 2026). */
+@keyframes gfxAppear217 { 0% { transform:translateX(-50%) scale(.55); opacity:0; } 16% { transform:translateX(-50%) scale(1.05); opacity:1; } 24% { transform:translateX(-50%) scale(1); } 84% { transform:translateX(-50%) scale(1); opacity:1; } 100% { transform:translateX(-50%) scale(1.02); opacity:0; } }
 .rp-stage-art{ position:relative; width:min(55vw,300px); height:min(55vw,300px); filter:drop-shadow(0 18px 42px rgba(0,0,0,.6)); } /* [RP-V7.27] big-show scale: ~55% of width */
 .rp-stage-art svg{ width:100%; height:100%; }
 .rp-stage-art.pop{ animation:rpStagePop 3.5s cubic-bezier(.2,.7,.3,1) forwards; }
@@ -25626,37 +25697,96 @@ body:not(.live-fs) #rp65How { display:none !important; }
   } catch (e) { }
   document.querySelectorAll(".gift-cell[data-gid]").forEach(swapCell);
 
-  /* ---------- TikTok-style gift banners with combo streaks ---------- */
+  /* ---------- [RP-V7.217] gift banners: exactly 2 slots (spec §4.1),
+     FIFO displacement with off-screen accumulation (§4.4): a displaced
+     streak keeps counting and returns at its accumulated total; the
+     count climbs in place; visible lifetime tracks the gift's show
+     duration (§4.3) instead of one fixed timer. ---------- */
   var combos = {};
+  var bannerSeq = 0;
+  function bannerLife(g) { var d = rpDurFor(g); return Math.max(2400, Math.min(6000, d)); }
   function rpBanner(fromName, g) {
     var box = $("rpBanners");
     if (!box) { box = document.createElement("div"); box.id = "rpBanners"; document.body.appendChild(box); }
     var key = (fromName || "Someone") + "|" + (g.id || g.name || "");
     var now = Date.now(), c = combos[key];
     if (c && now - c.at < 5000) {
-      c.n++; c.at = now;
-      var cb = c.row.querySelector(".rp-combo");
-      if (cb) { cb.textContent = "×" + c.n; cb.style.display = ""; cb.classList.remove("pop"); void cb.offsetWidth; cb.classList.add("pop"); }
-      clearTimeout(c.timer); c.timer = setTimeout(function () { hideBanner(key); }, 4200);
+      c.n++; c.at = now; c.seq = ++bannerSeq;
+      clearTimeout(c.timer); c.timer = setTimeout(function () { expireBanner(key); }, bannerLife(g));
+      if (c.row) {
+        var cb = c.row.querySelector(".rp-combo");
+        if (cb) { cb.textContent = "×" + c.n; cb.style.display = ""; cb.classList.remove("pop"); void cb.offsetWidth; cb.classList.add("pop"); }
+      }
       return;
     }
+    c = { n: 1, at: now, row: null, timer: 0, seq: ++bannerSeq, g: g, fromName: fromName };
+    combos[key] = c;
+    c.timer = setTimeout(function () { expireBanner(key); }, bannerLife(g));
+    if (box.children.length >= 2) displaceOldestBanner();
+    showBannerRow(key);
+  }
+  function showBannerRow(key) {
+    var c = combos[key]; if (!c || c.row) return;
+    var box = $("rpBanners"); if (!box) return;
     var row = document.createElement("div");
     row.className = "rp-banner";
-    row.innerHTML = '<span class="av">' + esc((fromName || "S").slice(0, 1).toUpperCase()) + "</span>" + rpShowArtHtml(g.id || NAME2ID[g.name] || "gift", g.icon, 42) + "<span><b>" + esc(fromName || "Someone") + "</b> sent <b>" + esc(g.name || "Gift") + '</b></span><span class="rp-combo" style="display:none"></span>';
+    row.setAttribute("data-key", key);
+    row.innerHTML = '<span class="av">' + esc((c.fromName || "S").slice(0, 1).toUpperCase()) + "</span>" + rpShowArtHtml(c.g.id || NAME2ID[c.g.name] || "gift", c.g.icon, 42) + "<span><b>" + esc(c.fromName || "Someone") + "</b> sent <b>" + esc(c.g.name || "Gift") + '</b></span><span class="rp-combo"' + (c.n > 1 ? "" : ' style="display:none"') + ">" + (c.n > 1 ? "×" + c.n : "") + "</span>";
     box.appendChild(row);
-    while (box.children.length > 3) box.removeChild(box.firstChild);
-    combos[key] = { n: 1, at: now, row: row, timer: setTimeout(function () { hideBanner(key); }, 4200) };
+    c.row = row;
   }
-  function hideBanner(key) {
+  function displaceOldestBanner() {
+    var box = $("rpBanners"); if (!box || !box.firstChild) return;
+    var row = box.firstChild;
+    var key = row.getAttribute("data-key");
+    box.removeChild(row);
+    var c = key ? combos[key] : null;
+    if (c && c.row === row) c.row = null; /* the streak lives on off-screen */
+  }
+  function expireBanner(key) {
     var c = combos[key]; if (!c) return;
-    c.row.classList.add("out");
-    setTimeout(function () { if (c.row.parentNode) c.row.parentNode.removeChild(c.row); }, 320);
     delete combos[key];
+    if (c.row) {
+      var row = c.row; c.row = null;
+      row.classList.add("out");
+      setTimeout(function () { if (row.parentNode) row.parentNode.removeChild(row); promoteDisplacedBanner(); }, 320);
+    } else {
+      promoteDisplacedBanner();
+    }
+  }
+  function hideBanner(key) { expireBanner(key); }
+  function promoteDisplacedBanner() {
+    var box = $("rpBanners"); if (!box) return;
+    while (box.children.length < 2) {
+      var best = null, bestKey = null, now = Date.now();
+      for (var k in combos) {
+        var c = combos[k];
+        if (!c.row && now - c.at < 5000 && (!best || c.seq > best.seq)) { best = c; bestKey = k; }
+      }
+      if (!best) return;
+      showBannerRow(bestKey);
+    }
   }
 
   /* ---------- big-gift full-screen stage ---------- */
   var stageQ = [], stageBusy = false;
-  function rpBigStage(g, fromName, toName) { stageQ.push({ g: g, f: fromName, t: toName }); pumpStage(); }
+  function rpBigStage(g, fromName, toName) {
+    /* [RP-V7.217] every send enqueues its own FULL play (spec §2.4
+       FIFO replay chain — occupation = N x the gift's cycle, zero
+       gap); the streak count rides the queue item so the plate can
+       climb in place while plays chain. The one-play-per-streak
+       class (RP_ONE_PLAY) merges extra sends into the badge only. */
+    var key = (fromName || "Someone") + "|" + (g.id || NAME2ID[g.name] || g.name || "");
+    var n = stageStreakBump(key);
+    var gid = g.id || NAME2ID[g.name] || "";
+    if (RP_ONE_PLAY[gid]) {
+      var already = stageBusy;
+      for (var i = 0; i < stageQ.length; i++) if (stageQ[i].key === key) already = true;
+      if (already) return;
+    }
+    stageQ.push({ g: g, f: fromName, t: toName, key: key, n: n, co: !!(g && g.__co) });
+    pumpStage();
+  }
   /* [RP-V7.207] Full-color SCENE films: a few big gifts' films are
      real full-color scenes, not black-background shows (Whale Dive's
      underwater film), so the screen blend cannot erase their frame.
@@ -25665,7 +25795,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      edges. Add a gift's id here when a scene film ships for it —
      Sea Kings, Fire Dunk and Ice Drift are shot as scenes. Every
      other gift stays on the blend path. */
-  var RP_SCENE_FILMS = { whale: 1 };
+  var RP_SCENE_FILMS = { whale: 1, ascension: 1, supernova: 1, nebuladragon: 1, ferriswheel: 1 }; // [RP-V7.217] scene class EXTENDED by measurement (border-luma + frame reads, see REPORT): these five films are full-frame shows with no floatable subject on a dark ground — they play as intentional full-screen cover. All other live films are CUTOUT class and key at runtime.
   /* [RP-V7.207] Fix 1d keying defs (see the #rpKeyA note in the CSS
      above): alpha := luminance (Rec.709 weights, computed on the
      sRGB values via color-interpolation-filters="sRGB"), then a
@@ -25674,13 +25804,424 @@ body:not(.live-fs) #rp65How { display:none !important; }
      non-scene, non-T-Rex stage film references it (CSS selector),
      so scene and T-Rex stages carry it unused. */
   var RP_KEY_DEFS = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="rpKeyA" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0.213 0.715 0.072 0 0"/><feComponentTransfer><feFuncA type="linear" slope="4.113" intercept="-0.2903"/></feComponentTransfer></filter></defs></svg>';
+/* [RP-V7.217] ================= SHOW ENGINE REBUILD =================
+   Owner verdict (Nov 3, 2026): every gift showed as a BOX — small
+   gifts a small box, big gifts a big box — because the V7.207/V7.213
+   composite (mix-blend screen + the #rpKeyA SVG luminance filter)
+   does not cut anything out on his phone. This engine replaces the
+   composite, not the assets (no new server files — the films and
+   arts already live are the inputs):
+   - CUTOUT gifts (dark-background films, measured per film — see
+     REPORT): a WebGL luma-key player keys the EXISTING film at
+     runtime with the proven rpKeyA-v2 curve (POC §2: saturate x1.28,
+     lift x1.18+0.012, alpha from lifted luma, noise-floor dead zone
+     <=8/255) plus a blurred-luma soft matte and light wrap: the
+     subject's own edge colors bleed a faint glow just outside the
+     matte, so the subject sits IN the room instead of pasted on it.
+   - SCENE gifts (measured full-frame films: whale, ascension,
+     supernova, nebuladragon, ferriswheel): intentional full-screen
+     cover via the existing .scene path — no seam, no matte.
+   - Arts carry NO alpha (50/50 measured opaque), so art shows are
+     keyed through the same shader (film-missing gifts) or a 2D
+     pixel-key sticker (burst particles) — never an opaque rectangle.
+   - Canvas backing stores are sized to the element's device pixels
+     (devicePixelRatio-aware), capped at the source's native pixels:
+     a low-res source is a source problem (REPORT names them), never
+     hidden behind an upscaled small canvas.
+   Fallbacks: no WebGL -> today's blend path (film) / art (missing
+   film); film error -> step-down chain -> keyed art -> emoji. */
+
+/* ---------- per-gift show durations (ms), PARITY-SPEC-V2 §9.2 ---------- */
+var RP_SHOW_DUR = {
+  plazadiamond: 7300, crownjewel: 7300, supernova: 7300, universe: 7300, ascension: 12000,
+  galaxy: 7300, phoenix: 7900,
+  auroracrown: 5000, pegasus: 5000, goldeneagle: 5000, yacht: 5000, jet: 5000, nebuladragon: 5000,
+  ferriswheel: 5000, rocket: 5000, diamonds: 5000, emeraldelephant: 5000, starsurge: 5000,
+  titanclash: 5000, rizzuniverse: 5000, dragon: 5000, lion: 5000, plazaape: 5000, meteor: 4600,
+  whale: 4800,
+  castle: 4000, airplane: 4000, guardianpalm: 4000, carousel: 4000, loveballoon: 4000,
+  sportscar: 4000, worldtree: 4000, goldgloves: 4000, peacock: 4000, motorcycle: 4000,
+  fireworks: 4000, volcano: 4000, moneygun: 3500,
+  kiss: 2600, bubblewand: 2600, fingerheart: 2600, thunderbolt: 2600, heartburst: 2600,
+  honeybee: 2600, clap: 2600, donut: 2600, icecream: 2600, coffee: 2600, rose: 2600, heart: 2600
+};
+function rpDurFor(g) {
+  if (!g) return 3560;
+  var id = g.id || NAME2ID[g.name] || "";
+  if (id === "diamond") id = "diamonds";
+  if (RP_SHOW_DUR[id]) return RP_SHOW_DUR[id];
+  if (g.tier === "prestige") return 7300;
+  if (g.tier === "big") return 5000;
+  if (g.tier === "medium") return 4000;
+  return 2600;
+}
+window.RpShowDur = rpDurFor;
+/* Portrait-raster stage films (720x1280): the stage box takes the
+   film's own aspect instead of the 16/9 landscape box. nebuladragon
+   is scene-class (cover), so only titanclash needs the class. */
+var RP_PORTRAIT_FILMS = { titanclash: 1 };
+/* [spec §2.4/§9.3] per-gift replay flag: one-play-per-streak exists
+   as a mechanism (rpBigStage honors it) but NO Rizz gift is measured
+   into that class — Rizz defaults to replay-per-send, so this map is
+   intentionally empty. */
+var RP_ONE_PLAY = {};
+function rpKeyCurve(l) {
+  if (l <= 0.03137) return 0;
+  if (l < 0.06275) return 0.10 * (l - 0.03137) / 0.03138;
+  if (l < 0.12549) return 0.10 + 0.40 * (l - 0.06275) / 0.06274;
+  if (l < 0.18824) return 0.50 + 0.38 * (l - 0.12549) / 0.06275;
+  if (l < 0.25098) return 0.88 + 0.12 * (l - 0.18824) / 0.06274;
+  return 1;
+}
+
+/* ---------- the WebGL luma-key player ---------- */
+var RpKey = (function () {
+  var supCache = null;
+  function supported() {
+    if (supCache !== null) return supCache;
+    try {
+      var c = document.createElement("canvas");
+      var gl = c.getContext("webgl", { alpha: true, premultipliedAlpha: false }) || c.getContext("experimental-webgl", { alpha: true, premultipliedAlpha: false });
+      supCache = !!gl;
+      if (gl) { var ext = gl.getExtension("WEBGL_lose_context"); if (ext) ext.loseContext(); }
+    } catch (e) { supCache = false; }
+    return supCache;
+  }
+  var VSH = "attribute vec2 aPos;varying vec2 vUv;void main(){vUv=vec2(aPos.x*0.5+0.5,aPos.y*0.5+0.5);gl_Position=vec4(aPos,0.0,1.0);}";
+  var FSH = [
+    "precision mediump float;",
+    "varying vec2 vUv;",
+    "uniform sampler2D uTex;",
+    "uniform vec2 uTexel;",
+    "float lum(vec3 c){ return dot(c, vec3(0.213,0.715,0.072)); }",
+    "vec3 grade(vec3 c){ float l = lum(c); vec3 s = clamp(l + (c - l) * 1.28, 0.0, 1.0); s = clamp((s - 0.09) * 1.22, 0.0, 1.0); return clamp(s * 1.18 + 0.012, 0.0, 1.0); }", /* [RP-V7.217] black-crush (s-0.09)*1.22: smoky haze under the key floor — no milky rectangle in bright rooms */
+    "float keyA(float l){",
+    "  if (l <= 0.03137) return 0.0;",
+    "  if (l < 0.06275) return mix(0.0, 0.10, smoothstep(0.03137, 0.06275, l));",
+    "  if (l < 0.12549) return mix(0.10, 0.50, smoothstep(0.06275, 0.12549, l));",
+    "  if (l < 0.18824) return mix(0.50, 0.88, smoothstep(0.12549, 0.18824, l));",
+    "  if (l < 0.25098) return mix(0.88, 1.0, smoothstep(0.18824, 0.25098, l));",
+    "  return 1.0;",
+    "}",
+    "void main(){",
+    "  vec3 c = grade(texture2D(uTex, vUv).rgb);",
+    "  float aCore = keyA(lum(c));",
+    "  vec2 t = uTexel * 2.0;",
+    "  vec3 cb = vec3(0.0); float lb = 0.0; vec3 s;",
+    "  s = grade(texture2D(uTex, vUv + vec2( t.x, 0.0)).rgb); cb += s; lb += lum(s);",
+    "  s = grade(texture2D(uTex, vUv + vec2(-t.x, 0.0)).rgb); cb += s; lb += lum(s);",
+    "  s = grade(texture2D(uTex, vUv + vec2(0.0,  t.y)).rgb); cb += s; lb += lum(s);",
+    "  s = grade(texture2D(uTex, vUv + vec2(0.0, -t.y)).rgb); cb += s; lb += lum(s);",
+    "  s = grade(texture2D(uTex, vUv + vec2( t.x,  t.y)).rgb); cb += s; lb += lum(s);",
+    "  s = grade(texture2D(uTex, vUv + vec2(-t.x,  t.y)).rgb); cb += s; lb += lum(s);",
+    "  s = grade(texture2D(uTex, vUv + vec2( t.x, -t.y)).rgb); cb += s; lb += lum(s);",
+    "  s = grade(texture2D(uTex, vUv + vec2(-t.x, -t.y)).rgb); cb += s; lb += lum(s);",
+    "  cb /= 8.0; lb /= 8.0;",
+    "  float aSoft = keyA(lb);",
+    "  float alpha = max(aCore, aSoft * 0.92);",
+    "  float fringe = clamp(aSoft - aCore, 0.0, 1.0);",
+    "  vec3 col = c + cb * fringe * 0.55;",
+    "  gl_FragColor = vec4(col, alpha);",
+    "}"
+  ].join("\n");
+  function makeGL(cv) {
+    var gl = null;
+    try { gl = cv.getContext("webgl", { alpha: true, premultipliedAlpha: false, antialias: false, depth: false, stencil: false }) || cv.getContext("experimental-webgl", { alpha: true, premultipliedAlpha: false, antialias: false, depth: false, stencil: false }); } catch (e) { }
+    if (!gl) return null;
+    function sh(type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) return null; return s; }
+    var vs = sh(gl.VERTEX_SHADER, VSH), fs = sh(gl.FRAGMENT_SHADER, FSH);
+    if (!vs || !fs) return null;
+    var pr = gl.createProgram();
+    gl.attachShader(pr, vs); gl.attachShader(pr, fs); gl.linkProgram(pr);
+    if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return null;
+    gl.useProgram(pr);
+    var buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    var loc = gl.getAttribLocation(pr, "aPos");
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    var tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.clearColor(0, 0, 0, 0);
+    return { gl: gl, tex: tex, uTexel: gl.getUniformLocation(pr, "uTexel") };
+  }
+  /* Backing store = the element's device pixels, capped at the
+     source's native pixels (never an upscaled small canvas, never
+     wasted fill-rate past the source raster). */
+  function fit(cv, src) {
+    var cw = cv.clientWidth || 0, ch = cv.clientHeight || 0;
+    if (!cw || !ch) return;
+    var vw = src.videoWidth || src.naturalWidth || 0, vh = src.videoHeight || src.naturalHeight || 0;
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    var s = dpr;
+    if (vw && vh) s = Math.min(dpr, vw / cw, vh / ch);
+    if (!(s > 0)) s = dpr;
+    var w = Math.max(2, Math.round(cw * s)), h = Math.max(2, Math.round(ch * s));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  }
+  function attach(src, opts) {
+    opts = opts || {};
+    if (!supported() || !src) return null;
+    var cv = document.createElement("canvas");
+    cv.className = "rp-key-canvas" + (opts.cls ? " " + opts.cls : "");
+    var G = makeGL(cv);
+    if (!G) return null;
+    var cur = src, dead = false, raf = 0, frames = 0;
+    function loop() {
+      if (dead) return;
+      raf = requestAnimationFrame(loop);
+      if (!cur) return;
+      var ready = false;
+      if (cur.tagName === "VIDEO") ready = cur.readyState >= 2 && cur.videoWidth > 0;
+      else ready = !!cur.complete && (cur.naturalWidth || 0) > 0;
+      if (!ready) return;
+      fit(cv, cur);
+      if (!cv.width || !cv.height) return;
+      var gl = G.gl;
+      gl.viewport(0, 0, cv.width, cv.height);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      try {
+        gl.bindTexture(gl.TEXTURE_2D, G.tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cur);
+      } catch (e) { return; }
+      gl.uniform2f(G.uTexel, 1 / (cur.videoWidth || cur.naturalWidth || 2), 1 / (cur.videoHeight || cur.naturalHeight || 2));
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      frames++;
+    }
+    loop();
+    return {
+      canvas: cv,
+      frames: function () { return frames; },
+      setSource: function (el) { cur = el; frames = 0; },
+      source: function () { return cur; },
+      destroy: function () {
+        dead = true;
+        if (raf) cancelAnimationFrame(raf);
+        try { var ext = G.gl.getExtension("WEBGL_lose_context"); if (ext) ext.loseContext(); } catch (e) { }
+      }
+    };
+  }
+  return { supported: supported, attach: attach };
+})();
+window.RpKey = RpKey;
+
+/* Upgrade an existing show media element (float copy, burst hero) to
+   a keyed canvas in place: the canvas inherits the element's classes
+   and inline style (size, position, CSS animation); the original
+   element stays in the DOM as the hidden texture feeder. */
+window.RpKeyUpgrade = function (el, g) {
+  try {
+    if (!el || (el.tagName !== "VIDEO" && el.tagName !== "IMG") || !RpKey.supported()) return null;
+    var parent = el.parentNode;
+    if (!parent) return null;
+    var h = RpKey.attach(el, {});
+    if (!h) return null;
+    var cv = h.canvas;
+    cv.className = (el.className || "") + " rp-key-canvas";
+    cv.style.cssText = el.style.cssText;
+    /* A film frame must keep its own aspect: texImage2D uploads the
+       raw frame (object-fit does not apply), so a square element box
+       would stretch 16:9 films. Height follows the film's raster. */
+    if (el.tagName === "VIDEO") {
+      var fixAspect = function () {
+        try { if (el.videoWidth && el.videoHeight && cv.clientWidth) cv.style.height = Math.round(cv.clientWidth * el.videoHeight / el.videoWidth) + "px"; } catch (e) { }
+      };
+      el.addEventListener("loadedmetadata", fixAspect);
+      fixAspect();
+      requestAnimationFrame(fixAspect); /* canvas has layout by now */
+      setTimeout(fixAspect, 350);
+    }
+    parent.insertBefore(cv, el);
+    el.classList.add("rp-key-src");
+    el.style.cssText = "";
+    parent.appendChild(el);
+    var ov = el.closest ? el.closest(".gfx") : null;
+    if (ov) {
+      ov.classList.add("rp-keyed");
+      (ov.__rpKeys = ov.__rpKeys || []).push(h);
+    }
+    return h;
+  } catch (e) { return null; }
+};
+window.RpKeyRelease = function (root) {
+  try {
+    if (root && root.__rpKeys) { root.__rpKeys.forEach(function (h) { try { h.destroy(); } catch (e) { } }); root.__rpKeys = []; }
+  } catch (e) { }
+};
+
+/* Burst particles: a small 2D pixel-keyed sticker of the gift's art
+   (same grade + rpKeyA-v2 curve, applied per pixel once, cached).
+   Returns null while the art is still loading — the caller falls
+   back to the gift's emoji glyph, never a box. */
+var rpStickerCache = {};
+window.RpKeySticker = function (g, px) {
+  try {
+    var id = (g && g.id) || "";
+    if (id === "diamond") id = "diamonds";
+    if (!id || !GIFT_ART_IDS[id]) return null;
+    px = Math.max(16, Math.round(px || 48));
+    var key = id + "@" + px;
+    var hit = rpStickerCache[key];
+    if (hit) {
+      var c2 = document.createElement("canvas");
+      c2.width = hit.width; c2.height = hit.height;
+      c2.getContext("2d").drawImage(hit, 0, 0);
+      return c2;
+    }
+    if (rpStickerCache[id + "@load"]) return null;
+    rpStickerCache[id + "@load"] = 1;
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var c = document.createElement("canvas");
+        c.width = px; c.height = px;
+        var x = c.getContext("2d");
+        x.drawImage(img, 0, 0, px, px);
+        var d = x.getImageData(0, 0, px, px), p = d.data;
+        for (var i = 0; i < p.length; i += 4) {
+          var r = p[i] / 255, gg = p[i + 1] / 255, b = p[i + 2] / 255;
+          var l = 0.213 * r + 0.715 * gg + 0.072 * b;
+          var sr = Math.min(1, Math.max(0, l + (r - l) * 1.28));
+          var sg = Math.min(1, Math.max(0, l + (gg - l) * 1.28));
+          var sb = Math.min(1, Math.max(0, l + (b - l) * 1.28));
+          sr = Math.min(1, Math.max(0, (sr - 0.09) * 1.22)); sg = Math.min(1, Math.max(0, (sg - 0.09) * 1.22)); sb = Math.min(1, Math.max(0, (sb - 0.09) * 1.22)); // [RP-V7.217] black-crush, mirrors the shader grade
+          var lr = Math.min(1, sr * 1.18 + 0.012), lg = Math.min(1, sg * 1.18 + 0.012), lb = Math.min(1, sb * 1.18 + 0.012);
+          var ll = 0.213 * lr + 0.715 * lg + 0.072 * lb;
+          p[i] = Math.round(lr * 255); p[i + 1] = Math.round(lg * 255); p[i + 2] = Math.round(lb * 255);
+          p[i + 3] = Math.round(rpKeyCurve(ll) * 255);
+        }
+        x.putImageData(d, 0, 0);
+        rpStickerCache[key] = c;
+      } catch (e) { }
+    };
+    img.src = "img/gifts/" + id + ".webp";
+    return null;
+  } catch (e) { return null; }
+};
+
+/* ---------- stage media controller (film keyer / art keyer) ---------- */
+var stageCtl = null;
+function rpStageMedia(div, gid, icon) {
+  var aid = gid === "diamond" ? "diamonds" : gid;
+  var ctl = {
+    h: null, dead: false,
+    destroy: function () { this.dead = true; if (this.h) { try { this.h.destroy(); } catch (e) { } this.h = null; } }
+  };
+  function markKeyed() {
+    var st = div.closest ? div.closest("#rpStage") : null;
+    if (st) { st.classList.add("rp-keyed"); return; }
+    /* pumpStage builds the media before #rpStage is attached —
+       retry next frame or the stage keeps the old screen blend. */
+    requestAnimationFrame(function () { var s2 = div.closest ? div.closest("#rpStage") : null; if (s2) s2.classList.add("rp-keyed"); });
+  }
+  function clearStage() { if (ctl.h) { try { ctl.h.destroy(); } catch (e) { } ctl.h = null; } div.innerHTML = ""; }
+  function emojiFallback() {
+    if (ctl.dead) return;
+    clearStage();
+    div.classList.remove("film");
+    var s = document.createElement("span");
+    s.className = "rp-art-emoji";
+    s.textContent = icon || GIFT_ICONS[aid] || "🎁";
+    div.appendChild(s);
+  }
+  function artMode() {
+    if (ctl.dead) return;
+    clearStage();
+    /* film-missing gifts show their animated art at hero size, keyed
+       like everything else — never stretched into the film box,
+       never an opaque rectangle. */
+    div.classList.remove("film");
+    div.style.width = "min(74vw, 400px)";
+    div.style.height = "min(74vw, 400px)";
+    var img = document.createElement("img");
+    img.className = "rp-gift-img";
+    img.alt = "";
+    img.style.width = "100%"; img.style.height = "100%"; img.style.objectFit = "cover";
+    img.onerror = function () { emojiFallback(); };
+    if (RpKey.supported()) {
+      var h = RpKey.attach(img, {});
+      if (h) {
+        ctl.h = h;
+        h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
+        div.appendChild(h.canvas);
+        img.classList.add("rp-key-src");
+        div.appendChild(img);
+        img.src = "img/gifts/" + aid + ".webp";
+        markKeyed();
+        return;
+      }
+    }
+    div.appendChild(img);
+    img.src = "img/gifts/" + aid + ".webp";
+  }
+  function filmMode() {
+    var v = document.createElement("video");
+    v.className = "rp-gift-film";
+    v.setAttribute("data-gid", aid);
+    v.setAttribute("data-icon", icon || GIFT_ICONS[aid] || "🎁");
+    v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true; v.preload = "auto";
+    var stepped = false;
+    if (RpKey.supported()) {
+      var h = RpKey.attach(v, {});
+      if (h) {
+        ctl.h = h;
+        h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
+        div.appendChild(h.canvas);
+        v.classList.add("rp-key-src");
+        div.appendChild(v);
+        markKeyed();
+        v.onerror = function () {
+          if (ctl.dead) return;
+          if (!stepped && window.rpFilmStepDown && window.rpFilmStepDown(v)) { stepped = true; return; }
+          artMode();
+        };
+        /* stall guard: a film that never decodes a frame (e.g. the
+           server answered HTML for a not-yet-uploaded file) steps
+           down to the keyed art instead of sitting on a dead canvas. */
+        setTimeout(function () {
+          if (ctl.dead || ctl.h !== h) return;
+          if (h.frames() === 0 && v.readyState < 2) artMode();
+        }, 2800);
+        v.src = window.rpGiftFilmUrl(aid);
+        return;
+      }
+    }
+    /* no WebGL: today's blend path, untouched */
+    v.style.cssText = "width:100%;height:100%;object-fit:cover;mix-blend-mode:screen;";
+    v.onerror = function () { if (window.rpGiftVidErr) window.rpGiftVidErr(v); };
+    div.appendChild(v);
+    v.src = window.rpGiftFilmUrl(aid);
+  }
+  if (aid && GIFT_FILM_IDS[aid]) filmMode(); else artMode();
+  return ctl;
+}
+
+/* ---------- stage streaks: the count climbs ON the show ---------- */
+var stageStreaks = {}, stageBadgeTimer = 0;
+function stageStreakBump(key) {
+  var now = Date.now(), s = stageStreaks[key];
+  if (!s || now - s.at > 5000) { s = { n: 0, at: now }; stageStreaks[key] = s; }
+  s.n++; s.at = now;
+  return s.n;
+}
+
   function pumpStage() {
     if (stageBusy || !stageQ.length) return;
     stageBusy = true;
     var it = stageQ.shift(), g = it.g;
     var old = $("rpStage"); if (old) old.remove();
+    if (stageCtl) { stageCtl.destroy(); stageCtl = null; }
     var ov = document.createElement("div");
     ov.id = "rpStage";
+    /* [RP-V7.217] the stage holds for the gift's OWN catalog duration
+       (spec §1.7/§2) — the old build bailed every show at 3560 ms. */
+    var dur = rpDurFor(g);
     var motion = g.tier === "prestige" ? "spin" : (g.fx === "rise" || g.fx === "launch" ? "rise" : "pop");
     var sparks = "";
     for (var i = 0; i < 18; i++) {
@@ -25688,38 +26229,57 @@ body:not(.live-fs) #rp65How { display:none !important; }
       sparks += '<span class="rp-spark" style="left:50%;top:44%;--dx:' + Math.round(Math.cos(ang) * dist) + "px;--dy:" + Math.round(Math.sin(ang) * dist) + 'px;animation-delay:' + (i * 0.03) + 's"></span>';
     }
     var sgid = g.id || NAME2ID[g.name] || "gift";
-    var sFilm = !!(window.rpGiftFilmIds && window.rpGiftFilmIds[sgid === "diamond" ? "diamonds" : sgid]);
-    /* [RP-V7.81] T-REX GRAND SHOW — this stage IS the biggest-gifts
-       tier (rpGiftFx routes only big/prestige here), so the show opens
-       with trex-roar5.mp4 full-screen blended INSTEAD of the gift's
-       own film, plate text unchanged. The film is 10s, so the stage
-       holds ~10.2s. If the file is missing or never starts, rpTrexErr
-       swaps back to the normal film/art path invisibly (and remembers
-       for the session). */
-    var useTrex = false; /* [RP-V7.216] T-Rex override OFF: the V7.81 grand show played trex-roar5.mp4 for EVERY big/prestige gift, so any gift tapped showed the T-Rex. Each gift now plays its OWN film/art. Trex code left inert below for a future top-gift-only return. */
-    var isScene = !useTrex && !!RP_SCENE_FILMS[sgid === "diamond" ? "diamonds" : sgid]; // [RP-V7.207] scene film -> full-screen cover stage
-    var artHtml;
-    if (useTrex) {
-      ov.className = "trex";
-      ov.setAttribute("data-gid", sgid);
-      ov.setAttribute("data-icon", g.icon || GIFT_ICONS[sgid] || "🎁");
-      artHtml = '<video class="rp-trex-video" src="' + window.rpTrexUrl() + '" autoplay muted playsinline preload="auto" onerror="rpTrexErr(this)"></video><div class="rp-trex-melt"></div>';
+    var said = sgid === "diamond" ? "diamonds" : sgid;
+    var sFilm = !!(window.rpGiftFilmIds && window.rpGiftFilmIds[said]);
+    var isScene = !!RP_SCENE_FILMS[said]; // [RP-V7.217] measured scene class -> full-screen cover, no matte, no seam
+    ov.setAttribute("data-gid", sgid);
+    ov.setAttribute("data-icon", g.icon || GIFT_ICONS[said] || "🎁");
+    ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + sparks;
+    ov.querySelector(".rp-stage-bg").style.animationDuration = dur + "ms";
+    var artDiv = document.createElement("div");
+    if (isScene) {
+      ov.className = "scene";
+      artDiv.className = "rp-stage-art";
+      artDiv.innerHTML = rpShowArtHtml(sgid, g.icon, "full");
     } else {
-      artHtml = rpShowArtHtml(sgid, g.icon, "full");
+      artDiv.className = "rp-stage-art " + motion + (sFilm ? " film" : "");
+      if (RP_PORTRAIT_FILMS[said]) artDiv.classList.add("portrait");
+      artDiv.style.animationDuration = dur + "ms";
+      stageCtl = rpStageMedia(artDiv, sgid, g.icon || GIFT_ICONS[said]);
     }
-    if (isScene) ov.className = "scene"; // [RP-V7.207] scene stage: the film covers the whole screen
-    ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + (useTrex ? "" : sparks) + '<div class="rp-stage-art ' + (useTrex || isScene ? "" : motion + (sFilm ? " film" : "")) + '">' + artHtml + '</div><div class="rp-stage-plate"><b>' + esc(it.f || "Someone") + "</b> sent <b>" + esc(it.t || "the host") + '</b><br><span style="font-size:16px;font-weight:800">' + esc(g.name || "Gift") + '</span> · <span class="gp">' + priceLabel(g.cents) + "</span></div>";
+    ov.appendChild(artDiv);
+    /* [RP-V7.217] Honesty Fix: a charms-only send (it.co, from the
+       broadcast flag) shows the charm count + "charms-only" on the
+       plate — a $ price is never shown to the receiver. Sender-side
+       local plays carry no flag and render exactly as before. */
+    var priceHtml = it.co
+      ? '<span class="gp">' + (g.cents || 0).toLocaleString("en-US") + " charms · charms-only</span>"
+      : '<span class="gp">' + priceLabel(g.cents) + "</span>";
+    var plate = document.createElement("div");
+    plate.className = "rp-stage-plate";
+    plate.style.animationDuration = dur + "ms";
+    plate.innerHTML = "<b>" + esc(it.f || "Someone") + "</b> sent <b>" + esc(it.t || "the host") + '</b><br><span style="font-size:16px;font-weight:800">' + esc(g.name || "Gift") + '</span> · ' + priceHtml + ' <span class="rp-stage-streak" style="display:none"></span>';
+    ov.appendChild(plate);
     document.body.appendChild(ov);
-    window.__rpStageTimer = setTimeout(function () { var o2 = $("rpStage"); if (o2) o2.remove(); stageBusy = false; window.__rpStageTimer = 0; pumpStage(); }, useTrex ? 10200 : 3560);
-    if (useTrex) {
-      var tv = ov.querySelector(".rp-trex-video");
-      if (tv) {
-        tv.addEventListener("playing", function () { tv.__rpOk = true; });
-        /* a film that has not actually started within ~1.8s is treated
-           as missing — same invisible fallback as a load error. */
-        setTimeout(function () { if (ov.parentNode && !tv.__rpOk && tv.readyState < 2) window.rpTrexErr(tv); }, 1800);
-      }
+    /* streak badge ON the show: climbs in place as the sender's
+       streak grows (spec §4.4), synced with the banner's count. */
+    var badge = plate.querySelector(".rp-stage-streak");
+    function syncBadge() {
+      var s = stageStreaks[it.key];
+      var n = s ? s.n : it.n;
+      if (!badge) return;
+      if (n > 1) { badge.textContent = "×" + n; badge.style.display = ""; }
+      else badge.style.display = "none";
     }
+    syncBadge();
+    if (stageBadgeTimer) clearInterval(stageBadgeTimer);
+    stageBadgeTimer = setInterval(syncBadge, 250);
+    window.__rpStageTimer = setTimeout(function () {
+      var o2 = $("rpStage"); if (o2) o2.remove();
+      if (stageCtl) { stageCtl.destroy(); stageCtl = null; }
+      if (stageBadgeTimer) { clearInterval(stageBadgeTimer); stageBadgeTimer = 0; }
+      stageBusy = false; window.__rpStageTimer = 0; pumpStage();
+    }, dur);
   }
 
   /* ---------- playGiftFx hook: banner always; stage replaces big shows ---------- */
@@ -32545,7 +33105,7 @@ button.rp72-chip{ cursor:pointer; }
         // lands exactly on the server balance; a refresh right after
         // re-syncs the HUD to the ledger either way.
         try { if (typeof window.rpWalletPreBump === "function") window.rpWalletPreBump(r.json.balance || 0, g.cents || 0); else { window.charms = (r.json.balance || 0) + (g.cents || 0); if (typeof window.updateHUD === "function") window.updateHUD(); } } catch (e) { } // [RP-V7.25] the pre-bump also pins the wallet's server base to the post-gift ledger balance, so the replay debit lands exactly on it and the refresh after keeps it there (delta = 0)
-        var o2 = {}; for (var k in opts) o2[k] = opts[k]; o2.__srv = true;
+        var o2 = {}; for (var k in opts) o2[k] = opts[k]; o2.__srv = true; o2.__co = !!r.json.charmsOnly; // [RP-V7.217] the ledger's charms-only verdict rides into sendGift, which stamps it on the broadcast as co: 1
         origSendGift(targetId, targetName, g, o2);
         try { if (typeof window.rpWalletHardSync === "function") window.rpWalletHardSync(r.json.balance || 0); } catch (e) { } // [RP-V7.25] settle exactly on the ledger balance the server reported — the replay's local debit (or its offline refund) must not leak past the settle ([RP-V7.76] the wallet holds no local delta at all; this pin IS the reconcile)
         setTimeout(function () { refreshMoney(); }, 700);
@@ -32643,7 +33203,7 @@ button.rp72-chip{ cursor:pointer; }
       });
       (hist.tx || []).slice(0, 8).forEach(function (t) {
         var label = "", amt = "";
-        if (t.type === "gift-received") { label = "🎁 Gift received"; amt = t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.74] charms-only gifts (a teen on either side) earn no money — show the charms, never "+$0.00"
+        if (t.type === "gift-received") { label = "🎁 Gift received" + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.74] charms-only gifts (a teen on either side) earn no money — show the charms, never "+$0.00" // [RP-V7.217] + the stored charmsOnly flag labels the entry and pins the amount to charms even if a legacy record carried cents
         else if (t.type === "gift-sent") { label = "🎁 Gift sent"; amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "purchase") { label = "⭐ Charm pack"; amt = "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "auction") { label = "🔨 Auction sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); }
