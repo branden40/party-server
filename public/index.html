@@ -19521,6 +19521,7 @@
             ? '<p style="text-align:center;">Your gift charms: <b>' + giftSpend.toLocaleString("en-US") + '</b> · Teen gifts are FREE — they spend the charms you\'ve earned or won, never your main charms.</p>'
             : '<p style="text-align:center;">Your charms: <b>' + giftSpend.toLocaleString("en-US") + '</b> · 1 charm = 1¢ of gift value. Every gift banks toward ' + escHtml(targetName || "their") + '\'s earnings' + (live ? ' — and during <b>' + escHtml(live.h.event) + '</b> they get a <b>+25% event bonus</b> on top!' : '.') + '</p>');
         html += '<div class="gift-notice" id="giftNotice" role="alert"></div>'; // [RP-V7.26.1] inline "Not enough charms" notice — an unaffordable tap keeps the sheet on the gift list
+        html += '<div class="gift-qty" id="giftQtyRow"><span class="gq-lab">Send:</span><button type="button" class="gq-chip on" data-qty="1">×1</button><button type="button" class="gq-chip" data-qty="10">×10</button><button type="button" class="gq-chip" data-qty="50">×50</button><button type="button" class="gq-chip" data-qty="100">×100</button><button type="button" class="gq-chip" data-qty="500">×500</button><button type="button" class="gq-chip" data-qty="1000">×1000</button><span class="gq-total" id="giftQtyTotal"></span></div>'; // [RP-V7.219] quantity picker: the selected count applies to the next send tap; every cell below shows the TOTAL cost at the selected count
         if (live) {
           html += '<div class="gift-tier">' + live.h.icon + ' <b>Limited time</b> · ' + escHtml(live.h.name) + ' gifts</div><div class="gift-grid">' +
             live.h.gifts.map(function (g, i) {
@@ -19535,13 +19536,37 @@
         openSheet(html);
         var sheet = $("sheet");
         sheet.querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
+        // [RP-V7.219] quantity picker state + cell totals (default x1).
+        // At any count, every cell shows the TOTAL charm cost for the
+        // selected count; a cell the spendable balance cannot cover
+        // carries the panel's disabled shading (cant) and its line
+        // says how short it is. giftSpend is the same figure the
+        // sheet already judges affordability by (teen gift balance /
+        // reconciled server charms / local charms).
+        var giftQty219 = 1;
+        function giftQtyApply219() {
+          try { if (typeof comboCss219 === "function") comboCss219(); else if (window.__rp219Css) window.__rp219Css(); } catch (e) { }
+          sheet.querySelectorAll(".gq-chip").forEach(function (ch) { ch.classList.toggle("on", (ch.getAttribute("data-qty") | 0) === giftQty219); });
+          function priceLine219(b, unitCents, limited) {
+            var tot = unitCents * giftQty219, short = tot - giftSpend;
+            var spans = b.querySelectorAll("span"), sm = b.querySelector("small");
+            for (var si = 0; si < spans.length; si++) { if (!spans[si].classList.contains("gi")) { spans[si].textContent = giftPriceLabel(tot); break; } }
+            if (short > 0) { b.classList.add("cant"); b.setAttribute("aria-disabled", "true"); if (sm) sm.textContent = "short by " + short.toLocaleString("en-US") + " charms"; }
+            else { b.classList.remove("cant"); b.removeAttribute("aria-disabled"); if (sm) sm.textContent = giftQty219 > 1 ? ("×" + giftQty219 + " · " + tot.toLocaleString("en-US") + " charms" + (limited ? " · limited" : "")) : (unitCents.toLocaleString("en-US") + " charms" + (limited ? " · limited" : "")); }
+          }
+          sheet.querySelectorAll("[data-gid]").forEach(function (b) { var gg2 = giftById(b.getAttribute("data-gid")); if (gg2) priceLine219(b, gg2.cents, false); });
+          sheet.querySelectorAll("[data-hol]").forEach(function (b) { var hg = live && live.h.gifts[parseInt(b.getAttribute("data-hol"), 10)]; if (hg) priceLine219(b, hg[2], true); });
+          var gt = $("giftQtyTotal"); if (gt) gt.textContent = giftQty219 > 1 ? ("— each tap sends ×" + giftQty219) : "";
+        }
+        sheet.querySelectorAll(".gq-chip").forEach(function (ch) { ch.addEventListener("click", function () { giftQty219 = ch.getAttribute("data-qty") | 0; giftQtyApply219(); }); });
+        window.__rpGiftQty219 = function () { return giftQty219; }; // demo/diagnostic readout
         sheet.querySelectorAll("[data-gid]").forEach(function (b) {
-          b.addEventListener("click", function () { var g = giftById(b.getAttribute("data-gid")); if (g) { if (selfPreview) { giftSelfNote(g); return; } sendGift(targetId, targetName, g, opts); } }); // [RP-V7.39] preview taps never reach sendGift
+          b.addEventListener("click", function () { var g = giftById(b.getAttribute("data-gid")); if (g) { if (selfPreview) { giftSelfNote(g); return; } var o219 = {}; for (var k in opts) o219[k] = opts[k]; o219.count = giftQty219; sendGift(targetId, targetName, g, o219); } }); // [RP-V7.39] preview taps never reach sendGift — [RP-V7.219] the picker's count rides a COPY of opts (the shared sheet opts object is never mutated)
         });
         sheet.querySelectorAll("[data-hol]").forEach(function (b) {
           b.addEventListener("click", function () {
             var hg = live && live.h.gifts[parseInt(b.getAttribute("data-hol"), 10)];
-            if (hg) { if (selfPreview) { giftSelfNote(null); return; } sendGift(targetId, targetName, { id: "hol", name: hg[0], icon: hg[1], cents: hg[2], tier: "big", fx: "burst" }, opts); }
+            if (hg) { if (selfPreview) { giftSelfNote(null); return; } var o219 = {}; for (var k in opts) o219[k] = opts[k]; o219.count = giftQty219; sendGift(targetId, targetName, { id: "hol", name: hg[0], icon: hg[1], cents: hg[2], tier: "big", fx: "burst" }, o219); }
           });
         });
         if (selfPreview) giftSelfNote(null); // [RP-V7.39] say it up front, before any tap
@@ -19603,22 +19628,122 @@
         }
         return false;
       }
+      /* ================= [RP-V7.219] COMBO PILL =================
+         After the local user sends a gift inside a live, a floating
+         pill rides over the live (the gift sheet has closed by then —
+         that is the normal case): the gift's art, the running streak
+         count and a draining bar. The window is RP_COMBO_MS = 3000 ms
+         (TikTok's combo window is ~3 s) from the LAST completed send;
+         every completed send of the same gift to the same host
+         refreshes it — picker batches add their full count, pill taps
+         add one each. Tapping the pill sends ONE more of the same
+         gift through the normal window.sendGift path (ledger-first
+         for accounts, charged per tap, per-tap attempt key). A
+         different gift or host replaces the pill; leaving the live or
+         the bar emptying closes the streak. If a tap cannot be
+         afforded, the money/base layer's own toast explains and the
+         pill simply drains — it never fakes a send. */
+      var RP_COMBO_MS = 3000;
+      var comboState219 = null, comboTick219 = 0;
+      function comboCss219() {
+        if (document.getElementById("rpComboCss")) return;
+        var st = document.createElement("style"); st.id = "rpComboCss";
+        st.textContent =
+          "#rpComboPill{position:fixed;right:10px;bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:72;display:none;align-items:center;gap:8px;background:rgba(18,18,24,.88);border:1.5px solid #ff2e63;border-radius:999px;padding:7px 14px 11px 8px;color:#fff;font-family:inherit;cursor:pointer;box-shadow:0 6px 24px rgba(255,46,99,.35);touch-action:manipulation;-webkit-tap-highlight-color:transparent;overflow:hidden}" +
+          "#rpComboPill.on{display:flex}" +
+          "#rpComboPill .cp-art{width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:30px}" +
+          "#rpComboPill .cp-art img,#rpComboPill .cp-art video{width:40px;height:40px;object-fit:contain}" +
+          "#rpComboPill .cp-n{font-size:22px;font-weight:900;font-style:italic;color:#ffd166;text-shadow:0 2px 8px rgba(0,0,0,.6)}" +
+          "#rpComboPill .cp-lab{font-size:10px;font-weight:800;letter-spacing:.08em;opacity:.85;text-transform:uppercase}" +
+          "#rpComboPill .cp-bar{position:absolute;left:0;bottom:0;height:4px;background:linear-gradient(90deg,#ff2e63,#ffd166);width:100%}" +
+          ".gift-qty{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 2px 2px}" +
+          ".gift-qty .gq-lab{font-size:12px;font-weight:800;opacity:.85}" +
+          ".gift-qty .gq-chip{border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.06);color:#fff;border-radius:999px;padding:5px 13px;font-weight:900;font-size:13px;cursor:pointer;font-family:inherit}" +
+          ".gift-qty .gq-chip.on{background:#ff2e63;border-color:#ff2e63;box-shadow:0 2px 12px rgba(255,46,99,.45)}" +
+          ".gift-qty .gq-total{font-size:11px;opacity:.75;margin-left:2px}";
+        document.head.appendChild(st);
+      }
+      window.__rp219Css = comboCss219;
+      function comboPillEl219() {
+        comboCss219();
+        var el = document.getElementById("rpComboPill");
+        if (!el) {
+          el = document.createElement("div"); el.id = "rpComboPill"; el.setAttribute("role", "button"); el.setAttribute("aria-label", "Send one more - combo");
+          el.innerHTML = '<span class="cp-art"></span><span><span class="cp-n">×1</span><br><span class="cp-lab">Combo · tap +1</span></span><span class="cp-bar"></span>';
+          el.addEventListener("click", function () {
+            var st = comboState219; if (!st) return;
+            var now = Date.now();
+            if (now - (st.lastTap || 0) < 150) return; // bounce guard: above switch bounce, below human tap pace
+            st.lastTap = now;
+            try { window.sendGift(st.targetId, st.targetName, st.g, { count: 1, __combo: 1 }); } catch (e) { }
+          });
+          document.body.appendChild(el);
+        }
+        return el;
+      }
+      function comboRender219() {
+        var st = comboState219; if (!st) return;
+        var el = comboPillEl219();
+        var art = el.querySelector(".cp-art");
+        if (art && st.artKey !== st.g.id) { st.artKey = st.g.id; var im = null; try { im = giftArtImg(st.g, 40); } catch (e) { } if (im) { art.innerHTML = ""; art.appendChild(im); } else art.textContent = st.g.icon || "🎁"; }
+        var n = el.querySelector(".cp-n"); if (n) n.textContent = "×" + st.n;
+        el.classList.add("on");
+      }
+      function comboArm219() {
+        if (comboTick219) clearInterval(comboTick219);
+        comboTick219 = setInterval(function () {
+          var st = comboState219;
+          if (!st || typeof inLiveRoom !== "function" || !inLiveRoom()) { comboHide219(); return; }
+          var left = st.endsAt - Date.now();
+          if (left <= 0) { comboHide219(); return; }
+          var el = document.getElementById("rpComboPill");
+          if (el) { var bar = el.querySelector(".cp-bar"); if (bar) bar.style.width = Math.max(0, Math.min(100, left / RP_COMBO_MS * 100)) + "%"; }
+        }, 50);
+      }
+      function comboHide219() {
+        if (comboTick219) { clearInterval(comboTick219); comboTick219 = 0; }
+        comboState219 = null;
+        var el = document.getElementById("rpComboPill"); if (el) el.classList.remove("on");
+      }
+      function rpComboBump(targetId, targetName, g, cnt) {
+        if (!g || typeof inLiveRoom !== "function" || !inLiveRoom()) return;
+        if (!comboState219 || comboState219.targetId !== targetId || !comboState219.g || comboState219.g.id !== g.id) {
+          comboState219 = { targetId: targetId, targetName: targetName, g: g, n: 0, lastTap: 0, artKey: null };
+        }
+        comboState219.n += cnt;
+        comboState219.endsAt = Date.now() + RP_COMBO_MS;
+        comboRender219();
+        comboArm219();
+      }
+      window.__rpCombo219 = function () { return comboState219 ? { n: comboState219.n, gift: comboState219.g && comboState219.g.id, left: Math.max(0, comboState219.endsAt - Date.now()) } : null; }; // demo/diagnostic readout
+
       function sendGift(targetId, targetName, g, opts) {
         opts = opts || {};
         if (!opts.local && targetId === Online.myId) { toast("This is your own live — viewers use the gift catalog to gift you.", 3200); return; } // [RP-V7.39] self-send hard stop — no debit, no emit, no feed entry
         var cost = g.cents;
-        if (charms < cost) {
-          toast("Not enough charms — the " + g.name + " costs " + cost.toLocaleString("en-US") + " and you have " + charms.toLocaleString("en-US") + ". Tap ⭐ Get charms to top up.", 3600);
+        // [RP-V7.219] batch size for this send (picker x1/x10/x50/x100/x500/x1000
+        // or a combo-pill tap at 1): the local mirror checks and
+        // debits the TOTAL, so a server-confirmed batch replay
+        // (pre-bumped by the total) lands exactly on the ledger
+        // balance, and a local-only send moves the full batch too.
+        var cnt219 = Math.max(1, Math.min(1000, (opts.count | 0) || 1));
+        var total219 = cost * cnt219;
+        if (charms < total219) {
+          if (cnt219 > 1) toast("Not enough charms — ×" + cnt219 + " " + g.name + " costs " + total219.toLocaleString("en-US") + " and you have " + charms.toLocaleString("en-US") + " (short " + (total219 - charms).toLocaleString("en-US") + "). Lower the count or tap ⭐ Get charms to top up.", 3600);
+          else toast("Not enough charms — the " + g.name + " costs " + cost.toLocaleString("en-US") + " and you have " + charms.toLocaleString("en-US") + ". Tap ⭐ Get charms to top up.", 3600);
           giftNotEnough(g); // [RP-V7.26.1] stay on the gift list — no charm-shop bounce
           return;
         }
-        charms -= cost; saveWallet(); updateHUD(); // [RP-V7.25] persist the gift debit
+        charms -= total219; saveWallet(); updateHUD(); // [RP-V7.25] persist the gift debit
         closeSheet();
         try { if (g && (g.tier === "big" || g.tier === "prestige")) AudioFX.giftBig(); else AudioFX.gift(); } catch (e) { } // [RP-V7.39] gifts get the soft pop + glass chime (big shows get the arpeggio) — never the coin blip
-        playGiftFx(g, (Online.name || me.name || "You"), targetName || "them");
+        // [RP-V7.219] the count rides a COPY of the gift (__cnt) into
+        // the show layer — banner/stage streaks advance by the batch;
+        // the shared catalog entry is never mutated.
+        playGiftFx(cnt219 > 1 ? Object.assign({}, g, { __cnt: cnt219 }) : g, (Online.name || me.name || "You"), targetName || "them");
         if (opts.local) {
           if (typeof opts.onSent === "function") opts.onSent(g);
-          toast("🎁 You sent the " + g.name + " (" + giftPriceLabel(cost) + ") to " + (targetName || "them") + " — it banks toward their earnings!", 3600);
+          toast("🎁 You sent " + (cnt219 > 1 ? "×" + cnt219 + " " : "the ") + g.name + " (" + giftPriceLabel(total219) + ") to " + (targetName || "them") + " — it banks toward their earnings!", 3600);
           return;
         }
         // [RP-V7.217] the broadcast carries the echo nonce (above) and,
@@ -19626,51 +19751,61 @@
         // receivers render charms for it, never a $ price (Honesty Fix).
         var gp217 = { k: "gift", to: targetId, tn: targetName || "", g: g.name, ic: g.icon, v: cost, n: "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) };
         if (opts && opts.__co) gp217.co = 1;
+        if (cnt219 > 1) gp217.c = cnt219; // [RP-V7.219] ONE broadcast per batch: v stays the unit value, c carries the count — receivers multiply for totals and advance streaks by c; the single nonce above is registered once and the echo consumed once
         var sent = Online.state === "on" && protoSend(gp217);
         if (sent) rpGiftEchoRegister(gp217);
         if (sent) {
           if (targetName) affinityBump(targetName, "g"); // ✨ For You memory: I gifted this host
-          var bonus = Math.round(cost * giftBonusNow());
-          var map = giftEarnedMap(); map[targetId] = (map[targetId] || 0) + cost + bonus;
+          var bonus = Math.round(cost * giftBonusNow()) * cnt219;
+          var map = giftEarnedMap(); map[targetId] = (map[targetId] || 0) + total219 + bonus;
           if (targetName) Party.names[targetId] = targetName;
-          if (typeof inLiveRoom === "function" && inLiveRoom()) liveGiftFeedShow("You", targetName || "them", g, cost);
-          toast("🎁 You sent the " + g.name + " (" + giftPriceLabel(cost) + ") to " + (targetName || "them") + "!" + (bonus ? " The event adds +" + bonus + " bonus charms for them." : ""), 3600);
+          if (typeof inLiveRoom === "function" && inLiveRoom()) liveGiftFeedShow("You", targetName || "them", cnt219 > 1 ? Object.assign({}, g, { __cnt: cnt219 }) : g, total219);
+          toast("🎁 You sent " + (cnt219 > 1 ? "×" + cnt219 + " " : "the ") + g.name + " (" + giftPriceLabel(total219) + ") to " + (targetName || "them") + "!" + (bonus ? " The event adds +" + bonus + " bonus charms for them." : ""), 3600);
         } else {
-          charms += cost; saveWallet(); updateHUD(); // [RP-V7.25] persist the offline-send refund
+          charms += total219; saveWallet(); updateHUD(); // [RP-V7.25] persist the offline-send refund
           toast("🎁 Gifts fly when you're online — tap ⭐ Live Stage to connect, then send it for real!", 3600);
         }
+        // [RP-V7.219] a completed send feeds the combo pill (picker
+        // batches land their full count; pill taps add one each).
+        if (sent) { try { rpComboBump(targetId, targetName, g, cnt219); } catch (e) { } }
       }
       function giftObserved(o, fromId, fromName) {
-        try { if (window.rpGiftSeen) window.rpGiftSeen(o, fromId, fromName); } catch (e) { }
+        // [RP-V7.219] a batch rides ONE proto (v = unit value, c =
+        // count). Value counters downstream (No.1 gifter totals,
+        // guest tile counters, battle score) credit the batch TOTAL,
+        // so the seen chain gets a shallow copy with v scaled;
+        // everything below works off the unit value x cnt explicitly.
+        var cnt219 = Math.max(1, Math.min(1000, ((o && (o.c | 0)) || 1)));
+        try { if (window.rpGiftSeen) window.rpGiftSeen(cnt219 > 1 ? Object.assign({}, o, { v: o.v * cnt219 }) : o, fromId, fromName); } catch (e) { }
         if (!o || !o.to || typeof o.v !== "number") return;
-        var bonus = Math.round(o.v * giftBonusNow());
-        var map = giftEarnedMap(); map[o.to] = (map[o.to] || 0) + o.v + bonus;
+        var bonus = Math.round(o.v * giftBonusNow()) * cnt219;
+        var map = giftEarnedMap(); map[o.to] = (map[o.to] || 0) + o.v * cnt219 + bonus;
         // 🔥 a gift landing on the live's host is the heaviest engagement
         // signal — every device in the room scores it from this same proto
-        if (fromId && typeof Live !== "undefined" && Live.active && Live.hostId && o.to === Live.hostId) engRecord(Live.hostId, fromId, "gift", o.v);
+        if (fromId && typeof Live !== "undefined" && Live.active && Live.hostId && o.to === Live.hostId) engRecord(Live.hostId, fromId, "gift", o.v * cnt219);
         if (o.tn) Party.names[o.to] = o.tn;
         if (o.to === Online.myId && fromId !== Online.myId) {
-          awardCharms(o.v + bonus, null);
+          awardCharms(o.v * cnt219 + bonus, null);
           // [RP-V7.217] Honesty Fix: a charms-only gift (o.co — teen on
           // either side) banks CHARMS, never earnings: it stays out of
           // the earnings ledger and is never described as money.
-          if (!o.co) bankGiftEarnings(o.v + bonus, fromName, o.g || "gift");
+          if (!o.co) bankGiftEarnings(o.v * cnt219 + bonus, fromName, o.g || "gift");
           emojiBurst(o.ic || "🎁", 10);
           if (o.co) {
-            toast("🎁 " + fromName + " sent you a " + (o.g || "gift") + " — +" + (o.v + bonus) + " charms (charms-only gift — no money in it).", 4200);
-            addChatSystem("🎁 " + fromName + " gifted you a " + (o.g || "gift") + " (+" + (o.v + bonus) + " charms · charms-only).");
+            toast("🎁 " + fromName + " sent you a " + (o.g || "gift") + (cnt219 > 1 ? " ×" + cnt219 : "") + " — +" + (o.v * cnt219 + bonus) + " charms (charms-only gift — no money in it).", 4200);
+            addChatSystem("🎁 " + fromName + " gifted you a " + (o.g || "gift") + (cnt219 > 1 ? " ×" + cnt219 : "") + " (+" + (o.v * cnt219 + bonus) + " charms · charms-only).");
           } else {
-            toast("🎁 " + fromName + " sent you a " + (o.g || "gift") + " — +" + (o.v + bonus) + " charms banked toward your earnings" + (bonus ? " (includes the +25% event bonus!)" : "") + "!", 4200);
-            addChatSystem("🎁 " + fromName + " gifted you a " + (o.g || "gift") + " (+" + (o.v + bonus) + " charms toward your earnings).");
+            toast("🎁 " + fromName + " sent you a " + (o.g || "gift") + (cnt219 > 1 ? " ×" + cnt219 : "") + " — +" + (o.v * cnt219 + bonus) + " charms banked toward your earnings" + (bonus ? " (includes the +25% event bonus!)" : "") + "!", 4200);
+            addChatSystem("🎁 " + fromName + " gifted you a " + (o.g || "gift") + (cnt219 > 1 ? " ×" + cnt219 : "") + " (+" + (o.v * cnt219 + bonus) + " charms toward your earnings).");
           }
         }
         /* Live Stage: gifts play for the whole room — feed + animation. */
         // [RP-V7.217] a consumed echo (my own broadcast coming back) renders nothing twice.
         if (typeof inLiveRoom === "function" && inLiveRoom() && fromId !== Online.myId && !rpGiftEchoConsume(o, fromName)) {
           var gg0 = giftByName(o.g || "") || { id: "gift", name: o.g || "Gift", icon: o.ic || "🎁", cents: o.v, tier: o.v >= 2000 ? "big" : (o.v >= 200 ? "medium" : "small"), fx: o.v >= 2000 ? "burst" : "float" };
-          var gg = o.co ? Object.assign({}, gg0, { __co: 1 }) : gg0; // [RP-V7.217] the charms-only marker rides a copy — the shared catalog entry is never mutated
+          var gg = (o.co || cnt219 > 1) ? Object.assign({}, gg0, o.co ? { __co: 1 } : null, cnt219 > 1 ? { __cnt: cnt219 } : null) : gg0; // [RP-V7.217] the charms-only marker rides a copy — the shared catalog entry is never mutated — [RP-V7.219] the batch count (__cnt) rides the same copy into the show layer
           var toNm = o.to === Online.myId ? (Online.name || "You") : (o.tn || liveName(o.to));
-          liveGiftFeedShow(fromName, toNm, gg, o.v);
+          liveGiftFeedShow(fromName, toNm, gg, o.v * cnt219);
           if (o.to === Live.hostId || o.to === Online.myId) playGiftFx(gg, fromName, toNm);
         }
       }
@@ -20594,13 +20729,26 @@
           GiftFx.queue.push({ g: g, fromName: fromName, toName: toName });
           giftFxPump();
         } else if (tier === "medium" || tier === "big" || tier === "prestige") {
-          giftFxBurst(g, fromName, toName);
+          if (!fxBusy219(g, fromName)) giftFxBurst(g, fromName, toName); // [RP-V7.219] one live overlay per (sender, gift)
         } else {
-          giftFxFloat(g, fromName, toName);
+          if (!fxBusy219(g, fromName)) giftFxFloat(g, fromName, toName);
         }
       }
+      // [RP-V7.219] small/medium show sanity at high counts: while a
+      // float/burst overlay for the same (sender, gift) is on screen,
+      // further sends skip spawning a duplicate — their banner/streak
+      // counts still advance in rpGiftFx above. Replays resume the
+      // moment the overlay clears: the §2.4 chain, bounded by the
+      // overlay's own life instead of an unbounded stack of shows.
+      function fxBusy219(g, fromName) {
+        var key = (fromName || "") + "|" + (g.id || g.name || "");
+        var live = document.querySelectorAll(".gfx[data-fxkey]");
+        for (var i = 0; i < live.length; i++) if (live[i].getAttribute("data-fxkey") === key) { window.__rp219FxSkips = (window.__rp219FxSkips || 0) + 1; return true; }
+        return false;
+      }
+      function fxTag219(ov, g, fromName) { try { ov.setAttribute("data-fxkey", (fromName || "") + "|" + (g.id || g.name || "")); } catch (e) { } }
       function giftFxFloat(g, fromName, toName) {
-        var ov = giftFxOverlay("small");
+        var ov = giftFxOverlay("small"); fxTag219(ov, g, fromName); // [RP-V7.219]
         var stage = ov.querySelector(".gfx-stage");
         /* [RP-V7.217] Owner correction (Nov 3, 2026 — supersedes the
            Nov 2 float-up rule): "the small gifts float to the top of
@@ -20611,7 +20759,7 @@
            lower-center, appearing IN PLACE with a scale-in pop; no
            travel path. Keyed live (WebGL) like every tier: no box. */
         var heroPx = Math.round(window.innerWidth || 400); // [RP-V7.218 section 8] band-fill: the appear hero takes the FULL bottom-band width (owner: "all gifts take up whole bottom screen space") -- the 50vw/300px cap is gone; a film hero's keyed canvas height follows the film raster (16:9 = the band box), an art hero's keyed square fills the width
-        var dur217 = (window.RpShowDur ? window.RpShowDur(g) : 2600);
+        var dur217 = (window.RpShowDur ? window.RpShowDur(g) : 5200); // [RP-V7.219] fallback literal x2 with the table
         var s = giftArtImg(g, heroPx);
         if (!s) { s = document.createElement("span"); s.textContent = g.icon || "🎁"; s.style.fontSize = "110px"; }
         s.classList.add("gfx-p");
@@ -20626,10 +20774,10 @@
         setTimeout(function () { if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); }, dur217); // [RP-V7.217] overlay life = the appear animation's life
       }
       function giftFxBurst(g, fromName, toName) {
-        var ov = giftFxOverlay("medium");
+        var ov = giftFxOverlay("medium"); fxTag219(ov, g, fromName); // [RP-V7.219]
         var stage = ov.querySelector(".gfx-stage");
         var hero = fxHero(g, Math.round(window.innerWidth || 400)); // [RP-V7.218 section 8] band-fill: the burst hero takes the full bottom-band width (was 240/200 at [RP-V7.27])
-        hero.style.animation = "gfxPop 2100ms cubic-bezier(.2,.7,.3,1) both";
+        hero.style.animation = "gfxPop 4200ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.219] x2 burst hero
         stage.appendChild(hero);
         if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g); // [RP-V7.217] hero keyed live — no box
         var parts = g.fx === "burst" ? ["✨", "🎇", "💥", g.icon] : [g.icon, "✨", "⭐"];
@@ -20648,7 +20796,7 @@
               s.animate([
                 { transform: "translate(-50%,-50%) scale(.5)", opacity: 1 },
                 { transform: "translate(" + Math.round(Math.cos(ang) * dist) + "px," + Math.round(Math.sin(ang) * dist) + "px) scale(1.1)", opacity: 0 }
-              ], { duration: 1100 + Math.random() * 500, easing: "cubic-bezier(.2,.7,.3,1)", delay: 120, fill: "forwards" });
+              ], { duration: 2200 + Math.random() * 1000, easing: "cubic-bezier(.2,.7,.3,1)", delay: 120, fill: "forwards" }); // [RP-V7.219] x2 burst particles
             } catch (e) { }
           }
         }
@@ -20656,7 +20804,7 @@
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
         ov.appendChild(cap);
         try { Juice.shake(2); } catch (e) { }
-        setTimeout(function () { if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); }, (window.RpShowDur ? window.RpShowDur(g) : 4000)); // [RP-V7.217] burst lives for the gift's duration
+        setTimeout(function () { if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); }, (window.RpShowDur ? window.RpShowDur(g) : 8000)); // [RP-V7.217] burst lives for the gift's duration
       }
       function giftFxPump() {
         if (GiftFx.playing || !GiftFx.queue.length) return;
@@ -25751,7 +25899,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
       var art = ov.querySelector(".rp-stage-art");
       if (art) { art.className = "rp-stage-art pop film"; art.innerHTML = rpShowArtHtml(ov.getAttribute("data-gid") || "gift", ov.getAttribute("data-icon") || "🎁", "full"); }
       if (window.__rpStageTimer) clearTimeout(window.__rpStageTimer);
-      window.__rpStageTimer = setTimeout(function () { var o2 = $("rpStage"); if (o2) o2.remove(); stageBusy = false; window.__rpStageTimer = 0; pumpStage(); }, 3560);
+      window.__rpStageTimer = setTimeout(function () { var o2 = $("rpStage"); if (o2) o2.remove(); stageBusy = false; window.__rpStageTimer = 0; pumpStage(); }, 7120); // [RP-V7.219] x2 fallback, matches rpDurFor
     } catch (e) { }
   };
   window.rpGiftVidErr = function (v) {
@@ -25800,14 +25948,14 @@ body:not(.live-fs) #rp65How { display:none !important; }
      duration (§4.3) instead of one fixed timer. ---------- */
   var combos = {};
   var bannerSeq = 0;
-  function bannerLife(g) { var d = rpDurFor(g); return Math.max(2400, Math.min(6000, d)); }
-  function rpBanner(fromName, g) {
+  function bannerLife(g) { var d = rpDurFor(g); return Math.max(4800, Math.min(16000, d)); } // [RP-V7.219] clamp x2 with the shows: a banner now lives as long as its (doubled) show, floor 4800
+  function rpBanner(fromName, g, cnt) {
     var box = $("rpBanners");
     if (!box) { box = document.createElement("div"); box.id = "rpBanners"; document.body.appendChild(box); }
     var key = (fromName || "Someone") + "|" + (g.id || g.name || "");
     var now = Date.now(), c = combos[key];
     if (c && now - c.at < 5000) {
-      c.n++; c.at = now; c.seq = ++bannerSeq;
+      c.n += (cnt || 1); c.at = now; c.seq = ++bannerSeq; // [RP-V7.219] a batch advances the streak by its full count
       clearTimeout(c.timer); c.timer = setTimeout(function () { expireBanner(key); }, bannerLife(g));
       if (c.row) {
         var cb = c.row.querySelector(".rp-combo");
@@ -25815,7 +25963,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
       }
       return;
     }
-    c = { n: 1, at: now, row: null, timer: 0, seq: ++bannerSeq, g: g, fromName: fromName };
+    c = { n: (cnt || 1), at: now, row: null, timer: 0, seq: ++bannerSeq, g: g, fromName: fromName }; // [RP-V7.219] a fresh streak starts at the batch count
     combos[key] = c;
     c.timer = setTimeout(function () { expireBanner(key); }, bannerLife(g));
     if (box.children.length >= 2) displaceOldestBanner();
@@ -25866,22 +26014,87 @@ body:not(.live-fs) #rp65How { display:none !important; }
 
   /* ---------- big-gift full-screen stage ---------- */
   var stageQ = [], stageBusy = false;
-  function rpBigStage(g, fromName, toName) {
+  /* [RP-V7.219] HIGH-COUNT SHOW RULE — the documented default where
+     no per-gift behavior is measured (spec §2.4/§9.3): the FIFO
+     full-replay law holds while a (sender, gift) streak has fewer
+     than RP_STAGE_CHAIN_CAP full plays outstanding (1 playing +
+     queued). Sends beyond the cap do NOT enqueue more plays — they
+     advance the streak counter (banner + plate badge, always exact)
+     and EXTEND the streak's last queued (or currently playing) show:
+     +40% of the gift's base duration per extra send, the extension
+     on any one show capped at +100% of base (a show never holds
+     longer than 2x base). So a x100 batch = at most 3 full plays,
+     the last stretched, with the counter at exactly 100 — and a
+     x1000 batch is the same 3 plays with the counter at exactly
+     1000: the count scales, the stage occupation does not. Never
+     hundreds of queued shows (an 8-200 minute stage occupation).
+     The measured
+     one-play-per-streak class (RP_ONE_PLAY, §9.3) still merges to a
+     single play exactly as before. */
+  var RP_STAGE_CHAIN_CAP = 3;
+  var stageCur219 = null; // { key, endsAt, base, extUsed } of the playing show
+  function stageOutstanding219(key) {
+    var n = (stageBusy && stageCur219 && stageCur219.key === key) ? 1 : 0;
+    for (var i = 0; i < stageQ.length; i++) if (stageQ[i].key === key) n++;
+    return n;
+  }
+  function stageExtend219(key, g, extra) {
+    var base = rpDurFor(g), add = Math.round(base * 0.4) * extra;
+    if (add <= 0) return;
+    for (var i = stageQ.length - 1; i >= 0; i--) {
+      if (stageQ[i].key === key) {
+        var room = base - (stageQ[i].ext219 || 0);
+        var use = Math.min(add, Math.max(0, room));
+        if (use > 0) stageQ[i].ext219 = (stageQ[i].ext219 || 0) + use;
+        add -= use;
+        break;
+      }
+    }
+    if (add > 0 && stageBusy && stageCur219 && stageCur219.key === key) {
+      var room2 = stageCur219.base - (stageCur219.extUsed || 0);
+      var use2 = Math.min(add, Math.max(0, room2));
+      if (use2 > 0) {
+        stageCur219.extUsed = (stageCur219.extUsed || 0) + use2;
+        stageCur219.endsAt += use2;
+        if (window.__rpStageTimer) { clearTimeout(window.__rpStageTimer); window.__rpStageTimer = setTimeout(stageTeardown219, Math.max(50, stageCur219.endsAt - Date.now())); }
+      }
+    }
+    try { console.log("[rp219] stage extend", key, "extra sends", extra); } catch (e) { }
+  }
+  function stageTeardown219() {
+    var o2 = $("rpStage"); if (o2) o2.remove();
+    if (stageCtl) { stageCtl.destroy(); stageCtl = null; }
+    if (stageBadgeTimer) { clearInterval(stageBadgeTimer); stageBadgeTimer = 0; }
+    stageBusy = false; window.__rpStageTimer = 0; stageCur219 = null; pumpStage();
+  }
+  window.__rpStageState219 = function () { return { busy: stageBusy, queued: stageQ.length, cur: stageCur219 ? { key: stageCur219.key, extUsed: stageCur219.extUsed || 0, leftMs: Math.max(0, stageCur219.endsAt - Date.now()) } : null, streaks: JSON.parse(JSON.stringify(stageStreaks)) }; }; // demo/diagnostic readout
+  function rpBigStage(g, fromName, toName, cnt) {
     /* [RP-V7.217] every send enqueues its own FULL play (spec §2.4
        FIFO replay chain — occupation = N x the gift's cycle, zero
        gap); the streak count rides the queue item so the plate can
        climb in place while plays chain. The one-play-per-streak
-       class (RP_ONE_PLAY) merges extra sends into the badge only. */
+       class (RP_ONE_PLAY) merges extra sends into the badge only.
+       [RP-V7.219] a batch (cnt > 1) bumps the streak ONCE by its
+       full count, then enqueues full plays only up to the chain cap
+       (RP_STAGE_CHAIN_CAP outstanding for this streak); sends past
+       the cap extend the streak's last show instead of enqueueing
+       (stageExtend219) — the rule is written out at the stageQ
+       declaration. */
+    cnt = Math.max(1, Math.min(1000, (cnt | 0) || 1));
     var key = (fromName || "Someone") + "|" + (g.id || NAME2ID[g.name] || g.name || "");
-    var n = stageStreakBump(key);
+    var n = stageStreakBump(key, cnt);
     var gid = g.id || NAME2ID[g.name] || "";
     if (RP_ONE_PLAY[gid]) {
       var already = stageBusy;
       for (var i = 0; i < stageQ.length; i++) if (stageQ[i].key === key) already = true;
       if (already) return;
     }
-    stageQ.push({ g: g, f: fromName, t: toName, key: key, n: n, co: !!(g && g.__co) });
-    pumpStage();
+    var room = Math.max(0, RP_STAGE_CHAIN_CAP - stageOutstanding219(key));
+    var plays = Math.min(cnt, room);
+    for (var q = 0; q < plays; q++) stageQ.push({ g: g, f: fromName, t: toName, key: key, n: n, co: !!(g && g.__co) });
+    if (cnt - plays > 0) stageExtend219(key, g, cnt - plays);
+    if (plays > 0) pumpStage();
+    try { console.log("[rp219] stage", key, "batch", cnt, "enqueued", plays, "extended", cnt - plays, "streak", n); } catch (e) { }
   }
   /* [RP-V7.207] Full-color SCENE films: a few big gifts' films are
      real full-color scenes, not black-background shows (Whale Dive's
@@ -25928,28 +26141,37 @@ body:not(.live-fs) #rp65How { display:none !important; }
    film); film error -> step-down chain -> keyed art -> emoji. */
 
 /* ---------- per-gift show durations (ms), PARITY-SPEC-V2 §9.2 ---------- */
+/* [RP-V7.219] Owner's TikTok-length ruling (Nov 3, 2026): EVERY show
+   duration below is x2 the V7.217/V7.218 table (grand 7300 -> 14600,
+   stage 5000 -> 10000, burst 4000 -> 8000, small 2600 -> 5200,
+   Money Gun cycle 3500 -> 7000). Films shorter than the window fill
+   it by looping (every stage video is loop=true; WebP arts loop
+   natively) — no frozen frames, no black gaps. Golden Ascension is
+   the single exception: its film is already 12 s, so instead of a
+   mechanical 24 s the show is 16000 ms — the film plays once in
+   full and holds its end phase for the rest (see pumpStage). */
 var RP_SHOW_DUR = {
-  plazadiamond: 7300, crownjewel: 7300, supernova: 7300, universe: 7300, ascension: 12000,
-  galaxy: 7300, phoenix: 7900,
-  auroracrown: 5000, pegasus: 5000, goldeneagle: 5000, yacht: 5000, jet: 5000, nebuladragon: 5000,
-  ferriswheel: 5000, rocket: 5000, diamonds: 5000, emeraldelephant: 5000, starsurge: 5000,
-  titanclash: 5000, rizzuniverse: 5000, dragon: 5000, lion: 5000, plazaape: 5000, meteor: 4600,
-  whale: 4800,
-  castle: 4000, airplane: 4000, guardianpalm: 4000, carousel: 4000, loveballoon: 4000,
-  sportscar: 4000, worldtree: 4000, goldgloves: 4000, peacock: 4000, motorcycle: 4000,
-  fireworks: 4000, volcano: 4000, moneygun: 3500,
-  kiss: 2600, bubblewand: 2600, fingerheart: 2600, thunderbolt: 2600, heartburst: 2600,
-  honeybee: 2600, clap: 2600, donut: 2600, icecream: 2600, coffee: 2600, rose: 2600, heart: 2600
+  plazadiamond: 14600, crownjewel: 14600, supernova: 14600, universe: 14600, ascension: 16000,
+  galaxy: 14600, phoenix: 15800,
+  auroracrown: 10000, pegasus: 10000, goldeneagle: 10000, yacht: 10000, jet: 10000, nebuladragon: 10000,
+  ferriswheel: 10000, rocket: 10000, diamonds: 10000, emeraldelephant: 10000, starsurge: 10000,
+  titanclash: 10000, rizzuniverse: 10000, dragon: 10000, lion: 10000, plazaape: 10000, meteor: 9200,
+  whale: 9600,
+  castle: 8000, airplane: 8000, guardianpalm: 8000, carousel: 8000, loveballoon: 8000,
+  sportscar: 8000, worldtree: 8000, goldgloves: 8000, peacock: 8000, motorcycle: 8000,
+  fireworks: 8000, volcano: 8000, moneygun: 7000,
+  kiss: 5200, bubblewand: 5200, fingerheart: 5200, thunderbolt: 5200, heartburst: 5200,
+  honeybee: 5200, clap: 5200, donut: 5200, icecream: 5200, coffee: 5200, rose: 5200, heart: 5200
 };
 function rpDurFor(g) {
-  if (!g) return 3560;
+  if (!g) return 7120; // [RP-V7.219] x2 of the old 3560 fallback
   var id = g.id || NAME2ID[g.name] || "";
   if (id === "diamond") id = "diamonds";
   if (RP_SHOW_DUR[id]) return RP_SHOW_DUR[id];
-  if (g.tier === "prestige") return 7300;
-  if (g.tier === "big") return 5000;
-  if (g.tier === "medium") return 4000;
-  return 2600;
+  if (g.tier === "prestige") return 14600;
+  if (g.tier === "big") return 10000;
+  if (g.tier === "medium") return 8000;
+  return 5200;
 }
 window.RpShowDur = rpDurFor;
 /* Portrait-raster stage films (720x1280): the stage box takes the
@@ -26321,10 +26543,10 @@ function rpStageMedia(div, gid, icon) {
 
 /* ---------- stage streaks: the count climbs ON the show ---------- */
 var stageStreaks = {}, stageBadgeTimer = 0;
-function stageStreakBump(key) {
+function stageStreakBump(key, add) {
   var now = Date.now(), s = stageStreaks[key];
   if (!s || now - s.at > 5000) { s = { n: 0, at: now }; stageStreaks[key] = s; }
-  s.n++; s.at = now;
+  s.n += (add || 1); s.at = now; // [RP-V7.219] batches advance the streak by their full count
   return s.n;
 }
 
@@ -26338,7 +26560,8 @@ function stageStreakBump(key) {
     ov.id = "rpStage";
     /* [RP-V7.217] the stage holds for the gift's OWN catalog duration
        (spec §1.7/§2) — the old build bailed every show at 3560 ms. */
-    var dur = rpDurFor(g);
+    var dur = rpDurFor(g) + (it.ext219 || 0); // [RP-V7.219] plus any hold extension the chain cap granted this play
+    stageCur219 = { key: it.key, endsAt: Date.now() + dur, base: rpDurFor(g), extUsed: it.ext219 || 0 };
     var motion = g.tier === "prestige" ? "spin" : (g.fx === "rise" || g.fx === "launch" ? "rise" : "pop");
     var sparks = "";
     for (var i = 0; i < 18; i++) {
@@ -26384,6 +26607,13 @@ function stageStreakBump(key) {
       } else {
         ov.classList.add(RP_BAND_GHOST[said] ? "ghost218" : "bandblend218");
         artDiv.innerHTML = rpShowArtHtml(sgid, g.icon, "full");
+        /* [RP-V7.219] Golden Ascension exception to the x2 scale:
+           its film is already 12 s, so it does NOT loop to a
+           mechanical 24 s — the film plays once in full and the
+           ended video holds its final frame (its end phase) for
+           the rest of the 16000 ms show window. If the film steps
+           down to the animated art, the art loops as usual. */
+        if (said === "ascension") { var av219 = artDiv.querySelector("video.rp-gift-film"); if (av219) av219.loop = false; }
       }
     } else {
       artDiv.className = "rp-stage-art " + motion + (sFilm ? " film" : "");
@@ -26418,19 +26648,15 @@ function stageStreakBump(key) {
     syncBadge();
     if (stageBadgeTimer) clearInterval(stageBadgeTimer);
     stageBadgeTimer = setInterval(syncBadge, 250);
-    window.__rpStageTimer = setTimeout(function () {
-      var o2 = $("rpStage"); if (o2) o2.remove();
-      if (stageCtl) { stageCtl.destroy(); stageCtl = null; }
-      if (stageBadgeTimer) { clearInterval(stageBadgeTimer); stageBadgeTimer = 0; }
-      stageBusy = false; window.__rpStageTimer = 0; pumpStage();
-    }, dur);
+    window.__rpStageTimer = setTimeout(stageTeardown219, dur); // [RP-V7.219] the teardown is a named function (identical body to the old inline one) so the chain cap can re-arm this timer when it extends the playing show
   }
 
   /* ---------- playGiftFx hook: banner always; stage replaces big shows ---------- */
   window.rpGiftFx = function (g, fromName, toName) {
     if (!g) return false;
-    try { rpBanner(fromName || "Someone", g); } catch (e) { }
-    if (g.tier === "big" || g.tier === "prestige") { try { rpBigStage(g, fromName, toName); } catch (e) { } return true; }
+    var cnt219 = Math.max(1, Math.min(1000, (g.__cnt | 0) || 1)); // [RP-V7.219] batch count on the gift copy (absent = a classic single send)
+    try { rpBanner(fromName || "Someone", g, cnt219); } catch (e) { }
+    if (g.tier === "big" || g.tier === "prestige") { try { rpBigStage(g, fromName, toName, cnt219); } catch (e) { } return true; }
     return false;
   };
 
@@ -33218,19 +33444,27 @@ button.rp72-chip{ cursor:pointer; }
   // without charging again. A later, deliberate gift is a new
   // attempt with a fresh key.
   var giftAttempts = {};
+  var giftComboSeq = 0; // [RP-V7.219] combo-pill taps each mint their own attempt key (see serverGift)
   function giftAttemptKey(sig) {
     var now = Date.now();
     for (var k in giftAttempts) { if (now - giftAttempts[k].at > 60000) delete giftAttempts[k]; }
     var cur = giftAttempts[sig];
-    if (cur && (!cur.done || now - cur.at < 6000)) return cur.key;
+    if (cur && (!cur.done || now - cur.at < 1500)) return cur.key; // [RP-V7.219] done-window 6000 -> 1500ms: deliberate repeat sends (the combo flow) mint fresh attempts at human pace; an IN-FLIGHT attempt still always reuses its key, and the server dedupes a true retry by the stored key
     var key = "g" + now.toString(36) + Math.random().toString(36).slice(2, 10);
     giftAttempts[sig] = { key: key, at: now, done: false };
     return key;
   }
   function serverGift(targetId, targetName, g, opts) {
-    var sig = targetName + "|" + g.id;
+    // [RP-V7.219] the batch size rides the request; the attempt
+    // signature carries it too, so a x10 and a x1 are DIFFERENT
+    // attempts, and a combo-pill tap (opts.__combo) always mints a
+    // fresh key — each pill tap is a deliberate new send, never a
+    // retry (a network retry of one tap still reuses its own key
+    // while in flight and dedupes server-side by idem).
+    var cnt219 = Math.max(1, Math.min(1000, ((opts && opts.count) | 0) || 1));
+    var sig = targetName + "|" + g.id + "|x" + cnt219 + ((opts && opts.__combo) ? "|t" + (++giftComboSeq) : "");
     var idem = giftAttemptKey(sig);
-    api("/api/money/gift", "POST", { toName: targetName, giftId: g.id, charms: g.cents, idem: idem }).then(function (r) {
+    api("/api/money/gift", "POST", { toName: targetName, giftId: g.id, charms: g.cents, count: cnt219, idem: idem }).then(function (r) {
       var att = giftAttempts[sig];
       if (att && att.key === idem) att.done = true;
       if (r.json && r.json.deduped) {
@@ -33248,8 +33482,8 @@ button.rp72-chip{ cursor:pointer; }
         // local balance pre-bumped so the original flow's own debit
         // lands exactly on the server balance; a refresh right after
         // re-syncs the HUD to the ledger either way.
-        try { if (typeof window.rpWalletPreBump === "function") window.rpWalletPreBump(r.json.balance || 0, g.cents || 0); else { window.charms = (r.json.balance || 0) + (g.cents || 0); if (typeof window.updateHUD === "function") window.updateHUD(); } } catch (e) { } // [RP-V7.25] the pre-bump also pins the wallet's server base to the post-gift ledger balance, so the replay debit lands exactly on it and the refresh after keeps it there (delta = 0)
-        var o2 = {}; for (var k in opts) o2[k] = opts[k]; o2.__srv = true; o2.__co = !!r.json.charmsOnly; // [RP-V7.217] the ledger's charms-only verdict rides into sendGift, which stamps it on the broadcast as co: 1
+        try { if (typeof window.rpWalletPreBump === "function") window.rpWalletPreBump(r.json.balance || 0, (g.cents || 0) * cnt219); else { window.charms = (r.json.balance || 0) + ((g.cents || 0) * cnt219); if (typeof window.updateHUD === "function") window.updateHUD(); } } catch (e) { } // [RP-V7.25] the pre-bump also pins the wallet's server base to the post-gift ledger balance, so the replay debit lands exactly on it and the refresh after keeps it there (delta = 0) — [RP-V7.219] the bump is the BATCH total, matching the replay's batch debit
+        var o2 = {}; for (var k in opts) o2[k] = opts[k]; o2.__srv = true; o2.__co = !!r.json.charmsOnly; o2.count = cnt219; // [RP-V7.217] the ledger's charms-only verdict rides into sendGift, which stamps it on the broadcast as co: 1 — [RP-V7.219] the batch count rides too, so the replay debits, plays and broadcasts the whole batch
         origSendGift(targetId, targetName, g, o2);
         try { if (typeof window.rpWalletHardSync === "function") window.rpWalletHardSync(r.json.balance || 0); } catch (e) { } // [RP-V7.25] settle exactly on the ledger balance the server reported — the replay's local debit (or its offline refund) must not leak past the settle ([RP-V7.76] the wallet holds no local delta at all; this pin IS the reconcile)
         setTimeout(function () { refreshMoney(); }, 700);
@@ -33262,10 +33496,10 @@ button.rp72-chip{ cursor:pointer; }
           // earned/won gift balance, and there is no top-up to point
           // at (buying charms is 18+) — say how gifting unlocks.
           if (M.me) M.me.giftBal = r.json.giftBal;
-          toast2((r.json.message || "Earn or win charms to gift") + " — the " + g.name + " costs " + (g.cents || 0).toLocaleString("en-US") + " gift charms and you have " + r.json.giftBal.toLocaleString("en-US") + ". Win charms in the pots to earn gift charms. 🎁", 4200);
+          toast2((r.json.message || "Earn or win charms to gift") + " — " + (cnt219 > 1 ? "×" + cnt219 + " " : "") + "the " + g.name + " costs " + ((g.cents || 0) * cnt219).toLocaleString("en-US") + " gift charms and you have " + r.json.giftBal.toLocaleString("en-US") + ". Win charms in the pots to earn gift charms. 🎁", 4200);
           return;
         }
-        toast2("Not enough charms on your account — the " + g.name + " costs " + (g.cents || 0).toLocaleString("en-US") + ". Tap ⭐ Get charms to top up.", 3600);
+        toast2(cnt219 > 1 ? ("Not enough charms on your account — ×" + cnt219 + " " + g.name + " costs " + ((g.cents || 0) * cnt219).toLocaleString("en-US") + (typeof r.json.balance === "number" ? " and you have " + r.json.balance.toLocaleString("en-US") + " (short " + Math.max(0, ((g.cents || 0) * cnt219) - r.json.balance).toLocaleString("en-US") + ")" : "") + ". Lower the count or tap ⭐ Get charms to top up.") : ("Not enough charms on your account — the " + g.name + " costs " + (g.cents || 0).toLocaleString("en-US") + ". Tap ⭐ Get charms to top up."), 3600);
         if (typeof window.rpGiftNotEnough === "function") window.rpGiftNotEnough(g); // [RP-V7.26.1] stay on the gift list — no charm-shop bounce
         return;
       }
