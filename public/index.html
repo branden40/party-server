@@ -7452,8 +7452,17 @@
       RP_SFX186.forEach(function (x) { RP_SFX_MAP186[x.id] = x; });
       var sfxAudio186 = {}, sfxLast186c = 0, sfxBuilt186 = false, sfxChipTimer186 = null;
       function sfxBuild186() {
-        if (sfxBuilt186) return;
         var grid = $("sfxGrid186"); if (!grid) return;
+        /* [RP-V7.215] This module is declared inside connectOnline(), so
+           every (re)connect mints a fresh closure and sfxBuilt186 resets —
+           the old closure-local guard could not stop a second set of pads
+           being appended into the same grid (Branden, Nov 2, 2026: the
+           host Soundboard rendered its 9 pads TWICE, stacked, in his
+           live). The DOM is now the guard: a grid already holding the 9
+           pads is left alone, and any other state is cleared before
+           render — the board always renders exactly one set of 9. */
+        if (grid.querySelectorAll(".sfx-pad186").length === RP_SFX186.length) { sfxBuilt186 = true; return; }
+        grid.innerHTML = "";
         sfxBuilt186 = true;
         RP_SFX186.forEach(function (x) {
           var b = document.createElement("button");
@@ -7469,7 +7478,7 @@
         try { show = document.body.classList.contains("live-fs") && iAmHost(); } catch (e) { }
         if (show) { sfxBuild186(); bar.hidden = false; } else bar.hidden = true;
       }
-      setInterval(sfxSync186, 1200);
+      if (!window.__sfxSyncTimer186) window.__sfxSyncTimer186 = setInterval(sfxSync186, 1200); // [RP-V7.215] one sync interval per page — not one per (re)connect closure
       function sfxPlay186(id) {
         var a = sfxAudio186[id];
         if (!a) { a = new Audio("/sfx/" + id + ".mp3"); a.preload = "auto"; sfxAudio186[id] = a; }
