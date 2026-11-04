@@ -2185,6 +2185,10 @@ function finalizeAccountDeletion(uid) {
       delete mdb.premium[uid];
       changed = true;
     }
+    if (mdb.bizads && mdb.bizads[uid] !== undefined) {
+      delete mdb.bizads[uid];
+      changed = true;
+    }
     const nc = mdb.cashouts.filter((c) => !c || c.acctId !== uid);
     if (nc.length !== mdb.cashouts.length) {
       mdb.cashouts = nc;
@@ -10398,6 +10402,8 @@ app.post("/auth/apple/callback", async (req, res) => {
 //                           held: [{ cents, unlockAt, reason }],
 //                           totalEarnedCents } },
 //     premium:  { acctId: { active, until, subRef, customerRef, plan } },
+//     bizads:   { acctId: { active, until, subRef, customerRef,
+//                           name, blurb, link, pic, updatedAt } },
 //     cashouts: [ { id, acctId, cents, feeCents, status, at,
 //                   unlockReviewAt, transferRef?, sentAt? } ],
 //     txlog:    [ { id, at, type, from, to, charms, cents, cut, ref } ],
@@ -10451,6 +10457,22 @@ const PREMIUM_PLANS = {
   monthly: { priceCents: 999, interval: "month", label: "Premium monthly" },
   yearly: { priceCents: 5999, interval: "year", label: "Premium yearly" },
 };
+// [RP-V7.224] BUSINESS ADS (Branden, Nov 3, 2026: "add something on
+// there where if a person wants to advertise their business they have
+// to pay a monthly fee. Add it with the other monthly subscriptions"
+// — price set by Branden: $19.99/month). Business Ads rides the EXACT
+// Premium rail: Stripe Checkout (mode "subscription", inline
+// price_data), webhook-settled state in the money ledger, 18+
+// server-locked like every money door. The subscription record ALSO
+// carries the member's business profile (name / blurb / link / pic);
+// the ad renders on the Plaza home and in the Feed for ADULT members
+// only while the subscription is active — never for teen accounts,
+// never on church surfaces or in Teen Hangout (those surfaces simply
+// never call the ads endpoint / slot).
+const BIZADS_PLAN = { priceCents: 1999, interval: "month", label: "Business Ads monthly" };
+const BIZADS_NAME_MAX = 60;   // business name cap
+const BIZADS_BLURB_MAX = 140; // the Plaza's caption cap (feed/reel/comment text)
+const BIZADS_LINK_MAX = 300;  // the profile-link cap (pfLinkInput)
 // Mirror of the game client's GIFT_SHOP catalog (id -> charm cost). The
 // server charges the CATALOG cost — a client-sent amount is never
 // trusted for ledger math.
@@ -10526,6 +10548,7 @@ function emptyMoney() {
     balances: {},
     earnings: {},
     premium: {},
+    bizads: {}, // [RP-V7.224] Business Ads subscriptions + business profiles
     cashouts: [],
     txlog: [],
     processed: {},
@@ -10559,6 +10582,8 @@ function readMoney() {
     d.giftBals = {};
   if (!d.auctionSettlements || typeof d.auctionSettlements !== "object" || Array.isArray(d.auctionSettlements))
     d.auctionSettlements = {};
+  if (!d.bizads || typeof d.bizads !== "object" || Array.isArray(d.bizads))
+    d.bizads = {}; // [RP-V7.224]
   // [RP-V7.81] owner sales board: the pushed Magniphiscents store total
   // ({ storeCents, at } from POST /api/owner/store-sales) or null until
   // the first push lands — never a fabricated number.
@@ -10659,6 +10684,29 @@ function moneyPremiumState(db, acctId) {
   const active =
     !!p.active && (!p.until || Date.parse(p.until) > Date.now());
   return { active, until: p.until || null };
+}
+// [RP-V7.224] Business Ads state, mirroring moneyPremiumState: active
+// only while the record says so AND the paid period has not run out.
+function moneyBizAdsState(db, acctId) {
+  const b = (db.bizads || {})[acctId];
+  if (!b) return { active: false, until: null };
+  const active =
+    !!b.active && (!b.until || Date.parse(b.until) > Date.now());
+  return { active, until: b.until || null };
+}
+// The public ad shape for one advertiser, or null when the business
+// profile is incomplete (an unnamed business never renders).
+function bizAdsPublic(db, acctId) {
+  const b = (db.bizads || {})[acctId];
+  if (!b || !moneyBizAdsState(db, acctId).active) return null;
+  const name = String(b.name || "").trim();
+  if (!name) return null;
+  return {
+    name,
+    blurb: String(b.blurb || ""),
+    link: String(b.link || ""),
+    pic: String(b.pic || ""),
+  };
 }
 function moneyCashedOutToday(db, acctId) {
   const today = new Date().toISOString().slice(0, 10);
@@ -10815,6 +10863,7 @@ function moneyMePayload(db, user, connect) {
       totalEarnedCents: e.totalEarnedCents,
     },
     premium: moneyPremiumState(db, user.id),
+    bizads: moneyBizAdsState(db, user.id), // [RP-V7.224]
     dailyClaim: claimStatePayload(user), // [RP-V7.76] the unified claim gate + streak (FIX-2): every device renders the same claimed state and streak from this
     cashoutEligibility: { canCashOut: reasons.length === 0, reasons },
     connect,
@@ -10918,6 +10967,159 @@ app.post("/api/money/subscribe", async (req, res) => {
     res.status(502).json({ ok: false, error: "stripe-error" });
   }
 });
+// [RP-V7.224] BUSINESS ADS subscribe — the Premium subscribe route
+// cloned field-for-field (same 18+ server gate BEFORE the Stripe-
+// config check and any session creation, same inline price_data, same
+// success/cancel URLs); only the plan and the metadata kind differ.
+app.post("/api/money/bizads/subscribe", async (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "Subscribing is 18+" });
+  if (!stripeConfigured()) return stripeNotConfigured(res);
+  try {
+    const origin = siteOrigin(req);
+    const session = await stripeApi("POST", "/checkout/sessions", {
+      mode: "subscription",
+      success_url: origin + "/?money=ok",
+      cancel_url: origin + "/?money=cancel",
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: BIZADS_PLAN.priceCents,
+            recurring: { interval: BIZADS_PLAN.interval },
+            product_data: { name: "Rizz Plaza " + BIZADS_PLAN.label },
+          },
+        },
+      ],
+      metadata: { kind: "bizads", acctId: ctx.user.id },
+      subscription_data: {
+        metadata: { kind: "bizads", acctId: ctx.user.id },
+      },
+    });
+    res.json({ ok: true, url: session.url });
+  } catch (e) {
+    console.error("[money] bizads subscribe failed", e.message);
+    res.status(502).json({ ok: false, error: "stripe-error" });
+  }
+});
+// [RP-V7.224] The subscriber's own Business Ads state + saved business
+// profile (the manage sheet reads this).
+app.get("/api/money/bizads/me", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readMoney();
+  const b = (db.bizads || {})[ctx.user.id] || {};
+  res.json({
+    ok: true,
+    bizads: moneyBizAdsState(db, ctx.user.id),
+    business: {
+      name: String(b.name || ""),
+      blurb: String(b.blurb || ""),
+      link: String(b.link || ""),
+      pic: String(b.pic || ""),
+    },
+  });
+});
+// [RP-V7.224] Save the business profile. Only an ACTIVE subscriber can
+// save (the subscription is the product — no free listings), and only
+// an adult (subscribing is 18+ server-locked, so a teen record can
+// never be active; the age gate is restated here so this door is
+// locked on its own). Caps mirror the app's: name 60, blurb 140 (the
+// caption cap), link 300 (the profile-link cap). The link must be
+// http/https (a bare domain gets https:// added, like the profile
+// link); the picture must be one of OUR uploaded photo URLs.
+app.post("/api/money/bizads/profile", lockedHandler("bizads-profile", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "Business Ads is 18+" });
+  const db = readMoney();
+  if (!moneyBizAdsState(db, ctx.user.id).active)
+    return res.status(403).json({ ok: false, error: "Business Ads subscription is not active" });
+  const body = req.body || {};
+  const name = String(body.name || "").trim().slice(0, BIZADS_NAME_MAX);
+  const blurb = String(body.blurb || "").trim().slice(0, BIZADS_BLURB_MAX);
+  let link = String(body.link || "").trim().slice(0, BIZADS_LINK_MAX);
+  if (link && !/^https?:\/\//i.test(link)) link = "https://" + link;
+  if (link && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(link))
+    return res.status(400).json({ ok: false, error: "That link doesn't look right — check it and try again." });
+  const pic = String(body.pic || "").trim().slice(0, 500);
+  if (pic && pic.indexOf("/photos/") < 0)
+    return res.status(400).json({ ok: false, error: "That picture isn't one of your uploads." });
+  if (!db.bizads || typeof db.bizads !== "object") db.bizads = {};
+  const rec = db.bizads[ctx.user.id] || {};
+  rec.name = name; rec.blurb = blurb; rec.link = link; rec.pic = pic;
+  rec.updatedAt = new Date().toISOString();
+  db.bizads[ctx.user.id] = rec;
+  writeMoney(db);
+  res.json({ ok: true, business: { name, blurb, link, pic } });
+}));
+// [RP-V7.224] Business picture upload — the existing media path (the
+// shared multer photoUpload: PHOTO_DIR, 5 MB, image-only, Hive
+// moderation, /photos/ URL) WITHOUT the profile-photo side effects of
+// /api/account/photo: the picture is stored against the business, not
+// the member's face/gallery. Active subscribers only.
+app.post("/api/money/bizads/photo", photoUpload(async (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return;
+  }
+  try {
+    if (ageFromDob(ctx.user.dob) < 18) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(403).json({ ok: false, error: "Business Ads is 18+" });
+    }
+    if (!moneyBizAdsState(readMoney(), ctx.user.id).active) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(403).json({ ok: false, error: "Business Ads subscription is not active" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: "No image file received." });
+    }
+    const publicUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
+    const mod = await moderateImage(publicUrl);
+    if (!mod.ok) {
+      fs.unlink(req.file.path, () => {});
+      console.log("BIZADS PHOTO REJECTED:", ctx.user.id, mod.reason);
+      return res.status(422).json({
+        ok: false,
+        error: "That photo didn't pass our safety check. Please try a different one.",
+      });
+    }
+    return res.json({ ok: true, photoUrl: publicUrl });
+  } catch (e) {
+    console.log("BIZADS UPLOAD ERROR:", e.message);
+    return res.status(500).json({ ok: false, error: "Upload failed. Please try again." });
+  }
+}));
+// [RP-V7.224] The ad list for rendering (Plaza home slot + Feed
+// interleave). Server-checked on every call: the requester must be a
+// signed-in ADULT (teen accounts get an empty list — a teen never
+// sees an ad card, same as the plan), and every advertiser listed is
+// an ACTIVE subscriber with a complete business profile. Order is
+// rotated by the minute so every advertiser gets equal front
+// placement over time. Church surfaces and Teen Hangout never call
+// this — ads exist only where this list is fetched.
+app.get("/api/bizads", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (ageFromDob(ctx.user.dob) < 18) return res.json({ ok: true, ads: [] });
+  const db = readMoney();
+  const ads = [];
+  for (const acctId of Object.keys(db.bizads || {})) {
+    const pub = bizAdsPublic(db, acctId);
+    if (pub) ads.push(pub);
+  }
+  if (ads.length > 1) {
+    const rot = Math.floor(Date.now() / 60000) % ads.length;
+    for (let i = 0; i < rot; i++) ads.push(ads.shift());
+  }
+  res.json({ ok: true, ads });
+});
 // Stripe webhook (route registered before the JSON parser, near the top
 // of this file). No account auth — authenticity is the signature. With
 // no STRIPE_WEBHOOK_SECRET set, events are acknowledged and IGNORED:
@@ -11007,6 +11209,27 @@ function handleStripeEvent(event) {
         cents: plan === "yearly" ? 5999 : 999, cut: 0, ref: obj.id,
       });
       console.log("[money] premium on for", user.name, plan);
+    } else if (md.kind === "bizads") {
+      // [RP-V7.224] Business Ads on. A resubscribe keeps the saved
+      // business profile (name/blurb/link/pic ride through), so the
+      // ad resumes exactly where it left off.
+      const prev = db.bizads[acctId] || {};
+      db.bizads[acctId] = {
+        active: true,
+        until: new Date(Date.now() + 32 * 24 * 3600 * 1000).toISOString(),
+        subRef: obj.subscription || null,
+        customerRef: obj.customer || null,
+        name: prev.name || "",
+        blurb: prev.blurb || "",
+        link: prev.link || "",
+        pic: prev.pic || "",
+        updatedAt: prev.updatedAt || null,
+      };
+      moneyTx(db, {
+        type: "bizads", from: null, to: acctId, charms: 0,
+        cents: BIZADS_PLAN.priceCents, cut: 0, ref: obj.id,
+      });
+      console.log("[money] business ads on for", user.name);
     } else {
       return; // unknown kind — do not mark processed
     }
@@ -11021,7 +11244,26 @@ function handleStripeEvent(event) {
     const acctId = Object.keys(db.premium).find(
       (id) => db.premium[id] && db.premium[id].subRef === subId
     );
-    if (!acctId) return;
+    if (!acctId) {
+      // [RP-V7.224] Not a Premium sub — try Business Ads (same rail:
+      // renew to the period end Stripe reports, log the revenue).
+      const bizId = Object.keys(db.bizads || {}).find(
+        (id) => db.bizads[id] && db.bizads[id].subRef === subId
+      );
+      if (!bizId) return;
+      const bLine =
+        (obj.lines && Array.isArray(obj.lines.data) && obj.lines.data[0]) || null;
+      const bEnd =
+        (bLine && bLine.period && bLine.period.end) || obj.period_end || null;
+      if (bEnd) db.bizads[bizId].until = new Date(bEnd * 1000).toISOString();
+      db.bizads[bizId].active = true;
+      moneyTx(db, {
+        type: "bizads-renew", from: null, to: bizId, charms: 0,
+        cents: obj.amount_paid || 0, cut: 0, ref: obj.id,
+      });
+      writeMoney(db);
+      return;
+    }
     const line =
       (obj.lines && Array.isArray(obj.lines.data) && obj.lines.data[0]) || null;
     const endSec =
@@ -11040,7 +11282,25 @@ function handleStripeEvent(event) {
     const acctId = Object.keys(db.premium).find(
       (id) => db.premium[id] && db.premium[id].subRef === obj.id
     );
-    if (!acctId) return;
+    if (!acctId) {
+      // [RP-V7.224] Business Ads end (same shape as Premium: the sub
+      // ends at the period end this event reports, and the ad stops
+      // rendering the moment the state flips — the saved business
+      // profile stays for a resubscribe).
+      const bizId = Object.keys(db.bizads || {}).find(
+        (id) => db.bizads[id] && db.bizads[id].subRef === obj.id
+      );
+      if (!bizId) return;
+      db.bizads[bizId].active = false;
+      if (obj.current_period_end)
+        db.bizads[bizId].until = new Date(obj.current_period_end * 1000).toISOString();
+      moneyTx(db, {
+        type: "bizads-off", from: null, to: bizId, charms: 0,
+        cents: 0, cut: 0, ref: obj.id,
+      });
+      writeMoney(db);
+      return;
+    }
     // Premium ends at the period end Stripe reports — which is when
     // this event fires for an end-of-period cancellation.
     db.premium[acctId].active = false;
@@ -11607,6 +11867,9 @@ app.post("/api/money/auction-settle", lockedHandler("auction-settle", (req, res)
 // (moneyTx appends one entry per money event):
 //   charmPacksCents   — "purchase" tx (cents = the pack price paid)
 //   premiumSubsCents  — "premium" + "premium-renew" tx (cents paid)
+//   bizadsCents       — "bizads" + "bizads-renew" tx (cents paid),
+//                       plus bizadsActive, the live advertiser count
+//                       [RP-V7.224: every money stream reports here]
 //   giftsVolumeCents  — "gift-sent" tx (cents = the gift's dollar
 //                       value; volume across ALL age classes — it is
 //                       volume, not earnings, so charms-only teen
@@ -11639,7 +11902,7 @@ function rpOwnerUserId(adb) {
   return best ? best.id : null;
 }
 function rpSalesStreams(mdb) {
-  let charmPacksCents = 0, premiumSubsCents = 0, giftsVolumeCents = 0, auctionsVolumeCents = 0;
+  let charmPacksCents = 0, premiumSubsCents = 0, giftsVolumeCents = 0, auctionsVolumeCents = 0, bizadsCents = 0;
   for (const tx of mdb.txlog || []) {
     if (!tx || typeof tx !== "object") continue;
     const c = Math.round(Number(tx.cents) || 0);
@@ -11647,8 +11910,17 @@ function rpSalesStreams(mdb) {
     else if (tx.type === "premium" || tx.type === "premium-renew") premiumSubsCents += c;
     else if (tx.type === "gift-sent") giftsVolumeCents += c;
     else if (tx.type === "auction-paid") auctionsVolumeCents += c;
+    else if (tx.type === "bizads" || tx.type === "bizads-renew") bizadsCents += c; // [RP-V7.224]
   }
-  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents };
+  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents };
+}
+// [RP-V7.224] How many Business Ads subscriptions are active right now
+// (state-checked, so a lapsed sub never counts).
+function rpBizAdsActiveCount(mdb) {
+  let n = 0;
+  for (const id of Object.keys(mdb.bizads || {}))
+    if (moneyBizAdsState(mdb, id).active) n++;
+  return n;
 }
 app.get("/api/owner/sales", (req, res) => {
   const adb = readAccounts();
@@ -11659,7 +11931,7 @@ app.get("/api/owner/sales", (req, res) => {
   const s = rpSalesStreams(mdb);
   const storeCents = mdb.ownerStore && isFinite(Number(mdb.ownerStore.storeCents)) ? Math.round(Number(mdb.ownerStore.storeCents)) : null;
   const storeAsOf = storeCents === null ? null : (mdb.ownerStore.at || null);
-  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.auctionsVolumeCents + (storeCents || 0);
+  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + (storeCents || 0);
   const stepDollars = 10000, capDollars = 3000000;
   const totalDollars = totalCents / 100;
   const crossed = totalDollars >= stepDollars ? Math.min(capDollars, Math.floor(totalDollars / stepDollars) * stepDollars) : 0;
@@ -11672,6 +11944,8 @@ app.get("/api/owner/sales", (req, res) => {
       premiumSubsCents: s.premiumSubsCents,
       giftsVolumeCents: s.giftsVolumeCents,
       auctionsVolumeCents: s.auctionsVolumeCents,
+      bizadsCents: s.bizadsCents, // [RP-V7.224]
+      bizadsActive: rpBizAdsActiveCount(mdb), // [RP-V7.224]
       storeCents,
       storeAsOf,
     },
