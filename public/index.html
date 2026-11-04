@@ -31251,6 +31251,36 @@ button.rp72-chip{ cursor:pointer; }
 .rppl-follow { flex: 0 0 auto; align-self: center; background: #fe2c55; color: #fff; border: 1px solid #fe2c55; border-radius: 999px; font-size: 12.5px; font-weight: 800; padding: 7px 14px; cursor: pointer; }
 .rppl-follow.on { background: #26262e; border-color: rgba(255,255,255,.16); color: #c9c9d6; }
 .rppl-you { flex: 0 0 auto; align-self: center; color: #9a9aad; font-size: 12px; font-weight: 800; padding: 7px 4px; }
+/* [RP-V7.222] DM conversation = TikTok layout: a full-screen flat page,
+   not a sheet. renderConversation flags #overlay with .rpdm-full; the
+   flag is dropped by renderInboxShell / the conversation menu / the
+   report sheet, and by an observer whenever the overlay closes, so
+   every other sheet keeps the standard look. Everything below is
+   scoped to the conversation — inbox list, Find people and profile
+   sheets untouched. */
+.overlay.rpdm-full { align-items: stretch !important; padding: 0 !important; background: #000 !important; }
+.overlay.rpdm-full .sheet { width: 100%; max-width: none; height: 100%; max-height: none; background: #000 !important; border: none !important; border-radius: 0 !important; padding: 0 !important; overflow: hidden; display: flex; flex-direction: column; animation: none !important; }
+.overlay.rpdm-full .sheet::before { display: none !important; }
+.rpdm-conv { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; max-width: 720px; margin: 0 auto; background: #000; }
+.rpdm-chead { display: flex; align-items: center; gap: 6px; padding: calc(8px + env(safe-area-inset-top)) 8px 8px; background: #000; border-bottom: 1px solid rgba(255,255,255,.07); flex: 0 0 auto; }
+.rpdm-cback { background: none; border: none; box-shadow: none; color: #fff; width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; flex: 0 0 auto; font-family: inherit; }
+.rpdm-cback svg { width: 26px; height: 26px; display: block; }
+.rpdm-cpeer { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.rpdm-cpeer .rpdm-ava { width: 36px; height: 36px; font-size: 15px; }
+.rpdm-chead .rpdm-title { flex: 1 1 auto; text-align: left; font-size: 16px; font-weight: 800; }
+.rpdm-cmenu { background: none; border: none; box-shadow: none; color: #fff; width: 40px; height: 40px; padding: 0 0 6px; font-size: 19px; font-weight: 900; letter-spacing: 2px; cursor: pointer; flex: 0 0 auto; font-family: inherit; }
+.rpdm-conv .rpdm-msgs { flex: 1 1 auto; max-height: none; min-height: 0; padding: 12px; }
+.rpdm-composer { flex: 0 0 auto; display: flex; align-items: center; padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); background: #000; }
+.rpdm-field { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; background: #1f1f27; border-radius: 999px; padding: 3px 4px 3px 6px; }
+.rpdm-field .rpdm-input { flex: 1 1 auto; min-width: 0; background: transparent; border: none; box-shadow: none; border-radius: 999px; padding: 8px 6px 8px 10px; }
+.rpdm-field .rpdm-input:focus { outline: none; }
+.rpdm-cattach { background: none; border: none; box-shadow: none; color: #fff; font-size: 20px; line-height: 1; width: 34px; height: 34px; padding: 0; cursor: pointer; flex: 0 0 auto; font-family: inherit; overflow: hidden; }
+.rpdm-cattach:disabled { opacity: .35; cursor: default; }
+.rpdm-csend { background: #fe2c55; border: none; box-shadow: none; color: #fff; width: 37px; height: 37px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; flex: 0 0 auto; font-family: inherit; }
+.rpdm-csend svg { width: 19px; height: 19px; display: block; }
+.rpdm-csend:disabled { opacity: .35; cursor: default; }
+.rpdm-field .rpdm-input:placeholder-shown ~ .rpdm-csend { background: #3c3c48; }
+.rpdm-field .rpdm-input:not(:placeholder-shown) ~ .rpdm-cattach { visibility: hidden; width: 0; }
 </style>
 <script>
 /* ================= RP-V7.7: direct messages =================
@@ -31416,6 +31446,8 @@ button.rp72-chip{ cursor:pointer; }
     });
   }
   function renderInboxShell(inner) {
+    var ovIb = document.getElementById("overlay"); // [RP-V7.222] the inbox list keeps the sheet look
+    if (ovIb) ovIb.classList.remove("rpdm-full");
     var reqN = inboxData && inboxData.requests ? inboxData.requests.length : 0;
     // [RP-V7.81] ✕ exit in the header (Branden device report, Oct 26:
     // "there's no exit button") — the app's close-x pattern, wired in
@@ -31525,22 +31557,33 @@ button.rp72-chip{ cursor:pointer; }
   }
   function renderConversation() {
     if (typeof window.openSheet !== "function") return;
-    var html = '<div class="rpdm-head">' +
-      '<button type="button" class="btn-mini" id="rpDmBack">‹ Messages</button>' +
-      '<div class="rpdm-title">' + esc(conv.name) + "</div>" +
-      '<button type="button" class="btn-mini" id="rpDmMenuBtn" aria-label="Conversation menu">•••</button>' +
+    /* [RP-V7.222] TikTok DM layout: full-screen flat conversation —
+       plain chevron back, avatar + name, flat ••• menu up top; one
+       pill composer field with the 📎 inside and a circular
+       send-arrow at the field's right end. Same ids, same wiring
+       below — presentation only. The .rpdm-title element stays and
+       still carries exactly the partner name (the RP-V7.8 guide
+       module reads it). */
+    var html = '<div class="rpdm-conv">' +
+      '<div class="rpdm-chead">' +
+      '<button type="button" class="rpdm-cback" id="rpDmBack" aria-label="Back to messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>' +
+      '<div class="rpdm-cpeer">' + avaHtml(conv.name, conv.deleted) + '<div class="rpdm-title">' + esc(conv.name) + "</div></div>" +
+      '<button type="button" class="rpdm-cmenu" id="rpDmMenuBtn" aria-label="Conversation menu">•••</button>' +
       "</div>" +
       /* RP-V7.8: Faith Dating guided-question cards render here. */
       '<div id="rpDmGuideSlot"></div>' +
       '<div class="rpdm-msgs" id="rpDmMsgs"><div class="rpdm-empty">Loading…</div></div>' +
       '<div id="rpDmBlockedNote"></div>' +
-      '<div class="rpdm-inputrow">' +
-      '<button type="button" class="btn-mini" id="rpDmAttach" style="border-radius:999px;padding:0 14px;" aria-label="Send a photo or video">📎</button>' +
+      '<div class="rpdm-composer"><div class="rpdm-field">' +
       '<input class="rpdm-input" id="rpDmInput" type="text" maxlength="1000" placeholder="Message ' + esc(conv.name) + '…" autocomplete="off"/>' +
-      '<button type="button" class="btn-primary" id="rpDmSend" style="border-radius:999px;padding:0 20px;">Send</button>' +
+      '<button type="button" class="rpdm-cattach" id="rpDmAttach" aria-label="Send a photo or video">📎</button>' +
+      '<button type="button" class="rpdm-csend" id="rpDmSend" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19.5v-15"/><path d="M5.8 10.8 12 4.6l6.2 6.2"/></svg></button>' +
+      "</div>" +
       '<input type="file" id="rpDmFile" accept="image/*,video/*" hidden/>' +
-      "</div>";
+      "</div></div>";
     window.openSheet(html);
+    var ovDm = document.getElementById("overlay"); // [RP-V7.222] full-screen flag (CSS above)
+    if (ovDm) ovDm.classList.add("rpdm-full");
     var back = $("rpDmBack");
     if (back) back.addEventListener("click", function () { stopPoll(); inboxTab = "inbox"; openInbox(); });
     var menu = $("rpDmMenuBtn");
@@ -31675,6 +31718,8 @@ button.rp72-chip{ cursor:pointer; }
   /* ---------------- conversation menu: profile / block / report ---------------- */
   function openConvMenu() {
     if (typeof window.openSheet !== "function") return;
+    var ovMn = document.getElementById("overlay"); // [RP-V7.222] menu renders as a standard sheet
+    if (ovMn) ovMn.classList.remove("rpdm-full");
     var html = '<h3 style="margin:4px 0">' + esc(conv.name) + "</h3>" +
       '<div class="btn-row" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:8px;">' +
       '<button type="button" class="btn-mini" id="rpDmViewProfile" style="padding:12px;">👤 View profile</button>' +
@@ -31724,6 +31769,8 @@ button.rp72-chip{ cursor:pointer; }
   var REPORT_REASONS = ["Nudity / sexual content", "Rude or hurtful chat", "Spam", "Inappropriate photo", "Bullying or harassment", "Something else"];
   function openDmReport() {
     if (typeof window.openSheet !== "function") return;
+    var ovRp = document.getElementById("overlay"); // [RP-V7.222] report renders as a standard sheet
+    if (ovRp) ovRp.classList.remove("rpdm-full");
     var html = '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
       '<div class="game-box" style="text-align:center;"><h3>Report ' + esc(conv.name) + "</h3>" +
       "<p>What's going on? Reports go straight to the Plaza team. You can also block this person from the conversation menu so messages stop right away.</p>" +
@@ -32050,6 +32097,19 @@ button.rp72-chip{ cursor:pointer; }
   }
 
   /* Public handle: open the inbox / a thread from elsewhere. */
+  /* [RP-V7.222] The full-screen conversation flag must never outlive
+     the overlay: any close path (backdrop tap, swipe-down dismiss,
+     another feature's closeSheet) drops it, so later sheets always
+     open with the standard sheet look. */
+  (function () {
+    var ov = document.getElementById("overlay");
+    if (!ov || !window.MutationObserver) return;
+    try {
+      new MutationObserver(function () {
+        if (!ov.classList.contains("open")) ov.classList.remove("rpdm-full");
+      }).observe(ov, { attributes: true, attributeFilter: ["class"] });
+    } catch (e) { }
+  })();
   window.rpDm = { openInbox: openInbox, openPeople: openPeople, openWith: function (userId, name) { if (acctRec()) openConversation(userId, name); }, refreshBadge: refreshBadge, openProfile: function (userId, name) { if (acctRec()) openMemberProfile(userId, name || "", null); } };
 
   /* [RP-V7.67] The Home card's Find People button opens the same
