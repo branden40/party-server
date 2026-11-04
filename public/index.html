@@ -1563,6 +1563,9 @@
       .shop-card { background: linear-gradient(120deg, #08080d, #171106 55%, #33240a); border: 1px solid rgba(212, 175, 55, .5); }
       .shop-logo { width: 88px; height: 88px; border-radius: 16px; object-fit: contain; flex: 0 0 auto; background: #0a0f0e; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
       .shop-btn { background: linear-gradient(120deg, #f6d47c, #d4af37); color: #241a02; text-decoration: none; display: inline-block; text-align: center; }
+      /* [RP-V7.223] Magniphiscents store surfaces ship [hidden]; this
+         rule keeps [hidden] authoritative over the card/row flex. */
+      .rp-magni-store-surface[hidden] { display: none !important; }
       .hunt-bar[hidden] { display: none; }
       .hunt-bar {
         display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -3027,8 +3030,11 @@
           <button class="speed-btn" id="btnFeedHome" type="button">📰 Open the Feed</button>
         </div>
         <!-- [RP-V7.81] Magniphiscents shop card moved directly under the
-             Plaza Feed card (Branden, Oct 26, 2026) — card unchanged. -->
-        <div class="plaza-card shop-card" style="margin-top:16px;">
+             Plaza Feed card (Branden, Oct 26, 2026) — card unchanged.
+             [RP-V7.223] Hidden from members at Branden's order (Nov 3,
+             2026): ships [hidden]; the owner-sales gate module below
+             reveals it only after the server confirms the owner. -->
+        <div class="plaza-card shop-card rp-magni-store-surface" id="rpMagniStoreCard" style="margin-top:16px;" hidden aria-hidden="true">
           <span class="shop-wordmark" aria-hidden="true">Magniphiscents</span>
           <div>
             <h3>🛍️ Shop · Magniphiscents</h3>
@@ -3036,6 +3042,18 @@
           </div>
           <a class="speed-btn shop-btn" href="https://magniphiscents.com" target="_blank" rel="noopener noreferrer">Shop Now</a>
         </div>
+        <!-- [RP-V7.224] Business Ads slot (Branden, Nov 3, 2026): filled
+             by the money module ONLY for signed-in adults when an active
+             advertiser exists — empty and invisible otherwise, and
+             data-adult keeps it out of teen Plaza renders entirely.
+             Ads live here and in the Feed, nowhere else: no church
+             surface and no Teen Hangout ever renders one. -->
+        <style>
+          .rp-ad-tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.14);color:#cfd2dc;vertical-align:middle;}
+          .rp-bizad-card{cursor:pointer;}
+          .rp-bizad-img{width:64px;height:64px;object-fit:cover;border-radius:12px;flex:none;}
+        </style>
+        <div id="rpBizAdSlot" data-adult></div>
         <h3 id="lobbyTitle" style="margin: 26px 0 4px; font-size: 22px;">Meet &amp; Greet</h3>
         <p style="font-weight:600; color:var(--ink-soft); margin:0 0 6px;" data-adult>Every room is a meet-and-greet space built around something you love — and every room is live with <b>real people</b> on the Live Stage. Tap a room to step inside.</p>
         <div class="rooms" id="roomList"></div>
@@ -33612,6 +33630,13 @@ button.rp72-chip{ cursor:pointer; }
     } else {
       html += '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini btn-big" id="rpMPremBtn">⭐ Go Premium — $9.99/mo or $59.99/yr</button></div>'; // [RP-V7.63] BIG (btn-big)
     }
+    if (!teen()) { // [RP-V7.224] Business Ads — listed with the other subscriptions; teen accounts never see the plan
+      if (me.bizads && me.bizads.active) {
+        html += '<p style="text-align:center; margin:8px 0 0;">📣 <b>Business Ads</b> is active' + (me.bizads.until ? ' until ' + fmtDate(me.bizads.until) : '') + '.</p><div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" id="rpMBizBtn">📣 Manage your business ad</button></div>';
+      } else {
+        html += '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" id="rpMBizBtn">📣 Advertise your business — $19.99/mo</button></div>';
+      }
+    }
     if (hist && (hist.tx && hist.tx.length || hist.cashouts && hist.cashouts.length)) {
       html += '<h4 style="margin:16px 0 2px;">Recent activity</h4><div class="rpM-hist">';
       (hist.cashouts || []).slice(0, 3).forEach(function (c) {
@@ -33624,6 +33649,7 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "purchase") { label = "⭐ Charm pack"; amt = "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "auction") { label = "🔨 Auction sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); }
         else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
+        else if (t.type === "bizads" || t.type === "bizads-renew") { label = "📣 Business Ads"; amt = fmt$(t.cents); } // [RP-V7.224]
         else if (t.type === "cashout") { label = "💸 Cash-out requested"; amt = fmt$(t.cents); }
         else { label = esc(t.type || "Activity"); amt = t.cents ? fmt$(t.cents) : ""; }
         html += '<div class="rpM-hrow"><span>' + label + ' · ' + fmtDate(t.at) + '</span><span class="rpM-hamt">' + amt + '</span></div>';
@@ -33638,6 +33664,8 @@ button.rp72-chip{ cursor:pointer; }
     if (cn) cn.addEventListener("click", doOnboard);
     var pm = $("rpMPremBtn");
     if (pm) pm.addEventListener("click", openPremiumSheet);
+    var bz2 = $("rpMBizBtn"); // [RP-V7.224]
+    if (bz2) bz2.addEventListener("click", function () { if (bizActive224()) openBizAdsSheet(); else openPremiumSheet(); });
   }
   function doCashOut() {
     var b = $("rpMCoBtn"); var bLabel = b ? b.textContent : ""; if (b) { b.disabled = true; b.textContent = "Requesting…"; }
@@ -33686,11 +33714,17 @@ button.rp72-chip{ cursor:pointer; }
       '<p style="text-align:center;">One flat membership: boosts for your lives and Reels, extra rooms, read receipts in messages — and a ⭐ badge on your profile.</p>' +
       '<div class="pack-row"><span class="pi">⭐</span><div class="pt"><b>Premium monthly</b><span>Renews monthly — cancel anytime</span></div><button class="btn-mini" data-rpplan="monthly">$9.99/mo</button></div>' +
       '<div class="pack-row"><span class="pi">💎</span><div class="pt"><b>Premium yearly</b><span>About 6 months free vs monthly (~50% off)</span></div><button class="btn-mini" data-rpplan="yearly">$59.99/yr</button></div>' +
+      (bizActive224() ? '<div class="pack-row"><span class="pi">📣</span><div class="pt"><b>Business Ads</b><span>Your ad is live on the Plaza home and in the Feed</span></div><button class="btn-mini" data-rpbiz="manage">Manage your ad</button></div>' : '<div class="pack-row"><span class="pi">📣</span><div class="pt"><b>Business Ads</b><span>Advertise your business on the Plaza home and in the Feed — renews monthly, cancel anytime</span></div><button class="btn-mini" data-rpbiz="sub">$19.99/mo</button></div>') +
       '<p style="font-size:12.5px; color:var(--ink-soft); font-weight:700; margin-top:10px;">Secure checkout powered by Stripe. Premium activates the moment your payment clears.</p></div>'
     );
     var sh = $("sheet");
     if (sh) sh.querySelectorAll("[data-rpplan]").forEach(function (btn) {
       btn.addEventListener("click", function () { doSubscribe(btn.getAttribute("data-rpplan"), btn); }); // [RP-V7.63] pass the button so it can be reset
+    });
+    var bz = sh ? sh.querySelector("[data-rpbiz]") : null;
+    if (bz) bz.addEventListener("click", function () {
+      if (bz.getAttribute("data-rpbiz") === "manage") openBizAdsSheet();
+      else doBizSubscribe(bz);
     });
   }
   function doSubscribe(plan, btn) {
@@ -33707,6 +33741,110 @@ button.rp72-chip{ cursor:pointer; }
       if (!r.json) { offlineToast(); return; }
       toast2("Checkout hit a snag — please try again in a moment.", 3600);
     });
+  }
+
+  /* ---------- Business Ads [RP-V7.224] ---------- */
+  function bizActive224() { return !!(M.me && M.me.bizads && M.me.bizads.active); }
+  function doBizSubscribe(btn) {
+    var b = btn || null; var bLabel = b ? b.textContent : "";
+    if (b) { b.disabled = true; b.textContent = "Opening Stripe…"; }
+    toast2("Opening secure Stripe checkout…", 2000);
+    api("/api/money/bizads/subscribe", "POST", {}, 30000).then(function (r) {
+      if (r.json && r.json.ok && r.json.url) { location.href = r.json.url; return; }
+      if (b) { b.disabled = false; b.textContent = bLabel; }
+      if (r.json && r.json.error === "payments-not-configured") { notConfiguredSheet("Business Ads"); return; }
+      if (!r.json) { offlineToast(); return; }
+      toast2("Checkout hit a snag — please try again in a moment.", 3600);
+    });
+  }
+  function openBizAdsSheet() {
+    if (!acctRec()) { toast2("Business Ads needs an account — sign up or log in first 📣", 4000); return; }
+    if (teen()) return;
+    if (!sheetOpen('<button class="close-x" data-act="close" aria-label="Close">✕</button><div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📣 Business Ads</h3><p class="rpM-note" style="text-align:center;">Loading your business…</p></div>')) return;
+    api("/api/money/bizads/me", "GET").then(function (r) {
+      var j = (r.json && r.json.ok) ? r.json : null;
+      if (!j) { toast2("Couldn't load your business just now — try again.", 3600); return; }
+      var st = j.bizads || {}; var biz = j.business || {};
+      if (!st.active) {
+        if (!sheetOpen(
+          '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📣 Business Ads</h3>' +
+          '<p style="text-align:center;">Advertise your business on the Plaza home and in the Feed — your ad runs while your subscription is active.</p>' +
+          '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini btn-big" id="rpBizSubBtn">📣 Start Business Ads — $19.99/mo</button></div>' +
+          '<p style="font-size:12.5px; color:var(--ink-soft); font-weight:700; margin-top:10px;">Secure checkout powered by Stripe. Renews monthly — cancel anytime.</p></div>'
+        )) return;
+        var sb = $("rpBizSubBtn");
+        if (sb) sb.addEventListener("click", function () { doBizSubscribe(sb); });
+        return;
+      }
+      var html =
+        '<button class="close-x" data-act="close" aria-label="Close">✕</button>' +
+        '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📣 Your business ad</h3>' +
+        '<p style="text-align:center;">Live on the Plaza home and in the Feed' + (st.until ? ' until ' + fmtDate(st.until) : '') + '. Edit anything — changes show right away.</p>' +
+        '<label style="display:block; margin:8px 0;">Business name<input type="text" id="rpBizName" maxlength="60" placeholder="e.g. Sunrise Bakery" value="' + esc(biz.name || "") + '" style="width:100%;" /></label>' +
+        '<label style="display:block; margin:8px 0;">Short blurb<textarea id="rpBizBlurb" rows="2" maxlength="140" placeholder="What you sell, in one line" style="width:100%;">' + esc(biz.blurb || "") + '</textarea></label>' +
+        '<label style="display:block; margin:8px 0;">Link<input type="url" id="rpBizLink" maxlength="300" placeholder="yourstore.com" value="' + esc(biz.link || "") + '" style="width:100%;" /></label>' +
+        '<div style="margin:10px 0;"><img id="rpBizPicPrev" src="' + esc(biz.pic || "") + '" alt="" style="' + (biz.pic ? "width:84px;height:84px;object-fit:cover;border-radius:12px;display:block;margin-bottom:8px;" : "display:none;") + '"/><label class="btn-mini" style="display:inline-block; cursor:pointer;">🖼️ Business picture<input type="file" id="rpBizPicFile" accept="image/*" style="display:none;"/></label></div>' +
+        '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="rpBizSave">Save my business</button></div>' +
+        '<p style="font-size:12.5px; color:var(--ink-soft); font-weight:700; margin-top:10px;">Renews monthly — cancel anytime from your Stripe receipt. If the subscription ends, your ad stops showing; subscribe again and it comes right back with this same info.</p></div>';
+      if (!sheetOpen(html)) return;
+      var picUrl = biz.pic || "";
+      var fileInp = $("rpBizPicFile");
+      if (fileInp) fileInp.addEventListener("change", function () {
+        var f = fileInp.files && fileInp.files[0]; if (!f) return;
+        if (f.size > 5 * 1024 * 1024) { toast2("That photo is too big — 5 MB max 📷", 3600); return; }
+        var a = acctRec(); var fd = new FormData(); fd.append("photo", f);
+        toast2("Uploading your business picture…", 2200);
+        fetch("/api/money/bizads/photo", { method: "POST", headers: { "Authorization": "Bearer " + (a ? a.token : "") }, body: fd })
+          .then(function (rr) { return rr.json().then(function (jj) { return jj; }).catch(function () { return null; }); })
+          .then(function (jj) {
+            if (jj && jj.ok && jj.photoUrl) {
+              picUrl = jj.photoUrl;
+              var im = $("rpBizPicPrev");
+              if (im) { im.src = picUrl; im.style.display = "block"; im.style.width = "84px"; im.style.height = "84px"; im.style.objectFit = "cover"; im.style.borderRadius = "12px"; im.style.marginBottom = "8px"; }
+              toast2("Picture added — tap Save to publish it.", 3200);
+            } else toast2((jj && jj.error) || "That upload didn't go through — try again.", 3600);
+          })
+          .catch(function () { toast2("That upload didn't go through — try again.", 3600); });
+      });
+      var sv = $("rpBizSave");
+      if (sv) sv.addEventListener("click", function () {
+        sv.disabled = true; sv.textContent = "Saving…";
+        api("/api/money/bizads/profile", "POST", { name: $("rpBizName").value, blurb: $("rpBizBlurb").value, link: $("rpBizLink").value, pic: picUrl }, 30000).then(function (r) {
+          sv.disabled = false; sv.textContent = "Save my business";
+          if (r.json && r.json.ok) { toast2("Saved 📣 — your ad is live on the Plaza home and in the Feed.", 4200); loadBizAdsHome224(); }
+          else toast2((r.json && r.json.error) || "That didn't save — try again.", 3600);
+        });
+      });
+    });
+  }
+  /* ---------- Business Ads: Plaza home slot [RP-V7.224] ---------- */
+  var bizHomeTimer224 = null, bizHomeAds224 = [], bizHomeIdx224 = 0;
+  function loadBizAdsHome224() {
+    var slot = $("rpBizAdSlot");
+    if (!slot) return;
+    if (!acctRec() || teen()) { slot.innerHTML = ""; return; }
+    api("/api/bizads", "GET").then(function (r) {
+      bizHomeAds224 = (r.json && r.json.ok && Array.isArray(r.json.ads)) ? r.json.ads : [];
+      bizHomeIdx224 = 0;
+      renderBizHomeAd224();
+      if (bizHomeTimer224) { clearInterval(bizHomeTimer224); bizHomeTimer224 = null; }
+      if (bizHomeAds224.length > 1) bizHomeTimer224 = setInterval(function () { bizHomeIdx224 = (bizHomeIdx224 + 1) % bizHomeAds224.length; renderBizHomeAd224(); }, 25000);
+    });
+  }
+  function renderBizHomeAd224() {
+    var slot = $("rpBizAdSlot"); if (!slot) return;
+    var ad = bizHomeAds224[bizHomeIdx224];
+    if (!ad) { slot.innerHTML = ""; return; }
+    slot.innerHTML =
+      '<div class="plaza-card rp-bizad-card" id="rpBizAdCard" style="margin-top:16px;" role="link" aria-label="Ad: ' + esc(ad.name) + '">' +
+      '<span class="rp-ad-tag">Ad</span>' +
+      (ad.pic ? '<img class="rp-bizad-img" src="' + esc(ad.pic) + '" alt=""/>' : '') +
+      '<div><h3>📣 ' + esc(ad.name) + '</h3>' + (ad.blurb ? '<p>' + esc(ad.blurb) + '</p>' : '') + '</div>' +
+      (ad.link ? '<span class="speed-btn">Visit →</span>' : '') +
+      '</div>';
+    var card = $("rpBizAdCard");
+    if (card && ad.link) card.addEventListener("click", function () { window.open(ad.link, "_blank", "noopener"); });
   }
 
   /* ---------- profile box: premium badge + entries ---------- */
@@ -33791,6 +33929,8 @@ button.rp72-chip{ cursor:pointer; }
     }
   } catch (e) { }
   if (acctRec()) refreshMoney();
+  if (acctRec()) loadBizAdsHome224(); // [RP-V7.224]
+  try { window.rpBizAdsRefresh = loadBizAdsHome224; } catch (e) { } // [RP-V7.224]
   setInterval(function () { if (acctRec() && !document.hidden) refreshMoney(); }, 60000);
 
   window.rpMoney = {
@@ -36918,6 +37058,8 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   }
 
   var posts = [];
+  var bizAds224 = []; // [RP-V7.224] active Business Ads for interleave (server returns [] to teens; the Feed is adult-only besides)
+  var bizAdOff224 = Math.floor(Math.random() * 997); // rotation offset so advertisers share the slots fairly across loads
   var viewedIds = {}; // [RP-V7.95] posts already view-reported this page load
   var adultOnly = false;
   var posting = false;
@@ -36931,6 +37073,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     loadFeed();
   }
   function loadFeed() {
+    api("/api/bizads", "GET").then(function (ar) { bizAds224 = (ar.json && ar.json.ok && Array.isArray(ar.json.ads)) ? ar.json.ads : []; }); // [RP-V7.224]
     var list = $("feedList"); if (!list) return;
     if (!posts.length) list.innerHTML = '<p class="feed-empty">Loading the Feed…</p>';
     api("/api/feed?limit=50", "GET").then(function (r) {
@@ -37092,9 +37235,31 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       if (empty) empty.hidden = true;
       return;
     }
-    list.innerHTML = posts.map(postHtml).join("");
+    list.innerHTML = feedHtmlWithAds224();
     if (empty) empty.hidden = posts.length > 0;
     observeViews(list); // [RP-V7.95]
+  }
+  /* [RP-V7.224] Business Ads interleave: one clearly-labeled ad card
+     after the 3rd post, then every 8 posts, cycling advertisers from
+     a per-load random offset (the server also rotates by the minute).
+     Ad cards carry no feed actions and no data-fid — view counting,
+     likes and findPost never touch them. */
+  function adHtml224(ad) {
+    return '<article class="feed-post rp-feed-ad" data-rpad="1" data-link="' + escF(ad.link || "") + '">' +
+      '<div class="feed-phead"><span class="feed-chip"><span><b>' + escF(ad.name) + '</b><small>Business</small></span></span><span class="rp-ad-tag" style="margin-left:auto;">Ad</span></div>' +
+      (ad.blurb ? '<p class="feed-text">' + escF(ad.blurb) + '</p>' : '') +
+      (ad.pic ? '<div class="feed-media"><img src="' + escF(ad.pic) + '" alt=""/></div>' : '') +
+      '</article>';
+  }
+  function feedHtmlWithAds224() {
+    var parts = posts.map(postHtml);
+    if (!bizAds224.length || parts.length < 3) return parts.join("");
+    var out = [], ai = bizAdOff224 % bizAds224.length;
+    for (var i = 0; i < parts.length; i++) {
+      out.push(parts[i]);
+      if (i === 2 || (i > 2 && (i - 2) % 8 === 0)) { out.push(adHtml224(bizAds224[ai % bizAds224.length])); ai++; }
+    }
+    return out.join("");
   }
   function findPost(id) { for (var i = 0; i < posts.length; i++) if (posts[i].id === id) return posts[i]; return null; }
 
@@ -37447,6 +37612,10 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     var inp = $("feedFileInput"); if (inp) inp.addEventListener("change", function () { if (inp.files && inp.files[0]) onFilePicked(inp.files[0]); });
     var post = $("feedPostBtn"); if (post) post.addEventListener("click", onPost);
     var list = $("feedList");
+    if (list) list.addEventListener("click", function (ev) { /* [RP-V7.224] a business ad card opens the advertiser's link */
+      var adEl = (ev.target && ev.target.closest) ? ev.target.closest("[data-rpad]") : null;
+      if (adEl) { var lk = adEl.getAttribute("data-link"); if (lk) window.open(lk, "_blank", "noopener"); }
+    });
     if (list) { /* [RP-V7.123] a horizontal swipe flips a set inside its card */
       var ftx123 = null;
       list.addEventListener("touchstart", function (ev) { ftx123 = ev.touches && ev.touches[0] ? ev.touches[0].clientX : null; }, { passive: true });
@@ -37678,6 +37847,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       row("⭐ Premium subscriptions", st.premiumSubsCents) +
       row("🎁 Gifts volume", st.giftsVolumeCents) +
       row("🔨 Auctions volume", st.auctionsVolumeCents) +
+      row("📣 Business Ads", st.bizadsCents == null ? null : st.bizadsCents,
+        (typeof st.bizadsActive === "number") ? '<div class="rp-os-note" style="margin-top:2px">' + st.bizadsActive + " active advertiser" + (st.bizadsActive === 1 ? "" : "s") + "</div>" : "") +
       row("🛍️ Store · Magniphiscents", st.storeCents == null ? null : st.storeCents,
         st.storeCents == null ? "" : '<div class="rp-os-note" style="margin-top:2px">Store total as of ' + esc2(st.storeAsOf || "") + "</div>") +
       "</div>";
@@ -37696,6 +37867,52 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       .catch(function () { return null; });
   }
   function osStop() { if (osTimer) { clearInterval(osTimer); osTimer = null; } }
+  /* [RP-V7.223] MAGNIPHISCENTS STORE VISIBILITY GATE (Branden, Nov 3,
+     2026: hide the Magniphiscents store that lives inside Rizz Plaza
+     "so nobody sees it until I want it seen"). The two member-facing
+     surfaces — the Plaza shop card (#rpMagniStoreCard) and the Earn
+     sheet's Shop commissions row (#rpMagniStoreEarnRow) — ship with
+     [hidden] set, so members and logged-out visitors never paint them
+     and the Shop Now link is never reachable. This gate uses the EXACT
+     owner signal as the sales board: only a 200 from
+     GET /api/owner/sales (the server 404s every non-owner) reveals
+     them, and only on the owner's own client; the owner sales board
+     itself (including its Store row and totals) is untouched, as are
+     all money paths. RESTORE for everyone: set
+     RP_MAGNI_STORE_OWNER_ONLY_7223 to false and reload — no markup,
+     product, or data was removed. To hide from everyone including the
+     owner instead, delete the magniStoreOwnerCheck() invocations. */
+  var RP_MAGNI_STORE_OWNER_ONLY_7223 = true;
+  function magniStoreApply(isOwner) {
+    var show = !RP_MAGNI_STORE_OWNER_ONLY_7223 || !!isOwner;
+    document.querySelectorAll(".rp-magni-store-surface").forEach(function (el) {
+      el.hidden = !show;
+      el.setAttribute("aria-hidden", show ? "false" : "true");
+    });
+    try { document.documentElement.classList.toggle("rp-magni-store-owner", show && !!isOwner); } catch (e) { }
+  }
+  function magniStoreOwnerCheck() {
+    if (!RP_MAGNI_STORE_OWNER_ONLY_7223) { magniStoreApply(false); return Promise.resolve(true); }
+    magniStoreApply(false);
+    return osFetch().then(function (d) { magniStoreApply(!!d); return !!d; });
+  }
+  window.rpMagniStoreOwnerCheck = magniStoreOwnerCheck;
+  magniStoreApply(false);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { magniStoreOwnerCheck(); });
+  else magniStoreOwnerCheck();
+  /* A sign-in / session sync in this tab re-runs the owner check, so
+     the owner sees the store without a reload and a sign-out (whose
+     sync carries no owner session) hides it again via the 404. */
+  try {
+    var rpAcctSyncPrev7223 = window.rpAcctSyncUser;
+    if (typeof rpAcctSyncPrev7223 === "function") {
+      window.rpAcctSyncUser = function (u) {
+        var r = rpAcctSyncPrev7223.apply(this, arguments);
+        try { magniStoreOwnerCheck(); } catch (e) { }
+        return r;
+      };
+    }
+  } catch (e) { }
   /* [RP-V7.209] Owner-only "Grant charms" panel. It rides the EXACT
      owner signal of the sales board above: it is created only inside
      rpOwnerSalesInit after GET /api/owner/sales has answered ok for
@@ -37757,6 +37974,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
   }
   window.rpOwnerSalesInit = function () {
     osFetch().then(function (d) {
+      magniStoreApply(!!d); // [RP-V7.223] keep the store gate on the board's verdict
       var sheet = document.getElementById("sheet");
       if (!sheet) return;
       var panel = document.getElementById("rpOwnerSales");
@@ -37782,6 +38000,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
           osFetch().then(function (d2) {
             var p2 = document.getElementById("rpOwnerSales");
             if (!p2) { osStop(); return; }
+            magniStoreApply(!!d2); // [RP-V7.223] refresh verdicts re-apply the store gate
             if (!d2) { p2.remove(); var gp2 = document.getElementById("rpOwnerGrant"); if (gp2) gp2.remove(); osStop(); return; }
             p2.innerHTML = window.rpOwnerSalesRender(d2) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
           });
@@ -38165,7 +38384,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       <div class="earn-row"><span class="earn-ric">💌</span><div><b>Profile tips<span class="earn-badge">COMING</span></b><p>Anyone can tip you right from your profile, any time.</p></div></div>
       <div class="earn-row"><span class="earn-ric">🎟️</span><div><b>Ticketed lives<span class="earn-badge">COMING</span></b><p>Charge at the door for concerts, classes, and showcases. Church is always free on Rizz Plaza.</p></div></div>
       <div class="earn-row"><span class="earn-ric">📣</span><div><b>Paid shoutouts<span class="earn-badge">COMING</span></b><p>Set your price for birthday shoutouts, song requests, and advice.</p></div></div>
-      <div class="earn-row"><span class="earn-ric">🛍️</span><div><b>Shop commissions<span class="earn-badge">COMING</span></b><p>Earn a cut selling Magniphiscents products in your lives and posts.</p></div></div>
+      <div class="earn-row rp-magni-store-surface" id="rpMagniStoreEarnRow" hidden aria-hidden="true"><span class="earn-ric">🛍️</span><div><b>Shop commissions<span class="earn-badge">COMING</span></b><p>Earn a cut selling Magniphiscents products in your lives and posts.</p></div></div>
       <div class="earn-row"><span class="earn-ric">👑</span><div><b>Fan clubs<span class="earn-badge">COMING</span></b><p>Paid memberships with member-only rooms.</p></div></div>
       <div class="earn-sec">How cash-out works</div>
       <div class="earn-note">Everything you earn lands in your Plaza wallet. At <b>$20</b> you cash out to your bank through Stripe. Cash earnings are <b>18+</b>; younger members earn charms. Plus: Daily Pots and Plaza Pots pay out <b>charms</b> every day — the Plaza Pot bursts live in hosted rooms, and both Daily Pots burst between 7–9 PM ET.</div>
