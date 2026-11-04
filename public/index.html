@@ -4547,6 +4547,12 @@
          player just moves on or stays quiet, never an error, never a
          broken button. The little SFX (taps, coins, wins) stay
          synthesized: they're sound effects, not music. */
+      /* [RP-V7.227] Music expansion: the 117 expansion tracks stream
+         from Cloudflare R2 (zero-egress public bucket); each carries an
+         absolute src below. The original 8 stay on the app server's
+         /audio/ path (no src) — ids, room defaults and favorites are
+         untouched. */
+      var AUDIO_R2 = "https://pub-36984ea881324a4d86f2d7923492fb87.r2.dev/";
       var TRACKS = [
         { id: "reggae", name: "🌿 Reggae Vibes", file: "reggae-vibes.mp3", bpm: 74, blurb: "Easy island groove — the Plaza default" },
         { id: "gospel", name: "⛪ Gospel Piano", file: "gospel-piano.mp3", bpm: 72, blurb: "Warm church piano — Christian Fellowship\u2019s sound" },
@@ -4555,7 +4561,125 @@
         { id: "lofi", name: "☕ Chill Lo-Fi", file: "chill-lofi.mp3", bpm: 80, blurb: "Mellow beats to hang out to" },
         { id: "island", name: "🏝️ Island Breeze", file: "island-breeze.mp3", bpm: 92, blurb: "Breezy tropical instrumental" },
         { id: "worship", name: "🕊️ Worship Strings", file: "worship-strings.mp3", bpm: 68, blurb: "Soft strings for quiet moments" },
-        { id: "dance", name: "💃 Dance Groove", file: "dance-groove.mp3", bpm: 120, blurb: "Full-energy dance instrumental" }
+        { id: "dance", name: "💃 Dance Groove", file: "dance-groove.mp3", bpm: 120, blurb: "Full-energy dance instrumental" },
+        /* [RP-V7.227] expansion shelf — generated from catalog-215.json */
+        { id: "hiphop", name: "🎤 Hip-Hop Beat", file: "hiphop-beats.mp3", src: AUDIO_R2 + "hiphop-beats.mp3", bpm: null, blurb: "Hard-hitting boom-bap beat" },
+        { id: "hiphop2", name: "Hip Hop Instrumental", file: "hiphop-2.mp3", src: AUDIO_R2 + "hiphop-2.mp3", bpm: null, blurb: "Hip-Hop · Plaza licensed" },
+        { id: "hiphop3", name: "Hip Hop Beat", file: "hiphop-3.mp3", src: AUDIO_R2 + "hiphop-3.mp3", bpm: null, blurb: "Hip-Hop · Plaza licensed" },
+        { id: "hiphop4", name: "Hip-Hop - Hip Hop Beat", file: "hiphop-4.mp3", src: AUDIO_R2 + "hiphop-4.mp3", bpm: null, blurb: "Hip-Hop · Plaza licensed" },
+        { id: "hiphop5", name: "Experimental Cinematic Hip-Hop", file: "hiphop-5.mp3", src: AUDIO_R2 + "hiphop-5.mp3", bpm: null, blurb: "Hip-Hop · Plaza licensed" },
+        { id: "trap", name: "🔥 Trap Beats", file: "trap-beats.mp3", src: AUDIO_R2 + "trap-beats.mp3", bpm: null, blurb: "Dark 808 trap instrumental" },
+        { id: "trap2", name: "Trap", file: "trap-2.mp3", src: AUDIO_R2 + "trap-2.mp3", bpm: null, blurb: "Trap · Plaza licensed" },
+        { id: "trap3", name: "Trap - Trap Music", file: "trap-3.mp3", src: AUDIO_R2 + "trap-3.mp3", bpm: null, blurb: "Trap · Plaza licensed" },
+        { id: "trap4", name: "Rap Trap Instrumental", file: "trap-4.mp3", src: AUDIO_R2 + "trap-4.mp3", bpm: null, blurb: "Trap · Plaza licensed" },
+        { id: "trap5", name: "Vlog - Vlog Beat", file: "trap-5.mp3", src: AUDIO_R2 + "trap-5.mp3", bpm: null, blurb: "Trap · Plaza licensed" },
+        { id: "rnb", name: "💜 R&B Soul", file: "rnb-soul.mp3", src: AUDIO_R2 + "rnb-soul.mp3", bpm: null, blurb: "Silky smooth R&B groove" },
+        { id: "rnb2", name: "RnB", file: "rnb-2.mp3", src: AUDIO_R2 + "rnb-2.mp3", bpm: null, blurb: "R&B / Soul · Plaza licensed" },
+        { id: "rnb3", name: "Rnb - Rnb Type Beat Beats", file: "rnb-3.mp3", src: AUDIO_R2 + "rnb-3.mp3", bpm: null, blurb: "R&B / Soul · Plaza licensed" },
+        { id: "rnb4", name: "Rnb Background", file: "rnb-4.mp3", src: AUDIO_R2 + "rnb-4.mp3", bpm: null, blurb: "R&B / Soul · Plaza licensed" },
+        { id: "rnb5", name: "Soul RnB", file: "rnb-5.mp3", src: AUDIO_R2 + "rnb-5.mp3", bpm: null, blurb: "R&B / Soul · Plaza licensed" },
+        { id: "funk", name: "🕺 Retro Funk", file: "funk-groove.mp3", src: AUDIO_R2 + "funk-groove.mp3", bpm: null, blurb: "Lightweight retro funk groove" },
+        { id: "funk2", name: "Funk Instrumental", file: "funk-2.mp3", src: AUDIO_R2 + "funk-2.mp3", bpm: null, blurb: "Funk · Plaza licensed" },
+        { id: "funk3", name: "Funk Instrumental", file: "funk-3.mp3", src: AUDIO_R2 + "funk-3.mp3", bpm: null, blurb: "Funk · Plaza licensed" },
+        { id: "funk4", name: "Joyful Rhythm Walk Funk", file: "funk-4.mp3", src: AUDIO_R2 + "funk-4.mp3", bpm: null, blurb: "Funk · Plaza licensed" },
+        { id: "funk5", name: "Funk", file: "funk-5.mp3", src: AUDIO_R2 + "funk-5.mp3", bpm: null, blurb: "Funk · Plaza licensed" },
+        { id: "gospelband", name: "🙌 Gospel Band", file: "gospel-band.mp3", src: AUDIO_R2 + "gospel-band.mp3", bpm: null, blurb: "Full worship band — church energy" },
+        { id: "gospel4", name: "Gospel Worship Choir Church Music", file: "gospel-4.mp3", src: AUDIO_R2 + "gospel-4.mp3", bpm: null, blurb: "Gospel / Worship · Plaza licensed" },
+        { id: "gospel5", name: "Gospel Choir Song - So We Sang", file: "gospel-5.mp3", src: AUDIO_R2 + "gospel-5.mp3", bpm: null, blurb: "Gospel / Worship · Plaza licensed" },
+        { id: "jazz", name: "🎷 Smooth Jazz", file: "smooth-jazz.mp3", src: AUDIO_R2 + "smooth-jazz.mp3", bpm: null, blurb: "Easy jazz club instrumental" },
+        { id: "jazz2", name: "Jazz Study Music", file: "jazz-2.mp3", src: AUDIO_R2 + "jazz-2.mp3", bpm: null, blurb: "Jazz · Plaza licensed" },
+        { id: "jazz3", name: "Jazz", file: "jazz-3.mp3", src: AUDIO_R2 + "jazz-3.mp3", bpm: null, blurb: "Jazz · Plaza licensed" },
+        { id: "jazz4", name: "Smooth Instrumental Jazz Music", file: "jazz-4.mp3", src: AUDIO_R2 + "jazz-4.mp3", bpm: null, blurb: "Jazz · Plaza licensed" },
+        { id: "jazz5", name: "Cool Jazz", file: "jazz-5.mp3", src: AUDIO_R2 + "jazz-5.mp3", bpm: null, blurb: "Jazz · Plaza licensed" },
+        { id: "blues", name: "🎸 Rainy Blues", file: "delta-blues.mp3", src: AUDIO_R2 + "delta-blues.mp3", bpm: null, blurb: "Blues jazz for a rainy night" },
+        { id: "blues2", name: "Blues", file: "blues-2.mp3", src: AUDIO_R2 + "blues-2.mp3", bpm: null, blurb: "Blues · Plaza licensed" },
+        { id: "blues3", name: "Blues Jazz Restaurant", file: "blues-3.mp3", src: AUDIO_R2 + "blues-3.mp3", bpm: null, blurb: "Blues · Plaza licensed" },
+        { id: "blues4", name: "Kansas Blues - Blues Rock Instrumental", file: "blues-4.mp3", src: AUDIO_R2 + "blues-4.mp3", bpm: null, blurb: "Blues · Plaza licensed" },
+        { id: "blues5", name: "Blues Rock Instrumental 69", file: "blues-5.mp3", src: AUDIO_R2 + "blues-5.mp3", bpm: null, blurb: "Blues · Plaza licensed" },
+        { id: "rock", name: "🎸 Rock Energy", file: "rock-instrumental.mp3", src: AUDIO_R2 + "rock-instrumental.mp3", bpm: null, blurb: "Energetic rock instrumental" },
+        { id: "rock2", name: "Action Rock Instrumental", file: "rock-2.mp3", src: AUDIO_R2 + "rock-2.mp3", bpm: null, blurb: "Rock · Plaza licensed" },
+        { id: "rock3", name: "Rock - Rock Music", file: "rock-3.mp3", src: AUDIO_R2 + "rock-3.mp3", bpm: null, blurb: "Rock · Plaza licensed" },
+        { id: "rock4", name: "Stylish Rock", file: "rock-4.mp3", src: AUDIO_R2 + "rock-4.mp3", bpm: null, blurb: "Rock · Plaza licensed" },
+        { id: "rock5", name: "Drive Rock", file: "rock-5.mp3", src: AUDIO_R2 + "rock-5.mp3", bpm: null, blurb: "Rock · Plaza licensed" },
+        { id: "country", name: "🤠 Country Roads", file: "country-roads.mp3", src: AUDIO_R2 + "country-roads.mp3", bpm: null, blurb: "American western country twang" },
+        { id: "country2", name: "Country - Country Music", file: "country-2.mp3", src: AUDIO_R2 + "country-2.mp3", bpm: null, blurb: "Country · Plaza licensed" },
+        { id: "country3", name: "Country", file: "country-3.mp3", src: AUDIO_R2 + "country-3.mp3", bpm: null, blurb: "Country · Plaza licensed" },
+        { id: "country4", name: "Country Texas Western Music", file: "country-4.mp3", src: AUDIO_R2 + "country-4.mp3", bpm: null, blurb: "Country · Plaza licensed" },
+        { id: "country5", name: "Country - Countryside", file: "country-5.mp3", src: AUDIO_R2 + "country-5.mp3", bpm: null, blurb: "Country · Plaza licensed" },
+        { id: "pop2", name: "Pop Upbeat - Upbeat Pop", file: "pop-2.mp3", src: AUDIO_R2 + "pop-2.mp3", bpm: null, blurb: "Pop · Plaza licensed" },
+        { id: "pop3", name: "Pop", file: "pop-3.mp3", src: AUDIO_R2 + "pop-3.mp3", bpm: null, blurb: "Pop · Plaza licensed" },
+        { id: "pop4", name: "80S Pop", file: "pop-4.mp3", src: AUDIO_R2 + "pop-4.mp3", bpm: null, blurb: "Pop · Plaza licensed" },
+        { id: "pop5", name: "Pop - Pop Music", file: "pop-5.mp3", src: AUDIO_R2 + "pop-5.mp3", bpm: null, blurb: "Pop · Plaza licensed" },
+        { id: "dance2", name: "Dance - Dance Music", file: "dance-2.mp3", src: AUDIO_R2 + "dance-2.mp3", bpm: null, blurb: "Dance · Plaza licensed" },
+        { id: "dance3", name: "Dance Music", file: "dance-3.mp3", src: AUDIO_R2 + "dance-3.mp3", bpm: null, blurb: "Dance · Plaza licensed" },
+        { id: "dance4", name: "Storm Dance", file: "dance-4.mp3", src: AUDIO_R2 + "dance-4.mp3", bpm: null, blurb: "Dance · Plaza licensed" },
+        { id: "dance5", name: "Party Dance", file: "dance-5.mp3", src: AUDIO_R2 + "dance-5.mp3", bpm: null, blurb: "Dance · Plaza licensed" },
+        { id: "edm", name: "🎧 EDM House", file: "house-edm.mp3", src: AUDIO_R2 + "house-edm.mp3", bpm: null, blurb: "Tech house EDM energy" },
+        { id: "edm2", name: "Club Music Instrumental", file: "edm-2.mp3", src: AUDIO_R2 + "edm-2.mp3", bpm: null, blurb: "EDM / House · Plaza licensed" },
+        { id: "edm3", name: "Electro House", file: "edm-3.mp3", src: AUDIO_R2 + "edm-3.mp3", bpm: null, blurb: "EDM / House · Plaza licensed" },
+        { id: "edm4", name: "Future House", file: "edm-4.mp3", src: AUDIO_R2 + "edm-4.mp3", bpm: null, blurb: "EDM / House · Plaza licensed" },
+        { id: "edm5", name: "Club House", file: "edm-5.mp3", src: AUDIO_R2 + "edm-5.mp3", bpm: null, blurb: "EDM / House · Plaza licensed" },
+        { id: "disco", name: "🪩 Disco Night", file: "disco-night.mp3", src: AUDIO_R2 + "disco-night.mp3", bpm: null, blurb: "Disco funk dance floor" },
+        { id: "disco2", name: "Disco Party", file: "disco-2.mp3", src: AUDIO_R2 + "disco-2.mp3", bpm: null, blurb: "Disco · Plaza licensed" },
+        { id: "disco3", name: "Disco Party", file: "disco-3.mp3", src: AUDIO_R2 + "disco-3.mp3", bpm: null, blurb: "Disco · Plaza licensed" },
+        { id: "disco4", name: "Italo Disco", file: "disco-4.mp3", src: AUDIO_R2 + "disco-4.mp3", bpm: null, blurb: "Disco · Plaza licensed" },
+        { id: "disco5", name: "Disco", file: "disco-5.mp3", src: AUDIO_R2 + "disco-5.mp3", bpm: null, blurb: "Disco · Plaza licensed" },
+        { id: "latin", name: "🌶️ Latin Heat", file: "latin-heat.mp3", src: AUDIO_R2 + "latin-heat.mp3", bpm: null, blurb: "Latin dance instrumental" },
+        { id: "latin2", name: "Latin - Latin Music", file: "latin-2.mp3", src: AUDIO_R2 + "latin-2.mp3", bpm: null, blurb: "Latin · Plaza licensed" },
+        { id: "latin3", name: "Latin - Latin Mexican Salsa Music", file: "latin-3.mp3", src: AUDIO_R2 + "latin-3.mp3", bpm: null, blurb: "Latin · Plaza licensed" },
+        { id: "latin4", name: "Latin Spain Spanish", file: "latin-4.mp3", src: AUDIO_R2 + "latin-4.mp3", bpm: null, blurb: "Latin · Plaza licensed" },
+        { id: "latin5", name: "Latin Spanish Music", file: "latin-5.mp3", src: AUDIO_R2 + "latin-5.mp3", bpm: null, blurb: "Latin · Plaza licensed" },
+        { id: "afrobeat", name: "🥁 Afrobeat Groove", file: "afrobeat-groove.mp3", src: AUDIO_R2 + "afrobeat-groove.mp3", bpm: null, blurb: "Percussive afrobeat instrumental" },
+        { id: "afrobeat2", name: "Afrobeat Instrumental Summer Groove", file: "afrobeat-2.mp3", src: AUDIO_R2 + "afrobeat-2.mp3", bpm: null, blurb: "Afrobeat · Plaza licensed" },
+        { id: "afrobeat3", name: "Afrobeat Afro Beat", file: "afrobeat-3.mp3", src: AUDIO_R2 + "afrobeat-3.mp3", bpm: null, blurb: "Afrobeat · Plaza licensed" },
+        { id: "afrobeat4", name: "Afrobeat Afro Beat", file: "afrobeat-4.mp3", src: AUDIO_R2 + "afrobeat-4.mp3", bpm: null, blurb: "Afrobeat · Plaza licensed" },
+        { id: "afrobeat5", name: "Afrobeat Instrumental Music", file: "afrobeat-5.mp3", src: AUDIO_R2 + "afrobeat-5.mp3", bpm: null, blurb: "Afrobeat · Plaza licensed" },
+        { id: "reggae2", name: "Instrumental (Reggae Funky)", file: "reggae-2.mp3", src: AUDIO_R2 + "reggae-2.mp3", bpm: null, blurb: "Reggae · Plaza licensed" },
+        { id: "reggae3", name: "Instrumental (Reggae Fusion)", file: "reggae-3.mp3", src: AUDIO_R2 + "reggae-3.mp3", bpm: null, blurb: "Reggae · Plaza licensed" },
+        { id: "reggae4", name: "Reggae", file: "reggae-4.mp3", src: AUDIO_R2 + "reggae-4.mp3", bpm: null, blurb: "Reggae · Plaza licensed" },
+        { id: "reggae5", name: "reggae punchy", file: "reggae-5.mp3", src: AUDIO_R2 + "reggae-5.mp3", bpm: null, blurb: "Reggae · Plaza licensed" },
+        { id: "island2", name: "Calm Cove (Tropical Chill Beat)", file: "island-2.mp3", src: AUDIO_R2 + "island-2.mp3", bpm: null, blurb: "Island / Tropical · Plaza licensed" },
+        { id: "island3", name: "Summer Instrumental", file: "island-3.mp3", src: AUDIO_R2 + "island-3.mp3", bpm: null, blurb: "Island / Tropical · Plaza licensed" },
+        { id: "island4", name: "Tropical House", file: "island-4.mp3", src: AUDIO_R2 + "island-4.mp3", bpm: null, blurb: "Island / Tropical · Plaza licensed" },
+        { id: "island5", name: "Tropical Lounge", file: "island-5.mp3", src: AUDIO_R2 + "island-5.mp3", bpm: null, blurb: "Island / Tropical · Plaza licensed" },
+        { id: "lofi2", name: "Good Night - Lofi Cozy Chill Music", file: "lofi-2.mp3", src: AUDIO_R2 + "lofi-2.mp3", bpm: null, blurb: "Lo-Fi · Plaza licensed" },
+        { id: "lofi3", name: "Lofi — Moon Light", file: "lofi-3.mp3", src: AUDIO_R2 + "lofi-3.mp3", bpm: null, blurb: "Lo-Fi · Plaza licensed" },
+        { id: "lofi4", name: "Chill Beats", file: "lofi-4.mp3", src: AUDIO_R2 + "lofi-4.mp3", bpm: null, blurb: "Lo-Fi · Plaza licensed" },
+        { id: "lofi5", name: "Chillhop Music", file: "lofi-5.mp3", src: AUDIO_R2 + "lofi-5.mp3", bpm: null, blurb: "Lo-Fi · Plaza licensed" },
+        { id: "piano2", name: "Calm Piano", file: "piano-2.mp3", src: AUDIO_R2 + "piano-2.mp3", bpm: null, blurb: "Piano / Soft · Plaza licensed" },
+        { id: "piano3", name: "To The Clouds (Soft Piano)", file: "piano-3.mp3", src: AUDIO_R2 + "piano-3.mp3", bpm: null, blurb: "Piano / Soft · Plaza licensed" },
+        { id: "piano4", name: "Autumn Piano", file: "piano-4.mp3", src: AUDIO_R2 + "piano-4.mp3", bpm: null, blurb: "Piano / Soft · Plaza licensed" },
+        { id: "piano5", name: "Piano Soft Gentle Morning Keys", file: "piano-5.mp3", src: AUDIO_R2 + "piano-5.mp3", bpm: null, blurb: "Piano / Soft · Plaza licensed" },
+        { id: "folk", name: "🪕 Acoustic Folk", file: "acoustic-folk.mp3", src: AUDIO_R2 + "acoustic-folk.mp3", bpm: null, blurb: "Warm acoustic folk picking" },
+        { id: "folk2", name: "Acoustic Indie Folk", file: "folk-2.mp3", src: AUDIO_R2 + "folk-2.mp3", bpm: null, blurb: "Acoustic Folk · Plaza licensed" },
+        { id: "folk3", name: "Indie Acoustic", file: "folk-3.mp3", src: AUDIO_R2 + "folk-3.mp3", bpm: null, blurb: "Acoustic Folk · Plaza licensed" },
+        { id: "folk4", name: "Acoustic Guitar Music", file: "folk-4.mp3", src: AUDIO_R2 + "folk-4.mp3", bpm: null, blurb: "Acoustic Folk · Plaza licensed" },
+        { id: "folk5", name: "Folk", file: "folk-5.mp3", src: AUDIO_R2 + "folk-5.mp3", bpm: null, blurb: "Acoustic Folk · Plaza licensed" },
+        { id: "classical", name: "🎻 Classical Strings", file: "classical-strings.mp3", src: AUDIO_R2 + "classical-strings.mp3", bpm: null, blurb: "Orchestral classical strings" },
+        { id: "classical2", name: "Instrumental Classical", file: "classical-2.mp3", src: AUDIO_R2 + "classical-2.mp3", bpm: null, blurb: "Classical · Plaza licensed" },
+        { id: "classical3", name: "Classical", file: "classical-3.mp3", src: AUDIO_R2 + "classical-3.mp3", bpm: null, blurb: "Classical · Plaza licensed" },
+        { id: "classical4", name: "Classical - Classical Song", file: "classical-4.mp3", src: AUDIO_R2 + "classical-4.mp3", bpm: null, blurb: "Classical · Plaza licensed" },
+        { id: "classical5", name: "Classical - Classical Piano", file: "classical-5.mp3", src: AUDIO_R2 + "classical-5.mp3", bpm: null, blurb: "Classical · Plaza licensed" },
+        { id: "cinematic", name: "🎬 Epic Cinematic", file: "cinematic-epic.mp3", src: AUDIO_R2 + "cinematic-epic.mp3", bpm: null, blurb: "Epic action trailer orchestra" },
+        { id: "cinematic2", name: "Epic Cinematic", file: "cinematic-2.mp3", src: AUDIO_R2 + "cinematic-2.mp3", bpm: null, blurb: "Cinematic / Epic · Plaza licensed" },
+        { id: "cinematic3", name: "Cinematic Epic", file: "cinematic-3.mp3", src: AUDIO_R2 + "cinematic-3.mp3", bpm: null, blurb: "Cinematic / Epic · Plaza licensed" },
+        { id: "cinematic4", name: "Epic Cinematic", file: "cinematic-4.mp3", src: AUDIO_R2 + "cinematic-4.mp3", bpm: null, blurb: "Cinematic / Epic · Plaza licensed" },
+        { id: "cinematic5", name: "Epic - Cinematic Epic", file: "cinematic-5.mp3", src: AUDIO_R2 + "cinematic-5.mp3", bpm: null, blurb: "Cinematic / Epic · Plaza licensed" },
+        { id: "kids", name: "🧸 Happy Kids", file: "kids-happy.mp3", src: AUDIO_R2 + "kids-happy.mp3", bpm: null, blurb: "Bright happy kids & family tune" },
+        { id: "kids2", name: "Kids - Kids Music", file: "kids-2.mp3", src: AUDIO_R2 + "kids-2.mp3", bpm: null, blurb: "Kids & Family · Plaza licensed" },
+        { id: "kids3", name: "Kids - Kids Happy Music", file: "kids-3.mp3", src: AUDIO_R2 + "kids-3.mp3", bpm: null, blurb: "Kids & Family · Plaza licensed" },
+        { id: "kids4", name: "Kids - Kids Happy Music", file: "kids-4.mp3", src: AUDIO_R2 + "kids-4.mp3", bpm: null, blurb: "Kids & Family · Plaza licensed" },
+        { id: "kids5", name: "Kids - Kids Happy Music", file: "kids-5.mp3", src: AUDIO_R2 + "kids-5.mp3", bpm: null, blurb: "Kids & Family · Plaza licensed" },
+        { id: "ambient", name: "🌊 Ambient Chill", file: "ambient-chill.mp3", src: AUDIO_R2 + "ambient-chill.mp3", bpm: null, blurb: "Chillout ambient wash" },
+        { id: "ambient2", name: "Chillout", file: "ambient-2.mp3", src: AUDIO_R2 + "ambient-2.mp3", bpm: null, blurb: "Ambient / Chillout · Plaza licensed" },
+        { id: "ambient3", name: "Better Day", file: "ambient-3.mp3", src: AUDIO_R2 + "ambient-3.mp3", bpm: null, blurb: "Ambient / Chillout · Plaza licensed" },
+        { id: "ambient4", name: "Chillout Ambient Minimal", file: "ambient-4.mp3", src: AUDIO_R2 + "ambient-4.mp3", bpm: null, blurb: "Ambient / Chillout · Plaza licensed" },
+        { id: "ambient5", name: "Ambient Emotional Ambient Background", file: "ambient-5.mp3", src: AUDIO_R2 + "ambient-5.mp3", bpm: null, blurb: "Ambient / Chillout · Plaza licensed" },
+        { id: "dnb", name: "⚡ Drum & Bass", file: "drum-and-bass.mp3", src: AUDIO_R2 + "drum-and-bass.mp3", bpm: null, blurb: "Fast drum & bass jungle" },
+        { id: "dnb2", name: "Drum and Bass - Drum & Bass", file: "dnb-2.mp3", src: AUDIO_R2 + "dnb-2.mp3", bpm: null, blurb: "Drum & Bass · Plaza licensed" },
+        { id: "dnb3", name: "Drum and Bass", file: "dnb-3.mp3", src: AUDIO_R2 + "dnb-3.mp3", bpm: null, blurb: "Drum & Bass · Plaza licensed" },
+        { id: "dnb4", name: "Drum & Bass - DnB Music - D&B - Drum And Bass", file: "dnb-4.mp3", src: AUDIO_R2 + "dnb-4.mp3", bpm: null, blurb: "Drum & Bass · Plaza licensed" },
+        { id: "dnb5", name: "Doom Drum and Bass Full", file: "dnb-5.mp3", src: AUDIO_R2 + "dnb-5.mp3", bpm: null, blurb: "Drum & Bass · Plaza licensed" }
       ];
       /* Compat shape for the music system's BPM lookup: AudioFX.genre()
          returns a track id, and GENRES[id].bpm gives its tempo. */
@@ -4619,7 +4743,7 @@
           var t = trackById(id);
           curTrack = id;
           var a = ensureAudio();
-          var url = AUDIO_BASE + t.file;
+          var url = t.src || (AUDIO_BASE + t.file); // [RP-V7.227] src = R2-hosted expansion track
           if (a.getAttribute("src") !== url) { try { a.src = url; } catch (e) { } }
           a.volume = effVol();
           a.muted = muted;
@@ -38491,8 +38615,12 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
 
     /* ---------- sound catalog maps (mirror the server's SOUND_TRACKS) ---------- */
-    var SND_FAM = { reggae: "music", gospel: "faith", soft: "music", party: "music", lofi: "music", island: "music", worship: "faith", dance: "dance" };
-    var SND_DUR = { reggae: 155, gospel: 206, soft: 172, party: 103, lofi: 214, island: 168, worship: 206, dance: 103 };
+    var SND_FAM = { reggae: "music", gospel: "faith", soft: "music", party: "music", lofi: "music", island: "music", worship: "faith", dance: "dance", hiphop: "music", hiphop2: "music", hiphop3: "music", hiphop4: "music", hiphop5: "music", trap: "music", trap2: "music", trap3: "music", trap4: "music", trap5: "music", rnb: "music", rnb2: "music", rnb3: "music", rnb4: "music", rnb5: "music", funk: "music", funk2: "music", funk3: "music", funk4: "music", funk5: "music", gospelband: "faith", gospel4: "faith", gospel5: "faith", jazz: "music", jazz2: "music", jazz3: "music", jazz4: "music", jazz5: "music", blues: "music", blues2: "music", blues3: "music", blues4: "music", blues5: "music", rock: "music", rock2: "music", rock3: "music", rock4: "music", rock5: "music", country: "music", country2: "music", country3: "music", country4: "music", country5: "music", pop2: "music", pop3: "music", pop4: "music", pop5: "music", dance2: "dance", dance3: "dance", dance4: "dance", dance5: "dance", edm: "dance", edm2: "dance", edm3: "dance", edm4: "dance", edm5: "dance", disco: "dance", disco2: "dance", disco3: "dance", disco4: "dance", disco5: "dance", latin: "music", latin2: "music", latin3: "music", latin4: "music", latin5: "music", afrobeat: "music", afrobeat2: "music", afrobeat3: "music", afrobeat4: "music", afrobeat5: "music", reggae2: "music", reggae3: "music", reggae4: "music", reggae5: "music", island2: "music", island3: "music", island4: "music", island5: "music", lofi2: "music", lofi3: "music", lofi4: "music", lofi5: "music", piano2: "music", piano3: "music", piano4: "music", piano5: "music", folk: "music", folk2: "music", folk3: "music", folk4: "music", folk5: "music", classical: "music", classical2: "music", classical3: "music", classical4: "music", classical5: "music", cinematic: "music", cinematic2: "music", cinematic3: "music", cinematic4: "music", cinematic5: "music", kids: "music", kids2: "music", kids3: "music", kids4: "music", kids5: "music", ambient: "music", ambient2: "music", ambient3: "music", ambient4: "music", ambient5: "music", dnb: "music", dnb2: "music", dnb3: "music", dnb4: "music", dnb5: "music" };
+    var SND_DUR = { reggae: 155, gospel: 206, soft: 172, party: 103, lofi: 214, island: 168, worship: 206, dance: 103, hiphop: 100, hiphop2: 96, hiphop3: 110, hiphop4: 163, hiphop5: 140, trap: 138, trap2: 78, trap3: 64, trap4: 93, trap5: 133, rnb: 159, rnb2: 111, rnb3: 145, rnb4: 141, rnb5: 175, funk: 88, funk2: 125, funk3: 101, funk4: 138, funk5: 100, gospelband: 96, gospel4: 176, gospel5: 150, jazz: 140, jazz2: 183, jazz3: 115, jazz4: 166, jazz5: 165, blues: 210, blues2: 213, blues3: 209, blues4: 149, blues5: 134, rock: 114, rock2: 93, rock3: 87, rock4: 172, rock5: 114, country: 139, country2: 96, country3: 116, country4: 84, country5: 78, pop2: 103, pop3: 123, pop4: 179, pop5: 154, dance2: 110, dance3: 173, dance4: 192, dance5: 117, edm: 149, edm2: 137, edm3: 154, edm4: 126, edm5: 145, disco: 73, disco2: 107, disco3: 168, disco4: 155, disco5: 164, latin: 240, latin2: 345, latin3: 138, latin4: 66, latin5: 121, afrobeat: 186, afrobeat2: 143, afrobeat3: 145, afrobeat4: 96, afrobeat5: 194, reggae2: 240, reggae3: 155, reggae4: 143, reggae5: 168, island2: 187, island3: 155, island4: 94, island5: 142, lofi2: 147, lofi3: 128, lofi4: 119, lofi5: 147, piano2: 112, piano3: 170, piano4: 143, piano5: 133, folk: 102, folk2: 63, folk3: 83, folk4: 129, folk5: 102, classical: 248, classical2: 132, classical3: 122, classical4: 154, classical5: 138, cinematic: 71, cinematic2: 106, cinematic3: 110, cinematic4: 156, cinematic5: 167, kids: 107, kids2: 170, kids3: 122, kids4: 126, kids5: 85, ambient: 149, ambient2: 126, ambient3: 91, ambient4: 140, ambient5: 132, dnb: 199, dnb2: 92, dnb3: 143, dnb4: 61, dnb5: 200 };
+    /* [RP-V7.227] genre shelf: every track's genre + the 25 section headers/order */
+    var SND_GENRE = { reggae: "reggae", gospel: "gospel", soft: "piano", party: "pop", lofi: "lofi", island: "island", worship: "gospel", dance: "dance", hiphop: "hiphop", hiphop2: "hiphop", hiphop3: "hiphop", hiphop4: "hiphop", hiphop5: "hiphop", trap: "trap", trap2: "trap", trap3: "trap", trap4: "trap", trap5: "trap", rnb: "rnb", rnb2: "rnb", rnb3: "rnb", rnb4: "rnb", rnb5: "rnb", funk: "funk", funk2: "funk", funk3: "funk", funk4: "funk", funk5: "funk", gospelband: "gospel", gospel4: "gospel", gospel5: "gospel", jazz: "jazz", jazz2: "jazz", jazz3: "jazz", jazz4: "jazz", jazz5: "jazz", blues: "blues", blues2: "blues", blues3: "blues", blues4: "blues", blues5: "blues", rock: "rock", rock2: "rock", rock3: "rock", rock4: "rock", rock5: "rock", country: "country", country2: "country", country3: "country", country4: "country", country5: "country", pop2: "pop", pop3: "pop", pop4: "pop", pop5: "pop", dance2: "dance", dance3: "dance", dance4: "dance", dance5: "dance", edm: "edm", edm2: "edm", edm3: "edm", edm4: "edm", edm5: "edm", disco: "disco", disco2: "disco", disco3: "disco", disco4: "disco", disco5: "disco", latin: "latin", latin2: "latin", latin3: "latin", latin4: "latin", latin5: "latin", afrobeat: "afrobeat", afrobeat2: "afrobeat", afrobeat3: "afrobeat", afrobeat4: "afrobeat", afrobeat5: "afrobeat", reggae2: "reggae", reggae3: "reggae", reggae4: "reggae", reggae5: "reggae", island2: "island", island3: "island", island4: "island", island5: "island", lofi2: "lofi", lofi3: "lofi", lofi4: "lofi", lofi5: "lofi", piano2: "piano", piano3: "piano", piano4: "piano", piano5: "piano", folk: "folk", folk2: "folk", folk3: "folk", folk4: "folk", folk5: "folk", classical: "classical", classical2: "classical", classical3: "classical", classical4: "classical", classical5: "classical", cinematic: "cinematic", cinematic2: "cinematic", cinematic3: "cinematic", cinematic4: "cinematic", cinematic5: "cinematic", kids: "kids", kids2: "kids", kids3: "kids", kids4: "kids", kids5: "kids", ambient: "ambient", ambient2: "ambient", ambient3: "ambient", ambient4: "ambient", ambient5: "ambient", dnb: "dnb", dnb2: "dnb", dnb3: "dnb", dnb4: "dnb", dnb5: "dnb" };
+    var SND_GENRE_NAME = { hiphop: "Hip-Hop", trap: "Trap", rnb: "R&B / Soul", funk: "Funk", gospel: "Gospel / Worship", jazz: "Jazz", blues: "Blues", rock: "Rock", country: "Country", pop: "Pop", dance: "Dance", edm: "EDM / House", disco: "Disco", latin: "Latin", afrobeat: "Afrobeat", reggae: "Reggae", island: "Island / Tropical", lofi: "Lo-Fi", piano: "Piano / Soft", folk: "Acoustic Folk", classical: "Classical", cinematic: "Cinematic / Epic", kids: "Kids & Family", ambient: "Ambient / Chillout", dnb: "Drum & Bass" };
+    var SND_GENRE_ORDER = ["hiphop", "trap", "rnb", "funk", "gospel", "jazz", "blues", "rock", "country", "pop", "dance", "edm", "disco", "latin", "afrobeat", "reggae", "island", "lofi", "piano", "folk", "classical", "cinematic", "kids", "ambient", "dnb"];
     function trackById(id) {
       for (var i = 0; i < TRACKS.length; i++) if (TRACKS[i].id === id) return TRACKS[i];
       return null;
@@ -38511,7 +38639,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     function sndPlay() { var a = sndEl(); if (!a) return; var p = null; try { p = a.play(); } catch (e) { } if (p && p.catch) p.catch(function () { }); }
     function sndSetTrack(id) {
       var a = sndEl(), t = trackById(id); if (!a || !t) return;
-      var url = "/audio/" + t.file;
+      var url = t.src || ("/audio/" + t.file); // [RP-V7.227] src = R2-hosted expansion track
       if (a.getAttribute("src") !== url) { try { a.src = url; } catch (e) { } }
     }
     function sndStop(owner) {
@@ -38619,8 +38747,12 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         html += sect("favs", "★ Favorites" + (Snd.signedIn ? "" : " (this device)"), favIds);
         var recIds = (Snd.recents || []).filter(function (id) { return !!trackById(id); });
         html += sect("recent", "🕘 Recent", recIds);
-        var anyStyle = false; for (var k in (Snd.style || {})) if (Snd.style[k] > 0) anyStyle = true;
-        html += sect("foryou", Snd.signedIn && anyStyle ? "✨ For you" : "🎶 All sounds", trackOrder());
+        // [RP-V7.227] The shelf browses by genre: trackOrder() (the
+        // member's style weights + Plaza usage — unchanged math)
+        // grouped under the 25 genre headers.
+        var byGenre = {};
+        trackOrder().forEach(function (id) { var g = SND_GENRE[id] || "misc"; (byGenre[g] || (byGenre[g] = [])).push(id); });
+        SND_GENRE_ORDER.forEach(function (g) { html += sect("genre-" + g, "🎶 " + (SND_GENRE_NAME[g] || g), byGenre[g] || []); });
       }
       list.innerHTML = html;
       var tb = el("sndTrimBox");
