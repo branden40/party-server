@@ -5773,8 +5773,9 @@
           potCoin: function () { if (!ready()) return; var t = now(); if (t - (api._pcAt || -1) < 0.3) return; api._pcAt = t; var k = 1; try { var talking = (typeof selfSpeaking === "function" && selfSpeaking()) || false; if (!talking && typeof Online !== "undefined" && Online && Online.players) { for (var pid in Online.players) { if (Online.players[pid] && Online.players[pid].speaking) { talking = true; break; } } } if (talking) k = 0.22; else if (typeof Live !== "undefined" && Live && Live.active) k = 0.5; } catch (e) { } var d = 0.97 + Math.random() * 0.06, lt = t + 0.46; tone({ f: 2093 * d, t: lt, dur: 0.24, type: "sine", vol: 0.13 * k }); tone({ f: 2960 * d, t: lt, dur: 0.15, type: "sine", vol: 0.07 * k }); tone({ f: 4186 * d, t: lt, dur: 0.09, type: "sine", vol: 0.04 * k }); tone({ f: 318, slide: 176, t: lt, dur: 0.17, type: "sine", vol: 0.20 * k }); tone({ f: 523 * d, t: lt, dur: 0.10, type: "sine", vol: 0.06 * k }); noiseS({ t: lt, dur: 0.03, vol: 0.10 * k, type: "highpass", freq: 5200 }); }, // [RP-V7.159] voices first (Branden): inside a live the clink sits at half under the host, and while anyone is actually talking it tucks to a whisper (k=0.22) — it never talks over the room // [RP-V7.158] a REAL coin landing in a metal pot (Branden): bright metal partials + the pot body's hollow resonance, timed to land with the drop animation; pitch wobbles slightly per gift so no two sound stamped out. NOT the V7.39 blip — coin() stays silenced.
           gift: function () { if (!ready()) return; var t = now(); tone({ f: 420, slide: 160, t: t, dur: 0.09, type: "sine", vol: 0.22 }); tone({ f: 1568, t: t + 0.06, dur: 0.30, type: "sine", vol: 0.07 }); tone({ f: 2093, t: t + 0.12, dur: 0.38, type: "sine", vol: 0.05 }); noiseS({ t: t + 0.05, dur: 0.06, vol: 0.03, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.39] soft pop + glassy chime sparkle — the gift sound (original design, no square waves)
           giftBig: function () { if (!ready()) return; var t = now(); api.gift(); [523, 659, 784, 1047].forEach(function (f, i) { tone({ f: f, t: t + 0.05 + i * 0.07, dur: 0.5, type: "sine", vol: 0.08 }); }); noiseS({ t: t + 0.1, dur: 0.22, vol: 0.035, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.39] big/prestige gifts: the gift sound + a warm rising arpeggio and a longer sparkle — [RP-V7.229] no longer the gift-SEND sound (see chaChingBig); gift()/giftBig() now serve the pot bursts only
-          chaChing: function () { if (!ready()) return; chaChingSfx(now(), false); }, // [RP-V7.229] a cash-register cha-ching, very short — synthesized by chaChingSfx below, no samples — [RP-V7.231] FINAL SCOPE (Branden, Nov 4): the RECEIVE sound for picture/video gifts ONLY (giftObserved) — never played when giving; giving a post gift uses gift()/giftBig(), giving live is silent
+          chaChing: function () { if (!ready()) return; chaChingSfx(now(), false); }, // [RP-V7.229] a cash-register cha-ching, very short — synthesized by chaChingSfx below, no samples — [RP-V7.232] FINAL SCOPE (Branden, Nov 4): the RECEIVE sound for picture/video gifts ONLY (giftObserved) — never played when giving; giving a PICTURE/VIDEO plays one small beep instead (AudioFX.beep) and giving live stays silent
           chaChingBig: function () { if (!ready()) return; chaChingSfx(now(), true); }, // [RP-V7.231] big/prestige picture/video gift RECEIPTS: the same cha-ching with a third bell strike — still done in under half a second
+          beep: function () { if (!ready()) return; tone({ f: 880, t: now(), dur: 0.1, type: "sine", vol: 0.08 }); }, // [RP-V7.232] ONE SMALL BEEP — the only gift-SEND sound (Branden, Nov 4: "Or make it a small beep"): a single soft 880 Hz blip, ~0.1s, low volume — no chime, no arpeggio, no second tone. Played on PICTURE/VIDEO gift sends only (sendGift, non-live side) — live gift sends stay silent; receiving a picture/video gift keeps the cha-ching above
           deal: function () { if (!ready()) return; var t = now(); noiseS({ t: t, dur: 0.07, vol: 0.16, type: "highpass", freq: 2400 }); noiseS({ t: t + 0.05, dur: 0.05, vol: 0.10, type: "bandpass", freq: 3200, q: 1.4 }); },
           chip: function () { if (!ready()) return; var t = now(); tone({ f: 2350, t: t, dur: 0.03, type: "square", vol: 0.09 }); tone({ f: 1880, t: t + 0.045, dur: 0.04, type: "square", vol: 0.10 }); noiseS({ t: t + 0.045, dur: 0.03, vol: 0.08, type: "highpass", freq: 4000 }); },
           bump: function () { if (!ready()) return; tone({ f: 130, slide: 70, t: now(), dur: 0.07, type: "sine", vol: 0.14 }); }, // [RP-V7.39] UI error/negative thud, softened (same low sine shape, quieter — was vol 0.22)
@@ -21162,20 +21163,22 @@
         }
         charms -= total219; saveWallet(); updateHUD(); // [RP-V7.25] persist the gift debit
         closeSheet();
-        // [RP-V7.231] SEND SOUND by context (Branden, Nov 4, final word):
-        // gifting LIVE is SILENT — no send sound at all on the live path
-        // (the call V7.229 put here is REMOVED for lives). Gifting a
-        // PICTURE/VIDEO — Feed/Photos posts, Reels, Home slides,
-        // Stories: every send made while NOT joined to a live room —
-        // keeps the ORIGINAL pre-V7.229 sound (gift()/giftBig()); the
-        // cha-ching is NOT a giving sound anywhere (it plays only when
-        // a picture/video gift is RECEIVED — see giftObserved).
+        // [RP-V7.232] SEND SOUND by context (Branden, Nov 4, final
+        // word: the small beep is "just pictures and videos").
+        // Gifting LIVE is SILENT — no send sound at all on the live
+        // path (unchanged from V7.231). Gifting a PICTURE/VIDEO —
+        // Feed/Photos posts, Reels, Home slides, Stories: every send
+        // made while NOT joined to a live room — plays ONE SMALL BEEP
+        // (AudioFX.beep(), a single soft ~0.1s blip) INSTEAD of the
+        // original gift()/giftBig() pop V7.231 kept there. The
+        // cha-ching is NOT a giving sound anywhere — it plays only
+        // when a picture/video gift is RECEIVED (see giftObserved).
         // Discriminator: inLiveRoom(), the room test this same flow
         // already trusts below for the live gift feed (joined to a
         // live room id with the socket on/reconnecting = a live send;
         // anything else = a post send). Pot bursts keep gift();
         // coin() stays silenced.
-        try { if (!(typeof inLiveRoom === "function" && inLiveRoom())) { if (g && (g.tier === "big" || g.tier === "prestige")) AudioFX.giftBig(); else AudioFX.gift(); } } catch (e) { }
+        try { if (!(typeof inLiveRoom === "function" && inLiveRoom())) AudioFX.beep(); } catch (e) { }
         // [RP-V7.219] the count rides a COPY of the gift (__cnt) into
         // the show layer — banner/stage streaks advance by the batch;
         // the shared catalog entry is never mutated.
