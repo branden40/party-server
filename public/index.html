@@ -3462,50 +3462,26 @@
               <input type="text" id="nameInput" maxlength="16" placeholder="e.g. Alex" autocomplete="off" />
               <label style="margin-top:14px;">Gender</label>
               <div class="chips" id="pfGender"></div>
-              <p class="age-note">This is how you'll show up at the party — your name, and the face you choose below: your photo or an avatar.</p>
+              <p class="age-note">This is how you'll show up at the party — your party name.</p>
             </div>
-            <div class="field" id="pfSecFace" style="margin-top:18px;">
-              <label>Your face · photo or avatar</label>
-              <p class="age-note" style="margin:2px 0 10px;">The face beside your name everywhere — your profile, rooms, lives and comments. Three ways to pick it; switch anytime and your photo is never lost.</p>
-              <div class="face-now"><img id="pfFaceNowImg" alt="Your current face"/><div><b id="pfFaceNowLabel">Your photo</b><span>Currently showing</span></div></div>
-              <div class="face-modes" id="pfFaceModes">
-                <button type="button" class="face-mode" data-fmode="photo"><span class="fm-ico">📸</span>My photo</button>
-                <button type="button" class="face-mode" data-fmode="rack"><span class="fm-ico">🎭</span>Avatar rack<span class="fm-sub">100 faces</span></button>
-                <button type="button" class="face-mode" data-fmode="ai"><span class="fm-ico">✨</span>AI from photo</button>
-              </div>
-              <div class="face-panel" id="pfFacePanelPhoto">
-                <p class="age-note" style="margin:0 0 10px;">Your real photo — the first photo in your set below, or upload a fresh one and it becomes your face.</p>
-                <div class="btn-row">
-                  <button type="button" class="btn-primary" style="width:auto; padding:10px 18px;" id="pfFaceUsePhoto">Use my photo</button>
-                  <button type="button" class="btn-mini" id="pfFaceUploadPhoto">Upload a new photo</button>
-                </div>
-              </div>
-              <!-- [RP-V7.94] Build-my-own erased (Branden, Oct 28). Stored built faces still display via the account photo; there is no builder anymore. -->
-              <div class="face-panel" id="pfFacePanelAi" hidden>
-                <p class="age-note" style="margin:0 0 10px;">Pick a photo of you — the Plaza styles it into avatar versions right here on your device. Your photo passes the safety check first, and the version you pick is checked again.</p>
-                <div class="btn-row">
-                  <button type="button" class="btn-primary" style="width:auto; padding:10px 18px;" id="pfAiPick">Choose my photo</button>
-                  <button type="button" class="btn-mini" id="pfAiUse" disabled>Use this face</button>
-                </div>
-                <input type="file" id="pfAiInput" accept="image/*" hidden />
-                <div class="face-ai-tiles" id="pfAiTiles"></div>
-              </div>
-            </div>
-            <div class="field" id="pfSecPhotos" style="margin-top:18px;">
-              <label>Your photos · up to 12</label>
+            <div class="field" id="pfSecAddMedia" style="margin-top:18px;">
+              <label>Add photos &amp; videos</label>
+              <p class="age-note" style="margin:2px 0 10px;">Photos join your profile photo set — the first one is your main photo, and the set saves with your profile. Videos post as your reel through the usual composer — 5 minutes max, trimmer included.</p>
               <div class="btn-row">
-                <button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnPhotoAdd">＋ Add a photo</button>
-                <span class="age-note" id="pfPhotoCount" style="align-self:center;">0 of 12 photos</span>
+                <button type="button" class="btn-primary" style="width:auto; padding:11px 22px;" id="pfAddMediaBtn">＋ Add photos or videos</button>
+                <span class="age-note" id="pfAddMediaNote" style="align-self:center;">Nothing added yet</span>
               </div>
-              <div class="pf-grid" id="pfPhotoGrid"></div>
-              <p class="age-note">Your <b>first photo is your main photo</b> — it's the one beside your name, in the HUD and around the party. Use a photo's arrows to reorder the set, ✕ to remove it. Swipe the big photo above (or tap its arrows) to flip through your photos. Your photos save to your account — they're there on every device you sign in on, even after you log out.</p>
-              <input type="file" id="photoInput" accept="image/*" multiple hidden />
+              <div id="pfAddMediaThumbs" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;"></div>
+              <input type="file" id="pfAddMediaInput" accept="image/*,video/*" multiple hidden />
             </div>
-            <div class="field" id="pfSecMedia" style="margin-top:18px;">
-              <label>Your photos &amp; reels · on your profile</label>
-              <div class="rpmedia-grid" id="pfMediaGrid"></div>
-              <p class="age-note">This is the grid visitors see on your profile — every tile shows how many people have viewed it, right on the picture.</p>
-            </div>
+                                                <!-- [RP-V7.238] Four sections deleted from this setup
+                 form on Branden's orders (Nov 4, circled screenshots):
+                 "Your face · photo or avatar", "Your interests",
+                 "Your photos · up to 12" and "Your photos & reels ·
+                 on your profile". No data was deleted — saved faces,
+                 interests and photo sets stay stored and keep working;
+                 new accounts default to their stored main photo (or
+                 the standard default face) and empty interests. -->
                                                 <div class="field">
               <label>Online profile photo</label>
               <div class="btn-row">
@@ -3551,11 +3527,7 @@
               </div>
               <p class="age-note">Only used on this device: your ✨ For You live list puts hosts near you first — and when you host, it helps viewers near you find your live.</p>
             </div>
-            <div class="field">
-              <label>Your interests</label>
-              <div class="chips" id="pfInterests"></div>
-            </div>
-                        <!-- [RP-V7.94] The Background picker is deleted with the whole live-wallpaper feature (Branden, Oct 28: "No just delete."). -->
+                                    <!-- [RP-V7.94] The Background picker is deleted with the whole live-wallpaper feature (Branden, Oct 28: "No just delete."). -->
             <div class="btn-row">
               <button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnSaveProfile">Save profile</button>
               <button class="btn-mini" id="btnSupportPf" type="button">🆘 Help &amp; Support</button>
@@ -7349,7 +7321,7 @@
         for (var i = 0; i < AGE_RANGES.length; i++) if (AGE_RANGES[i].id === id) return AGE_RANGES[i].label;
         return id || "—";
       }
-      /* ================= Player photos (up to 12) =================
+      /* ================= Player photos (no count cap) ================= [RP-V7.238] cap 12 -> 30, then REMOVED entirely (Branden, Nov 4: "Unlimited") =================
          me.photos holds the set; me.photo always mirrors the first one so
          the HUD, the in-scene portrait and every older surface keep working.
          [RP-V7.62] For a signed-in member the set lives on the ACCOUNT
@@ -7405,17 +7377,15 @@
             });
             grid.appendChild(tile);
           });
-          if (me.photos.length < 12) {
+          { /* [RP-V7.238] no count cap — the add tile always shows */
             var add = document.createElement("button");
             add.className = "pf-tile pf-add";
-            add.innerHTML = '<span class="pf-add-plus">＋</span><span>Add photo</span><span class="pf-add-n">' + me.photos.length + ' / 12</span>';
+            add.innerHTML = '<span class="pf-add-plus">＋</span><span>Add photo</span><span class="pf-add-n">' + me.photos.length + ' photos</span>';
             add.addEventListener("click", function () { $("photoInput").click(); });
             grid.appendChild(add);
           }
           var cnt = $("pfPhotoCount");
-          if (cnt) cnt.textContent = me.photos.length + " of 12 photos" + (me.photos.length ? " · first photo is your main" : " · add your first photo");
-          var addBtn = $("btnPhotoAdd");
-          if (addBtn) addBtn.disabled = me.photos.length >= 12;
+          if (cnt) cnt.textContent = me.photos.length + " photos" + (me.photos.length ? " · first photo is your main" : " · add your first photo");
         }
       }
       /* [RP-V7.62] ---- account gallery sync (signed-in members) ----
@@ -7429,7 +7399,7 @@
          boundaries (login / restore) via rpApplyAccountGallery; mid-
          session the local set the member is looking at is what they
          edited, and every change is pushed as it happens. */
-      var GALLERY_MAX62 = 12;
+      /* [RP-V7.238] GALLERY_MAX62 retired: the profile photo set has NO count cap (Branden, Nov 4: "Unlimited" — like Facebook). Per-file limits unchanged. */
       function rpGalleryToken() {
         try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a && a.token) return a.token; } catch (e) { }
         return null;
@@ -7450,7 +7420,7 @@
       function rpSyncAccountGallery() {
         var tok = rpGalleryToken();
         if (!tok) return;
-        var list = (me.photos || []).filter(function (u) { return typeof u === "string" && /^https?:\/\//.test(u); }).slice(0, GALLERY_MAX62);
+        var list = (me.photos || []).filter(function (u) { return typeof u === "string" && /^https?:\/\//.test(u); });
         fetch(ONLINE_URL + "/api/account/photos/set", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok }, body: JSON.stringify({ photos: list }) })
           .then(function (res) { return res.json().catch(function () { return {}; }); })
           .then(function (data) { return data; })
@@ -7530,18 +7500,10 @@
           sf.appendChild(b);
         });
         singleRow($("pfVibes"), VIBES.map(function (v) { return { id: v, label: v }; }), function () { return me.vibe; }, function (v) { me.vibe = v; });
-        var ic = $("pfInterests"); ic.innerHTML = "";
-        INTERESTS.forEach(function (it) {
-          var b = document.createElement("button");
-          b.className = "chip-btn" + (me.interests.indexOf(it.id) >= 0 ? " sel" : "");
-          b.textContent = it.label;
-          b.addEventListener("click", function () {
-            var i = me.interests.indexOf(it.id);
-            if (i >= 0) me.interests.splice(i, 1); else me.interests.push(it.id);
-            renderProfile();
-          });
-          ic.appendChild(b);
-        });
+        /* [RP-V7.238] The interests chips are deleted from the setup
+           form. Saved interests still load into me.interests and keep
+           counting everywhere they already did (For You scoring, live
+           meta, guest matching) — only the form editor is gone. */
         /* Dating-app sections: hidden for under-18 (dating side stays off) */
         var teenPf = isTeen();
         ["pfSecPrompts", "pfSecDetails", "pfSecVoice"].forEach(function (id) {
@@ -7557,7 +7519,7 @@
         openProfile();
         var sv = $("btnSaveProfile"); if (sv) sv.textContent = "Save & enter the party →";
         var bk = $("btnProfileBack"); if (bk) bk.hidden = true;
-        toast("Set up your profile — a name, a photo or two, and you're in. 📸", 3200);
+        toast("Set up your profile — a name, a line about you, and you're in. 🎉", 3200);
       }
       function openProfile() {
         closeSheet();
@@ -7624,7 +7586,7 @@
         if (card && !$("pfFirstRunBar")) {
           var bar = document.createElement("div");
           bar.id = "pfFirstRunBar"; bar.className = "pf-firstrun-bar";
-          bar.innerHTML = "<b>🎉 Welcome to Rizz Plaza!</b><span>Build your profile — your name, your face and your photos. This is the profile everyone sees around the Plaza.</span>";
+          bar.innerHTML = "<b>🎉 Welcome to Rizz Plaza!</b><span>Build your profile — your name and a line about you. This is the profile everyone sees around the Plaza.</span>";
           var sk = document.createElement("button");
           sk.type = "button"; sk.className = "btn-mini"; sk.textContent = "Skip for now →";
           sk.addEventListener("click", function () { pfFirstRunExit(); finishEnterParty(); pfFirstRunFriendsStep(); });
@@ -7667,59 +7629,111 @@
         if (pfSetup) { var fr147 = pfFirstRunOn; if (fr147) pfFirstRunExit(); pfSetup = false; finishEnterParty(); if (fr147) pfFirstRunFriendsStep(); return; } // [RP-V7.147] first-run saves flow into the friends step
         toast("Profile saved — looking good, " + me.name + "!");
       });
-      $("btnPhotoAdd").addEventListener("click", function () { $("photoInput").click(); });
-      $("photoInput").addEventListener("change", function () {
-        var files = Array.prototype.slice.call($("photoInput").files || []);
-        $("photoInput").value = "";
-        if (!files.length) return;
-        var room = GALLERY_MAX62 - me.photos.length;
-        if (room <= 0) { toast("That's the full set — twelve photos max. Remove one to add another."); return; }
-        var queue = files.slice(0, room), dropped = files.length - queue.length, added = 0, failed = 0, lastErr = "";
-        function next() {
-          if (!queue.length) {
-            syncMainPhoto(); renderProfile(); updateHUD();
-            if (currentRoom) buildFloor();
-            if (added) toast((added === 1 ? "Photo added to your profile!" : added + " photos added to your profile!") + (dropped ? " (" + dropped + " skipped — twelve max.)" : "") + (failed ? " (" + failed + " couldn't be saved — try again.)" : ""));
-            else if (failed) toast(lastErr || "Those photos couldn't be saved to your account — check your connection and try again.");
-            return;
-          }
-          var file = queue.shift();
-          var reader = new FileReader();
-          reader.onload = function () {
-            var img = new Image();
-            img.onload = function () {
-              var max = 720, scale = Math.min(1, max / Math.max(img.width, img.height));
-              var cv = document.createElement("canvas");
-              cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
-              cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-              // [RP-V7.62] Signed in: the photo uploads to the ACCOUNT
-              // gallery and me.photos stores the returned server URL,
-              // so the set survives logout and follows the member.
-              // Signed out: the device-local data-URL flow, unchanged.
-              if (rpGalleryToken() && cv.toBlob) {
-                cv.toBlob(function (blob) {
-                  if (!blob) { failed++; next(); return; }
-                  rpUploadAccountGallery(blob, function (url, err) {
-                    if (url) { me.photos.push(url); added++; }
-                    else { failed++; if (err) lastErr = err; }
-                    next();
-                  });
-                }, "image/jpeg", 0.85);
-              } else {
-                me.photos.push(cv.toDataURL("image/jpeg", 0.85));
-                added++;
-                next();
-              }
-            };
-            img.onerror = next;
-            img.src = reader.result;
-          };
-          reader.onerror = next;
-          reader.readAsDataURL(file);
-        }
-        next();
-      });
+      /* [RP-V7.238] The Add-a-photo wiring and the #photoInput change
+         handler were deleted with the "Your photos" setup-form section
+         (their elements are gone), and the section's photo-set reads
+         went with them — Save never touched them. Photo management
+         outside the setup form (profile and posting flows) uses its
+         own inputs and is unchanged; saved photo sets are untouched.
 
+         [RP-V7.238 adder] The ONE media control in this form (Branden,
+         Nov 4: "Add photos and videos to save to startup profile" —
+         final word: photos AND videos). Light add-and-save only: no
+         manager grid, no reorder/remove, no face picker, no preview
+         section. Photos run the gallery pipeline the deleted section
+         used (720px downscale → account upload when signed in,
+         device-local data URL when not) and land in me.photos; the
+         first photo is the main photo and the set saves with the
+         profile. Videos go through the existing reel path
+         (rpReelShareIn133 — same composer, 100 MB / 5:00 caps,
+         trimmer), one at a time. */
+      (function () {
+        var addBtn = $("pfAddMediaBtn"), addInp = $("pfAddMediaInput");
+        if (!addBtn || !addInp) return;
+        var addNote = $("pfAddMediaNote"), addThumbs = $("pfAddMediaThumbs");
+        var nPhotos = 0, nVideos = 0;
+        function refreshAddNote() {
+          if (!addNote) return;
+          var bits = [];
+          if (nPhotos) bits.push(nPhotos + (nPhotos === 1 ? " photo" : " photos"));
+          if (nVideos) bits.push(nVideos + (nVideos === 1 ? " video" : " videos"));
+          addNote.textContent = bits.length ? bits.join(" · ") + " added" : "Nothing added yet";
+        }
+        function addThumb(src, isVideo) {
+          if (!addThumbs || !src) return;
+          var el = document.createElement(isVideo ? "video" : "img");
+          el.src = src;
+          if (isVideo) { el.muted = true; el.playsInline = true; }
+          el.style.cssText = "width:54px; height:54px; object-fit:cover; border-radius:10px; background:#101018;";
+          addThumbs.appendChild(el);
+        }
+        addBtn.addEventListener("click", function () { addInp.click(); });
+        addInp.addEventListener("change", function () {
+          var files = Array.prototype.slice.call(addInp.files || []);
+          addInp.value = "";
+          if (!files.length) return;
+          var pics = [], vids = [], other = 0;
+          files.forEach(function (f) {
+            if (/^image\//.test(f.type || "")) pics.push(f);
+            else if (/^video\//.test(f.type || "") || /\.(mp4|mov|webm|m4v)$/i.test(f.name || "")) vids.push(f);
+            else other++;
+          });
+          if (other) toast("Some files weren't photos or videos, so they were skipped.");
+          if (pics.length) {
+              var queue = pics.slice(), added = 0, failed = 0, lastErr = "";
+              (function next() {
+                if (!queue.length) {
+                  if (added) {
+                    syncMainPhoto(); renderProfile(); updateHUD();
+                    nPhotos += added; refreshAddNote();
+                    toast(added === 1 ? "Photo added — it's in your profile set." : added + " photos added to your profile set.");
+                  }
+                  if (failed && !added) toast(lastErr || "Those photos couldn't be saved to your account — check your connection and try again.");
+                  return;
+                }
+                var file = queue.shift();
+                var reader = new FileReader();
+                reader.onload = function () {
+                  var img = new Image();
+                  img.onload = function () {
+                    var max = 720, scale = Math.min(1, max / Math.max(img.width, img.height));
+                    var cv = document.createElement("canvas");
+                    cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+                    cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+                    if (rpGalleryToken() && cv.toBlob) {
+                      cv.toBlob(function (blob) {
+                        if (!blob) { failed++; next(); return; }
+                        rpUploadAccountGallery(blob, function (url, err) {
+                          if (url) { me.photos.push(url); addThumb(url, false); added++; }
+                          else { failed++; if (err) lastErr = err; }
+                          next();
+                        });
+                      }, "image/jpeg", 0.85);
+                    } else {
+                      var du = cv.toDataURL("image/jpeg", 0.85);
+                      me.photos.push(du); addThumb(du, false); added++;
+                      next();
+                    }
+                  };
+                  img.onerror = next;
+                  img.src = reader.result;
+                };
+                reader.onerror = next;
+                reader.readAsDataURL(file);
+              })();
+          }
+          if (vids.length) {
+            if (window.rpReelShareIn133) {
+              nVideos += 1; refreshAddNote();
+              addThumb(URL.createObjectURL(vids[0]), true);
+              window.rpReelShareIn133(vids[0]);
+              if (vids.length > 1) toast("Videos post one at a time — post this one, then add the next.", 4200);
+            } else {
+              toast("Video posting isn't available right now — try again in a moment.");
+            }
+          }
+        });
+      })();
       /* ================= Dating-app profile: prompts, details, voice =================
          Hinge-style layer on the profile: 3 answered prompts from a bank,
          an optional details grid shown as chips, and a 30-second voice
@@ -18965,14 +18979,14 @@
       };
       /* [RP-V7.62] The account gallery is the source of truth for a
          signed-in member's photo set: me.photos becomes the account's
-         ordered URL list (http(s) only, max 12), me.photo re-mirrors
+         ordered URL list (http(s) only, no count cap), me.photo re-mirrors
          the first entry, and the Profile grid re-renders if it is on
          screen. Called from rpApplyAccountProfile whenever a payload
          carries photos — login, session restore, boot, post-save — so
          a fresh login on any device shows the same gallery. */
       window.rpApplyAccountGallery = function (list) {
         if (!Array.isArray(list)) return;
-        me.photos = list.filter(function (u) { return typeof u === "string" && /^https?:\/\//.test(u); }).slice(0, 12);
+        me.photos = list.filter(function (u) { return typeof u === "string" && /^https?:\/\//.test(u); });
         syncMainPhoto();
         pfCarIdx = 0;
         try { saveProfile(); } catch (e) { }
@@ -19351,7 +19365,7 @@
       var guideActive = false, guideDone = false, guideStep = 0, guideFinished = false;
       function guideStepsDef() {
         var steps = [
-          { label: "Your profile", hint: "Add your photos, name and prompts — that is how people know you here.", btn: "Set up my profile" },
+          { label: "Your profile", hint: "Add your name and a line about you — that is how people know you here.", btn: "Set up my profile" },
           { label: "Meet people", hint: "Every room is right on your home page \u2014 pick one and walk in.", btn: "See the rooms" }
         ];
         if (!isTeen()) steps.push({ label: "Go live & earn", hint: "The headline act: broadcast on the Live Stage and stack up gift charms.", btn: "Go to the Live Stage 📺" });
@@ -19403,7 +19417,7 @@
         if (guideStep === 0) {
           enterProfileSetup();
           var ni = $("nameInput"); if (ni) ni.focus();
-          toast("Step 1: add your name and a photo or two — then tap Save & enter the party.");
+          toast("Step 1: add your name and a line about you — then tap Save & enter the party.");
         } else if (guideStep === 1) {
           guideStep = 2;
           show("screen-plaza");
@@ -30634,7 +30648,7 @@ function stageStreakBump(key, add) {
     if (u.extProfile && typeof u.extProfile === "object") acct.extProfile = u.extProfile; // [RP-V7.94] extended profile fields ride the saved session
     if (u.settings && typeof u.settings === "object") { acct.settings = u.settings; try { if (window.rpApplyAccountSettings) window.rpApplyAccountSettings(u.settings); } catch (e) { } } // [RP-V7.99] settings ride the saved session too
     if ("photo" in u) acct.photo = u.photo || "";
-    if (Array.isArray(u.photos)) acct.photos = u.photos.slice(0, 12); // [RP-V7.62] the gallery rides the saved session too, so boot restores it before /me re-confirms
+    if (Array.isArray(u.photos)) acct.photos = u.photos.slice(); // [RP-V7.62] the gallery rides the saved session too, so boot restores it before /me re-confirms
     saveAcct();
     try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { }
     try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(acct.photo || null); } catch (e) { }
@@ -30887,7 +30901,7 @@ function stageStreakBump(key, add) {
     api("/api/account/signup", "POST", { name: profileName(), username: un, email: em, phone: ph, password: pw, dob: dobOnFile() }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice(0, 12) : [] }; // [RP-V7.61] bio rides the saved session too // [RP-V7.62] + the gallery
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice() : [] }; // [RP-V7.61] bio rides the saved session too // [RP-V7.62] + the gallery
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
@@ -30926,7 +30940,7 @@ function stageStreakBump(key, add) {
     api("/api/account/login", "POST", { id: idv, username: idv, email: idv, password: pw }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
-        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice(0, 12) : [] }; // [RP-V7.61] bio rides the saved session too // [RP-V7.62] + the gallery
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice() : [] }; // [RP-V7.61] bio rides the saved session too // [RP-V7.62] + the gallery
         saveAcct();
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
@@ -30973,7 +30987,7 @@ function stageStreakBump(key, add) {
   // first-time Google member gets the finish panel (username + DOB
   // only — no phone, no Plaza password).
   function adoptSession(j, isNew) {
-    acct = { token: j.token, userId: j.user.id, email: j.user.email, name: j.user.name, username: j.user.username || "", phone: j.user.phone || "", profileType: j.user.profileType || "member", photo: j.user.photo || "", bio: j.user.bio || "", photos: Array.isArray(j.user.photos) ? j.user.photos.slice(0, 12) : [] };
+    acct = { token: j.token, userId: j.user.id, email: j.user.email, name: j.user.name, username: j.user.username || "", phone: j.user.phone || "", profileType: j.user.profileType || "member", photo: j.user.photo || "", bio: j.user.bio || "", photos: Array.isArray(j.user.photos) ? j.user.photos.slice() : [] };
     saveAcct();
     try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { }
     try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(j.user.photo || null); } catch (e) { }
