@@ -3308,11 +3308,11 @@
                 <span class="who-av" id="onlineMeAv"></span>
                 <div><b id="onlineMeName">You</b><span id="onlineMeStatus">Connecting…</span></div>
               </div>
-              <div class="btn-row" style="margin-top:12px;">
-                <button class="btn-mini" id="btnOnlinePhoto">Upload profile photo</button>
-                <input type="file" id="onlinePhotoInput" accept="image/*" hidden />
-              </div>
-              <p class="age-note" style="margin-top:10px;">Your hosted photo is your profile photo and card picture for everyone in the room — and it's the photo you'll post with in 🎬 Reels.</p>
+                <!-- [RP-V7.239] The Online-photo upload button + input are
+                     removed from this panel too (Branden: "I only need 1 way
+                     to upload a profile picture" — the setup form's Add
+                     photos). The panel still shows your avatar, name and
+                     status; a saved online photo still displays here. -->
             </div>
             <div class="online-panel">
               <h3>Who's here <span id="onlinePeopleCount"></span></h3>
@@ -3465,14 +3465,14 @@
               <p class="age-note">This is how you'll show up at the party — your party name.</p>
             </div>
             <div class="field" id="pfSecAddMedia" style="margin-top:18px;">
-              <label>Add photos &amp; videos</label>
-              <p class="age-note" style="margin:2px 0 10px;">Photos join your profile photo set — the first one is your main photo, and the set saves with your profile. Videos post as your reel through the usual composer — 5 minutes max, trimmer included.</p>
+              <label>Add photos</label>
+              <p class="age-note" style="margin:2px 0 10px;">Photos join your profile photo set — the first one is your main photo, and the set saves with your profile.</p>
               <div class="btn-row">
-                <button type="button" class="btn-primary" style="width:auto; padding:11px 22px;" id="pfAddMediaBtn">＋ Add photos or videos</button>
+                <button type="button" class="btn-primary" style="width:auto; padding:11px 22px;" id="pfAddMediaBtn">＋ Add photos</button>
                 <span class="age-note" id="pfAddMediaNote" style="align-self:center;">Nothing added yet</span>
               </div>
               <div id="pfAddMediaThumbs" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;"></div>
-              <input type="file" id="pfAddMediaInput" accept="image/*,video/*" multiple hidden />
+              <input type="file" id="pfAddMediaInput" accept="image/*" multiple hidden />
             </div>
                                                 <!-- [RP-V7.238] Four sections deleted from this setup
                  form on Branden's orders (Nov 4, circled screenshots):
@@ -3482,13 +3482,13 @@
                  interests and photo sets stay stored and keep working;
                  new accounts default to their stored main photo (or
                  the standard default face) and empty interests. -->
-                                                <div class="field">
-              <label>Online profile photo</label>
-              <div class="btn-row">
-                <button class="btn-mini" id="btnOnlinePhotoPf">Upload photo for Online mode</button>
-                <span class="age-note" style="align-self:center;" id="pfOnlinePhotoNote">Shows as your profile photo for other people when you party online.</span>
-              </div>
-            </div>
+                                                <!-- [RP-V7.239] The "Online profile photo"
+                 section is ERASED from this form (Branden, Nov 4,
+                 circled screenshot: "Erase") and its upload chain
+                 is removed app-wide (one upload door only — see
+                 the note where uploadOnlinePhoto used to live).
+                 Saved online photos are NOT deleted; they keep
+                 displaying everywhere they did. -->
             <div class="field">
               <label>Saved profile</label>
               <div class="btn-row">
@@ -7637,33 +7637,31 @@
          own inputs and is unchanged; saved photo sets are untouched.
 
          [RP-V7.238 adder] The ONE media control in this form (Branden,
-         Nov 4: "Add photos and videos to save to startup profile" —
-         final word: photos AND videos). Light add-and-save only: no
+         Nov 4: "Add photos and videos to save to startup profile";
+         [RP-V7.239] his FINAL word (Nov 4, 18:24 ET): "Only photos
+         not reels that is for the reels side" — this door is
+         PHOTOS ONLY, and it is the one profile-picture upload
+         door in the whole app). Light add-and-save only: no
          manager grid, no reorder/remove, no face picker, no preview
          section. Photos run the gallery pipeline the deleted section
          used (720px downscale → account upload when signed in,
          device-local data URL when not) and land in me.photos; the
          first photo is the main photo and the set saves with the
-         profile. Videos go through the existing reel path
-         (rpReelShareIn133 — same composer, 100 MB / 5:00 caps,
-         trimmer), one at a time. */
+         profile. (No videos here — reels live on the reels side:
+         the Reels tab, + Reel and the reel composer, untouched.) */
       (function () {
         var addBtn = $("pfAddMediaBtn"), addInp = $("pfAddMediaInput");
         if (!addBtn || !addInp) return;
         var addNote = $("pfAddMediaNote"), addThumbs = $("pfAddMediaThumbs");
-        var nPhotos = 0, nVideos = 0;
+        var nPhotos = 0;
         function refreshAddNote() {
           if (!addNote) return;
-          var bits = [];
-          if (nPhotos) bits.push(nPhotos + (nPhotos === 1 ? " photo" : " photos"));
-          if (nVideos) bits.push(nVideos + (nVideos === 1 ? " video" : " videos"));
-          addNote.textContent = bits.length ? bits.join(" · ") + " added" : "Nothing added yet";
+          addNote.textContent = nPhotos ? nPhotos + (nPhotos === 1 ? " photo" : " photos") + " added" : "Nothing added yet";
         }
-        function addThumb(src, isVideo) {
+        function addThumb(src) {
           if (!addThumbs || !src) return;
-          var el = document.createElement(isVideo ? "video" : "img");
+          var el = document.createElement("img");
           el.src = src;
-          if (isVideo) { el.muted = true; el.playsInline = true; }
           el.style.cssText = "width:54px; height:54px; object-fit:cover; border-radius:10px; background:#101018;";
           addThumbs.appendChild(el);
         }
@@ -7672,13 +7670,12 @@
           var files = Array.prototype.slice.call(addInp.files || []);
           addInp.value = "";
           if (!files.length) return;
-          var pics = [], vids = [], other = 0;
+          var pics = [], other = 0;
           files.forEach(function (f) {
             if (/^image\//.test(f.type || "")) pics.push(f);
-            else if (/^video\//.test(f.type || "") || /\.(mp4|mov|webm|m4v)$/i.test(f.name || "")) vids.push(f);
             else other++;
           });
-          if (other) toast("Some files weren't photos or videos, so they were skipped.");
+          if (other) toast("Some files weren't photos, so they were skipped.");
           if (pics.length) {
               var queue = pics.slice(), added = 0, failed = 0, lastErr = "";
               (function next() {
@@ -7704,14 +7701,14 @@
                       cv.toBlob(function (blob) {
                         if (!blob) { failed++; next(); return; }
                         rpUploadAccountGallery(blob, function (url, err) {
-                          if (url) { me.photos.push(url); addThumb(url, false); added++; }
+                          if (url) { me.photos.push(url); addThumb(url); added++; }
                           else { failed++; if (err) lastErr = err; }
                           next();
                         });
                       }, "image/jpeg", 0.85);
                     } else {
                       var du = cv.toDataURL("image/jpeg", 0.85);
-                      me.photos.push(du); addThumb(du, false); added++;
+                      me.photos.push(du); addThumb(du); added++;
                       next();
                     }
                   };
@@ -7721,16 +7718,6 @@
                 reader.onerror = next;
                 reader.readAsDataURL(file);
               })();
-          }
-          if (vids.length) {
-            if (window.rpReelShareIn133) {
-              nVideos += 1; refreshAddNote();
-              addThumb(URL.createObjectURL(vids[0]), true);
-              window.rpReelShareIn133(vids[0]);
-              if (vids.length > 1) toast("Videos post one at a time — post this one, then add the next.", 4200);
-            } else {
-              toast("Video posting isn't available right now — try again in a moment.");
-            }
           }
         });
       })();
@@ -9790,92 +9777,18 @@
           : Online.state === "reconnecting" ? "Reconnecting\u2026"
           : Online.state === "connecting" ? "Connecting\u2026"
           : "Not connected";
-        var note = $("pfOnlinePhotoNote");
-        if (note && Online.myPhotoUrl) note.textContent = "Your online photo is live — it shows on your avatar for other people.";
       }
-      function uploadOnlinePhoto(file) {
-        if (Online.room === "teen" && window.rpTeenPhotoGate) { window.rpTeenPhotoGate(file, function () { uploadOnlinePhotoCore(file); }); return; }
-        if (isTeen() && window.rpTeenPhotoGateSoft) { window.rpTeenPhotoGateSoft(file, function () { uploadOnlinePhotoCore(file); }, function () { }); return; } // [RP-V7.155] teen's own uploads, anywhere
-        uploadOnlinePhotoCore(file);
-      }
-      function uploadOnlinePhotoCore(file) {
-        // [RP-V7.61] A signed-in member uploads straight to their
-        // ACCOUNT (/api/account/photo, token auth) — no room join, no
-        // player record needed, so Profile setup works from Home and
-        // the photo survives logout. The legacy room route below stays
-        // as the fallback for anyone without an account session.
-        var acctTok61 = null;
-        try { var aa61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (aa61 && aa61.token) acctTok61 = aa61.token; } catch (e) { }
-        if (!acctTok61 && (!Online.socket || Online.state !== "on" || !Online.myId)) {
-          toast("Join an online room first — the party server needs you in a room before it can take your photo.");
-          return;
-        }
-        if (!file) return;
-        if (!/^image\//.test(file.type || "")) { toast("That file isn\u2019t an image — pick a JPG, PNG or WebP photo."); return; }
-        var btns = [$("btnOnlinePhoto"), $("btnOnlinePhotoPf")];
-        btns.forEach(function (b) { if (b) { b.disabled = true; b.textContent = "Uploading…"; } });
-        function done(msg) {
-          btns.forEach(function (b) { if (b) { b.disabled = false; b.textContent = b.id === "btnOnlinePhoto" ? "Upload profile photo" : "Upload photo for Online mode"; } });
-          if (msg) toast(msg, 4200);
-        }
-        var url = URL.createObjectURL(file);
-        var img = new Image();
-        img.onload = function () {
-          URL.revokeObjectURL(url);
-          var max = 720, scale = Math.min(1, max / Math.max(img.width, img.height));
-          var cv = document.createElement("canvas");
-          cv.width = Math.max(1, Math.round(img.width * scale));
-          cv.height = Math.max(1, Math.round(img.height * scale));
-          cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-          if (!cv.toBlob) { done("Your browser couldn\u2019t prepare that photo — try a different one."); return; }
-          cv.toBlob(function (blob) {
-            if (!blob) { done("Your browser couldn\u2019t prepare that photo — try a different one."); return; }
-            var fd = new FormData();
-            fd.append("photo", blob, "profile.jpg");
-            var acctHdr = {};
-            var photoUrl61 = ONLINE_URL + "/api/profile-photo"; // legacy room route (fallback)
-            if (acctTok61) { acctHdr = { "Authorization": "Bearer " + acctTok61 }; photoUrl61 = ONLINE_URL + "/api/account/photo"; } // [RP-V7.61] account route: token only, no playerId, no room
-            else { fd.append("playerId", Online.myId); try { var aa = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (aa && aa.token) acctHdr = { "Authorization": "Bearer " + aa.token }; } catch (e) { } } // [RP-V7.50] legacy path still binds to the account when it can
-            fetch(photoUrl61, { method: "POST", headers: acctHdr, body: fd })
-              .then(function (res) {
-                return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; });
-              })
-              .then(function (out) {
-                if (out.res.ok && out.data && out.data.photoUrl) {
-                  Online.myPhotoUrl = out.data.photoUrl;
-                  try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(out.data.photoUrl); } catch (e) { } // [RP-V7.50] the account remembers it now
-                  try { if (out.data.user && window.rpApplyAccountProfile) window.rpApplyAccountProfile(out.data.user); } catch (e) { } // [RP-V7.61] the account route returns the full profile — rehydrate from it
-                  renderOnlineMe(); renderMyFigure();
-                  done(acctTok61 ? "Profile photo saved to your account \u2014 it will be there on any device, even after you log out. \u2713" : "Profile photo live! Everyone in the room can see it on your avatar now.");
-                } else if (out.res.status === 503) {
-                  done("Photo uploads aren\u2019t switched on for the party server yet — your cartoon avatar still represents you.");
-                } else {
-                  done((out.data && out.data.error) ? out.data.error : "That upload didn\u2019t go through — try again in a moment.");
-                }
-              })
-              .catch(function () { done("Couldn\u2019t reach the party server for the upload — check your connection and try again."); });
-          }, "image/jpeg", 0.85);
-        };
-        img.onerror = function () { URL.revokeObjectURL(url); done("That image couldn\u2019t be read — try a different photo."); };
-        img.src = url;
-      }
-      function askOnlinePhoto() {
-        var tok61 = null; try { var ab61 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (ab61 && ab61.token) tok61 = ab61.token; } catch (e) { }
-        if (tok61) { $("onlinePhotoInput").click(); return; } // [RP-V7.61] signed in: pick the photo right away — the account takes it, no room join needed
-        if (Online.state !== "on") {
-          toast("Join the party first — tap ⭐ Live Stage, and the party server can take your photo once you\u2019re in a room.");
-          enterLiveStageCard(); // [RP-V7.75] teens can enter the Live Stage too
-          return;
-        }
-        $("onlinePhotoInput").click();
-      }
-      $("btnOnlinePhoto").addEventListener("click", askOnlinePhoto);
-      $("btnOnlinePhotoPf").addEventListener("click", askOnlinePhoto);
-      $("onlinePhotoInput").addEventListener("change", function () {
-        var f = $("onlinePhotoInput").files && $("onlinePhotoInput").files[0];
-        $("onlinePhotoInput").value = "";
-        uploadOnlinePhoto(f);
-      });
+      /* [RP-V7.239] The Online-photo upload chain that lived here
+         (uploadOnlinePhoto / uploadOnlinePhotoCore / askOnlinePhoto
+         + the btnOnlinePhoto / btnOnlinePhotoPf / onlinePhotoInput
+         wiring) is REMOVED — Branden (Nov 4): "I only need 1 way to
+         upload a profile picture." The one door is the setup form's
+         Add photos control: photos join the profile photo set and
+         the first photo is the main/profile picture. No data was
+         deleted: Online.myPhotoUrl still restores from the
+         account/snapshot and renders everywhere it did
+         (renderOnlineMe, in-scene figures, Moments' "Use my
+         online photo"). The server endpoints are untouched. */
       /* ================= WALKIE-TALKIE VOICE (Zello-style PTT) =================
          True half-duplex push-to-talk over WebRTC, with the party server as
          floor referee and signaling relay. One talker per channel:
