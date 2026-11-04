@@ -32106,7 +32106,14 @@ button.rp72-chip{ cursor:pointer; }
     if (!ov || !window.MutationObserver) return;
     try {
       new MutationObserver(function () {
-        if (!ov.classList.contains("open")) ov.classList.remove("rpdm-full");
+        /* [RP-V7.226] Guard the remove with contains("rpdm-full"): an
+           UNGUARDED classList.remove() of an absent token still writes
+           the class attribute in Blink, queuing a fresh mutation record
+           that re-fires THIS observer — a self-feeding microtask loop
+           that wedged the whole app the first time any sheet closed and
+           stayed closed (the welcome-back sheet's dead buttons). Only
+           write when there is actually a flag to drop. */
+        if (!ov.classList.contains("open") && ov.classList.contains("rpdm-full")) ov.classList.remove("rpdm-full");
       }).observe(ov, { attributes: true, attributeFilter: ["class"] });
     } catch (e) { }
   })();
