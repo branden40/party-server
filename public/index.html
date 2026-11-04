@@ -4896,7 +4896,9 @@
           coin: function () { return; }, // [RP-V7.39] silenced at Branden's order — the 8-bit square-wave coin blip is gone app-wide; its call sites (auctions, charm awards) now run quiet. Gifts use gift()/giftBig() below.
           potCoin: function () { if (!ready()) return; var t = now(); if (t - (api._pcAt || -1) < 0.3) return; api._pcAt = t; var k = 1; try { var talking = (typeof selfSpeaking === "function" && selfSpeaking()) || false; if (!talking && typeof Online !== "undefined" && Online && Online.players) { for (var pid in Online.players) { if (Online.players[pid] && Online.players[pid].speaking) { talking = true; break; } } } if (talking) k = 0.22; else if (typeof Live !== "undefined" && Live && Live.active) k = 0.5; } catch (e) { } var d = 0.97 + Math.random() * 0.06, lt = t + 0.46; tone({ f: 2093 * d, t: lt, dur: 0.24, type: "sine", vol: 0.13 * k }); tone({ f: 2960 * d, t: lt, dur: 0.15, type: "sine", vol: 0.07 * k }); tone({ f: 4186 * d, t: lt, dur: 0.09, type: "sine", vol: 0.04 * k }); tone({ f: 318, slide: 176, t: lt, dur: 0.17, type: "sine", vol: 0.20 * k }); tone({ f: 523 * d, t: lt, dur: 0.10, type: "sine", vol: 0.06 * k }); noiseS({ t: lt, dur: 0.03, vol: 0.10 * k, type: "highpass", freq: 5200 }); }, // [RP-V7.159] voices first (Branden): inside a live the clink sits at half under the host, and while anyone is actually talking it tucks to a whisper (k=0.22) — it never talks over the room // [RP-V7.158] a REAL coin landing in a metal pot (Branden): bright metal partials + the pot body's hollow resonance, timed to land with the drop animation; pitch wobbles slightly per gift so no two sound stamped out. NOT the V7.39 blip — coin() stays silenced.
           gift: function () { if (!ready()) return; var t = now(); tone({ f: 420, slide: 160, t: t, dur: 0.09, type: "sine", vol: 0.22 }); tone({ f: 1568, t: t + 0.06, dur: 0.30, type: "sine", vol: 0.07 }); tone({ f: 2093, t: t + 0.12, dur: 0.38, type: "sine", vol: 0.05 }); noiseS({ t: t + 0.05, dur: 0.06, vol: 0.03, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.39] soft pop + glassy chime sparkle — the gift sound (original design, no square waves)
-          giftBig: function () { if (!ready()) return; var t = now(); api.gift(); [523, 659, 784, 1047].forEach(function (f, i) { tone({ f: f, t: t + 0.05 + i * 0.07, dur: 0.5, type: "sine", vol: 0.08 }); }); noiseS({ t: t + 0.1, dur: 0.22, vol: 0.035, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.39] big/prestige gifts: the gift sound + a warm rising arpeggio and a longer sparkle
+          giftBig: function () { if (!ready()) return; var t = now(); api.gift(); [523, 659, 784, 1047].forEach(function (f, i) { tone({ f: f, t: t + 0.05 + i * 0.07, dur: 0.5, type: "sine", vol: 0.08 }); }); noiseS({ t: t + 0.1, dur: 0.22, vol: 0.035, type: "bandpass", freq: 6000, q: 6 }); }, // [RP-V7.39] big/prestige gifts: the gift sound + a warm rising arpeggio and a longer sparkle — [RP-V7.229] no longer the gift-SEND sound (see chaChingBig); gift()/giftBig() now serve the pot bursts only
+          chaChing: function () { if (!ready()) return; chaChingSfx(now(), false); }, // [RP-V7.229] THE gift-send sound (Branden, Nov 4): a cash-register cha-ching, very short — synthesized by chaChingSfx below, no samples
+          chaChingBig: function () { if (!ready()) return; chaChingSfx(now(), true); }, // [RP-V7.229] big/prestige gift sends: the same cha-ching with a third bell strike — still done in under half a second
           deal: function () { if (!ready()) return; var t = now(); noiseS({ t: t, dur: 0.07, vol: 0.16, type: "highpass", freq: 2400 }); noiseS({ t: t + 0.05, dur: 0.05, vol: 0.10, type: "bandpass", freq: 3200, q: 1.4 }); },
           chip: function () { if (!ready()) return; var t = now(); tone({ f: 2350, t: t, dur: 0.03, type: "square", vol: 0.09 }); tone({ f: 1880, t: t + 0.045, dur: 0.04, type: "square", vol: 0.10 }); noiseS({ t: t + 0.045, dur: 0.03, vol: 0.08, type: "highpass", freq: 4000 }); },
           bump: function () { if (!ready()) return; tone({ f: 130, slide: 70, t: now(), dur: 0.07, type: "sine", vol: 0.14 }); }, // [RP-V7.39] UI error/negative thud, softened (same low sine shape, quieter — was vol 0.22)
@@ -4983,6 +4985,20 @@
             $("mxMute").addEventListener("click", function () { this.textContent = api.toggleMute() ? "Unmute sound" : "Mute sound"; });
           }
         };
+        function chaChingSfx(t, big) { // [RP-V7.229] a cash-register cha-ching, synthesized (no samples): drawer "ka" clunk, then the register bell struck twice (three times for big gifts). Total span 0.33s (0.40s big) — very short by design, tail included stays under 0.5s. Peak level sits in the old gift pop's envelope (<=0.17 vs the pop's 0.22).
+          noiseS({ t: t, dur: 0.045, vol: 0.14, type: "bandpass", freq: 1500, q: 1.1 });
+          tone({ f: 340, slide: 190, t: t, dur: 0.05, type: "sine", vol: 0.10 });
+          tone({ f: 2093, t: t + 0.05, dur: 0.15, type: "sine", vol: 0.17 });
+          tone({ f: 2637, t: t + 0.05, dur: 0.11, type: "sine", vol: 0.08 });
+          tone({ f: 3520, t: t + 0.05, dur: 0.07, type: "sine", vol: 0.04 });
+          noiseS({ t: t + 0.05, dur: 0.03, vol: 0.05, type: "highpass", freq: 6200 });
+          tone({ f: 2093, t: t + 0.14, dur: 0.19, type: "sine", vol: 0.11 });
+          tone({ f: 2637, t: t + 0.14, dur: 0.13, type: "sine", vol: 0.05 });
+          if (big) {
+            tone({ f: 2637, t: t + 0.23, dur: 0.17, type: "sine", vol: 0.09 });
+            tone({ f: 2093, t: t + 0.23, dur: 0.15, type: "sine", vol: 0.06 });
+          }
+        }
         function hatHitSfx(t) { noiseS({ t: t, dur: 0.04, vol: 0.16, type: "highpass", freq: 7500, dest: sfxBus }); }
         function clapSfx(t) { noiseS({ t: t, dur: 0.09, vol: 0.22, freq: 1300, q: 1.6, dest: sfxBus }); }
         /* unlock on the first real interaction (browser autoplay rules) */
@@ -10788,7 +10804,17 @@
         { id: "kittyears", name: "Kitty Ears", group: "Fun", fun: true, icon: "🎀" },
         { id: "santahat", name: "Santa Hat", group: "Fun", fun: true, icon: "🎅" },
         { id: "cowboy", name: "Cowboy", group: "Fun", fun: true, icon: "🤠" },
-        { id: "heromask2", name: "Hero Mask", group: "Fun", fun: true, icon: "🦸" }
+        { id: "heromask2", name: "Hero Mask", group: "Fun", fun: true, icon: "🦸" },
+        { id: "flowercrown", name: "Flower Crown", group: "Fun", fun: true, icon: "🌸" },
+        { id: "bigsmile", name: "Big Mouth", group: "Warp", fun: true, warp: "bigsmile", icon: "😄" },
+        { id: "crown", name: "Crown", group: "Fun", fun: true, icon: "👑" },
+        { id: "knitmask", name: "Knit Mask", group: "Fun", fun: true, icon: "🧶" },
+        { id: "dalmatian", name: "Dalmatian Pup", group: "Fun", fun: true, icon: "🐾" },
+        { id: "foxears", name: "Fox Ears", group: "Fun", fun: true, icon: "🦊" },
+        { id: "pandapaint", name: "Panda Paint", group: "Fun", fun: true, icon: "🐼" },
+        { id: "gradcap", name: "Grad Cap", group: "Fun", fun: true, icon: "🎓" },
+        { id: "firehelmet", name: "Fire Helmet", group: "Fun", fun: true, icon: "🚒" },
+        { id: "fuzzyglasses", name: "Fuzzy Shades", group: "Fun", fun: true, icon: "💫" }
       ];
       function fxRecipe(id) {
         for (var i = 0; i < LIVE_FILTERS.length; i++) if (LIVE_FILTERS[i].id === id) return LIVE_FILTERS[i];
@@ -14173,6 +14199,386 @@
           ctx.restore();
           ctx.beginPath(); ctx.arc(nx - 0.018 * w, ny - 0.012 * h, 0.011 * w, 0, Math.PI * 2);
           ctx.fillStyle = "rgba(255,255,255,.6)"; ctx.fill();
+        },
+        /* [RP-V7.228] Dalmatian Pup — the spotted variant of the classic
+           dog look (Snapchat dog-lens searches surging again): white
+           floppy ears with ink spots, white spotted muzzle, glossy black
+           nose, tongue that drops when the mouth opens. Original art. */
+        dalmatian: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          [[-1, 0.5], [1, -0.5]].forEach(function (s) {
+            fxContact(ctx, s[0] * 0.34 * w, 0.1 * h, 0.16 * w, 0.05 * h, 0.22);
+            function ear() {
+              ctx.beginPath();
+              ctx.ellipse(s[0] * 0.37 * w, -0.04 * h, 0.15 * w, 0.3 * h, s[1], 0, Math.PI * 2);
+            }
+            ctx.save();
+            ctx.shadowColor = "rgba(24,20,18,.3)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.02 * h;
+            ear();
+            var og = ctx.createRadialGradient(s[0] * 0.33 * w, -0.22 * h, 0.05 * w, s[0] * 0.37 * w, -0.04 * h, 0.34 * h);
+            og.addColorStop(0, "#ffffff"); og.addColorStop(0.55, "#e8e6df"); og.addColorStop(1, "#b3b0a6");
+            ctx.fillStyle = og; ctx.fill();
+            ctx.restore();
+            ctx.save(); ear(); ctx.clip();
+            ctx.fillStyle = "#2b2622";
+            [[-0.06, -0.18, 0.045, 0.07], [0.03, -0.02, 0.055, 0.085], [-0.02, 0.12, 0.04, 0.06], [0.05, -0.24, 0.035, 0.05]].forEach(function (sp) {
+              ctx.beginPath(); ctx.ellipse(s[0] * 0.37 * w + s[0] * sp[0] * w, sp[1] * h, sp[2] * w, sp[3] * h, s[1], 0, Math.PI * 2); ctx.fill();
+            });
+            fxStrands(ctx, s[0] * 0.37 * w - 0.13 * w, s[0] * 0.37 * w + 0.13 * w, -0.3 * h, 0.16 * h, 12, 0.09 * h, "rgba(90,85,75,.25)", "rgba(255,255,255,.35)", 0.007 * w);
+            ctx.restore();
+            ear(); ctx.strokeStyle = "rgba(70,65,58,.35)"; ctx.lineWidth = 0.008 * w; ctx.stroke();
+          });
+          ctx.restore();
+          var mx = G.nose.x, my = (G.nose.y + G.lipTop.y) / 2 + 0.02 * h;
+          ctx.save();
+          ctx.shadowColor = "rgba(40,35,30,.28)"; ctx.shadowBlur = Math.min(12, 0.03 * w); ctx.shadowOffsetY = 0.012 * h;
+          ctx.beginPath(); ctx.ellipse(mx, my, 0.21 * w, 0.155 * h, 0, 0, Math.PI * 2);
+          var mg = ctx.createRadialGradient(mx - 0.05 * w, my - 0.05 * h, 0.03 * w, mx, my, 0.23 * w);
+          mg.addColorStop(0, "#ffffff"); mg.addColorStop(0.6, "#efede6"); mg.addColorStop(1, "#c9c6bc");
+          ctx.fillStyle = mg; ctx.fill();
+          ctx.restore();
+          ctx.save();
+          ctx.beginPath(); ctx.ellipse(mx, my, 0.21 * w, 0.155 * h, 0, 0, Math.PI * 2); ctx.clip();
+          ctx.fillStyle = "#2b2622";
+          [[-0.11, -0.05, 0.032, 0.045], [0.12, 0.04, 0.026, 0.038], [0.02, -0.1, 0.02, 0.03]].forEach(function (sp) {
+            ctx.beginPath(); ctx.ellipse(mx + sp[0] * w, my + sp[1] * h, sp[2] * w, sp[3] * h, 0.3, 0, Math.PI * 2); ctx.fill();
+          });
+          fxStrands(ctx, mx - 0.19 * w, mx + 0.19 * w, my - 0.13 * h, my + 0.13 * h, 16, 0.05 * h, "rgba(100,95,85,.18)", "rgba(255,255,255,.3)", 0.006 * w);
+          ctx.restore();
+          var gap = G.lipBot.y - G.lipTop.y;
+          var open = Math.max(0, Math.min(1, (gap - 0.035 * h) / (0.09 * h)));
+          if (open > 0.03) {
+            var tl = (0.1 + 0.24 * open) * h, tw = 0.085 * w;
+            var tx = (G.mouthL.x + G.mouthR.x) / 2, ty = G.lipBot.y - 0.01 * h;
+            ctx.save();
+            ctx.translate(tx, ty); ctx.rotate(G.ang * 0.4);
+            ctx.shadowColor = "rgba(90,20,40,.35)"; ctx.shadowBlur = Math.min(10, 0.025 * w); ctx.shadowOffsetY = 0.01 * h;
+            ctx.beginPath();
+            ctx.moveTo(-tw, 0);
+            ctx.quadraticCurveTo(-tw, tl * 0.8, 0, tl);
+            ctx.quadraticCurveTo(tw, tl * 0.8, tw, 0);
+            ctx.closePath();
+            var tg2 = ctx.createLinearGradient(0, 0, 0, tl);
+            tg2.addColorStop(0, "#f78fb0"); tg2.addColorStop(0.6, "#f06ba5"); tg2.addColorStop(1, "#d64f82");
+            ctx.fillStyle = tg2; ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.moveTo(0, tl * 0.15); ctx.lineTo(0, tl * 0.8);
+            ctx.strokeStyle = "rgba(170,50,95,.5)"; ctx.lineWidth = Math.max(1, 0.009 * w); ctx.lineCap = "round"; ctx.stroke();
+            ctx.beginPath(); ctx.ellipse(-tw * 0.35, tl * 0.3, tw * 0.22, tl * 0.2, 0, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fill();
+            ctx.restore();
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(20,15,10,.4)"; ctx.shadowBlur = Math.min(10, 0.025 * w); ctx.shadowOffsetY = 0.008 * h;
+          var nx = G.nose.x, ny = G.nose.y + 0.004 * h;
+          ctx.beginPath();
+          ctx.moveTo(nx - 0.055 * w, ny - 0.018 * h);
+          ctx.quadraticCurveTo(nx, ny - 0.032 * h, nx + 0.055 * w, ny - 0.018 * h);
+          ctx.quadraticCurveTo(nx + 0.04 * w, ny + 0.026 * h, nx, ny + 0.038 * h);
+          ctx.quadraticCurveTo(nx - 0.04 * w, ny + 0.026 * h, nx - 0.055 * w, ny - 0.018 * h);
+          ctx.closePath();
+          var ng = ctx.createRadialGradient(nx - 0.016 * w, ny - 0.01 * h, 0.008 * w, nx, ny, 0.062 * w);
+          ng.addColorStop(0, "#5a5a60"); ng.addColorStop(0.6, "#232327"); ng.addColorStop(1, "#0a0a0c");
+          ctx.fillStyle = ng; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.arc(nx - 0.018 * w, ny - 0.012 * h, 0.011 * w, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,.65)"; ctx.fill();
+        },
+        /* [RP-V7.228] Fox Ears — pointed rust-orange ears with dark tips
+           and cream inners, feathered cream muzzle, small glossy nose,
+           whisker dots. Original art. */
+        foxears: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          [-1, 1].forEach(function (s) {
+            function ear() {
+              ctx.beginPath();
+              ctx.moveTo(s * 0.46 * w, 0.06 * h);
+              ctx.quadraticCurveTo(s * 0.40 * w, -0.28 * h, s * 0.315 * w, -0.54 * h);
+              ctx.quadraticCurveTo(s * 0.24 * w, -0.28 * h, s * 0.13 * w, 0.02 * h);
+              ctx.closePath();
+            }
+            fxContact(ctx, s * 0.30 * w, 0.09 * h, 0.17 * w, 0.05 * h, 0.22);
+            ctx.save();
+            ctx.shadowColor = "rgba(30,12,4,.35)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.02 * h;
+            ear();
+            var eg = ctx.createLinearGradient(s * 0.15 * w, 0.05 * h, s * 0.32 * w, -0.54 * h);
+            eg.addColorStop(0, "#c85a17"); eg.addColorStop(0.55, "#ec7f2e"); eg.addColorStop(1, "#f7a54e");
+            ctx.fillStyle = eg; ctx.fill();
+            ctx.restore();
+            ctx.save(); ear(); ctx.clip();
+            ctx.beginPath();
+            ctx.moveTo(s * 0.315 * w, -0.54 * h);
+            ctx.lineTo(s * 0.37 * w, -0.29 * h); ctx.lineTo(s * 0.25 * w, -0.29 * h);
+            ctx.closePath(); ctx.fillStyle = "rgba(38,20,12,.9)"; ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(s * 0.315 * w, -0.40 * h);
+            ctx.quadraticCurveTo(s * 0.27 * w, -0.20 * h, s * 0.235 * w, -0.02 * h);
+            ctx.quadraticCurveTo(s * 0.33 * w, -0.06 * h, s * 0.36 * w, -0.02 * h);
+            ctx.quadraticCurveTo(s * 0.345 * w, -0.20 * h, s * 0.315 * w, -0.40 * h);
+            ctx.closePath();
+            var ig = ctx.createLinearGradient(0, -0.4 * h, 0, 0);
+            ig.addColorStop(0, "#fff3e2"); ig.addColorStop(1, "#f3cfa3");
+            ctx.fillStyle = ig; ctx.fill();
+            fxStrands(ctx, s * 0.16 * w, s * 0.43 * w, -0.48 * h, 0.0, 10, 0.06 * h, "rgba(120,50,10,.25)", "rgba(255,210,150,.3)", 0.006 * w);
+            ctx.restore();
+            ear(); ctx.strokeStyle = "rgba(90,35,5,.45)"; ctx.lineWidth = 0.009 * w; ctx.stroke();
+          });
+          ctx.restore();
+          var mx = (G.mouthL.x + G.mouthR.x) / 2, my = G.lipBot.y + 0.045 * h;
+          ctx.save();
+          var mg2 = ctx.createRadialGradient(mx, my, 0.02 * w, mx, my, 0.21 * w);
+          mg2.addColorStop(0, "rgba(255,246,232,.95)"); mg2.addColorStop(0.65, "rgba(255,240,220,.75)"); mg2.addColorStop(1, "rgba(255,240,220,0)");
+          ctx.beginPath(); ctx.ellipse(mx, my, 0.205 * w, 0.115 * h, 0, 0, Math.PI * 2); ctx.fillStyle = mg2; ctx.fill();
+          ctx.restore();
+          var nx = G.nose.x, ny = G.nose.y + 0.004 * h;
+          ctx.save();
+          ctx.shadowColor = "rgba(30,15,5,.4)"; ctx.shadowBlur = Math.min(10, 0.025 * w); ctx.shadowOffsetY = 0.008 * h;
+          ctx.beginPath(); ctx.ellipse(nx, ny, 0.042 * w, 0.03 * h, 0, 0, Math.PI * 2);
+          var ng2 = ctx.createRadialGradient(nx - 0.012 * w, ny - 0.01 * h, 0.006 * w, nx, ny, 0.05 * w);
+          ng2.addColorStop(0, "#5a5a60"); ng2.addColorStop(0.6, "#232327"); ng2.addColorStop(1, "#0a0a0c");
+          ctx.fillStyle = ng2; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.arc(nx - 0.014 * w, ny - 0.01 * h, 0.009 * w, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,.65)"; ctx.fill();
+          ctx.fillStyle = "rgba(70,40,20,.45)";
+          [[-0.09, -0.055], [-0.068, -0.032], [-0.095, -0.028], [0.09, -0.055], [0.068, -0.032], [0.095, -0.028]].forEach(function (dt) {
+            ctx.beginPath(); ctx.arc(mx + dt[0] * w, my + dt[1] * h, Math.max(0.8, 0.004 * w), 0, Math.PI * 2); ctx.fill();
+          });
+        },
+        /* [RP-V7.228] Panda Paint — soft white face paint with the real
+           eyes and mouth left open (even-odd holes, same trick as Cat
+           Mask), black eye patches, round black ears, small black nose.
+           Original art. */
+        pandapaint: function (ctx, G) {
+          var w = G.fw, h = G.fh, d = G.eyeDist;
+          var ca = Math.cos(G.ang), sa = Math.sin(G.ang);
+          var eL = { x: G.eyeMid.x - ca * d / 2, y: G.eyeMid.y - sa * d / 2 };
+          var eR = { x: G.eyeMid.x + ca * d / 2, y: G.eyeMid.y + sa * d / 2 };
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          [-1, 1].forEach(function (s) {
+            fxContact(ctx, s * 0.36 * w, -0.04 * h, 0.12 * w, 0.04 * h, 0.2);
+            ctx.save();
+            ctx.shadowColor = "rgba(10,10,14,.4)"; ctx.shadowBlur = Math.min(12, 0.035 * w); ctx.shadowOffsetY = 0.015 * h;
+            ctx.beginPath(); ctx.arc(s * 0.38 * w, -0.10 * h, 0.115 * w, 0, Math.PI * 2);
+            var eg2 = ctx.createRadialGradient(s * 0.35 * w, -0.14 * h, 0.02 * w, s * 0.38 * w, -0.10 * h, 0.12 * w);
+            eg2.addColorStop(0, "#55555e"); eg2.addColorStop(0.6, "#26262c"); eg2.addColorStop(1, "#0e0e12");
+            ctx.fillStyle = eg2; ctx.fill();
+            ctx.restore();
+            ctx.beginPath(); ctx.arc(s * 0.38 * w, -0.10 * h, 0.055 * w, 0, Math.PI * 2);
+            ctx.fillStyle = "#7a7a84"; ctx.fill();
+            ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 0.006 * w; ctx.stroke();
+          });
+          ctx.restore();
+          function eyeHole(e) { ctx.moveTo(e.x + 0.052 * w, e.y); ctx.ellipse(e.x, e.y, 0.052 * w, 0.034 * h, G.ang, 0, Math.PI * 2); }
+          function mouthHole() { var hx = (G.mouthL.x + G.mouthR.x) / 2, hy = (G.lipTop.y + G.lipBot.y) / 2; ctx.moveTo(hx + 0.055 * w, hy); ctx.ellipse(hx, hy, 0.055 * w, 0.026 * h, G.ang, 0, Math.PI * 2); }
+          ctx.save();
+          fxOvalPath(ctx, G); eyeHole(eL); eyeHole(eR); mouthHole();
+          var pg = ctx.createRadialGradient(G.eyeMid.x, G.eyeMid.y - 0.1 * h, 0.1 * w, G.eyeMid.x, G.eyeMid.y, 0.62 * w);
+          pg.addColorStop(0, "rgba(255,255,255,.96)"); pg.addColorStop(0.75, "rgba(248,248,250,.94)"); pg.addColorStop(1, "rgba(214,214,222,.92)");
+          ctx.fillStyle = pg; ctx.fill("evenodd");
+          ctx.restore();
+          [[eL, -0.38], [eR, 0.38]].forEach(function (pr) {
+            var e = pr[0];
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(e.x + 0.088 * w, e.y);
+            ctx.ellipse(e.x, e.y, 0.088 * w, 0.118 * h, G.ang + pr[1], 0, Math.PI * 2);
+            ctx.moveTo(e.x + 0.05 * w, e.y);
+            ctx.ellipse(e.x, e.y, 0.05 * w, 0.032 * h, G.ang, 0, Math.PI * 2);
+            var bg2 = ctx.createRadialGradient(e.x - 0.02 * w, e.y - 0.03 * h, 0.01 * w, e.x, e.y, 0.12 * w);
+            bg2.addColorStop(0, "#3d3d45"); bg2.addColorStop(1, "#0b0b0f");
+            ctx.fillStyle = bg2; ctx.fill("evenodd");
+            ctx.restore();
+          });
+          var nx2 = G.noseBot.x, ny2 = G.noseBot.y + 0.01 * h;
+          ctx.save();
+          ctx.shadowColor = "rgba(20,15,10,.35)"; ctx.shadowBlur = Math.min(8, 0.02 * w);
+          ctx.beginPath(); ctx.ellipse(nx2, ny2, 0.045 * w, 0.03 * h, 0, 0, Math.PI * 2);
+          var ng3 = ctx.createRadialGradient(nx2 - 0.012 * w, ny2 - 0.01 * h, 0.006 * w, nx2, ny2, 0.05 * w);
+          ng3.addColorStop(0, "#5a5a60"); ng3.addColorStop(0.6, "#232327"); ng3.addColorStop(1, "#0a0a0c");
+          ctx.fillStyle = ng3; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.moveTo(nx2, ny2 + 0.028 * h); ctx.lineTo(nx2, ny2 + 0.055 * h);
+          ctx.strokeStyle = "rgba(20,20,26,.7)"; ctx.lineWidth = Math.max(1, 0.007 * w); ctx.lineCap = "round"; ctx.stroke();
+        },
+        /* [RP-V7.228] Grad Cap — mortarboard with shaded board, gold
+           button and a hanging tassel with strand fringe. Original art. */
+        gradcap: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          fxContact(ctx, 0, 0.10 * h, 0.34 * w, 0.06 * h, 0.26);
+          ctx.save();
+          ctx.shadowColor = "rgba(8,8,14,.45)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.02 * h;
+          ctx.beginPath();
+          ctx.moveTo(-0.30 * w, -0.04 * h); ctx.lineTo(0.30 * w, -0.04 * h);
+          ctx.lineTo(0.26 * w, 0.11 * h); ctx.lineTo(-0.26 * w, 0.11 * h);
+          ctx.closePath();
+          var bg3 = ctx.createLinearGradient(0, -0.04 * h, 0, 0.11 * h);
+          bg3.addColorStop(0, "#333845"); bg3.addColorStop(1, "#101218");
+          ctx.fillStyle = bg3; ctx.fill();
+          ctx.restore();
+          function board() {
+            ctx.beginPath();
+            ctx.moveTo(0, -0.37 * h); ctx.lineTo(0.60 * w, -0.17 * h);
+            ctx.lineTo(0, 0.03 * h); ctx.lineTo(-0.60 * w, -0.17 * h);
+            ctx.closePath();
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(8,8,14,.5)"; ctx.shadowBlur = Math.min(16, 0.045 * w); ctx.shadowOffsetY = 0.028 * h;
+          board();
+          var bd = ctx.createLinearGradient(-0.6 * w, -0.37 * h, 0.6 * w, 0.03 * h);
+          bd.addColorStop(0, "#232733"); bd.addColorStop(0.45, "#3d4356"); bd.addColorStop(0.55, "#2b303f"); bd.addColorStop(1, "#12141c");
+          ctx.fillStyle = bd; ctx.fill();
+          ctx.restore();
+          board(); ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.lineWidth = 0.01 * w; ctx.stroke();
+          ctx.save(); board(); ctx.clip();
+          ctx.fillStyle = "rgba(255,255,255,.10)";
+          ctx.beginPath();
+          ctx.moveTo(0, -0.37 * h); ctx.lineTo(0.60 * w, -0.17 * h); ctx.lineTo(0.12 * w, -0.115 * h); ctx.lineTo(-0.12 * w, -0.245 * h);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+          var bt = ctx.createRadialGradient(-0.01 * w, -0.185 * h, 0.006 * w, 0, -0.17 * h, 0.036 * w);
+          bt.addColorStop(0, "#ffe9a3"); bt.addColorStop(0.6, "#e8b93c"); bt.addColorStop(1, "#a8740c");
+          ctx.beginPath(); ctx.arc(0, -0.17 * h, 0.032 * w, 0, Math.PI * 2); ctx.fillStyle = bt; ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(0, -0.17 * h);
+          ctx.quadraticCurveTo(0.34 * w, -0.20 * h, 0.545 * w, -0.155 * h);
+          ctx.quadraticCurveTo(0.575 * w, -0.05 * h, 0.555 * w, 0.14 * h);
+          ctx.strokeStyle = "#d9a92f"; ctx.lineWidth = 0.016 * w; ctx.lineCap = "round"; ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, -0.17 * h);
+          ctx.quadraticCurveTo(0.34 * w, -0.20 * h, 0.545 * w, -0.155 * h);
+          ctx.strokeStyle = "rgba(255,240,190,.55)"; ctx.lineWidth = 0.006 * w; ctx.stroke();
+          ctx.beginPath(); ctx.arc(0.548 * w, -0.15 * h, 0.03 * w, 0, Math.PI * 2); ctx.fillStyle = bt; ctx.fill();
+          ctx.beginPath(); ctx.ellipse(0.552 * w, 0.145 * h, 0.04 * w, 0.02 * h, 0, 0, Math.PI * 2);
+          var tg3 = ctx.createLinearGradient(0.51 * w, 0, 0.59 * w, 0);
+          tg3.addColorStop(0, "#c8912a"); tg3.addColorStop(0.5, "#ffd964"); tg3.addColorStop(1, "#c8912a");
+          ctx.fillStyle = tg3; ctx.fill();
+          ctx.save();
+          ctx.beginPath(); ctx.rect(0.515 * w, 0.13 * h, 0.075 * w, 0.13 * h); ctx.clip();
+          fxStrands(ctx, 0.52 * w, 0.585 * w, 0.13 * h, 0.24 * h, 9, 0.045 * h, "rgba(160,105,10,.5)", "rgba(255,225,140,.6)", 0.007 * w);
+          ctx.restore();
+          ctx.restore();
+        },
+        /* [RP-V7.228] Fire Helmet — glossy red dome with centre ridge,
+           wide brim, reflective band and a leather front shield with a
+           star emblem. Original art. */
+        firehelmet: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          fxContact(ctx, 0, 0.13 * h, 0.55 * w, 0.07 * h, 0.26);
+          ctx.save();
+          ctx.shadowColor = "rgba(30,5,2,.45)"; ctx.shadowBlur = Math.min(15, 0.042 * w); ctx.shadowOffsetY = 0.022 * h;
+          ctx.beginPath(); ctx.ellipse(0, 0.075 * h, 0.63 * w, 0.125 * h, 0, 0, Math.PI * 2);
+          var br = ctx.createLinearGradient(-0.63 * w, 0, 0.63 * w, 0);
+          br.addColorStop(0, "#8f1307"); br.addColorStop(0.3, "#d92b16"); br.addColorStop(0.52, "#ff6a4a"); br.addColorStop(1, "#8f1307");
+          ctx.fillStyle = br; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.ellipse(0, 0.095 * h, 0.63 * w, 0.105 * h, 0, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(60,5,2,.35)"; ctx.fill();
+          function dome() {
+            ctx.beginPath();
+            ctx.moveTo(-0.42 * w, 0.07 * h);
+            ctx.quadraticCurveTo(-0.44 * w, -0.34 * h, -0.2 * w, -0.47 * h);
+            ctx.quadraticCurveTo(0, -0.56 * h, 0.2 * w, -0.47 * h);
+            ctx.quadraticCurveTo(0.44 * w, -0.34 * h, 0.42 * w, 0.07 * h);
+            ctx.closePath();
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(30,5,2,.4)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.018 * h;
+          dome();
+          var dg2 = ctx.createLinearGradient(-0.42 * w, -0.5 * h, 0.42 * w, 0.07 * h);
+          dg2.addColorStop(0, "#a31a0c"); dg2.addColorStop(0.35, "#e83c1e"); dg2.addColorStop(0.55, "#ff7a52"); dg2.addColorStop(1, "#931507");
+          ctx.fillStyle = dg2; ctx.fill();
+          ctx.restore();
+          ctx.save(); dome(); ctx.clip();
+          ctx.beginPath(); ctx.ellipse(0, -0.30 * h, 0.075 * w, 0.27 * h, 0, 0, Math.PI * 2);
+          var rg2 = ctx.createLinearGradient(-0.075 * w, 0, 0.075 * w, 0);
+          rg2.addColorStop(0, "rgba(120,10,2,0)"); rg2.addColorStop(0.5, "rgba(255,150,110,.5)"); rg2.addColorStop(1, "rgba(120,10,2,0)");
+          ctx.fillStyle = rg2; ctx.fill();
+          ctx.beginPath(); ctx.ellipse(-0.17 * w, -0.33 * h, 0.16 * w, 0.07 * h, -0.5, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,.20)"; ctx.fill();
+          ctx.fillStyle = "rgba(255,231,150,.92)";
+          ctx.fillRect(-0.42 * w, -0.005 * h, 0.84 * w, 0.045 * h);
+          ctx.fillStyle = "rgba(255,255,255,.35)";
+          ctx.fillRect(-0.42 * w, -0.005 * h, 0.84 * w, 0.014 * h);
+          ctx.restore();
+          dome(); ctx.strokeStyle = "rgba(70,5,2,.5)"; ctx.lineWidth = 0.01 * w; ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-0.13 * w, -0.13 * h);
+          ctx.quadraticCurveTo(0, -0.185 * h, 0.13 * w, -0.13 * h);
+          ctx.quadraticCurveTo(0.115 * w, 0.03 * h, 0, 0.075 * h);
+          ctx.quadraticCurveTo(-0.115 * w, 0.03 * h, -0.13 * w, -0.13 * h);
+          ctx.closePath();
+          var sh = ctx.createLinearGradient(0, -0.18 * h, 0, 0.075 * h);
+          sh.addColorStop(0, "#fdf3d0"); sh.addColorStop(0.6, "#eed9a0"); sh.addColorStop(1, "#c39a4e");
+          ctx.fillStyle = sh; ctx.fill();
+          ctx.strokeStyle = "#7a5a1e"; ctx.lineWidth = 0.012 * w; ctx.stroke();
+          ctx.beginPath(); ctx.arc(0, -0.045 * h, 0.042 * w, 0, Math.PI * 2);
+          var em = ctx.createRadialGradient(-0.012 * w, -0.06 * h, 0.006 * w, 0, -0.045 * h, 0.046 * w);
+          em.addColorStop(0, "#ff8a70"); em.addColorStop(1, "#b3231a");
+          ctx.fillStyle = em; ctx.fill();
+          fxSparkle(ctx, 0, -0.045 * h, 0.026 * w, 0.95);
+          ctx.restore();
+        },
+        /* [RP-V7.228] Fuzzy Shades — dark plum lenses in a plush
+           pompom-dot frame (the fuzzy-glasses look trending on
+           Snapchat's style row). Original art. */
+        fuzzyglasses: function (ctx, G) {
+          fxHeadFrame(ctx, G.eyeMid, G.ang);
+          var w = G.fw, h = G.fh, d = G.eyeDist;
+          [-d / 2, d / 2].forEach(function (cx) { fxContact(ctx, cx, 0.19 * h, 0.19 * w, 0.05 * h, 0.18); });
+          ctx.strokeStyle = "#a4134f"; ctx.lineWidth = 0.035 * h; ctx.lineCap = "round";
+          ctx.beginPath(); ctx.moveTo(-0.56 * w, -0.05 * h); ctx.lineTo(-d / 2 - 0.18 * w, -0.02 * h); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0.56 * w, -0.05 * h); ctx.lineTo(d / 2 + 0.18 * w, -0.02 * h); ctx.stroke();
+          var dots = ["#ff8fb5", "#ffc2d4", "#e75480", "#fff0f5", "#f778a8"];
+          [-d / 2, d / 2].forEach(function (cx) {
+            function lens() {
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(cx - 0.185 * w, -0.13 * h, 0.37 * w, 0.3 * h, 0.1 * w); else ctx.rect(cx - 0.185 * w, -0.13 * h, 0.37 * w, 0.3 * h);
+            }
+            function frame() {
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(cx - 0.205 * w, -0.15 * h, 0.41 * w, 0.34 * h, 0.11 * w); else ctx.rect(cx - 0.205 * w, -0.15 * h, 0.41 * w, 0.34 * h);
+            }
+            ctx.save();
+            ctx.shadowColor = "rgba(60,5,30,.4)"; ctx.shadowBlur = Math.min(14, 0.04 * w); ctx.shadowOffsetY = 0.02 * h;
+            lens();
+            var lg2 = ctx.createLinearGradient(0, -0.13 * h, 0, 0.17 * h);
+            lg2.addColorStop(0, "rgba(88,40,80,.92)"); lg2.addColorStop(0.45, "rgba(40,18,44,.95)"); lg2.addColorStop(1, "rgba(70,26,60,.93)");
+            ctx.fillStyle = lg2; ctx.fill();
+            ctx.restore();
+            ctx.save(); lens(); ctx.clip(); fxGloss(ctx, cx, 0.02 * h, 0.37 * w, 0.3 * h, 0.3); ctx.restore();
+            frame(); ctx.strokeStyle = "#d6336c"; ctx.lineWidth = 0.038 * w; ctx.stroke();
+            var x0 = cx - 0.205 * w, x1 = cx + 0.205 * w, y0 = -0.15 * h, y1 = 0.19 * h;
+            for (var i = 0; i < 30; i++) {
+              var t = i / 30, px, py;
+              if (t < 0.25) { px = x0 + (x1 - x0) * (t / 0.25); py = y0; }
+              else if (t < 0.5) { px = x1; py = y0 + (y1 - y0) * ((t - 0.25) / 0.25); }
+              else if (t < 0.75) { px = x1 - (x1 - x0) * ((t - 0.5) / 0.25); py = y1; }
+              else { px = x0; py = y1 - (y1 - y0) * ((t - 0.75) / 0.25); }
+              var jr = Math.sin(i * 12.9898) * 0.006 * w, jr2 = Math.cos(i * 7.233) * 0.006 * h;
+              var r = 0.02 * w + (i % 3) * 0.004 * w;
+              var fg = ctx.createRadialGradient(px + jr - r * 0.3, py + jr2 - r * 0.3, r * 0.15, px + jr, py + jr2, r);
+              var c0 = dots[i % dots.length];
+              fg.addColorStop(0, "#ffffff"); fg.addColorStop(0.35, c0); fg.addColorStop(1, c0);
+              ctx.beginPath(); ctx.arc(px + jr, py + jr2, r, 0, Math.PI * 2); ctx.fillStyle = fg; ctx.fill();
+            }
+          });
+          ctx.fillStyle = "#d6336c";
+          ctx.beginPath(); ctx.ellipse(0, -0.05 * h, 0.055 * w, 0.035 * h, 0, 0, Math.PI * 2); ctx.fill();
+          [-0.03, 0, 0.03].forEach(function (dx, i) {
+            ctx.beginPath(); ctx.arc(dx * w, -0.055 * h + (i % 2) * 0.008 * h, 0.017 * w, 0, Math.PI * 2);
+            ctx.fillStyle = dots[(i + 1) % dots.length]; ctx.fill();
+          });
+          fxSparkle(ctx, -d / 2 - 0.17 * w, -0.13 * h, 0.03 * w, 0.85);
         }
       };
       /* Landmarks that get smoothed: the face anchors + the beard outline.
@@ -19880,7 +20286,7 @@
         }
         charms -= total219; saveWallet(); updateHUD(); // [RP-V7.25] persist the gift debit
         closeSheet();
-        try { if (g && (g.tier === "big" || g.tier === "prestige")) AudioFX.giftBig(); else AudioFX.gift(); } catch (e) { } // [RP-V7.39] gifts get the soft pop + glass chime (big shows get the arpeggio) — never the coin blip
+        try { if (g && (g.tier === "big" || g.tier === "prestige")) AudioFX.chaChingBig(); else AudioFX.chaChing(); } catch (e) { } // [RP-V7.229] gift SEND = a very short cash-register cha-ching (Branden's order, Nov 4) — the soft pop + chime (gift()/giftBig()) now belongs to the pot bursts only; coin() stays silenced
         // [RP-V7.219] the count rides a COPY of the gift (__cnt) into
         // the show layer — banner/stage streaks advance by the batch;
         // the shared catalog entry is never mutated.
@@ -38590,7 +38996,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
          runs at the highest bitrates offered (12 Mbps video / 256 kbps
          audio), photos are full-frame (ImageCapture / native-size
          canvas, JPEG 0.92) — nothing is downscaled anywhere.
-       - Lenses are the Plaza's OWN 42 fun face effects (LIVE_FILTERS):
+       - Lenses are the Plaza's OWN 50 fun face effects (LIVE_FILTERS):
          the carousel + the full lens sheet render the engine's own
          swatches and a pick goes through setLiveFilter, so the preview
          and the recording run the engine's own fx pipeline.
