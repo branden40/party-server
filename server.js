@@ -11837,6 +11837,16 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // is real money: checkout / subscribe / cashout (below) — no money
   // enters or leaves a teen account in either direction.
   const b = req.body || {};
+  // [RP-V7.233] Gift SOURCE marker (Branden, Nov 4: Earn history
+  // shows who sent each gift AND where it came from). The client
+  // tags every send with the surface it came from — "picture" |
+  // "video" | "live" — and the tag is recorded on BOTH ledger rows
+  // of the pair (see txBase below). Validated against this whitelist;
+  // an absent or invalid value records NOTHING — a source is never
+  // invented for a gift whose surface is unknown, and the current
+  // live client (which sends no src) settles exactly as before.
+  const giftSrc233 =
+    b.src === "picture" || b.src === "video" || b.src === "live" ? b.src : null;
   // [RP-V7.52] Idempotency (audit C6): the client stamps each gift
   // ATTEMPT with a key; a retry of the same attempt (double-tap,
   // network retry) returns the original result and never re-charges.
@@ -11991,6 +12001,10 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
       charms: cost,
       ref: giftId,
     };
+    // [RP-V7.233] the validated source (when the client sent one)
+    // rides BOTH rows of the pair — the sender's "Gift sent" and
+    // the recipient's "Gift received" both show where it came from.
+    if (giftSrc233) txBase.src = giftSrc233;
     moneyTx(db, Object.assign({}, txBase, {
       type: "gift-sent", cents: uValue, cut: uCut,
     }));
@@ -12651,10 +12665,32 @@ app.get("/api/money/history", async (req, res) => {
   let changed = unlockMoneyHolds(db, ctx.user.id);
   if (await moneyProcessCashouts(db, ctx.db)) changed = true;
   if (changed) writeMoney(db);
+  // [RP-V7.233] Display names resolved HERE, from the account
+  // records (ctx.db is the accounts db), so even gifts sent long
+  // before this build gain the "who" in Earn history — the tx rows
+  // have always stored the from/to account ids. An id that no
+  // longer resolves (deleted account) omits the name and the
+  // client renders its plain label, exactly as before. The stored
+  // rows are never mutated; names ride a per-response copy, and
+  // the payload shape is otherwise unchanged.
+  const nameById233 = {};
+  for (const u233 of (ctx.db && ctx.db.users) || [])
+    if (u233 && u233.id && u233.name) nameById233[u233.id] = u233.name;
   const mine = db.txlog
     .filter((t) => t.from === ctx.user.id || t.to === ctx.user.id)
     .slice(-50)
-    .reverse();
+    .reverse()
+    .map((t) => {
+      const fromName233 = t.from ? nameById233[t.from] : null;
+      const toName233 = t.to ? nameById233[t.to] : null;
+      if (!fromName233 && !toName233) return t;
+      return Object.assign(
+        {},
+        t,
+        fromName233 ? { fromName: fromName233 } : null,
+        toName233 ? { toName: toName233 } : null
+      );
+    });
   const cashouts = db.cashouts
     .filter((c) => c.acctId === ctx.user.id)
     .slice(-20)
