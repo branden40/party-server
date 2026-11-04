@@ -3118,6 +3118,7 @@
             <span class="meet-badge" id="sceneMeet"></span>
             <div class="spacer"></div>
             <button class="scene-btn pink" id="btnSwipeDeck" hidden>♥ Swipe deck</button>
+            <button class="scene-btn" id="btnDatingProfile" hidden>💕 My dating profile</button>
             <button class="scene-btn" id="btnRoomMusic" hidden>Music style</button>
             <button class="scene-btn" id="btnLeave">Leave room</button>
           </div>
@@ -3442,16 +3443,12 @@
             </div>
             <!-- [RP-V7.70] Your story row on the Profile page: ring + post. -->
             <div class="story-profile-row" id="storyProfileRow" hidden></div>
-            <!-- [RP-V7.119] FIX 4: the "% complete" meter is a dating-builder
-                 element — hidden on the Profile tab. Dating details render
-                 only inside the dating / meet & greet rooms; the builder
-                 sections below still edit everything. -->
-            <div class="pf-meter" id="pfMeter" hidden>
-              <div class="pf-meter-top"><span class="pf-meter-txt" id="pfMeterTxt">Your profile is 0% complete</span><span class="pf-meter-pct" id="pfMeterPct">0%</span></div>
-              <div class="pf-meter-track"><div class="pf-meter-fill" id="pfMeterFill"></div></div>
-              <p class="pf-meter-hint" id="pfMeterHint"></p>
-            </div>
-            <div class="pf-social">
+            <!-- [RP-V7.237] The dating builder (completeness meter,
+                 looking-for, status, status filter, vibe, prompts,
+                 details, voice, card) moved OUT of the Profile tab into
+                 #datingSheet — it now lives only inside the dating
+                 rooms. This tab is the simple profile only. -->
+                        <div class="pf-social">
               <button type="button" class="pf-stat" id="pfStatFollowing"><b id="pfFollowingN">0</b><span>Following</span></button>
               <button type="button" class="pf-stat" id="pfStatFollowers"><b id="pfFollowersN">0</b><span>Followers</span></button>
               <button type="button" class="pf-stat" id="pfStatLikes"><b id="pfLikesN">0</b><span>Likes</span></button>
@@ -3460,14 +3457,7 @@
             <div class="btn-row" style="margin-top:14px;">
               <button type="button" class="btn-mini" id="pfSettingsBtn" style="padding:11px 20px;">⚙️ Settings</button>
             </div>
-            <div class="pf-steps" id="pfSteps">
-              <button type="button" class="pf-step on" data-go="pfSecPhotos">📸 Photos</button>
-              <button type="button" class="pf-step" data-go="pfSecPrompts" data-adult="1">💬 Prompts</button>
-              <button type="button" class="pf-step" data-go="pfSecDetails" data-adult="1">✨ Details</button>
-              <button type="button" class="pf-step" data-go="pfSecVoice" data-adult="1">🎙️ Voice</button>
-              <button type="button" class="pf-step" data-go="pfSecCard">👀 Your card</button>
-            </div>
-            <div class="field" id="pfSecBasics" style="margin-top:18px;">
+                        <div class="field" id="pfSecBasics" style="margin-top:18px;">
               <label for="nameInput">Your party name</label>
               <input type="text" id="nameInput" maxlength="16" placeholder="e.g. Alex" autocomplete="off" />
               <label style="margin-top:14px;">Gender</label>
@@ -3510,20 +3500,151 @@
               <div class="pf-grid" id="pfPhotoGrid"></div>
               <p class="age-note">Your <b>first photo is your main photo</b> — it's the one beside your name, in the HUD and around the party. Use a photo's arrows to reorder the set, ✕ to remove it. Swipe the big photo above (or tap its arrows) to flip through your photos. Your photos save to your account — they're there on every device you sign in on, even after you log out.</p>
               <input type="file" id="photoInput" accept="image/*" multiple hidden />
-              <div class="btn-row"><button type="button" class="btn-mini pf-next" data-go="pfSecPrompts" data-adult="1">Next: Prompts →</button></div>
             </div>
             <div class="field" id="pfSecMedia" style="margin-top:18px;">
               <label>Your photos &amp; reels · on your profile</label>
               <div class="rpmedia-grid" id="pfMediaGrid"></div>
               <p class="age-note">This is the grid visitors see on your profile — every tile shows how many people have viewed it, right on the picture.</p>
             </div>
-            <div class="field" id="pfSecPrompts">
+                                                <div class="field">
+              <label>Online profile photo</label>
+              <div class="btn-row">
+                <button class="btn-mini" id="btnOnlinePhotoPf">Upload photo for Online mode</button>
+                <span class="age-note" style="align-self:center;" id="pfOnlinePhotoNote">Shows as your profile photo for other people when you party online.</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Saved profile</label>
+              <div class="btn-row">
+                <button class="btn-mini" id="btnResetProfile">Reset profile</button>
+                <span class="age-note" style="align-self:center;">Your profile auto-saves on this device so you can continue next visit. Reset clears the saved copy — this visit keeps playing, and a new profile saves next time you enter the party.</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Reminders &amp; invites</label>
+              <p class="age-note" id="pfContactInfo" style="margin:0 0 8px;">No email or phone on file yet.</p>
+              <div class="btn-row">
+                <button class="btn-mini" id="btnUnsubToggle" hidden>Unsubscribe from texts &amp; emails</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="bioInput">About me</label>
+              <textarea id="bioInput" maxlength="240" rows="3" placeholder="A few lines about you — what you love, and what you're looking for…"></textarea>
+              <p class="age-note"><span id="bioCount">0</span>/240 characters</p>
+            </div>
+            <div class="field">
+              <label for="pfLinkInput">Your link · shown on your profile</label>
+              <input type="url" id="pfLinkInput" maxlength="300" placeholder="yourstore.com" autocomplete="off" />
+              <p class="age-note">One link under your bio — your store, your page, anywhere that's yours. Leave it empty to show nothing.</p>
+              <label class="su-consent" style="margin-top:12px;"><input type="checkbox" id="pfLikedPrivate" /> <span>Keep my Liked tab private — only I can see the posts I've liked.</span></label>
+            </div>
+            <div class="field">
+              <label>Your age range</label>
+              <div class="chips" id="pfAgeRanges"></div>
+              <p class="age-note" id="pfAgeNote" hidden>You're in as Under 18, so your age is locked for this party and every room and play space stays off — the Meet &amp; Greet rooms, the Grand Plaza and the online rooms are all 18+. Two rooms are the exception — the Christian Fellowship prayer room and Teen Hangout are open to all ages. Your photo profile is yours.</p>
+            </div>
+                                                <div class="field">
+              <label>Where you're based</label>
+              <div class="btn-row" style="flex-wrap:wrap;">
+                <select id="pfStateSel" aria-label="Your state"><option value="">State — pick yours</option></select>
+                <input type="text" id="pfCityInput" maxlength="40" placeholder="Your city" aria-label="Your city" />
+              </div>
+              <p class="age-note">Only used on this device: your ✨ For You live list puts hosts near you first — and when you host, it helps viewers near you find your live.</p>
+            </div>
+            <div class="field">
+              <label>Your interests</label>
+              <div class="chips" id="pfInterests"></div>
+            </div>
+                        <!-- [RP-V7.94] The Background picker is deleted with the whole live-wallpaper feature (Branden, Oct 28: "No just delete."). -->
+            <div class="btn-row">
+              <button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnSaveProfile">Save profile</button>
+              <button class="btn-mini" id="btnSupportPf" type="button">🆘 Help &amp; Support</button>
+              <button class="btn-mini" id="btnProfileBack">Back to the plaza</button>
+            </div>
+            <div class="field" id="pfSecLegal" style="margin-top:18px;">
+              <label>Legal</label>
+              <p class="age-note rp-legal" style="margin:4px 0 0;"><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a></p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- GUEST / GAME / CHAT SHEET -->
+    <!-- [RP-V7.93] The auto-appearing earn promo popup was removed for good (Branden, Oct 27). Earn info lives on the Home "How you get paid" card and in the Earn sheet. -->
+    <div class="guide-bar" id="guideBar" hidden>
+      <div class="guide-head"><b id="guideTitle">🚀 Your first minute at the party</b><button class="guide-skip" id="btnGuideSkip" type="button">Skip</button></div>
+      <div class="guide-steps" id="guideSteps"></div>
+      <div class="guide-action" id="guideAction"></div>
+    </div>
+    <div class="overlay" id="overlay">
+      <div class="sheet" id="sheet"></div>
+    </div>
+    <!-- [RP-V7.89b] Avatar rack — full-screen grid sheet -->
+    <div class="face-sheet" id="pfRackSheet" hidden>
+      <div class="face-sheet-head">
+        <div style="flex:1; min-width:0;">
+          <h3>🎭 Plaza avatars</h3>
+          <p class="age-note" style="margin:2px 0 0;">100 ready-made faces — tap one and it's your face, right away.</p>
+        </div>
+        <button type="button" class="close-x" id="pfRackSheetClose" aria-label="Close avatar rack"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div class="face-sheet-grid" id="pfFaceRack"></div>
+    </div>
+
+    <!-- [RP-V7.237] The dating profile builder lives HERE now — a
+         full-screen sheet that opens ONLY from inside the dating rooms
+         (Love Lounge, Serious Singles): the scene's "My dating profile"
+         button, or automatically on entry while the dating profile is
+         incomplete (see rpDatingAutoOpen237). The sections below were
+         moved verbatim out of the Profile tab — every id the profile
+         code drives is unchanged, and no data or endpoint moved. Faith
+         Dating keeps its own separate setup inside Fellowship. -->
+    <div class="face-sheet" id="datingSheet" hidden>
+      <div class="face-sheet-head">
+        <div style="flex:1; min-width:0;">
+          <h3>💕 My dating profile</h3>
+          <p class="age-note" style="margin:2px 0 0;">Prompts, details, voice and your card — this profile shows only inside the dating rooms.</p>
+        </div>
+        <button type="button" class="close-x" id="datingSheetClose" aria-label="Close dating profile"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div style="flex:1; overflow-y:auto; padding:6px 16px calc(20px + env(safe-area-inset-bottom));">
+        <div class="pf-steps" id="datingSteps">
+          <button type="button" class="pf-step on" data-go="pfSecPrompts">💬 Prompts</button>
+          <button type="button" class="pf-step" data-go="pfSecDetails">✨ Details</button>
+          <button type="button" class="pf-step" data-go="pfSecVoice">🎙️ Voice</button>
+          <button type="button" class="pf-step" data-go="pfSecCard">👀 Your card</button>
+        </div>
+<div class="pf-meter" id="pfMeter">
+              <div class="pf-meter-top"><span class="pf-meter-txt" id="pfMeterTxt">Your profile is 0% complete</span><span class="pf-meter-pct" id="pfMeterPct">0%</span></div>
+              <div class="pf-meter-track"><div class="pf-meter-fill" id="pfMeterFill"></div></div>
+              <p class="pf-meter-hint" id="pfMeterHint"></p>
+            </div>
+<div class="field" id="pfLookingField">
+              <label>Looking for ages</label>
+              <div class="chips" id="pfLookingFor"></div>
+            </div>
+<div class="field" id="pfStatusField">
+              <label>Relationship status · dating side</label>
+              <div class="chips" id="pfRelStatus"></div>
+              <p class="age-note">Shows on your profile for the other real people in the live online rooms.</p>
+            </div>
+<div class="field" id="pfStatusFilterField">
+              <label>Match me only with · dating side</label>
+              <div class="chips" id="pfStatusFilter"></div>
+              <p class="age-note">Pick the relationship statuses you'll be matched with in Dating Questions. Leave all off to match with any status.</p>
+            </div>
+<div class="field" id="pfVibeField">
+              <label>Your vibe</label>
+              <div class="chips" id="pfVibes"></div>
+            </div>
+<div class="field" id="pfSecPrompts">
               <div class="pf-sec-head"><label style="margin:0;">Your prompts · pick 3</label></div>
               <p class="age-note" style="margin:2px 0 12px;">The Hinge way: pick three prompts and answer each in your own words (140 characters max). They show on your card between your photos — they're what people actually reply to.</p>
               <div id="pfPromptSlots"></div>
               <div class="btn-row"><button type="button" class="btn-mini pf-next" data-go="pfSecDetails">Next: Details →</button></div>
             </div>
-            <div class="field" id="pfSecDetails">
+<div class="field" id="pfSecDetails">
               <label>The details</label>
               <p class="age-note" style="margin:0 0 12px;">All optional — anything you add shows as a tidy chip on your profile card.</p>
               <div class="pf-detail-grid">
@@ -3585,7 +3706,7 @@
               </div>
               <div class="btn-row"><button type="button" class="btn-mini pf-next" data-go="pfSecVoice">Next: Voice →</button></div>
             </div>
-            <div class="field" id="pfSecVoice">
+<div class="field" id="pfSecVoice">
               <label>Voice prompt</label>
               <p class="age-note" style="margin:0 0 12px;">Record up to 30 seconds answering one prompt — hearing your real voice is the fastest way to feel real. It plays right from your profile card.</p>
               <div class="voice-box">
@@ -3595,113 +3716,15 @@
               </div>
               <div class="btn-row"><button type="button" class="btn-mini pf-next" data-go="pfSecCard">Next: See your card →</button></div>
             </div>
-            <div class="field">
-              <label>Online profile photo</label>
-              <div class="btn-row">
-                <button class="btn-mini" id="btnOnlinePhotoPf">Upload photo for Online mode</button>
-                <span class="age-note" style="align-self:center;" id="pfOnlinePhotoNote">Shows as your profile photo for other people when you party online.</span>
-              </div>
-            </div>
-            <div class="field">
-              <label>Saved profile</label>
-              <div class="btn-row">
-                <button class="btn-mini" id="btnResetProfile">Reset profile</button>
-                <span class="age-note" style="align-self:center;">Your profile auto-saves on this device so you can continue next visit. Reset clears the saved copy — this visit keeps playing, and a new profile saves next time you enter the party.</span>
-              </div>
-            </div>
-            <div class="field">
-              <label>Reminders &amp; invites</label>
-              <p class="age-note" id="pfContactInfo" style="margin:0 0 8px;">No email or phone on file yet.</p>
-              <div class="btn-row">
-                <button class="btn-mini" id="btnUnsubToggle" hidden>Unsubscribe from texts &amp; emails</button>
-              </div>
-            </div>
-            <div class="field">
-              <label for="bioInput">About me</label>
-              <textarea id="bioInput" maxlength="240" rows="3" placeholder="A few lines about you — what you love, and what you're looking for…"></textarea>
-              <p class="age-note"><span id="bioCount">0</span>/240 characters</p>
-            </div>
-            <div class="field">
-              <label for="pfLinkInput">Your link · shown on your profile</label>
-              <input type="url" id="pfLinkInput" maxlength="300" placeholder="yourstore.com" autocomplete="off" />
-              <p class="age-note">One link under your bio — your store, your page, anywhere that's yours. Leave it empty to show nothing.</p>
-              <label class="su-consent" style="margin-top:12px;"><input type="checkbox" id="pfLikedPrivate" /> <span>Keep my Liked tab private — only I can see the posts I've liked.</span></label>
-            </div>
-            <div class="field">
-              <label>Your age range</label>
-              <div class="chips" id="pfAgeRanges"></div>
-              <p class="age-note" id="pfAgeNote" hidden>You're in as Under 18, so your age is locked for this party and every room and play space stays off — the Meet &amp; Greet rooms, the Grand Plaza and the online rooms are all 18+. Two rooms are the exception — the Christian Fellowship prayer room and Teen Hangout are open to all ages. Your photo profile is yours.</p>
-            </div>
-            <div class="field" id="pfLookingField">
-              <label>Looking for ages</label>
-              <div class="chips" id="pfLookingFor"></div>
-            </div>
-            <div class="field" id="pfStatusField">
-              <label>Relationship status · dating side</label>
-              <div class="chips" id="pfRelStatus"></div>
-              <p class="age-note">Shows on your profile for the other real people in the live online rooms.</p>
-            </div>
-            <div class="field" id="pfStatusFilterField">
-              <label>Match me only with · dating side</label>
-              <div class="chips" id="pfStatusFilter"></div>
-              <p class="age-note">Pick the relationship statuses you'll be matched with in Dating Questions. Leave all off to match with any status.</p>
-            </div>
-            <div class="field">
-              <label>Where you're based</label>
-              <div class="btn-row" style="flex-wrap:wrap;">
-                <select id="pfStateSel" aria-label="Your state"><option value="">State — pick yours</option></select>
-                <input type="text" id="pfCityInput" maxlength="40" placeholder="Your city" aria-label="Your city" />
-              </div>
-              <p class="age-note">Only used on this device: your ✨ For You live list puts hosts near you first — and when you host, it helps viewers near you find your live.</p>
-            </div>
-            <div class="field">
-              <label>Your interests</label>
-              <div class="chips" id="pfInterests"></div>
-            </div>
-            <div class="field">
-              <label>Your vibe</label>
-              <div class="chips" id="pfVibes"></div>
-            </div>
-            <div class="field" id="pfSecCard">
+<div class="field" id="pfSecCard">
               <label>Your profile card · how it looks</label>
               <p class="age-note" style="margin:0 0 12px;">This is your card the way it shows at the party — photos, prompts, details and your voice, all in one scroll.</p>
               <div class="pcard-stack" id="pfCardStack"></div>
             </div>
-<!-- [RP-V7.94] The Background picker is deleted with the whole live-wallpaper feature (Branden, Oct 28: "No just delete."). -->
-            <div class="btn-row">
-              <button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnSaveProfile">Save profile</button>
-              <button class="btn-mini" id="btnSupportPf" type="button">🆘 Help &amp; Support</button>
-              <button class="btn-mini" id="btnProfileBack">Back to the plaza</button>
-            </div>
-            <div class="field" id="pfSecLegal" style="margin-top:18px;">
-              <label>Legal</label>
-              <p class="age-note rp-legal" style="margin:4px 0 0;"><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a></p>
-            </div>
-          </div>
+        <div class="btn-row" style="margin-top:18px;">
+          <button class="btn-primary" style="width:auto; padding:12px 26px;" id="datingSheetDone" type="button">Done — back to the room</button>
         </div>
-      </section>
-    </div>
-
-    <!-- GUEST / GAME / CHAT SHEET -->
-    <!-- [RP-V7.93] The auto-appearing earn promo popup was removed for good (Branden, Oct 27). Earn info lives on the Home "How you get paid" card and in the Earn sheet. -->
-    <div class="guide-bar" id="guideBar" hidden>
-      <div class="guide-head"><b id="guideTitle">🚀 Your first minute at the party</b><button class="guide-skip" id="btnGuideSkip" type="button">Skip</button></div>
-      <div class="guide-steps" id="guideSteps"></div>
-      <div class="guide-action" id="guideAction"></div>
-    </div>
-    <div class="overlay" id="overlay">
-      <div class="sheet" id="sheet"></div>
-    </div>
-    <!-- [RP-V7.89b] Avatar rack — full-screen grid sheet -->
-    <div class="face-sheet" id="pfRackSheet" hidden>
-      <div class="face-sheet-head">
-        <div style="flex:1; min-width:0;">
-          <h3>🎭 Plaza avatars</h3>
-          <p class="age-note" style="margin:2px 0 0;">100 ready-made faces — tap one and it's your face, right away.</p>
-        </div>
-        <button type="button" class="close-x" id="pfRackSheetClose" aria-label="Close avatar rack"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
-      <div class="face-sheet-grid" id="pfFaceRack"></div>
     </div>
 
     <div class="confetti" id="confetti"></div>
@@ -6143,6 +6166,7 @@
         var meetEl = $("sceneMeet");
         if (meetEl) { var ageTag = (room.id === "faith" || room.id === "teen") ? "All ages" : "18+"; meetEl.textContent = room.topic ? "Meet & Greet · " + room.topic + " · " + ageTag : ageTag; meetEl.style.display = ""; }
         var swBtn = $("btnSwipeDeck"); if (swBtn) swBtn.hidden = !room.dating || room.id === "singles";
+        var dpBtn237 = $("btnDatingProfile"); if (dpBtn237) dpBtn237.hidden = !room.dating; // [RP-V7.237] dating profile entry lives in dating rooms only
         $("sceneNote").textContent = room.note;
         var cpPanel = $("chapelPanel");
         if (cpPanel) { cpPanel.hidden = room.id !== "faith"; if (room.id === "faith") renderChapel(); }
@@ -6175,6 +6199,7 @@
         sg.onclick = function () { joinOnlineRoomFromHome(room.id); };
         sg.textContent = room.id === "teen" ? "You're on the offline floor — tap here to join the live Teen Hangout. No bots, no fake guests here — just scenery. 💚" : "You're on the offline floor — tap here to join this room live. No bots, no fake guests here — just scenery.";
         show("screen-room");
+        rpDatingAutoOpen237(room); // [RP-V7.237] incomplete dating profile → setup opens right away
       }
       /* ================= Christian Fellowship: Verse of the Day, Prayer Wall, Bible Study ================= */
       var VERSES = [
@@ -7599,7 +7624,7 @@
         if (card && !$("pfFirstRunBar")) {
           var bar = document.createElement("div");
           bar.id = "pfFirstRunBar"; bar.className = "pf-firstrun-bar";
-          bar.innerHTML = "<b>🎉 Welcome to Rizz Plaza!</b><span>Build your profile — your name, your face, your photos and your prompts. This is the profile everyone sees around the Plaza, including the dating &amp; meet &amp; greet rooms.</span>";
+          bar.innerHTML = "<b>🎉 Welcome to Rizz Plaza!</b><span>Build your profile — your name, your face and your photos. This is the profile everyone sees around the Plaza.</span>";
           var sk = document.createElement("button");
           sk.type = "button"; sk.className = "btn-mini"; sk.textContent = "Skip for now →";
           sk.addEventListener("click", function () { pfFirstRunExit(); finishEnterParty(); pfFirstRunFriendsStep(); });
@@ -8013,6 +8038,39 @@
           document.querySelectorAll(".pf-step").forEach(function (s) { s.classList.toggle("on", s.getAttribute("data-go") === target); });
         });
       });
+      /* ---------- [RP-V7.237] dating profile: rooms-only builder ----------
+         The dating sections (meter, looking-for, status, status filter,
+         vibe, prompts, details, voice, card) were moved out of the
+         Profile tab into #datingSheet. The sheet opens only from inside
+         a dating room (the scene's "My dating profile" button), and
+         enterRoom auto-opens it on entry while the dating profile is
+         incomplete. "Complete" follows the meter's own ladder: 3 prompts
+         answered, 5+ details filled, voice recorded, status picked. */
+      function datingProfileComplete237() {
+        return answeredPrompts().length >= 3 && detailFilledCount() >= 5 && !!(me.voice && me.voice.url) && !!me.relStatus;
+      }
+      function openDatingProfile() {
+        if (typeof isTeen === "function" && isTeen()) return;
+        try { buildPromptEditor(); } catch (e) { }
+        try { syncDetailsEditor(); } catch (e) { }
+        try { renderVoiceEditor(); } catch (e) { }
+        try { updatePfMeter(); } catch (e) { }
+        try { renderCardPreview(); } catch (e) { }
+        var sh = $("datingSheet"); if (sh) sh.hidden = false;
+      }
+      function closeDatingProfile237() { var sh = $("datingSheet"); if (sh) sh.hidden = true; }
+      var rpDatingBtn237 = $("btnDatingProfile");
+      if (rpDatingBtn237) rpDatingBtn237.addEventListener("click", openDatingProfile);
+      var rpDatingClose237 = $("datingSheetClose");
+      if (rpDatingClose237) rpDatingClose237.addEventListener("click", closeDatingProfile237);
+      var rpDatingDone237 = $("datingSheetDone");
+      if (rpDatingDone237) rpDatingDone237.addEventListener("click", function () { try { saveProfile(); } catch (e) { } closeDatingProfile237(); });
+      function rpDatingAutoOpen237(room) {
+        if (!room || !room.dating) return;
+        if (typeof isTeen === "function" && isTeen()) return;
+        if (datingProfileComplete237()) return;
+        setTimeout(function () { if (currentRoom && currentRoom.dating) openDatingProfile(); }, 400);
+      }
       bindDetailsEditor();
 
       /* ================= ONLINE MODE (multiplayer) =================
@@ -41882,6 +41940,14 @@ html, body { overflow-x: clip; }
 #screen-profile .pf-stat b { font-size: 16px; }
 #screen-profile .pf-stat span { font-size: 13.5px; text-transform: lowercase; }
 #screen-profile .pf-stat + .pf-stat::before { content: "·"; color: #b0b3b8; font-weight: 800; margin-right: 8px; }
+
+/* ================= RP-V7.237 dating builder sheet =================
+   #datingSheet carries the profile tab's flat-black field treatment. */
+#datingSheet { background: #000; }
+#datingSheet .face-sheet-head { background: #000; }
+#datingSheet .pf-steps { background: transparent; border: none; box-shadow: none; }
+#datingSheet .field { background: transparent; border: none; border-radius: 0; padding: 14px; margin-top: 10px; margin-bottom: 0; }
+#datingSheet .field input, #datingSheet .field select, #datingSheet .field textarea { background: #3a3b3c; }
 </style>
 </body>
 </html>
