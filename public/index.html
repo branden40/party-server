@@ -9261,7 +9261,7 @@
             else if (act === "editprof") { closeSheet(); showScreen("profile"); } // [RP-V7.28] own card
             else if (act === "chat") { closeSheet(); var lci = $("liveCommentInput"); if (lci) lci.focus(); } // [RP-V7.24] room chat is gone — chat lives in the live type bar
             else if (act === "video") { closeSheet(); startVideoCall(p); }
-            else if (act === "gift") { closeSheet(); openGiftSheet(p.id, p.name); }
+            else if (act === "gift") { closeSheet(); openGiftSheet(p.id, p.name, { src: "live" }); } // [RP-V7.233] in-room player card — a live gift
             else if (act === "report") openOnlineReport(p);
             else if (act === "mute") { closeSheet(); blockOnlinePlayer(p); }
           });
@@ -11450,7 +11450,7 @@
           b.addEventListener("click", fn); wrap.appendChild(b); return b;
         }
         if (!Live.active) { mkBtn("🔴 Go Live", "btn-primary", liveAskGoLive); return; }
-        if (!iAmHost() && Live.hostId) mkBtn("🎁 Send a gift", "btn-mini", function () { openGiftSheet(Live.hostId, Live.hostName); });
+        if (!iAmHost() && Live.hostId) mkBtn("🎁 Send a gift", "btn-mini", function () { openGiftSheet(Live.hostId, Live.hostName, { src: "live" }); }); // [RP-V7.233] src tag: live
         if (iAmOnStage()) {
           mkBtn("✨ Filters", "btn-mini", openLiveFilterSheet);
           mkBtn(Live.camOn ? "📷 Camera on" : "📷 Camera off", "btn-mini live-toggle" + (Live.camOn ? "" : " off"), liveToggleCam);
@@ -16348,7 +16348,7 @@
         wire("lvMoreFilters", function () { closeSheet(); openLiveFilterSheet(); });
         wire("lvMoreCam", function () { closeSheet(); liveToggleCam(); });
         wire("lvMoreMic", function () { closeSheet(); liveToggleMic(); });
-        wire("lvMoreGift", function () { closeSheet(); openGiftSheet(Live.hostId, Live.hostName); });
+        wire("lvMoreGift", function () { closeSheet(); openGiftSheet(Live.hostId, Live.hostName, { src: "live" }); }); // [RP-V7.233] src tag: live
         wire("lvMoreJoin", function () { closeSheet(); if (Live.myPendingReq) liveCancelReq173(); else liveRequestJoin(); }); // [RP-V7.173]
         wire("lvMoreViewers", function () { closeSheet(); openLiveHostTools(); });
         wire("lvMoreInvite", function () {
@@ -17002,7 +17002,7 @@
         var gift = $("lvRailGift");
         if (gift) gift.addEventListener("click", function () {
           if (!Live.active) return;
-          if (Live.hostId) openGiftSheet(Live.hostId, Live.hostName); // [RP-V7.39] hosts get the catalog too — in their own live it opens in preview mode (see openGiftSheet); earnings stays one tap away inside the sheet
+          if (Live.hostId) openGiftSheet(Live.hostId, Live.hostName, { src: "live" }); // [RP-V7.233] src tag: live — [RP-V7.39] hosts get the catalog too — in their own live it opens in preview mode (see openGiftSheet); earnings stays one tap away inside the sheet
         });
         var viewers = $("lvRailViewers");
         if (viewers) viewers.addEventListener("click", openLiveHostTools);
@@ -21102,7 +21102,7 @@
             var now = Date.now();
             if (now - (st.lastTap || 0) < 150) return; // bounce guard: above switch bounce, below human tap pace
             st.lastTap = now;
-            try { window.sendGift(st.targetId, st.targetName, st.g, { count: 1, __combo: 1 }); } catch (e) { }
+            try { window.sendGift(st.targetId, st.targetName, st.g, { count: 1, __combo: 1, src: "live" }); } catch (e) { } // [RP-V7.233] combo replays only exist on live sends (the combo guard above requires inLiveRoom())
           });
           document.body.appendChild(el);
         }
@@ -23053,7 +23053,7 @@
             // only when a send is confirmed (onSent rides the server
             // replay). The old npc/local simulation paid nobody.
             // Non-server posts keep the local flow.
-            if (p.srv) openGiftSheet(p.name, p.name, { onSent: function (g) {
+            if (p.srv) openGiftSheet(p.name, p.name, { src: "picture", onSent: function (g) { // [RP-V7.233] Moments server posts are photo posts
               p.gifts += g.cents;
               var chip = card.querySelector(".mom-gifted");
               if (chip) { chip.hidden = false; chip.textContent = "🎁 " + p.gifts.toLocaleString("en-US") + " charms gifted"; }
@@ -23654,7 +23654,7 @@
         var cmt = root.querySelector(".pp-cmt");
         if (cmt) cmt.addEventListener("click", function () { openPhotoComments123(item); });
         var gift = root.querySelector(".pp-gift");
-        if (gift) gift.addEventListener("click", function () { openGiftSheet(item.authorId || item.author, item.author); });
+        if (gift) gift.addEventListener("click", function () { openGiftSheet(item.authorId || item.author, item.author, { src: "picture" }); }); // [RP-V7.233] this wire only ever serves photo items (rpPhotoCard123 / rpHomePhotoSlide123 — the pagers route item.photoPost here and everything else to the video builders)
         var share = root.querySelector(".pp-share");
         if (share) share.addEventListener("click", function () { reelSharePost(item.author, item.caption, true); });
         var rp = root.querySelector(".pp-repost");
@@ -24400,7 +24400,7 @@
           // money ledger path (POST /api/money/gift, poster banks 70%),
           // exactly like Feed gifts. The old npc/local simulation paid
           // nobody. Local items are always mine (no button renders).
-          if (item.server) openGiftSheet(item.authorId || item.author, item.author, { onSent: function () { } });
+          if (item.server) openGiftSheet(item.authorId || item.author, item.author, { src: "video", onSent: function () { } }); // [RP-V7.233] reelCard only ever renders video reels (photo posts route to rpPhotoCard123)
           else openGiftSheet("npc:" + item.author, item.author, { local: true, onSent: function () { } });
         });
         var rb = card.querySelector(".remix");
@@ -24715,7 +24715,7 @@
         slide.querySelector(".like").addEventListener("click", function () { reelToggleLike(item, slide); });
         slide.querySelector(".hp-comments").addEventListener("click", function () { openReelComments(item); });
         var gb = slide.querySelector(".hp-gift");
-        if (gb) gb.addEventListener("click", function () { if (typeof openGiftSheet === "function") openGiftSheet(item.authorId || item.author, item.author); });
+        if (gb) gb.addEventListener("click", function () { if (typeof openGiftSheet === "function") openGiftSheet(item.authorId || item.author, item.author, { src: "video" }); }); // [RP-V7.233] homeSlide only ever renders non-photoPost items (the pager routes photo posts to rpHomePhotoSlide123) — video slides
         slide.querySelector(".hp-share").addEventListener("click", function () { reelShare(item); });
         return slide;
       }
@@ -35020,7 +35020,16 @@ button.rp72-chip{ cursor:pointer; }
     var cnt219 = Math.max(1, Math.min(1000, ((opts && opts.count) | 0) || 1));
     var sig = targetName + "|" + g.id + "|x" + cnt219 + ((opts && opts.__combo) ? "|t" + (++giftComboSeq) : "");
     var idem = giftAttemptKey(sig);
-    api("/api/money/gift", "POST", { toName: targetName, giftId: g.id, charms: g.cents, count: cnt219, idem: idem }).then(function (r) {
+    // [RP-V7.233] The send's SOURCE rides the ledger call so Earn
+    // history can show where each gift came from. opts.src is tagged
+    // by the surface that opened the gift sheet (live entry points,
+    // photo cards/slides, reel + home video slides, stories, the
+    // Feed module); whitelist-checked here AND server-side — an
+    // untagged surface sends nothing and no source is recorded.
+    var src233 = (opts && (opts.src === "picture" || opts.src === "video" || opts.src === "live")) ? opts.src : null;
+    var body233 = { toName: targetName, giftId: g.id, charms: g.cents, count: cnt219, idem: idem };
+    if (src233) body233.src = src233;
+    api("/api/money/gift", "POST", body233).then(function (r) {
       var att = giftAttempts[sig];
       if (att && att.key === idem) att.done = true;
       if (r.json && r.json.deduped) {
@@ -35144,8 +35153,15 @@ button.rp72-chip{ cursor:pointer; }
       });
       (hist.tx || []).slice(0, 8).forEach(function (t) {
         var label = "", amt = "";
-        if (t.type === "gift-received") { label = "🎁 Gift received" + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.74] charms-only gifts (a teen on either side) earn no money — show the charms, never "+$0.00" // [RP-V7.217] + the stored charmsOnly flag labels the entry and pins the amount to charms even if a legacy record carried cents
-        else if (t.type === "gift-sent") { label = "🎁 Gift sent"; amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
+        // [RP-V7.233] WHO + WHERE on gift rows (Branden, Nov 4):
+        // fromName/toName are resolved server-side and ride the
+        // history payload — they appear even on gifts sent before
+        // this build. The source tag renders only when the send
+        // was tagged (t.src). Rows with neither render exactly as
+        // they always have.
+        var srcTag233 = t.src === "picture" ? " · 📷 picture" : t.src === "video" ? " · 🎥 video" : t.src === "live" ? " · 🔴 live" : "";
+        if (t.type === "gift-received") { label = "🎁 Gift received" + (t.fromName ? " — from " + esc(t.fromName) : "") + srcTag233 + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.74] charms-only gifts (a teen on either side) earn no money — show the charms, never "+$0.00" // [RP-V7.217] + the stored charmsOnly flag labels the entry and pins the amount to charms even if a legacy record carried cents
+        else if (t.type === "gift-sent") { label = "🎁 Gift sent" + (t.toName ? " — to " + esc(t.toName) : "") + srcTag233; amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "purchase") { label = "⭐ Charm pack"; amt = "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "auction") { label = "🔨 Auction sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); }
         else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
@@ -38353,9 +38369,13 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
        charms-only (giftBal) inside /api/money/gift. */
     if (!canGift()) { giftGateTap(function () { onGift(); }); return; }
     var id = c.entry.author.id, name = c.entry.author.name;
+    // [RP-V7.233] the story's own media kind tags the send; a story
+    // whose kind is neither photo nor video stays untagged (never
+    // guessed).
+    var src233 = c.story.kind === "photo" ? "picture" : (c.story.kind === "video" ? "video" : null);
     if (typeof window.openGiftSheet === "function") {
       closeViewer();
-      window.openGiftSheet(id, name);
+      window.openGiftSheet(id, name, src233 ? { src: src233 } : undefined);
     } else toastS("Open " + name + "'s profile to send a gift 🎁", 3600);
   }
   function onShare() {
@@ -38818,7 +38838,14 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     });
   }
   function onGift(p) {
-    if (typeof window.openGiftSheet === "function") window.openGiftSheet(p.author.id || p.author.name, p.author.name); // [RP-V7.119] FIX 3: merged items may carry a name-only author (the gift sheet resolves names, same as the Reels surface).
+    // [RP-V7.233] source from the post's own media kind (merged
+    // photo/reel items carry kind, with _store as the backstop);
+    // a text-only or unknown-kind post stays untagged rather than
+    // guessed.
+    var src233 = null;
+    if (p.kind === "photo" || p._store === "photo") src233 = "picture";
+    else if (p.kind === "video" || p.kind === "reel" || p._store === "reel") src233 = "video";
+    if (typeof window.openGiftSheet === "function") window.openGiftSheet(p.author.id || p.author.name, p.author.name, src233 ? { src: src233 } : undefined); // [RP-V7.119] FIX 3: merged items may carry a name-only author (the gift sheet resolves names, same as the Reels surface).
     else toastF("Open " + p.author.name + "'s profile to send a gift 🎁", 3600);
   }
   function onShare(p) {
