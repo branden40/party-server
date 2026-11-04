@@ -1030,10 +1030,10 @@ function publicAccount(u) {
 // a profile photo has no array — its photo IS the gallery (seed on
 // read). The stored record is only rewritten on a real gallery write
 // (upload / set), never on a read, so reads stay side-effect free.
-const ACCOUNT_PHOTOS_MAX = 30; // [RP-V7.238] raised 12 -> 30 (Branden, Nov 4: "Ok 30")
+// [RP-V7.238] ACCOUNT_PHOTOS_MAX retired: the profile photo set has NO count cap (Branden, Nov 4: "Unlimited" — like Facebook). Per-file size limits unchanged.
 function accountPhotos(u) {
   if (Array.isArray(u.photos))
-    return u.photos.filter((x) => typeof x === "string" && x).slice(0, ACCOUNT_PHOTOS_MAX);
+    return u.photos.filter((x) => typeof x === "string" && x);
   return u.photo ? [u.photo] : [];
 }
 // RP-V7.17: unique usernames. 3-20 chars, letters/numbers/underscore;
@@ -2514,7 +2514,7 @@ app.post("/api/account/photo", photoUpload(async (req, res) => {
     // payload's photo and photos[0] can never disagree.
     const gal62 = accountPhotos(ctx.user).filter((x) => x !== publicUrl);
     gal62.unshift(publicUrl);
-    ctx.user.photos = gal62.slice(0, ACCOUNT_PHOTOS_MAX);
+    ctx.user.photos = gal62;
     writeAccounts(ctx.db);
     // Best-effort: if this account is live in a room right now, refresh
     // its player record + room broadcast exactly like the legacy route.
@@ -2541,11 +2541,10 @@ app.post("/api/account/photo", photoUpload(async (req, res) => {
 // ONLY (requireAccount) — no joined player, no room, no socket, same
 // as /api/account/photo. Same multer storage, 5 MB / image-only limits
 // and moderateImage flow. The URL is appended to the stored gallery
-// (user.photos, max ACCOUNT_PHOTOS_MAX); a legacy account with only a
+// (user.photos, no count cap); a legacy account with only a
 // profile photo seeds its gallery from that photo on this first
-// gallery write (see accountPhotos). At the cap the upload is refused
-// with a clear 400 BEFORE moderation runs, and the temp file is
-// removed. user.photo re-syncs to photos[0] (appends can only change
+// gallery write (see accountPhotos). user.photo re-syncs to photos[0]
+// (appends can only change
 // it when the gallery was empty).
 app.post("/api/account/photos", photoUpload(async (req, res) => {
   const ctx = requireAccount(req, res);
@@ -2558,13 +2557,6 @@ app.post("/api/account/photos", photoUpload(async (req, res) => {
       return res.status(400).json({ ok: false, error: "No image file received." });
     }
     const list = accountPhotos(ctx.user);
-    if (list.length >= ACCOUNT_PHOTOS_MAX) {
-      fs.unlink(req.file.path, () => {});
-      return res.status(400).json({
-        ok: false,
-        error: "That's the full set — 30 photos max. Remove one to add another.",
-      });
-    }
     const publicUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
     const mod = await moderateImage(publicUrl);
     if (!mod.ok) {
@@ -2602,8 +2594,8 @@ app.post("/api/account/photos", photoUpload(async (req, res) => {
 // atomic write. Session auth ONLY. The body carries the FULL ordered
 // list the member wants ({ photos: [url, ...] }); every entry must be
 // a photo already in their stored gallery (the seeded view for legacy
-// accounts), so nothing can be smuggled in; duplicates collapse and
-// the result can never exceed the cap. user.photo re-syncs to the
+// accounts), so nothing can be smuggled in; duplicates collapse.
+// There is no count cap on the set. user.photo re-syncs to the
 // first entry, or null when the gallery is emptied. Removed photos'
 // files stay on disk (same as every photo replacement in this app —
 // only the gallery list changes).
@@ -2628,9 +2620,6 @@ app.post("/api/account/photos/set", (req, res) => {
     }
     seen.add(url);
     list.push(url);
-  }
-  if (list.length > ACCOUNT_PHOTOS_MAX) {
-    return res.status(400).json({ ok: false, error: "That's the full set — 30 photos max." });
   }
   const galleryMain = list.length ? list[0] : null;
   // [RP-V7.88] Same split as the gallery upload: the stored original
@@ -2879,7 +2868,7 @@ app.post("/api/profile-photo", upload.single("photo"), async (req, res) => {
         // main photo moves to the front of the stored gallery.
         const lgal = accountPhotos(au).filter((x) => x !== publicUrl);
         lgal.unshift(publicUrl);
-        au.photos = lgal.slice(0, ACCOUNT_PHOTOS_MAX);
+        au.photos = lgal;
         writeAccounts(adb);
       }
     } catch (e) { /* the upload already succeeded */ }
