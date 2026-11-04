@@ -1030,7 +1030,7 @@ function publicAccount(u) {
 // a profile photo has no array — its photo IS the gallery (seed on
 // read). The stored record is only rewritten on a real gallery write
 // (upload / set), never on a read, so reads stay side-effect free.
-const ACCOUNT_PHOTOS_MAX = 12;
+const ACCOUNT_PHOTOS_MAX = 30; // [RP-V7.238] raised 12 -> 30 (Branden, Nov 4: "Ok 30")
 function accountPhotos(u) {
   if (Array.isArray(u.photos))
     return u.photos.filter((x) => typeof x === "string" && x).slice(0, ACCOUNT_PHOTOS_MAX);
@@ -2562,7 +2562,7 @@ app.post("/api/account/photos", photoUpload(async (req, res) => {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({
         ok: false,
-        error: "That's the full set — 12 photos max. Remove one to add another.",
+        error: "That's the full set — 30 photos max. Remove one to add another.",
       });
     }
     const publicUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
@@ -2630,7 +2630,7 @@ app.post("/api/account/photos/set", (req, res) => {
     list.push(url);
   }
   if (list.length > ACCOUNT_PHOTOS_MAX) {
-    return res.status(400).json({ ok: false, error: "That's the full set — 12 photos max." });
+    return res.status(400).json({ ok: false, error: "That's the full set — 30 photos max." });
   }
   const galleryMain = list.length ? list[0] : null;
   // [RP-V7.88] Same split as the gallery upload: the stored original
