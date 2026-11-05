@@ -2904,7 +2904,34 @@
           </div>
         </div>
       </section>
-      <!-- SCREEN: HOME (the startup page — everything on one page) -->
+      <!-- [RP-V7.243] SCREEN: HOME — the Facebook-style home page
+           (Branden, Nov 5, corrected req 8). Stories card row at the
+           top, then the feed itself in one scroll: Facebook-style
+           photo posts with the Reels rail inline. The Plaza stays its
+           own separate screen (untouched below) — the glowing-red
+           Plaza button at the side opens it. Rendered by the stories
+           module (tray) + the RP-V7.243 home module at the end of the
+           body. -->
+      <section class="screen" id="screen-home243">
+        <div class="fbhome243-top">
+          <button type="button" id="btnPlazaSide243" class="plaza-side243">🏠 Plaza</button>
+          <span class="fbhome243-word">Rizz Plaza</span>
+        </div>
+        <div class="story-tray" id="storyTrayFb243" hidden></div>
+        <div class="fbfeed243" id="fbFeed243">
+          <div id="fbFeedPosts243"><p class="fbfeed243-note">Loading your feed…</p></div>
+          <div class="fb-rail243-block" id="fbReelsUnit243">
+            <h3 class="fb-rail243-head">🎬 Reels</h3>
+            <div class="rp-rail242" id="fbRail243">
+              <div class="rp-rail242-tiles" id="fbRailTiles243"><span class="rp-rail242-note">Loading reels…</span></div>
+            </div>
+            <button class="fb-goto243" id="btnFbReelsMore243" type="button">Go to Reels&nbsp;›</button>
+            <p class="rp-rail242-empty" id="fbRailEmpty243" hidden>No reels yet — be the first to post one 🎬</p>
+          </div>
+          <p class="fbfeed243-empty" id="fbFeedEmpty243" hidden>No photos yet — be the first to post one 📸</p>
+        </div>
+      </section>
+      <!-- SCREEN: PLAZA (the startup page — everything on one page) -->
       <section class="screen active" id="screen-plaza">
         <!-- [RP-V7.90] How-you-get-paid card: the first thing on Home.
              During a LIVE holiday the V7.87 banner inserts before the
@@ -6034,7 +6061,7 @@
         var invite = false;
         try { invite = !!(window.rpInviteLinkBlocksGeneric && window.rpInviteLinkBlocksGeneric()); } catch (e) { }
         if (!invite && rpAcctSignedIn()) { openProfile(); return; }
-        show("screen-plaza");
+        show("screen-home243"); // [RP-V7.243] guests land on the Facebook-style home (signed-in still lands on Profile, unchanged)
       }
       function finishEnterParty() {
         $("hud").hidden = false;
@@ -9518,6 +9545,30 @@
         }
         toast("Copy this link to share: " + url);
       }
+      /* [RP-V7.243] Delete-your-own from the profile viewers. The
+         account id comes from the saved session (the V7.241 viewers'
+         own mine checks compare against Online.myId, a socket id —
+         the server re-checks authorship anyway). Two-tap arm, then
+         the profile re-renders so the item leaves the grid. */
+      function rpMyId243() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.userId) || ""; } catch (e) { return ""; } }
+      function rpAcctDel243(path) {
+        var tok = ""; try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); tok = (a && a.token) || ""; } catch (e) { }
+        if (!tok) return Promise.resolve(false);
+        return fetch(path, { method: "DELETE", headers: { Authorization: "Bearer " + tok } })
+          .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }).then(function (j) { return !!(r.ok && j && j.ok !== false); }); })
+          .catch(function () { return false; });
+      }
+      function rpArmDel243(btn, fn) {
+        if (!btn.classList.contains("armed243")) { btn.classList.add("armed243"); var sp243 = btn.querySelector("span:last-of-type"); if (sp243) sp243.textContent = "Tap again to delete"; return; }
+        fn();
+      }
+      function rpAfterDel243(msg) {
+        try { closeSheet(); } catch (e) { }
+        try { openProfile(); } catch (e) { }
+        try { if (window.rpHomeRails243) window.rpHomeRails243.refresh(); } catch (e) { }
+        try { if (window.RPFeed) window.RPFeed.refresh(); } catch (e) { }
+        try { toast(msg); } catch (e) { }
+      }
       function rpOpenPhotoPost86(j, it) {
         var post = null, postFull = false;
         (j.photoPosts || []).forEach(function (pp) { if (pp.id === it.id) { post = pp; postFull = true; } });
@@ -9552,7 +9603,8 @@
           '<button class="reel-act cmt pp-cmt" type="button">' + RPICO.comment + '<span class="cc">' + fi241.commentCount + "</span></button>" +
           (fi241.mine ? "" : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + "<span>Gift</span></button>") +
           '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" +
-          '<button class="reel-act repost pp-repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>";
+          '<button class="reel-act repost pp-repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>" +
+          (((postFull && j.id && j.id === rpMyId243()) || (it.owner && it.owner === rpMyId243())) ? '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>' : "");
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
           '<div class="task-head"><h3>📸 Photo post</h3></div>' +
@@ -9570,6 +9622,7 @@
         var gb241 = sheet241.querySelector(".pp-gift"); if (gb241) gb241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, { src: "picture" }); });
         var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption); });
         var rb241 = sheet241.querySelector(".pp-repost"); if (rb241) rb241.addEventListener("click", function () { photoRepostToggle123(fi241, rb241); });
+        var db243 = sheet241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/photo/" + encodeURIComponent(it.id)).then(function (ok) { if (ok) rpAfterDel243("Photo deleted"); else { try { toast("Couldn't delete that photo."); } catch (e) { } } }); }); });
       }
       function rpProfOpen86(j, it, upd) {
         if (it.kind === "photopost") { rpOpenPhotoPost86(j, it); return; }
@@ -9837,7 +9890,8 @@
               '<button class="reel-act cmt" type="button">' + RPICO.comment + '<span class="cc">' + fi241.commentCount + "</span></button>" +
               (fi241.mine ? "" : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + "<span>Gift</span></button>") +
               '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" +
-              '<button class="reel-act repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>";
+              '<button class="reel-act repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>" +
+              ((meta.owner && meta.owner === rpMyId243()) ? '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>' : "");
           }
           railHtml241 = '<div class="reel-rail">' + railHtml241 + "</div>";
         }
@@ -9854,6 +9908,7 @@
             var gb241 = wrap241.querySelector(".pp-gift"); if (gb241) gb241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, { src: "video" }); });
             var sb241 = wrap241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { reelShare(fi241); });
             var rb241 = wrap241.querySelector(".repost"); if (rb241) rb241.addEventListener("click", function () { reelToggleRepost(fi241, wrap241); });
+            var db243 = wrap241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/reel/" + encodeURIComponent(meta.id)).then(function (ok) { if (ok) rpAfterDel243("Reel deleted"); else { try { toast("Couldn't delete that reel."); } catch (e) { } } }); }); });
           }
         }
         $("sheet").querySelectorAll("[data-act]").forEach(function (b) {
@@ -23128,6 +23183,20 @@
         }).then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
           .catch(function () { momPublishLocal(cap); });
       }
+      /* [RP-V7.243] Share for the Photos feed cards — the same
+         cascade as the V7.241 lightbox share (native share sheet,
+         else copy the link, else a toast), with photo wording. */
+      function momShare243(p) {
+        var url = location.origin + "/#photo-" + p.id;
+        var text = (p.caption ? "\u201C" + p.caption + "\u201D on Rizz Plaza" : "A photo on Rizz Plaza") + " — " + url;
+        try {
+          if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: text, url: url }).catch(function () { }); return; }
+        } catch (e) { }
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(function () { try { toast("Link copied — share it anywhere"); } catch (e) { } }, function () { try { toast(text); } catch (e) { } }); return; }
+        } catch (e) { }
+        try { toast(text); } catch (e) { }
+      }
       function renderMoments() {
         var feed = $("momFeed"); if (!feed) return;
         if (!Moments.posts.length) {
@@ -23159,6 +23228,7 @@
               '<button class="mom-act cmt" type="button">' + RPICO.comment + ' <span class="cc">' + momCommentTotal(p) + '</span></button>' +
               ((p.srv) ? '<button class="mom-act repost' /* [RP-V7.101] own photos too — reshare */ + (p.reposted ? " reposted" : "") + '" type="button">' + RPICO.repost + ' <span class="rc">' + (p.srvReposts || 0) + '</span></button>' : "") + /* [RP-V7.89] server posts only — seed/demo posts have no server record to repost */
               (p.mine ? "" : '<button class="mom-act gift" type="button">' + RPICO.gift + ' Gift</button>') +
+              '<button class="mom-act share" type="button">' + RPICO.share + ' Share</button>' + // [RP-V7.243] Facebook parity: Share on every photo post
             '</div>'; /* [RP-V7.107] reactions removed everywhere (Branden) */
           card.querySelector(".like").addEventListener("click", function () { momToggleLike(p.id); });
           /* [RP-V7.123] in-card set flip (manual only — no auto-advance in feeds) */
@@ -23178,6 +23248,8 @@
             var t = e.target;
             if (t && t.classList && t.classList.contains("mom-tag") && window.rpOpenTagView) window.rpOpenTagView(t.getAttribute("data-mtag") || "");
           });
+          var shb243 = card.querySelector(".share");
+          if (shb243) shb243.addEventListener("click", function () { momShare243(p); });
           var gb = card.querySelector(".gift");
           if (gb) gb.addEventListener("click", function () {
             // [RP-V7.104] Server photo posts send a REAL gift to the
@@ -23197,6 +23269,19 @@
               if (chip2) { chip2.hidden = false; chip2.textContent = "🎁 " + p.gifts.toLocaleString("en-US") + " charms gifted"; }
             }});
           });
+          /* [RP-V7.243] Tap a server photo in the feed -> the
+             full-screen lightbox (the V7.241 viewer), same as tapping
+             it anywhere else. Local-only posts keep their plain
+             in-card behavior. */
+          if (p.srv) {
+            var pim243 = card.querySelector(".mom-photo img");
+            if (pim243) pim243.addEventListener("click", function () {
+              if (typeof window.rpViewsOpenPhoto === "function") {
+                var urls243 = (p.urls && p.urls.length) ? p.urls : (p.photo ? [p.photo] : []);
+                window.rpViewsOpenPhoto({ kind: "photopost", id: p.id, owner: null, ownerName: p.name || "", src: p.photo || "", views: 0, photoCount: urls243.length || 1, caption: p.caption || "", likes: p.srvLikes || 0, myLiked: !!p.liked, comments: p.comments || [], commentCount: (typeof p.commentCount === "number" ? p.commentCount : (p.comments || []).length), reposts: p.srvReposts || 0, myReposted: !!p.reposted }, null);
+              }
+            });
+          }
           feed.appendChild(card);
         });
       }
@@ -23803,6 +23888,18 @@
       }
       /* Reels-pager photo card: mirrors reelCard's chrome, with the
          slideshow (or single photo) where the video would be. */
+      /* [RP-V7.243] initialsOf was called (pager photo cards +
+         comment avatars) but never defined anywhere — the
+         ReferenceError aborted renderReels mid-loop whenever a
+         photo post joined the pager merge, which is why the Reels
+         entry could land on a completely empty feed (Branden's
+         screenshot). Defined here, module-local. */
+      function initialsOf(name) {
+        var parts = String(name || "?").trim().split(/\s+/);
+        var a = (parts[0] || "?").charAt(0).toUpperCase();
+        var b = parts.length > 1 ? parts[parts.length - 1].charAt(0).toUpperCase() : "";
+        return a + b;
+      }
       function rpPhotoCard123(item) {
         var card = document.createElement("div");
         card.className = "reel-card";
@@ -24018,6 +24115,7 @@
               var have = {}; j.reels.forEach(function (r) { have[r.id] = true; });
               reelLoadMeta().forEach(function (m) { if (m.serverId && have[m.serverId]) reelDbDel(m.id); });
               if (Reels.mode === "reels") renderReels();
+              if (Reels.mode === "reels") setTimeout(reelKick243, 60); // [RP-V7.243] entry: start the first reel even when nothing re-rendered
               renderHomePager(); // [RP-V7.113] the Home feed rides the same fetch
           pagerPhotosFetch123(); // [RP-V7.123] photo posts join both pagers
               // Retry uploads for anything still only on this device.
@@ -24354,6 +24452,33 @@
         var vSrc = card.querySelector('[data-rv="src"]');
         if (vSrc && item.sourceUrl) vSrc.src = item.sourceUrl;
         if (item.server && item.url) vMine.src = item.url;
+        /* [RP-V7.243] First-frame paint for the feed's main video —
+           the same fix as the tile grids: a paused card must show a
+           real frame, not a black card, on engines that don't paint
+           preload="metadata". Trimmed items already seek to their
+           window start, duets/stitches run their own sequencing. */
+        if (vMine && !isDuet && !isStitch && !(typeof item.trimStart === "number" && typeof item.trimEnd === "number" && item.trimEnd > item.trimStart)) {
+          var doSeekMine243 = function () {
+            try {
+              if (vMine.paused && !vMine.__rpSeek243 && vMine.currentTime === 0) {
+                vMine.__rpSeek243 = true;
+                var t243 = 0.05;
+                if (isFinite(vMine.duration) && vMine.duration > 0) t243 = Math.min(0.05, vMine.duration / 2);
+                vMine.currentTime = t243;
+              }
+            } catch (e) { }
+          };
+          /* Delayed 700 ms, same as the tile paint: the visible
+             card's autoplay must win the race for play(). */
+          var paintMine243 = function () {
+            if (vMine.__rpSeekSched243) return;
+            vMine.__rpSeekSched243 = true;
+            setTimeout(doSeekMine243, 700);
+          };
+          vMine.addEventListener("loadedmetadata", paintMine243);
+          vMine.addEventListener("loadeddata", paintMine243);
+          if (vMine.readyState >= 1) paintMine243();
+        }
         else {
           reelDbGet(item.id).then(function (blob) {
             if (!blob) return;
@@ -24736,6 +24861,22 @@
         reelToggleRepost: reelToggleRepost,
       };
 
+      /* [RP-V7.243] The Reels entry must land IN the feed with the
+         first reel already playing (Branden, Nov 5 — Facebook-style
+         entry, no second tap). The scroll-spy observer starts videos
+         as cards pass, but a fresh render can leave the first card
+         waiting on an intersection callback; this kick starts it
+         through the card's own player once the feed has rendered. */
+      function reelKick243() {
+        try {
+          var rf243 = $("reelFeed");
+          var first = rf243 && rf243.querySelector(".reel-card");
+          if (!first) return;
+          var vid = first.querySelector("video");
+          if (!vid || typeof first._rpPlay !== "function") return;
+          if (first.getBoundingClientRect().bottom > 0) first._rpPlay();
+        } catch (e) { }
+      }
       /* ---- Photos / Reels mode toggle ---- */
       function setMomMode(mode) {
         if (Reels.friends && !Reels._friendsEnter) { Reels.friends = false; window.__rpFriendsMode = false; Reels.server = []; } // [RP-V7.112] the Photos/Reels toggle exits Friends
@@ -24755,8 +24896,13 @@
         if (tr) tr.classList.toggle("on", reels);
         var h2 = document.querySelector(".mom-head h2");
         if (h2) h2.textContent = (Reels.friends && reels) ? "👥 Friends" : (reels ? "🎬 Reels" : "📸 Photos"); // [RP-V7.112]
-        if (reels) { renderReels(); reelFetchFeed(); }
-        else reelPauseAll();
+        if (reels) { renderReels(); reelFetchFeed(); setTimeout(reelKick243, 350); }
+        /* [RP-V7.243] Photos lands on the photos, already rendered —
+           the same direct-open rule as Reels (Branden, Nov 5). The
+           photo list is fetched and rendered HERE on entry; before
+           this it only loaded from unrelated boot/migration paths,
+           so the Photos landing could be an empty screen. */
+        else { reelPauseAll(); try { momLoadServer(function () { renderMoments(); }); } catch (e) { try { renderMoments(); } catch (e2) { } } }
       }
       /* [RP-V7.112] Friends tab (bottom bar): the Reels screen showing
          only people you follow. Entry rides the same buttons/gates as
@@ -26945,8 +27091,8 @@
   </nav>
   <script>
   (function () {
-    var TABS = { "screen-plaza": "home", "screen-online": "live", "screen-auctions": "auctions", "screen-moments": "moments", "screen-profile": "profile" };
-    var SHOWABLE = { "screen-plaza": 1, "screen-auctions": 1, "screen-moments": 1, "screen-profile": 1, "screen-store": 1 }; // [RP-V7.240]
+    var TABS = { "screen-home243": "home", "screen-plaza": "home", "screen-online": "live", "screen-auctions": "auctions", "screen-moments": "moments", "screen-profile": "profile" }; // [RP-V7.243] Home tab lights on the new home screen too
+    var SHOWABLE = { "screen-home243": 1, "screen-plaza": 1, "screen-auctions": 1, "screen-moments": 1, "screen-profile": 1, "screen-store": 1 }; // [RP-V7.240] + [RP-V7.243] home screen shows the tab bar
     var bar = document.getElementById("tabbar");
     if (!bar) return;
     function activeScreen() { var s = document.querySelectorAll(".screen.active"); return s.length ? s[s.length - 1].id : null; }
@@ -26982,8 +27128,9 @@
     }
     function clickId(id) { var el = document.getElementById(id); if (el) { el.click(); return true; } return false; }
     function goHome() {
+      if (activeScreen() === "screen-home243") { window.scrollTo({ top: 0, behavior: "smooth" }); return; } // [RP-V7.243] already home
+      if (typeof window.show === "function") { try { window.show("screen-home243"); return; } catch (e) {} } // [RP-V7.243] Home is the Facebook-style home page now; the Plaza is its own screen (the old V7.113 Plaza reset below is the no-show fallback)
       if (activeScreen() === "screen-plaza") { if (window.__rpHomeReset && window.__rpHomeReset()) return; window.scrollTo({ top: 0, behavior: "smooth" }); return; } // [RP-V7.113]
-      if (typeof window.show === "function") { try { window.show("screen-plaza"); return; } catch (e) {} }
       var backs = ["btnProfileBack", "btnMomentsBack", "btnAuctionsBack", "btnOnlineLeave", "btnLeave"];
       for (var i = 0; i < backs.length; i++) { var el = document.getElementById(backs[i]); if (vis(el)) { el.click(); return; } }
     }
@@ -34681,6 +34828,28 @@ button.rp72-chip{ cursor:pointer; }
     }
     return false;
   }
+  /* [RP-V7.243] Delete-your-own from the lightbox rail. The server
+     routes (DELETE /api/reel/:id, DELETE /api/photo/:id) accept the
+     author or the app owner; the rails below show the button only
+     when lbMine241 says the item is yours (the server re-checks).
+     Two-tap arm, like the Feed's onDelete. */
+  function lbDel243(kind, id, btn) {
+    if (!btn.classList.contains("armed243")) { btn.classList.add("armed243"); var sp243 = btn.querySelector("span:last-of-type"); if (sp243) sp243.textContent = "Tap again to delete"; return; }
+    btn.classList.remove("armed243");
+    var a243 = acct(); var tok243 = (a243 && a243.token) || "";
+    if (!tok243) { try { window.toast("Sign in to delete your post."); } catch (e) { } return; }
+    fetch((kind === "reel" ? "/api/reel/" : "/api/photo/") + encodeURIComponent(id), { method: "DELETE", headers: { Authorization: "Bearer " + tok243 } })
+      .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }).then(function (j) { return { ok: r.ok && j && j.ok !== false }; }); })
+      .then(function (res) {
+        if (res.ok) {
+          try { window.toast(kind === "reel" ? "Reel deleted" : "Photo deleted"); } catch (e) { }
+          try { window.closeSheet(); } catch (e) { }
+          try { if (window.rpHomeRails243) window.rpHomeRails243.refresh(); } catch (e) { }
+          try { if (window.RPFeed) window.RPFeed.refresh(); } catch (e) { }
+        } else { try { window.toast("Couldn't delete that — it may not be yours."); } catch (e) { } }
+      })
+      .catch(function () { try { window.toast("Network error — try again."); } catch (e) { } });
+  }
   function railForPhoto241(it) {
     var ownerId = it.owner || null;
     var ownerName = it.ownerName || "";
@@ -34695,6 +34864,7 @@ button.rp72-chip{ cursor:pointer; }
     if ((ownerId || ownerName) && !mine) html += lbGiftBtn241();
     html += lbShareBtn241();
     if (isPost) html += '<button class="reel-act repost pp-repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + fi.reposts + "</span></button>";
+    if (isPost && mine) html += '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>'; // [RP-V7.243] your photo post — delete it right here
     return {
       html: html ? '<div class="reel-rail">' + html + "</div>" : "",
       wire: function (root) {
@@ -34709,6 +34879,8 @@ button.rp72-chip{ cursor:pointer; }
         if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "picture" }); });
         var s = root.querySelector(".pp-share");
         if (s) s.addEventListener("click", function () { lbShare241("📸", "photo", isPost ? (it.caption || "") : ""); });
+        var d243 = root.querySelector(".pp-del243");
+        if (d243) d243.addEventListener("click", function () { lbDel243("photo", it.id, d243); });
       },
     };
   }
@@ -34741,6 +34913,7 @@ button.rp72-chip{ cursor:pointer; }
     if ((ownerId || ownerName) && !mine) html += lbGiftBtn241();
     html += lbShareBtn241();
     html += '<button class="reel-act repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + fi.reposts + "</span></button>";
+    if (mine) html += '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>'; // [RP-V7.243] your reel — delete it right here
     return {
       html: '<div class="reel-rail">' + html + "</div>",
       wire: function (root) {
@@ -34750,6 +34923,8 @@ button.rp72-chip{ cursor:pointer; }
         var g = root.querySelector(".pp-gift"); if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "video" }); });
         var s = root.querySelector(".pp-share"); if (s && acts.reelShare) s.addEventListener("click", function () { acts.reelShare(fi); });
         var r = root.querySelector(".repost"); if (r && acts.reelToggleRepost) r.addEventListener("click", function () { acts.reelToggleRepost(fi, root); });
+        var d243 = root.querySelector(".pp-del243");
+        if (d243) d243.addEventListener("click", function () { lbDel243("reel", it.id, d243); });
       },
     };
   }
@@ -34787,6 +34962,45 @@ button.rp72-chip{ cursor:pointer; }
     });
   }
   window.rpViewsOpenReel = openReel;
+  /* [RP-V7.243] FIRST-FRAME PAINT for reel tiles (Branden's phone,
+     Nov 5: "The reels are dark no video showing"). tileHTML renders
+     reel tiles as a bare <video preload="metadata"> with no poster:
+     desktop Chrome paints frame 1 once it decodes, but iOS Safari
+     leaves the tile BLACK — worst with files whose moov atom sits
+     at the end (the live reel files are not faststart), because a
+     paused tile never Range-fetches the tail. Live plumbing is
+     healthy (express.static answers 206 to Range; files are
+     H.264/AAC), and there is no poster/cover source anywhere in the
+     app — so the reliable client route is a one-time micro-seek
+     once metadata lands: every engine then fetches what's needed
+     and paints a REAL frame. Wired into fillGrid so every grid on
+     this renderer gets it (Plaza rail, home rail, profile grids). */
+  function rpPaintFrame243(v) {
+    if (!v || v.__rpPaint243) return;
+    v.__rpPaint243 = true;
+    var doSeek = function () {
+      try {
+        if (v.paused && !v.__rpSeek243 && v.currentTime === 0) {
+          v.__rpSeek243 = true;
+          var t = 0.05;
+          if (isFinite(v.duration) && v.duration > 0) t = Math.min(0.05, v.duration / 2);
+          v.currentTime = t;
+        }
+      } catch (e) { }
+    };
+    /* Delayed on purpose: a tile that is about to AUTOPLAY (the
+       home previews) must win the race — a seek issued while a
+       play() is still starting can abort it. Static tiles are
+       still paused 700 ms later and paint then. */
+    var schedule = function () {
+      if (v.__rpSeekSched243) return;
+      v.__rpSeekSched243 = true;
+      setTimeout(doSeek, 700);
+    };
+    v.addEventListener("loadedmetadata", schedule);
+    v.addEventListener("loadeddata", schedule);
+    if (v.readyState >= 1) schedule();
+  }
   function fillGrid(el, items, opts) {
     opts = opts || {};
     if (!el) return;
@@ -34798,6 +35012,7 @@ button.rp72-chip{ cursor:pointer; }
       // rail needs the item's owner name + social state. The
       // attribute rebuild stays as the fallback.
       if (items[ix]) tb._rpItem241 = items[ix];
+      var pv243 = tb.querySelector("video"); if (pv243) rpPaintFrame243(pv243); // [RP-V7.243] a reel tile must never sit black
       tb.addEventListener("click", function () {
         var it = tb._rpItem241 || {
           kind: tb.getAttribute("data-rpkind"), id: tb.getAttribute("data-rpid"),
@@ -38110,6 +38325,20 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 </style>
 <style>
 /* [RP-V7.70] Plaza Stories — tray, rings, viewer (original code, Plaza styling) */
+/* [RP-V7.243] The NEW HOME page's stories row: Facebook-style TALL
+   PORTRAIT CARDS (Branden, Nov 5) — scoped to the home tray only;
+   the other trays keep their circles. */
+#storyTrayFb243 { gap: 10px; padding: 12px 2px 6px; }
+#storyTrayFb243 .story-cell { width: 106px; flex: 0 0 auto; }
+#storyTrayFb243 .story-card243 { position: relative; width: 106px; height: 168px; border-radius: 14px; overflow: hidden; background: #1c1e21; padding: 0; display: block; }
+#storyTrayFb243 .story-card243 img.face243, #storyTrayFb243 .story-card243 video.face243 { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+#storyTrayFb243 .story-card243 .badge243 { position: absolute; top: 8px; left: 8px; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; border: 3px solid #e91e63; background: #000; z-index: 2; }
+#storyTrayFb243 .story-card243 .badge243 img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#storyTrayFb243 .story-card243 .badge243 .init243 { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: #fff; font-weight: 800; font-size: 15px; background: linear-gradient(135deg, #ff2d78, #7b2ff7); }
+#storyTrayFb243 .story-card243.viewed243 .badge243 { border-color: rgba(255, 255, 255, .45); }
+#storyTrayFb243 .story-card243 .plus243 { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); width: 34px; height: 34px; border-radius: 50%; background: #e91e63; color: #fff; font-size: 22px; font-weight: 800; line-height: 32px; text-align: center; border: 3px solid #000; z-index: 2; }
+#storyTrayFb243 .story-card243 .name243 { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 8px 7px; font-size: 12.5px; font-weight: 700; color: #fff; text-align: center; background: linear-gradient(transparent, rgba(0, 0, 0, .72)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#storyTrayFb243 .story-card243 .name243.left243 { text-align: left; }
 .story-tray { display: flex; gap: 14px; overflow-x: auto; padding: 12px 4px 6px; scrollbar-width: none; }
 .story-tray::-webkit-scrollbar { display: none; }
 .story-tray.rpdm-storytray { padding: 10px 2px 4px; margin: 2px 0 8px; border-bottom: 1px solid rgba(255,255,255,.07); } /* [RP-V7.110] */
@@ -38278,13 +38507,88 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       '<span class="sc-ava' + ring + '">' + avaInner(a) + (isMine && canPost() ? '<span class="sc-plus">+</span>' : "") + "</span>" +
       '<span class="sc-name">' + escS(label) + "</span></button>";
   }
+  /* [RP-V7.243] Tall-card rendering for the NEW HOME tray only
+     (Branden's Facebook screenshot): Create-story card first (own
+     profile photo as the face, + badge), then each author as a
+     portrait card faced with their story's own first frame, avatar
+     badge top-left (pink ring until viewed), name at the bottom.
+     The tap wiring mirrors the circle cells exactly. */
+  function homeCardHtml243(entry, isMine) {
+    var a = entry ? entry.author : (tray ? tray.me : null);
+    if (!a) return "";
+    if (isMine) {
+      var myFace = a.photo ? '<img class="face243" src="' + escS(a.photo) + '" alt=""/>' : "";
+      return '<div class="story-cell"><button type="button" class="story-card243" data-story-open="' + escS(a.id) + '" data-story-mine="1" aria-label="Create story">' + myFace + '<span class="plus243">+</span><span class="name243">Create story</span></button></div>';
+    }
+    var st = (entry.stories && entry.stories[0]) || null;
+    var face = "";
+    if (st && st.kind === "video") face = '<video class="face243" src="' + escS(st.url) + '" preload="metadata" muted playsinline></video>';
+    else if (st) face = '<img class="face243" src="' + escS(st.url) + '" alt=""/>';
+    var badge = a.photo ? '<img src="' + escS(a.photo) + '" alt=""/>' : '<span class="init243">' + escS((String(a.name || "?").trim().charAt(0) || "?").toUpperCase()) + "</span>";
+    return '<div class="story-cell"><button type="button" class="story-card243' + (entry.allViewed ? " viewed243" : "") + '" data-story-open="' + escS(a.id) + '" data-story-mine="" aria-label="Story by ' + escS(a.name) + '">' + face + '<span class="badge243">' + badge + '</span><span class="name243 left243">' + escS(a.name) + "</span></button></div>";
+  }
+  function renderHomeTray243(el) {
+    if (!tray) { el.hidden = true; el.innerHTML = ""; return; }
+    var html = homeCardHtml243(myEntry(), true);
+    tray.authors.forEach(function (e) { if (!e.isSelf) html += homeCardHtml243(e, false); });
+    el.innerHTML = html;
+    el.hidden = false;
+    /* [RP-V7.243] Video stories PLAY inside their cards (Branden's
+       Facebook walkthrough, Nov 5): muted + looping + playsinline,
+       started/stopped by visibility like the reels previews, with
+       the same seek-to-first-frame paint as the fallback so a card
+       is never a black box where motion can't start. */
+    if (el.__io243) { try { el.__io243.disconnect(); } catch (e) { } el.__io243 = null; }
+    el.querySelectorAll("video.face243").forEach(function (v) {
+      try { v.loop = true; v.muted = true; } catch (e) { }
+      var paint243 = function () {
+        if (v.__rpSeekSched243) return;
+        v.__rpSeekSched243 = true;
+        setTimeout(function () {
+          try {
+            if (v.paused && !v.__rpSeek243 && v.currentTime === 0) {
+              v.__rpSeek243 = true;
+              v.currentTime = Math.min(0.05, (isFinite(v.duration) && v.duration > 0) ? v.duration / 2 : 0.05);
+            }
+          } catch (e) { }
+        }, 700);
+      };
+      v.addEventListener("loadedmetadata", paint243);
+      v.addEventListener("loadeddata", paint243);
+      if (v.readyState >= 1) paint243();
+      if (window.IntersectionObserver) {
+        if (!el.__io243) {
+          el.__io243 = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) {
+              var vv = en.target;
+              if (en.isIntersecting) { var pr = null; try { pr = vv.play(); } catch (e) { } if (pr && pr.catch) pr.catch(function () { }); }
+              else { try { vv.pause(); } catch (e) { } }
+            });
+          }, { threshold: 0.4 });
+        }
+        el.__io243.observe(v);
+      } else { var pr2 = null; try { pr2 = v.play(); } catch (e) { } if (pr2 && pr2.catch) pr2.catch(function () { }); }
+    });
+    el.querySelectorAll("[data-story-open]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-story-open"), mine = b.getAttribute("data-story-mine") === "1";
+        if (mine && !myEntry()) {
+          if (canPost()) openPoster();
+          else toastS("Posting stories opens at 18 🎬 — you can watch everybody's stories now.", 3600);
+          return;
+        }
+        openViewer(id);
+      });
+    });
+  }
   function renderTrays() {
     /* [RP-V7.72] Story DISPLAY is all-ages now — no adultOnly or
        teen-lock hiding here; the tray simply renders wherever this
        surface is reachable. Posting stays gated per control. */
     var show = !!tray;
-    ["storyTrayHome", "storyTrayReels", "storyTrayInbox"].forEach(function (id) {
+    ["storyTrayHome", "storyTrayReels", "storyTrayInbox", "storyTrayFb243"].forEach(function (id) {
       var el = $(id); if (!el) return;
+      if (id === "storyTrayFb243") { renderHomeTray243(el); return; } // [RP-V7.243] the home tray renders tall cards; the other trays stay circles
       el.hidden = !show;
       if (!show) { el.innerHTML = ""; return; }
       var html = cellHtml(myEntry(), true);
@@ -39041,8 +39345,8 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       ('<button type="button" class="feed-act repost' + (p.myReposted ? " on" : "") + '" data-feed-act="repost" aria-label="Repost">' + RP_ACT_SVG.repost + "<small>" + (p.reposts || 0) + "</small></button>") /* [RP-V7.101] own posts too — a reshare; the server keeps it out of the public count */ +
       '<button type="button" class="feed-act" data-feed-act="gift" aria-label="Send a gift">' + RP_ACT_SVG.gift + "<small>Gift</small></button>" +
       '<button type="button" class="feed-act" data-feed-act="share" aria-label="Share">' + RP_ACT_SVG.share + "<small>" + (p.shares || 0) + "</small></button>" +
-      (p.isSelf && !p._store ? '<button type="button" class="feed-act util" data-feed-act="insights"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 4v15.5h16.5\"/><path d=\"M8.2 16.5V11M12.2 16.5V7.8M16.2 16.5v-3.8\"/></svg> Insights</button>' : "") + /* [RP-V7.119] FIX 3: Insights/Delete are feed-store only — the photo/reel stores have no such endpoints. */
-      (p.isSelf && !p._store ? '<button type="button" class="feed-act util" data-feed-act="del" style="margin-left:auto;"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.5 6.5h15M9.5 6.3V4.8A1.8 1.8 0 0 1 11.3 3h1.4a1.8 1.8 0 0 1 1.8 1.8v1.5M6.5 6.5l1 13.2h9l1-13.2\"/><path d=\"M10 10.5v6M14 10.5v6\"/></svg> Delete</button>' : "") +
+      (p.isSelf && !p._store ? '<button type="button" class="feed-act util" data-feed-act="insights"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 4v15.5h16.5\"/><path d=\"M8.2 16.5V11M12.2 16.5V7.8M16.2 16.5v-3.8\"/></svg> Insights</button>' : "") + /* [RP-V7.119] FIX 3, Delete lifted by [RP-V7.243]: Insights stays feed-store only; Delete covers all three stores now (the reel/photo endpoints exist as of V7.243, and onDelete routes by _store). */
+      (p.isSelf ? '<button type="button" class="feed-act util" data-feed-act="del" style="margin-left:auto;"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.5 6.5h15M9.5 6.3V4.8A1.8 1.8 0 0 1 11.3 3h1.4a1.8 1.8 0 0 1 1.8 1.8v1.5M6.5 6.5l1 13.2h9l1-13.2\"/><path d=\"M10 10.5v6M14 10.5v6\"/></svg> Delete</button>' : "") +
       "</div></article>";
   }
   function render() {
@@ -39313,7 +39617,8 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       setTimeout(function () { btn.dataset.armed = ""; btn.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.5 6.5h15M9.5 6.3V4.8A1.8 1.8 0 0 1 11.3 3h1.4a1.8 1.8 0 0 1 1.8 1.8v1.5M6.5 6.5l1 13.2h9l1-13.2\"/><path d=\"M10 10.5v6M14 10.5v6\"/></svg> Delete"; }, 2600);
       return;
     }
-    api("/api/feed/" + encodeURIComponent(p.id), "DELETE").then(function (r) {
+    var delPath243 = p._store === "reel" ? "/api/reel/" + encodeURIComponent(p._sid || p.id) : (p._store === "photo" ? "/api/photo/" + encodeURIComponent(p._sid || p.id) : "/api/feed/" + encodeURIComponent(p.id)); // [RP-V7.243] route by store
+    api(delPath243, "DELETE").then(function (r) {
       if (r.json && r.json.ok) {
         posts = posts.filter(function (q) { return q.id !== p.id; });
         render();
@@ -42863,7 +43168,321 @@ html, body { overflow-x: clip; }
   init();
   setTimeout(init, 1200);
 })();
-</script>
+</script>  <style>
+    /* [RP-V7.243] The Facebook-style HOME page (screen-home243):
+       flat black, one scroll. The Plaza screen is untouched. */
+    #screen-home243 { background: #000; color: #e4e6eb; min-height: 100dvh; padding: 8px 10px 96px; box-sizing: border-box; }
+    .fbhome243-top { display: flex; align-items: center; gap: 12px; padding: 6px 2px 2px; }
+    .fbhome243-word { font-size: 21px; font-weight: 900; letter-spacing: .2px; color: #fff; }
+    /* Branden's pick for this one button: GLOWING RED, like the LIVE
+       badges (overrides the pink-outline button style here only). */
+    .plaza-side243 { flex: 0 0 auto; border: 1.5px solid #ff8296; background: #d90429; color: #fff; font: inherit; font-size: 15px; font-weight: 900; border-radius: 999px; padding: 9px 18px; cursor: pointer; box-shadow: 0 0 14px rgba(255, 32, 64, .85), 0 0 38px rgba(255, 32, 64, .45), inset 0 0 10px rgba(255, 255, 255, .22); }
+    .fbfeed243-note { color: rgba(255, 255, 255, .78); font-size: 14px; font-weight: 700; padding: 14px 4px; }
+    .fbfeed243-empty { color: rgba(255, 255, 255, .78); font-size: 14px; font-weight: 700; padding: 10px 4px; }
+    .fbfeed243-empty[hidden] { display: none; }
+    .fb-rail243-block { margin: 16px 0; }
+    .fb-rail243-head { margin: 0 0 8px; font-size: 17px; color: #fff; }
+    /* Facebook's in-feed unit: LARGE tiles, about 2-3 across, with
+       the "Go to Reels" line UNDER the unit (Branden's walkthrough). */
+    #fbRail243 .rpmedia-tile { width: 172px; }
+    .fb-goto243 { display: block; width: 100%; text-align: left; background: none; border: 0; color: #fff; font: inherit; font-size: 15.5px; font-weight: 800; padding: 10px 2px 2px; cursor: pointer; }
+    #fbRail243 .rpmedia-tile.rp243-live .rpmedia-play { display: none; }
+    /* The photo-post cards wear the same flat Facebook look the
+       Photos feed got in RP-V7.236 (which scopes its rules to
+       #screen-moments; mirrored here for the home flow). The v3
+       pack makes .mom-acts an absolute TikTok-style side rail —
+       on this Facebook page the action row sits UNDER the post,
+       so position/direction are reset explicitly. */
+    #screen-home243 .mom-card { background: transparent; border: none; border-radius: 0; box-shadow: none; position: relative; }
+    #screen-home243 .mom-top span { color: #b0b3b8; }
+    #screen-home243 .mom-acts { position: static; flex-direction: row; gap: 6px; padding: 8px 10px 12px; border-top: 1px solid #3e4042; margin-top: 8px; }
+    #screen-home243 .mom-act { flex-direction: row; gap: 6px; width: auto; min-height: 0; border: 1.5px solid var(--line); border-radius: 999px; padding: 8px 14px; background: var(--chip); color: var(--ink); font-size: 14px; font-weight: 800; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  </style>
+  <script>
+  /* ================================================================
+     [RP-V7.243] HOME — the Facebook-style home page (Branden, Nov 5,
+     corrected req 8). #screen-home243 is the bottom-bar Home
+     destination: the stories card row (stories module), then the
+     feed in ONE scroll — Facebook-style photo posts (the Photos
+     feed's own card design + the V7.241 action handlers) with the
+     Reels rail inline like Facebook's in-feed reels unit. The rail
+     is REELS ONLY (video files only, requirement 1) with PLAYING
+     muted looping previews (requirement 2). The glowing-red Plaza
+     button opens the Plaza screen, which this build leaves
+     byte-identical. Data: the same GET /api/photo/posts and
+     GET /api/reels payloads the other surfaces use — no parallel
+     store, no new ranking.
+     ================================================================ */
+  (function () {
+    "use strict";
+    var MAX_RAIL = 20;
+    var FLOW_CAP = 30;
+    var postsEl = null, unitEl = null, railEl = null, tilesEl = null, railEmptyEl = null, feedEmptyEl = null;
+    var inited = false;
+    var rLoading = false, rSig = null;
+    var fLoading = false, fSig = null;
+    var io243 = null;
+    function $(id) { return document.getElementById(id); }
+    function token() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) || ""; } catch (e) { return ""; } }
+    function esc243(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+    function when243(iso) { var t = Date.parse(iso || ""); if (!isFinite(t)) return "now"; var s = Math.max(1, Math.floor((Date.now() - t) / 1000)); if (s < 3600) return Math.max(1, Math.floor(s / 60)) + "m ago"; if (s < 86400) return Math.floor(s / 3600) + "h ago"; return Math.floor(s / 86400) + "d ago"; }
+
+    /* ---------------- the reels rail (reels only, previews) -------- */
+    function isVideo243(u) { var s = String(u || "").split(/[?#]/)[0].toLowerCase(); return /\.(mp4|webm|mov|m4v)$/.test(s); }
+    function mapReel243(r) {
+      return { kind: "reel", id: r.id, owner: r.authorId || null, ownerName: r.author || "", src: r.url || "", views: r.views || 0, caption: r.caption || "", heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), reposts: r.reposts || 0, myReposted: !!r.myReposted, createdAt: r.createdAt || "" };
+    }
+    function setLive243(tile, on) {
+      if (!tile) return;
+      var has = tile.classList.contains("rp243-live");
+      if (on && !has) tile.classList.add("rp243-live");
+      if (!on && has) tile.classList.remove("rp243-live");
+    }
+    function playV243(v) {
+      if (!v) return;
+      try { v.muted = true; } catch (e) { }
+      /* A first play() can race the media load (slow network, a src
+         that resolves a beat late) and leave the element errored —
+         reload it once so the preview recovers instead of sitting
+         on a dead first frame. */
+      if (v.error || v.networkState === 3) { try { v.load(); } catch (e) { } }
+      var p = null;
+      try { p = v.play(); } catch (e) { }
+      if (p && p.catch) p.catch(function () { });
+    }
+    function pausePreviews243() {
+      if (!tilesEl) return;
+      tilesEl.querySelectorAll("video.rpmedia-vid").forEach(function (v) {
+        if (!v.paused) { try { v.pause(); } catch (e) { } }
+        setLive243(v.closest(".rpmedia-tile"), false);
+      });
+    }
+    function scanPreviews243() {
+      if (!railEl || document.hidden) return;
+      var rr = railEl.getBoundingClientRect();
+      if (rr.width === 0) return;
+      tilesEl.querySelectorAll(".rpmedia-tile").forEach(function (tile) {
+        var v = tile.querySelector("video.rpmedia-vid");
+        if (!v) return;
+        var r = tile.getBoundingClientRect();
+        var vis = r.right > rr.left + 4 && r.left < rr.right - 4 && r.bottom > 0 && r.top < window.innerHeight;
+        if (vis) playV243(v); else if (!v.paused) { try { v.pause(); } catch (e) { } setLive243(tile, false); }
+      });
+    }
+    function upgradePreviews243() {
+      if (!tilesEl) return;
+      /* The shared tile renderer already paints each reel tile as a
+         muted playsinline <video> (preload=metadata — its first
+         frame is the poster). The preview upgrade enhances those
+         elements in place: loop on, live-state class wiring, and
+         visibility-driven play/pause. */
+      tilesEl.querySelectorAll(".rpmedia-tile").forEach(function (tile) {
+        var v = tile.querySelector("video");
+        if (!v || v.classList.contains("rpmedia-vid")) return;
+        v.classList.add("rpmedia-vid");
+        try { v.loop = true; } catch (e) { }
+        try { v.muted = true; } catch (e) { }
+        v.addEventListener("playing", function () { setLive243(tile, true); });
+        v.addEventListener("pause", function () { setLive243(tile, false); });
+      });
+      if (window.IntersectionObserver && !io243 && railEl) {
+        io243 = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            var v = en.target.querySelector("video.rpmedia-vid");
+            if (!v) return;
+            if (en.isIntersecting) playV243(v);
+            else if (!v.paused) { try { v.pause(); } catch (e) { } setLive243(en.target, false); }
+          });
+        }, { root: railEl, threshold: 0.55 });
+      }
+      if (io243) tilesEl.querySelectorAll(".rpmedia-tile").forEach(function (t) { io243.observe(t); });
+      scanPreviews243();
+    }
+    function renderRail243(items) {
+      if (!tilesEl) return;
+      tilesEl.innerHTML = "";
+      if (!items.length) {
+        if (railEl) railEl.style.display = "none";
+        if (railEmptyEl) railEmptyEl.hidden = false;
+        return;
+      }
+      if (railEl) railEl.style.display = "";
+      if (railEmptyEl) railEmptyEl.hidden = true;
+      if (window.rpViewsFillGrid) window.rpViewsFillGrid(tilesEl, items, null);
+      else tilesEl.innerHTML = '<span class="rp-rail242-note">Reels are loading…</span>';
+      upgradePreviews243();
+      /* The first visibility pass can race media loads; re-scan on
+         a short fuse so on-screen previews reliably start. */
+      setTimeout(scanPreviews243, 500);
+      setTimeout(scanPreviews243, 1800);
+    }
+    function loadRail243() {
+      if (!tilesEl || rLoading) return;
+      if (!window.rpViewsFillGrid) { setTimeout(loadRail243, 600); return; }
+      rLoading = true;
+      var tok = token();
+      fetch("/api/reels", { headers: tok ? { Authorization: "Bearer " + tok } : {} })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          rLoading = false;
+          if (!j || !j.ok || !Array.isArray(j.reels)) return;
+          var seen = {};
+          var items = [];
+          j.reels.forEach(function (r) {
+            if (!r || r.id == null || seen[r.id]) return;
+            if (!isVideo243(r.url)) return; /* requirement 1: reels only — photo rows never render */
+            seen[r.id] = 1;
+            items.push(mapReel243(r));
+          });
+          /* Order: exactly the V7.242 rail's rule — the server's
+             ranked order when ranked, else newest-first. */
+          if (!j.ranked) items.sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+          var sig = items.map(function (it) { return it.id; }).join(",");
+          if (sig === rSig) { scanPreviews243(); return; }
+          rSig = sig;
+          renderRail243(items.slice(0, MAX_RAIL));
+        })
+        .catch(function () { rLoading = false; });
+    }
+
+    /* ---------------- the photo-post flow -------------------------- */
+    function gridItem243(pp) {
+      var urls = (Array.isArray(pp.urls) && pp.urls.length) ? pp.urls : (pp.photo ? [pp.photo] : []);
+      return { kind: "photopost", id: pp.id, owner: null, ownerName: pp.author || "", src: pp.photo || "", views: 0, photoCount: urls.length || 1, caption: pp.caption || "", likes: pp.likes || 0, myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted };
+    }
+    function share243(pp) {
+      var url = location.origin + "/#photo-" + pp.id;
+      var text = (pp.caption ? "\u201C" + pp.caption + "\u201D on Rizz Plaza" : "A photo on Rizz Plaza") + " — " + url;
+      try { if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: text, url: url }).catch(function () { }); return; } } catch (e) { }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { try { toast("Link copied — share it anywhere"); } catch (e) { } }, function () { try { toast(text); } catch (e) { } });
+          return;
+        }
+      } catch (e) { }
+      try { toast(text); } catch (e) { }
+    }
+    function cardEl243(pp) {
+      var acts = window.rpFeedActs241 || {};
+      var fi = { postId: pp.id, author: pp.author || "", authorId: null, caption: pp.caption || "", likes: pp.likes || 0, myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine };
+      var urls = (Array.isArray(pp.urls) && pp.urls.length) ? pp.urls : (pp.photo ? [pp.photo] : []);
+      var face = "";
+      try { if (typeof personFace === "function") face = personFace({ name: pp.author || "Someone" }); } catch (e) { }
+      if (!face) face = '<span class="pface pface-init">' + esc243((pp.author || "?").charAt(0).toUpperCase() || "?") + "</span>";
+      var photoHtml;
+      if (urls.length > 1) photoHtml = '<span class="mom-flip" style="display:block;"><img src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/><button type="button" class="ff-zone prev" data-fbflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-fbflip="1" aria-label="Next photo"></button><span class="ff-count">1/' + urls.length + "</span></span>";
+      else if (urls.length) photoHtml = '<img src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/>';
+      else photoHtml = '<span class="mom-nomedia" aria-hidden="true"></span>';
+      var ico = window.RPICO || {};
+      var card = document.createElement("article");
+      card.className = "mom-card";
+      card.setAttribute("data-mid", pp.id);
+      card.innerHTML =
+        '<div class="mom-top"><span class="who-av">' + face + '</span><div><b>' + esc243(pp.author || "Someone") + '</b><span>' + esc243(when243(pp.createdAt)) + " · Photos</span></div>" + '<span class="mom-gifted" hidden></span></div>' +
+        '<div class="mom-photo">' + photoHtml + "</div>" +
+        '<p class="mom-cap"><b>' + esc243(pp.author || "Someone") + "</b>" + (pp.caption ? " " + esc243(pp.caption) : "") + "</p>" +
+        '<div class="mom-acts">' +
+          '<button class="mom-act like' + (fi.myLiked ? " liked" : "") + '" type="button">' + (ico.heart || "") + ' <span class="lc">' + fi.likes + "</span></button>" +
+          '<button class="mom-act cmt" type="button">' + (ico.comment || "") + ' <span class="cc">' + fi.commentCount + "</span></button>" +
+          '<button class="mom-act repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + (ico.repost || "") + ' <span class="rc">' + fi.reposts + "</span></button>" +
+          (fi.mine ? "" : '<button class="mom-act gift" type="button">' + (ico.gift || "") + " Gift</button>") +
+          '<button class="mom-act share" type="button">' + (ico.share || "") + " Share</button>" +
+        "</div>";
+      var lk = card.querySelector(".like"); if (lk && acts.photoLike) lk.addEventListener("click", function () { acts.photoLike(fi, lk); });
+      var cm = card.querySelector(".cmt"); if (cm && acts.photoComments) cm.addEventListener("click", function () { acts.photoComments(fi); });
+      var rp = card.querySelector(".repost"); if (rp && acts.photoRepost) rp.addEventListener("click", function () { acts.photoRepost(fi, rp); });
+      var gf = card.querySelector(".gift"); if (gf) gf.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(pp.author || "", pp.author || "", { src: "picture" }); });
+      var sh = card.querySelector(".share"); if (sh) sh.addEventListener("click", function () { share243(pp); });
+      var idx = 0;
+      card.querySelectorAll("[data-fbflip]").forEach(function (z) {
+        z.addEventListener("click", function () {
+          var n = urls.length; if (n < 2) return;
+          idx = (((idx + parseInt(z.getAttribute("data-fbflip"), 10)) % n) + n) % n;
+          var im = card.querySelector(".mom-flip img"); if (im) im.src = urls[idx];
+          var ct = card.querySelector(".ff-count"); if (ct) ct.textContent = (idx + 1) + "/" + n;
+        });
+      });
+      var pim = card.querySelector(".mom-photo img");
+      if (pim) pim.addEventListener("click", function () { if (typeof window.rpViewsOpenPhoto === "function") window.rpViewsOpenPhoto(gridItem243(pp), null); });
+      return card;
+    }
+    function renderFlow243(posts) {
+      if (!postsEl) return;
+      postsEl.innerHTML = "";
+      var placed = false;
+      (posts || []).slice(0, FLOW_CAP).forEach(function (pp, i) {
+        postsEl.appendChild(cardEl243(pp));
+        if (i === 1 && unitEl) { postsEl.appendChild(unitEl); placed = true; }
+      });
+      if (unitEl && !placed) postsEl.appendChild(unitEl);
+      if (feedEmptyEl) feedEmptyEl.hidden = (posts || []).length > 0;
+    }
+    function loadFeed243() {
+      if (!postsEl || fLoading) return;
+      fLoading = true;
+      var tok = token();
+      fetch("/api/photo/posts", { headers: tok ? { Authorization: "Bearer " + tok } : {} })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          fLoading = false;
+          if (!j || !j.ok || !Array.isArray(j.posts)) return;
+          var sig = j.posts.map(function (p) { return p && p.id; }).join(",");
+          if (sig === fSig) return;
+          fSig = sig;
+          renderFlow243(j.posts);
+        })
+        .catch(function () { fLoading = false; });
+    }
+
+    /* ---------------- screen wiring -------------------------------- */
+    function hookShow243() {
+      if (typeof window.show === "function" && !window.show.__fb243) {
+        var orig = window.show;
+        var wrapped = function (id) {
+          var r = orig.apply(this, arguments);
+          if (id === "screen-home243") { setTimeout(loadRail243, 60); setTimeout(loadFeed243, 60); setTimeout(scanPreviews243, 200); }
+          else { try { pausePreviews243(); } catch (e) { } }
+          return r;
+        };
+        wrapped.__fb243 = true;
+        if (orig.__rp242) wrapped.__rp242 = true;
+        if (orig.__rphome) wrapped.__rphome = true;
+        if (orig.__rpstore240) wrapped.__rpstore240 = true;
+        window.show = wrapped;
+      }
+    }
+    function init243() {
+      if (inited) return;
+      postsEl = $("fbFeedPosts243"); unitEl = $("fbReelsUnit243"); railEl = $("fbRail243"); tilesEl = $("fbRailTiles243"); railEmptyEl = $("fbRailEmpty243"); feedEmptyEl = $("fbFeedEmpty243");
+      if (!postsEl || !tilesEl) return;
+      inited = true;
+      var more = $("btnFbReelsMore243");
+      if (more && !more.__fb243) { more.__fb243 = true; more.addEventListener("click", function () { if (window.rpReelsOpen) window.rpReelsOpen(); }); }
+      var pb = $("btnPlazaSide243");
+      if (pb && !pb.__fb243) { pb.__fb243 = true; pb.addEventListener("click", function () { if (typeof window.show === "function") window.show("screen-plaza"); }); }
+      window.rpHomeRails243 = { refresh: function () { rSig = null; fSig = null; try { loadRail243(); } catch (e) { } try { loadFeed243(); } catch (e) { } } };
+      hookShow243();
+      setTimeout(hookShow243, 1500);
+      loadRail243();
+      loadFeed243();
+    }
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) pausePreviews243();
+      else setTimeout(scanPreviews243, 120);
+    });
+    /* Vertical scrolling brings the rail into view without moving
+       tiles inside the rail — re-scan (capture phase catches scrolls
+       from any nested scroller too). */
+    var scanT243 = null;
+    window.addEventListener("scroll", function () {
+      if (scanT243) return;
+      scanT243 = setTimeout(function () { scanT243 = null; scanPreviews243(); }, 160);
+    }, true);
+    init243();
+    setTimeout(init243, 1200);
+  })();
+  </script>
+
 </body>
 </html>
 
