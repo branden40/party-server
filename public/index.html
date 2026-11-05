@@ -33150,8 +33150,10 @@ button.rp72-chip{ cursor:pointer; }
 .rppl-follow.on { background: #26262e; border-color: rgba(255,255,255,.16); color: #c9c9d6; }
 .rppl-you { flex: 0 0 auto; align-self: center; color: #9a9aad; font-size: 12px; font-weight: 800; padding: 7px 4px; }
 /* [RP-V7.222] DM conversation = TikTok layout: a full-screen flat page,
-   not a sheet. renderConversation flags #overlay with .rpdm-full; the
-   flag is dropped by renderInboxShell / the conversation menu / the
+   not a sheet. renderConversation flags #overlay with .rpdm-full
+   (and since RP-V7.249 the Inbox list does too — it is a full
+   screen now, not a sheet); the flag is dropped by the
+   conversation menu / the
    report sheet, and by an observer whenever the overlay closes, so
    every other sheet keeps the standard look. Everything below is
    scoped to the conversation — inbox list, Find people and profile
@@ -33179,6 +33181,77 @@ button.rp72-chip{ cursor:pointer; }
 .rpdm-csend:disabled { opacity: .35; cursor: default; }
 .rpdm-field .rpdm-input:placeholder-shown ~ .rpdm-csend { background: #3c3c48; }
 .rpdm-field .rpdm-input:not(:placeholder-shown) ~ .rpdm-cattach { visibility: hidden; width: 0; }
+/* [RP-V7.249] TikTok-style Inbox + conversation (Branden's screenshots,
+   Nov 5, 2026): centered "Inbox" title; friends stories row of circle
+   avatars up top; an "Activity & new followers" row; SVG camera on
+   conversation rows. In the conversation: quick-react chips above
+   the composer, a camera button left of the field, and photo + emoji
+   icons inside the field's right side. Plaza dark skin throughout. */
+.rpdm-title249 { text-align: center; font-weight: 900; font-size: 17px; margin: 2px 40px 0; }
+.rpdm-actava249 { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 50%; background: #fe2c55; color: #fff; font-size: 26px; display: flex; align-items: center; justify-content: center; }
+.rpdm-actchev249 { flex: 0 0 auto; color: #9a9aad; font-size: 22px; font-weight: 700; padding-left: 4px; }
+.rpdm-cam { color: #fff; display: flex; align-items: center; }
+.rpdm-cam svg { width: 25px; height: 25px; display: block; }
+.rpdm-react249 { flex: 0 0 auto; display: flex; gap: 8px; padding: 9px 12px 1px; overflow-x: auto; scrollbar-width: none; }
+.rpdm-react249::-webkit-scrollbar { display: none; }
+.rpdm-rchip249 { flex: 0 0 auto; background: #1f1f27; border: 1px solid rgba(255,255,255,.10); border-radius: 999px; font-size: 19px; line-height: 1.3; padding: 5px 15px; cursor: pointer; font-family: inherit; color: #fff; }
+.rpdm-rchip249:active { background: #2b2b36; }
+.rpdm-composer { gap: 8px; }
+.rpdm-cam249 { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; border: none; background: #fe2c55; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; font-family: inherit; }
+.rpdm-cam249 svg { width: 22px; height: 22px; display: block; }
+.rpdm-cam249:disabled { opacity: .35; cursor: default; }
+.rpdm-cattach svg { width: 21px; height: 21px; display: block; margin: 0 auto; }
+/* [RP-V7.249] Full-screen Inbox header + Requests (Branden, Nov 5,
+   17:38: the old Messages SHEET is deleted and replaced — the Inbox
+   tab opens this full screen directly): header row = Find people
+   (left), centered title, ✕ exit (right); Requests are a row in
+   this layout, not a pill tab; the list area scrolls under the
+   fixed top block when the overlay carries .rpdm-full. */
+.rpdm-head249 { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 10px 10px 2px; }
+.rpdm-head249 .close-x { float: none; flex: 0 0 auto; }
+.rpdm-head249 .rpdm-title249 { flex: 1 1 auto; margin: 0; }
+.rpdm-reqava249 { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 50%; background: #fe2c55; color: #fff; display: flex; align-items: center; justify-content: center; }
+.rpdm-reqava249 svg { width: 27px; height: 27px; display: block; }
+#rpDmReqRow .rpdm-cnt { flex: 0 0 auto; background: #fe2c55; color: #fff; border-radius: 99px; padding: 1px 8px; font-size: 11.5px; font-weight: 800; }
+.rpdm-reqback249 { flex: 0 0 auto; align-self: flex-start; background: none; border: none; box-shadow: none; color: #fff; font-size: 15.5px; font-weight: 800; padding: 10px 14px 2px; cursor: pointer; font-family: inherit; }
+.overlay.rpdm-full .rpdm-head249 { padding-top: calc(10px + env(safe-area-inset-top)); }
+.overlay.rpdm-full #rpDmRows { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+/* [RP-V7.249 glow rule] Branden (Nov 5, 17:32): the glow is a
+   NOT-YET-OPENED marker — a circle glows only while it has NOT been
+   opened; opening it takes the glow away. And the glow is RED: the
+   LIVE-badge red (#e02424, rgba(224,36,36) bloom), not the Plaza
+   pink. (This supersedes the 17:31 all-circles-glow pass: plain
+   friend circles, the Create circle and the conversation header
+   avatar carry NO glow. The Create + badge stays its pink accent.)
+   - Stories row: a friend's circle glows RED only while their story
+     is UNVIEWED; once viewed it renders plain with the flat grey
+     ring. Viewed state is the app's existing story seen-state —
+     the server tray's allViewed flag drives .sc-ring / .sc-ring-seen;
+     the rules below only re-color the unviewed ring to LIVE red
+     inside this row (other trays keep the pink V7.124 ring).
+   - Conversation rows: an UNREAD thread's avatar glows RED; opening
+     the thread marks it read (the existing /api/dm/read call in
+     loadThread), so the next list render is plain. The story ring
+     RPStories.decorate puts on a list avatar is re-colored to the
+     same red inside the Inbox list only, and seen-story avatars
+     keep their flat grey ring. */
+@keyframes rp249RedPulse {
+  0%, 100% { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #e02424, 0 0 12px 3px rgba(224,36,36,.65), 0 0 24px 7px rgba(224,36,36,.28); }
+  50% { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #e02424, 0 0 18px 5px rgba(224,36,36,.92), 0 0 38px 12px rgba(224,36,36,.45); }
+}
+#rpDmStoryRow .story-cell .sc-ava.sc-ring { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #e02424, 0 0 16px 4px rgba(224,36,36,.8), 0 0 32px 10px rgba(224,36,36,.4); animation: rp249RedPulse 1.8s ease-in-out infinite; }
+#rpDmRows .rpdm-ava.sring-on { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #e02424, 0 0 16px 4px rgba(224,36,36,.8), 0 0 32px 10px rgba(224,36,36,.4); animation: rp249RedPulse 1.8s ease-in-out infinite; }
+.rpdm-row.unread .rpdm-ava:not(.sring-on):not(.sring-seen) { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 3.5px #e02424, 0 0 12px 3px rgba(224,36,36,.55), 0 0 24px 7px rgba(224,36,36,.22); }
+/* [RP-V7.249] LIVE badge (Branden, Nov 5, 17:33 + visual confirm):
+   TikTok's exact form — a small RED FILLED CIRCLE at the avatar's
+   bottom-right edge holding a white sound-bars (equalizer) glyph,
+   with the Plaza LIVE red glow. Stories-row circles + conversation
+   row avatars. Presence comes from dmLiveByName249() over
+   liveDirectoryList() — Live Now's own source; never faked. */
+.rpdm-avawrap249 { position: relative; flex: 0 0 auto; }
+.rpdm-livebadge249 { position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; border-radius: 50%; background: #e02424; box-shadow: 0 0 9px rgba(224,36,36,.55), 0 0 18px rgba(224,36,36,.28); display: flex; align-items: center; justify-content: center; z-index: 3; pointer-events: none; }
+.rpdm-livebadge249 svg { width: 11px; height: 11px; display: block; }
+#rpDmRows .rpdm-livebadge249 { width: 18px; height: 18px; right: -2px; bottom: -2px; }
 </style>
 <script>
 /* ================= RP-V7.7: direct messages =================
@@ -33333,7 +33406,7 @@ button.rp72-chip{ cursor:pointer; }
     if (typeof window.openSheet !== "function") { toast2("Open Messages from the Plaza home 💬", 3000); return; }
     renderInboxShell('<p class="age-note" style="margin-top:10px">Loading your messages…</p>');
     api("/api/dm/threads", "GET").then(function (r) {
-      if (!$("rpDmTabs")) return; /* sheet moved on */
+      if (!$("rpDmRows")) return; /* inbox screen moved on */
       if (r.json && r.json.ok) {
         inboxData = r.json;
         setBadge(r.json.unreadTotal || 0);
@@ -33344,39 +33417,48 @@ button.rp72-chip{ cursor:pointer; }
     });
   }
   function renderInboxShell(inner) {
-    var ovIb = document.getElementById("overlay"); // [RP-V7.222] the inbox list keeps the sheet look
-    if (ovIb) ovIb.classList.remove("rpdm-full");
+    var ovIb = document.getElementById("overlay"); // [RP-V7.249] the Inbox list is a full SCREEN now, not a sheet (Branden, Nov 5 17:38: the old Messages sheet is deleted and replaced) — the same .rpdm-full flag the conversation uses; it is dropped when the overlay closes (V7.226 observer) or when a member profile opens from a thread
+    if (ovIb) ovIb.classList.add("rpdm-full");
     var reqN = inboxData && inboxData.requests ? inboxData.requests.length : 0;
     // [RP-V7.81] ✕ exit in the header (Branden device report, Oct 26:
     // "there's no exit button") — the app's close-x pattern, wired in
     // wireInboxShell; backdrop-tap close stays as it was.
-    var html = '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-      '<h3 style="margin:4px 0">💬 Messages</h3>' +
-      '<div class="story-tray rpdm-storytray" id="storyTrayInbox" hidden></div>' + // [RP-V7.110] stories rail at the top of the Inbox (Branden)
-      '<div class="rpdm-tabs" id="rpDmTabs">' +
-      '<button type="button" class="rpdm-tab' + (inboxTab === "inbox" ? " on" : "") + '" data-dmtab="inbox">Messages</button>' +
-      '<button type="button" class="rpdm-tab' + (inboxTab === "requests" ? " on" : "") + '" data-dmtab="requests">Requests' + (reqN ? '<span class="rpdm-cnt">' + reqN + "</span>" : "") + "</button>" +
+    var html = '<div class="rpdm-head249">' + // [RP-V7.249] full-screen Inbox header: centered title, ✕ exit (right). NO Find people in the Inbox (Branden, Nov 5 17:41) — Find people lives on the Home card's 🔎 Find people button + Find friends; it is not deleted from the app
+      '<h3 class="rpdm-title249">Inbox</h3>' +
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
       "</div>" +
-      '<button type="button" class="rppl-find" id="rpDmFind">🔎 Find people</button>' + // [RP-V7.30]
+      (inboxTab === "requests"
+        ? '<button type="button" class="rpdm-reqback249" id="rpDmReqBack">‹&ensp;Message requests</button>' // [RP-V7.249] Requests is its own view — the old Messages/Requests pill tabs are DELETED, and the Find people bar with them (Find people lives in the header now)
+        : '<div class="story-tray rpdm-storytray" id="rpDmStoryRow" hidden></div>' + // [RP-V7.249] friends stories row (replaces the V7.110 shared tray; the stories module skips the now-absent #storyTrayInbox)
+          '<div id="rpDmActivity"></div>' +
+          (reqN ? '<button type="button" class="rpdm-row" id="rpDmReqRow"><span class="rpdm-reqava249"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4.5 7.5 12 13l7.5-5.5"/></svg></span><span class="rpdm-main"><span class="rpdm-name">Message requests</span><span class="rpdm-prev">' + reqN + (reqN === 1 ? " person wants to message you" : " people want to message you") + '</span></span><span class="rpdm-cnt">' + reqN + '</span><span class="rpdm-actchev249">›</span></button>' : "")) +
       '<div id="rpDmRows">' + inner + "</div>";
     window.openSheet(html);
     wireInboxShell();
-    // [RP-V7.110] fill the stories rail (the stories module renders
-    // into every .story-tray host, this one included, on refresh).
-    setTimeout(function () { if (window.RPStories) window.RPStories.refresh(); }, 30);
+    // [RP-V7.249] fill the friends stories row + the activity row
+    // from what's already loaded, then re-render the row when the
+    // stories tray data lands (refresh returns the load promise).
+    if (inboxTab === "inbox") renderDmTop249();
+    setTimeout(function () {
+      if (window.RPStories && window.RPStories.refresh) {
+        var p249 = null;
+        try { p249 = window.RPStories.refresh(); } catch (e) { }
+        if (p249 && p249.then) p249.then(function () { renderDmStoryRow249(); });
+      }
+    }, 30);
   }
   function wireInboxShell() {
     var cx = document.querySelector("#sheet [data-act=close]"); // [RP-V7.81]
     if (cx) cx.addEventListener("click", function () { if (typeof window.closeSheet === "function") window.closeSheet(); });
-    document.querySelectorAll("[data-dmtab]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        inboxTab = b.getAttribute("data-dmtab");
-        renderInboxShell("");
-        renderInboxRows();
-      });
-    });
-    var fb = $("rpDmFind"); // [RP-V7.30]
-    if (fb) fb.addEventListener("click", function () { openPeople(""); });
+    var rq249 = $("rpDmReqRow"); // [RP-V7.249] Requests entry row -> the requests view (same request data + Accept/Delete as the deleted pill tab)
+    if (rq249) rq249.addEventListener("click", function () { inboxTab = "requests"; renderInboxShell(""); renderInboxRows(); });
+    var rb249 = $("rpDmReqBack"); // [RP-V7.249] requests view -> back to the Inbox list
+    if (rb249) rb249.addEventListener("click", function () { inboxTab = "inbox"; renderInboxShell(""); renderInboxRows(); });
+    /* [RP-V7.249] No Find people wiring in the Inbox anymore: the
+       Find people bar/button are REMOVED from the Inbox (Branden,
+       Nov 5 17:41). openPeople itself is untouched and stays
+       reachable from the Home card's Find people button
+       (#btnFindPeopleHome) and from Find friends. */
   }
   function renderInboxRows() {
     var box = $("rpDmRows");
@@ -33388,12 +33470,13 @@ button.rp72-chip{ cursor:pointer; }
         : '<div class="rpdm-empty">No messages yet.<br/>Tap 💬 Message on someone\'s card to say hi.</div>';
       return;
     }
+    var liveMap249 = dmLiveByName249(); // [RP-V7.249] real live presence for the row LIVE badges, computed once per render
     box.innerHTML = list.map(function (t) {
       var prev111 = t.lastText // [RP-V7.111] TikTok-style rows: name line, then preview · time
         ? (t.startedByMe ? "You: " : "") + t.lastText + " · " + whenText(t.lastAt)
         : "Say hi to " + t.user.name;
       var row = '<button type="button" class="rpdm-row' + (t.unread ? " unread" : "") + '" data-dmopen="' + esc(t.user.id) + '" data-dmname="' + esc(t.user.name) + '">' +
-        avaHtml(t.user.name, t.user.deleted) +
+        '<div class="rpdm-avawrap249">' + avaHtml(t.user.name, t.user.deleted) + (liveMap249[String(t.user.name || "").trim().toLowerCase()] ? '<span class="rpdm-livebadge249">' + RP249_BARS + "</span>" : "") + "</div>" + // [RP-V7.249] LIVE badge on the avatar (informational here — the row tap still opens the thread)
         '<span class="rpdm-main"><span class="rpdm-name">' + esc(t.user.name) + '</span>' +
         '<span class="rpdm-prev">' + esc(prev111) + "</span></span>";
       if (inboxTab === "requests") {
@@ -33402,7 +33485,7 @@ button.rp72-chip{ cursor:pointer; }
           '<span class="btn-mini" data-dmdel="' + esc(t.user.id) + '">Delete</span></span>';
       } else {
         if (t.unread) row += '<span class="rpdm-unread">' + (t.unread > 99 ? "99+" : t.unread) + "</span>";
-        row += '<span class="rpdm-cam" data-dmcam="' + esc(t.user.id) + '" data-dmname="' + esc(t.user.name) + '" role="button" aria-label="Send a photo">📷</span>'; // [RP-V7.111]
+        row += '<span class="rpdm-cam" data-dmcam="' + esc(t.user.id) + '" data-dmname="' + esc(t.user.name) + '" role="button" aria-label="Send a photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.6"/></svg></span>'; // [RP-V7.249] outline SVG camera, TikTok-style (was the 📷 emoji); wiring via [data-dmcam] unchanged
       }
       return row + "</button>";
     }).join("");
@@ -33439,6 +33522,177 @@ button.rp72-chip{ cursor:pointer; }
     if (window.RPStories) window.RPStories.decorate(box);
   }
 
+  /* ---------------- [RP-V7.249] Inbox top: friends stories row + activity row ----------------
+     TikTok Inbox layout (Branden's screenshot, Nov 5, 2026): a row of
+     CIRCLE avatars at the top of the Inbox — his own Create circle
+     first, then his FRIENDS = the union of his followers and
+     following from the real server graph (rpSocial.state). A friend
+     with an active story wears the story ring and opens the story
+     viewer (RPStories.open); a friend without one opens their DM
+     thread via openConversation — an empty thread view, and no
+     conversation record exists until a message is actually sent.
+     Ordering: LIVE friends first, then story friends (most
+     recent story first), then the rest by most recent
+     conversation, then name. The Activity
+     row under it shows the newest line from the real reminders feed
+     and opens the bell's Reminders sheet (window.rpAcct.open) — the
+     same surface notification taps use. Teen mirror: the module's
+     own dmCrossClassName gate drops anyone KNOWN to be across the
+     teen/adult line before they are ever offered — the same rule
+     every other DM entry point in this module follows, and the
+     server wall still guards every actual send. */
+  var dmTopSig249 = "";
+  function dmMyFace249() {
+    var nm = "", ph = "";
+    try { var st249 = (window.rpAcct && window.rpAcct.state) ? window.rpAcct.state() : null; if (st249) { nm = st249.name || ""; ph = st249.photo || ""; } } catch (e) { }
+    var a249 = acctRec();
+    if (!nm && a249 && a249.name) nm = a249.name;
+    if (!ph && a249 && a249.photo) ph = a249.photo;
+    if (!ph && nm) ph = photoFor(nm);
+    return { name: nm || "You", photo: ph || "" };
+  }
+  function dmFriends249() {
+    var st = null;
+    try { st = window.rpSocial && window.rpSocial.state; } catch (e) { }
+    var out = [], seen = {}, selfId = myId();
+    function add(e) {
+      if (!e || !e.id || !e.name) return;
+      if (selfId && e.id === selfId) return;
+      if (seen[e.id]) return;
+      seen[e.id] = 1;
+      if (dmCrossClassName(e.name)) return; /* [RP-V7.212 mirror] */
+      out.push({ id: e.id, name: e.name });
+    }
+    if (st && st.loaded) { (st.followingList || []).forEach(add); (st.followersList || []).forEach(add); }
+    return out;
+  }
+  function dmCellAva249(photo, name) {
+    if (photo) return '<img src="' + esc(photo) + '" alt=""/>';
+    var ch = (String(name || "?").trim().charAt(0) || "?").toUpperCase();
+    return '<span class="sc-init">' + esc(ch) + "</span>";
+  }
+  var RP249_BARS = '<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><rect x="4.6" y="9.5" width="3.1" height="5" rx="1.55"/><rect x="10.45" y="4.8" width="3.1" height="14.4" rx="1.55"/><rect x="16.3" y="7.6" width="3.1" height="8.8" rx="1.55"/></svg>'; // [RP-V7.249] white sound-bars glyph for the LIVE badge
+  /* [RP-V7.249] Real live presence for the LIVE badges: the app's
+     own live directory — liveDirectoryList(), the same source as
+     Live Now and the Plaza-wide Go LIVE beacon. The directory only
+     ever holds lives THIS member may see (the server keeps
+     uninvited private lives out of it), and lives resolve by host
+     name — the directory's own keying (see the [RP-V7.99] note in
+     liveDirectoryList). A name shared by two live hosts at once is
+     ambiguous and gets no badge. */
+  function dmLiveByName249() {
+    var counts = {}, rooms = {};
+    try {
+      if (typeof liveDirectoryList === "function") {
+        liveDirectoryList().forEach(function (e) {
+          if (!e || e.mine || !e.name || !e.room) return;
+          var k = String(e.name).trim().toLowerCase();
+          if (!k) return;
+          counts[k] = (counts[k] || 0) + 1;
+          if (!rooms[k]) rooms[k] = e.room;
+        });
+      }
+    } catch (err) { }
+    Object.keys(counts).forEach(function (k) { if (counts[k] > 1) delete rooms[k]; });
+    return rooms;
+  }
+  function renderDmStoryRow249() {
+    var row = $("rpDmStoryRow");
+    if (!row) return;
+    var friends = dmFriends249();
+    var ba = {};
+    try { ba = (window.RPStories && window.RPStories.byAuthor) || {}; } catch (e) { }
+    var lastBy = {};
+    if (inboxData) {
+      (inboxData.inbox || []).concat(inboxData.requests || []).forEach(function (t) {
+        if (t && t.user && t.user.id) lastBy[t.user.id] = t.lastAt || "";
+      });
+    }
+    var liveMap = dmLiveByName249(); // [RP-V7.249] real live presence: host name -> room (visible lives only)
+    var entries = friends.map(function (f) {
+      var e = ba[f.id];
+      var has = !!(e && e.stories && e.stories.length);
+      return { f: f, e: has ? e : null, liveRoom: liveMap[String(f.name || "").trim().toLowerCase()] || null, storyAt: has ? (e.latestAt || "") : "", lastDm: lastBy[f.id] || "" };
+    });
+    /* Order (Branden, Nov 5): LIVE friends first, then friends with
+       stories (most recent story first), then the rest by most
+       recent conversation, then name. The first sort orders inside
+       each family; the second (stable) sort moves the live family
+       to the front without disturbing the others. */
+    entries.sort(function (a, b) {
+      if (a.e && b.e) return String(b.storyAt).localeCompare(String(a.storyAt));
+      if (a.e) return -1;
+      if (b.e) return 1;
+      var d = String(b.lastDm).localeCompare(String(a.lastDm));
+      return d || String(a.f.name).localeCompare(String(b.f.name));
+    });
+    entries.sort(function (a, b) { return (a.liveRoom ? 0 : 1) - (b.liveRoom ? 0 : 1); });
+    var sig = "v2|" + entries.map(function (w) { return w.f.id + (w.liveRoom ? "L" : "") + (w.e ? (w.e.allViewed ? "~" : "!") : "-"); }).join(",");
+    if (sig === dmTopSig249 && !row.hidden) return; /* nothing changed — leave the DOM alone */
+    dmTopSig249 = sig;
+    var mine = dmMyFace249();
+    var html = '<button type="button" class="story-cell" data-dmcreate249="1">' +
+      '<span class="sc-ava">' + dmCellAva249(mine.photo, mine.name) + '<span class="sc-plus">+</span></span>' +
+      '<span class="sc-name">Create</span></button>';
+    entries.forEach(function (w) {
+      var ph = (w.e && w.e.author && w.e.author.photo) || photoFor(w.f.name) || "";
+      var badge = w.liveRoom ? '<span class="rpdm-livebadge249">' + RP249_BARS + "</span>" : ""; // [RP-V7.249] TikTok-form LIVE badge: red filled circle, white sound-bars, bottom-right edge
+      html += '<button type="button" class="story-cell" data-dmfriend249="' + esc(w.f.id) + '">' +
+        '<span class="sc-ava' + (w.e ? (w.e.allViewed ? " sc-ring-seen" : " sc-ring") : "") + '">' + dmCellAva249(ph, w.f.name) + badge + "</span>" +
+        '<span class="sc-name">' + esc(w.f.name) + "</span></button>";
+    });
+    row.innerHTML = html;
+    row.hidden = false;
+    row.querySelectorAll("[data-dmcreate249]").forEach(function (b) {
+      b.addEventListener("click", function () { if (window.RPStories && window.RPStories.openPoster) window.RPStories.openPoster(); });
+    });
+    row.querySelectorAll("[data-dmfriend249]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-dmfriend249"), rec = null;
+        entries.forEach(function (w) { if (w.f.id === id) rec = w; });
+        if (!rec) return;
+        /* A live friend's tap joins their live — the settled Plaza
+           behavior, through the same open path the Live Now rows
+           use; the badge and any unviewed-story glow stay visual. */
+        if (rec.liveRoom && typeof window.rpOpenLiveFromList138 === "function") { window.rpOpenLiveFromList138(rec.liveRoom); return; }
+        if (rec.e && window.RPStories && window.RPStories.open) { window.RPStories.open(id); return; }
+        openConversation(rec.f.id, rec.f.name);
+      });
+    });
+  }
+  function renderDmActivity249() {
+    var host = $("rpDmActivity");
+    if (!host) return;
+    if (inboxTab !== "inbox" || !(window.rpAcct && window.rpAcct.open)) { host.innerHTML = ""; return; }
+    api("/api/account/reminders", "GET").then(function (r) {
+      var h2 = $("rpDmActivity");
+      if (!h2 || inboxTab !== "inbox") return;
+      var list = (r.json && r.json.ok && r.json.reminders) || [];
+      if (!list.length) { h2.innerHTML = ""; return; }
+      h2.innerHTML = '<button type="button" class="rpdm-row" id="rpDmActRow">' +
+        '<span class="rpdm-actava249">⚡</span>' +
+        '<span class="rpdm-main"><span class="rpdm-name">Activity & new followers</span>' +
+        '<span class="rpdm-prev">' + esc(list[0].text || "") + "</span></span>" +
+        '<span class="rpdm-actchev249">›</span></button>';
+      var rb = $("rpDmActRow");
+      if (rb) rb.addEventListener("click", function () { try { window.rpAcct.open(); } catch (e) { } });
+    });
+  }
+  function renderDmTop249() {
+    renderDmStoryRow249();
+    renderDmActivity249();
+    /* The server graph may still be loading when the Inbox opens —
+       kick it and re-render (signature-guarded) as it lands. */
+    try {
+      var st = window.rpSocial && window.rpSocial.state;
+      if (st && !st.loaded && window.rpSocial.load) {
+        window.rpSocial.load();
+        setTimeout(renderDmStoryRow249, 900);
+        setTimeout(renderDmStoryRow249, 2400);
+      }
+    } catch (e) { }
+  }
+
   /* ---------------- conversation ---------------- */
   var conv = { userId: "", name: "", timer: null, msgs: [], blocked: false, loaded: false, deleted: false };
   function stopPoll() { if (conv.timer) { clearInterval(conv.timer); conv.timer = null; } }
@@ -33472,9 +33726,15 @@ button.rp72-chip{ cursor:pointer; }
       '<div id="rpDmGuideSlot"></div>' +
       '<div class="rpdm-msgs" id="rpDmMsgs"><div class="rpdm-empty">Loading…</div></div>' +
       '<div id="rpDmBlockedNote"></div>' +
-      '<div class="rpdm-composer"><div class="rpdm-field">' +
+      '<div class="rpdm-react249" id="rpDmReactRow">' + // [RP-V7.249] quick-react chips — one tap sends the emoji as a real message (wired below)
+      ["❤️", "😂", "👍", "🤙"].map(function (e249) { return '<button type="button" class="rpdm-rchip249" data-react249="' + e249 + '" aria-label="Send ' + e249 + '">' + e249 + "</button>"; }).join("") +
+      "</div>" +
+      '<div class="rpdm-composer">' +
+      '<button type="button" class="rpdm-cam249" id="rpDmCam249" aria-label="Send a photo or video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.6"/></svg></button>' + // [RP-V7.249] camera left of the field — the thread's existing photo/video flow
+      '<div class="rpdm-field">' +
       '<input class="rpdm-input" id="rpDmInput" type="text" maxlength="1000" placeholder="Message ' + esc(conv.name) + '…" autocomplete="off"/>' +
-      '<button type="button" class="rpdm-cattach" id="rpDmAttach" aria-label="Send a photo or video">📎</button>' +
+      '<button type="button" class="rpdm-cattach" id="rpDmAttach" aria-label="Send a photo or video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M3 16.5 9 11l4 3.5 3-2.5 5 4.5"/></svg></button>' +
+      '<button type="button" class="rpdm-cattach" id="rpDmEmoji249" aria-label="Emoji picker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10" r="1.15" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1.15" fill="currentColor" stroke="none"/><path d="M8 14.2c1.1 1.3 2.4 2 4 2s2.9-.7 4-2"/></svg></button>' + // [RP-V7.249] opens the app-wide emoji picker into this field
       '<button type="button" class="rpdm-csend" id="rpDmSend" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.3 3.7 11.2 20l-2.3-6.6L2.7 11.1z"/><path d="M8.9 13.4 20.3 3.7"/></svg></button>' +
       "</div>" +
       '<input type="file" id="rpDmFile" accept="image/*,video/*" hidden/>' +
@@ -33501,6 +33761,27 @@ button.rp72-chip{ cursor:pointer; }
         fil.value = "";
       });
     }
+    var cam249 = $("rpDmCam249"); // [RP-V7.249] camera button: same guards + same file flow as the in-field photo button
+    if (cam249 && fil) cam249.addEventListener("click", function () {
+      if (conv.deleted) { toast2("This account no longer exists — this conversation is read-only now.", 4200); return; }
+      if (conv.blocked) { toast2("Messages are blocked between you and " + conv.name + ".", 3600); return; }
+      fil.click();
+    });
+    var emo249 = $("rpDmEmoji249"); // [RP-V7.249] the app-wide emoji picker (RP-V7.47), aimed at this composer field
+    if (emo249) emo249.addEventListener("click", function () {
+      var inp249 = $("rpDmInput");
+      if (inp249 && window.rpEmojiPicker && window.rpEmojiPicker.open) window.rpEmojiPicker.open(inp249);
+    });
+    document.querySelectorAll("[data-react249]").forEach(function (chip) { // [RP-V7.249] quick-react: route through the exact typed-send path; any draft in the field is preserved
+      chip.addEventListener("click", function () {
+        var inp249 = $("rpDmInput");
+        if (!inp249) return;
+        var draft249 = inp249.value;
+        inp249.value = chip.getAttribute("data-react249");
+        sendCurrent();
+        inp249.value = draft249;
+      });
+    });
     var inp = $("rpDmInput");
     if (inp) inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); sendCurrent(); } });
   }
@@ -33554,6 +33835,8 @@ button.rp72-chip{ cursor:pointer; }
       if (snd) snd.disabled = conv.blocked || conv.deleted;
       var attB = $("rpDmAttach");
       if (attB) attB.disabled = conv.blocked || conv.deleted;
+      var camB249 = $("rpDmCam249"); // [RP-V7.249]
+      if (camB249) camB249.disabled = conv.blocked || conv.deleted;
       if (grew || !had) renderMessages();
       api("/api/dm/read", "POST", { userId: conv.userId }).then(function () { refreshBadge(); });
     });
