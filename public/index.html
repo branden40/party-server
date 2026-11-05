@@ -6060,8 +6060,8 @@
       function rpPostAuthLanding() {
         var invite = false;
         try { invite = !!(window.rpInviteLinkBlocksGeneric && window.rpInviteLinkBlocksGeneric()); } catch (e) { }
-        if (!invite && rpAcctSignedIn()) { openProfile(); return; }
-        show("screen-home243"); // [RP-V7.243] guests land on the Facebook-style home (signed-in still lands on Profile, unchanged)
+        if (!invite && rpAcctSignedIn()) { show("screen-home243"); return; } // [RP-V7.244] Branden Nov 5: after signup/login/restore go straight to the Home page (was: own Profile)
+        show("screen-home243"); // [RP-V7.243] guests land on the Facebook-style home
       }
       function finishEnterParty() {
         $("hud").hidden = false;
@@ -24458,6 +24458,8 @@
            preload="metadata". Trimmed items already seek to their
            window start, duets/stitches run their own sequencing. */
         if (vMine && !isDuet && !isStitch && !(typeof item.trimStart === "number" && typeof item.trimEnd === "number" && item.trimEnd > item.trimStart)) {
+          if (window.rpPaintGate244) { try { window.rpPaintGate244(vMine, { feed: true }); } catch (e) { } } // [RP-V7.244] feed paints ride the gated queue: preload held until near-viewport, max-2 seeks, plus a slow scroll-aware trickle for nearby cards only — was: every card seek-painted uncapped ~700 ms after its metadata, and with renderReels building all ~35 cards at once the feed saturated on entry and scroll (FEEDCUR probe: 143 long tasks / 20.7 s blocked over 15 scrolls). The duet/stitch/trim exclusions and the local-blob else-branch below are unchanged.
+          else {
           var doSeekMine243 = function () {
             try {
               if (vMine.paused && !vMine.__rpSeek243 && vMine.currentTime === 0) {
@@ -24468,8 +24470,6 @@
               }
             } catch (e) { }
           };
-          /* Delayed 700 ms, same as the tile paint: the visible
-             card's autoplay must win the race for play(). */
           var paintMine243 = function () {
             if (vMine.__rpSeekSched243) return;
             vMine.__rpSeekSched243 = true;
@@ -24478,6 +24478,7 @@
           vMine.addEventListener("loadedmetadata", paintMine243);
           vMine.addEventListener("loadeddata", paintMine243);
           if (vMine.readyState >= 1) paintMine243();
+          }
         }
         else {
           reelDbGet(item.id).then(function (blob) {
@@ -24523,6 +24524,24 @@
           vv.addEventListener("pause", syncPaused);
         });
         function cardPlay() {
+          /* [RP-V7.244] SOUND (Branden, Nov 5: "The reels don't have
+             any sound"): the feed video is created with a muted
+             attribute and nothing on the play path ever unmuted it —
+             the speaker toggle was the only way to hear a reel, and
+             V7.243's direct entry made this muted feed the front
+             door. An OPENED reel now plays WITH sound: unmute on
+             play (unless the member muted this card themselves via
+             the speaker button — that choice sticks), sync the
+             speaker icon, and if the browser refuses unmuted
+             playback (no user gesture on file yet), fall back to
+             muted autoplay so the reel still moves; the speaker tap
+             then brings sound exactly as before. Rail/story/home
+             PREVIEWS stay muted by design — this is only the opened
+             reel's own play path. */
+          if (vMine && !vMine.__userMuted244 && vMine.muted) {
+            vMine.muted = false;
+            try { if (mb) mb.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"M15.5 9.6a3.8 3.8 0 0 1 0 4.8M18.2 7.2a7.3 7.3 0 0 1 0 9.6\"/></svg>"; } catch (e) { }
+          }
           if (stitch) {
             if (stitch.phase === "src" && vSrc) {
               if (vSrc.currentTime < stitch.start - 0.05 || vSrc.currentTime >= stitch.start + stitch.dur) { try { vSrc.currentTime = stitch.start; } catch (e) { } }
@@ -24530,7 +24549,13 @@
             } else { var p2 = vMine.play(); if (p2 && p2.catch) p2.catch(function () { }); }
           } else {
             if (vSrc && isDuet) { var ps = vSrc.play(); if (ps && ps.catch) ps.catch(function () { }); }
-            var pm = vMine.play(); if (pm && pm.catch) pm.catch(function () { });
+            var pm = vMine.play(); if (pm && pm.catch) pm.catch(function () {
+              if (vMine && !vMine.__userMuted244 && !vMine.muted) {
+                vMine.muted = true;
+                try { if (mb) mb.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"m15.8 9.8 4.7 4.7M20.5 9.8l-4.7 4.7\"/></svg>"; } catch (e) { }
+                var pm2 = vMine.play(); if (pm2 && pm2.catch) pm2.catch(function () { });
+              }
+            });
           }
         }
         function cardPause() {
@@ -24636,6 +24661,7 @@
         mb.addEventListener("click", function () {
           var target = (stitch && stitch.phase === "src") ? vSrc : vMine;
           target.muted = !target.muted;
+          target.__userMuted244 = target.muted; /* [RP-V7.244] the member's own mute choice sticks — cardPlay never overrides it */
           mb.innerHTML = target.muted ? "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"m15.8 9.8 4.7 4.7M20.5 9.8l-4.7 4.7\"/></svg>" : "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"M15.5 9.6a3.8 3.8 0 0 1 0 4.8M18.2 7.2a7.3 7.3 0 0 1 0 9.6\"/></svg>";
           if (!target.muted && target.paused) cardPlay();
         });
@@ -34975,10 +35001,46 @@ button.rp72-chip{ cursor:pointer; }
      once metadata lands: every engine then fetches what's needed
      and paints a REAL frame. Wired into fillGrid so every grid on
      this renderer gets it (Plaza rail, home rail, profile grids). */
-  function rpPaintFrame243(v) {
-    if (!v || v.__rpPaint243) return;
-    v.__rpPaint243 = true;
-    var doSeek = function () {
+  /* [RP-V7.244] FREEZE FIX (Branden, Nov 5, minutes after V7.243:
+     "It's freezing up"). The V7.243 paint below scheduled a seek
+     for EVERY tile video in EVERY grid 700 ms after metadata —
+     with a signed-in member's real library that is 40+ non-
+     faststart 1080x1920 files fetching + decoding at once on
+     every cold start (measured on the rig at production scale:
+     44 videos loading simultaneously, 30 long tasks / 3.7 s of
+     blocked main thread in one 15 s window, a 3.2 s frame gap,
+     still churning at +60 s; V7.242 settled by +15 s). The paint
+     is now VISIBILITY-GATED and CONCURRENCY-CAPPED: a tile holds
+     preload="none" and fetches nothing until it nears the
+     viewport, then promotes and takes a paint slot (max 2 at a
+     time). Every tile the member actually reaches still gets its
+     real picture; the home previews' autoplay path is untouched
+     (play() loads a held tile on its own). */
+  var rpPaintQ244 = [], rpPaintActive244 = 0, rpPaintIO244 = null;
+  var rpPaintAll244 = [], rpPaintTrickleT244 = null;
+  var rpFeedAll244 = [], rpFeedTrickleT244 = null, rpFeedLastScroll244 = 0, rpFeedScrollWired244 = false;
+  function rpPaintPromote244(v) {
+    if (!v || v.__rpPromoted244) return;
+    v.__rpPromoted244 = Date.now();
+    try { v.preload = "metadata"; v.load(); } catch (e) { }
+    rpPaintEnqueue244(v);
+  }
+  function rpPaintEnqueue244(v) { rpPaintQ244.push(v); rpPaintPump244(); }
+  function rpPaintPump244() {
+    while (rpPaintActive244 < 2 && rpPaintQ244.length) {
+      var v = rpPaintQ244.shift();
+      rpPaintActive244++;
+      rpPaintJob244(v, function () { rpPaintActive244--; rpPaintPump244(); });
+    }
+  }
+  function rpPaintJob244(v, done) {
+    var finished = false;
+    var finish = function () { if (finished) return; finished = true; try { done(); } catch (e) { } };
+    /* The seek lands ~500 ms after PROMOTION (the V7.243 autoplay
+       race rule, now keyed to when the fetch actually started):
+       fresh promotions wait out the race, late ones seek at once. */
+    var wait = Math.max(120, 500 - (Date.now() - (v.__rpPromoted244 || Date.now())));
+    var seek = function () {
       try {
         if (v.paused && !v.__rpSeek243 && v.currentTime === 0) {
           v.__rpSeek243 = true;
@@ -34987,19 +35049,87 @@ button.rp72-chip{ cursor:pointer; }
           v.currentTime = t;
         }
       } catch (e) { }
+      setTimeout(finish, 350);
     };
-    /* Delayed on purpose: a tile that is about to AUTOPLAY (the
-       home previews) must win the race — a seek issued while a
-       play() is still starting can abort it. Static tiles are
-       still paused 700 ms later and paint then. */
-    var schedule = function () {
-      if (v.__rpSeekSched243) return;
-      v.__rpSeekSched243 = true;
-      setTimeout(doSeek, 700);
-    };
-    v.addEventListener("loadedmetadata", schedule);
-    v.addEventListener("loadeddata", schedule);
-    if (v.readyState >= 1) schedule();
+    if (v.readyState >= 2) { setTimeout(seek, wait); }
+    else {
+      var to = setTimeout(function () { cleanup(); seek(); }, 3500);
+      var cleanup = function () { clearTimeout(to); v.removeEventListener("loadeddata", onD); v.removeEventListener("error", onD); };
+      var onD = function () { cleanup(); setTimeout(seek, wait); };
+      v.addEventListener("loadeddata", onD);
+      v.addEventListener("error", onD);
+    }
+    setTimeout(finish, 6000); /* a slot is never held hostage */
+  }
+  /* The trickle: every registered tile EVENTUALLY paints (the
+     V7.243 promise — no tile sits black), but one tile at a time
+     on a slow timer instead of all at once. Tiles sharing the
+     viewport's vertical band (a sideways rail on screen) promote
+     together; everything else goes one per tick, and only while
+     the page is visible. Bounded by the same 2-slot paint queue. */
+  function rpPaintTrickle244() {
+    if (rpPaintTrickleT244) return;
+    rpPaintTrickleT244 = setInterval(function () {
+      if (document.hidden) return;
+      var band = [], first = null, alive = [];
+      for (var i = 0; i < rpPaintAll244.length; i++) {
+        var v = rpPaintAll244[i];
+        if (!v.isConnected) continue;
+        alive.push(v);
+        if (v.__rpPromoted244) continue;
+        if (!first) first = v;
+        var r = null;
+        try { r = v.getBoundingClientRect(); } catch (e) { }
+        if (r && r.height > 0 && r.bottom > -80 && r.top < window.innerHeight + 80) band.push(v);
+      }
+      rpPaintAll244 = alive;
+      if (band.length) band.forEach(rpPaintPromote244);
+      else if (first) rpPaintPromote244(first);
+      else if (!alive.some(function (x) { return !x.__rpPromoted244; })) { clearInterval(rpPaintTrickleT244); rpPaintTrickleT244 = null; }
+    }, 700);
+  }
+  function rpPaintFrame243(v, opts244) {
+    if (!v || v.__rpPaint243) return;
+    v.__rpPaint243 = true;
+    try { v.preload = "none"; } catch (e) { }
+    if (opts244 && opts244.feed) { rpFeedAll244.push(v); rpFeedTrickle244(); }
+    else { rpPaintAll244.push(v); rpPaintTrickle244(); }
+    if (!window.IntersectionObserver) { rpPaintPromote244(v); return; }
+    if (!rpPaintIO244) {
+      rpPaintIO244 = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          rpPaintIO244.unobserve(en.target);
+          rpPaintPromote244(en.target);
+        });
+      }, { rootMargin: "240px" });
+    }
+    rpPaintIO244.observe(v);
+  }
+  try { window.rpPaintGate244 = rpPaintFrame243; } catch (e) { } // [RP-V7.244] module-scope export: the Reels feed delegates its card paints to this same gate
+  function rpFeedTrickle244() {
+    if (rpFeedTrickleT244) return;
+    if (!rpFeedScrollWired244) { rpFeedScrollWired244 = true; try { window.addEventListener("scroll", function (e) { var t = e.target; if (t === document || !t || !t.closest || t.closest("#screen-moments")) rpFeedLastScroll244 = Date.now(); }, { capture: true, passive: true }); } catch (e) { } }
+    rpFeedTrickleT244 = setInterval(function () {
+      if (document.hidden) return;
+      if (Date.now() - rpFeedLastScroll244 < 2000) return;
+      var best = null, bestD = 1e12, alive = [], anyLeft = false;
+      for (var i = 0; i < rpFeedAll244.length; i++) {
+        var v = rpFeedAll244[i];
+        if (!v.isConnected) continue;
+        alive.push(v);
+        if (v.__rpPromoted244) continue;
+        if (!v.paused || v.readyState >= 2) continue; // already playing or already has a frame — never spend a tick on it
+        anyLeft = true;
+        var r = null;
+        try { r = v.getBoundingClientRect(); } catch (e) { }
+        if (!r || !r.height) continue;
+        var d = Math.abs(r.top); if (d < bestD) { bestD = d; best = v; } // nearest-first, no distance limit: pacing (queue-idle + scroll-quiet + one per tick) is the bound, not distance — a fixed screen-multiple band misfires whenever the feed's viewport offset is large
+      }
+      rpFeedAll244 = alive;
+      if (best) rpPaintPromote244(best);
+      else if (!anyLeft) { clearInterval(rpFeedTrickleT244); rpFeedTrickleT244 = null; }
+    }, 700);
   }
   function fillGrid(el, items, opts) {
     opts = opts || {};
@@ -38522,7 +38652,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     }
     var st = (entry.stories && entry.stories[0]) || null;
     var face = "";
-    if (st && st.kind === "video") face = '<video class="face243" src="' + escS(st.url) + '" preload="metadata" muted playsinline></video>';
+    if (st && st.kind === "video") face = '<video class="face243" src="' + escS(st.url) + '" preload="none" muted playsinline></video>'; /* [RP-V7.244] held until its card is on screen — the tray IO plays it (play() loads) and the paint fallback follows loadeddata */
     else if (st) face = '<img class="face243" src="' + escS(st.url) + '" alt=""/>';
     var badge = a.photo ? '<img src="' + escS(a.photo) + '" alt=""/>' : '<span class="init243">' + escS((String(a.name || "?").trim().charAt(0) || "?").toUpperCase()) + "</span>";
     return '<div class="story-cell"><button type="button" class="story-card243' + (entry.allViewed ? " viewed243" : "") + '" data-story-open="' + escS(a.id) + '" data-story-mine="" aria-label="Story by ' + escS(a.name) + '">' + face + '<span class="badge243">' + badge + '</span><span class="name243 left243">' + escS(a.name) + "</span></button></div>";
@@ -43463,8 +43593,19 @@ html, body { overflow-x: clip; }
       window.rpHomeRails243 = { refresh: function () { rSig = null; fSig = null; try { loadRail243(); } catch (e) { } try { loadFeed243(); } catch (e) { } } };
       hookShow243();
       setTimeout(hookShow243, 1500);
-      loadRail243();
-      loadFeed243();
+      /* [RP-V7.244] Lazy boot: spend the rail/feed loads at boot
+         ONLY when Home is the visible landing screen (guests).
+         Signed-in members land on Profile — the show hook loads
+         Home's content the first time they open it, instead of
+         storming media fetches over the profile grid at startup.
+         The 2.5 s recheck covers a boot show() that landed just
+         before this module installed its hook. */
+      var tryBoot243 = function () {
+        var h = document.getElementById("screen-home243");
+        if (h && h.getClientRects().length && !rSig && !fSig) { try { loadRail243(); } catch (e) { } try { loadFeed243(); } catch (e) { } }
+      };
+      tryBoot243();
+      setTimeout(tryBoot243, 2500);
     }
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) pausePreviews243();
