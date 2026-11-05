@@ -3001,6 +3001,20 @@
           </div>
           <button class="speed-btn" id="btnAuctionsHome">🔨 Open auctions</button>
         </div>
+        <!-- [RP-V7.240] Plaza Store card (Branden, Nov 4, 2026): the
+             NEW member store gets its own front door on Home, beside
+             Auctions — a separate card people can click. data-adult
+             keeps it out of teen Plaza renders entirely (the store
+             is 18+, server-enforced on every store route). This is
+             NOT the hidden Magniphiscents card below: that switch
+             (RP_MAGNI_STORE_OWNER_ONLY_7223) is untouched. -->
+        <div class="plaza-card" style="margin-top:12px;" data-adult>
+          <div>
+            <h3>🛍️ Plaza Store</h3>
+            <p>The member marketplace — real people selling real products at a fixed price. Buy it now, no bidding (auctions live in their own section). List your own items in minutes, or connect your Shopify, WooCommerce, Etsy or Square store and import your products. Sellers keep 90% of every sale.</p>
+          </div>
+          <button class="speed-btn" id="btnStoreHome" type="button">🛍️ Open the Store</button>
+        </div>
         <!-- [RP-V7.24] Reels card sits directly under the Live block -->
         <div class="plaza-card" style="margin-top:16px;" data-adult>
           <div>
@@ -3428,6 +3442,40 @@
               <li>Bids go up in <b>steps that grow with the price</b> — $1 under $10, then $2, $4, $5, $10, $20 (at $250–$999) and $25 as the price climbs. A bid in the last 5 seconds adds 5 seconds, so nobody gets sniped at the buzzer — unless the seller switched on <b>Sudden Death</b>, where the clock never extends and the last bid standing when it hits zero wins.</li>
               <li>The winner pays the final bid <b>plus the shipping on the listing</b> (free shipping means $0). Buy Now items sell at the listed price plus their shipping.</li>
               <li>The Plaza keeps a <b>10% cut</b> of each auction sale (separate from the 30% gift cut) — sellers see both in their earnings.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <!-- SCREEN: STORE [RP-V7.240] The Plaza Store — the member
+           marketplace (fixed price, buy-it-now; NO auctions here).
+           Everything inside renders from /api/store/* through the
+           RP-V7.240 module at the end of the body. 18+ only: the
+           screen id rides TEEN_ONLY_18 (the same door as Auctions)
+           and every store route re-checks the account's age on the
+           server. Church rooms and Teen Hangout never render any
+           store surface — the store lives only on this screen. -->
+      <section class="screen" id="screen-store">
+        <div class="store-wrap">
+          <div class="store-head">
+            <button class="btn-mini plaza-glow" id="btnStoreBack" type="button"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5 8 12l6.5 7"/></svg> Plaza</button>
+            <h2>🛍️ Plaza Store</h2>
+            <button class="btn-mini" id="btnStoreSell" type="button">＋ Sell an item</button>
+            <button class="btn-mini" id="btnStoreMine" type="button">🏪 My store</button>
+            <button class="btn-mini" id="btnStoreConnect" type="button">🔗 Connect a store</button>
+          </div>
+          <p class="store-sub">Real members, real products — fixed price, buy it now. Sellers keep 90% of every sale; the Plaza keeps 10%. Looking for bidding? That's <b>Live Auctions</b>, in its own section.</p>
+          <div class="store-searchrow" id="storeSearchRow">
+            <input type="search" id="storeSearch" placeholder="Search products or sellers…" autocomplete="off" />
+          </div>
+          <div id="storeBody"><p class="store-note">Loading the store…</p></div>
+          <div class="store-rules">
+            <h4>📜 Store rules — the honest version</h4>
+            <ul>
+              <li><b>No counterfeits, ever.</b> List only genuine items you own. Fakes get your selling privileges pulled.</li>
+              <li><b>Sellers ship the item</b> to the buyer after payment clears — the Plaza never holds or ships items.</li>
+              <li><b>Fixed price, buy it now.</b> No bidding in the Store — auctions are their own section.</li>
+              <li><b>18+ only</b> — buying and selling are adults-only, like the rest of the money side of the party.</li>
+              <li>Sellers keep <b>90%</b> of every sale; the Plaza keeps 10%. Earnings bank in your Earn sheet and cash out the same way as everything else.</li>
             </ul>
           </div>
         </div>
@@ -6074,13 +6122,13 @@
         });
       }
 
-      var TEEN_ONLY_18 = ["screen-room", "screen-online", "screen-auctions", "screen-feed"]; // [RP-V7.211] Reels opened to teens (Branden, Nov 2 2026: "Add reels to teens") — screen-moments is no longer teen-locked; teens watch AND post
+      var TEEN_ONLY_18 = ["screen-room", "screen-online", "screen-auctions", "screen-feed", "screen-store"]; // [RP-V7.240] the Plaza Store is 18+ like Auctions // [RP-V7.211] Reels opened to teens (Branden, Nov 2 2026: "Add reels to teens") — screen-moments is no longer teen-locked; teens watch AND post
       // [RP-V7.75] Live rooms (the Live Stage + personal lives) are
       // all-ages for signed-in accounts — the one carve-out in the
       // teen lock. Mirrors the server's isLiveRoom classification.
       function rpIsLiveRoomId(roomId) { return roomId === "live-stage" || (typeof roomId === "string" && roomId.indexOf("live-") === 0); }
       function teenAreaName(id) {
-        return { "screen-plaza": "The Grand Plaza", "screen-room": "The party rooms", "screen-online": "The online rooms", "screen-moments": "Reels", "screen-auctions": "Live Auctions", "screen-feed": "The Plaza Feed" }[id] || "This part of the party";
+        return { "screen-plaza": "The Grand Plaza", "screen-room": "The party rooms", "screen-online": "The online rooms", "screen-moments": "Reels", "screen-auctions": "Live Auctions", "screen-feed": "The Plaza Feed", "screen-store": "Plaza Store" }[id] || "This part of the party";
       }
       // Everyone you can meet here is a real player now: anything that used to
       // pair you with a computer guest points at the live online rooms instead.
@@ -26784,7 +26832,7 @@
   <script>
   (function () {
     var TABS = { "screen-plaza": "home", "screen-online": "live", "screen-auctions": "auctions", "screen-moments": "moments", "screen-profile": "profile" };
-    var SHOWABLE = { "screen-plaza": 1, "screen-auctions": 1, "screen-moments": 1, "screen-profile": 1 };
+    var SHOWABLE = { "screen-plaza": 1, "screen-auctions": 1, "screen-moments": 1, "screen-profile": 1, "screen-store": 1 }; // [RP-V7.240]
     var bar = document.getElementById("tabbar");
     if (!bar) return;
     function activeScreen() { var s = document.querySelectorAll(".screen.active"); return s.length ? s[s.length - 1].id : null; }
@@ -35091,7 +35139,7 @@ button.rp72-chip{ cursor:pointer; }
     var html =
       '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
       '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💰 My earnings</h3>' +
-      '<p style="text-align:center;">Your Plaza account balance — the same on every device. Gifts bank at full value (1 charm = 1¢); you keep 70%, the Plaza keeps 30%. Auction sales keep 90%.</p>' +
+      '<p style="text-align:center;">Your Plaza account balance — the same on every device. Gifts bank at full value (1 charm = 1¢); you keep 70%, the Plaza keeps 30%. Auction sales keep 90%. Store sales keep 90% too.</p>' +
       '<div class="earn-stats">' +
         '<div class="earn-stat"><b>' + fmt$(avail) + '</b><span>Available to cash out</span></div>' +
         '<div class="earn-stat"><b>' + fmt$(e.totalEarnedCents || 0) + '</b><span>Earned, all time</span></div>' +
@@ -35149,6 +35197,7 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "gift-sent") { label = "🎁 Gift sent" + (t.toName ? " — to " + esc(t.toName) : "") + srcTag233; amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "purchase") { label = "⭐ Charm pack"; amt = "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "auction") { label = "🔨 Auction sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); }
+        else if (t.type === "store-sale") { label = "🛍️ Store sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); } // [RP-V7.240]
         else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
         else if (t.type === "bizads" || t.type === "bizads-renew") { label = "📣 Business Ads"; amt = fmt$(t.cents); } // [RP-V7.224]
         else if (t.type === "cashout") { label = "💸 Cash-out requested"; amt = fmt$(t.cents); }
@@ -39361,6 +39410,9 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       row("🔨 Auctions volume", st.auctionsVolumeCents) +
       row("📣 Business Ads", st.bizadsCents == null ? null : st.bizadsCents,
         (typeof st.bizadsActive === "number") ? '<div class="rp-os-note" style="margin-top:2px">' + st.bizadsActive + " active advertiser" + (st.bizadsActive === 1 ? "" : "s") + "</div>" : "") +
+      row("🏪 Plaza Store", st.plazaStoreSalesCents == null ? null : st.plazaStoreSalesCents,
+        ((typeof st.plazaStoreListings === "number") ? '<div class="rp-os-note" style="margin-top:2px">' + st.plazaStoreListings + " live listing" + (st.plazaStoreListings === 1 ? "" : "s") + " · Plaza cut " + money(st.plazaStoreCutCents || 0) + "</div>" : "") +
+        ((typeof st.plazaStoreReports === "number" && st.plazaStoreReports > 0) ? '<div class="rp-os-note" style="margin-top:2px">🚩 ' + st.plazaStoreReports + " product report" + (st.plazaStoreReports === 1 ? "" : "s") + " to review</div>" : "")) +
       row("🛍️ Store · Magniphiscents", st.storeCents == null ? null : st.storeCents,
         st.storeCents == null ? "" : '<div class="rp-os-note" style="margin-top:2px">Store total as of ' + esc2(st.storeAsOf || "") + "</div>") +
       "</div>";
@@ -41876,6 +41928,537 @@ html, body { overflow-x: clip; }
 #datingSheet .field { background: transparent; border: none; border-radius: 0; padding: 14px; margin-top: 10px; margin-bottom: 0; }
 #datingSheet .field input, #datingSheet .field select, #datingSheet .field textarea { background: #3a3b3c; }
 </style>
+<style>
+/* ================= [RP-V7.240] PLAZA STORE =================
+   Flat black like the rest of the V7.236 surfaces: no card boxes on
+   the page itself; product tiles are media-first (photo, then plain
+   text under a hairline), buttons are the kept pink-outline set. */
+.store-wrap{ max-width:680px; margin:0 auto; padding:14px 14px 40px; }
+.store-head{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.store-head h2{ margin:0; font-size:22px; flex:1 1 auto; }
+.store-sub{ margin:10px 2px 12px; color:var(--ink-soft); font-weight:600; font-size:13.5px; }
+.store-searchrow{ margin:0 0 14px; }
+.store-searchrow input{ width:100%; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.16); border-radius:999px; padding:10px 16px; color:#fff; font:inherit; font-size:15px; font-weight:600; }
+.store-note{ color:var(--ink-soft); font-weight:700; font-size:14px; margin:14px 2px; }
+.store-empty{ text-align:center; padding:34px 12px; }
+.store-empty .big{ font-size:44px; }
+.store-empty h3{ margin:8px 0 4px; }
+.store-empty p{ color:var(--ink-soft); font-weight:600; margin:0 0 14px; }
+.store-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 10px; }
+.store-tile{ background:none; border:0; padding:0; text-align:left; cursor:pointer; color:inherit; font:inherit; }
+.store-tile img{ width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:12px; display:block; background:rgba(255,255,255,.06); }
+.store-tile .tt{ font-weight:800; font-size:14.5px; margin:7px 1px 0; display:block; }
+.store-tile .tp{ font-weight:900; font-size:15px; margin:1px 1px 0; display:block; }
+.store-tile .ts{ color:var(--ink-soft); font-weight:600; font-size:12.5px; margin:1px 1px 0; display:block; }
+.store-tile .soldout{ color:#fe2c55; font-weight:900; }
+.store-prod img.main{ width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:14px; display:block; background:rgba(255,255,255,.06); }
+.store-thumbs{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+.store-thumbs img{ width:58px; height:58px; object-fit:cover; border-radius:10px; cursor:pointer; }
+.store-prod h3{ font-size:21px; margin:14px 0 2px; }
+.store-price{ font-size:22px; font-weight:900; margin:2px 0; }
+.store-seller{ color:var(--ink-soft); font-weight:700; margin:2px 0 10px; }
+.store-desc{ white-space:pre-wrap; font-size:14.5px; line-height:1.45; margin:10px 0; }
+.store-buyrow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:14px 0; }
+.store-buyrow select{ background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:10px; padding:10px; font:inherit; font-weight:700; }
+.store-form label{ display:block; margin:12px 0; font-weight:800; font-size:14px; }
+.store-form input[type="text"], .store-form input[type="number"], .store-form input[type="url"], .store-form input[type="password"], .store-form textarea{ width:100%; margin-top:6px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.16); border-radius:10px; padding:10px 12px; color:#fff; font:inherit; font-size:15px; font-weight:600; }
+.store-genuine{ display:flex; gap:10px; align-items:flex-start; background:rgba(254,44,85,.08); border:1px solid rgba(254,44,85,.35); border-radius:12px; padding:12px; margin:14px 0; font-weight:700; font-size:14px; }
+.store-genuine input{ margin-top:3px; width:19px; height:19px; flex:none; }
+.store-photos{ display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; }
+.store-photos img{ width:64px; height:64px; object-fit:cover; border-radius:10px; }
+.store-row{ display:flex; gap:10px; align-items:center; padding:10px 0; border-top:1px solid rgba(255,255,255,.09); }
+.store-row img{ width:52px; height:52px; object-fit:cover; border-radius:10px; flex:none; background:rgba(255,255,255,.06); }
+.store-row .grow{ flex:1 1 auto; min-width:0; }
+.store-row .grow b{ display:block; font-size:14.5px; }
+.store-row .grow span{ color:var(--ink-soft); font-weight:600; font-size:12.5px; display:block; }
+.store-row input[type="number"]{ width:86px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:7px 9px; color:#fff; font:inherit; font-weight:700; }
+.store-sec{ margin:22px 0 6px; font-size:17px; }
+.store-conn{ padding:14px 0; border-top:1px solid rgba(255,255,255,.09); }
+.store-conn h4{ margin:0 0 4px; font-size:16px; }
+.store-conn p{ margin:0 0 10px; color:var(--ink-soft); font-weight:600; font-size:13.5px; }
+.store-conn .ok{ color:#3ddc84; font-weight:800; }
+.store-rules{ margin-top:26px; }
+.store-rules h4{ margin:0 0 6px; }
+.store-rules ul{ margin:0; padding-left:18px; color:var(--ink-soft); font-weight:600; font-size:13.5px; line-height:1.5; }
+.store-backlink{ background:none; border:0; color:inherit; font:inherit; font-weight:800; cursor:pointer; padding:6px 0; }
+</style>
+<script>
+/* ================= [RP-V7.240] PLAZA STORE (member marketplace) =================
+   Branden (Nov 4, 2026): a NEW start-up store where members sell
+   products — fixed price, buy-it-now, NO auctions (their own card),
+   and NONE of the owner's products (the store starts empty; the
+   hidden Magniphiscents card/switch is a different surface and is
+   untouched). Money rides the existing Stripe rail via
+   /api/store/checkout + the webhook settle; sellers keep 90%.
+   Connect-a-store lives here too: WooCommerce by seller-pasted
+   REST keys (fully working), Shopify / Etsy / Square by OAuth —
+   those three honestly report "being set up" until the Plaza's own
+   developer apps exist (the server reports configured:false and
+   this module says so plainly; there is no fake success).
+   18+ is enforced on the server on every route; this screen also
+   rides TEEN_ONLY_18 in the main show() gate, and the Home card is
+   data-adult, so teens never see either door. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function toast2(m, t) { try { if (window.toast) window.toast(m, t || 3800); } catch (e) { } }
+  function fmt$(cents) {
+    var neg = cents < 0; cents = Math.abs(Math.round(cents || 0));
+    return (neg ? "-$" : "$") + Math.floor(cents / 100).toLocaleString("en-US") + "." + String(cents % 100).padStart(2, "0");
+  }
+  function acctRec() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a : null; } catch (e) { return null; } }
+  function api(path, method, body, timeoutMs) {
+    return new Promise(function (resolve) {
+      var a = acctRec();
+      var ctrl = ("AbortController" in window) ? new AbortController() : null;
+      var to = setTimeout(function () { if (ctrl) { try { ctrl.abort(); } catch (e) { } } }, typeof timeoutMs === "number" ? timeoutMs : 15000);
+      var headers = { "Content-Type": "application/json" };
+      if (a && a.token) headers["Authorization"] = "Bearer " + a.token;
+      fetch(path, { method: method || "GET", headers: headers, body: body ? JSON.stringify(body) : undefined, signal: ctrl ? ctrl.signal : undefined })
+        .then(function (r) {
+          clearTimeout(to);
+          return r.text().then(function (txt) {
+            var j = null; try { j = JSON.parse(txt); } catch (e) { }
+            resolve({ status: r.status, json: j });
+          });
+        })
+        .catch(function () { clearTimeout(to); resolve({ status: 0, json: null }); });
+    });
+  }
+  var S = { view: "browse", listings: [], current: null, mine: null, conn: null, sellPhotos: [], q: "", searchTimer: null };
+  function bodyEl() { return $("storeBody"); }
+  function setSearchVisible(v) { var r = $("storeSearchRow"); if (r) r.style.display = v ? "" : "none"; }
+  function gateBounce(r) {
+    if (r && r.status === 403) {
+      toast2("The Plaza Store is 18+ — this account can't shop or sell here.", 4200);
+      if (typeof window.show === "function") window.show("screen-plaza");
+      return true;
+    }
+    return false;
+  }
+  function openStore(view) {
+    if (!acctRec()) { toast2("The Store needs an account — sign up or log in first 🛍️", 4000); return; }
+    if (typeof window.show === "function") window.show("screen-store");
+    if (view === "sell") renderSell();
+    else if (view === "mine") renderMine();
+    else if (view === "connect") renderConnect();
+    else renderBrowse();
+  }
+  window.rpStoreOpen = openStore;
+
+  /* ---------------- Browse ---------------- */
+  function renderBrowse() {
+    S.view = "browse"; setSearchVisible(true);
+    var el = bodyEl(); if (!el) return;
+    el.innerHTML = '<p class="store-note">Loading the store…</p>';
+    api("/api/store/listings" + (S.q ? "?q=" + encodeURIComponent(S.q) : ""), "GET").then(function (r) {
+      if (gateBounce(r)) return;
+      if (!r.json || !r.json.ok) { el.innerHTML = '<p class="store-note">Couldn\'t load the store just now — try again in a moment.</p>'; return; }
+      S.listings = r.json.listings || [];
+      if (!S.listings.length) {
+        el.innerHTML = '<div class="store-empty"><div class="big">🛍️</div><h3>' +
+          (S.q ? "Nothing matches that search" : "No products yet — be the first to sell") + '</h3>' +
+          '<p>' + (S.q ? "Try a different word, or browse everything." : "The Plaza Store just opened its doors. List the first product and it shows up right here.") + '</p>' +
+          (S.q ? '<button class="btn-mini" id="storeClearQ" type="button">Show everything</button>' : '<button class="btn-primary" style="width:auto; padding:12px 26px;" id="storeFirstSell" type="button">＋ Sell an item</button>') +
+          '</div>';
+        var cq = $("storeClearQ"); if (cq) cq.addEventListener("click", function () { S.q = ""; var si = $("storeSearch"); if (si) si.value = ""; renderBrowse(); });
+        var fs = $("storeFirstSell"); if (fs) fs.addEventListener("click", renderSell);
+        return;
+      }
+      var h = '<div class="store-grid">';
+      S.listings.forEach(function (l) {
+        var ph = (l.photos && l.photos[0]) || "";
+        h += '<button class="store-tile" type="button" data-listing="' + esc(l.id) + '">' +
+          (ph ? '<img src="' + esc(ph) + '" alt=""/>' : '<img alt=""/>') +
+          '<span class="tt">' + esc(l.title) + '</span>' +
+          '<span class="tp">' + fmt$(l.priceCents) + '</span>' +
+          '<span class="ts">by ' + esc(l.sellerName || "") + (l.sellerUsername ? " (@" + esc(l.sellerUsername) + ")" : "") + '</span>' +
+          (l.qty > 0 ? '<span class="ts">' + l.qty + ' available</span>' : '<span class="ts soldout">Sold out</span>') +
+          '</button>';
+      });
+      h += '</div>';
+      el.innerHTML = h;
+      el.querySelectorAll("[data-listing]").forEach(function (b) {
+        b.addEventListener("click", function () { renderProduct(b.getAttribute("data-listing")); });
+      });
+    });
+  }
+
+  /* ---------------- Product page ---------------- */
+  function renderProduct(id) {
+    S.view = "product"; setSearchVisible(false);
+    var el = bodyEl(); if (!el) return;
+    el.innerHTML = '<p class="store-note">Loading…</p>';
+    api("/api/store/listing/" + encodeURIComponent(id), "GET").then(function (r) {
+      if (gateBounce(r)) return;
+      if (!r.json || !r.json.ok || !r.json.listing) { toast2("That listing isn't available any more.", 3600); renderBrowse(); return; }
+      var l = r.json.listing; S.current = l;
+      var mine = acctRec() && String(acctRec().userId || "") === String(l.sellerId);
+      var photos = (l.photos && l.photos.length) ? l.photos : [""];
+      var h = '<button class="store-backlink" id="storeProdBack" type="button">‹ Back to the Store</button>' +
+        '<div class="store-prod">' +
+        '<img class="main" id="storeProdMain" src="' + esc(photos[0]) + '" alt=""/>' +
+        (photos.length > 1 ? '<div class="store-thumbs">' + photos.map(function (p) { return '<img src="' + esc(p) + '" data-thumb alt=""/>'; }).join("") + '</div>' : '') +
+        '<h3>' + esc(l.title) + '</h3>' +
+        '<div class="store-price">' + fmt$(l.priceCents) + '</div>' +
+        '<p class="store-seller">Sold by ' + esc(l.sellerName || "") + (l.sellerUsername ? " (@" + esc(l.sellerUsername) + ")" : "") + (l.source && l.source !== "manual" ? " · imported from their " + esc(l.source) + " store" : "") + '</p>' +
+        (l.desc ? '<p class="store-desc">' + esc(l.desc) + '</p>' : '') +
+        (l.qty > 0
+          ? '<div class="store-buyrow"><label style="font-weight:800;">Qty <select id="storeQty">' +
+            (function () { var o = ""; var max = Math.min(l.qty, 10); for (var i = 1; i <= max; i++) o += '<option value="' + i + '">' + i + '</option>'; return o; })() +
+            '</select></label>' +
+            (mine ? '<span class="store-note" style="margin:0;">This is your listing — manage it in My store.</span>' : '<button class="btn-primary" style="width:auto; padding:12px 28px;" id="storeBuyBtn" type="button">Buy now — ' + fmt$(l.priceCents) + '</button>') +
+            '</div><p class="store-note" style="margin:0;">' + l.qty + ' available · Secure checkout powered by Stripe · The seller ships after payment clears.</p>'
+          : '<p class="store-note">Sold out — check back, sellers restock.</p>') +
+        '<div id="storeBuyMsg"></div>' +
+        '<div style="margin-top:20px;"><button class="btn-mini" id="storeReportBtn" type="button">🚩 Report this product</button></div>' +
+        '<div id="storeReportBox"></div>' +
+        '</div>';
+      el.innerHTML = h;
+      var bk = $("storeProdBack"); if (bk) bk.addEventListener("click", renderBrowse);
+      el.querySelectorAll("[data-thumb]").forEach(function (im) {
+        im.addEventListener("click", function () { var m = $("storeProdMain"); if (m) m.src = im.src; });
+      });
+      var buy = $("storeBuyBtn");
+      if (buy) buy.addEventListener("click", function () {
+        var qty = parseInt(($("storeQty") || {}).value || "1", 10) || 1;
+        buy.disabled = true; buy.textContent = "Opening Stripe…";
+        api("/api/store/checkout", "POST", { listingId: l.id, qty: qty }, 30000).then(function (r2) {
+          if (r2.json && r2.json.ok && r2.json.url) { location.href = r2.json.url; return; }
+          buy.disabled = false; buy.textContent = "Buy now — " + fmt$(l.priceCents);
+          var msg = $("storeBuyMsg");
+          if (r2.json && r2.json.error === "payments-not-configured") {
+            if (msg) msg.innerHTML = '<p class="store-note">Store checkout switches on the moment the Plaza finishes its Stripe setup — nothing was charged.</p>';
+            return;
+          }
+          toast2((r2.json && r2.json.error) || "Checkout hit a snag — please try again in a moment.", 3800);
+        });
+      });
+      var rep = $("storeReportBtn");
+      if (rep) rep.addEventListener("click", function () {
+        var box = $("storeReportBox"); if (!box) return;
+        box.innerHTML = '<div class="store-form"><label>What\'s wrong with this product?<textarea id="storeReportWhy" rows="2" maxlength="300" placeholder="e.g. Looks like a counterfeit, or the photos are stolen"></textarea></label>' +
+          '<button class="btn-mini" id="storeReportSend" type="button">Send report</button></div>';
+        var send = $("storeReportSend");
+        if (send) send.addEventListener("click", function () {
+          send.disabled = true;
+          api("/api/store/report", "POST", { listingId: l.id, reason: ($("storeReportWhy") || {}).value || "" }).then(function (r3) {
+            if (r3.json && r3.json.ok) { box.innerHTML = '<p class="store-note">Report sent — the Plaza team will take a look. Thank you.</p>'; }
+            else { send.disabled = false; toast2("That report didn't go through — try again.", 3200); }
+          });
+        });
+      });
+    });
+  }
+
+  /* ---------------- Sell ---------------- */
+  function renderSell() {
+    S.view = "sell"; setSearchVisible(false);
+    var el = bodyEl(); if (!el) return;
+    S.sellPhotos = [];
+    el.innerHTML =
+      '<button class="store-backlink" id="storeSellBack" type="button">‹ Back to the Store</button>' +
+      '<h3 class="store-sec" style="margin-top:6px;">Sell an item</h3>' +
+      '<p class="store-note" style="margin:0 0 6px;">Fixed price, buy-it-now. You keep 90% of the sale — earnings bank in your Earn sheet.</p>' +
+      '<div class="store-form">' +
+      '<label>Photos of your item<div class="store-photos" id="storeSellPhotos"></div>' +
+      '<label class="btn-mini" style="display:inline-block; cursor:pointer; margin-top:4px;">📷 Add photos<input type="file" id="storeSellFile" accept="image/*" multiple style="display:none;"/></label></label>' +
+      '<label>Title<input type="text" id="storeSellTitle" maxlength="120" placeholder="What are you selling?"/></label>' +
+      '<label>Description<textarea id="storeSellDesc" rows="3" maxlength="1000" placeholder="Condition, size, what\'s included…"></textarea></label>' +
+      '<label>Price (USD)<input type="number" id="storeSellPrice" min="0.50" max="10000" step="0.01" inputmode="decimal" placeholder="25.00"/></label>' +
+      '<label>Quantity available<input type="number" id="storeSellQty" min="1" max="100000" step="1" value="1"/></label>' +
+      '<div class="store-genuine"><input type="checkbox" id="storeSellGenuine"/><span><b>No counterfeits, ever.</b> I confirm this item is genuine, I own it, and I can ship it to the buyer after payment clears.</span></div>' +
+      '<button class="btn-primary" style="width:auto; padding:12px 28px;" id="storeSellGo" type="button">List it in the Store</button>' +
+      '</div>';
+    var bk = $("storeSellBack"); if (bk) bk.addEventListener("click", renderBrowse);
+    var file = $("storeSellFile");
+    if (file) file.addEventListener("change", function () {
+      var files = Array.prototype.slice.call(file.files || []);
+      if (!files.length) return;
+      toast2("Uploading photos…", 2000);
+      var chain = Promise.resolve();
+      files.slice(0, 10).forEach(function (f) {
+        chain = chain.then(function () {
+          if (f.size > 5 * 1024 * 1024) { toast2("One photo is over 5 MB — skipped.", 3200); return null; }
+          var a = acctRec(); var fd = new FormData(); fd.append("photo", f);
+          return fetch("/api/store/photo", { method: "POST", headers: { "Authorization": "Bearer " + (a ? a.token : "") }, body: fd })
+            .then(function (rr) { return rr.json().catch(function () { return null; }); })
+            .then(function (jj) {
+              if (jj && jj.ok && jj.photoUrl) {
+                S.sellPhotos.push(jj.photoUrl);
+                var host = $("storeSellPhotos");
+                if (host) { var im = document.createElement("img"); im.src = jj.photoUrl; host.appendChild(im); }
+              } else toast2((jj && jj.error) || "A photo upload didn't go through — try again.", 3600);
+            })
+            .catch(function () { toast2("A photo upload didn't go through — try again.", 3600); });
+        });
+      });
+    });
+    var go = $("storeSellGo");
+    if (go) go.addEventListener("click", function () {
+      var title = ($("storeSellTitle") || {}).value || "";
+      var desc = ($("storeSellDesc") || {}).value || "";
+      var dollars = parseFloat(($("storeSellPrice") || {}).value || "");
+      var qty = parseInt(($("storeSellQty") || {}).value || "", 10);
+      var genuine = !!($("storeSellGenuine") || {}).checked;
+      if (!S.sellPhotos.length) { toast2("Add at least one photo of your item 📷", 3600); return; }
+      if (!title.trim()) { toast2("Give your item a title.", 3000); return; }
+      if (!(dollars >= 0.5)) { toast2("Price must be at least $0.50.", 3000); return; }
+      if (!(qty >= 1)) { toast2("Quantity must be at least 1.", 3000); return; }
+      if (!genuine) { toast2("Confirm your item is genuine first — no counterfeits in the Plaza Store.", 4000); return; }
+      go.disabled = true; go.textContent = "Listing…";
+      api("/api/store/listings", "POST", { title: title, desc: desc, priceCents: Math.round(dollars * 100), qty: qty, photos: S.sellPhotos, genuine: true }, 30000).then(function (r) {
+        go.disabled = false; go.textContent = "List it in the Store";
+        if (gateBounce(r)) return;
+        if (r.json && r.json.ok) { toast2("Listed 🛍️ — your item is live in the Plaza Store.", 4200); renderBrowse(); return; }
+        toast2((r.json && r.json.error) || "That didn't list — try again.", 3800);
+      });
+    });
+  }
+
+  /* ---------------- My store ---------------- */
+  function renderMine() {
+    S.view = "mine"; setSearchVisible(false);
+    var el = bodyEl(); if (!el) return;
+    el.innerHTML = '<p class="store-note">Loading your store…</p>';
+    api("/api/store/mine", "GET").then(function (r) {
+      if (gateBounce(r)) return;
+      if (!r.json || !r.json.ok) { el.innerHTML = '<p class="store-note">Couldn\'t load your store just now — try again.</p>'; return; }
+      var d = r.json; S.mine = d;
+      var h = '<button class="store-backlink" id="storeMineBack" type="button">‹ Back to the Store</button>';
+      h += '<h3 class="store-sec">My listings</h3>';
+      if (!d.listings.length) h += '<p class="store-note">Nothing listed yet — tap ＋ Sell an item to start.</p>';
+      d.listings.forEach(function (l) {
+        var ph = (l.photos && l.photos[0]) || "";
+        h += '<div class="store-row">' + (ph ? '<img src="' + esc(ph) + '" alt=""/>' : '<img alt=""/>') +
+          '<div class="grow"><b>' + esc(l.title) + (l.status === "removed" ? ' <span style="color:#fe2c55;">(removed)</span>' : '') + '</b>' +
+          '<span>' + (l.source && l.source !== "manual" ? "Imported from " + esc(l.source) + " · " : "") + l.qty + ' in stock</span></div>' +
+          (l.status === "active"
+            ? '<input type="number" step="0.01" min="0.50" value="' + (l.priceCents / 100).toFixed(2) + '" data-price="' + esc(l.id) + '" aria-label="Price in dollars"/>' +
+              '<input type="number" step="1" min="0" value="' + l.qty + '" data-qty="' + esc(l.id) + '" aria-label="Quantity" style="width:64px;"/>' +
+              '<button class="btn-mini" type="button" data-save="' + esc(l.id) + '">Save</button>' +
+              '<button class="btn-mini" type="button" data-remove="' + esc(l.id) + '">Remove</button>'
+            : '<span class="store-note" style="margin:0;">' + fmt$(l.priceCents) + '</span>') +
+          '</div>';
+      });
+      h += '<h3 class="store-sec">My sales</h3>';
+      if (!d.sales.length) h += '<p class="store-note">No sales yet — when someone buys your item, your 90% shows here and banks in Earn.</p>';
+      d.sales.forEach(function (o) {
+        h += '<div class="store-row"><div class="grow"><b>' + esc(o.title) + '</b><span>Bought by ' + esc(o.buyerName || "a member") + ' · ' + esc(String(o.at || "").slice(0, 10)) + '</span></div>' +
+          '<div style="text-align:right;"><b>' + fmt$(o.netCents) + '</b><span class="store-note" style="margin:0; display:block;">of ' + fmt$(o.grossCents) + ' (Plaza kept ' + fmt$(o.cutCents) + ')</span></div></div>';
+      });
+      h += '<h3 class="store-sec">My purchases</h3>';
+      if (!d.purchases.length) h += '<p class="store-note">Nothing bought yet.</p>';
+      d.purchases.forEach(function (o) {
+        h += '<div class="store-row"><div class="grow"><b>' + esc(o.title) + '</b><span>From ' + esc(o.sellerName || "a member") + ' · ' + esc(String(o.at || "").slice(0, 10)) + '</span></div><b>' + fmt$(o.grossCents) + '</b></div>';
+      });
+      el.innerHTML = h;
+      var bk = $("storeMineBack"); if (bk) bk.addEventListener("click", renderBrowse);
+      el.querySelectorAll("[data-save]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var id = b.getAttribute("data-save");
+          var pIn = el.querySelector('[data-price="' + id + '"]');
+          var qIn = el.querySelector('[data-qty="' + id + '"]');
+          var dollars = parseFloat(pIn ? pIn.value : "");
+          var qty = parseInt(qIn ? qIn.value : "", 10);
+          if (!(dollars >= 0.5)) { toast2("Price must be at least $0.50.", 3000); return; }
+          if (!(qty >= 0)) { toast2("Quantity can't be negative.", 3000); return; }
+          b.disabled = true;
+          api("/api/store/listings/update", "POST", { id: id, priceCents: Math.round(dollars * 100), qty: qty }).then(function (r2) {
+            b.disabled = false;
+            if (r2.json && r2.json.ok) toast2("Saved ✓", 2400);
+            else toast2((r2.json && r2.json.error) || "That didn't save — try again.", 3400);
+          });
+        });
+      });
+      el.querySelectorAll("[data-remove]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var id = b.getAttribute("data-remove");
+          b.disabled = true;
+          api("/api/store/listings/remove", "POST", { id: id }).then(function (r2) {
+            if (r2.json && r2.json.ok) { toast2("Listing removed.", 2800); renderMine(); }
+            else { b.disabled = false; toast2((r2.json && r2.json.error) || "That didn't remove — try again.", 3400); }
+          });
+        });
+      });
+    });
+  }
+
+  /* ---------------- Connect a store ---------------- */
+  var PLATFORMS240 = [
+    { id: "woocommerce", name: "WooCommerce", blurb: "Connect with the REST API keys from your own store — no extra app needed, works right now." },
+    { id: "shopify", name: "Shopify", blurb: "Connect through Shopify sign-in and import your products." },
+    { id: "etsy", name: "Etsy", blurb: "Connect through Etsy sign-in and import your listings." },
+    { id: "square", name: "Square", blurb: "Connect through Square sign-in and import your catalog." },
+  ];
+  function renderConnect() {
+    S.view = "connect"; setSearchVisible(false);
+    var el = bodyEl(); if (!el) return;
+    el.innerHTML = '<p class="store-note">Loading your connections…</p>';
+    api("/api/store/connect/state", "GET").then(function (r) {
+      if (gateBounce(r)) return;
+      if (!r.json || !r.json.ok) { el.innerHTML = '<p class="store-note">Couldn\'t load connections just now — try again.</p>'; return; }
+      S.conn = r.json.platforms || {};
+      var h = '<button class="store-backlink" id="storeConnBack" type="button">‹ Back to the Store</button>' +
+        '<h3 class="store-sec" style="margin-top:6px;">Connect a store</h3>' +
+        '<p class="store-note" style="margin:0 0 6px;">Already sell somewhere else? Connect your store and your products import as Plaza Store listings — same 90/10, same Buy button. Re-sync any time to refresh prices and stock; products you delete there retire here too.</p>' +
+        '<div class="store-genuine"><input type="checkbox" id="storeConnGenuine"/><span><b>No counterfeits, ever.</b> I confirm the products in my connected store are genuine and mine to sell.</span></div>';
+      PLATFORMS240.forEach(function (p) {
+        var st = S.conn[p.id] || {};
+        h += '<div class="store-conn" id="conn-' + p.id + '"><h4>' + esc(p.name) + '</h4><p>' + esc(p.blurb) + '</p><div class="conn-body">';
+        if (st.connected) {
+          h += '<p><span class="ok">✓ Connected</span>' + (st.label ? ' — ' + esc(st.label) : '') + '</p>' +
+            '<button class="btn-mini" type="button" data-sync="' + p.id + '">↻ Sync now</button> ' +
+            '<button class="btn-mini" type="button" data-disconnect="' + p.id + '">Disconnect</button>' +
+            '<span class="store-note" style="margin-left:8px;" data-syncmsg="' + p.id + '"></span>';
+        } else if (p.id === "woocommerce") {
+          h += '<div class="store-form">' +
+            '<label>Your store address<input type="url" id="wooUrl" placeholder="https://yourstore.com"/></label>' +
+            '<label>Consumer key<input type="text" id="wooKey" autocomplete="off" placeholder="ck_…"/></label>' +
+            '<label>Consumer secret<input type="password" id="wooSecret" autocomplete="off" placeholder="cs_…"/></label>' +
+            '<p class="store-note" style="margin:4px 0 10px;">Find them in your store\'s admin: WooCommerce → Settings → Advanced → REST API → Add key (Read permission is enough). Keys stay on the Plaza server — they\'re never shown again.</p>' +
+            '<button class="btn-primary" style="width:auto; padding:11px 24px;" type="button" id="wooConnect">Connect &amp; import</button></div>';
+        } else if (!st.configured) {
+          h += '<p>Connect for ' + esc(p.name) + ' is <b>being set up</b> — it switches on as soon as the Plaza\'s ' + esc(p.name) + ' app is registered. Nothing to do here yet; your products can still be listed by hand.</p>' +
+            '<button class="btn-mini" type="button" data-setup="' + p.id + '">Connect ' + esc(p.name) + '</button>';
+        } else {
+          h += (p.id === "shopify" ? '<div class="store-form"><label>Your Shopify domain<input type="text" id="shopifyShop" placeholder="your-store.myshopify.com"/></label></div>' : '') +
+            '<button class="btn-primary" style="width:auto; padding:11px 24px;" type="button" data-begin="' + p.id + '">Connect ' + esc(p.name) + '</button>';
+        }
+        h += '</div></div>';
+      });
+      el.innerHTML = h;
+      var bk = $("storeConnBack"); if (bk) bk.addEventListener("click", renderBrowse);
+      function genuineOk() { var g = $("storeConnGenuine"); return !!(g && g.checked); }
+      var woo = $("wooConnect");
+      if (woo) woo.addEventListener("click", function () {
+        if (!genuineOk()) { toast2("Confirm your products are genuine first — no counterfeits in the Plaza Store.", 4000); return; }
+        var url = ($("wooUrl") || {}).value || "";
+        var key = ($("wooKey") || {}).value || "";
+        var secret = ($("wooSecret") || {}).value || "";
+        if (!url.trim() || !key.trim() || !secret.trim()) { toast2("Fill in your store address, consumer key and secret.", 3600); return; }
+        woo.disabled = true; woo.textContent = "Connecting…";
+        api("/api/store/connect/woocommerce", "POST", { storeUrl: url, consumerKey: key, consumerSecret: secret, genuine: true }, 60000).then(function (r2) {
+          woo.disabled = false; woo.textContent = "Connect & import";
+          if (r2.json && r2.json.ok) {
+            toast2("Connected 🛍️ — imported " + (r2.json.created || 0) + " new, updated " + (r2.json.updated || 0) + ".", 4800);
+            renderConnect();
+          } else toast2((r2.json && r2.json.error) || "Couldn't connect — check the address and keys.", 4200);
+        });
+      });
+      el.querySelectorAll("[data-setup]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var name = b.getAttribute("data-setup");
+          toast2("Connect for " + name.charAt(0).toUpperCase() + name.slice(1) + " is being set up — it switches on as soon as the Plaza's app for it is registered. Nothing was connected.", 5200);
+        });
+      });
+      el.querySelectorAll("[data-begin]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var pid = b.getAttribute("data-begin");
+          if (!genuineOk()) { toast2("Confirm your products are genuine first — no counterfeits in the Plaza Store.", 4000); return; }
+          var payload = { genuine: true };
+          if (pid === "shopify") {
+            var shop = (($("shopifyShop") || {}).value || "").trim();
+            if (!shop) { toast2("Enter your Shopify domain first, like your-store.myshopify.com", 3800); return; }
+            payload.shop = shop;
+          }
+          b.disabled = true; b.textContent = "Opening…";
+          api("/api/store/connect/" + pid + "/begin", "POST", payload, 30000).then(function (r2) {
+            if (r2.json && r2.json.ok && r2.json.url) { location.href = r2.json.url; return; }
+            b.disabled = false; b.textContent = "Connect";
+            if (r2.json && /not-configured/.test(r2.json.error || "")) { toast2("That connect is being set up — it switches on as soon as the Plaza's app for it is registered. Nothing was connected.", 5200); return; }
+            toast2((r2.json && r2.json.error) || "Couldn't start that connect — try again.", 3800);
+          });
+        });
+      });
+      el.querySelectorAll("[data-sync]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var pid = b.getAttribute("data-sync");
+          var msg = el.querySelector('[data-syncmsg="' + pid + '"]');
+          b.disabled = true;
+          if (msg) msg.textContent = "Syncing…";
+          api("/api/store/connect/sync", "POST", { platform: pid }, 60000).then(function (r2) {
+            b.disabled = false;
+            if (r2.json && r2.json.ok) {
+              var txt = "Synced — " + (r2.json.created || 0) + " new, " + (r2.json.updated || 0) + " updated, " + (r2.json.retired || 0) + " retired.";
+              if (msg) msg.textContent = txt;
+              toast2(txt, 4200);
+            } else {
+              if (msg) msg.textContent = "";
+              toast2((r2.json && r2.json.error) || "That sync didn't go through — try again.", 3800);
+            }
+          });
+        });
+      });
+      el.querySelectorAll("[data-disconnect]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var pid = b.getAttribute("data-disconnect");
+          b.disabled = true;
+          api("/api/store/connect/disconnect", "POST", { platform: pid }).then(function (r2) {
+            if (r2.json && r2.json.ok) { toast2("Disconnected — your imported listings stay in the Store; manage them in My store.", 4400); renderConnect(); }
+            else { b.disabled = false; toast2("That didn't disconnect — try again.", 3200); }
+          });
+        });
+      });
+    });
+  }
+
+  /* ---------------- wiring ---------------- */
+  function wire() {
+    var card = $("btnStoreHome");
+    if (card) card.addEventListener("click", function () { openStore("browse"); });
+    var back = $("btnStoreBack");
+    if (back) back.addEventListener("click", function () { if (typeof window.show === "function") window.show("screen-plaza"); });
+    var sell = $("btnStoreSell");
+    if (sell) sell.addEventListener("click", renderSell);
+    var mine = $("btnStoreMine");
+    if (mine) mine.addEventListener("click", renderMine);
+    var conn = $("btnStoreConnect");
+    if (conn) conn.addEventListener("click", renderConnect);
+    var search = $("storeSearch");
+    if (search) search.addEventListener("input", function () {
+      clearTimeout(S.searchTimer);
+      S.searchTimer = setTimeout(function () {
+        S.q = search.value.trim();
+        if (S.view === "browse") renderBrowse();
+      }, 350);
+    });
+    // Render fresh whenever the Store screen is shown (the main
+    // show() gate has already applied the 18+ door by then).
+    if (typeof window.show === "function" && !window.show.__rpstore240) {
+      var orig = window.show;
+      var wrapped = function (id) {
+        var r = orig.apply(this, arguments);
+        if (id === "screen-store") setTimeout(renderBrowse, 60);
+        return r;
+      };
+      wrapped.__rpstore240 = true;
+      window.show = wrapped;
+    }
+    window.__rpstore240 = true; // module load marker
+    // Return-from-Stripe + return-from-OAuth notes.
+    try {
+      var q = new URLSearchParams(location.search || "");
+      var dirty = false;
+      if (q.get("store") === "ok") { toast2("✅ Payment complete — your order lands the moment Stripe confirms (usually seconds). The seller ships it from there.", 5600); dirty = true; }
+      else if (q.get("store") === "cancel") { toast2("Checkout cancelled — nothing was charged.", 3600); dirty = true; }
+      var sc = q.get("storeconnect");
+      if (sc) {
+        dirty = true;
+        var plat = sc.split("-")[0];
+        var nice = plat.charAt(0).toUpperCase() + plat.slice(1);
+        if (/-done$/.test(sc)) toast2("🔗 " + nice + " connected — your products are importing into the Plaza Store.", 5200);
+        else if (/-setup$/.test(sc)) toast2("Connect for " + nice + " is being set up — it switches on as soon as the Plaza's app for it is registered.", 5200);
+        else toast2("That " + nice + " connect didn't finish — try again from the Store's Connect page.", 4600);
+      }
+      if (dirty) history.replaceState(null, "", location.pathname);
+    } catch (e) { }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
+  else wire();
+})();
+</script>
 </body>
 </html>
 
