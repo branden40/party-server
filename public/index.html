@@ -24357,6 +24357,36 @@
             });
           }, { root: feed, threshold: [0, 0.6, 1] });
         }
+        /* [RP-V7.246] First-gesture sound unlock (TikTok pattern):
+           the first pointerdown anywhere on the feed unmutes the card
+           that is currently playing — synchronously inside the pointer
+           handler, the only place iOS honors it — and re-asserts
+           play() in that same gesture. One-time: the listener removes
+           itself after firing. The speaker button is EXCLUDED: it runs
+           its own in-gesture toggle, and pre-flipping its state here
+           would invert the member's tap; a pointerdown on it leaves
+           this listener armed for the next real interaction. */
+        if (!feed.__rpUnlock246) {
+          feed.__rpUnlock246 = true;
+          var rpFeedUnlock246 = function (e) {
+            if (e && e.target && e.target.closest && e.target.closest(".reel-mute")) return;
+            feed.removeEventListener("pointerdown", rpFeedUnlock246);
+            try {
+              var cards246 = feed.querySelectorAll(".reel-card");
+              for (var ci246 = 0; ci246 < cards246.length; ci246++) {
+                var cvs246 = cards246[ci246].querySelectorAll("video");
+                var playing246 = null;
+                for (var vi246 = 0; vi246 < cvs246.length; vi246++) { if (!cvs246[vi246].paused && !cvs246[vi246].ended) { playing246 = cvs246[vi246]; break; } }
+                if (!playing246) continue;
+                if (typeof cards246[ci246]._rpGestureUnmute246 === "function") cards246[ci246]._rpGestureUnmute246();
+                else if (!playing246.__userMuted244 && playing246.muted) playing246.muted = false;
+                var pp246 = playing246.play(); if (pp246 && pp246.catch) pp246.catch(function () { });
+                break;
+              }
+            } catch (err) { }
+          };
+          feed.addEventListener("pointerdown", rpFeedUnlock246);
+        }
         items.forEach(function (item) { feed.appendChild(item.photoPost ? rpPhotoCard123(item) : reelCard(item)); }); // [RP-V7.123]
       }
       function reelTagsOf(caption) {
@@ -24523,6 +24553,32 @@
           vv.addEventListener("play", syncPaused);
           vv.addEventListener("pause", syncPaused);
         });
+        /* [RP-V7.246] Gesture unmute (Branden's phone, Nov 5: reels
+           play but stay silent while stories are audible). iOS WebKit
+           honors unmute/play only when begun inside a real user-gesture
+           call stack. cardPlay's unmute runs from the scroll observer
+           and timers — outside any gesture — so iOS rejects the
+           unmuted play() and V7.244's fallback re-mutes: the reel
+           moves, silently. Stories work because their play() runs
+           synchronously in the tray tap on a never-muted element.
+           This helper mirrors the story pattern for the feed: it is
+           called ONLY from inside tap/pointer handlers (onVidClick,
+           synchronously; the feed's first-gesture unlock via
+           card._rpGestureUnmute246) and unmutes this card's main
+           video right there in the gesture. The member's own speaker
+           mute (__userMuted244) always wins, and the speaker icon is
+           kept in sync exactly as cardPlay syncs it. */
+        function rpGestureUnmute246() {
+          if (!vMine || vMine.__userMuted244 || !vMine.muted) return;
+          vMine.muted = false;
+          try {
+            if (mb) {
+              var onIcon246 = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"M15.5 9.6a3.8 3.8 0 0 1 0 4.8M18.2 7.2a7.3 7.3 0 0 1 0 9.6\"/></svg>";
+              if (mb.innerHTML !== onIcon246) mb.innerHTML = onIcon246;
+            }
+          } catch (e) { }
+        }
+        card._rpGestureUnmute246 = rpGestureUnmute246;
         function cardPlay() {
           /* [RP-V7.244] SOUND (Branden, Nov 5: "The reels don't have
              any sound"): the feed video is created with a muted
@@ -24608,6 +24664,7 @@
            burst right at the tap point (hearts only ever come from taps). */
         var lastTapAt = 0, tapTimer = null;
         function onVidClick(e) {
+          rpGestureUnmute246(); /* [RP-V7.246] sound unlock INSIDE the tap: the play/pause decision below rides a 300 ms timer (outside the gesture), so the unmute itself must happen here, synchronously — iOS ignores an unmute that arrives later. The member's own speaker mute always wins (helper checks __userMuted244). */
           var now = Date.now();
           if (now - lastTapAt < 300) {
             lastTapAt = 0;
@@ -24972,6 +25029,18 @@
         if (HomeFeed.tab === "following") return (HomeFeed.friendsItems || []).filter(function (it) { return !!it.url; });
         return pagerMerge123(reelFeedItems().filter(function (it) { return !!it.url && !it.pending; })); // [RP-V7.123] photo posts join For You
       }
+      /* [RP-V7.246] Pager gesture unmute — the same iOS rule as the
+         feed: hpPlay is observer-driven, so its unmuted play() is
+         rejected on iOS and its catch latches the slide's video muted
+         with no way back (hp slides have no speaker button). The
+         unmute now happens inside real gestures: the slide tap
+         handler below and the pager's first-gesture unlock
+         (renderHomePager). A member's own mute choice
+         (__userMuted244) always wins. */
+      function hpGestureUnmute246(v) {
+        if (!v || v.__userMuted244 || !v.muted) return;
+        v.muted = false;
+      }
       function hpPlay(slide) {
         if (slide._rpPlay) { slide._rpPlay(); return; } // [RP-V7.123] photo slide
         var v = slide.querySelector("video"); if (!v) return;
@@ -25012,6 +25081,7 @@
           if (ct / v.duration > trk.maxFrac) trk.maxFrac = ct / v.duration;
         });
         v.addEventListener("click", function () {
+          hpGestureUnmute246(v); /* [RP-V7.246] unmute inside the tap itself — see hpGestureUnmute246 */
           if (v.paused) hpPlay(slide);
           else { if (trk.startedAt) { trk.acc += Date.now() - trk.startedAt; trk.startedAt = 0; } try { v.pause(); } catch (e) { } }
         });
@@ -25064,6 +25134,29 @@
           return;
         }
         items.forEach(function (item) { pager.appendChild(item.photoPost ? rpHomePhotoSlide123(item) : homeSlide(item)); }); // [RP-V7.123]
+        /* [RP-V7.246] First-gesture sound unlock for the pager: the
+           first pointerdown anywhere on the pager unmutes the slide
+           that is currently playing — synchronously inside the pointer
+           handler, the only place iOS honors it — and re-asserts
+           play() in that same gesture, mirroring the feed unlock.
+           One-time: the listener removes itself after firing. */
+        if (!pager.__rpUnlock246) {
+          pager.__rpUnlock246 = true;
+          var rpPagerUnlock246 = function () {
+            pager.removeEventListener("pointerdown", rpPagerUnlock246);
+            try {
+              var vids246 = pager.querySelectorAll(".hp-slide video");
+              for (var vi246 = 0; vi246 < vids246.length; vi246++) {
+                if (!vids246[vi246].paused && !vids246[vi246].ended) {
+                  hpGestureUnmute246(vids246[vi246]);
+                  var vp246 = vids246[vi246].play(); if (vp246 && vp246.catch) vp246.catch(function () { });
+                  break;
+                }
+              }
+            } catch (err) { }
+          };
+          pager.addEventListener("pointerdown", rpPagerUnlock246);
+        }
         if ("IntersectionObserver" in window) {
           HomeFeed.observer = new IntersectionObserver(function (entries) {
             entries.forEach(function (en) {
