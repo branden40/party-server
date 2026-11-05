@@ -1676,10 +1676,24 @@ function socialsOf(u) {
   for (const n of SOCIAL_NETWORKS_144) out[n] = typeof src[n] === "string" ? src[n] : "";
   return out;
 }
+// [RP-V7.248] The accounts a member ACTUALLY linked (empty handles
+// dropped). This is the only set of outside accounts any surface may
+// ever show for a member — a handle is never guessed or invented.
+function ffLinkedSocials248(u) {
+  const soc = socialsOf(u);
+  const out = {};
+  for (const n of SOCIAL_NETWORKS_144) if (soc[n]) out[n] = soc[n];
+  return out;
+}
+// [RP-V7.248] Priority when several linked handles could explain a
+// match or carry a label: the three apps Branden named first
+// (Facebook, Instagram, TikTok), then the rest of the linked-app
+// list in its standing order.
+const FF_HANDLE_PRIORITY_248 = ["facebook", "instagram", "tiktok", "snapchat", "x", "youtube", "twitch", "threads"];
 function ffPerson144(u, why) {
   let photo = u.photo || null;
   if (!photo) { try { const ph = accountPhotos(u); if (ph && ph[0]) photo = ph[0]; } catch (e) { } }
-  return { id: u.id, name: u.name, username: u.username || "", photo, why };
+  return { id: u.id, name: u.name, username: u.username || "", photo, why, socials: ffLinkedSocials248(u) }; // [RP-V7.248] linked accounts ride along so a found member's card can show their other accounts
 }
 function ffExcluded144(meId, followingSet, extraExcluded) {
   // ids that must never be suggested to me: me, people I already
@@ -8351,8 +8365,80 @@ app.get("/api/social/suggestions", (req, res) => {
   }
   const people = Array.from(cand.entries())
     .sort((a, b2) => b2[1].score - a[1].score)
-    .slice(0, 30)
+    .slice(0, 20)
     .map(([id, info]) => { const p = ffPerson144(byId.get(id), info.why); p.dismiss = true; return p; });
+  // [RP-V7.247] BACKFILL — Branden (Nov 5, 2026): "it should be a list
+  // of people you may know." The ranked graph/affinity list above
+  // stays FIRST and untouched; when it runs short, the rest of the 20
+  // fills with REAL members so a new member never faces an empty
+  // sheet. Same exclusion set as the ranked pass (me, already
+  // following, dismissed, blocked both ways, pending-deletion) — no
+  // filter added, none removed. Honest labels only: a reason is
+  // stated only when it is true of that member right now.
+  if (people.length < 20) {
+    const seen = new Set(people.map((p) => p.id));
+    const add = (u, why) => {
+      if (people.length >= 20 || !u || seen.has(u.id) || excluded.has(u.id) || u.deletionAt) return;
+      seen.add(u.id);
+      const p = ffPerson144(u, why); p.dismiss = true; people.push(p);
+    };
+    // (a) For You affinity below the ranked threshold — posts this
+    // member engages with, just not enough to rank on their own yet.
+    if (myRec && myRec.authorAff) {
+      Object.keys(myRec.authorAff)
+        .map((id) => ({ id, aff: affOf(id) }))
+        .filter((x) => x.aff > 0)
+        .sort((a, b2) => b2.aff - a.aff)
+        .forEach((x) => add(byId.get(x.id), "From your For You — you engage with their posts"));
+    }
+    // (b) hosting a PUBLIC live right now (private lives never surface).
+    try {
+      const liveIds = new Set();
+      for (const e of liveRegistry.values()) {
+        if (!e || e.priv) continue;
+        const hid = liveHostAccountId(e);
+        if (hid) liveIds.add(hid);
+      }
+      for (const id of liveIds) add(byId.get(id), "Live now on the Plaza");
+    } catch (e) { }
+    const tsOf = (v) => { const t = Date.parse(v || ""); return Number.isFinite(t) ? t : 0; };
+    const all = ctx.db.users.filter((u) => u && !u.deletionAt);
+    // (b2) [RP-V7.248] LINKED ACCOUNTS — Branden (Nov 5, 2026):
+    // "pull matching people who has accounts with Facebook instagram
+    // and TikTok," the way Facebook's People You May Know pulls
+    // people from your other accounts. The Plaza cannot read those
+    // apps' friend lists (settled at V7.144 — no API access), so
+    // this tier runs on the handles members linked to their Plaza
+    // accounts: a member who linked a Facebook, Instagram or TikTok
+    // handle surfaces here, labeled with the first of the three
+    // they linked (Facebook, then Instagram, then TikTok). Sits
+    // ahead of the generic recency/newness fills below on purpose —
+    // those consume the entire list in any pool of 20+, which would
+    // leave this tier unreachable; it still runs strictly after the
+    // ranked pass and the affinity / live-host tiers. Same exclusion
+    // set via add() (self, already-following, dismissed, blocked,
+    // pending-deletion); the label is a true statement about their
+    // account, and only their own linked handle is ever shown.
+    const linked248 = all
+      .filter((u) => { const s = socialsOf(u); return !!(s.facebook || s.instagram || s.tiktok); })
+      .sort((a, b2) => socialFollowerIds(sdb, b2.id).length - socialFollowerIds(sdb, a.id).length || tsOf(b2.createdAt) - tsOf(a.createdAt));
+    for (const u of linked248) {
+      const s = socialsOf(u);
+      const net248 = s.facebook ? "facebook" : (s.instagram ? "instagram" : "tiktok");
+      add(u, "Also on " + SOCIAL_NETWORK_LABEL_144[net248] + " @" + s[net248]);
+    }
+    // (c) recently active — signed in within the last 7 days, newest first.
+    const recent = all
+      .filter((u) => tsOf(u.lastLoginAt) > 0 && now - tsOf(u.lastLoginAt) < 7 * 24 * 3600 * 1000)
+      .sort((a, b2) => tsOf(b2.lastLoginAt) - tsOf(a.lastLoginAt));
+    for (const u of recent) add(u, "Recently active on the Plaza");
+    // (d) newest members.
+    const newest = all.slice().sort((a, b2) => tsOf(b2.createdAt) - tsOf(a.createdAt));
+    for (const u of newest) add(u, "New to the Plaza");
+    // (e) last resort: any other real member, so the list is never
+    // empty while the Plaza has other members to show.
+    for (const u of all) add(u, "Member of the Plaza");
+  }
   res.json({ ok: true, people, mySocials: socialsOf(ctx.user) });
 });
 
@@ -9178,8 +9264,8 @@ app.post("/api/feed/like", (req, res) => {
       actorName: ctx.user.name,
       text: "❤️ " + ctx.user.name + " liked your post",
       emailSubject: ctx.user.name + " liked your post on Rizz Plaza",
-      emailText: ctx.user.name + " liked your post on Rizz Plaza.\n\nSee it in the Feed: https://rizzplaza.com\n\n— The Rizz Plaza team",
-      go: { screen: "feed" },
+      emailText: ctx.user.name + " liked your post on Rizz Plaza.\n\nSee it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "plaza" },
     });
   writeFeed(db);
   res.json({ ok: true, likes: p.likes.length, likedByMe: liked });
@@ -9285,8 +9371,8 @@ app.post("/api/feed/comment", (req, res) => {
       actorName: ctx.user.name,
       text: "✍️ " + ctx.user.name + " commented on your post: \"" + String(comment.text).slice(0, 60) + "\"",
       emailSubject: ctx.user.name + " commented on your post on Rizz Plaza",
-      emailText: ctx.user.name + " commented on your post on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nRead it in the Feed: https://rizzplaza.com\n\n— The Rizz Plaza team",
-      go: { screen: "feed" },
+      emailText: ctx.user.name + " commented on your post on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nRead it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "plaza" },
     });
   res.json({ ok: true, comment: { name: comment.name, text: comment.text, ts: comment.ts }, comments: reelPublicComments({ comments: p.comments }), commentCount: p.comments.length });
 });
@@ -9328,8 +9414,8 @@ app.post("/api/feed/repost", (req, res) => {
       actorName: ctx.user.name,
       text: "🔁 " + ctx.user.name + " reposted your post",
       emailSubject: ctx.user.name + " reposted your post on Rizz Plaza",
-      emailText: ctx.user.name + " reposted your post on Rizz Plaza — it is reaching new people.\n\nSee it in the Feed: https://rizzplaza.com\n\n— The Rizz Plaza team",
-      go: { screen: "feed" },
+      emailText: ctx.user.name + " reposted your post on Rizz Plaza — it is reaching new people.\n\nSee it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "plaza" },
     });
   }
   if (!want && has) p.reposts = p.reposts.filter((x) => !(x && x.u === ctx.user.id));
@@ -9881,7 +9967,9 @@ app.get("/api/dm/blocked", (req, res) => {
 // you could only start a DM with someone you could see. GET
 // /api/members makes every ACCOUNT findable 24/7 by username or
 // display name. The payload is a strict whitelist (id, username, name,
-// profileType + label [RP-V7.37], photo, followers, iFollow, isSelf):
+// profileType + label [RP-V7.37], photo, followers, iFollow, isSelf,
+// [RP-V7.248] via + socials — the handles a member linked ON PURPOSE
+// so friends can find them; email, phone and DOB are still NEVER in):
 // email, phone and DOB are NEVER included. [RP-V7.50] `photo` is the
 // account's stored photo (bound at upload); when the account has none,
 // it falls back to the photoUrl of a currently-connected player whose
@@ -9903,6 +9991,7 @@ app.get("/api/members", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   const q = String(req.query.q || "").trim().toLowerCase().slice(0, 40);
+  const qn = q.replace(/^@+/, ""); // [RP-V7.248] linked handles are stored without the @
   let limit = parseInt(req.query.limit, 10);
   if (!Number.isFinite(limit) || limit < 1) limit = 25;
   if (limit > 50) limit = 50;
@@ -9928,10 +10017,33 @@ app.get("/api/members", (req, res) => {
     if (!q) score = 2;
     else if (uname.startsWith(q) || lname.startsWith(q)) score = 0;
     else if (uname.includes(q) || lname.includes(q)) score = 1;
+    let via = null;
+    if (score === null && qn) {
+      // [RP-V7.248] LINKED-HANDLE MATCH (Branden, Nov 5, 2026: "pull
+      // matching people who has accounts with Facebook instagram and
+      // TikTok"). The query also runs against the handles this member
+      // linked from their other apps — Facebook / Instagram / TikTok
+      // first, then the rest — partial, case-insensitive, @ optional
+      // (qn above). Handle matches rank BELOW name/@username matches
+      // (scores 2/3 vs 0/1), and the winning network + handle ride
+      // back as `via` so the row can truthfully say where it matched.
+      const soc = socialsOf(u);
+      for (const net of FF_HANDLE_PRIORITY_248) {
+        const h = soc[net];
+        if (h && h.startsWith(qn)) { score = 2; via = { network: net, handle: h }; break; }
+      }
+      if (score === null) {
+        for (const net of FF_HANDLE_PRIORITY_248) {
+          const h = soc[net];
+          if (h && h.includes(qn)) { score = 3; via = { network: net, handle: h }; break; }
+        }
+      }
+    }
     if (score === null) continue;
     rows.push({
       u,
       score,
+      via,
       // [RP-V7.37] Pending-deletion followers don't count.
       followers: socialFollowerIds(sdb, u.id).filter(
         (fid) => !pendingIds.has(fid)
@@ -9944,7 +10056,7 @@ app.get("/api/members", (req, res) => {
       b.followers - a.followers ||
       String(a.u.name).localeCompare(String(b.u.name))
   );
-  const members = rows.slice(0, limit).map(({ u, followers }) => {
+  const members = rows.slice(0, limit).map(({ u, followers, via }) => {
     const k = String(u.name || "").toLowerCase();
     return {
       id: u.id,
@@ -9958,6 +10070,8 @@ app.get("/api/members", (req, res) => {
       // name match remains as the fallback for accounts without one.
       photo: u.photo || (nameCount[k] === 1 ? photoByName[k] || null : null),
       followers,
+      via: via || null, // [RP-V7.248] { network, handle } when this row matched on a linked handle
+      socials: ffLinkedSocials248(u), // [RP-V7.248] accounts this member linked — found cards show them
       iFollow: myFollowing.includes(u.id),
       isSelf: u.id === ctx.user.id,
     };
@@ -11060,7 +11174,7 @@ const PREMIUM_PLANS = {
 // price_data), webhook-settled state in the money ledger, 18+
 // server-locked like every money door. The subscription record ALSO
 // carries the member's business profile (name / blurb / link / pic);
-// the ad renders on the Plaza home and in the Feed for ADULT members
+// the ad renders on the Plaza home and in the Home stream for ADULT members [RP-V7.247: Feed wall retired; interleave moved to Home]
 // only while the subscription is active — never for teen accounts,
 // never on church surfaces or in Teen Hangout (those surfaces simply
 // never call the ads endpoint / slot).
