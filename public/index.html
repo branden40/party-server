@@ -22985,9 +22985,8 @@
               var mineLocal = Moments.posts.filter(function (p) { return p.mine && !p.srv && !p.migratedTo; });
               Moments.posts = mineLocal.concat(srv);
               Moments.srvLoaded = true;
-              if (done) done();
             }
-            if (done) done();
+            if (done) done(); // [RP-V7.251] exactly once — the success branch used to fire done() twice, so every Photos load rendered the whole feed twice back-to-back
           })
           .catch(function () { if (done) done(); });
       }
@@ -23229,6 +23228,15 @@
       }
       function renderMoments() {
         var feed = $("momFeed"); if (!feed) return;
+        /* [RP-V7.251] Painted-state signature (same pattern as the Home
+           pager's HomeFeed.sig): when the freshly loaded list is exactly
+           what is already on screen, skip the rebuild — a Photos/Reels
+           toggle otherwise tears down and repaints (and re-decodes)
+           every photo even when nothing changed. Any real change
+           (new post, like, comment, gift, flip set) changes the sig. */
+        var sig251 = Moments.posts.map(function (p) { return [p.id, p.srvLikes || 0, p.liked ? 1 : 0, p.srvReposts || 0, p.reposted ? 1 : 0, p.gifts || 0, (typeof p.commentCount === "number" ? p.commentCount : (p.comments || []).length), (p.urls || []).length, p.photo || ""].join(":"); }).join("|");
+        if (feed.children.length && Moments._sig251 === sig251) return;
+        Moments._sig251 = sig251;
         if (!Moments.posts.length) {
           feed.innerHTML = '<div class="mom-empty">No Reels yet — be the first to post a photo! 📸</div>';
           return;
@@ -23244,8 +23252,8 @@
           var pIdx123 = Math.min(typeof p._fi === "number" ? p._fi : 0, Math.max(0, pUrls123.length - 1));
           var photo = p.photo
             ? (pUrls123.length > 1
-              ? '<span class="mom-flip" style="display:block;"><img src="' + pUrls123[pIdx123] + '" alt="Photo posted by ' + escHtml(p.name) + '"/><button type="button" class="ff-zone prev" data-momflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-momflip="1" aria-label="Next photo"></button><span class="ff-count"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> ' + (pIdx123 + 1) + '/' + pUrls123.length + '</span></span>'
-              : '<img src="' + p.photo + '" alt="Photo posted by ' + escHtml(p.name) + '"/>')
+              ? '<span class="mom-flip" style="display:block;"><img loading="lazy" decoding="async" src="' + pUrls123[pIdx123] + '" alt="Photo posted by ' + escHtml(p.name) + '"/><button type="button" class="ff-zone prev" data-momflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-momflip="1" aria-label="Next photo"></button><span class="ff-count"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> ' + (pIdx123 + 1) + '/' + pUrls123.length + '</span></span>'
+              : '<img loading="lazy" decoding="async" src="' + p.photo + '" alt="Photo posted by ' + escHtml(p.name) + '"/>')
             : '<span class="mom-nomedia" aria-hidden="true"></span>'; /* [RP-V7.29] RE1 flat tile, no drawn backdrop */
           card.innerHTML =
             '<div class="mom-top"><span class="who-av">' + av + '</span><div><b>' + escHtml(p.name) + '</b><span>' + escHtml(p.when || "now") + ' · Reels</span></div>' +
@@ -23962,7 +23970,7 @@
           card.appendChild(stage);
           ctl = rpShowMount123(stage, item.urls, { gate: rpShowGate123 });
         } else {
-          var im = document.createElement("img"); im.className = "rp-show-img"; im.src = item.url; im.alt = "Photo by " + item.author; card.appendChild(im);
+          var im = document.createElement("img"); im.className = "rp-show-img"; im.loading = "lazy"; im.decoding = "async"; im.src = item.url; im.alt = "Photo by " + item.author; card.appendChild(im); // [RP-V7.251] lazy/async like the Photos feed
         }
         var rest = document.createElement("div");
         rest.innerHTML =
@@ -24358,6 +24366,27 @@
       }
       function renderReels() {
         var feed = $("reelFeed"); if (!feed) return;
+        var items = Reels.friends ? reelFeedItems() : pagerMerge123(reelFeedItems()); // [RP-V7.123] photo posts join the pager (Friends stays reels-only)
+        var barHtml = "";
+        if (Reels.tagFilter) {
+          var tf = Reels.tagFilter;
+          items = items.filter(function (it) { return reelTagsOf(it.caption).indexOf(tf) >= 0; });
+          barHtml = '<div class="reel-filterbar"><span>🎬 Reels tagged #' + escHtml(tf) + '</span><button type="button" id="btnReelClearTag"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg> Show all</button></div>';
+        }
+        /* [RP-V7.251] Painted-state signature, the renderHomePager
+           HomeFeed.sig pattern: a Photos/Reels toggle used to render
+           this feed twice per tap (once synchronously, once when the
+           feed fetch landed) even when nothing had changed — each
+           pass tore down and rebuilt every card and restarted every
+           video's paint-gate registration. When the merged items'
+           painted state is identical to what is already on screen,
+           keep the existing DOM (playback and paint state survive)
+           and skip. Any real change — new post, like/comment/repost
+           counts, views, tag filter, Friends mode, fetch state —
+           changes the signature and rebuilds exactly as before. */
+        var sig251 = (Reels.friends ? "F" : "A") + (Reels._friendsLoaded ? "1" : "0") + (Reels.serverOk ? "1" : "0") + "|" + items.map(function (it) { return [it.key, it.views || 0, it.heartLikes || 0, it.commentCount || 0, it.reposts || 0, it.myHeart ? 1 : 0, it.myReposted ? 1 : 0, it.likes || 0, it.liked ? 1 : 0].join(":"); }).join("|");
+        if (feed.children.length && Reels._sig251 === sig251) return;
+        Reels._sig251 = sig251;
         reelPauseAll();
         // [RP-V7.40] a re-render retires the on-screen card without an
         // observer pause — bank its view first so the watch still counts.
@@ -24369,14 +24398,7 @@
         if (Reels.observer) { try { Reels.observer.disconnect(); } catch (e) { } Reels.observer = null; }
         for (var u in Reels.objUrls) { try { URL.revokeObjectURL(Reels.objUrls[u]); } catch (e) { } }
         Reels.objUrls = {};
-        feed.innerHTML = "";
-        var items = Reels.friends ? reelFeedItems() : pagerMerge123(reelFeedItems()); // [RP-V7.123] photo posts join the pager (Friends stays reels-only)
-        var barHtml = "";
-        if (Reels.tagFilter) {
-          var tf = Reels.tagFilter;
-          items = items.filter(function (it) { return reelTagsOf(it.caption).indexOf(tf) >= 0; });
-          barHtml = '<div class="reel-filterbar"><span>🎬 Reels tagged #' + escHtml(tf) + '</span><button type="button" id="btnReelClearTag"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg> Show all</button></div>';
-        }
+        feed.innerHTML = ""; // [RP-V7.251] items + barHtml are computed at the top of this function (signature guard)
         if (!items.length) {
           feed.innerHTML = barHtml + (Reels.tagFilter
             ? '<div class="mom-empty">No reels with #' + escHtml(Reels.tagFilter) + " yet — post the first one! 🎬</div>"
@@ -35445,6 +35467,7 @@ button.rp72-chip{ cursor:pointer; }
      real picture; the home previews' autoplay path is untouched
      (play() loads a held tile on its own). */
   var rpPaintQ244 = [], rpPaintActive244 = 0, rpPaintIO244 = null;
+  var rpPaintWatched244 = new Set(); // [RP-V7.251] every target rpPaintIO244 observes, so discarded ones can be swept
   var rpPaintAll244 = [], rpPaintTrickleT244 = null;
   var rpFeedAll244 = [], rpFeedTrickleT244 = null, rpFeedLastScroll244 = 0, rpFeedScrollWired244 = false;
   function rpPaintPromote244(v) {
@@ -35495,10 +35518,22 @@ button.rp72-chip{ cursor:pointer; }
      viewport's vertical band (a sideways rail on screen) promote
      together; everything else goes one per tick, and only while
      the page is visible. Bounded by the same 2-slot paint queue. */
+  /* [RP-V7.251] Renders discard whole grids/feeds at once (every
+     Photos/Reels toggle rebuilds the pager); a tile discarded
+     before promotion stayed observed by rpPaintIO244 forever, so
+     dead targets piled up across renders and every intersection
+     pass paid for them. Sweep detached targets on the trickle. */
+  function rpPaintSweep244() {
+    if (!rpPaintIO244) return;
+    rpPaintWatched244.forEach(function (v) {
+      if (!v.isConnected) { try { rpPaintIO244.unobserve(v); } catch (e) { } rpPaintWatched244.delete(v); }
+    });
+  }
   function rpPaintTrickle244() {
     if (rpPaintTrickleT244) return;
     rpPaintTrickleT244 = setInterval(function () {
       if (document.hidden) return;
+      rpPaintSweep244(); // [RP-V7.251]
       var band = [], first = null, alive = [];
       for (var i = 0; i < rpPaintAll244.length; i++) {
         var v = rpPaintAll244[i];
@@ -35528,10 +35563,12 @@ button.rp72-chip{ cursor:pointer; }
         entries.forEach(function (en) {
           if (!en.isIntersecting) return;
           rpPaintIO244.unobserve(en.target);
+          rpPaintWatched244.delete(en.target); // [RP-V7.251]
           rpPaintPromote244(en.target);
         });
       }, { rootMargin: "240px" });
     }
+    rpPaintWatched244.add(v); // [RP-V7.251]
     rpPaintIO244.observe(v);
   }
   try { window.rpPaintGate244 = rpPaintFrame243; } catch (e) { } // [RP-V7.244] module-scope export: the Reels feed delegates its card paints to this same gate
@@ -35540,6 +35577,7 @@ button.rp72-chip{ cursor:pointer; }
     if (!rpFeedScrollWired244) { rpFeedScrollWired244 = true; try { window.addEventListener("scroll", function (e) { var t = e.target; if (t === document || !t || !t.closest || t.closest("#screen-moments")) rpFeedLastScroll244 = Date.now(); }, { capture: true, passive: true }); } catch (e) { } }
     rpFeedTrickleT244 = setInterval(function () {
       if (document.hidden) return;
+      rpPaintSweep244(); // [RP-V7.251]
       if (Date.now() - rpFeedLastScroll244 < 2000) return;
       var best = null, bestD = 1e12, alive = [], anyLeft = false;
       for (var i = 0; i < rpFeedAll244.length; i++) {
