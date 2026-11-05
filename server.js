@@ -5397,11 +5397,19 @@ app.post("/api/media/view", (req, res) => {
 // no extra filtering (the 18+ gate lives at screen entry, the same
 // place /api/reels relies on it).
 // ---------------------------------------------------------------------------
-function mediaSearchReelItem(r, all, vdb) {
+function mediaSearchReelItem(r, all, vdb, uid, adb) {
   const src = r.sourceId ? all.find((x) => x.id === r.sourceId) : null;
+  // [RP-V7.241] The lightbox rail needs the author id (gift target +
+  // self check) and the reel's social state — the same fields GET
+  // /api/reels publishes. authorId resolves like everywhere else
+  // (reelAuthorKeyFor); the "name:" fallback is not an id, so an
+  // unresolvable author keeps authorId null and the client falls
+  // back to name resolution, exactly like the feed gift path.
+  const aKey241 = adb ? reelAuthorKeyFor(adb, r) : null;
   return {
     id: r.id,
     author: r.author,
+    authorId: (aKey241 && aKey241.indexOf("name:") !== 0) ? aKey241 : (r.authorId || null),
     caption: r.caption,
     createdAt: r.createdAt,
     url: "/reel-files/" + r.file,
@@ -5415,6 +5423,21 @@ function mediaSearchReelItem(r, all, vdb) {
     trimEnd: typeof r.trimEnd === "number" ? r.trimEnd : null,
     allowRemix: r.allowRemix !== false,
     views: mediaViewCount(vdb, "reel:" + r.id),
+    // [RP-V7.241] Social state for the lightbox rail — counts are
+    // public; the caller's own state rides only with a valid token
+    // (uid), the same rule GET /api/reels applies.
+    heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+    reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
+    comments: reelPublicComments(r),
+    commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
+    ...(uid
+      ? {
+          myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(uid),
+          myReposted:
+            (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid)) ||
+            (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === uid)),
+        }
+      : {}),
     reactions: rxSummarize(r.reactions, null).counts,
   };
 }
@@ -5422,6 +5445,11 @@ app.get("/api/media/search", (req, res) => {
   const q = String(req.query.q || "").trim().toLowerCase().slice(0, 80);
   const vdb = readViews();
   const adb = readAccounts();
+  // [RP-V7.241] Optional viewer: a valid token personalizes
+  // myHeart/myReposted for the lightbox rail; guests and bad
+  // tokens get exactly the public payload they always got.
+  let viewer241 = null;
+  try { viewer241 = accountForToken(adb, req); } catch (e) { viewer241 = null; }
   const byId = new Map();
   const byName = new Map();
   for (const u of adb.users) {
@@ -5448,7 +5476,7 @@ app.get("/api/media/search", (req, res) => {
     String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
   const reels = allReels
     .filter(reelHit)
-    .map((r) => mediaSearchReelItem(r, allReels, vdb))
+    .map((r) => mediaSearchReelItem(r, allReels, vdb, viewer241 ? viewer241.id : null, adb))
     .sort(byViewsThenNew)
     .slice(0, q ? 48 : 24);
   const photos = [];
@@ -7881,17 +7909,28 @@ function livePhotoForAccount(u) {
 // [RP-V7.86] Resolve one post reference ({kind, id}) to a profile tile,
 // or null when the post is gone. Shared by pins, collections and the
 // Liked tab so every profile surface renders the same tile shape.
-function profileTileForPost(kind, id, vdb, likesDb, commentsDb) {
+function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) {
   if (kind === "reel") {
     const r = listReels().find((x) => x && x.id === id);
     if (!r || !r.file) return null;
-    return { kind: "reel", id: r.id, src: "/reel-files/" + r.file, views: mediaViewCount(vdb, "reel:" + r.id), caption: r.caption || "", likes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0 };
+    const hl241 = Array.isArray(r.heartLikes) ? r.heartLikes.length : 0;
+    return { kind: "reel", id: r.id, src: "/reel-files/" + r.file, views: mediaViewCount(vdb, "reel:" + r.id), caption: r.caption || "", likes: hl241,
+      // [RP-V7.241] author + social state for the lightbox rail
+      owner: r.authorId || null, ownerName: r.author || "",
+      heartLikes: hl241, myHeart: !!uid && Array.isArray(r.heartLikes) && r.heartLikes.includes(uid),
+      comments: reelPublicComments(r), commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
+      reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
+      myReposted: !!uid && ((Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === uid))) };
   }
   if (kind === "photopost") {
     const p = readPhotoPosts().posts.find((x) => x && x.id === id);
     if (!p || !p.photo) return null;
-    const pub = photoPublicPost(p, "", likesDb, commentsDb);
-    return { kind: "photopost", id: p.id, src: p.photo, views: 0, caption: p.caption || "", likes: pub.likes || 0, photoCount: (pub.urls || []).length || 1 }; // [RP-V7.123] set size for the grid's multi-photo badge
+    const pub = photoPublicPost(p, uid || "", likesDb, commentsDb, repostsDb || { photos: {}, reshares: {} });
+    return { kind: "photopost", id: p.id, src: p.photo, views: 0, caption: p.caption || "", likes: pub.likes || 0, photoCount: (pub.urls || []).length || 1, // [RP-V7.123] set size for the grid's multi-photo badge
+      // [RP-V7.241] author + social state for the lightbox rail
+      owner: p.owner || null, ownerName: p.name || "",
+      myLiked: !!pub.myLiked, comments: pub.comments || [], commentCount: pub.commentCount || 0,
+      reposts: pub.reposts || 0, myReposted: !!pub.myReposted, mine: !!pub.mine };
   }
   return null;
 }
@@ -7966,7 +8005,15 @@ app.get("/api/social/profile", (req, res) => {
     reels = listReels()
       .filter((r) => r && r.author === target.name)
       .slice(0, 12)
-      .map((r) => ({ id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id) }));
+      .map((r) => ({ id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id),
+        // [RP-V7.241] author + social state for the lightbox rail
+        authorId: target.id,
+        heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+        myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id),
+        comments: reelPublicComments(r),
+        commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
+        reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
+        myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) }));
   } catch (e) { }
   let reelsCount = reels.length;
   try {
@@ -8029,7 +8076,7 @@ app.get("/api/social/profile", (req, res) => {
     .filter((x) => x && (x.kind === "reel" || x.kind === "photopost") && typeof x.id === "string").slice(0, 3);
   const pinnedItems = [];
   for (const pn of pinRefs) {
-    const it = profileTileForPost(pn.kind, pn.id, vdb86, likesDb86, commentsDb86);
+    const it = profileTileForPost(pn.kind, pn.id, vdb86, likesDb86, commentsDb86, repostsDb86, ctx.user.id);
     if (it) pinnedItems.push(it);
   }
   let collections = [];
@@ -8039,7 +8086,7 @@ app.get("/api/social/profile", (req, res) => {
     collections = mine86.map((c) => ({
       id: c.id, name: c.name,
       count: Array.isArray(c.items) ? c.items.length : 0,
-      items: (Array.isArray(c.items) ? c.items : []).map((it) => profileTileForPost(it.kind, it.id, vdb86, likesDb86, commentsDb86)).filter(Boolean),
+      items: (Array.isArray(c.items) ? c.items : []).map((it) => profileTileForPost(it.kind, it.id, vdb86, likesDb86, commentsDb86, repostsDb86, ctx.user.id)).filter(Boolean),
     }));
   } catch (e) { }
   const likedPrivate = !!target.likedPrivate;
@@ -8049,14 +8096,14 @@ app.get("/api/social/profile", (req, res) => {
     try {
       for (const r of listReels())
         if (r && Array.isArray(r.heartLikes) && r.heartLikes.includes(target.id)) {
-          const it = profileTileForPost("reel", r.id, vdb86, likesDb86, commentsDb86);
+          const it = profileTileForPost("reel", r.id, vdb86, likesDb86, commentsDb86, repostsDb86, ctx.user.id);
           if (it) liked.push(it);
         }
     } catch (e) { }
     try {
       for (const pid of Object.keys(likesDb86.photos || {}))
         if (Array.isArray(likesDb86.photos[pid]) && likesDb86.photos[pid].includes(target.id)) {
-          const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86);
+          const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86, repostsDb86, ctx.user.id);
           if (it) liked.push(it);
         }
     } catch (e) { }
@@ -8064,7 +8111,7 @@ app.get("/api/social/profile", (req, res) => {
       const fdb87 = readFeed();
       for (const fp of Object.values(fdb87.posts || {}))
         if (fp && fp.file && Array.isArray(fp.likes) && fp.likes.includes(target.id))
-          liked.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, src: "/photos/feed/" + fp.file, views: 0, caption: fp.text || "", likes: fp.likes.length });
+          liked.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, src: "/photos/feed/" + fp.file, views: 0, caption: fp.text || "", likes: fp.likes.length, owner: fp.authorId || null, ownerName: (ctx.db.users.find((u) => u.id === fp.authorId) || {}).name || "", feedPost: true }); // [RP-V7.241] real author + Feed-post mark for the lightbox rail
     } catch (e) { }
     liked = liked.slice(0, 36);
   }
@@ -8079,20 +8126,20 @@ app.get("/api/social/profile", (req, res) => {
       if (r && (Array.isArray(r.reposts) || Array.isArray(r.reshares)))
         for (const rp of (r.reposts || []).concat(r.reshares || [])) // [RP-V7.101] own reshares land in the Reposts tab too
           if (rp && rp.u === target.id) {
-            const it = profileTileForPost("reel", r.id, vdb86, likesDb86, commentsDb86);
+            const it = profileTileForPost("reel", r.id, vdb86, likesDb86, commentsDb86, repostsDb86, ctx.user.id);
             if (it) { it.repostedAt = rp.at || null; mine86.push(it); }
           }
     for (const pid of Object.keys(repostsDb86.photos || {})) {
       const hit = photoRepostSet(repostsDb86, pid).find((x) => x && x.u === target.id);
       if (hit) {
-        const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86);
+        const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86, repostsDb86, ctx.user.id);
         if (it) { it.repostedAt = hit.at || null; mine86.push(it); }
       }
     }
     for (const pid of Object.keys(repostsDb86.reshares || {})) { // [RP-V7.101] own photo reshares
       const hit = photoReshareSet(repostsDb86, pid).find((x) => x && x.u === target.id);
       if (hit) {
-        const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86);
+        const it = profileTileForPost("photopost", pid, vdb86, likesDb86, commentsDb86, repostsDb86, ctx.user.id);
         if (it) { it.repostedAt = hit.at || null; mine86.push(it); }
       }
     }
