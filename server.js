@@ -10225,6 +10225,12 @@ function notifyActivity(o) {
           read: false,
           n: 1,
         };
+        // [RP-V7.250] additive pass-through: a caller that knows the
+        // settled gift (the money/gift notify) stamps the record with
+        // the gift id + source. Older clients ignore the extra
+        // fields; the rendered text is unaffected.
+        if (o.giftId) rem.giftId = o.giftId;
+        if (o.giftSrc) rem.giftSrc = o.giftSrc;
         if (o.coalesceKey) rem.ck = o.coalesceKey;
         if (o.go) rem.go = o.go;
         u.reminders.push(rem);
@@ -11221,6 +11227,82 @@ const MONEY_GIFT_TABLE = {
   // $100 — id + price mirror the client's GIFT_SHOP exactly
   // (in the tier line above, after jet); catalog now 41 gifts.
 };
+// [RP-V7.250] Gift DISPLAY info — mirror of the client GIFT_SHOP's
+// name + tier (the catalog's size class: penny / small / medium / big
+// / prestige) per gift id. The recipient's gift notification names
+// the gift from THIS table, keyed by the settled giftId — a name is
+// never reconstructed from a price (several gifts share prices).
+// Every id in MONEY_GIFT_TABLE above must appear here exactly once.
+const MONEY_GIFT_INFO = {
+  heart: { name: "Heart", tier: "penny" },
+  rose: { name: "Rose", tier: "penny" },
+  coffee: { name: "Coffee", tier: "penny" },
+  icecream: { name: "Ice Cream", tier: "small" },
+  donut: { name: "Donut", tier: "small" },
+  clap: { name: "Clap", tier: "small" },
+  heartburst: { name: "Heart Burst", tier: "small" },
+  honeybee: { name: "Honey Bee", tier: "small" },
+  thunderbolt: { name: "Thunderbolt", tier: "small" },
+  bubblewand: { name: "Bubble Wand", tier: "small" },
+  fingerheart: { name: "Finger Heart", tier: "small" },
+  kiss: { name: "Kiss", tier: "small" },
+  fireworks: { name: "Fireworks", tier: "medium" },
+  motorcycle: { name: "Motorcycle", tier: "medium" },
+  goldgloves: { name: "Gold Gloves", tier: "medium" },
+  peacock: { name: "Peacock Fan", tier: "medium" },
+  sportscar: { name: "Sports Car", tier: "medium" },
+  worldtree: { name: "World Tree", tier: "medium" },
+  loveballoon: { name: "Love Balloon", tier: "medium" },
+  guardianpalm: { name: "Guardian Palm", tier: "medium" },
+  carousel: { name: "Neon Carousel", tier: "medium" },
+  airplane: { name: "Airplane", tier: "medium" },
+  moneygun: { name: "Money Gun", tier: "medium" },
+  castle: { name: "Castle", tier: "medium" },
+  volcano: { name: "Volcano", tier: "big" },
+  lion: { name: "Golden Lion", tier: "big" },
+  plazaape: { name: "Plaza Ape", tier: "big" },
+  fattuesday: { name: "Fat Tuesday Frenzy", tier: "big" },
+  dragon: { name: "Dragon", tier: "big" },
+  meteor: { name: "Meteor Shower", tier: "big" },
+  whale: { name: "Whale Dive", tier: "big" },
+  galaxy: { name: "Galaxy", tier: "big" },
+  titanclash: { name: "Titan Clash", tier: "big" },
+  rizzuniverse: { name: "Rizz Plaza Universe", tier: "big" },
+  starsurge: { name: "Star Surge", tier: "big" },
+  diamonds: { name: "Diamond Shower", tier: "big" },
+  emeraldelephant: { name: "Emerald Elephant", tier: "big" },
+  rocket: { name: "Rocket", tier: "big" },
+  ferriswheel: { name: "Ferris Wheel", tier: "big" },
+  jet: { name: "Private Jet", tier: "prestige" },
+  nebuladragon: { name: "Nebula Dragon", tier: "prestige" },
+  yacht: { name: "Golden Yacht", tier: "prestige" },
+  goldeneagle: { name: "Golden Eagle", tier: "prestige" },
+  phoenix: { name: "Phoenix Rising", tier: "prestige" },
+  pegasus: { name: "Pegasus of Light", tier: "prestige" },
+  auroracrown: { name: "Aurora Crown", tier: "prestige" },
+  universe: { name: "The Universe", tier: "prestige" },
+  ascension: { name: "Golden Ascension", tier: "prestige" },
+  supernova: { name: "Rizz Supernova", tier: "prestige" },
+  crownjewel: { name: "The Crown Jewel", tier: "prestige" },
+  plazadiamond: { name: "Plaza Diamond", tier: "prestige" },
+};
+// [RP-V7.250] The dollar-priced top ladder: the gifts the catalog
+// itself headlines by a dollar price (Rizz Supernova $750 · The Crown
+// Jewel $850 · Plaza Diamond $1,000). A NON-charms-only notification
+// for one of these states the dollar figure, formatted exactly as
+// the shop's own price label renders it (giftPriceLabel: whole
+// dollars, no decimals). Every other gift states its charm amount.
+// A charms-only gift (a teen on either side) NEVER reaches the
+// dollar branch — it states charms, always (teen honesty rule).
+const MONEY_GIFT_DOLLAR_LADDER = { supernova: 1, crownjewel: 1, plazadiamond: 1 };
+function giftAmountLabel250(unitCost, count, charmsOnly, giftId) {
+  const total = unitCost * count;
+  if (!charmsOnly && MONEY_GIFT_DOLLAR_LADDER[giftId]) {
+    const d = total / 100;
+    return "$" + (d % 1 === 0 ? String(d) : d.toFixed(2));
+  }
+  return total.toLocaleString("en-US") + (total === 1 ? " charm" : " charms");
+}
 // [RP-V7.219] HOLIDAY GIFTS — mirror of the client HOLIDAYS catalog
 // (limited-time event gifts). All 57 instances ride the one wire id
 // "hol" (see the gift handler below), so this table is keyed by the
@@ -13318,19 +13400,57 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // gift notifies exactly once.) [RP-V7.219] A batch notifies ONCE,
   // with the batch total in the text — one tap must not fire 100
   // bells/emails; every other effect of the batch is per unit.
+  // [RP-V7.250] The recipient's gift line carries ALL the details
+  // (Branden, Nov 5): WHO sent it, the gift's NAME, WHERE it was sent
+  // (the V7.233 source — "your picture" / "your video" / "in your
+  // live", stated only when the send carried a source; never
+  // invented), the gift's SIZE CLASS (its catalog tier) and HOW MUCH
+  // (giftAmountLabel250). Name + class come from MONEY_GIFT_INFO,
+  // keyed by the settled giftId — never reconstructed from price.
+  // The "hol" holiday wire id carries no instance (see the handler
+  // above), so a holiday gift has no name/class to state and keeps
+  // the generic wording with the amount in parentheses, as before.
+  const gInfo250 = MONEY_GIFT_INFO[giftId] || null;
+  const gAmt250 = giftAmountLabel250(cost, count, charmsOnly, giftId);
+  // Article agreement for the single-send phrase: "an Ice Cream",
+  // "The Crown Jewel" (the name carries its own article), else
+  // "a Rose".
+  const gSingle250 = !gInfo250
+    ? null
+    : /^the /i.test(gInfo250.name)
+      ? gInfo250.name
+      : /^[aeiou]/i.test(gInfo250.name)
+        ? "an " + gInfo250.name
+        : "a " + gInfo250.name;
+  const gQty250 = gInfo250
+    ? (count > 1 ? count + " × " + gInfo250.name : gSingle250)
+    : (count > 1 ? count + " gifts" : "a gift");
+  let gCore250;
+  if (giftSrc233 === "picture")
+    gCore250 = ctx.user.name + " sent your picture " + gQty250;
+  else if (giftSrc233 === "video")
+    gCore250 = ctx.user.name + " sent your video " + gQty250;
+  else if (giftSrc233 === "live")
+    gCore250 = ctx.user.name + " sent you " + gQty250 + " in your live";
+  else gCore250 = ctx.user.name + " sent you " + gQty250;
+  if (gInfo250) gCore250 += " · " + gInfo250.tier + " · " + gAmt250;
+  else gCore250 += " (" + gAmt250 + ")";
   notifyActivity({
     toId: recipient.id,
     kind: "gift",
     actorId: ctx.user.id,
     actorName: ctx.user.name,
-    text: count > 1
-      ? "🎁 " + ctx.user.name + " sent you " + count + " gifts (" + totalCost + " charms)!"
-      : "🎁 " + ctx.user.name + " sent you a gift (" + cost + " charms)!",
+    text: "🎁 " + gCore250 + "!",
     emailSubject: "You got a gift on Rizz Plaza 🎁",
-    emailText: count > 1
-      ? ctx.user.name + " sent you " + count + " gifts (" + totalCost + " charms) on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team"
-      : ctx.user.name + " sent you a gift (" + cost + " charms) on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    emailText: gCore250 + " on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
     go: { screen: "ownprofile" },
+    // [RP-V7.250] the settled gift id + source ride the reminder
+    // record (notifyActivity persists them when present) so future
+    // records carry WHICH gift it was — records written before this
+    // version carry only their composed text and cannot be named
+    // retroactively.
+    giftId,
+    giftSrc: giftSrc233,
   });
   res.json(giftResponse);
 }));
