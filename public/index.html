@@ -9487,33 +9487,88 @@
       // [RP-V7.86] Photo-post viewer for profile grids: the server
       // post with its caption, like count and comments (from the
       // profile payload), in the sheet.
+      // [RP-V7.241] Photo share for the profile photo-post viewer:
+      // the same navigator.share -> clipboard -> toast cascade
+      // reelShare uses, with photo wording.
+      function rpPhotoShare241(author, caption) {
+        var text = "📸 " + (caption ? caption + " — " : "") + "check out this photo on Rizz Plaza";
+        var url = "https://rizzplaza.com";
+        if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+          navigator.share({ title: "Rizz Plaza 📸 Photo", text: text, url: url }).catch(function () { });
+          return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text + "\n" + url).then(
+            function () { toast("Invite copied — paste it anywhere to share! 🔗"); },
+            function () { toast("Copy this link to share: " + url); });
+          return;
+        }
+        toast("Copy this link to share: " + url);
+      }
       function rpOpenPhotoPost86(j, it) {
-        var post = null;
-        (j.photoPosts || []).forEach(function (pp) { if (pp.id === it.id) post = pp; });
+        var post = null, postFull = false;
+        (j.photoPosts || []).forEach(function (pp) { if (pp.id === it.id) { post = pp; postFull = true; } });
         if (!post) (j.pinnedItems || []).forEach(function (pp) { if (pp.id === it.id) post = { photo: pp.src, caption: pp.caption, likes: pp.likes, comments: [] }; });
         var src = post ? post.photo : it.src;
         var likes = post ? (post.likes || 0) : (it.likes || 0);
         var cap = post ? (post.caption || "") : (it.caption || "");
         var comments = post && Array.isArray(post.comments) ? post.comments : [];
         var ch = comments.map(function (c) { return '<p style="margin:6px 0;"><b>' + escHtml(c.name || "") + '</b> ' + escHtml(c.text || "") + '</p>'; }).join("");
+        // [RP-V7.241] The feed photo card's rail — heart, comment,
+        // Gift, Share, repost down the right edge — wired to the
+        // same handlers rpPhotoCard123 uses. The static ❤ line is
+        // gone: the rail's heart carries the live count now.
+        // (Foreign posts from the Liked/Reposts tabs resolve their
+        // fields from the tile item, which the server now stamps
+        // with the real author.)
+        var fi241 = {
+          postId: it.id,
+          author: postFull ? (post.author || j.name || "") : (it.ownerName || (post ? (post.author || "") : "")),
+          authorId: postFull ? j.id : (it.owner || null),
+          caption: cap,
+          likes: likes,
+          myLiked: postFull ? !!post.myLiked : !!it.myLiked,
+          comments: postFull ? comments : (Array.isArray(it.comments) ? it.comments : comments),
+          commentCount: postFull ? (post.commentCount || comments.length) : (it.commentCount || 0),
+          reposts: postFull ? (post.reposts || 0) : (it.reposts || 0),
+          myReposted: postFull ? !!post.myReposted : !!it.myReposted,
+        };
+        fi241.mine = !!fi241.authorId && fi241.authorId === Online.myId;
+        var rail241 =
+          '<button class="reel-act like pp-heart' + (fi241.myLiked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + fi241.likes + "</span></button>" +
+          '<button class="reel-act cmt pp-cmt" type="button">' + RPICO.comment + '<span class="cc">' + fi241.commentCount + "</span></button>" +
+          (fi241.mine ? "" : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + "<span>Gift</span></button>") +
+          '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" +
+          '<button class="reel-act repost pp-repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>";
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
           '<div class="task-head"><h3>📸 Photo post</h3></div>' +
-          '<img src="' + escHtml(src) + '" alt="" style="width:100%; border-radius:12px; display:block; background:#000;">' +
+          '<div style="position:relative;"><img src="' + escHtml(src) + '" alt="" style="width:100%; border-radius:12px; display:block; background:#000;">' +
+          '<div class="reel-rail">' + rail241 + "</div></div>" +
           (cap ? '<p style="margin:10px 0 0;">' + escHtml(cap) + '</p>' : "") +
-          '<p style="margin:8px 0 0; font-weight:800;">❤ ' + likes + ' likes</p>' +
           (comments.length ? '<div style="margin-top:10px; text-align:left;">' + ch + '</div>' : "")
         );
         $("sheet").querySelectorAll("[data-act]").forEach(function (b) {
           b.addEventListener("click", function () { if (b.getAttribute("data-act") === "close") closeSheet(); });
         });
+        var sheet241 = $("sheet");
+        var hb241 = sheet241.querySelector(".pp-heart"); if (hb241) hb241.addEventListener("click", function () { photoLikeToggle123(fi241, hb241); });
+        var cb241 = sheet241.querySelector(".pp-cmt"); if (cb241) cb241.addEventListener("click", function () { openPhotoComments123(fi241); });
+        var gb241 = sheet241.querySelector(".pp-gift"); if (gb241) gb241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, { src: "picture" }); });
+        var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption); });
+        var rb241 = sheet241.querySelector(".pp-repost"); if (rb241) rb241.addEventListener("click", function () { photoRepostToggle123(fi241, rb241); });
       }
       function rpProfOpen86(j, it, upd) {
         if (it.kind === "photopost") { rpOpenPhotoPost86(j, it); return; }
         if (window.rpViewsOpenPhoto) window.rpViewsOpenPhoto(it, upd);
       }
       function rpReelOpen86(p) {
-        return function (it, upd) { rpOpenReelPlayer(it.src, p, { id: it.id, owner: it.owner, views: it.views, onCount: upd }); };
+        return function (it, upd) { rpOpenReelPlayer(it.src, p, { id: it.id, owner: it.owner, views: it.views, onCount: upd,
+          // [RP-V7.241] rail data: the author + social state the grid item already carries
+          ownerName: it.ownerName || p.name || "", caption: it.caption || "",
+          heartLikes: typeof it.heartLikes === "number" ? it.heartLikes : (it.likes || 0), myHeart: !!it.myHeart,
+          comments: Array.isArray(it.comments) ? it.comments : [], commentCount: it.commentCount || 0,
+          reposts: it.reposts || 0, myReposted: !!it.myReposted, feedPost: !!it.feedPost }); };
       }
       function rpRenderColls86(p, j, isSelf) {
         var host = $("pprofColls"); if (!host) return;
@@ -9752,11 +9807,42 @@
         if (!url) return;
         var viewsHtml = (meta && meta.id && window.fmtViews)
           ? '<span class="rpmedia-player-count" data-rpvcount>👁 ' + window.fmtViews(meta.views || 0) + "</span>" : "";
+        // [RP-V7.241] The feed reel rail — heart, comment, Gift,
+        // Share, repost down the right edge — wired to the same
+        // handlers reelCard uses. (Feed-post videos get Gift +
+        // Share only: their engagement lives in the Feed store.)
+        var fi241 = null, railHtml241 = "";
+        if (meta && meta.id && (meta.owner || meta.ownerName)) {
+          fi241 = { server: true, id: meta.id, key: "lb241:" + meta.id, author: meta.ownerName || p.name || "", authorId: meta.owner || null, caption: meta.caption || "", mine: !!meta.owner && meta.owner === Online.myId, myHeart: !!meta.myHeart, heartLikes: meta.heartLikes || 0, comments: Array.isArray(meta.comments) ? meta.comments : [], commentCount: meta.commentCount || 0, reposts: meta.reposts || 0, myReposted: !!meta.myReposted };
+          if (meta.feedPost) {
+            railHtml241 = (fi241.mine ? "" : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + "<span>Gift</span></button>") +
+              '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>";
+          } else {
+            var lk241 = reelLikeState(fi241);
+            railHtml241 =
+              '<button class="reel-act like' + (lk241.liked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + lk241.count + "</span></button>" +
+              '<button class="reel-act cmt" type="button">' + RPICO.comment + '<span class="cc">' + fi241.commentCount + "</span></button>" +
+              (fi241.mine ? "" : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + "<span>Gift</span></button>") +
+              '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" +
+              '<button class="reel-act repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>";
+          }
+          railHtml241 = '<div class="reel-rail">' + railHtml241 + "</div>";
+        }
         openSheet(
           '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-          '<div class="pprof-player"><div class="rpmedia-player"><video src="' + escHtml(url) + '" controls autoplay playsinline></video>' + viewsHtml + '</div>' +
+          '<div class="pprof-player"><div class="rpmedia-player"><video src="' + escHtml(url) + '" controls autoplay playsinline></video>' + viewsHtml + railHtml241 + '</div>' +
           '<div><button type="button" class="btn-mini" data-act="backprof">← Back to ' + escHtml(p.name) + '\u2019s profile</button></div></div></div>'
         );
+        if (fi241) { // [RP-V7.241] wire the rail to the feed handlers
+          var wrap241 = $("sheet").querySelector(".rpmedia-wrap");
+          if (wrap241) {
+            var hb241 = wrap241.querySelector(".like"); if (hb241) hb241.addEventListener("click", function () { reelToggleLike(fi241, wrap241); });
+            var cb241 = wrap241.querySelector(".cmt"); if (cb241) cb241.addEventListener("click", function () { openReelComments(fi241); });
+            var gb241 = wrap241.querySelector(".pp-gift"); if (gb241) gb241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, { src: "video" }); });
+            var sb241 = wrap241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { reelShare(fi241); });
+            var rb241 = wrap241.querySelector(".repost"); if (rb241) rb241.addEventListener("click", function () { reelToggleRepost(fi241, wrap241); });
+          }
+        }
         $("sheet").querySelectorAll("[data-act]").forEach(function (b) {
           b.addEventListener("click", function () {
             var act = b.getAttribute("data-act");
@@ -21055,6 +21141,7 @@
         n.classList.add("show");
       }
       window.rpGiftNotEnough = giftNotEnough; // [RP-V7.26.1] the money layer's insufficient-charms path calls this too
+      window.openGiftSheet = openGiftSheet; // [RP-V7.241] the rpmedia lightbox rail (a separate module) opens this same sheet through window
       // [RP-V7.39] own-live preview: tapping a gift in your own live sends
       // nothing — the same in-sheet notice slot explains whose catalog it is.
       function giftSelfNote(g) {
@@ -24621,6 +24708,20 @@
         }
         toast("Copy this link to share: " + url);
       }
+      // [RP-V7.241] Bridges for the rpmedia lightbox rail: the photo /
+      // reel viewers in the V7.64 module are a separate scope, so the
+      // feed handlers they must reuse ride window — the SAME
+      // functions the feed cards call, never copies.
+      window.rpFeedActs241 = {
+        photoLike: photoLikeToggle123,
+        photoComments: openPhotoComments123,
+        photoRepost: photoRepostToggle123,
+        reelLikeState: reelLikeState,
+        reelToggleLike: reelToggleLike,
+        reelComments: openReelComments,
+        reelShare: reelShare,
+        reelToggleRepost: reelToggleRepost,
+      };
 
       /* ---- Photos / Reels mode toggle ---- */
       function setMomMode(mode) {
@@ -27681,7 +27782,7 @@ window.RpShowDur = rpDurFor;
 /* Portrait-raster stage films (720x1280): the stage box takes the
    film's own aspect instead of the 16/9 landscape box. nebuladragon
    is scene-class (cover), so only titanclash needs the class. */
-var RP_PORTRAIT_FILMS = { titanclash: 1 };
+var RP_PORTRAIT_FILMS = { titanclash: 1, plazaape: 1 }; /* [RP-V7.241] +plazaape — Plaza Ape film gets the portrait treatment (Branden, Nov 4: "Fix the Ape") */
 /* [spec §2.4/§9.3] per-gift replay flag: one-play-per-streak exists
    as a mechanism (rpBigStage honors it) but NO Rizz gift is measured
    into that class — Rizz defaults to replay-per-send, so this map is
@@ -34419,6 +34520,10 @@ button.rp72-chip{ cursor:pointer; }
 .rpmedia-wrap { position: relative; }
 .rpmedia-x { position: absolute; top: -2px; right: 0; z-index: 10; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(28,28,38,.94); color: #fff; font-size: 16px; font-weight: 800; cursor: pointer; pointer-events: auto; box-shadow: 0 2px 10px rgba(0,0,0,.45); }
 .rpmedia-player { clear: both; }
+/* [RP-V7.241] Lightbox action rail: the feed cards' right-edge
+   placement — lifted inside players so it clears the native
+   video controls bar. */
+.rpmedia-player .reel-rail { bottom: 56px; }
 .pprof-x { position: absolute; top: -2px; right: 0; z-index: 10; float: none; }
 
 .reel-views { display: inline-block; margin-top: 6px; color: #fff; font-size: 13px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
@@ -34493,7 +34598,7 @@ button.rp72-chip{ cursor:pointer; }
     var media = it.kind === "reel"
       ? '<video src="' + esc(it.src || "") + '" muted playsinline preload="metadata"></video><span class="rpmedia-play">▶</span>'
       : '<img src="' + esc(it.src || "") + '" alt=""/>';
-    return '<button type="button" class="rpmedia-tile" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpsrc="' + esc(it.src || "") + '" data-rpviews="' + (it.views || 0) + '">' + media + (it.photoCount > 1 ? '<span class="rpmedia-multi">▦ ×' + it.photoCount + "</span>" : "") /* [RP-V7.123] */ + '<span class="rpmedia-views">👁 ' + fmtViews(it.views || 0) + "</span></button>";
+    return '<button type="button" class="rpmedia-tile" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpownername="' + esc(it.ownerName || "") + '" data-rpsrc="' + esc(it.src || "") + '" data-rpviews="' + (it.views || 0) + '">' + media + (it.photoCount > 1 ? '<span class="rpmedia-multi">▦ ×' + it.photoCount + "</span>" : "") /* [RP-V7.123] */ + '<span class="rpmedia-views">👁 ' + fmtViews(it.views || 0) + "</span></button>";
   }
   window.rpViewsTileHTML = tileHTML;
   function wireSheetClose() {
@@ -34509,14 +34614,142 @@ button.rp72-chip{ cursor:pointer; }
       if (ov && ov.classList.contains("open")) ov.classList.remove("open"); // [RP-V7.114] force-close fallback
     });
   }
+  /* [RP-V7.241] THE LIGHTBOX RAIL (Branden, Nov 4: "there's no
+     gifting or any other icons available" — then his circled Home
+     photo card: THESE icons, THIS order). openPhoto / openReel
+     carried no actions at all; the feed cards carry heart+count,
+     comment+count, Gift, Share, repost+count down the right edge.
+     The viewers below render that exact rail — same .reel-rail /
+     .reel-act classes, same RPICO line icons, same order — and
+     wire every button to the SAME handlers the feed cards call
+     (the feed module bridges them on window.rpFeedActs241; the
+     gift sheet is window.openGiftSheet). What a given item can
+     honestly wire depends on what the item IS:
+       - photo POSTS (kind "photopost": a real post id, social
+         fields riding the payload) get the full five;
+       - server REELS get the full five;
+       - gallery photos (their id is the photo URL — there is no
+         post record) and Feed posts (their engagement lives in
+         the Feed store, not the photo/reel stores) get Gift +
+         Share only: photo like/comment key off a post id
+         (reelCleanId strips a URL to a meaningless key, and no
+         payload anywhere reads gallery-photo likes/comments
+         back), and /api/photo/repost 404s for anything that is
+         not a real post — rendering those three buttons here
+         would paint numbers no surface could ever confirm.
+     Gift is hidden on the viewer's own posts (the feed cards'
+     !item.mine rule); the gift sheet's self-preview and the
+     server's "You can't gift yourself" stay as backstops. */
+  function lbIco241(name) { return (window.RPICO && window.RPICO[name]) || ""; }
+  function lbShare241(icon, noun, caption) {
+    var text = icon + " " + (caption ? caption + " — " : "") + "check out this " + noun + " on Rizz Plaza";
+    var url = "https://rizzplaza.com";
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      navigator.share({ title: "Rizz Plaza " + noun, text: text, url: url }).catch(function () { });
+      return;
+    }
+    function copied() { try { if (window.toast) window.toast("Invite copied — paste it anywhere to share! 🔗"); } catch (e) { } }
+    function fallback() { try { if (window.toast) window.toast("Copy this link to share: " + url); } catch (e) { } }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text + "\n" + url).then(copied, fallback);
+      return;
+    }
+    fallback();
+  }
+  function lbGiftBtn241() { return '<button class="reel-act gift pp-gift" type="button">' + lbIco241("gift") + "<span>Gift</span></button>"; }
+  function lbShareBtn241() { return '<button class="reel-act share pp-share" type="button">' + lbIco241("share") + "<span>Share</span></button>"; }
+  function lbMine241(ownerId, ownerName) {
+    var myId = myAccountId();
+    if (ownerId && myId && String(ownerId) === String(myId)) return true;
+    if (!ownerId && ownerName) {
+      var a = acct();
+      var myName = (a && (a.name || (a.user && a.user.name))) || "";
+      if (myName && ownerName === myName) return true;
+    }
+    return false;
+  }
+  function railForPhoto241(it) {
+    var ownerId = it.owner || null;
+    var ownerName = it.ownerName || "";
+    var mine = lbMine241(ownerId, ownerName);
+    var isPost = it.kind === "photopost" && !!it.id && !it.feedPost;
+    var fi = null, html = "";
+    if (isPost) {
+      fi = { postId: it.id, author: ownerName, authorId: ownerId, caption: it.caption || "", likes: it.likes || 0, myLiked: !!it.myLiked, comments: Array.isArray(it.comments) ? it.comments : [], commentCount: it.commentCount || 0, reposts: it.reposts || 0, myReposted: !!it.myReposted, mine: mine };
+      html += '<button class="reel-act like pp-heart' + (fi.myLiked ? " liked" : "") + '" type="button">' + lbIco241("heart") + '<span class="lc">' + fi.likes + "</span></button>";
+      html += '<button class="reel-act cmt pp-cmt" type="button">' + lbIco241("comment") + '<span class="cc">' + fi.commentCount + "</span></button>";
+    }
+    if ((ownerId || ownerName) && !mine) html += lbGiftBtn241();
+    html += lbShareBtn241();
+    if (isPost) html += '<button class="reel-act repost pp-repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + fi.reposts + "</span></button>";
+    return {
+      html: html ? '<div class="reel-rail">' + html + "</div>" : "",
+      wire: function (root) {
+        if (!root) return;
+        var acts = window.rpFeedActs241 || {};
+        if (fi) {
+          var h = root.querySelector(".pp-heart"); if (h && acts.photoLike) h.addEventListener("click", function () { acts.photoLike(fi, h); });
+          var c = root.querySelector(".pp-cmt"); if (c && acts.photoComments) c.addEventListener("click", function () { acts.photoComments(fi); });
+          var r = root.querySelector(".pp-repost"); if (r && acts.photoRepost) r.addEventListener("click", function () { acts.photoRepost(fi, r); });
+        }
+        var g = root.querySelector(".pp-gift");
+        if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "picture" }); });
+        var s = root.querySelector(".pp-share");
+        if (s) s.addEventListener("click", function () { lbShare241("📸", "photo", isPost ? (it.caption || "") : ""); });
+      },
+    };
+  }
+  function railForReel241(it) {
+    var ownerId = it.owner || null;
+    var ownerName = it.ownerName || "";
+    var mine = lbMine241(ownerId, ownerName);
+    if (it.feedPost) {
+      // A Feed video post: its engagement lives in the Feed store,
+      // not the reel store — Gift + Share only (module note above).
+      var fhtml = "";
+      if ((ownerId || ownerName) && !mine) fhtml += lbGiftBtn241();
+      fhtml += lbShareBtn241();
+      return {
+        html: fhtml ? '<div class="reel-rail">' + fhtml + "</div>" : "",
+        wire: function (root) {
+          if (!root) return;
+          var g = root.querySelector(".pp-gift");
+          if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "video" }); });
+          var s = root.querySelector(".pp-share");
+          if (s) s.addEventListener("click", function () { lbShare241("🎬", "Reel", ""); });
+        },
+      };
+    }
+    var acts = window.rpFeedActs241 || {};
+    var fi = { server: true, id: it.id, key: "lb241:" + it.id, author: ownerName, authorId: ownerId, caption: it.caption || "", mine: mine, myHeart: !!it.myHeart, heartLikes: (typeof it.heartLikes === "number" ? it.heartLikes : (it.likes || 0)), comments: Array.isArray(it.comments) ? it.comments : [], commentCount: it.commentCount || 0, reposts: it.reposts || 0, myReposted: !!it.myReposted };
+    var lk = acts.reelLikeState ? acts.reelLikeState(fi) : { liked: !!fi.myHeart, count: fi.heartLikes || 0 };
+    var html = '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">' + lbIco241("heart") + '<span class="lc">' + lk.count + "</span></button>";
+    html += '<button class="reel-act cmt" type="button">' + lbIco241("comment") + '<span class="cc">' + fi.commentCount + "</span></button>";
+    if ((ownerId || ownerName) && !mine) html += lbGiftBtn241();
+    html += lbShareBtn241();
+    html += '<button class="reel-act repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + fi.reposts + "</span></button>";
+    return {
+      html: '<div class="reel-rail">' + html + "</div>",
+      wire: function (root) {
+        if (!root) return;
+        var h = root.querySelector(".like"); if (h && acts.reelToggleLike) h.addEventListener("click", function () { acts.reelToggleLike(fi, root); });
+        var c = root.querySelector(".cmt"); if (c && acts.reelComments) c.addEventListener("click", function () { acts.reelComments(fi); });
+        var g = root.querySelector(".pp-gift"); if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "video" }); });
+        var s = root.querySelector(".pp-share"); if (s && acts.reelShare) s.addEventListener("click", function () { acts.reelShare(fi); });
+        var r = root.querySelector(".repost"); if (r && acts.reelToggleRepost) r.addEventListener("click", function () { acts.reelToggleRepost(fi, root); });
+      },
+    };
+  }
   function openPhoto(it, upd) {
     if (typeof window.openSheet !== "function") return;
+    var rail241 = railForPhoto241(it); // [RP-V7.241]
     window.openSheet(
       '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
       '<div class="rpmedia-photo-view"><img src="' + esc(it.src || "") + '" alt=""/>' +
-      '<span class="rpmedia-photo-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span></div></div>"
+      '<span class="rpmedia-photo-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span>" + rail241.html + "</div></div>"
     );
     wireSheetClose();
+    rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
     var span = document.querySelector("[data-rpvcount]");
     rpViewsPing("photo", it.id, it.owner, function (n) {
       if (span) span.textContent = "👁 " + fmtViews(n);
@@ -34526,12 +34759,14 @@ button.rp72-chip{ cursor:pointer; }
   window.rpViewsOpenPhoto = openPhoto;
   function openReel(it, upd) {
     if (typeof window.openSheet !== "function") return;
+    var rail241 = railForReel241(it); // [RP-V7.241]
     window.openSheet(
       '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
       '<div class="rpmedia-player"><video src="' + esc(it.src || "") + '" controls autoplay playsinline></video>' +
-      '<span class="rpmedia-player-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span></div></div>"
+      '<span class="rpmedia-player-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span>" + rail241.html + "</div></div>"
     );
     wireSheetClose();
+    rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
     var span = document.querySelector("[data-rpvcount]");
     rpViewsPing("reel", it.id, null, function (n) {
       if (span) span.textContent = "👁 " + fmtViews(n);
@@ -34544,11 +34779,16 @@ button.rp72-chip{ cursor:pointer; }
     if (!el) return;
     if (!items || !items.length) { el.innerHTML = opts.emptyHtml || ""; return; }
     el.innerHTML = items.map(tileHTML).join("");
-    el.querySelectorAll(".rpmedia-tile").forEach(function (tb) {
+    el.querySelectorAll(".rpmedia-tile").forEach(function (tb, ix) {
+      // [RP-V7.241] keep the full item on the tile: the data
+      // attributes carry only the tile fields, but the lightbox
+      // rail needs the item's owner name + social state. The
+      // attribute rebuild stays as the fallback.
+      if (items[ix]) tb._rpItem241 = items[ix];
       tb.addEventListener("click", function () {
-        var it = {
+        var it = tb._rpItem241 || {
           kind: tb.getAttribute("data-rpkind"), id: tb.getAttribute("data-rpid"),
-          owner: tb.getAttribute("data-rpowner"), src: tb.getAttribute("data-rpsrc"),
+          owner: tb.getAttribute("data-rpowner"), ownerName: tb.getAttribute("data-rpownername") || "", src: tb.getAttribute("data-rpsrc"),
           views: parseInt(tb.getAttribute("data-rpviews") || "0", 10) || 0,
         };
         var viewsEl = tb.querySelector(".rpmedia-views");
@@ -34566,10 +34806,12 @@ button.rp72-chip{ cursor:pointer; }
   function itemsFromProfile(j) {
     var items = [];
     (j.photos || []).forEach(function (url) {
-      items.push({ kind: "photo", id: url, owner: j.id, src: url, views: (j.photoViews && j.photoViews[url]) || 0 });
+      items.push({ kind: "photo", id: url, owner: j.id, ownerName: j.name || "", src: url, views: (j.photoViews && j.photoViews[url]) || 0 });
     });
     (j.reels || []).forEach(function (r) {
-      items.push({ kind: "reel", id: r.id, owner: j.id, src: r.url || "", views: r.views || 0 });
+      items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", views: r.views || 0,
+        // [RP-V7.241] rail state rides along for the lightbox
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted });
     });
     return items;
   }
@@ -34580,8 +34822,10 @@ button.rp72-chip{ cursor:pointer; }
   // the profile page so both render the same profile.
   function profItems(j) {
     var items = itemsFromProfile(j);
-    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, src: pp.photo, views: 0, photoCount: (pp.urls || []).length || 1 /* [RP-V7.123] */ }); });
-    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, src: fp.src, views: fp.views || 0 }); }); // [RP-V7.109] their Feed posts too — all posts they made
+    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, views: 0, photoCount: (pp.urls || []).length || 1 /* [RP-V7.123] */,
+      // [RP-V7.241] the full feed-item shape, for the lightbox rail
+      caption: pp.caption || "", likes: pp.likes || 0, myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: pp.commentCount || 0, reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine }); });
+    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, views: fp.views || 0, feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
     var order = {}; (j.pins || []).forEach(function (pn, ix) { order[pn.kind + ":" + pn.id] = ix; });
     var pinned = [], rest = [];
     items.forEach(function (it) { (order[it.kind + ":" + it.id] !== undefined ? pinned : rest).push(it); });
@@ -34729,10 +34973,12 @@ button.rp72-chip{ cursor:pointer; }
   function mix(j) {
     var items = [];
     (j.reels || []).forEach(function (r) {
-      items.push({ kind: "reel", id: r.id, owner: null, src: r.url || "", views: r.views || 0, createdAt: r.createdAt || "" });
+      items.push({ kind: "reel", id: r.id, owner: r.authorId || null, ownerName: r.author || "", src: r.url || "", views: r.views || 0, createdAt: r.createdAt || "",
+        // [RP-V7.241] rail state rides along for the lightbox
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted });
     });
     (j.photos || []).forEach(function (p) {
-      items.push({ kind: "photo", id: p.url, owner: p.ownerId, src: p.url, views: p.views || 0, createdAt: "" });
+      items.push({ kind: "photo", id: p.url, owner: p.ownerId, ownerName: p.ownerName || "", src: p.url, views: p.views || 0, createdAt: "" });
     });
     items.sort(function (a, b) {
       if (b.views !== a.views) return b.views - a.views;
@@ -34765,7 +35011,12 @@ button.rp72-chip{ cursor:pointer; }
     var q = input.value.trim();
     var my = ++seq;
     var url = "/api/media/search" + (q ? "?q=" + encodeURIComponent(q) : "");
-    fetch(url)
+    // [RP-V7.241] send the account token when there is one — the
+    // endpoint personalizes myHeart/myReposted for the lightbox
+    // rail (guests search exactly as before).
+    var tok65 = "";
+    try { var a65 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); tok65 = (a65 && a65.token) || ""; } catch (e) { }
+    fetch(url, tok65 ? { headers: { "Authorization": "Bearer " + tok65 } } : undefined)
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         if (!engaged || my !== seq) return;
