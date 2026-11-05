@@ -9402,6 +9402,62 @@ app.delete("/api/feed/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+// [RP-V7.243] Delete your own reel / photo post (Branden, Nov 5):
+// the reel and photo-post stores had no delete path at all (only
+// Feed-store posts and Stories did), which is how a mis-posted
+// reel could not be removed. Both routes mirror the feed delete
+// above: requireAccount, 404 unknown id, 403 not yours, record
+// removed, file unlinked, { ok: true }. The app owner
+// (rpOwnerUserId) may also delete — the Plaza's own posts are
+// cleared from the owner's account.
+app.delete("/api/reel/:id", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const list = listReels();
+  const r = list.find((x) => x && String(x.id) === String(req.params.id));
+  if (!r) return res.status(404).json({ ok: false, error: "Reel not found" });
+  const isOwner = rpOwnerUserId(readAccounts()) === ctx.user.id;
+  const isAuthor = (r.authorId && r.authorId === ctx.user.id)
+    || (!r.authorId && r.author && r.author === ctx.user.name);
+  if (!isAuthor && !isOwner)
+    return res.status(403).json({ ok: false, error: "That's not your reel" });
+  const keep = list.filter((x) => x !== r);
+  const tmp = REELS_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(keep, null, 2));
+  fs.renameSync(tmp, REELS_FILE);
+  if (r.file) fs.unlink(path.join(REELS_DIR, String(r.file)), () => {});
+  res.json({ ok: true });
+});
+app.delete("/api/photo/:id", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readPhotoPosts();
+  const p = db.posts.find((x) => x && String(x.id) === String(req.params.id));
+  if (!p) return res.status(404).json({ ok: false, error: "Photo not found" });
+  const adb = readAccounts();
+  const isOwner = rpOwnerUserId(adb) === ctx.user.id;
+  if (p.owner !== ctx.user.id && !isOwner)
+    return res.status(403).json({ ok: false, error: "That's not your photo" });
+  db.posts = db.posts.filter((x) => x !== p);
+  writePhotoPosts(db);
+  // Unlink the post's files only when nothing else references
+  // them: a URL the member also keeps in their gallery, or one
+  // another post still uses, survives — only the record dies.
+  const fileOf = (u) => {
+    const i = String(u || "").indexOf("/photos/");
+    return i >= 0 ? String(u).slice(i + "/photos/".length) : null;
+  };
+  const stillUsed = new Set();
+  db.posts.forEach((q) => photoUrlsOf123(q).forEach((u) => { const f = fileOf(u); if (f) stillUsed.add(f); }));
+  const ownerRec = (adb.users || []).find((u) => u && u.id === p.owner);
+  if (ownerRec) accountPhotos(ownerRec).forEach((u) => { const f = fileOf(u); if (f) stillUsed.add(f); });
+  photoUrlsOf123(p).forEach((u) => {
+    const f = fileOf(u);
+    if (f && !f.includes("/") && !stillUsed.has(f)) fs.unlink(path.join(PHOTO_DIR, f), () => {});
+  });
+  res.json({ ok: true });
+});
+
 // [RP-V7.68] DM media (Branden, Oct 26: "when you click the message
 // button have a way you can send pictures to them and videos").
 // Files live under PHOTO_DIR/dm and ride the existing /photos static
