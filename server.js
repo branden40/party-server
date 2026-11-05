@@ -11612,6 +11612,1015 @@ app.get("/api/bizads", (req, res) => {
   }
   res.json({ ok: true, ads });
 });
+// ---------------------------------------------------------------------------
+// [RP-V7.240] PLAZA STORE (Branden, Nov 4, 2026: "a new start up store
+// where people can sell products — no auction, that's another card").
+// A brand-new MEMBER marketplace: any signed-in adult member can list
+// products at a FIXED price (buy-it-now — there is no bidding anywhere
+// in the store; auctions stay in their own section, untouched), and
+// any signed-in adult can buy through the SAME Stripe Checkout rail
+// as charm packs / Premium / Business Ads (platform-collected,
+// inline price_data, webhook-settled). The seller keeps 90% and the
+// Plaza keeps 10% — the auction split (STORE_HOST_PCT mirrors
+// AUCTION_HOST_PCT). The net lands in the seller's EXISTING money
+// earnings (the same availableCents cash-out uses — cash-out itself
+// stays gated behind Stripe Connect exactly like every other stream;
+// no new payout path is built here). Sales write a "store-sale" tx
+// (cents = gross, cut = the Plaza's 10%) so the owner sales board and
+// the Earn history carry the stream like every other stream.
+//
+// HARD BOUNDS from the order:
+//   - NONE of the owner's products: the store starts EMPTY. Nothing
+//     is seeded, nothing is imported from Magniphiscents, and the
+//     hidden in-Plaza Magniphiscents store (RP_MAGNI_STORE_OWNER_ONLY
+//     switch, ownerStore totals) is untouched — this is a separate
+//     surface with its own data file (store.json beside money.json).
+//   - 18+ ONLY, server-enforced on every route below with the same
+//     ageFromDob gate the other money doors use: an under-18 account
+//     cannot browse, list, buy, connect or sync. Checkout is also
+//     behind that gate, like /api/money/checkout.
+//   - NO COUNTERFEITS (Branden's standing day-one seller rule): the
+//     listing form and every store-connect flow require the seller to
+//     confirm their items are genuine before anything is created.
+//   - Church rooms / Teen Hangout carry no store surfaces: the store
+//     is its own screen and nothing here injects pins or cards into
+//     rooms or the Feed.
+//
+// CONNECT A STORE (Branden, Nov 4, 2026: "add where people can
+// connect their Shopify store or any other stores that connects to
+// apps" + "add the easier ones that will connect to my store").
+// One generic connector interface — connect → import → sync (re-sync
+// refreshes price/stock and retires listings whose product vanished
+// from the source store) — with identical listing results: imported
+// listings are normal listings (same 90/10, same Buy flow, same
+// no-counterfeits confirmation taken at connect time). Four
+// platforms ship; only the ones that genuinely work are surfaced as
+// working:
+//   - WooCommerce — FULLY REAL. The seller generates REST API keys
+//     in their own store (WooCommerce → Settings → Advanced → REST
+//     API) and pastes store URL + key + secret here. No Plaza-side
+//     app registration exists for this pattern, so it works today.
+//     Keys are CREDENTIALS: stored server-side in store.json only,
+//     never returned by any endpoint, never logged.
+//   - Shopify / Etsy / Square — OAuth flows BUILT TO THE CREDENTIAL
+//     GATE: per-seller OAuth needs a registered developer app FOR
+//     THE PLAZA on each platform (client id + secret in env:
+//     SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET, ETSY_CLIENT_ID /
+//     ETSY_CLIENT_SECRET, SQUARE_CLIENT_ID / SQUARE_CLIENT_SECRET).
+//     Until those exist, /api/store/connect/state reports
+//     configured:false and the begin routes answer
+//     "<platform>-not-configured" — the client says plainly that the
+//     connect is being set up. Nothing pretends to connect.
+// ---------------------------------------------------------------------------
+const STORE_FILE =
+  process.env.STORE_FILE || path.join(path.dirname(PHOTO_DIR), "store.json");
+const STORE_HOST_PCT = 90; // seller share — the auction split; Plaza cut 10%
+const STORE_TITLE_MAX = 120;
+const STORE_DESC_MAX = 1000;
+const STORE_PRICE_MIN_CENTS = 50; // $0.50 floor — below that fees eat the sale
+const STORE_PRICE_MAX_CENTS = 1000000; // $10,000 ceiling per item
+const STORE_QTY_MAX = 100000;
+const STORE_PHOTOS_MAX = 10;
+function emptyStore240() {
+  return { listings: [], orders: [], reports: [], connections: {}, pendingOAuth: {} };
+}
+function readStore240() {
+  const d = storeReadJson(
+    STORE_FILE,
+    (x) => !!(x && Array.isArray(x.listings) && Array.isArray(x.orders)),
+    emptyStore240(),
+    "store"
+  );
+  if (!Array.isArray(d.reports)) d.reports = [];
+  if (!d.connections || typeof d.connections !== "object" || Array.isArray(d.connections)) d.connections = {};
+  if (!d.pendingOAuth || typeof d.pendingOAuth !== "object" || Array.isArray(d.pendingOAuth)) d.pendingOAuth = {};
+  return d;
+}
+function writeStore240(db) {
+  storeWriteJson(STORE_FILE, db);
+}
+// The public shape of one listing: seller identity is the account's
+// CURRENT name/@username (resolved from the accounts db at read
+// time, so a rename follows the listing), never an email or id the
+// client has no business with beyond the seller's account id.
+function storePublicListing240(l, adb) {
+  let name = l.sellerName || "", username = l.sellerUsername || "";
+  if (adb) {
+    const u = (adb.users || []).find((x) => x && x.id === l.sellerId);
+    if (u) { name = u.name || name; username = u.username || username; }
+  }
+  return {
+    id: l.id,
+    sellerId: l.sellerId,
+    sellerName: name,
+    sellerUsername: username,
+    title: l.title,
+    desc: l.desc || "",
+    priceCents: l.priceCents,
+    qty: l.qty,
+    photos: Array.isArray(l.photos) ? l.photos.slice(0, STORE_PHOTOS_MAX) : [],
+    source: l.source || "manual",
+    status: l.status,
+    createdAt: l.createdAt,
+    updatedAt: l.updatedAt,
+  };
+}
+function storeAdultGate240(req, res) {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return null;
+  if (ageFromDob(ctx.user.dob) < 18) {
+    res.status(403).json({ ok: false, error: "The Plaza Store is 18+" });
+    return null;
+  }
+  if (isPendingDeletion(ctx.user)) {
+    res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+    return null;
+  }
+  return ctx;
+}
+// Browse: active listings, newest first, optional title/seller
+// search. Teens and guests never reach the list (gate above).
+app.get("/api/store/listings", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const q = String((req.query && req.query.q) || "").trim().toLowerCase().slice(0, 80);
+  const db = readStore240();
+  let list = db.listings.filter((l) => l && l.status === "active");
+  if (q) {
+    list = list.filter((l) =>
+      String(l.title || "").toLowerCase().includes(q) ||
+      String(l.sellerName || "").toLowerCase().includes(q) ||
+      String(l.sellerUsername || "").toLowerCase().includes(q)
+    );
+  }
+  list.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  res.json({ ok: true, listings: list.slice(0, 200).map((l) => storePublicListing240(l, ctx.db)) });
+});
+app.get("/api/store/listing/:id", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const db = readStore240();
+  const l = db.listings.find((x) => x && x.id === String(req.params.id || ""));
+  if (!l || l.status !== "active")
+    return res.status(404).json({ ok: false, error: "That listing isn't available" });
+  res.json({ ok: true, listing: storePublicListing240(l, ctx.db) });
+});
+// Create a listing. The no-counterfeits confirmation is REQUIRED
+// (genuine === true) — the standing day-one seller rule. Photos must
+// be OUR uploaded photo URLs (uploaded via /api/store/photo), never
+// arbitrary remote URLs typed into the form; imported listings are
+// the only ones whose photos live on the seller's own store CDN,
+// and those arrive through the connector pipeline, not this route.
+app.post("/api/store/listings", lockedHandler("store-create", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  if (b.genuine !== true)
+    return res.status(400).json({ ok: false, error: "Please confirm your item is genuine — counterfeits are never allowed in the Plaza Store." });
+  const title = String(b.title || "").trim().slice(0, STORE_TITLE_MAX);
+  const desc = String(b.desc || "").trim().slice(0, STORE_DESC_MAX);
+  const priceCents = Math.round(Number(b.priceCents));
+  const qty = Math.floor(Number(b.qty));
+  const photos = (Array.isArray(b.photos) ? b.photos : [])
+    .map((p) => String(p || "").trim().slice(0, 500))
+    .filter((p) => p.indexOf("/photos/") >= 0)
+    .slice(0, STORE_PHOTOS_MAX);
+  if (!title) return res.status(400).json({ ok: false, error: "Give your item a title" });
+  if (!photos.length) return res.status(400).json({ ok: false, error: "Add at least one photo of your item" });
+  if (!isFinite(priceCents) || priceCents < STORE_PRICE_MIN_CENTS || priceCents > STORE_PRICE_MAX_CENTS)
+    return res.status(400).json({ ok: false, error: "Price must be between $0.50 and $10,000" });
+  if (!isFinite(qty) || qty < 1 || qty > STORE_QTY_MAX)
+    return res.status(400).json({ ok: false, error: "Quantity must be at least 1" });
+  const db = readStore240();
+  const now = new Date().toISOString();
+  const listing = {
+    id: "stl" + crypto.randomBytes(8).toString("hex"),
+    sellerId: ctx.user.id,
+    sellerName: ctx.user.name || "",
+    sellerUsername: ctx.user.username || "",
+    title, desc, priceCents, qty, photos,
+    source: "manual", extId: null,
+    status: "active", genuine: true,
+    createdAt: now, updatedAt: now,
+  };
+  db.listings.push(listing);
+  writeStore240(db);
+  res.json({ ok: true, listing: storePublicListing240(listing, ctx.db) });
+}));
+// Edit price / quantity / title / description of your own listing.
+app.post("/api/store/listings/update", lockedHandler("store-update", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const db = readStore240();
+  const l = db.listings.find((x) => x && x.id === String(b.id || ""));
+  if (!l || l.status === "removed")
+    return res.status(404).json({ ok: false, error: "That listing isn't available" });
+  if (l.sellerId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "That's not your listing" });
+  if (b.title !== undefined) {
+    const t = String(b.title || "").trim().slice(0, STORE_TITLE_MAX);
+    if (!t) return res.status(400).json({ ok: false, error: "Give your item a title" });
+    l.title = t;
+  }
+  if (b.desc !== undefined) l.desc = String(b.desc || "").trim().slice(0, STORE_DESC_MAX);
+  if (b.priceCents !== undefined) {
+    const p = Math.round(Number(b.priceCents));
+    if (!isFinite(p) || p < STORE_PRICE_MIN_CENTS || p > STORE_PRICE_MAX_CENTS)
+      return res.status(400).json({ ok: false, error: "Price must be between $0.50 and $10,000" });
+    l.priceCents = p;
+  }
+  if (b.qty !== undefined) {
+    const q2 = Math.floor(Number(b.qty));
+    if (!isFinite(q2) || q2 < 0 || q2 > STORE_QTY_MAX)
+      return res.status(400).json({ ok: false, error: "Quantity can't be negative" });
+    l.qty = q2;
+  }
+  l.updatedAt = new Date().toISOString();
+  writeStore240(db);
+  res.json({ ok: true, listing: storePublicListing240(l, ctx.db) });
+}));
+// Remove your own listing (it leaves browse immediately; orders and
+// reports that reference it stay on the record).
+app.post("/api/store/listings/remove", lockedHandler("store-remove", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const db = readStore240();
+  const l = db.listings.find((x) => x && x.id === String((req.body || {}).id || ""));
+  if (!l) return res.status(404).json({ ok: false, error: "That listing isn't available" });
+  if (l.sellerId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "That's not your listing" });
+  l.status = "removed";
+  l.updatedAt = new Date().toISOString();
+  writeStore240(db);
+  res.json({ ok: true });
+}));
+// Listing photo upload — the shared photo path (PHOTO_DIR, 5 MB,
+// image-only, Hive moderation, /photos/ URL), cloned from the
+// Business Ads photo route WITHOUT any subscription requirement:
+// any signed-in adult member can sell.
+app.post("/api/store/photo", photoUpload(async (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return;
+  }
+  try {
+    if (ageFromDob(ctx.user.dob) < 18) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(403).json({ ok: false, error: "The Plaza Store is 18+" });
+    }
+    if (!req.file) return res.status(400).json({ ok: false, error: "No image file received." });
+    const publicUrl = `https://${req.get("host")}/photos/${req.file.filename}`;
+    const mod = await moderateImage(publicUrl);
+    if (!mod.ok) {
+      fs.unlink(req.file.path, () => {});
+      console.log("STORE PHOTO REJECTED:", ctx.user.id, mod.reason);
+      return res.status(422).json({ ok: false, error: "That photo didn't pass our safety check. Please try a different one." });
+    }
+    return res.json({ ok: true, photoUrl: publicUrl });
+  } catch (e) {
+    console.log("STORE UPLOAD ERROR:", e.message);
+    return res.status(500).json({ ok: false, error: "Upload failed. Please try again." });
+  }
+}));
+// My store: my listings (active + removed), my sales (with the net
+// I actually banked), my purchases.
+app.get("/api/store/mine", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const db = readStore240();
+  const me = ctx.user.id;
+  const listings = db.listings
+    .filter((l) => l && l.sellerId === me)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .map((l) => storePublicListing240(l, ctx.db));
+  const nameOf = (id) => {
+    const u = (ctx.db.users || []).find((x) => x && x.id === id);
+    return u ? (u.name || "") : "";
+  };
+  const sales = db.orders
+    .filter((o) => o && o.sellerId === me && o.status === "paid")
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+    .slice(0, 100)
+    .map((o) => ({ id: o.id, title: o.title, qty: o.qty, grossCents: o.grossCents, cutCents: o.cutCents || 0, netCents: o.netCents || 0, buyerName: nameOf(o.buyerId), at: o.paidAt || o.at }));
+  const purchases = db.orders
+    .filter((o) => o && o.buyerId === me && o.status === "paid")
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+    .slice(0, 100)
+    .map((o) => ({ id: o.id, title: o.title, qty: o.qty, grossCents: o.grossCents, sellerName: nameOf(o.sellerId), at: o.paidAt || o.at }));
+  res.json({ ok: true, listings, sales, purchases });
+});
+// Buy: fixed price, buy-it-now. The price is read from the LISTING
+// server-side (a client-sent price is never trusted), a pending
+// order is recorded against the Stripe session id, and the sale
+// settles in the webhook (kind "store") when Stripe confirms —
+// exactly the charm-pack discipline.
+app.post("/api/store/checkout", async (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const db = readStore240();
+  const l = db.listings.find((x) => x && x.id === String(b.listingId || ""));
+  if (!l || l.status !== "active")
+    return res.status(404).json({ ok: false, error: "That listing isn't available" });
+  if (l.sellerId === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "That's your own listing" });
+  const qty = Math.floor(Number(b.qty)) || 1;
+  if (qty < 1) return res.status(400).json({ ok: false, error: "Quantity must be at least 1" });
+  if (qty > l.qty)
+    return res.status(400).json({ ok: false, error: l.qty > 0 ? "Only " + l.qty + " left" : "That item just sold out" });
+  if (!stripeConfigured()) return stripeNotConfigured(res);
+  try {
+    const origin = siteOrigin(req);
+    const grossCents = l.priceCents * qty;
+    const session = await stripeApi("POST", "/checkout/sessions", {
+      mode: "payment",
+      success_url: origin + "/?store=ok",
+      cancel_url: origin + "/?store=cancel",
+      line_items: [
+        {
+          quantity: qty,
+          price_data: {
+            currency: "usd",
+            unit_amount: l.priceCents,
+            product_data: { name: "Plaza Store — " + l.title },
+          },
+        },
+      ],
+      metadata: { kind: "store", acctId: ctx.user.id, listingId: l.id, qty: String(qty) },
+    });
+    const sdb = readStore240();
+    sdb.orders.push({
+      id: "sto" + crypto.randomBytes(8).toString("hex"),
+      sessionId: session.id,
+      listingId: l.id,
+      title: l.title,
+      buyerId: ctx.user.id,
+      sellerId: l.sellerId,
+      qty,
+      grossCents,
+      cutCents: 0,
+      netCents: 0,
+      status: "pending",
+      at: new Date().toISOString(),
+      paidAt: null,
+    });
+    writeStore240(sdb);
+    res.json({ ok: true, url: session.url });
+  } catch (e) {
+    console.error("[store] checkout failed", e.message);
+    res.status(502).json({ ok: false, error: "stripe-error" });
+  }
+});
+// Webhook settle for a store sale — called from handleStripeEvent
+// (checkout.session.completed, kind "store") with the money db in
+// hand. The pending order is found by SESSION ID (server-side truth
+// — the event's metadata is never trusted for amounts): stock
+// decrements, the order flips to paid, and the seller's earnings
+// are credited at the 90/10 split in the same write as the money
+// ledger's "store-sale" tx.
+function settleStoreOrder240(mdb, sessionObj) {
+  const sdb = readStore240();
+  const order = sdb.orders.find((o) => o && o.sessionId === sessionObj.id && o.status === "pending");
+  if (!order) {
+    console.log("[store] webhook for unknown or already-settled session", sessionObj.id);
+    return;
+  }
+  const listing = sdb.listings.find((l) => l && l.id === order.listingId);
+  if (listing) listing.qty = Math.max(0, (listing.qty || 0) - order.qty);
+  const gross = order.grossCents;
+  const net = Math.floor((gross * STORE_HOST_PCT) / 100);
+  const cut = gross - net;
+  order.status = "paid";
+  order.paidAt = new Date().toISOString();
+  order.netCents = net;
+  order.cutCents = cut;
+  const earn = moneyEarningsFor(mdb, order.sellerId);
+  earn.availableCents += net;
+  earn.totalEarnedCents += net;
+  moneyTx(mdb, {
+    type: "store-sale", from: order.buyerId, to: order.sellerId,
+    charms: 0, cents: gross, cut, ref: order.id,
+  });
+  writeStore240(sdb);
+  console.log("[store] sale settled", order.id, "gross", gross, "net", net, "to seller", order.sellerId);
+}
+// Report a product. Reports land on the owner board (the count
+// rides /api/owner/sales) and in the store record for review.
+app.post("/api/store/report", lockedHandler("store-report", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const db = readStore240();
+  const l = db.listings.find((x) => x && x.id === String(b.listingId || ""));
+  if (!l) return res.status(404).json({ ok: false, error: "That listing isn't available" });
+  db.reports.push({
+    id: "str" + crypto.randomBytes(8).toString("hex"),
+    listingId: l.id,
+    sellerId: l.sellerId,
+    reporterId: ctx.user.id,
+    reason: String(b.reason || "").trim().slice(0, 300),
+    at: new Date().toISOString(),
+  });
+  while (db.reports.length > 1000) db.reports.shift();
+  writeStore240(db);
+  console.log("STORE REPORT:", { listing: l.id, seller: l.sellerId, by: ctx.user.id });
+  res.json({ ok: true });
+}));
+// ---------------------------------------------------------------------------
+// [RP-V7.240] CONNECT A STORE — the generic connector layer. Every
+// platform implements the same shape: a connection record in
+// store.json (connections[acctId][platform]), an import that maps
+// the platform's products onto ONE normalized shape, and the shared
+// sync below (create new, refresh changed, retire vanished).
+// Credentials NEVER leave the server: state responses carry only
+// { configured, connected, label } — no tokens, no keys, no secrets.
+// ---------------------------------------------------------------------------
+function storeConnRec240(db, acctId, platform) {
+  if (!db.connections[acctId] || typeof db.connections[acctId] !== "object") db.connections[acctId] = {};
+  return db.connections[acctId][platform] || null;
+}
+function storeSetConn240(db, acctId, platform, rec) {
+  if (!db.connections[acctId] || typeof db.connections[acctId] !== "object") db.connections[acctId] = {};
+  if (rec) db.connections[acctId][platform] = rec;
+  else delete db.connections[acctId][platform];
+}
+function storeStripHtml240(s) {
+  return String(s || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+// The one sync every connector feeds. products: [{ extId, title,
+// desc, priceCents, qty, photos }] — already normalized, prices in
+// cents, photos as URLs. Products with no usable price are skipped
+// (a store listing must have a real price). Returns counts.
+function storeSyncImport240(db, user, platform, products) {
+  const now = new Date().toISOString();
+  const seen = new Set();
+  let created = 0, updated = 0, retired = 0, skipped = 0;
+  const mine = db.listings.filter((l) => l && l.sellerId === user.id && l.source === platform);
+  const byExt = {};
+  mine.forEach((l) => { if (l.extId) byExt[String(l.extId)] = l; });
+  for (const p of products || []) {
+    const extId = String(p.extId || "");
+    if (!extId || !(p.priceCents > 0)) { skipped++; continue; }
+    seen.add(extId);
+    const title = String(p.title || "Untitled item").trim().slice(0, STORE_TITLE_MAX) || "Untitled item";
+    const desc = storeStripHtml240(p.desc || "").slice(0, STORE_DESC_MAX);
+    const qty = Math.max(0, Math.min(STORE_QTY_MAX, Math.floor(Number(p.qty)) || 0));
+    const photos = (Array.isArray(p.photos) ? p.photos : [])
+      .map((x) => String(x || "").trim().slice(0, 500))
+      .filter((x) => /^https:\/\//i.test(x))
+      .slice(0, STORE_PHOTOS_MAX);
+    const ex = byExt[extId];
+    if (ex) {
+      ex.title = title; ex.desc = desc; ex.priceCents = Math.round(p.priceCents);
+      ex.qty = qty; if (photos.length) ex.photos = photos;
+      ex.status = "active"; // a product that is back in the source store is back here
+      ex.updatedAt = now;
+      updated++;
+    } else {
+      db.listings.push({
+        id: "stl" + crypto.randomBytes(8).toString("hex"),
+        sellerId: user.id,
+        sellerName: user.name || "",
+        sellerUsername: user.username || "",
+        title, desc, priceCents: Math.round(p.priceCents), qty, photos,
+        source: platform, extId,
+        status: "active", genuine: true,
+        createdAt: now, updatedAt: now,
+      });
+      created++;
+    }
+  }
+  for (const l of mine) {
+    if (l.extId && !seen.has(String(l.extId)) && l.status === "active") {
+      l.status = "removed"; // retired: gone from the source store
+      l.updatedAt = now;
+      retired++;
+    }
+  }
+  return { created, updated, retired, skipped };
+}
+async function storeFetchJson240(url, opts, timeoutMs) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, timeoutMs || 20000);
+  try {
+    const r = await fetch(url, Object.assign({}, opts || {}, { signal: ctrl.signal }));
+    const txt = await r.text();
+    let j = null;
+    try { j = JSON.parse(txt); } catch (e) {}
+    return { status: r.status, ok: r.ok, json: j, headers: r.headers };
+  } finally {
+    clearTimeout(to);
+  }
+}
+// OAuth pending-state nonces (begin → callback), pruned lazily.
+function storeOAuthBegin240(db, acctId, platform, extra) {
+  const now = Date.now();
+  for (const k of Object.keys(db.pendingOAuth)) {
+    const p = db.pendingOAuth[k];
+    if (!p || now - (p.atMs || 0) > 3600 * 1000) delete db.pendingOAuth[k];
+  }
+  const keys = Object.keys(db.pendingOAuth);
+  if (keys.length > 200) keys.slice(0, keys.length - 200).forEach((k) => delete db.pendingOAuth[k]);
+  const nonce = crypto.randomBytes(16).toString("hex");
+  db.pendingOAuth[nonce] = Object.assign({ acctId, platform, atMs: now }, extra || {});
+  return nonce;
+}
+function storeOAuthTake240(db, nonce) {
+  const p = db.pendingOAuth[String(nonce || "")];
+  if (!p) return null;
+  delete db.pendingOAuth[String(nonce || "")];
+  if (Date.now() - (p.atMs || 0) > 3600 * 1000) return null;
+  return p;
+}
+function shopifyConfigured240() { return !!(process.env.SHOPIFY_CLIENT_ID && process.env.SHOPIFY_CLIENT_SECRET); }
+function etsyConfigured240() { return !!(process.env.ETSY_CLIENT_ID && process.env.ETSY_CLIENT_SECRET); }
+function squareConfigured240() { return !!(process.env.SQUARE_CLIENT_ID && process.env.SQUARE_CLIENT_SECRET); }
+function squareBase240() { return process.env.SQUARE_ENVIRONMENT === "sandbox" ? "https://connect.squareupsandbox.com" : "https://connect.squareup.com"; }
+// Owner-board helpers (the /api/owner/sales handler reads these):
+// live listing count + open report count for the Store row.
+function rpStoreActiveListings240() {
+  try { return readStore240().listings.filter((l) => l && l.status === "active").length; } catch (e) { return 0; }
+}
+function rpStoreReportsCount240() {
+  try { return readStore240().reports.length; } catch (e) { return 0; }
+}
+// Connection state for the Connect screen — labels only, no secrets.
+app.get("/api/store/connect/state", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const db = readStore240();
+  const sh = storeConnRec240(db, ctx.user.id, "shopify");
+  const wc = storeConnRec240(db, ctx.user.id, "woocommerce");
+  const et = storeConnRec240(db, ctx.user.id, "etsy");
+  const sq = storeConnRec240(db, ctx.user.id, "square");
+  res.json({
+    ok: true,
+    platforms: {
+      shopify: { configured: shopifyConfigured240(), connected: !!sh, label: sh ? String(sh.shop || "") : "" },
+      woocommerce: { configured: true, connected: !!wc, label: wc ? String(wc.storeUrl || "") : "" },
+      etsy: { configured: etsyConfigured240(), connected: !!et, label: et ? "Etsy shop" : "" },
+      square: { configured: squareConfigured240(), connected: !!sq, label: sq ? "Square" : "" },
+    },
+  });
+});
+app.post("/api/store/connect/disconnect", lockedHandler("store-disconnect", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const platform = String((req.body || {}).platform || "");
+  if (["shopify", "woocommerce", "etsy", "square"].indexOf(platform) < 0)
+    return res.status(400).json({ ok: false, error: "Unknown platform" });
+  const db = readStore240();
+  storeSetConn240(db, ctx.user.id, platform, null);
+  writeStore240(db);
+  res.json({ ok: true });
+}));
+app.post("/api/store/connect/sync", async (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const platform = String((req.body || {}).platform || "");
+  try {
+    let out = null;
+    if (platform === "woocommerce") out = await storeWooSync240(ctx);
+    else if (platform === "shopify") out = await storeShopifySync240(ctx);
+    else if (platform === "etsy") out = await storeEtsySync240(ctx);
+    else if (platform === "square") out = await storeSquareSync240(ctx);
+    else return res.status(400).json({ ok: false, error: "Unknown platform" });
+    if (!out) return res.status(400).json({ ok: false, error: "That store isn't connected yet" });
+    res.json(Object.assign({ ok: true }, out));
+  } catch (e) {
+    console.error("[store] sync failed", platform, e.message);
+    res.status(502).json({ ok: false, error: "Couldn't reach your store just now — try the sync again in a moment." });
+  }
+});
+// ---------------------------------------------------------------------------
+// WooCommerce — FULLY REAL (seller-pasted REST API keys; no Plaza app
+// registration exists for this pattern). Keys are stored server-side
+// only and are never returned or logged.
+// ---------------------------------------------------------------------------
+function storeWooAuth240(rec) {
+  return "Basic " + Buffer.from(String(rec.consumerKey || "") + ":" + String(rec.consumerSecret || ""), "utf8").toString("base64");
+}
+async function storeWooFetchProducts240(rec) {
+  const products = [];
+  for (let page = 1; page <= 10; page++) {
+    const r = await storeFetchJson240(
+      rec.storeUrl + "/wp-json/wc/v3/products?per_page=100&status=publish&page=" + page,
+      { headers: { Authorization: storeWooAuth240(rec) } }
+    );
+    if (!r.ok || !Array.isArray(r.json)) throw new Error("woocommerce-http-" + r.status);
+    for (const p of r.json) {
+      const priceCents = Math.round((parseFloat(p.price || p.regular_price || "0") || 0) * 100);
+      let qty = 0;
+      if (p.manage_stock && p.stock_quantity != null) qty = Math.max(0, Math.floor(Number(p.stock_quantity)) || 0);
+      else if (p.stock_status === "instock" || p.stock_status === "onbackorder") qty = 99;
+      products.push({
+        extId: String(p.id),
+        title: storeStripHtml240(p.name || ""),
+        desc: p.description || p.short_description || "",
+        priceCents,
+        qty,
+        photos: (Array.isArray(p.images) ? p.images : []).map((im) => im && im.src).filter(Boolean),
+      });
+    }
+    const totalPages = parseInt((r.headers && r.headers.get && r.headers.get("x-wp-totalpages")) || "1", 10) || 1;
+    if (page >= totalPages) break;
+  }
+  return products;
+}
+async function storeWooSync240(ctx) {
+  const db = readStore240();
+  const rec = storeConnRec240(db, ctx.user.id, "woocommerce");
+  if (!rec) return null;
+  const products = await storeWooFetchProducts240(rec);
+  const out = storeSyncImport240(db, ctx.user, "woocommerce", products);
+  rec.lastSyncAt = new Date().toISOString();
+  writeStore240(db);
+  return out;
+}
+app.post("/api/store/connect/woocommerce", async (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  if (b.genuine !== true)
+    return res.status(400).json({ ok: false, error: "Please confirm the products in your store are genuine — counterfeits are never allowed in the Plaza Store." });
+  let storeUrl = String(b.storeUrl || "").trim().replace(/\/+$/, "");
+  if (!/^https:\/\/[^\s.]+\.[^\s]+$/i.test(storeUrl))
+    return res.status(400).json({ ok: false, error: "Enter your store's full https:// address" });
+  const consumerKey = String(b.consumerKey || "").trim().slice(0, 200);
+  const consumerSecret = String(b.consumerSecret || "").trim().slice(0, 200);
+  if (!consumerKey || !consumerSecret)
+    return res.status(400).json({ ok: false, error: "Paste both the consumer key and the consumer secret from your WooCommerce REST API keys" });
+  const rec = { storeUrl, consumerKey, consumerSecret, connectedAt: new Date().toISOString(), lastSyncAt: null };
+  try {
+    // Validate the keys against the seller's own store before saving
+    // anything: one product page must answer 200 with a JSON array.
+    const probe = await storeFetchJson240(
+      storeUrl + "/wp-json/wc/v3/products?per_page=1&status=publish",
+      { headers: { Authorization: storeWooAuth240(rec) } }
+    );
+    if (!probe.ok || !Array.isArray(probe.json))
+      return res.status(400).json({ ok: false, error: "Couldn't connect with those keys — check the store address and the key/secret, then try again." });
+  } catch (e) {
+    return res.status(400).json({ ok: false, error: "Couldn't reach that store — check the address and try again." });
+  }
+  const db = readStore240();
+  storeSetConn240(db, ctx.user.id, "woocommerce", rec);
+  writeStore240(db);
+  try {
+    const out = await storeWooSync240(ctx);
+    res.json(Object.assign({ ok: true, connected: true }, out || {}));
+  } catch (e) {
+    res.json({ ok: true, connected: true, created: 0, updated: 0, retired: 0, skipped: 0, syncError: true });
+  }
+});
+// ---------------------------------------------------------------------------
+// Shopify — OAuth built to the credential gate (SHOPIFY_CLIENT_ID /
+// SHOPIFY_CLIENT_SECRET for the Plaza's own Shopify app). Until the
+// app exists, begin answers shopify-not-configured and state
+// reports configured:false — the flow activates the moment the env
+// keys land, with the callback below already in place.
+// ---------------------------------------------------------------------------
+app.post("/api/store/connect/shopify/begin", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  if (!shopifyConfigured240()) return res.json({ ok: false, error: "shopify-not-configured" });
+  const b = req.body || {};
+  if (b.genuine !== true)
+    return res.status(400).json({ ok: false, error: "Please confirm the products in your store are genuine — counterfeits are never allowed in the Plaza Store." });
+  let shop = String(b.shop || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  if (shop && !shop.includes(".")) shop += ".myshopify.com"; // bare store name works too
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop))
+    return res.status(400).json({ ok: false, error: "Enter your Shopify store domain, like your-store.myshopify.com" });
+  const db = readStore240();
+  const nonce = storeOAuthBegin240(db, ctx.user.id, "shopify", { shop });
+  writeStore240(db);
+  const redirectUri = siteOrigin(req) + "/api/store/connect/shopify/callback";
+  const url = "https://" + shop + "/admin/oauth/authorize?client_id=" + encodeURIComponent(process.env.SHOPIFY_CLIENT_ID) +
+    "&scope=" + encodeURIComponent("read_products") +
+    "&redirect_uri=" + encodeURIComponent(redirectUri) +
+    "&state=" + encodeURIComponent(nonce);
+  res.json({ ok: true, url });
+});
+app.get("/api/store/connect/shopify/callback", async (req, res) => {
+  const origin = siteOrigin(req);
+  const back = (mark) => res.redirect(origin + "/?storeconnect=" + mark);
+  try {
+    if (!shopifyConfigured240()) return back("shopify-setup");
+    const q = req.query || {};
+    const shop = String(q.shop || "").trim().toLowerCase();
+    // Verify Shopify's HMAC over the callback query (their signing
+    // recipe: %-escape %, &, = in keys and values, sort, join &).
+    const given = String(q.hmac || "");
+    const pairs = Object.keys(q)
+      .filter((k) => k !== "hmac" && k !== "signature")
+      .sort()
+      .map((k) => {
+        const kk = k.replace(/%/g, "%25").replace(/&/g, "%26").replace(/=/g, "%3D");
+        const vv = String(q[k]).replace(/%/g, "%25").replace(/&/g, "%26").replace(/=/g, "%3D");
+        return kk + "=" + vv;
+      });
+    const expected = crypto.createHmac("sha256", process.env.SHOPIFY_CLIENT_SECRET).update(pairs.join("&")).digest("hex");
+    const a = Buffer.from(given, "utf8"), b2 = Buffer.from(expected, "utf8");
+    if (!given || a.length !== b2.length || !crypto.timingSafeEqual(a, b2)) return back("shopify-error");
+    const db = readStore240();
+    const pend = storeOAuthTake240(db, q.state);
+    if (!pend || pend.platform !== "shopify" || pend.shop !== shop) { writeStore240(db); return back("shopify-error"); }
+    const tok = await storeFetchJson240("https://" + shop + "/admin/oauth/access_token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: process.env.SHOPIFY_CLIENT_ID, client_secret: process.env.SHOPIFY_CLIENT_SECRET, code: String(q.code || "") }),
+    });
+    if (!tok.ok || !tok.json || !tok.json.access_token) { writeStore240(db); return back("shopify-error"); }
+    storeSetConn240(db, pend.acctId, "shopify", {
+      shop, accessToken: String(tok.json.access_token), scope: String(tok.json.scope || ""),
+      connectedAt: new Date().toISOString(), lastSyncAt: null,
+    });
+    writeStore240(db);
+    const user = (readAccounts().users || []).find((u) => u && u.id === pend.acctId);
+    if (user) { try { await storeShopifySync240({ user }); } catch (e) { console.error("[store] shopify first sync failed", e.message); } }
+    return back("shopify-done");
+  } catch (e) {
+    console.error("[store] shopify callback failed", e.message);
+    return back("shopify-error");
+  }
+});
+async function storeShopifySync240(ctx) {
+  const db = readStore240();
+  const rec = storeConnRec240(db, ctx.user.id, "shopify");
+  if (!rec) return null;
+  const r = await storeFetchJson240(
+    "https://" + rec.shop + "/admin/api/2024-10/products.json?limit=250&status=active",
+    { headers: { "X-Shopify-Access-Token": rec.accessToken } }
+  );
+  if (!r.ok || !r.json || !Array.isArray(r.json.products)) throw new Error("shopify-http-" + r.status);
+  const products = r.json.products.map((p) => {
+    const v = (Array.isArray(p.variants) && p.variants[0]) || {};
+    let qty = 99;
+    if (v.inventory_management) qty = Math.max(0, Math.floor(Number(v.inventory_quantity)) || 0);
+    return {
+      extId: String(p.id),
+      title: p.title || "",
+      desc: p.body_html || "",
+      priceCents: Math.round((parseFloat(v.price || "0") || 0) * 100),
+      qty,
+      photos: (Array.isArray(p.images) ? p.images : []).map((im) => im && im.src).filter(Boolean),
+    };
+  });
+  const out = storeSyncImport240(db, ctx.user, "shopify", products);
+  rec.lastSyncAt = new Date().toISOString();
+  writeStore240(db);
+  return out;
+}
+// ---------------------------------------------------------------------------
+// Etsy — OAuth (API v3, PKCE) built to the credential gate
+// (ETSY_CLIENT_ID / ETSY_CLIENT_SECRET for the Plaza's Etsy app).
+// Access tokens last ~1 hour; the refresh grant is wired into sync.
+// ---------------------------------------------------------------------------
+app.post("/api/store/connect/etsy/begin", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  if (!etsyConfigured240()) return res.json({ ok: false, error: "etsy-not-configured" });
+  const b = req.body || {};
+  if (b.genuine !== true)
+    return res.status(400).json({ ok: false, error: "Please confirm the products in your store are genuine — counterfeits are never allowed in the Plaza Store." });
+  const verifier = crypto.randomBytes(32).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const challenge = crypto.createHash("sha256").update(verifier).digest("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const db = readStore240();
+  const nonce = storeOAuthBegin240(db, ctx.user.id, "etsy", { verifier });
+  writeStore240(db);
+  const redirectUri = siteOrigin(req) + "/api/store/connect/etsy/callback";
+  const url = "https://www.etsy.com/oauth/connect?response_type=code&client_id=" + encodeURIComponent(process.env.ETSY_CLIENT_ID) +
+    "&redirect_uri=" + encodeURIComponent(redirectUri) +
+    "&scope=" + encodeURIComponent("listings_r listings_w") +
+    "&state=" + encodeURIComponent(nonce) +
+    "&code_challenge=" + encodeURIComponent(challenge) +
+    "&code_challenge_method=S256";
+  res.json({ ok: true, url });
+});
+app.get("/api/store/connect/etsy/callback", async (req, res) => {
+  const origin = siteOrigin(req);
+  const back = (mark) => res.redirect(origin + "/?storeconnect=" + mark);
+  try {
+    if (!etsyConfigured240()) return back("etsy-setup");
+    const q = req.query || {};
+    const db = readStore240();
+    const pend = storeOAuthTake240(db, q.state);
+    if (!pend || pend.platform !== "etsy") { writeStore240(db); return back("etsy-error"); }
+    const redirectUri = origin + "/api/store/connect/etsy/callback";
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: process.env.ETSY_CLIENT_ID,
+      redirect_uri: redirectUri,
+      code: String(q.code || ""),
+      code_verifier: pend.verifier || "",
+    });
+    const tok = await storeFetchJson240("https://api.etsy.com/v3/public/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    if (!tok.ok || !tok.json || !tok.json.access_token) { writeStore240(db); return back("etsy-error"); }
+    const accessToken = String(tok.json.access_token);
+    const userId = accessToken.split(".")[0];
+    storeSetConn240(db, pend.acctId, "etsy", {
+      accessToken,
+      refreshToken: String(tok.json.refresh_token || ""),
+      userId,
+      expiresAt: Date.now() + (Number(tok.json.expires_in) || 3600) * 1000,
+      connectedAt: new Date().toISOString(), lastSyncAt: null,
+    });
+    writeStore240(db);
+    const user = (readAccounts().users || []).find((u) => u && u.id === pend.acctId);
+    if (user) { try { await storeEtsySync240({ user }); } catch (e) { console.error("[store] etsy first sync failed", e.message); } }
+    return back("etsy-done");
+  } catch (e) {
+    console.error("[store] etsy callback failed", e.message);
+    return back("etsy-error");
+  }
+});
+async function storeEtsyToken240(db, acctId, rec) {
+  if (rec.expiresAt && Date.now() < rec.expiresAt - 60000) return rec.accessToken;
+  if (!rec.refreshToken) return rec.accessToken;
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: process.env.ETSY_CLIENT_ID,
+    refresh_token: rec.refreshToken,
+  });
+  const tok = await storeFetchJson240("https://api.etsy.com/v3/public/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  if (tok.ok && tok.json && tok.json.access_token) {
+    rec.accessToken = String(tok.json.access_token);
+    if (tok.json.refresh_token) rec.refreshToken = String(tok.json.refresh_token);
+    rec.expiresAt = Date.now() + (Number(tok.json.expires_in) || 3600) * 1000;
+    storeSetConn240(db, acctId, "etsy", rec);
+    writeStore240(db);
+  }
+  return rec.accessToken;
+}
+async function storeEtsySync240(ctx) {
+  const db = readStore240();
+  const rec = storeConnRec240(db, ctx.user.id, "etsy");
+  if (!rec) return null;
+  const token = await storeEtsyToken240(db, ctx.user.id, rec);
+  const headers = { "x-api-key": process.env.ETSY_CLIENT_ID, Authorization: "Bearer " + token };
+  const me = await storeFetchJson240("https://api.etsy.com/v3/application/users/" + encodeURIComponent(rec.userId || ""), { headers });
+  const shopId = me.json && (me.json.shop_id || (me.json.user && me.json.shop_id));
+  if (!me.ok || !shopId) throw new Error("etsy-user-http-" + me.status);
+  const lr = await storeFetchJson240(
+    "https://api.etsy.com/v3/application/shops/" + encodeURIComponent(shopId) + "/listings/active?limit=100",
+    { headers }
+  );
+  if (!lr.ok || !lr.json || !Array.isArray(lr.json.results)) throw new Error("etsy-listings-http-" + lr.status);
+  const products = [];
+  for (const l of lr.json.results) {
+    if (!l || !l.price || String(l.price.currency_code || "USD") !== "USD") continue;
+    let photos = [];
+    try {
+      const ir = await storeFetchJson240("https://api.etsy.com/v3/application/listings/" + encodeURIComponent(l.listing_id) + "/images", { headers });
+      if (ir.ok && ir.json && Array.isArray(ir.json.results))
+        photos = ir.json.results.map((im) => im && (im.url_fullxfull || im.url_570xN)).filter(Boolean);
+    } catch (e) {}
+    products.push({
+      extId: String(l.listing_id),
+      title: l.title || "",
+      desc: l.description || "",
+      priceCents: Math.round((Number(l.price.amount) || 0) * 100 / (Number(l.price.divisor) || 100)),
+      qty: Math.max(0, Math.floor(Number(l.quantity)) || 0),
+      photos,
+    });
+  }
+  const out = storeSyncImport240(db, ctx.user, "etsy", products);
+  rec.lastSyncAt = new Date().toISOString();
+  writeStore240(db);
+  return out;
+}
+// ---------------------------------------------------------------------------
+// Square — OAuth + Catalog API, built to the credential gate
+// (SQUARE_CLIENT_ID / SQUARE_CLIENT_SECRET for the Plaza's Square
+// app; SQUARE_ENVIRONMENT=sandbox selects the sandbox host).
+// ---------------------------------------------------------------------------
+app.post("/api/store/connect/square/begin", (req, res) => {
+  const ctx = storeAdultGate240(req, res);
+  if (!ctx) return;
+  if (!squareConfigured240()) return res.json({ ok: false, error: "square-not-configured" });
+  const b = req.body || {};
+  if (b.genuine !== true)
+    return res.status(400).json({ ok: false, error: "Please confirm the products in your store are genuine — counterfeits are never allowed in the Plaza Store." });
+  const db = readStore240();
+  const nonce = storeOAuthBegin240(db, ctx.user.id, "square", {});
+  writeStore240(db);
+  const url = squareBase240() + "/oauth2/authorize?client_id=" + encodeURIComponent(process.env.SQUARE_CLIENT_ID) +
+    "&scope=" + encodeURIComponent("ITEMS_READ MERCHANT_PROFILE_READ") +
+    "&session=false&state=" + encodeURIComponent(nonce);
+  res.json({ ok: true, url });
+});
+app.get("/api/store/connect/square/callback", async (req, res) => {
+  const origin = siteOrigin(req);
+  const back = (mark) => res.redirect(origin + "/?storeconnect=" + mark);
+  try {
+    if (!squareConfigured240()) return back("square-setup");
+    const q = req.query || {};
+    const db = readStore240();
+    const pend = storeOAuthTake240(db, q.state);
+    if (!pend || pend.platform !== "square") { writeStore240(db); return back("square-error"); }
+    const tok = await storeFetchJson240(squareBase240() + "/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Square-Version": "2024-10-17" },
+      body: JSON.stringify({
+        client_id: process.env.SQUARE_CLIENT_ID,
+        client_secret: process.env.SQUARE_CLIENT_SECRET,
+        code: String(q.code || ""),
+        grant_type: "authorization_code",
+      }),
+    });
+    if (!tok.ok || !tok.json || !tok.json.access_token) { writeStore240(db); return back("square-error"); }
+    storeSetConn240(db, pend.acctId, "square", {
+      accessToken: String(tok.json.access_token),
+      refreshToken: String(tok.json.refresh_token || ""),
+      merchantId: String(tok.json.merchant_id || ""),
+      expiresAt: tok.json.expires_at || null,
+      connectedAt: new Date().toISOString(), lastSyncAt: null,
+    });
+    writeStore240(db);
+    const user = (readAccounts().users || []).find((u) => u && u.id === pend.acctId);
+    if (user) { try { await storeSquareSync240({ user }); } catch (e) { console.error("[store] square first sync failed", e.message); } }
+    return back("square-done");
+  } catch (e) {
+    console.error("[store] square callback failed", e.message);
+    return back("square-error");
+  }
+});
+async function storeSquareSync240(ctx) {
+  const db = readStore240();
+  const rec = storeConnRec240(db, ctx.user.id, "square");
+  if (!rec) return null;
+  const headers = { Authorization: "Bearer " + rec.accessToken, "Square-Version": "2024-10-17" };
+  const objects = [];
+  let cursor = "";
+  for (let i = 0; i < 10; i++) {
+    const r = await storeFetchJson240(
+      squareBase240() + "/v2/catalog/list?types=ITEM,IMAGE" + (cursor ? "&cursor=" + encodeURIComponent(cursor) : ""),
+      { headers }
+    );
+    if (!r.ok || !r.json) throw new Error("square-http-" + r.status);
+    (r.json.objects || []).forEach((o) => objects.push(o));
+    cursor = r.json.cursor || "";
+    if (!cursor) break;
+  }
+  const imageUrl = {};
+  objects.forEach((o) => { if (o && o.type === "IMAGE" && o.image_data && o.image_data.url) imageUrl[o.id] = o.image_data.url; });
+  const items = objects.filter((o) => o && o.type === "ITEM" && o.item_data);
+  // Inventory counts for every variation, when Square tracks them.
+  const counts = {};
+  const varIds = [];
+  items.forEach((it) => (it.item_data.variations || []).forEach((v) => { if (v && v.id) varIds.push(v.id); }));
+  if (varIds.length) {
+    try {
+      const ir = await storeFetchJson240(squareBase240() + "/v2/inventory/counts/batch-retrieve", {
+        method: "POST",
+        headers: Object.assign({ "Content-Type": "application/json" }, headers),
+        body: JSON.stringify({ catalog_object_ids: varIds.slice(0, 1000) }),
+      });
+      if (ir.ok && ir.json && Array.isArray(ir.json.counts))
+        ir.json.counts.forEach((c) => { if (c && c.catalog_object_id) counts[c.catalog_object_id] = parseInt(c.quantity, 10) || 0; });
+    } catch (e) {}
+  }
+  const products = [];
+  for (const it of items) {
+    const d = it.item_data;
+    const v = (Array.isArray(d.variations) && d.variations[0] && d.variations[0].item_variation_data) || null;
+    const pm = v && v.price_money;
+    if (!pm || String(pm.currency || "USD") !== "USD") continue;
+    let qty = 99;
+    if (v && Object.prototype.hasOwnProperty.call(counts, (d.variations[0] || {}).id)) qty = counts[d.variations[0].id];
+    products.push({
+      extId: String(it.id),
+      title: d.name || "",
+      desc: d.description || "",
+      priceCents: Math.round(Number(pm.amount) || 0), // Square amounts are already cents
+      qty,
+      photos: (Array.isArray(d.image_ids) ? d.image_ids : []).map((id) => imageUrl[id]).filter(Boolean),
+    });
+  }
+  const out = storeSyncImport240(db, ctx.user, "square", products);
+  rec.lastSyncAt = new Date().toISOString();
+  writeStore240(db);
+  return out;
+}
 // Stripe webhook (route registered before the JSON parser, near the top
 // of this file). No account auth — authenticity is the signature. With
 // no STRIPE_WEBHOOK_SECRET set, events are acknowledged and IGNORED:
@@ -11722,6 +12731,13 @@ function handleStripeEvent(event) {
         cents: BIZADS_PLAN.priceCents, cut: 0, ref: obj.id,
       });
       console.log("[money] business ads on for", user.name);
+    } else if (md.kind === "store") {
+      // [RP-V7.240] Plaza Store sale: settle against the pending
+      // order recorded at checkout (found by session id inside
+      // settleStoreOrder240) — stock, order state, the seller's
+      // 90% earnings credit and the "store-sale" tx all land in
+      // this same webhook write.
+      settleStoreOrder240(db, obj);
     } else {
       return; // unknown kind — do not mark processed
     }
@@ -12408,7 +13424,7 @@ function rpOwnerUserId(adb) {
   return best ? best.id : null;
 }
 function rpSalesStreams(mdb) {
-  let charmPacksCents = 0, premiumSubsCents = 0, giftsVolumeCents = 0, auctionsVolumeCents = 0, bizadsCents = 0;
+  let charmPacksCents = 0, premiumSubsCents = 0, giftsVolumeCents = 0, auctionsVolumeCents = 0, bizadsCents = 0, plazaStoreSalesCents = 0, plazaStoreCutCents = 0; // [RP-V7.240] plazaStore* = the member Plaza Store ("store-sale" tx: cents = gross sale, cut = the Plaza's 10%)
   for (const tx of mdb.txlog || []) {
     if (!tx || typeof tx !== "object") continue;
     const c = Math.round(Number(tx.cents) || 0);
@@ -12417,8 +13433,9 @@ function rpSalesStreams(mdb) {
     else if (tx.type === "gift-sent") giftsVolumeCents += c;
     else if (tx.type === "auction-paid") auctionsVolumeCents += c;
     else if (tx.type === "bizads" || tx.type === "bizads-renew") bizadsCents += c; // [RP-V7.224]
+    else if (tx.type === "store-sale") { plazaStoreSalesCents += c; plazaStoreCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.240]
   }
-  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents };
+  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents, plazaStoreSalesCents, plazaStoreCutCents }; // [RP-V7.240]
 }
 // [RP-V7.224] How many Business Ads subscriptions are active right now
 // (state-checked, so a lapsed sub never counts).
@@ -12437,7 +13454,7 @@ app.get("/api/owner/sales", (req, res) => {
   const s = rpSalesStreams(mdb);
   const storeCents = mdb.ownerStore && isFinite(Number(mdb.ownerStore.storeCents)) ? Math.round(Number(mdb.ownerStore.storeCents)) : null;
   const storeAsOf = storeCents === null ? null : (mdb.ownerStore.at || null);
-  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + (storeCents || 0);
+  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + s.plazaStoreSalesCents + (storeCents || 0); // [RP-V7.240] Plaza Store gross sales count in the Plaza total like auctions volume
   const stepDollars = 10000, capDollars = 3000000;
   const totalDollars = totalCents / 100;
   const crossed = totalDollars >= stepDollars ? Math.min(capDollars, Math.floor(totalDollars / stepDollars) * stepDollars) : 0;
@@ -12452,6 +13469,10 @@ app.get("/api/owner/sales", (req, res) => {
       auctionsVolumeCents: s.auctionsVolumeCents,
       bizadsCents: s.bizadsCents, // [RP-V7.224]
       bizadsActive: rpBizAdsActiveCount(mdb), // [RP-V7.224]
+      plazaStoreSalesCents: s.plazaStoreSalesCents, // [RP-V7.240]
+      plazaStoreCutCents: s.plazaStoreCutCents, // [RP-V7.240]
+      plazaStoreListings: rpStoreActiveListings240(), // [RP-V7.240]
+      plazaStoreReports: rpStoreReportsCount240(), // [RP-V7.240]
       storeCents,
       storeAsOf,
     },
