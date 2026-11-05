@@ -3073,18 +3073,8 @@
           </div>
           <button class="speed-btn" id="btnFindPeopleHome" type="button">🔎 Find people</button>
         </div>
-        <!-- [RP-V7.71] Open Plaza Feed — Branden (Oct 26): "make a feed
-             available for random people to post anything and gifting
-             likes follow and sharing available for that as well." -->
-        <div class="plaza-card" style="margin-top:12px;" data-adult>
-          <div>
-            <h3>📰 Plaza Feed</h3>
-            <p>The open Plaza wall — anybody can post a thought, a photo or a short video. Like posts, gift the people you appreciate, follow them, and share the good stuff.</p>
-          </div>
-          <button class="speed-btn" id="btnFeedHome" type="button">📰 Open the Feed</button>
-        </div>
-        <!-- [RP-V7.81] Magniphiscents shop card moved directly under the
-             Plaza Feed card (Branden, Oct 26, 2026) — card unchanged.
+        <!-- [RP-V7.247] Plaza Feed card REMOVED (Branden, Nov 5, 2026: "Take the Feed off") — the Feed wall is retired; photos post to Photos, videos post to Reels. -->
+        <!-- [RP-V7.81] Magniphiscents shop card on the Plaza page (Branden, Oct 26, 2026) — card unchanged.
              [RP-V7.223] Hidden from members at Branden's order (Nov 3,
              2026): ships [hidden]; the owner-sales gate module below
              reveals it only after the server confirms the owner. -->
@@ -3100,7 +3090,7 @@
              by the money module ONLY for signed-in adults when an active
              advertiser exists — empty and invisible otherwise, and
              data-adult keeps it out of teen Plaza renders entirely.
-             Ads live here and in the Feed, nowhere else: no church
+             Ads live here and in the Home stream, nowhere else: no church
              surface and no Teen Hangout ever renders one. -->
         <style>
           .rp-ad-tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.14);color:#cfd2dc;vertical-align:middle;}
@@ -3436,28 +3426,7 @@
           <div class="mom-feed" id="reelFeed" style="display:none;"></div>
         </div>
       </section>
-      <!-- SCREEN: PLAZA FEED [RP-V7.71] -->
-      <section class="screen" id="screen-feed">
-        <div class="mom-wrap">
-          <div class="mom-head">
-            <button class="btn-mini plaza-glow" id="btnFeedBack" type="button"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5 8 12l6.5 7"/></svg> Plaza</button>
-            <h2>📰 Plaza Feed</h2>
-          </div>
-          <p style="margin:0 2px 12px; color:var(--ink-soft); font-weight:700; font-size:13.5px;">The open Plaza wall — post a thought, a photo or a short video. Tap ❤️ to like, 🎁 to gift the poster (real charms, same as live), follow people you like, and 🔗 share the good stuff. 18+ only.</p>
-          <div class="feed-composer">
-            <textarea id="feedText" rows="2" maxlength="500" placeholder="What's happening on the Plaza?"></textarea>
-            <div id="feedPreview" hidden></div>
-            <div class="feed-comp-row">
-              <button class="btn-mini" id="feedAttachBtn" type="button">📷🎥 Photo or video</button>
-              <input type="file" id="feedFileInput" accept="image/*,video/*" hidden />
-              <span class="feed-comp-note">Photo ≤ 10 MB · video ≤ 50 MB</span>
-              <button class="btn-primary" style="width:auto; padding:10px 20px; margin-left:auto;" id="feedPostBtn" type="button">Post</button>
-            </div>
-          </div>
-          <div class="mom-feed" id="feedList"></div>
-          <p class="feed-empty" id="feedEmpty" hidden>Nothing here yet — be the first to post 🎉</p>
-        </div>
-      </section>
+      <!-- [RP-V7.247] SCREEN: PLAZA FEED removed (Branden, Nov 5, 2026). Surface removal only — the posts are NOT deleted: they still live on their authors' profiles and the server feed store is untouched. -->
       <!-- SCREEN: LIVE AUCTIONS -->
       <section class="screen" id="screen-auctions">
         <div class="auc-wrap">
@@ -6162,13 +6131,13 @@
         });
       }
 
-      var TEEN_ONLY_18 = ["screen-room", "screen-online", "screen-auctions", "screen-feed", "screen-store"]; // [RP-V7.240] the Plaza Store is 18+ like Auctions // [RP-V7.211] Reels opened to teens (Branden, Nov 2 2026: "Add reels to teens") — screen-moments is no longer teen-locked; teens watch AND post
+      var TEEN_ONLY_18 = ["screen-room", "screen-online", "screen-auctions", "screen-store"]; // [RP-V7.240] the Plaza Store is 18+ like Auctions // [RP-V7.211] Reels opened to teens (Branden, Nov 2 2026: "Add reels to teens") — screen-moments is no longer teen-locked; teens watch AND post
       // [RP-V7.75] Live rooms (the Live Stage + personal lives) are
       // all-ages for signed-in accounts — the one carve-out in the
       // teen lock. Mirrors the server's isLiveRoom classification.
       function rpIsLiveRoomId(roomId) { return roomId === "live-stage" || (typeof roomId === "string" && roomId.indexOf("live-") === 0); }
       function teenAreaName(id) {
-        return { "screen-plaza": "The Grand Plaza", "screen-room": "The party rooms", "screen-online": "The online rooms", "screen-moments": "Reels", "screen-auctions": "Live Auctions", "screen-feed": "The Plaza Feed", "screen-store": "Plaza Store" }[id] || "This part of the party";
+        return { "screen-plaza": "The Grand Plaza", "screen-room": "The party rooms", "screen-online": "The online rooms", "screen-moments": "Reels", "screen-auctions": "Live Auctions", "screen-store": "Plaza Store" }[id] || "This part of the party";
       }
       // Everyone you can meet here is a real player now: anything that used to
       // pair you with a computer guest points at the live online rooms instead.
@@ -6185,14 +6154,14 @@
       }
       // [RP-V7.75] The remaining 18+ areas (dating / Meet & Greet /
       // state rooms, auctions) show this gate to under-18
-      // players; lives, Reels [RP-V7.211], Stories, the Feed and the pots are all-ages
+      // players; lives, Reels [RP-V7.211], Stories and the pots are all-ages
       // and never land here.
       function openTeenGateAll(area) {
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close">\u2715</button>' +
           '<div class="game-box"><h3>' + area + ' is 18+</h3>' +
           '<p>The dating rooms, the Meet &amp; Greet rooms, the state rooms and the auctions are adults-only \u2014 everyone inside them is 18 or older.</p>' +
-          '<p>Your Plaza is big too: the \u26ea Christian Fellowship prayer room, the Teen Hangout, the \u2b50 Live Stage and every live (you can go live yourself!), Reels, Messages with other teens, Stories, the Feed and both pots \u2014 under-18s play in charms only, and you earn them by the thousands. And when you turn 18, every room here will be waiting.</p>' +
+          '<p>Your Plaza is big too: the \u26ea Christian Fellowship prayer room, the Teen Hangout, the \u2b50 Live Stage and every live (you can go live yourself!), Reels, Messages with other teens, Stories and both pots \u2014 under-18s play in charms only, and you earn them by the thousands. And when you turn 18, every room here will be waiting.</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-mini" data-act="chapel">\u26ea Go to the prayer room</button><button class="btn-mini" data-act="teenhang">🛋️ Teen Hangout</button><button class="btn-mini" data-act="prof">My profile</button></div></div>'
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -18893,7 +18862,7 @@
           '<details style="margin:4px 0;"><summary><b>How do auctions work?</b></summary><p style="margin:6px 0;">In 🔨 Live Auction you can bid on live items, or tap ＋ Sell an item to list your own. Winners pay bid + shipping, sellers ship the item. All sales are final unless an item never ships — and counterfeits are never allowed.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>How do I earn and cash out?</b></summary><p style="margin:6px 0;">Hosts earn charms from gifts, and sellers keep 90% of auction sales. When your balance reaches $20 you can cash out once a day through Stripe — see the 💰 Earn card.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>Is Rizz Plaza free?</b></summary><p style="margin:6px 0;">Yes — joining, the rooms, going live, and the fellowship room are all free. Gift charm packs and Premium are optional extras.</p></details>' +
-          '<details style="margin:4px 0;"><summary><b>Who can use the prayer room?</b></summary><p style="margin:6px 0;">Everyone — the Christian Fellowship room is all-ages (Teen Hangout too): chapel, prayer wall, and Bible study. Lives, Stories, Reels and the Feed are open to all ages as well; the dating rooms, state rooms and auctions stay 18+.</p></details>' +
+          '<details style="margin:4px 0;"><summary><b>Who can use the prayer room?</b></summary><p style="margin:6px 0;">Everyone — the Christian Fellowship room is all-ages (Teen Hangout too): chapel, prayer wall, and Bible study. Lives, Stories and Reels are open to all ages as well; the dating rooms, state rooms and auctions stay 18+.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>How do I report a player?</b></summary><p style="margin:6px 0;">Tap the ⚠️ Report button on their card — it hides them from you right away and flags them for the team. Nudity is never tolerated here.</p></details>' +
           '<h4 style="margin:16px 0 4px;">✉️ Message the team</h4>' +
           '<label style="display:block; margin:8px 0;">Your name<input type="text" id="supName" maxlength="80" autocomplete="name" placeholder="Your name" style="width:100%;" /></label>' +
@@ -19807,7 +19776,7 @@
       function ffRow144(p) {
         return '<div class="fol-row" data-ffid="' + escHtml(p.id) + '" data-ffname="' + escHtml(p.name) + '"><span class="fol-av">' + personFace({ name: p.name, photo: p.photo }) + '</span>' +
           '<span class="fol-meta"><b>' + escHtml(p.name) + '</b><i>' + (p.username ? "@" + escHtml(p.username) + " · " : "") + escHtml(p.why || "") + (p.contactName && p.contactName.toLowerCase() !== String(p.name).toLowerCase() ? " · in your contacts as " + escHtml(p.contactName) : "") + '</i></span>' +
-          '<button type="button" class="btn-mini" data-fffollow="' + escHtml(p.id) + '">Add</button>' +
+          (p.self ? '<button type="button" class="btn-mini" disabled>You</button>' : (p.added ? '<button type="button" class="btn-mini" data-fffollow="' + escHtml(p.id) + '" disabled>✓ Added</button>' : '<button type="button" class="btn-mini" data-fffollow="' + escHtml(p.id) + '">Add</button>')) +
           (p.dismiss ? '<button type="button" class="btn-mini" data-ffdismiss="' + escHtml(p.id) + '" aria-label="Not interested" title="Not interested"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' : '') + '</div>';
       }
       function ffWire144(box) {
@@ -19860,6 +19829,26 @@
         }
         return "";
       }
+      function ffSocChips248(p, excludeNet) { // [RP-V7.248] a found member's OTHER linked accounts — only accounts they actually linked (server sends linked-only), each chip opening that app via the V7.149 URL patterns; the account they were found BY is left out
+        if (!p || !p.socials) return "";
+        var chips = [];
+        Object.keys(FF_NET_LABELS144).forEach(function (net) {
+          if (net === excludeNet) return;
+          var h = p.socials[net];
+          if (!h) return;
+          var url = ffNetUrl149(net, h);
+          if (!url) return;
+          chips.push('<button type="button" class="btn-mini" data-ffopen248="' + escHtml(url) + '">' + escHtml(FF_NET_LABELS144[net]) + ' @' + escHtml(h) + ' ↗</button>');
+        });
+        if (!chips.length) return "";
+        return '<div data-ffsoc248="1" style="display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 8px 46px;">' + chips.join("") + "</div>";
+      }
+      function ffWireChips248(box) {
+        if (!box) return;
+        box.querySelectorAll("[data-ffopen248]").forEach(function (b) {
+          b.addEventListener("click", function (ev) { ev.stopPropagation(); window.open(b.getAttribute("data-ffopen248"), "_blank", "noopener"); });
+        });
+      }
       function ffLookupCard149(el, net, handle) { // [RP-V7.149] the person ON the other app — member or not: open their profile there, or invite them in
         if (!el) return;
         var url = ffNetUrl149(net, handle);
@@ -19884,10 +19873,11 @@
           else if (navigator.clipboard) { navigator.clipboard.writeText(text + " https://rizzplaza.com").then(function () { showToast("Invite copied — paste it anywhere. 📩"); }).catch(function () {}); }
         });
       }
-      function ffRenderInto144(el, people, emptyText) {
+      function ffRenderInto144(el, people, emptyText, opts) { // [RP-V7.248] opts.socChips: show each found member's other linked accounts under their row
         if (!el) return;
-        el.innerHTML = (people && people.length) ? ('<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;"><span class="age-note" style="flex:1;">' + people.length + (people.length === 1 ? " friend" : " friends") + ' on the Plaza</span>' + (people.length > 1 ? '<button type="button" class="btn-mini" data-ffaddall="1">Add all</button>' : "") + '</div>' + people.map(ffRow144).join("")) : '<p class="empty-note">' + emptyText + '</p>';
+        el.innerHTML = (people && people.length) ? ('<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;"><span class="age-note" style="flex:1;">' + people.length + (people.length === 1 ? " friend" : " friends") + ' on the Plaza</span>' + (people.length > 1 ? '<button type="button" class="btn-mini" data-ffaddall="1">Add all</button>' : "") + '</div>' + people.map(function (p) { return ffRow144(p) + ((opts && opts.socChips) ? ffSocChips248(p, opts.socExclude || "") : ""); }).join("")) : '<p class="empty-note">' + emptyText + '</p>';
         ffWire144(el);
+        if (opts && opts.socChips) ffWireChips248(el);
         var aaBtn147 = el.querySelector("[data-ffaddall]");
         if (aaBtn147) aaBtn147.addEventListener("click", function () {
           aaBtn147.disabled = true; aaBtn147.textContent = "Adding…";
@@ -19916,6 +19906,9 @@
           '<div class="game-box" style="text-align:left;" data-ffsheet="1"><h3 style="text-align:center;">' + (onb147 ? "👋 Find your friends" : "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"m16 16 4.5 4.5\"/></svg> Find friends") + '</h3>' +
           '<p class="age-note">Numbers and names are matched and forgotten — never stored, never shared. Only Plaza members ever show up.</p>' +
           (onb147 ? '<p class="age-note" style="text-align:center;">You just joined with your number and email — now sync your contacts and your other apps. Friends already on the Plaza show up here: tap <b>Add</b> and they are your people. Link your own handles below so friends can find you too.</p>' : '') +
+          '<h4 style="margin:12px 0 4px;">🔎 Search Plaza members</h4>' +
+          '<div style="display:flex;gap:8px;"><input class="rpdm-input" id="ffMemQ" type="text" placeholder="Name, @username, or their Facebook / Instagram / TikTok handle…" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMemGo">Search</button></div>' +
+          '<div id="ffMemRes"></div>' +
           '<h4 style="margin:12px 0 4px;">📱 From your contacts</h4>' +
           (canPick ? '<button type="button" class="btn-mini" id="ffPick">Pick contacts</button> ' : '') +
           '<div style="display:flex;gap:8px;margin-top:6px;"><input class="rpdm-input" id="ffPhones" type="text" placeholder="Paste phone numbers…" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMatch">Match</button></div>' +
@@ -19959,9 +19952,46 @@
           var h = ($("ffHandle").value || "").trim(); if (!h) { showToast("Type their username first."); return; }
           var net149 = $("ffNet").value;
           $("ffHandleRes").innerHTML = '<p class="empty-note">Looking…</p>';
-          post({ network: net149, handle: h }).then(function (j) { ffRenderInto144($("ffHandleRes"), j && j.people, "No Plaza member has linked that handle yet — here they are on the app itself:"); ffLookupCard149($("ffHandleRes"), net149, h); })
+          post({ network: net149, handle: h }).then(function (j) { ffRenderInto144($("ffHandleRes"), j && j.people, "No Plaza member has linked that handle yet — here they are on the app itself:", { socChips: true, socExclude: net149 }); ffLookupCard149($("ffHandleRes"), net149, h); })
             .catch(function () { ffRenderInto144($("ffHandleRes"), null, "Couldn't search right now — try again in a moment."); });
         });
+        /* [RP-V7.247] Plaza member search — a LIST of matching members
+           (partial name/@username matches, up to 20), each row with
+           its Add button, wired by the same ffWire144 as suggestions.
+           Already-followed members render as a disabled ✓ Added and
+           your own row as "You" — the server's /api/members flags
+           (iFollow / isSelf) drive both.
+           [RP-V7.248] The query also matches members' linked Facebook /
+           Instagram / TikTok (and other apps') handles server-side;
+           handle hits are labeled "via …" on the row, and every found
+           card carries chips to the member's other linked accounts. */
+        var memRes247 = $("ffMemRes"), memQ247 = $("ffMemQ"), memTimer247 = null;
+        function memSearch247(auto) {
+          if (!memRes247 || !memQ247) return;
+          var q = (memQ247.value || "").trim().replace(/^@+/, "");
+          if (!q) { if (!auto) showToast("Type a name or @username first."); memRes247.innerHTML = ""; return; }
+          memRes247.innerHTML = '<p class="empty-note">Searching the Plaza…</p>';
+          fetch("/api/members?q=" + encodeURIComponent(q) + "&limit=20", { headers: { "Authorization": "Bearer " + tk } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+              var list = (j && j.members) || [];
+              if (!list.length) { memRes247.innerHTML = '<p class="empty-note">No members match that yet — try another spelling.</p>'; return; }
+              memRes247.innerHTML = '<p class="age-note" style="margin:6px 0 2px;">' + list.length + (list.length === 1 ? " member" : " members") + ' found</p>' + list.map(function (m) {
+                var why247 = m.isSelf ? "That's you" : (m.iFollow ? "You follow them" : (m.followers ? (m.followers + (m.followers === 1 ? " follower" : " followers")) : "Member of the Plaza"));
+                if (m.via && !m.isSelf) why247 = "via " + (FF_NET_LABELS144[m.via.network] || m.via.network) + " @" + m.via.handle; // [RP-V7.248] matched on a linked handle — the row says where
+                return ffRow144({ id: m.id, name: m.name, username: m.username, photo: m.photo, why: why247, added: !!m.iFollow, self: !!m.isSelf }) + ffSocChips248(m, m.via ? m.via.network : "");
+              }).join("");
+              ffWire144(memRes247);
+              ffWireChips248(memRes247);
+            })
+            .catch(function () { memRes247.innerHTML = '<p class="empty-note">Search didn\'t load — try again in a moment.</p>'; });
+        }
+        var memGo247 = $("ffMemGo");
+        if (memGo247) memGo247.addEventListener("click", function () { memSearch247(false); });
+        if (memQ247) {
+          memQ247.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); memSearch247(false); } });
+          memQ247.addEventListener("input", function () { clearTimeout(memTimer247); var v = (memQ247.value || "").trim(); if (v.length >= 2) memTimer247 = setTimeout(function () { memSearch247(true); }, 450); else if (!v && memRes247) memRes247.innerHTML = ""; });
+        }
         fetch("/api/social/suggestions", { headers: { "Authorization": "Bearer " + tk } })
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (j) {
@@ -23587,6 +23617,27 @@
         momDraftsWire156(); // [RP-V7.156]
         var mdb156 = $("btnMomDraft156"); if (mdb156) mdb156.addEventListener("click", momSaveDraft156); // [RP-V7.156]
       }
+      /* [RP-V7.247] Share-in bridge for PHOTOS: an image shared into
+         the app from another app lands in this picker's own accept
+         path (same downscale, caps and composer) — it used to land
+         in the retired Feed composer. Mirrors rpReelShareIn133. */
+      try {
+        window.rpPhotoShareIn247 = function (file, caption) {
+          if (!file) return;
+          momCapDraft123 = String(caption || "").slice(0, 140);
+          var inp = $("momPhotoInput");
+          if (inp && typeof DataTransfer !== "undefined") {
+            try {
+              var dt247 = new DataTransfer();
+              dt247.items.add(file);
+              inp.files = dt247.files;
+              inp.dispatchEvent(new Event("change", { bubbles: true }));
+              return;
+            } catch (e) { }
+          }
+          toast("That shared photo couldn't be opened — try the ＋ button 📷");
+        };
+      } catch (e) { }
       var momInput = $("momPhotoInput");
       if (momInput) momInput.addEventListener("change", function () {
         /* [RP-V7.123] multi-pick: every chosen image is downscaled with
@@ -31442,7 +31493,7 @@ function stageStreakBump(key, add) {
     return Math.round(s / 86400) + "d ago";
   }
   // [RP-V7.100] A tapped notification goes where it points: the DM
-  // thread, the follower's profile, the Feed, Moments, your own
+  // thread, the follower's profile, Moments, your own
   // Profile, or the Plaza home.
   function remNavigate(go) {
     if (!go || !go.screen) return;
@@ -31453,7 +31504,8 @@ function stageStreakBump(key, add) {
         if (window.rpDm && window.rpDm.openProfile) window.rpDm.openProfile(go.id, go.name || "");
         else if (typeof show === "function") show("screen-profile");
       } else if (go.screen === "feed") {
-        if (typeof show === "function") show("screen-feed");
+        /* [RP-V7.247] The Feed wall is retired — a tapped feed-era notification lands on the Plaza. */
+        if (typeof show === "function") show("screen-plaza");
       } else if (go.screen === "moments") {
         if (typeof show === "function") show("screen-moments");
       } else if (go.screen === "ownprofile") {
@@ -35966,7 +36018,7 @@ button.rp72-chip{ cursor:pointer; }
       '<p style="text-align:center;">One flat membership: boosts for your lives and Reels, extra rooms, read receipts in messages — and a ⭐ badge on your profile.</p>' +
       '<div class="pack-row"><span class="pi">⭐</span><div class="pt"><b>Premium monthly</b><span>Renews monthly — cancel anytime</span></div><button class="btn-mini" data-rpplan="monthly">$9.99/mo</button></div>' +
       '<div class="pack-row"><span class="pi">💎</span><div class="pt"><b>Premium yearly</b><span>About 6 months free vs monthly (~50% off)</span></div><button class="btn-mini" data-rpplan="yearly">$59.99/yr</button></div>' +
-      (bizActive224() ? '<div class="pack-row"><span class="pi">📣</span><div class="pt"><b>Business Ads</b><span>Your ad is live on the Plaza home and in the Feed</span></div><button class="btn-mini" data-rpbiz="manage">Manage your ad</button></div>' : '<div class="pack-row"><span class="pi">📣</span><div class="pt"><b>Business Ads</b><span>Advertise your business on the Plaza home and in the Feed — renews monthly, cancel anytime</span></div><button class="btn-mini" data-rpbiz="sub">$19.99/mo</button></div>') +
+      (bizActive224() ? '<div class="pack-row"><span class="pi">📣</span><div class="pt"><b>Business Ads</b><span>Your ad is live on the Plaza home and in the Home stream</span></div><button class="btn-mini" data-rpbiz="manage">Manage your ad</button></div>' : '<div class="pack-row"><span class="pi">📣</span><div class="pt"><b>Business Ads</b><span>Advertise your business on the Plaza home and in the Home stream — renews monthly, cancel anytime</span></div><button class="btn-mini" data-rpbiz="sub">$19.99/mo</button></div>') +
       '<p style="font-size:12.5px; color:var(--ink-soft); font-weight:700; margin-top:10px;">Secure checkout powered by Stripe. Premium activates the moment your payment clears.</p></div>'
     );
     var sh = $("sheet");
@@ -36021,7 +36073,7 @@ button.rp72-chip{ cursor:pointer; }
         if (!sheetOpen(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📣 Business Ads</h3>' +
-          '<p style="text-align:center;">Advertise your business on the Plaza home and in the Feed — your ad runs while your subscription is active.</p>' +
+          '<p style="text-align:center;">Advertise your business on the Plaza home and in the Home stream — your ad runs while your subscription is active.</p>' +
           '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini btn-big" id="rpBizSubBtn">📣 Start Business Ads — $19.99/mo</button></div>' +
           '<p style="font-size:12.5px; color:var(--ink-soft); font-weight:700; margin-top:10px;">Secure checkout powered by Stripe. Renews monthly — cancel anytime.</p></div>'
         )) return;
@@ -36032,7 +36084,7 @@ button.rp72-chip{ cursor:pointer; }
       var html =
         '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
         '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📣 Your business ad</h3>' +
-        '<p style="text-align:center;">Live on the Plaza home and in the Feed' + (st.until ? ' until ' + fmtDate(st.until) : '') + '. Edit anything — changes show right away.</p>' +
+        '<p style="text-align:center;">Live on the Plaza home and in the Home stream' + (st.until ? ' until ' + fmtDate(st.until) : '') + '. Edit anything — changes show right away.</p>' +
         '<label style="display:block; margin:8px 0;">Business name<input type="text" id="rpBizName" maxlength="60" placeholder="e.g. Sunrise Bakery" value="' + esc(biz.name || "") + '" style="width:100%;" /></label>' +
         '<label style="display:block; margin:8px 0;">Short blurb<textarea id="rpBizBlurb" rows="2" maxlength="140" placeholder="What you sell, in one line" style="width:100%;">' + esc(biz.blurb || "") + '</textarea></label>' +
         '<label style="display:block; margin:8px 0;">Link<input type="url" id="rpBizLink" maxlength="300" placeholder="yourstore.com" value="' + esc(biz.link || "") + '" style="width:100%;" /></label>' +
@@ -36064,7 +36116,7 @@ button.rp72-chip{ cursor:pointer; }
         sv.disabled = true; sv.textContent = "Saving…";
         api("/api/money/bizads/profile", "POST", { name: $("rpBizName").value, blurb: $("rpBizBlurb").value, link: $("rpBizLink").value, pic: picUrl }, 30000).then(function (r) {
           sv.disabled = false; sv.textContent = "Save my business";
-          if (r.json && r.json.ok) { toast2("Saved 📣 — your ad is live on the Plaza home and in the Feed.", 4200); loadBizAdsHome224(); }
+          if (r.json && r.json.ok) { toast2("Saved 📣 — your ad is live on the Plaza home and in the Home stream.", 4200); loadBizAdsHome224(); }
           else toast2((r.json && r.json.error) || "That didn't save — try again.", 3600);
         });
       });
@@ -39308,35 +39360,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 
 
 <style>
-/* ============ RP-V7.71: Open Plaza Feed ============ */
-.feed-composer { background: var(--panel, #17171f); border: 1.5px solid rgba(255,255,255,.1); border-radius: 16px; padding: 12px; margin-bottom: 14px; }
-.feed-composer textarea { width: 100%; box-sizing: border-box; background: rgba(255,255,255,.06); border: 1.5px solid rgba(255,255,255,.14); border-radius: 12px; color: inherit; font-family: inherit; font-size: 15px; font-weight: 600; padding: 10px 12px; resize: vertical; }
-.feed-comp-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-.feed-comp-note { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
-#feedPreview { margin-top: 10px; position: relative; }
-#feedPreview img { max-width: 100%; max-height: 300px; border-radius: 12px; display: block; }
-/* [RP-V7.81] composer video preview: full-width treatment, not a tile. */
-#feedPreview video { width: 100%; max-height: 70vh; object-fit: cover; border-radius: 12px; display: block; }
-#feedPreview .feed-pv-x { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(0,0,0,.65); color: #fff; font-size: 15px; cursor: pointer; }
-.feed-post { background: var(--panel, #17171f); border: 1.5px solid rgba(255,255,255,.09); border-radius: 16px; padding: 13px 14px; margin-bottom: 12px; box-sizing: border-box; width: 100%; max-width: 100%; } /* [RP-V7.119] FIX 2: the card can never exceed its column. */
-.feed-phead { display: flex; align-items: center; gap: 9px; }
-.feed-chip { display: flex; align-items: center; gap: 10px; background: none; border: none; color: inherit; font-family: inherit; cursor: pointer; padding: 0; text-align: left; flex: 1; min-width: 0; }
-.feed-chip img, .feed-chip .feed-init { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; display: flex; align-items: center; justify-content: center; background: #33333f; color: #fff; font-weight: 900; font-size: 17px; flex: 0 0 auto; }
-.feed-chip b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.feed-chip small { display: block; font-size: 12px; color: var(--ink-soft); font-weight: 700; }
-.feed-follow { flex: 0 0 auto; background: #fe2c55; color: #fff; border: none; border-radius: 8px; padding: 8px 15px; font-weight: 800; font-family: inherit; cursor: pointer; font-size: 13.5px; }
-.feed-follow.on { background: rgba(255,255,255,.16); color: inherit; }
-.feed-text { margin: 10px 0 0; font-size: 15px; font-weight: 600; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
-.feed-media { margin-top: 10px; }
-.feed-media img { width: 100%; max-width: 100%; max-height: 480px; object-fit: contain; border-radius: 12px; background: #000; display: block; }
-/* [RP-V7.81] feed videos go FULL-WIDTH at natural aspect — no 480px cap,
-   no black letterbox box (Branden, Oct 26, 2026). */
-.feed-media video { width: 100%; max-width: 100%; height: auto; border-radius: 12px; display: block; }
-.feed-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 11px; border-top: 1px solid rgba(255,255,255,.07); padding-top: 12px; } /* [RP-V7.163] glowing outline actions */ /* [RP-V7.119] FIX 2: the row wraps inside the card instead of overflowing the screen. */
-.feed-act { background: none; border: none; font-family: inherit; cursor: pointer; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 2px 0 0; color: #fff; } .feed-act svg { width: 27px; height: 27px; fill: none; stroke: #ff5c7a; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 5px rgba(254,44,85,.9)) drop-shadow(0 0 13px rgba(254,44,85,.45)); } .feed-act.util { flex: 0 0 auto; flex-direction: row; gap: 5px; align-items: center; background: rgba(255,255,255,.06); border-radius: 999px; padding: 7px 12px; font-weight: 800; font-size: 12.5px; } /* [RP-V7.119] FIX 2: pills shrink and share rows — every action stays visible + tappable at 360px. */
-.feed-act small { font-size: 12.5px; margin: 3px 0 0; color: #fff; font-weight: 800; line-height: 1.1; }
-.feed-act.like.on svg { fill: #fe2c55; stroke: #ffb3c1; } .feed-act.like.on small { color: #ff8fa5; } .feed-act.repost.on svg { stroke: #37d67a; filter: drop-shadow(0 0 5px rgba(55,214,122,.9)) drop-shadow(0 0 13px rgba(55,214,122,.45)); } .feed-act.repost.on small { color: #37d67a; } /* [RP-V7.95] Post Insights panel (owner-only, Plaza-original) */ .fi-media img, .fi-media video { width: 100%; border-radius: 12px; display: block; margin-bottom: 10px; } .fi-date { color: var(--ink-soft); font-weight: 700; font-size: 13px; margin: 2px 0 12px; } .fi-counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; } .fi-count { flex: 1 1 60px; background: rgba(255,255,255,.06); border-radius: 12px; padding: 10px 6px; text-align: center; } .fi-count b { display: block; font-size: 17px; } .fi-count small { color: var(--ink-soft); font-weight: 700; font-size: 11.5px; } .fi-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .fi-tile { background: rgba(255,255,255,.06); border-radius: 12px; padding: 12px; } .fi-tile b { display: block; font-size: 20px; } .fi-tile small { color: var(--ink-soft); font-weight: 700; font-size: 12px; } .fi-callout { margin-top: 12px; background: rgba(255,209,102,.13); border: 1px solid rgba(255,209,102,.35); color: #ffd166; border-radius: 12px; padding: 11px 13px; font-weight: 800; font-size: 13.5px; } .fi-cmt { text-align: left; margin: 8px 0; } .fi-cmt b { margin-right: 6px; } .fi-cmtrow { display: flex; gap: 8px; margin-top: 12px; } .fi-cmtrow input { flex: 1; }
-.feed-empty { text-align: center; color: var(--ink-soft); font-weight: 700; padding: 26px 0; }
+/* [RP-V7.247] The Plaza Feed styles left with the Feed (Branden, Nov 5, 2026). The top-gifter name effects below stay — the live gift banners still wear them. */
 /* ============ RP-V7.71: top-gifter name effects (original CSS) ============ */
 .rp-name-glow { color: #ffd166; text-shadow: 0 0 6px rgba(255,209,102,.95), 0 0 15px rgba(255,170,0,.7), 0 0 28px rgba(255,140,0,.45); }
 .rp-name-fire { font-weight: 900; background: linear-gradient(180deg, #fff6c9 0%, #ffd166 28%, #ff9e2c 52%, #ff5e3a 76%, #e0113c 100%); background-size: 100% 230%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; animation: rpFlameShift 1.1s ease-in-out infinite alternate; filter: drop-shadow(0 0 7px rgba(255,110,40,.55)); }
@@ -39346,673 +39370,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 @keyframes rpChipFlicker { from { box-shadow: 0 0 9px rgba(255,120,40,.75), 0 0 18px rgba(240,60,30,.4); } to { box-shadow: 0 0 16px rgba(255,160,50,1), 0 0 32px rgba(240,60,30,.65); } }
 @media (prefers-reduced-motion: reduce) { .rp-name-fire, .rp3-chip.rp3-fire { animation: none; } }
 </style>
-<script>
-/* =====================================================================
-   [RP-V7.71] Open Plaza Feed — anybody can post (text / photo /
-   video); every post carries like (real taps, server-counted), gift
-   (the EXISTING gift sheet + money path), follow (the existing
-   social system) and share (the existing share machinery). Ranking
-   is server-side: newest + the shared For You author-affinity lift.
-   Original code, Plaza styling.
-   ===================================================================== */
-(function () {
-  "use strict";
-  /* [RP-V7.71] THE Feed age flip point (client mirror of the server
-     constant): the Feed carries giftable media, so it shipped 18+
-     like Reels and Stories.
-     [RP-V7.74] FINAL rule (Branden, Oct 26, 2026: "under 18 is
-     allowed to post anything get likes can share to"): the Feed is
-     SOCIAL — viewing, posting and liking are ALL AGES, so this is
-     false and gateTap() below passes for every signed-in account.
-     (A gift sent from a post rides the money layer, where a gift
-     with a teen on either side is charms-only — no earnings.)
-     Flip this AND the server FEED_ADULT_ONLY to change the split.
-     Teen Hangout and Fellowship stay untouched either way. */
-  var FEED_ADULT_ONLY = false;
-
-  var $ = function (id) { return document.getElementById(id); };
-  function escF(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
-  function acctRec() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a : null; } catch (e) { return null; } }
-  function api(path, method, body) {
-    var a = acctRec();
-    var h = { "Authorization": "Bearer " + (a ? a.token : "") };
-    var opt = { method: method || "GET", headers: h };
-    if (body !== undefined) { h["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
-    return fetch(path, opt).then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }).catch(function () { return { status: r.status, json: null }; }); }).catch(function () { return { status: 0, json: null }; });
-  }
-  function toastF(msg, ms) { if (typeof window.toast === "function") { window.toast(msg, ms || 3200); return; } }
-  function isTeenLocked() { try { return typeof isTeen === "function" && isTeen(); } catch (e) { return false; } }
-  function gateTap(resume) {
-    if (!FEED_ADULT_ONLY) return true;
-    var ok = true;
-    try { ok = (typeof rpAdultOk === "function") ? rpAdultOk() : true; } catch (e) { ok = true; }
-    if (ok) return true;
-    try { rpDoorGate("The Plaza Feed", resume); } catch (e) { toastF("The Feed is 18+ — verify your age first.", 3600); }
-    return false;
-  }
-  function timeAgo(iso) {
-    var s = Math.max(1, Math.floor((Date.now() - Date.parse(iso)) / 1000));
-    if (s < 3600) return Math.max(1, Math.floor(s / 60)) + "m ago";
-    if (s < 86400) return Math.floor(s / 3600) + "h ago";
-    return Math.floor(s / 86400) + "d ago";
-  }
-  function avaInner(author) {
-    if (author && author.photo) return '<img src="' + escF(author.photo) + '" alt=""/>';
-    var ch = (String((author && author.name) || "?").trim().charAt(0) || "?").toUpperCase();
-    return '<span class="feed-init">' + escF(ch) + "</span>";
-  }
-
-  var posts = [];
-  var bizAds224 = []; // [RP-V7.224] active Business Ads for interleave (server returns [] to teens; the Feed is adult-only besides)
-  var bizAdOff224 = Math.floor(Math.random() * 997); // rotation offset so advertisers share the slots fairly across loads
-  var viewedIds = {}; // [RP-V7.95] posts already view-reported this page load
-  var adultOnly = false;
-  var posting = false;
-  var pendingFile = null, pendingUrl = null;
-
-  function openFeed() {
-    if (!acctRec()) { toastF("Sign in to open the Feed 📰", 3600); return; }
-    if (isTeenLocked()) { toastF("The Feed is 18+.", 3600); return; }
-    if (!gateTap(function () { openFeed(); })) return;
-    try { show("screen-feed"); } catch (e) { }
-    loadFeed();
-  }
-  function loadFeed() {
-    api("/api/bizads", "GET").then(function (ar) { bizAds224 = (ar.json && ar.json.ok && Array.isArray(ar.json.ads)) ? ar.json.ads : []; }); // [RP-V7.224]
-    var list = $("feedList"); if (!list) return;
-    if (!posts.length) list.innerHTML = '<p class="feed-empty">Loading the Feed…</p>';
-    api("/api/feed?limit=50", "GET").then(function (r) {
-      if (r.json && r.json.ok) {
-        adultOnly = !!r.json.adultOnly;
-        if (adultOnly) { posts = []; render(); return; }
-        /* [RP-V7.119] FIX 3: the Plaza feed merges ALL the post stores.
-           Until now it read ONLY /api/feed, so a member's photo post
-           (Moments store) and reel (Reels store) never appeared here —
-           the owner saw his reel play in the Friends feed while the
-           Plaza feed showed nothing. Merged items are tagged _store and
-           their actions route to their own stores' endpoints (see
-           onLike / onComment / onRepost); Delete + Insights stay
-           feed-store only because the other stores have no such
-           endpoints. The Reels surface itself already reads /api/reels
-           (For You + Friends) and its Photos mode reads
-           /api/photo/posts — both verified against the staged server. */
-        var base119 = r.json.posts || [];
-        var myId119 = (r.json.me && r.json.me.id) || null;
-        var extra119 = [];
-        var pPhotos119 = api("/api/photo/posts", "GET").then(function (pr) {
-          if (pr.json && pr.json.ok && Array.isArray(pr.json.posts)) pr.json.posts.slice(0, 30).forEach(function (pp) { extra119.push(mapPhotoPost119(pp)); });
-        });
-        var pReels119 = api("/api/reels", "GET").then(function (rr) {
-          if (rr.json && rr.json.ok && Array.isArray(rr.json.reels)) rr.json.reels.slice(0, 30).forEach(function (rl) { extra119.push(mapReelPost119(rl)); });
-        });
-        Promise.all([pPhotos119, pReels119]).then(function () {
-          resolveMergedAuthors119(extra119, myId119).then(function () {
-            posts = mergeByTime119(base119, extra119);
-            render();
-          });
-        });
-        return;
-      }
-      render();
-    });
-  }
-  /* [RP-V7.119] FIX 3 helpers: map the photo-post and reel payloads
-     onto the feed post shape. ids are store-prefixed so findPost and
-     data-fid can never collide across stores; _sid keeps the raw id
-     for the stores' own endpoints. Comments already ride both payloads
-     in the flat {name, text} shape the comments sheet renders. */
-  function mapPhotoPost119(pp) {
-    return {
-      id: "photo:" + pp.id, _sid: pp.id, _store: "photo",
-      kind: "photo", url: pp.photo || "", urls: (pp.urls && pp.urls.length ? pp.urls.slice() : (pp.photo ? [pp.photo] : [])), /* [RP-V7.123] */ text: pp.caption || "", createdAt: pp.createdAt || null,
-      author: { id: null, name: pp.author || "Someone", photo: null },
-      likes: pp.likes || 0, likedByMe: !!pp.myLiked,
-      reposts: pp.reposts || 0, myReposted: !!pp.myReposted,
-      comments: Array.isArray(pp.comments) ? pp.comments : [],
-      commentCount: (typeof pp.commentCount === "number") ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0),
-      shares: 0, views: 0, iFollow: false, isSelf: !!pp.mine
-    };
-  }
-  function mapReelPost119(rl) {
-    return {
-      id: "reel:" + rl.id, _sid: rl.id, _store: "reel",
-      kind: "video", url: rl.url || "", text: rl.caption || "", createdAt: rl.createdAt || null,
-      author: { id: null, name: rl.author || "Someone", photo: null },
-      likes: rl.heartLikes || 0, likedByMe: !!rl.myHeart,
-      reposts: Array.isArray(rl.reposts) ? rl.reposts.length : (rl.reposts || 0), myReposted: !!rl.myReposted,
-      comments: Array.isArray(rl.comments) ? rl.comments : [],
-      commentCount: (typeof rl.commentCount === "number") ? rl.commentCount : (Array.isArray(rl.comments) ? rl.comments.length : 0),
-      shares: 0, views: rl.views || 0, iFollow: false, isSelf: false
-    };
-  }
-  /* Author ids for merged items: the photo/reel payloads carry the
-     author's display NAME only, so resolve id/photo/follow-state from
-     the profile endpoint by name (unique-name match server-side).
-     Best-effort and capped — an unresolved author simply keeps the
-     name-based fallbacks (gift by name, lazy resolve on profile tap). */
-  function resolveMergedAuthors119(items, myId) {
-    var byName = {};
-    items.forEach(function (p) { if (!p.author.id && p.author.name) (byName[p.author.name] = byName[p.author.name] || []).push(p); });
-    var names = Object.keys(byName).slice(0, 12);
-    if (!names.length) return Promise.resolve();
-    return Promise.all(names.map(function (nm) {
-      return api("/api/social/profile?name=" + encodeURIComponent(nm), "GET").then(function (r) {
-        var j = r.json;
-        if (!j || !j.ok || !j.id) return;
-        byName[nm].forEach(function (p) {
-          p.author.id = j.id;
-          p.author.photo = j.photo || null;
-          p.iFollow = !!j.iFollow;
-          if (myId && j.id === myId) p.isSelf = true;
-        });
-      });
-    })).then(function () { });
-  }
-  /* Interleave merged items into the feed list by createdAt (newest
-     first) WITHOUT disturbing the feed posts' own ranked order: each
-     merged item is inserted before the first post older than it. */
-  function mergeByTime119(base, extra) {
-    var out = base.slice();
-    var sorted = extra.slice().sort(function (a, b) { return String(b.createdAt || "").localeCompare(String(a.createdAt || "")); });
-    sorted.forEach(function (item) {
-      var t = String(item.createdAt || ""), idx = -1;
-      for (var i = 0; i < out.length; i++) { if (String(out[i].createdAt || "") <= t) { idx = i; break; } }
-      if (idx < 0) out.push(item); else out.splice(idx, 0, item);
-    });
-    return out;
-  }
-  /* [RP-V7.163] Glowing outline action icons — Branden pointed at a
-     Reels rail (outline icon, count underneath) and said: this style,
-     but a GLOWING outline instead of white. Plaza pink neon glow. */
-  var RP_ACT_SVG = {
-    heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6C6.6 17.1 3.2 13.7 3.2 10 3.2 7.3 5.2 5.2 7.7 5.2c1.7 0 3.3.9 4.3 2.4 1-1.5 2.6-2.4 4.3-2.4 2.5 0 4.5 2.1 4.5 4.8 0 3.7-3.4 7.1-8.8 10.6z"/></svg>',
-    cmt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5c0 4.2-4 7.6-9 7.6-1 0-2-.1-2.9-.4L4 20l1.1-3.3C3.8 15.3 3 13.5 3 11.5 3 7.3 7 3.9 12 3.9s9 3.4 9 7.6z"/></svg>',
-    repost: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
-    gift: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12h15V20h-15z"/><path d="M3.5 8h17v4h-17z"/><path d="M12 8v12"/><path d="M12 8c-2.2 0-4-1.1-4-2.7C8 3.9 9.3 3 10.3 3.3 11.9 3.8 12 8 12 8z"/><path d="M12 8c2.2 0 4-1.1 4-2.7C16 3.9 14.7 3 13.7 3.3 12.1 3.8 12 8 12 8z"/></svg>',
-    share: '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>'
-  };
-  function postHtml(p) {
-    // [RP-V7.89] A repost entry: attribution line + the original post,
-    // no actions row of its own.
-    if (p.kind === "repost" && p.post) {
-      var rpMedia = "";
-      if ((p.post.kind === "reel" || p.post.kind === "video") && p.post.url) rpMedia = '<div class="feed-media"><video src="' + escF(p.post.url) + '" controls playsinline preload="metadata"></video></div>';
-      else if (p.post.url) rpMedia = '<div class="feed-media"><img src="' + escF(p.post.url) + '" alt=""/></div>';
-      return '<article class="feed-post" data-fid="' + escF(p.id) + '">' +
-        '<p class="feed-repostby">🔁 <b>' + escF((p.repostBy && p.repostBy.name) || "Someone") + "</b> reposted</p>" +
-        '<div class="feed-phead"><span class="feed-chip">' + avaInner(p.post.author) +
-        "<span><b>" + escF((p.post.author && p.post.author.name) || "") + "</b><small>" + timeAgo(p.repostedAt || p.createdAt) + "</small></span></span></div>" +
-        (p.post.caption ? '<p class="feed-text">' + escF(p.post.caption) + "</p>" : "") + rpMedia +
-        "</article>";
-    }
-    var media = "";
-    if (p.kind === "photo" && p.url) { /* [RP-V7.123] a set flips inside its card (manual only) */
-      if (p.urls && p.urls.length > 1) {
-        var fi123 = Math.min(typeof p._fi === "number" ? p._fi : 0, p.urls.length - 1);
-        media = '<div class="feed-media feed-flip"><img src="' + escF(p.urls[fi123]) + '" alt=""/>' +
-          '<button type="button" class="ff-zone prev" data-feed-flip="-1" aria-label="Previous photo"></button>' +
-          '<button type="button" class="ff-zone next" data-feed-flip="1" aria-label="Next photo"></button>' +
-          '<span class="ff-count"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> ' + (fi123 + 1) + "/" + p.urls.length + "</span></div>";
-      } else media = '<div class="feed-media"><img src="' + escF(p.url) + '" alt=""/></div>';
-    }
-    else if (p.kind === "video" && p.url) media = '<div class="feed-media"><video src="' + escF(p.url) + '" controls playsinline preload="metadata"></video></div>';
-    var follow = "";
-    if (!p.isSelf && p.author.id) follow = '<button type="button" class="feed-follow' + (p.iFollow ? " on" : "") + '" data-feed-act="follow">' + (p.iFollow ? "Following ✓" : "Follow") + "</button>";
-    return '<article class="feed-post" data-fid="' + escF(p.id) + '">' +
-      '<div class="feed-phead"><button type="button" class="feed-chip" data-feed-act="profile">' + avaInner(p.author) +
-      "<span><b>" + escF(p.author.name) + "</b><small>" + timeAgo(p.createdAt) + "</small></span></button>" + follow + "</div>" +
-      (p.text ? '<p class="feed-text">' + escF(p.text) + "</p>" : "") + media +
-      '<div class="feed-actions">' +
-      '<button type="button" class="feed-act like' + (p.likedByMe ? " on" : "") + '" data-feed-act="like" aria-label="Like">' + RP_ACT_SVG.heart + "<small>" + (p.likes || 0) + "</small></button>" +
-      '<button type="button" class="feed-act" data-feed-act="comment" aria-label="Comments">' + RP_ACT_SVG.cmt + "<small>" + (p.commentCount || 0) + "</small></button>" +
-      ('<button type="button" class="feed-act repost' + (p.myReposted ? " on" : "") + '" data-feed-act="repost" aria-label="Repost">' + RP_ACT_SVG.repost + "<small>" + (p.reposts || 0) + "</small></button>") /* [RP-V7.101] own posts too — a reshare; the server keeps it out of the public count */ +
-      '<button type="button" class="feed-act" data-feed-act="gift" aria-label="Send a gift">' + RP_ACT_SVG.gift + "<small>Gift</small></button>" +
-      '<button type="button" class="feed-act" data-feed-act="share" aria-label="Share">' + RP_ACT_SVG.share + "<small>" + (p.shares || 0) + "</small></button>" +
-      (p.isSelf && !p._store ? '<button type="button" class="feed-act util" data-feed-act="insights"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 4v15.5h16.5\"/><path d=\"M8.2 16.5V11M12.2 16.5V7.8M16.2 16.5v-3.8\"/></svg> Insights</button>' : "") + /* [RP-V7.119] FIX 3, Delete lifted by [RP-V7.243]: Insights stays feed-store only; Delete covers all three stores now (the reel/photo endpoints exist as of V7.243, and onDelete routes by _store). */
-      (p.isSelf ? '<button type="button" class="feed-act util" data-feed-act="del" style="margin-left:auto;"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.5 6.5h15M9.5 6.3V4.8A1.8 1.8 0 0 1 11.3 3h1.4a1.8 1.8 0 0 1 1.8 1.8v1.5M6.5 6.5l1 13.2h9l1-13.2\"/><path d=\"M10 10.5v6M14 10.5v6\"/></svg> Delete</button>' : "") +
-      "</div></article>";
-  }
-  function render() {
-    var list = $("feedList"); if (!list) return;
-    var empty = $("feedEmpty");
-    if (adultOnly) {
-      list.innerHTML = '<p class="feed-empty">The Feed is 18+ — verify your age at the door to join in.</p>';
-      if (empty) empty.hidden = true;
-      return;
-    }
-    list.innerHTML = feedHtmlWithAds224();
-    if (empty) empty.hidden = posts.length > 0;
-    observeViews(list); // [RP-V7.95]
-  }
-  /* [RP-V7.224] Business Ads interleave: one clearly-labeled ad card
-     after the 3rd post, then every 8 posts, cycling advertisers from
-     a per-load random offset (the server also rotates by the minute).
-     Ad cards carry no feed actions and no data-fid — view counting,
-     likes and findPost never touch them. */
-  function adHtml224(ad) {
-    return '<article class="feed-post rp-feed-ad" data-rpad="1" data-link="' + escF(ad.link || "") + '">' +
-      '<div class="feed-phead"><span class="feed-chip"><span><b>' + escF(ad.name) + '</b><small>Business</small></span></span><span class="rp-ad-tag" style="margin-left:auto;">Ad</span></div>' +
-      (ad.blurb ? '<p class="feed-text">' + escF(ad.blurb) + '</p>' : '') +
-      (ad.pic ? '<div class="feed-media"><img src="' + escF(ad.pic) + '" alt=""/></div>' : '') +
-      '</article>';
-  }
-  function feedHtmlWithAds224() {
-    var parts = posts.map(postHtml);
-    if (!bizAds224.length || parts.length < 3) return parts.join("");
-    var out = [], ai = bizAdOff224 % bizAds224.length;
-    for (var i = 0; i < parts.length; i++) {
-      out.push(parts[i]);
-      if (i === 2 || (i > 2 && (i - 2) % 8 === 0)) { out.push(adHtml224(bizAds224[ai % bizAds224.length])); ai++; }
-    }
-    return out.join("");
-  }
-  function findPost(id) { for (var i = 0; i < posts.length; i++) if (posts[i].id === id) return posts[i]; return null; }
-
-  /* [RP-V7.95] VIEW counting: a view counts when a post card is
-     actually rendered into the viewport — the observer fires once per
-     post per page load for non-owners, and the server dedupes to one
-     counted view per viewer per post per day. Repost entries and the
-     owner's own posts never report. */
-  function reportView(p) {
-    if (!p || p.isSelf || p._store || p.kind === "repost" || viewedIds[p.id]) return; // [RP-V7.119] FIX 3: merged items never ping the feed view counter with a foreign id.
-    viewedIds[p.id] = true;
-    api("/api/feed/view", "POST", { postId: p.id }).then(function (r) {
-      if (r.json && r.json.ok) p.views = r.json.views;
-    });
-  }
-  function observeViews(list) {
-    var arts = list.querySelectorAll("article[data-fid]");
-    if (typeof IntersectionObserver !== "function") {
-      arts.forEach(function (a) { reportView(findPost(a.getAttribute("data-fid"))); });
-      return;
-    }
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (!en.isIntersecting) return;
-        io.unobserve(en.target);
-        reportView(findPost(en.target.getAttribute("data-fid")));
-      });
-    }, { threshold: 0.5 });
-    arts.forEach(function (a) { io.observe(a); });
-  }
-
-  function onLike(p, btn) {
-    /* [RP-V7.119] FIX 3: merged photo/reel posts like through their own
-       stores' endpoints; the feed-store path below is unchanged. */
-    if (p._store) {
-      var wantL119 = !p.likedByMe;
-      var lPath119 = p._store === "photo" ? "/api/photo/like" : "/api/reel/like";
-      var lBody119 = p._store === "photo" ? { id: p._sid, liked: wantL119 } : { reelId: p._sid, liked: wantL119 };
-      api(lPath119, "POST", lBody119).then(function (r) {
-        if (r.json && r.json.ok) {
-          p.likedByMe = !!r.json.liked;
-          if (typeof r.json.likes === "number") p.likes = r.json.likes;
-          else if (typeof r.json.heartLikes === "number") p.likes = r.json.heartLikes;
-          btn.classList.toggle("on", !!p.likedByMe);
-          var smL119 = btn.querySelector("small"); if (smL119) smL119.textContent = String(p.likes || 0);
-        } else toastF((r.json && r.json.error) || "Couldn't like that just now.", 3000);
-      });
-      return;
-    }
-    api("/api/feed/like", "POST", { postId: p.id }).then(function (r) {
-      if (r.json && r.json.ok) {
-        p.likes = r.json.likes; p.likedByMe = r.json.likedByMe;
-        btn.classList.toggle("on", !!p.likedByMe);
-        var sm = btn.querySelector("small"); if (sm) sm.textContent = String(p.likes || 0);
-      } else toastF((r.json && r.json.error) || "Couldn't like that just now.", 3000);
-    });
-  }
-  function onGift(p) {
-    // [RP-V7.233] source from the post's own media kind (merged
-    // photo/reel items carry kind, with _store as the backstop);
-    // a text-only or unknown-kind post stays untagged rather than
-    // guessed.
-    var src233 = null;
-    if (p.kind === "photo" || p._store === "photo") src233 = "picture";
-    else if (p.kind === "video" || p.kind === "reel" || p._store === "reel") src233 = "video";
-    if (typeof window.openGiftSheet === "function") window.openGiftSheet(p.author.id || p.author.name, p.author.name, src233 ? { src: src233 } : undefined); // [RP-V7.119] FIX 3: merged items may carry a name-only author (the gift sheet resolves names, same as the Reels surface).
-    else toastF("Open " + p.author.name + "'s profile to send a gift 🎁", 3600);
-  }
-  function onShare(p) {
-    // [RP-V7.95] count the real Share tap on the server first (fire and
-    // forget — the share flow below never waits on it).
-    /* [RP-V7.119] FIX 3: merged photo/reel posts have no feed-store
-       share counter — the share flow below still runs for them. */
-    if (!p._store) {
-      api("/api/feed/share", "POST", { postId: p.id }).then(function (r) {
-        if (r.json && r.json.ok) {
-          p.shares = r.json.shares;
-          var art = document.querySelector('article[data-fid="' + p.id + '"]');
-          var sm = art ? art.querySelector('[data-feed-act="share"] small') : null;
-          if (sm) sm.textContent = String(p.shares || 0);
-        }
-      });
-    }
-    var url = "https://rizzplaza.com";
-    var data = { title: "Rizz Plaza", text: p.author.name + " on the Plaza Feed 📰", url: url };
-    if (navigator.share) { navigator.share(data).catch(function () {}); return; }
-    if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toastF("Link copied — share it anywhere 🔗", 3000); });
-    else toastF("Share this link: " + url, 4200);
-  }
-  /* [RP-V7.95] COMMENTS on Feed posts: the list + composer ride a
-     sheet; posting goes to POST /api/feed/comment and the server's
-     list is adopted as truth. */
-  function paintCommentCount(p) {
-    var art = document.querySelector('article[data-fid="' + p.id + '"]');
-    var sm = art ? art.querySelector('[data-feed-act="comment"] small') : null;
-    if (sm) sm.textContent = String(p.commentCount || 0);
-  }
-  function onComment(p) {
-    if (typeof window.openSheet !== "function") { toastF("Comments open from inside the Plaza 💬", 3000); return; }
-    var list = (p.comments || []).map(function (c) {
-      return '<div class="fi-cmt"><b>' + escF(c.name || "Someone") + "</b><span>" + escF(c.text || "") + "</span></div>";
-    }).join("") || '<p style="color:var(--ink-soft); font-weight:700;">No comments yet — say something nice!</p>';
-    window.openSheet(
-      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-      '<div style="text-align:left;"><h3 style="text-align:center;">💬 Comments</h3>' +
-      '<div id="fiCmtList">' + list + "</div>" +
-      '<div class="fi-cmtrow"><input id="fiCmtInput" type="text" maxlength="140" placeholder="Add a comment…"/><button type="button" class="btn-primary" style="width:auto; padding:10px 16px;" id="fiCmtSend">Post</button></div></div>');
-    var sh = $("sheet");
-    var cx = sh && sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { window.closeSheet(); });
-    var send = $("fiCmtSend");
-    if (send) send.addEventListener("click", function () {
-      var inp = $("fiCmtInput");
-      var text = inp ? inp.value.trim() : "";
-      if (!text) return;
-      /* [RP-V7.119] FIX 3: merged posts comment through /api/reel/comment
-         (kind "photo" for photo posts — the same endpoint the Moments
-         and Reels surfaces use); the feed-store path below is unchanged. */
-      if (p._store) {
-        var cBody119 = p._store === "photo" ? { kind: "photo", id: p._sid, text: text } : { reelId: p._sid, text: text };
-        api("/api/reel/comment", "POST", cBody119).then(function (r) {
-          if (r.json && r.json.ok && r.json.comment) {
-            if (!Array.isArray(p.comments)) p.comments = [];
-            p.comments.push({ name: r.json.comment.name, text: r.json.comment.text });
-            p.commentCount = (typeof r.json.count === "number") ? r.json.count : p.comments.length;
-            paintCommentCount(p);
-            var box119 = $("fiCmtList");
-            if (box119) box119.innerHTML = p.comments.map(function (c) {
-              return '<div class="fi-cmt"><b>' + escF(c.name || "Someone") + "</b><span>" + escF(c.text || "") + "</span></div>";
-            }).join("");
-            if (inp) inp.value = "";
-          } else toastF((r.json && r.json.error) || "Couldn't post that comment.", 3000);
-        });
-        return;
-      }
-      api("/api/feed/comment", "POST", { postId: p.id, text: text }).then(function (r) {
-        if (r.json && r.json.ok) {
-          p.comments = r.json.comments || p.comments;
-          p.commentCount = r.json.commentCount || (p.comments ? p.comments.length : 0);
-          paintCommentCount(p);
-          var box = $("fiCmtList");
-          if (box) box.innerHTML = (p.comments || []).map(function (c) {
-            return '<div class="fi-cmt"><b>' + escF(c.name || "Someone") + "</b><span>" + escF(c.text || "") + "</span></div>";
-          }).join("");
-          if (inp) inp.value = "";
-        } else toastF((r.json && r.json.error) || "Couldn't post that comment.", 3000);
-      });
-    });
-  }
-  /* [RP-V7.95] REPOST toggle for Feed posts — mirrors the photo/reel
-     repost pattern: optimistic paint, server answer is truth. */
-  function onRepost(p, btn) {
-    /* [RP-V7.119] FIX 3: merged photo/reel posts repost through their
-       own stores' endpoints; the feed-store path below is unchanged. */
-    if (p._store) {
-      var wantR119 = !p.myReposted;
-      var rpPath119 = p._store === "photo" ? "/api/photo/repost" : "/api/reel/repost";
-      var rpBody119 = p._store === "photo" ? { id: p._sid, reposted: wantR119 } : { reelId: p._sid, reposted: wantR119 };
-      api(rpPath119, "POST", rpBody119).then(function (r) {
-        if (r.json && r.json.ok) {
-          p.myReposted = !!r.json.reposted; p.reposts = r.json.reposts || 0;
-          btn.classList.toggle("on", !!p.myReposted);
-          var smR119 = btn.querySelector("small"); if (smR119) smR119.textContent = String(p.reposts || 0);
-          if (p.myReposted) toastF("Reposted to your profile 🔁", 2800);
-        } else toastF((r.json && r.json.error) || "Couldn't repost that just now.", 3000);
-      });
-      return;
-    }
-    var want = !p.myReposted;
-    api("/api/feed/repost", "POST", { postId: p.id, reposted: want }).then(function (r) {
-      if (r.json && r.json.ok) {
-        p.myReposted = !!r.json.reposted; p.reposts = r.json.reposts || 0;
-        btn.classList.toggle("on", !!p.myReposted);
-        var sm = btn.querySelector("small"); if (sm) sm.textContent = String(p.reposts || 0);
-        if (p.myReposted) toastF("Reposted — your followers will see it in their Feed 🔁", 2800);
-      } else toastF((r.json && r.json.error) || "Couldn't repost that just now.", 3000);
-    });
-  }
-  /* [RP-V7.95] POST INSIGHTS — owner-only. The button only renders on
-     your own posts, and the server refuses everybody else (403), so
-     this panel can only ever show a member their own numbers. No
-     money data, and no Save tile: the Feed has no save action. */
-  function fmtRate(v) { return (typeof v === "number" ? v : 0).toFixed(2) + "%"; }
-  function onInsights(p) {
-    api("/api/feed/" + encodeURIComponent(p.id) + "/insights", "GET").then(function (r) {
-      if (!r.json || !r.json.ok) {
-        toastF(r.status === 403 ? "Insights are only for your own posts 📊" : "Couldn't load insights just now.", 3200);
-        return;
-      }
-      var j = r.json, c = j.counts || {}, rt = j.rates || {};
-      if (typeof window.openSheet !== "function") { toastF("Insights open from inside the Plaza 📊", 3000); return; }
-      var media = "";
-      if (j.post.url && j.post.kind === "photo") media = '<div class="fi-media"><img src="' + escF(j.post.url) + '" alt=""/></div>';
-      else if (j.post.url && j.post.kind === "video") media = '<div class="fi-media"><video src="' + escF(j.post.url) + '" controls playsinline preload="metadata"></video></div>';
-      var when = j.post.createdAt ? new Date(j.post.createdAt).toLocaleString() : "";
-      var html = '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-        '<div style="text-align:left;"><h3 style="text-align:center;"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 4v15.5h16.5\"/><path d=\"M8.2 16.5V11M12.2 16.5V7.8M16.2 16.5v-3.8\"/></svg> Post insights</h3>' + media +
-        (j.post.text ? '<p class="feed-text">' + escF(j.post.text) + "</p>" : "") +
-        '<p class="fi-date">Posted ' + escF(when) + "</p>" +
-        '<div class="fi-counts">' +
-        '<div class="fi-count"><b>' + (c.likes || 0) + "</b><small>❤️ Likes</small></div>" +
-        '<div class="fi-count"><b>' + (c.comments || 0) + "</b><small>💬 Comments</small></div>" +
-        '<div class="fi-count"><b>' + (c.reposts || 0) + "</b><small>🔁 Reposts</small></div>" +
-        '<div class="fi-count"><b>' + (c.shares || 0) + "</b><small>🔗 Shares</small></div>" +
-        "</div>" +
-        '<h4 style="margin:4px 0 8px;">Engagement</h4>' +
-        '<div class="fi-tiles">' +
-        '<div class="fi-tile"><b>' + (c.views || 0) + "</b><small>👁 Views</small></div>" +
-        '<div class="fi-tile"><b>' + fmtRate(rt.likeRate) + "</b><small>Like rate</small></div>" +
-        '<div class="fi-tile"><b>' + fmtRate(rt.shareRate) + "</b><small>Share rate</small></div>" +
-        '<div class="fi-tile"><b>' + fmtRate(rt.commentRate) + "</b><small>Comment rate</small></div>" +
-        '<div class="fi-tile"><b>' + fmtRate(rt.repostRate) + "</b><small>Repost rate</small></div>" +
-        "</div>" +
-        (j.callout ? '<div class="fi-callout">🏆 ' + escF(j.callout.text) + "</div>" : "") +
-        "</div>";
-      window.openSheet(html);
-      var sh = $("sheet");
-      var cx = sh && sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { window.closeSheet(); });
-    });
-  }
-  function onFollow(p, btn) {
-    api(p.iFollow ? "/api/social/unfollow" : "/api/social/follow", "POST", { accountId: p.author.id }).then(function (r) {
-      if (r.json && r.json.ok) {
-        var now = (typeof r.json.following === "boolean") ? r.json.following : !p.iFollow;
-        posts.forEach(function (q) { if (q.author.id === p.author.id) q.iFollow = now; });
-        render();
-        toastF(now ? "You're following " + p.author.name + " ⭐" : "Unfollowed " + p.author.name + ".", 2600);
-      } else toastF((r.json && r.json.error) || "Couldn't do that just now.", 3000);
-    });
-  }
-  function onDelete(p, btn) {
-    if (!btn.dataset.armed) {
-      btn.dataset.armed = "1"; btn.textContent = "Tap again to delete";
-      setTimeout(function () { btn.dataset.armed = ""; btn.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.5 6.5h15M9.5 6.3V4.8A1.8 1.8 0 0 1 11.3 3h1.4a1.8 1.8 0 0 1 1.8 1.8v1.5M6.5 6.5l1 13.2h9l1-13.2\"/><path d=\"M10 10.5v6M14 10.5v6\"/></svg> Delete"; }, 2600);
-      return;
-    }
-    var delPath243 = p._store === "reel" ? "/api/reel/" + encodeURIComponent(p._sid || p.id) : (p._store === "photo" ? "/api/photo/" + encodeURIComponent(p._sid || p.id) : "/api/feed/" + encodeURIComponent(p.id)); // [RP-V7.243] route by store
-    api(delPath243, "DELETE").then(function (r) {
-      if (r.json && r.json.ok) {
-        posts = posts.filter(function (q) { return q.id !== p.id; });
-        render();
-        toastF("Post deleted.", 2400);
-      } else toastF("Couldn't delete that just now.", 3000);
-    });
-  }
-  function openAuthorSheet(p) {
-    /* [RP-V7.119] FIX 3: a merged photo/reel post whose author id could
-       not be resolved at load resolves it by name on tap. */
-    if (!p.author.id) {
-      api("/api/social/profile?name=" + encodeURIComponent(p.author.name), "GET").then(function (r) {
-        if (r.json && r.json.ok && r.json.id) { p.author.id = r.json.id; p.author.photo = r.json.photo || p.author.photo; openAuthorSheet(p); }
-        else toastF("Couldn't open that profile just now.", 3000);
-      });
-      return;
-    }
-    api("/api/social/profile?id=" + encodeURIComponent(p.author.id), "GET").then(function (r) {
-      var j = (r.json && r.json.ok) ? r.json : null;
-      if (!j || typeof window.openSheet !== "function") return;
-      var html = '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-        '<div class="pprof"><div class="pprof-avatar">' + (j.photo ? '<img class="p-photo" src="' + escF(j.photo) + '" alt=""/>' : avaInner(p.author)) + "</div>" +
-        '<h3 class="pprof-name">' + escF(j.name || p.author.name) + "</h3>" +
-        (j.username ? '<p class="pprof-username">@' + escF(j.username) + "</p>" : "") +
-        '<div class="pprof-stats"><div class="pprof-stat"><b>' + (j.followingCount || 0) + '</b><small>Following</small></div>' +
-        '<div class="pprof-stat"><b>' + (j.followersCount || 0) + '</b><small>Followers</small></div>' +
-        '<div class="pprof-stat"><b>' + (j.reelsCount || 0) + '</b><small>Reels</small></div></div>' +
-        '<div class="pprof-actions">' +
-        (p.isSelf ? "" : '<button type="button" class="follow-btn big" id="feedProfFollow">' + (p.iFollow ? "Following ✓" : "Follow") + "</button>" +
-          '<button type="button" class="follow-btn big" data-dm="' + escF(j.name || p.author.name) + '">💬 Message</button>' +
-          '<button type="button" class="follow-btn big" id="feedProfGift">🎁 Gift</button>') +
-        "</div></div>";
-      window.openSheet(html);
-      var sh = $("sheet");
-      var cx = sh && sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { window.closeSheet(); });
-      var fb = $("feedProfFollow");
-      if (fb) fb.addEventListener("click", function () { onFollow(p, fb); fb.textContent = p.iFollow ? "Following ✓" : "Follow"; });
-      var gb = $("feedProfGift");
-      if (gb) gb.addEventListener("click", function () { window.closeSheet(); onGift(p); });
-    });
-  }
-
-  /* ---------------- composer ---------------- */
-  function clearPending() {
-    pendingFile = null;
-    if (pendingUrl) { URL.revokeObjectURL(pendingUrl); pendingUrl = null; }
-    var pv = $("feedPreview"); if (pv) { pv.innerHTML = ""; pv.hidden = true; }
-    var inp = $("feedFileInput"); if (inp) inp.value = "";
-  }
-  function onFilePicked(file) {
-    if (!file) return;
-    var isVideo = (file.type || "").indexOf("video/") === 0;
-    if (!isVideo && file.size > 10 * 1024 * 1024) { toastF("That photo is too big — 10 MB max.", 3600); return; }
-    if (isVideo && file.size > 50 * 1024 * 1024) { toastF("That video is too big — 50 MB max.", 3600); return; }
-    clearPending();
-    pendingFile = file;
-    pendingUrl = URL.createObjectURL(file);
-    var pv = $("feedPreview");
-    pv.innerHTML = (isVideo
-      ? '<video src="' + pendingUrl + '" controls playsinline muted></video>'
-      : '<img src="' + pendingUrl + '" alt=""/>') +
-      '<button type="button" class="feed-pv-x" id="feedPvX" aria-label="Remove"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>';
-    pv.hidden = false;
-    $("feedPvX").addEventListener("click", clearPending);
-  }
-  /* [RP-V7.133] Share-In bridges: the feed picker's own accept + open,
-     reused verbatim by the share-in module. */
-  try { window.rpFeedAcceptFile133 = onFilePicked; window.rpFeedOpen133 = openFeed; } catch (e) { }
-  function onPost() {
-    if (posting) return;
-    if (!acctRec()) { toastF("Sign in to post 📰", 3600); return; }
-    if (!gateTap(function () { onPost(); })) return;
-    var ta = $("feedText");
-    var text = ta ? ta.value.trim() : "";
-    if (!pendingFile && !text) { toastF("Write something, or add a photo or video first.", 3400); return; }
-    // [RP-V7.105] Same seatbelt as the server: a bare media word with no
-    // file attached is a photo post that lost its photo — stop it here
-    // with the reason instead of letting it land on the Feed.
-    if (!pendingFile && /^(photo|video|reel)$/i.test(text)) { toastF("Your " + text.toLowerCase() + " didn't attach — tap 📷 Photo or video to pick it, then Post.", 4200); return; }
-    posting = true;
-    var btn = $("feedPostBtn"); if (btn) { btn.disabled = true; btn.textContent = "Posting…"; }
-    var done = function () { posting = false; if (btn) { btn.disabled = false; btn.textContent = "Post"; } };
-    var a = acctRec();
-    var opt;
-    if (pendingFile) {
-      var fd = new FormData();
-      fd.append("media", pendingFile);
-      if (text) fd.append("text", text);
-      opt = fetch("/api/feed/post", { method: "POST", headers: { "Authorization": "Bearer " + (a ? a.token : "") }, body: fd });
-    } else {
-      opt = fetch("/api/feed/post", { method: "POST", headers: { "Authorization": "Bearer " + (a ? a.token : ""), "Content-Type": "application/json" }, body: JSON.stringify({ text: text }) });
-    }
-    opt.then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
-      .then(function (r) {
-        done();
-        if (r.json && r.json.ok && r.json.post) {
-          posts.unshift(r.json.post);
-          if (ta) ta.value = "";
-          clearPending();
-          render();
-          toastF("Posted to the Feed 📰", 2600);
-          try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
-        } else toastF((r.json && r.json.error) || "That post didn't go up — try again.", 3600);
-      })
-      .catch(function () { done(); toastF("That post didn't go up — try again.", 3600); });
-  }
-
-  /* ---------------- boot ---------------- */
-  /* [RP-V7.123] flip a photo set inside its Plaza feed card */
-  function flipFeedPost123(art, p, d) {
-    var n = (p.urls || []).length; if (n < 2 || !art) return;
-    p._fi = (((typeof p._fi === "number" ? p._fi : 0) + d) % n + n) % n;
-    var wrap = art.querySelector(".feed-flip"); if (!wrap) return;
-    var im = wrap.querySelector("img"); if (im) im.src = p.urls[p._fi];
-    var ct = wrap.querySelector(".ff-count"); if (ct) ct.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> " + (p._fi + 1) + "/" + n;
-  }
-  function boot() {
-    var home = $("btnFeedHome"); if (home) home.addEventListener("click", openFeed);
-    var back = $("btnFeedBack"); if (back) back.addEventListener("click", function () { try { show("screen-plaza"); } catch (e) { } });
-    var att = $("feedAttachBtn"); if (att) att.addEventListener("click", function () { var i = $("feedFileInput"); if (i) i.click(); });
-    var inp = $("feedFileInput"); if (inp) inp.addEventListener("change", function () { if (inp.files && inp.files[0]) onFilePicked(inp.files[0]); });
-    var post = $("feedPostBtn"); if (post) post.addEventListener("click", onPost);
-    var list = $("feedList");
-    if (list) list.addEventListener("click", function (ev) { /* [RP-V7.224] a business ad card opens the advertiser's link */
-      var adEl = (ev.target && ev.target.closest) ? ev.target.closest("[data-rpad]") : null;
-      if (adEl) { var lk = adEl.getAttribute("data-link"); if (lk) window.open(lk, "_blank", "noopener"); }
-    });
-    if (list) { /* [RP-V7.123] a horizontal swipe flips a set inside its card */
-      var ftx123 = null;
-      list.addEventListener("touchstart", function (ev) { ftx123 = ev.touches && ev.touches[0] ? ev.touches[0].clientX : null; }, { passive: true });
-      list.addEventListener("touchend", function (ev) {
-        if (ftx123 == null) return;
-        var x2 = ev.changedTouches && ev.changedTouches[0] ? ev.changedTouches[0].clientX : ftx123;
-        var d = x2 - ftx123; ftx123 = null;
-        if (Math.abs(d) < 42) return;
-        var art = ev.target && ev.target.closest ? ev.target.closest("[data-fid]") : null;
-        var p = art ? findPost(art.getAttribute("data-fid")) : null;
-        if (p && p.urls && p.urls.length > 1) flipFeedPost123(art, p, d < 0 ? 1 : -1);
-      }, { passive: true });
-    }
-    if (list) list.addEventListener("click", function (ev) {
-      var fz = ev.target && ev.target.closest ? ev.target.closest("[data-feed-flip]") : null; /* [RP-V7.123] */
-      if (fz) {
-        var fart = fz.closest("[data-fid]");
-        var fp = fart ? findPost(fart.getAttribute("data-fid")) : null;
-        if (fp) flipFeedPost123(fart, fp, parseInt(fz.getAttribute("data-feed-flip"), 10) || 1);
-        return;
-      }
-      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-feed-act]") : null;
-      if (!btn) return;
-      var art = btn.closest("[data-fid]");
-      var p = art ? findPost(art.getAttribute("data-fid")) : null;
-      if (!p) return;
-      var act = btn.getAttribute("data-feed-act");
-      if (act === "like") onLike(p, btn);
-      else if (act === "comment") onComment(p);
-      else if (act === "repost") onRepost(p, btn);
-      else if (act === "insights") onInsights(p);
-      else if (act === "gift") onGift(p);
-      else if (act === "share") onShare(p);
-      else if (act === "follow") onFollow(p, btn);
-      else if (act === "profile") openAuthorSheet(p);
-      else if (act === "del") onDelete(p, btn);
-    });
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else boot();
-
-  window.RPFeed = { open: openFeed, refresh: loadFeed };
-})();
-</script>
+<!-- [RP-V7.247] The Plaza Feed module (RP-V7.71) was removed at Branden's order (Nov 5, 2026). The window.RPFeed.refresh() callers elsewhere are existence-guarded no-ops now, and share-in routes photos to the photo composer. -->
 <script>
 /* =====================================================================
    [RP-V7.71] Top-gifter name effects — Branden (Oct 26): "make the
@@ -42060,7 +41418,7 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
     opts.headers["Authorization"] = "Bearer " + a.token;
     return fetch(path, opts);
   }
-  /* Called by the reel + feed composers the moment a post succeeds:
+  /* Called by the reel + photo composers the moment a post succeeds:
      the parked share is deleted server-side. */
   window.rpShareInPosted133 = function () {
     if (!armedId) return;
@@ -42106,19 +41464,24 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
       });
       return;
     }
-    /* Images and text/link shares land in the Feed composer. */
-    try { if (window.rpFeedOpen133) window.rpFeedOpen133(); } catch (e) { }
-    whenActive133("screen-feed", function () {
-      if (file && window.rpFeedAcceptFile133) window.rpFeedAcceptFile133(file);
-      if (caption) {
-        var ta = document.getElementById("feedText");
-        if (ta) {
-          ta.value = caption;
-          try { ta.dispatchEvent(new Event("input", { bubbles: true })); } catch (e) { }
-        }
+    /* [RP-V7.247] The Feed composer is retired. Image shares land in
+       the PHOTO composer (rpPhotoShareIn247 feeds the file through
+       the photo picker's own accept path); text/link shares are
+       consumed with an honest note — text-only posting retired
+       with the Feed. */
+    if (file) {
+      if (window.rpPhotoShareIn247) {
+        try { window.rpPhotoShareIn247(file, caption.slice(0, 140)); } catch (e) { }
+        toast133("📥 Shared photo received — add your caption and post.");
+      } else {
+        armedId = null;
+        toast133("That shared photo couldn't be opened — try uploading it from the ＋ button.");
       }
-      toast133(file ? "📥 Shared photo received — add your caption and post." : "📥 Shared text received — tap Post when you're ready.");
-    });
+      return;
+    }
+    try { api133("/api/share-in/" + encodeURIComponent(rec.id) + "/consume", { method: "POST" }).catch(function () { }); } catch (e) { }
+    armedId = null;
+    toast133("📥 That share was text or a link — text-only posts retired with the Plaza Feed. Share a photo or video to post it 📸", 5200);
   }
   function run133() {
     if (working) return;
@@ -42524,20 +41887,10 @@ html, body { overflow-x: clip; }
    #2d88ff · text #e4e6eb · secondary #b0b3b8 · grey button #3a3b3c. */
 
 /* ---------- page shells ---------- */
-#screen-feed, #screen-moments, #screen-auctions, #screen-profile { background: #000; color: #e4e6eb; min-height: 100dvh; }
-#screen-feed .mom-wrap, #screen-moments .mom-wrap { padding-left: 10px; padding-right: 10px; }
+#screen-moments, #screen-auctions, #screen-profile { background: #000; color: #e4e6eb; min-height: 100dvh; }
+#screen-moments .mom-wrap { padding-left: 10px; padding-right: 10px; }
 #screen-auctions .auc-wrap { padding-left: 10px; padding-right: 10px; }
 #screen-profile .profile-wrap { padding-left: 10px; padding-right: 10px; }
-
-/* ---------- Feed (screen-feed): posts as FB cards ---------- */
-#screen-feed .feed-composer { background: transparent; border: none; border-radius: 0; }
-#screen-feed .feed-composer textarea { background: #3a3b3c; border: 1px solid transparent; border-radius: 12px; color: #e4e6eb; }
-#screen-feed .feed-composer textarea:focus { border-color: #1877F2; outline: none; }
-#screen-feed .feed-comp-note { color: #b0b3b8; }
-#screen-feed .feed-post { background: transparent; border: none; border-radius: 0; }
-#screen-feed .feed-media { border-radius: 8px; overflow: hidden; }
-#screen-feed .feed-actions { border-top: 1px solid #3e4042; }
-#screen-feed .feed-empty { color: #b0b3b8; }
 
 /* ---------- Moments: Photos / Reels / Friends (screen-moments) ---------- */
 #screen-moments .mom-card { background: transparent; border: none; border-radius: 0; box-shadow: none; }
@@ -43444,6 +42797,7 @@ html, body { overflow-x: clip; }
     var inited = false;
     var rLoading = false, rSig = null;
     var fLoading = false, fSig = null;
+    var bizAds243 = null, bizLoading243 = false, adN243 = 0; /* [RP-V7.247] Business Ads interleave — moved here from the retired Feed wall */
     var io243 = null;
     function $(id) { return document.getElementById(id); }
     function token() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) || ""; } catch (e) { return ""; } }
@@ -43633,9 +42987,15 @@ html, body { overflow-x: clip; }
       if (!postsEl) return;
       postsEl.innerHTML = "";
       var placed = false;
+      adN243 = 0;
       (posts || []).slice(0, FLOW_CAP).forEach(function (pp, i) {
         postsEl.appendChild(cardEl243(pp));
         if (i === 1 && unitEl) { postsEl.appendChild(unitEl); placed = true; }
+        /* [RP-V7.247] Subscriber ads interleave the Home stream with
+           the retired Feed wall's rule: after the 3rd post, then
+           every 8. /api/bizads answers adults only (empty for teens
+           and signed-out), so no ad ever renders for a teen here. */
+        if (bizAds243 && bizAds243.length && i >= 2 && (i - 2) % 8 === 0) postsEl.appendChild(adCard243(bizAds243[adN243++ % bizAds243.length]));
       });
       if (unitEl && !placed) postsEl.appendChild(unitEl);
       if (feedEmptyEl) feedEmptyEl.hidden = (posts || []).length > 0;
@@ -43657,13 +43017,45 @@ html, body { overflow-x: clip; }
         .catch(function () { fLoading = false; });
     }
 
+    /* [RP-V7.247] Business Ads — the interleave that lived in the
+       Plaza Feed wall now lives in this Home stream (Branden's Feed
+       removal, Nov 5, 2026). Same placement rule, same adult-only
+       server gate; the Plaza-home rotating card is a separate
+       surface and stays untouched. */
+    function loadBizAds243() {
+      if (bizLoading243 || bizAds243) return;
+      var tok = token();
+      if (!tok) { bizAds243 = []; return; }
+      bizLoading243 = true;
+      fetch("/api/bizads", { headers: { Authorization: "Bearer " + tok } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          bizLoading243 = false;
+          bizAds243 = (j && j.ok && Array.isArray(j.ads)) ? j.ads : [];
+          if (bizAds243.length && fSig) { fSig = null; try { loadFeed243(); } catch (e) { } }
+        })
+        .catch(function () { bizLoading243 = false; bizAds243 = []; });
+    }
+    function adCard243(ad) {
+      var card = document.createElement("article");
+      card.className = "mom-card";
+      card.setAttribute("data-rpad247", "1");
+      card.innerHTML =
+        '<div class="mom-top"><div><b>' + esc243(ad.name || "Business") + '</b><span>Business</span></div><span class="rp-ad-tag" style="margin-left:auto;">Ad</span></div>' +
+        (ad.pic ? '<div class="mom-photo"><img src="' + esc243(ad.pic) + '" alt="" loading="lazy"/></div>' : "") +
+        (ad.blurb ? '<p class="mom-cap">' + esc243(ad.blurb) + "</p>" : "");
+      card.style.cursor = "pointer";
+      card.addEventListener("click", function () { if (ad.link) window.open(ad.link, "_blank", "noopener"); });
+      return card;
+    }
+
     /* ---------------- screen wiring -------------------------------- */
     function hookShow243() {
       if (typeof window.show === "function" && !window.show.__fb243) {
         var orig = window.show;
         var wrapped = function (id) {
           var r = orig.apply(this, arguments);
-          if (id === "screen-home243") { setTimeout(loadRail243, 60); setTimeout(loadFeed243, 60); setTimeout(scanPreviews243, 200); }
+          if (id === "screen-home243") { setTimeout(loadRail243, 60); setTimeout(loadFeed243, 60); setTimeout(loadBizAds243, 60); setTimeout(scanPreviews243, 200); }
           else { try { pausePreviews243(); } catch (e) { } }
           return r;
         };
@@ -43683,7 +43075,7 @@ html, body { overflow-x: clip; }
       if (more && !more.__fb243) { more.__fb243 = true; more.addEventListener("click", function () { if (window.rpReelsOpen) window.rpReelsOpen(); }); }
       var pb = $("btnPlazaSide243");
       if (pb && !pb.__fb243) { pb.__fb243 = true; pb.addEventListener("click", function () { if (typeof window.show === "function") window.show("screen-plaza"); }); }
-      window.rpHomeRails243 = { refresh: function () { rSig = null; fSig = null; try { loadRail243(); } catch (e) { } try { loadFeed243(); } catch (e) { } } };
+      window.rpHomeRails243 = { refresh: function () { rSig = null; fSig = null; bizAds243 = null; try { loadRail243(); } catch (e) { } try { loadFeed243(); } catch (e) { } try { loadBizAds243(); } catch (e) { } } };
       hookShow243();
       setTimeout(hookShow243, 1500);
       /* [RP-V7.244] Lazy boot: spend the rail/feed loads at boot
@@ -43695,7 +43087,7 @@ html, body { overflow-x: clip; }
          before this module installed its hook. */
       var tryBoot243 = function () {
         var h = document.getElementById("screen-home243");
-        if (h && h.getClientRects().length && !rSig && !fSig) { try { loadRail243(); } catch (e) { } try { loadFeed243(); } catch (e) { } }
+        if (h && h.getClientRects().length && !rSig && !fSig) { try { loadRail243(); } catch (e) { } try { loadFeed243(); } catch (e) { } try { loadBizAds243(); } catch (e) { } }
       };
       tryBoot243();
       setTimeout(tryBoot243, 2500);
