@@ -3016,12 +3016,25 @@
           <button class="speed-btn" id="btnStoreHome" type="button">🛍️ Open the Store</button>
         </div>
         <!-- [RP-V7.24] Reels card sits directly under the Live block -->
+        <!-- [RP-V7.242] Branden (Nov 5): "I shouldn't have to press
+             reels to open reels it should be showing and open already
+             scrolling sideways like facebook" — the card now renders
+             the reels themselves as a sideways-scrolling rail, filled
+             by the RP-V7.242 module at the end of the body from the
+             Reels tab's own feed (GET /api/reels). The paragraph is
+             gone. The Open Reels button survives as the rail's end
+             tile: its id is load-bearing — the main script wires its
+             click, and the bottom-bar Reels/Friends entries funnel
+             through it — so it keeps id + handler, in the rail. -->
         <div class="plaza-card" style="margin-top:16px;" data-adult>
           <div>
             <h3>🎬 Reels — photos & short videos</h3>
-            <p>Post a photo, scroll the feed, like and comment — and when a shot deserves more than a heart, send the poster a gift right on the post. Gifts on Reels bank toward the poster's real earnings, just like live gifts.</p>
           </div>
-          <button class="speed-btn" id="btnMomentsPlaza">Open Reels</button>
+          <div class="rp-rail242" id="rpHomeRail242">
+            <div class="rp-rail242-tiles" id="rpHomeRailTiles242"><span class="rp-rail242-note">Loading reels…</span></div>
+            <button class="rp-rail242-more" id="btnMomentsPlaza" type="button">Open Reels&nbsp;›</button>
+          </div>
+          <p class="rp-rail242-empty" id="rpHomeRailEmpty242" hidden>No reels yet — be the first to post one 🎬</p>
         </div>
         <!-- [RP-V7.67] Find People gets its own front door on Home —
              Branden (Oct 26): it "don't need to be hidden" inside
@@ -42708,6 +42721,147 @@ html, body { overflow-x: clip; }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
   else wire();
+})();
+</script>
+<style>
+/* ================= RP-V7.242: Plaza home reels rail =================
+   The rail itself: a native sideways scroller (scroll-snap) inside
+   the existing Plaza home Reels card. Tiles are the shared
+   RP-V7.64 .rpmedia-tile (3:4, first frame, 👁 bottom-left, ▶
+   top-right) — only their width is pinned here so they line up in
+   a row instead of a grid. The end tile is #btnMomentsPlaza in its
+   new clothes: same height as a tile, flat black like the tiles. */
+.rp-rail242 { flex: 1 1 100%; display: flex; gap: 3px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.rp-rail242::-webkit-scrollbar { display: none; }
+.rp-rail242-tiles { display: contents; }
+.rp-rail242 .rpmedia-tile { width: 148px; flex: 0 0 auto; border-radius: 10px; scroll-snap-align: start; }
+.rp-rail242-more { flex: 0 0 auto; width: 96px; align-self: stretch; scroll-snap-align: end; background: #101018; color: #fff; border: 0; border-radius: 10px; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center; padding: 10px; }
+.rp-rail242-note { align-self: center; padding: 18px 6px; color: rgba(255,255,255,.78); font-size: 13.5px; font-weight: 700; }
+.rp-rail242-empty { flex: 1 1 100%; margin: 0; color: rgba(255,255,255,.78); font-size: 14px; font-weight: 700; }
+.rp-rail242-empty[hidden] { display: none; }
+</style>
+<script>
+/* ================= RP-V7.242: Plaza home reels rail =================
+   Branden (Nov 5, 2026): "I shouldn't have to press reels to open
+   reels it should be showing and open already scrolling sideways
+   like facebook" — with his Facebook screenshot: the feed's Reels
+   module shows the reels as big tiles in a sideways row, no button
+   press to see them. The Plaza home Reels card was a paragraph +
+   an "Open Reels" button; now the reels render inline in the card.
+
+   DATA — the Reels tab's own feed, no parallel path: GET
+   /api/reels fetched with the tab's own headers (the account
+   token when signed in, so a member gets the tab's For You order;
+   guests get the plain list), mapped field-for-field like the
+   tab's reelFeedItems() maps server reels, and ordered like the
+   tab's default view (server order when the answer is ranked,
+   newest-first otherwise). On-device posts that have not reached
+   the server yet carry no playable URL, so — like the Home For
+   You pager — the rail shows server reels only.
+
+   TILES + PLAYER — the shared RP-V7.64 grid machinery
+   (window.rpViewsFillGrid): the identical tiles the search and
+   profile grids render (first frame, 👁 + count bottom-left, ▶
+   top-right), and a tap opens the identical lightbox player the
+   search grid opens (window.rpViewsOpenReel — full action rail
+   included, view counted the same way). Nothing here re-implements
+   a tile or a player.
+
+   The row closes with the "Open Reels ›" end tile (Facebook's
+   "Go to Reels"): it IS the original #btnMomentsPlaza button —
+   the main script's click wiring and the bottom-bar Reels /
+   Friends funnel through that id are untouched.
+
+   Empty state is honest: a successful fetch with zero reels
+   shows the muted "No reels yet" line; a failed fetch says so.
+   No tile is ever invented. */
+(function () {
+  "use strict";
+  var MAX_TILES = 20;
+  var rail = null, tiles = null, emptyEl = null;
+  var inited = false, loading = false, loaded = false, sig = null;
+  function $(id) { return document.getElementById(id); }
+  function token() {
+    try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) || ""; } catch (e) { return ""; }
+  }
+  /* Server reel -> the shared grid's reel item, field-for-field
+     the way reelFeedItems() maps it (plus createdAt, kept only so
+     the unranked sort below matches the tab's). The server's For
+     You interleave can repeat an id in the ranked payload; the
+     rail shows each reel once — first occurrence wins, order
+     otherwise exactly the tab's. */
+  function mapReel(r) {
+    return { kind: "reel", id: r.id, owner: r.authorId || null, ownerName: r.author || "", src: r.url || "", views: r.views || 0,
+      caption: r.caption || "", heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart,
+      comments: Array.isArray(r.comments) ? r.comments : [],
+      commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)),
+      reposts: r.reposts || 0, myReposted: !!r.myReposted, createdAt: r.createdAt || "" };
+  }
+  function showEmpty() {
+    if (window.rpViewsFillGrid && tiles) window.rpViewsFillGrid(tiles, [], {});
+    if (rail) rail.style.display = "none";
+    if (emptyEl) emptyEl.hidden = false;
+  }
+  function showFailed() {
+    if (rail) rail.style.display = "";
+    if (emptyEl) emptyEl.hidden = true;
+    if (tiles) tiles.innerHTML = '<span class="rp-rail242-note">Reels couldn\'t load just now — the Open Reels tile still takes you there.</span>';
+  }
+  function render(items) {
+    if (!items.length) { showEmpty(); return; }
+    if (emptyEl) emptyEl.hidden = true;
+    if (rail) rail.style.display = "";
+    if (window.rpViewsFillGrid && tiles) window.rpViewsFillGrid(tiles, items, {});
+  }
+  function load() {
+    if (!inited || loading) return;
+    if (!window.rpViewsFillGrid) { setTimeout(load, 600); return; }
+    loading = true;
+    var h = { "Accept": "application/json" };
+    var t = token(); if (t) h["Authorization"] = "Bearer " + t;
+    fetch("/api/reels", { headers: h })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        loading = false;
+        if (!j || !j.ok || !Array.isArray(j.reels)) { if (!loaded) showFailed(); return; }
+        loaded = true;
+        var items = [];
+        var seen242 = {};
+        j.reels.forEach(function (r) { if (r && r.id && r.url && !seen242[r.id]) { seen242[r.id] = 1; items.push(mapReel(r)); } });
+        if (!j.ranked) items.sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+        var next = items.map(function (it) { return it.id; }).join(",");
+        if (next === sig) return; // same rail — leave scroll + frames alone
+        sig = next;
+        render(items.slice(0, MAX_TILES));
+      })
+      .catch(function () { loading = false; if (!loaded) showFailed(); });
+  }
+  function hookShow() {
+    if (typeof window.show === "function" && !window.show.__rp242) {
+      var orig = window.show;
+      var wrapped = function (id) {
+        var r = orig.apply(this, arguments);
+        if (id === "screen-plaza") setTimeout(load, 60);
+        return r;
+      };
+      wrapped.__rp242 = true;
+      // Keep earlier wrappers' flags so nobody re-wraps over us.
+      if (orig.__rphome) wrapped.__rphome = true;
+      if (orig.__rpstore240) wrapped.__rpstore240 = true;
+      window.show = wrapped;
+    }
+  }
+  function init() {
+    if (inited) return;
+    rail = $("rpHomeRail242"); tiles = $("rpHomeRailTiles242"); emptyEl = $("rpHomeRailEmpty242");
+    if (!rail || !tiles) return;
+    inited = true;
+    hookShow();
+    setTimeout(hookShow, 1500);
+    load();
+  }
+  init();
+  setTimeout(init, 1200);
 })();
 </script>
 </body>
