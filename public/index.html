@@ -15936,7 +15936,16 @@
           wireLiveSheetClose();
           cb(false); return;
         }
-        navigator.mediaDevices.getUserMedia({ video: facing ? { facingMode: facing } : true, audio: true }).then(function (stream) {
+        /* [RP-V7.256] Highest-definition ask for the live camera too
+           (standing law Oct 27: highest pixels in camera AND lives):
+           this used to pass video:true / facingMode only — no
+           resolution ask at all, so the broadcast (and every live
+           recording later posted as a reel) rode whatever default
+           the browser picked. Ideal 1920x1080 = the closest the
+           hardware offers, never a hard fail. */
+        var vcon256 = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+        if (facing) vcon256.facingMode = facing;
+        navigator.mediaDevices.getUserMedia({ video: vcon256, audio: true }).then(function (stream) {
           cb(stream);
         }, function () { liveCameraFailSheet(); cb(false); });
       }
@@ -18805,7 +18814,7 @@
           var mime = "";
           ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm"].forEach(function (m) { if (!mime) { try { if (MediaRecorder.isTypeSupported(m)) mime = m; } catch (e) { } } });
           var rec;
-          try { rec = new MediaRecorder(Live.myStream, { mimeType: mime || undefined, videoBitsPerSecond: 2500000, audioBitsPerSecond: 128000 }); } catch (e) { return; }
+          try { rec = new MediaRecorder(Live.myStream, { mimeType: mime || undefined, videoBitsPerSecond: 12000000, audioBitsPerSecond: 256000 }); } catch (e) { return; } // [RP-V7.256] was 2.5 Mbps / 128 kbps — a live recording posted as a reel was born reduced; now the camera's 12 Mbps / 256 kbps (RP-V7.90)
           LiveRec171.rec = rec; LiveRec171.chunks = []; LiveRec171.blob = null;
           LiveRec171.mime = rec.mimeType || mime || "video/webm";
           LiveRec171.startedAt = Date.now();
@@ -25744,13 +25753,41 @@
         $("sheet").querySelectorAll("[data-dpost]").forEach(function (b) { b.addEventListener("click", function () { reelPostDraft(b.getAttribute("data-dpost")); }); });
         $("sheet").querySelectorAll("[data-ddel]").forEach(function (b) { b.addEventListener("click", function () { reelDeleteDraft(b.getAttribute("data-ddel")); }); });
       }
+      /* [RP-V7.256] HIGHEST DEFINITION capture (Branden, Nov 5:
+         "The videos is not high definition highest pixels" — standing
+         law Oct 27: highest pixels + HD at capture, storage and
+         playback). The probe for this build proved the server stores
+         and serves the uploaded bytes untouched (md5-identical in and
+         out, 1080p and 4K alike) and every player puts the original
+         file in <video src> — the ONLY stage dropping quality was
+         capture in the sheet recorders below: getUserMedia with NO
+         resolution ask (browser default, commonly 640x480-720p) and
+         MediaRecorder with NO bitrate (browser default). A video born
+         reduced can never be un-reduced. These helpers give every
+         recorder in this module the center-+ camera's ask (RP-V7.90):
+         ideal 1920x1080 (ideal = the closest the hardware offers,
+         never a hard fail), the camera's codec preference order, and
+         its 12 Mbps video / 256 kbps audio recorder bitrates. */
+      function reelHQCons256(facing) {
+        return { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: facing || "user" };
+      }
+      function reelHQRec256(stream) {
+        var mime = "";
+        ["video/webm;codecs=vp9,opus", "video/mp4", "video/webm;codecs=vp8,opus", "video/webm"].forEach(function (m) {
+          if (!mime) { try { if (MediaRecorder.isTypeSupported(m)) mime = m; } catch (e) { } }
+        });
+        var opts = { videoBitsPerSecond: 12000000, audioBitsPerSecond: 256000 };
+        if (mime) opts.mimeType = mime;
+        try { return new MediaRecorder(stream, opts); }
+        catch (e) { try { return new MediaRecorder(stream); } catch (e2) { return null; } }
+      }
       function reelStartRecord() {
         // [RP-V7.211] teen gate removed — teens record reels in the composer
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
           toast("Recording is not supported on this device — upload a video instead! 📁");
           return;
         }
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true })
+        navigator.mediaDevices.getUserMedia({ video: reelHQCons256("user"), audio: true })
           .then(function (stream) {
             reelClearPending();
             Reels.recStream = stream;
@@ -25772,8 +25809,7 @@
         var stream = Reels.recStream;
         if (!stream) return; // the sheet closed during the countdown
         Reels.recChunks = [];
-        var rec = null;
-        try { rec = new MediaRecorder(stream); } catch (e) { rec = null; }
+        var rec = reelHQRec256(stream); // [RP-V7.256] was: bare new MediaRecorder(stream) — browser-default bitrate
         if (!rec) {
           stream.getTracks().forEach(function (t) { t.stop(); });
           Reels.recStream = null;
@@ -26188,7 +26224,7 @@
         $("btnDuetUse").addEventListener("click", function () { duetUse(item); });
       }
       function duetStartRecord() {
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true })
+        navigator.mediaDevices.getUserMedia({ video: reelHQCons256("user"), audio: true }) // [RP-V7.256] highest-definition ask, same as the composer
           .then(function (stream) {
             Reels.duetStream = stream;
             var cam = $("duetCam");
@@ -26207,8 +26243,7 @@
         var stream = Reels.duetStream;
         if (!stream) return;
         Reels.duetChunks = [];
-        var rec = null;
-        try { rec = new MediaRecorder(stream); } catch (e) { rec = null; }
+        var rec = reelHQRec256(stream); // [RP-V7.256] was: bare new MediaRecorder(stream) — browser-default bitrate
         if (!rec) {
           stream.getTracks().forEach(function (t) { t.stop(); });
           Reels.duetStream = null;
