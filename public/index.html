@@ -751,7 +751,7 @@
          flex chain fills exactly what remains). Creating stays on
          the bottom bar's center +. Photos mode removes the flag
          and keeps its current layout untouched. */
-      #screen-moments.rpfs254 { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+      #screen-moments.rpfs254.active { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; } /* [RP-V7.259] FIX 1: the full-screen flex treatment applies only while Moments IS the active screen. Keyed on .rpfs254 alone, this rule's (1,1,0) specificity beat .screen{display:none} permanently — after the first Reels visit the 100dvh pager displayed over every later screen, trapping Profile / Auctions / Plaza Store a full viewport below it (rizz-profile-bug diagnosis). The descendant erasure rules below stay keyed on .rpfs254 alone: inert inside a display:none subtree while inactive. No JS changes — setMomMode / show() / F7 untouched. */
       #screen-moments.rpfs254 .mom-head,
       #screen-moments.rpfs254 #storyTrayReels,
       #screen-moments.rpfs254 #momIntro,
@@ -4599,6 +4599,32 @@
             burst(x, y, { n: n || 42, colors: ["#e8437c", "#ff7a59", "#f2a93b", "#1fa8a0", "#ff8fb8", "#7ee2ff"], shape: "rect", speed: 330, lift: 260, grav: 620, r: 4.6, life: 1.25 });
           },
           confettiEl: function (el, n) { if (!el) return; var c = rectCenter(el); this.confettiAt(c.x, c.y, n); },
+          /* [RP-V7.259] FIX 4/5 — two call sites were written against
+             methods this module never exported, and both threw:
+             photoLikeToggle123 calls Juice.pop(btn) BEFORE its like
+             fetch (the TypeError killed the handler mid-flight — the
+             heart flipped locally but the like NEVER reached the
+             server; full-scan F1), and the photo-comment composer's
+             success path calls Juice.confettiBurst(6) (latent behind
+             the reelWireClose ReferenceError; full-scan F2). Both are
+             implemented here, in the module, in its own language —
+             no call-site changes.
+             pop: the like-button feedback the caller expects — the
+             module's squash & stretch plus a small pink star burst
+             at the element. */
+          pop: function (el) {
+            if (!el) return;
+            this.squash(el, 0.3);
+            this.at(el, { n: 8, colors: ["#ff2d78", "#ff8fb8", "#ffffff"], shape: "star", speed: 90, r: 3.6, life: 0.5 });
+          },
+          /* confettiBurst: a light celebration on the module's real
+             confetti system — a small fountain from the lower-center
+             of the screen, where a composer sits; count scales with
+             the caller's n, kept modest. */
+          confettiBurst: function (n) {
+            var count = Math.max(12, Math.min(48, (n || 6) * 4));
+            this.confettiAt(Math.round(window.innerWidth / 2), Math.round(window.innerHeight * 0.7), count);
+          },
           /* decaying sine shake on any element; mag in px, kept gentle */
           shakeEl: function (el, mag) {
             if (!el || !el.animate) return;
@@ -22950,10 +22976,10 @@
          tag, newest first, from GET /api/tag/<tag>. Back = the
          sheet's ✕ / "← Back". Minimal by design: existing tiles,
          no new ranking. */
-      window.rpOpenTagView = function (tag) {
+      window.rpOpenTagView = function (tag, modeHint258) {
         tag = String(tag || "").toLowerCase().replace(/[^a-z0-9_]/g, "");
         if (!tag) return;
-        var tagMode253 = (typeof Reels !== "undefined" && Reels && Reels.mode === "photos") ? "photos" : "reels"; // [RP-V7.253] strict separation: the tag view inherits the mode it was opened from — opened from Photos it shows photos only, from Reels reels only
+        var tagMode253 = (modeHint258 === "photos" || modeHint258 === "reels") ? modeHint258 : ((typeof Reels !== "undefined" && Reels && Reels.mode === "photos") ? "photos" : "reels"); // [RP-V7.253] strict separation: the tag view inherits the mode it was opened from — opened from Photos it shows photos only, from Reels reels only ([RP-V7.258] a surface that knows its own mode — a Home photo card under a Reels-mode flag, a comment under its post — passes it explicitly; hint-less callers keep the V7.253 inference)
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">#' + escHtml(tag) + "</h3>" +
@@ -23439,9 +23465,7 @@
         var lc = b.querySelector(".lc"); if (lc) lc.textContent = momLikeCount(p);
       }
       function momCaptionHtml(caption) {
-        return escHtml(caption || "").replace(/#([A-Za-z0-9_]+)/g, function (w, tag) {
-          return '<button type="button" class="mom-tag" data-mtag="' + tag.toLowerCase() + '">#' + tag + "</button>";
-        });
+        return rpLinkifyRaw259(caption || "", "photos"); // [RP-V7.259] ROOT FIX: tokenize the RAW caption (never regex over escaped output — the &#39; tear); Photos context, so tag taps open the tag view in photos mode
       }
       /* [RP-V7.89] REPOST for photo posts — mirrors momToggleLike:
          optimistic paint, POST /api/photo/repost, server answer is
@@ -23506,7 +23530,7 @@
         var p = momPostById(id); if (!p) return;
         Moments.openCommentsFor = id;
         var list = p.comments.length
-          ? p.comments.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + '</b><span>' + escHtml(c.text) + '</span></div>'; }).join("")
+          ? p.comments.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + '</b><span>' + rpLinkifyRaw259(c.text, "photos") + '</span></div>'; }).join("") // [RP-V7.259] Moments photo comments linkify on the RAW text (photos context)
           : '<p style="color:var(--ink-soft); font-weight:700;">No comments yet — say something nice!</p>';
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
@@ -23525,7 +23549,7 @@
             inp.value = "";
             var li = document.createElement("div");
             li.className = "mom-comment";
-            li.innerHTML = "<b>" + escHtml(name) + "</b><span>" + escHtml(text) + "</span>";
+            li.innerHTML = "<b>" + escHtml(name) + "</b><span>" + rpLinkifyRaw259(text, "photos") + "</span>"; // [RP-V7.259] just-posted photo comments linkify on the RAW text too
             var box = $("momCommentList"); if (box) box.appendChild(li);
             momCommentCountSync(p);
           }
@@ -23994,10 +24018,23 @@
           })
           .catch(function () {});
       }
+      /* [RP-V7.259] FIX 3: reelWireClose was called by
+         openPhotoComments123 but defined nowhere — the ReferenceError
+         fired on every Home photo-comments open and aborted the rest
+         of the opener, so its Post button / Enter-key wiring below
+         never ran either. The intent is the sibling pattern from
+         openReelComments: wire the current sheet's own close button
+         to closeSheet(). Guarded: a sheet without the button (or no
+         sheet at all) is a no-op, never an error. */
+      function reelWireClose() {
+        var sh = $("sheet");
+        var x = sh && sh.querySelector("[data-act=close]");
+        if (x) x.addEventListener("click", function () { closeSheet(); });
+      }
       function openPhotoComments123(item) {
         function listHtml() {
           return (item.comments || []).map(function (c) {
-            return '<div class="reel-cmt"><span class="reel-ava sm" style="background:' + reelAvColor(c.name || "?") + '">' + escHtml(initialsOf(c.name || "?")) + '</span><div class="reel-cmt-body"><b>' + escHtml(c.name || "Someone") + '</b> <span class="reel-when">' + escHtml(reelWhen(c.ts)) + '</span><p>' + reelCaptionHtml(c.text || "") + '</p></div></div>';
+            return '<div class="reel-cmt"><span class="reel-ava sm" style="background:' + reelAvColor(c.name || "?") + '">' + escHtml(initialsOf(c.name || "?")) + '</span><div class="reel-cmt-body"><b>' + escHtml(c.name || "Someone") + '</b> <span class="reel-when">' + escHtml(reelWhen(c.ts)) + '</span><p>' + reelCaptionHtml(c.text || "", "photos") + '</p></div></div>'; // [RP-V7.258] photo comments: photo-post context
           }).join("") || '<p class="age-note" style="text-align:center;">No comments yet — start the conversation 💬</p>';
         }
         openSheet(
@@ -24079,9 +24116,9 @@
         var rest = document.createElement("div");
         rest.innerHTML =
           '<div class="reel-shade"></div>' +
-          '<div class="reel-meta"><span class="reel-author">' + escHtml(item.author) + '</span><span class="reel-when">' + escHtml(reelWhen(item.createdAt)) + (item.urls.length > 1 ? " · <svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> " + item.urls.length + " photos" : " · 📸 Photo") + "</span>" +
-          (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) + rpPhotoMusicChip123(item) + "</div>" +
-          '<div class="reel-rail"><span class="reel-ava" style="background:' + reelAvColor(item.author) + '">' + escHtml(initialsOf(item.author)) + "</span>" +
+          '<div class="reel-meta"><span class="reel-author"' + rpProfAttrs259(item) + '>' + escHtml(item.author) + '</span><span class="reel-when">' + escHtml(reelWhen(item.createdAt)) + (item.urls.length > 1 ? " · <svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> " + item.urls.length + " photos" : " · 📸 Photo") + "</span>" +
+          (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption, "photos") + "</p>" : "") + postMetaLineHtml156(item) + rpPhotoMusicChip123(item) + "</div>" + // [RP-V7.258] pager photo card: photos context
+          '<div class="reel-rail"><span class="reel-ava"' + rpProfAttrs259(item) + ' style="background:' + reelAvColor(item.author) + '">' + escHtml(initialsOf(item.author)) + "</span>" +
             '<button class="reel-act like pp-heart' + (item.myLiked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + (item.likes || 0) + "</span></button>" +
             '<button class="reel-act cmt pp-cmt" type="button">' + RPICO.comment + '<span class="cc">' + (item.commentCount || 0) + "</span></button>" +
             '<button class="reel-act share pp-share" type="button">' + RPICO.share + '<span>Share</span></button>' +
@@ -24111,9 +24148,9 @@
         var shade = document.createElement("div"); shade.className = "hp-shade"; slide.appendChild(shade);
         var meta = document.createElement("div"); meta.className = "hp-meta";
         meta.innerHTML =
-          '<div class="hp-author"><span class="hp-author-av">Y</span><span>@' + escHtml(item.author) + "</span>" +
+          '<div class="hp-author"' + rpProfAttrs259(item) + '><span class="hp-author-av">Y</span><span>@' + escHtml(item.author) + "</span>" +
           (item.mine ? "" : '<button type="button" class="hp-follow reel-followbtn' + (isFollowingName(item.author) ? " on" : "") + '">' + (isFollowingName(item.author) ? "Following" : "Follow") + "</button>") + "</div>" +
-          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) +
+          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption, "photos") + "</p>" : "") + postMetaLineHtml156(item) + // [RP-V7.258] Home photo slide: photos context
           '<p class="hp-when">' + escHtml(reelWhen(item.createdAt)) + (item.urls.length > 1 ? " · <svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> " + item.urls.length + " photos" : " · 📸 Photo") + "</p>" +
           (item.music ? '<span class="hp-snd rp-snd" data-tid="' + escHtml(item.music.trackId || "") + '" role="button">♪ ' + escHtml(item.music.name || "Plaza sound") + "</span>" : "");
         slide.appendChild(meta);
@@ -24265,12 +24302,34 @@
         var fyH = { "Accept": "application/json" };
         var fyT = reelToken(); if (fyT) fyH["Authorization"] = "Bearer " + fyT;
         var fetchFriends128 = !!Reels.friends; // [RP-V7.128]
+        /* [RP-V7.258] (A) FRIENDS LAG — three fixes in this callback:
+           (1) IN-FLIGHT DEDUPE: entering Friends fires this twice in
+           the same tap (rpFriendsOpen clicks btnMomentsPlaza, whose
+           own handler calls setMomMode, and then calls setMomMode
+           itself) — two identical /api/reels requests, two render
+           passes. A second call for the same list while one is in
+           flight (started <1.5 s ago) now joins it silently.
+           (2) STALE-MODE GUARD: a response whose list no longer
+           matches the current Friends/For You mode never overwrites
+           the list or repaints (it still fills the friends cache).
+           (3) The friends return no longer rebuilds the offscreen
+           Home pager or fires pagerPhotosFetch123 — that work rides
+           the For You return and Home's own entry, exactly as before. */
+        var ffKey258 = fetchFriends128 ? "friends" : "foryou";
+        var ffInf258 = Reels._inflight258;
+        if (ffInf258 && ffInf258.key === ffKey258 && (Date.now() - ffInf258.at) < 1500) return;
+        var ffId258 = (Reels._inflightSeq258 = (Reels._inflightSeq258 || 0) + 1);
+        Reels._inflight258 = { key: ffKey258, at: Date.now(), id: ffId258 };
+        var ffDone258 = function () { var cur = Reels._inflight258; if (cur && cur.id === ffId258) Reels._inflight258 = null; };
         fetch(Reels.friends ? "/api/reels?friends=1" : "/api/reels", { headers: fyH }) // [RP-V7.112]
           .then(function (r) { return r.json(); })
           .then(function (j) {
+            ffDone258();
             if (j && j.ok && Array.isArray(j.reels)) {
-              if (fetchFriends128) Reels._friendsLoaded = true; // [RP-V7.128]
-              Reels.server = j.reels; Reels.serverOk = true;
+              if (fetchFriends128) { Reels._friendsLoaded = true; Reels._friendsCache258 = j.reels; Reels._friendsCacheTok258 = fyT || ""; } // [RP-V7.258] (A) the friends list is CACHED (keyed to the account token) so a return visit paints it on the tap and this fetch just refreshes it
+              Reels.serverOk = true;
+              if (fetchFriends128 !== !!Reels.friends) return; // [RP-V7.258] (A) stale-mode response — the view it was fetched for is gone; never stomp the list the member is looking at
+              Reels.server = j.reels;
               Reels.ranked = Reels.friends ? false : !!j.ranked; // [RP-V7.112] Friends is pure newest-first
               reelMigrateLocal();
               // A local blob whose server copy is confirmed in the feed can
@@ -24279,13 +24338,13 @@
               reelLoadMeta().forEach(function (m) { if (m.serverId && have[m.serverId]) reelDbDel(m.id); });
               if (Reels.mode === "reels") renderReels();
               if (Reels.mode === "reels") setTimeout(function () { reelKick243(true); }, 60); // [RP-V7.243] entry: start the visible reel even when nothing re-rendered ([RP-V7.255] force: entry-class kick, generalized to the visible card)
-              renderHomePager(); // [RP-V7.113] the Home feed rides the same fetch
-          pagerPhotosFetch123(); // [RP-V7.123] photo posts join both pagers
+              if (!fetchFriends128) renderHomePager(); // [RP-V7.113] the Home feed rides the same fetch ([RP-V7.258] For You returns only — a friends list must never rebuild the Home pager)
+          if (!fetchFriends128) pagerPhotosFetch123(); // [RP-V7.123] photo posts join both pagers ([RP-V7.258] not on the Friends path — offscreen fan-out on the tap)
               // Retry uploads for anything still only on this device.
               reelLoadMeta().forEach(function (m) { if (!m.serverId && !m.draft) reelTryUpload(m.id); });
             }
           })
-          .catch(function () { Reels.serverOk = false; Reels.ranked = false; if (fetchFriends128) { Reels._friendsLoaded = true; if (Reels.mode === "reels" && Reels.friends) renderReels(); } }); // [RP-V7.128]
+          .catch(function () { ffDone258(); Reels.serverOk = false; Reels.ranked = false; if (fetchFriends128) { Reels._friendsLoaded = true; if (Reels.mode === "reels" && Reels.friends) renderReels(); } }); // [RP-V7.128]
       }
       /* [RP-V7.40] For You signals: fire-and-forget, signed-in only.
          fetch with keepalive (sendBeacon cannot carry the
@@ -24673,10 +24732,199 @@
         while ((m = re.exec(s))) out[m[1].toLowerCase()] = true;
         return Object.keys(out);
       }
-      function reelCaptionHtml(caption) {
-        return escHtml(caption || "").replace(/#([A-Za-z0-9_]+)/g, function (w, tag) {
-          return '<button type="button" class="reel-tag" data-rtag="' + tag.toLowerCase() + '">#' + tag + "</button>";
+      /* [RP-V7.258] (B) TAPPABLE #HASHTAGS + @MENTIONS (Branden,
+         Nov 5, with the Facebook reference: "When clicking on words
+         like this it should take you to it"). One linkifier for every
+         caption and comment in this module:
+         - Input is ESCAPED text (escHtml output) — the replaces run
+           on the escaped string, so a probe caption stays inert text.
+           The hashtag pattern refuses a # preceded by & so the
+           \' entity (&#39;) is never mistaken for a tag.
+         - #tags render as pink spans carrying the legacy classes and
+           data attrs (data-rtag / data-mtag), so the pager and Photos
+           wirings that predate this build keep working as a fallback.
+         - @mentions resolve against the REAL member directory only
+           (GET /api/members, the Find-people endpoint): an exact,
+           UNIQUE username-or-name match becomes a tappable span to
+           that member's profile; anything else ends as PLAIN TEXT —
+           never a fake or dead link. Unknown handles render as
+           unstyled pending text and are upgraded in place (or
+           dissolved to a text node) when the lookup lands.
+         - ONE delegated capture-phase click handler serves every
+           surface: it stopPropagation()s, so a link tap can never
+           toggle a pager's play/pause or disturb anything else that
+           rides clicks on the caption, on any surface, wired or not. */
+      var rpMentionCache258 = {};  // handle(lower) -> {id, name} | null (null = looked up, no such member)
+      var rpMentionFlying258 = {}; // handle(lower) -> true while its lookup is in flight
+      function rpMentionPaint258(key) {
+        var entry = rpMentionCache258[key];
+        var spans = document.querySelectorAll('[data-mpend258="' + key + '"]');
+        for (var i = 0; i < spans.length; i++) {
+          var sp = spans[i];
+          if (entry) {
+            sp.className = "rp-mention258";
+            sp.setAttribute("data-muid258", entry.id);
+            sp.setAttribute("data-mname258", entry.name);
+            sp.removeAttribute("data-mpend258");
+          } else if (sp.parentNode) {
+            sp.parentNode.replaceChild(document.createTextNode(sp.textContent || ""), sp);
+          }
+        }
+      }
+      function rpMentionLookup258(key) {
+        if (!key || (key in rpMentionCache258) || rpMentionFlying258[key]) return;
+        var tok = ""; try { tok = reelToken() || ""; } catch (e) { }
+        if (!tok) return; // signed out: no directory access — mentions stay plain text
+        rpMentionFlying258[key] = true;
+        fetch("/api/members?q=" + encodeURIComponent(key) + "&limit=10", { headers: { "Accept": "application/json", "Authorization": "Bearer " + tok } })
+          .then(function (r) { return r.ok ? r.json().catch(function () { return null; }) : null; })
+          .then(function (j) {
+            delete rpMentionFlying258[key];
+            var hit = null, hits = 0;
+            if (j && j.ok && Array.isArray(j.members)) {
+              j.members.forEach(function (m) {
+                if (String(m.username || "").toLowerCase() === key || String(m.name || "").toLowerCase() === key) { hits++; hit = m; }
+              });
+            }
+            rpMentionCache258[key] = (hits === 1 && hit) ? { id: hit.id, name: hit.name || key } : null; // unique exact match only — the follow-name rule
+            rpMentionPaint258(key);
+          })
+          .catch(function () { delete rpMentionFlying258[key]; rpMentionCache258[key] = null; rpMentionPaint258(key); });
+      }
+      /* [RP-V7.259] Shared span builders for both linkifiers — one
+         markup source, so the escaped-input linkifier and the
+         raw-input tokenizer below can never drift apart. */
+      function rpTagHtml259(tag, mode) {
+        var tg = String(tag || "").toLowerCase();
+        return '<span class="rp-tag258 reel-tag mom-tag" data-rtag="' + tg + '" data-mtag="' + tg + '" data-tmode258="' + (mode || "") + '" role="button">#' + tag + "</span>";
+      }
+      function rpMentionHtml259(handle) {
+        var key = String(handle || "").toLowerCase();
+        if (key in rpMentionCache258) {
+          var e = rpMentionCache258[key];
+          if (!e) return "@" + handle; // resolved: no such member — plain text
+          return '<span class="rp-mention258" data-muid258="' + escHtml(e.id) + '" data-mname258="' + escHtml(e.name) + '">@' + handle + "</span>";
+        }
+        rpMentionLookup258(key);
+        return '<span class="rp-mpend258" data-mpend258="' + key + '">@' + handle + "</span>";
+      }
+      /* [RP-V7.259] FIX 2 — THE ROOT: tokenize the RAW caption.
+         V7.258's linkifier regexed over escHtml() output; its [^&]
+         guard spared &#39; only by luck of adjacency — any entity
+         shape the guard didn't foresee (and any re-escape upstream)
+         tears again, and the pre-V7.258 functions tore EVERY
+         apostrophe into a "#39" tag chip ("you&#39;re" on screen —
+         rizz-profile-bug diagnosis §7). Here the split happens on
+         the raw string: plain segments are escaped, tag/mention
+         segments emit the shared span builders. Escaped output is
+         never regexed, so an entity can never be torn; a probe
+         caption stays inert because every non-token byte passes
+         through escHtml exactly once. Mention boundary semantics
+         mirror rpLinkify258 (start, or a non-word non-@ char
+         before the @ — that char stays plain text). */
+      function rpLinkifyRaw259(raw, mode) {
+        var s = String(raw == null ? "" : raw);
+        var re = /(^|[^\w@])@([A-Za-z0-9_][A-Za-z0-9_.]{0,29})|#([A-Za-z0-9_]+)/g;
+        var out = "", last = 0, m;
+        while ((m = re.exec(s)) !== null) {
+          if (m[2] !== undefined) { // mention — m[1] is its boundary prefix, kept as plain text
+            var at = m.index + m[1].length;
+            out += escHtml(s.slice(last, at)) + rpMentionHtml259(m[2]);
+          } else { // hashtag
+            out += escHtml(s.slice(last, m.index)) + rpTagHtml259(m[3], mode);
+          }
+          last = m.index + m[0].length;
+          if (m[0].length === 0) re.lastIndex++; // unreachable with these patterns; guards the loop
+        }
+        return out + escHtml(s.slice(last));
+      }
+      window.rpLinkifyRaw259 = rpLinkifyRaw259; // the V7.243 Home-stream module linkifies through this bridge (raw caption in)
+      function rpLinkify258(escaped, mode) {
+        var out = String(escaped || "").replace(/(^|[^&])#([A-Za-z0-9_]+)/g, function (w, pre, tag) {
+          return pre + rpTagHtml259(tag, mode);
         });
+        out = out.replace(/(^|[^\w@])@([A-Za-z0-9_][A-Za-z0-9_.]{0,29})/g, function (w, pre, handle) {
+          return pre + rpMentionHtml259(handle);
+        });
+        return out;
+      }
+      window.rpLinkify258 = rpLinkify258; // the V7.243 Home-stream module renders captions in its own scope — it linkifies through this bridge
+      if (!window.__rpLinkTap258) {
+        window.__rpLinkTap258 = true;
+        document.addEventListener("click", function (e) {
+          var t = e.target;
+          if (!t || !t.closest) return;
+          var tagEl = t.closest(".rp-tag258");
+          if (tagEl) {
+            var tg258 = tagEl.getAttribute("data-rtag") || "";
+            var md258 = tagEl.getAttribute("data-tmode258") || "";
+            /* Only a tap this handler will actually serve is
+               swallowed; if the tag view is unavailable the click
+               flows on to the surfaces' own legacy wiring (the
+               in-feed tag filter fallback) untouched. */
+            if (tg258 && window.rpOpenTagView) { e.stopPropagation(); e.preventDefault(); window.rpOpenTagView(tg258, md258 || undefined); }
+            return;
+          }
+          var menEl = t.closest(".rp-mention258");
+          if (menEl) {
+            var uid258 = menEl.getAttribute("data-muid258") || "";
+            if (uid258 && window.rpDm && window.rpDm.openProfile) { e.stopPropagation(); e.preventDefault(); window.rpDm.openProfile(uid258, menEl.getAttribute("data-mname258") || ""); }
+          }
+        }, true);
+      }
+      /* [RP-V7.259] FIX 6 — author name / avatar on pager cards was a
+         dead label (full-scan F4): tapping it did nothing, though
+         every other door to a member profile works and the Home reel
+         slide already wires its author row to the profile. Card
+         builders stamp data-puid259 / data-pname259 on the author
+         name + avatar elements (reel items carry authorId in the
+         payload; photo items often carry only the name at first
+         paint, so the handler resolves those by name through
+         /api/social/profile — the same by-name door the pager's
+         own author enrichment uses). ONE
+         capture-phase delegated handler serves every card: it opens
+         the real profile door (rpDm.openProfile — the same door
+         V7.258's mentions use) and swallows ONLY taps it serves, so
+         a name/avatar tap can never toggle play/pause or fire a
+         card action. Two standing behaviors are deferred to, never
+         overridden: follow controls keep their own wiring, and a
+         LIVE author's avatar tap still joins their live (V7.189). */
+      function rpProfAttrs259(item) {
+        if (!item || !item.author) return "";
+        var nm = ' data-pname259="' + escHtml(item.author) + '" role="button"';
+        return item.authorId ? ' data-puid259="' + escHtml(item.authorId) + '"' + nm : nm; // photo items often carry only the name at first paint (ids resolve async into pagerPhotoAuthors123) — the handler resolves those by name, the app's own by-name door
+      }
+      var rpProfResolved259 = {}; // author name (lower) -> member id | null, this session
+      if (!window.__rpAuthorTap259) {
+        window.__rpAuthorTap259 = true;
+        document.addEventListener("click", function (e) {
+          var t = e.target;
+          if (!t || !t.closest) return;
+          if (t.closest(".reel-follow, .reel-followbtn, .hp-follow")) return; // follow controls are not profile doors
+          var el = t.closest("[data-pname259]");
+          if (!el) return;
+          if (el.classList.contains("reel-av")) { var w = el.closest(".reel-avwrap"); if (w && w.getAttribute("data-live-room")) return; } // V7.189: a live author's avatar joins the live
+          if (!window.rpDm || !window.rpDm.openProfile) return; // no door: let the tap flow untouched
+          var uid = el.getAttribute("data-puid259") || "";
+          var name = el.getAttribute("data-pname259") || "";
+          if (uid) { e.stopPropagation(); e.preventDefault(); window.rpDm.openProfile(uid, name); return; }
+          if (!name) return;
+          e.stopPropagation(); e.preventDefault();
+          var key = name.toLowerCase();
+          if (key in rpProfResolved259) { var hit = rpProfResolved259[key]; if (hit) window.rpDm.openProfile(hit, name); return; }
+          var tok = ""; try { tok = reelToken() || ""; } catch (err) { }
+          if (!tok) return;
+          fetch("/api/social/profile?name=" + encodeURIComponent(name), { headers: { Authorization: "Bearer " + tok } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (pj) {
+              rpProfResolved259[key] = (pj && pj.id) ? pj.id : null;
+              if (pj && pj.id) window.rpDm.openProfile(pj.id, name);
+            })
+            .catch(function () { rpProfResolved259[key] = null; });
+        }, true);
+      }
+      function reelCaptionHtml(caption, mode258) {
+        return rpLinkifyRaw259(caption || "", mode258); // [RP-V7.259] ROOT FIX: tokenize the RAW caption (V7.258 linkified over escHtml output — one unforeseen entity shape away from tearing again; pre-V7.258 this tore every apostrophe into a "#39" chip)
       }
       function reelAvColor(name) {
         var cols = ["#fe2c55", "#7c5cff", "#0ea5a5", "#f59e0b", "#22a06b", "#e0492f", "#3b82f6", "#d6409f"];
@@ -24722,7 +24970,7 @@
         var initial = escHtml(String(item.author || "?").trim().charAt(0).toUpperCase() || "?");
         var lvRoom189 = (!item.mine && typeof rpReelLiveRoom189 === "function") ? rpReelLiveRoom189(item.author, item.authorId) : null;
         var avHtml = item.mine ? "" :
-          '<div class="reel-avwrap' + (lvRoom189 ? " is-live189" : "") + '" data-author189="' + escHtml(item.author || "") + '" data-authorid189="' + escHtml(item.authorId || "") + '" data-live-room="' + escHtml(lvRoom189 || "") + '"><div class="reel-av" style="background:' + reelAvColor(item.author) + '">' + initial + "</div>" + (lvRoom189 ? '<span class="reel-livebadge189">LIVE</span>' : "") +
+          '<div class="reel-avwrap' + (lvRoom189 ? " is-live189" : "") + '" data-author189="' + escHtml(item.author || "") + '" data-authorid189="' + escHtml(item.authorId || "") + '" data-live-room="' + escHtml(lvRoom189 || "") + '"><div class="reel-av"' + rpProfAttrs259(item) + ' style="background:' + reelAvColor(item.author) + '">' + initial + "</div>" + (lvRoom189 ? '<span class="reel-livebadge189">LIVE</span>' : "") +
           '<button class="reel-follow' + (following ? " on" : "") + '" type="button" aria-label="Follow ' + escHtml(item.author) + '">' + (following ? "✓" : "＋") + "</button></div>";
         var videoHtml;
         if (isDuet && hasSrc) {
@@ -24740,8 +24988,8 @@
           '<button class="reel-mute" type="button" aria-label="Mute or unmute"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"m15.8 9.8 4.7 4.7M20.5 9.8l-4.7 4.7\"/></svg></button>' +
           '<div class="reel-shade"></div>' +
           '<div class="reel-play">▶</div>' +
-          '<div class="reel-meta"><span class="reel-author">' + escHtml(item.author) + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" +
-          (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) + chip + provHtml +
+          '<div class="reel-meta"><span class="reel-author"' + rpProfAttrs259(item) + '>' + escHtml(item.author) + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" +
+          (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption, "reels") + "</p>" : "") + postMetaLineHtml156(item) + chip + provHtml + // [RP-V7.258] pager reel card: reels context
           (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : "Plaza sound") + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound">☆</button></div>' : '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>") +
           "</div>" +
           '<div class="reel-rail">' + avHtml +
@@ -25147,7 +25395,7 @@
         var srv = !!(item.server && reelToken());
         var list = srv ? (item.comments || []) : (reelLoadComments()[item.id] || []);
         var html = list.length
-          ? list.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + "</b><span>" + escHtml(c.text) + "</span></div>"; }).join("")
+          ? list.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + "</b><span>" + rpLinkifyRaw259(c.text, "reels") + "</span></div>"; }).join("") // [RP-V7.259] reel comments linkify on the RAW text (reels context)
           : '<p style="color:var(--ink-soft); font-weight:700;">No comments yet — say something nice!</p>';
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
@@ -25166,7 +25414,7 @@
             inp.value = "";
             var li = document.createElement("div");
             li.className = "mom-comment";
-            li.innerHTML = "<b>" + escHtml(name) + "</b><span>" + escHtml(text) + "</span>";
+            li.innerHTML = "<b>" + escHtml(name) + "</b><span>" + rpLinkifyRaw259(text, "reels") + "</span>"; // [RP-V7.259] just-posted reel comments linkify on the RAW text too
             var box = $("reelCommentList"); if (box) box.appendChild(li);
             var card = $("reelFeed") && $("reelFeed").querySelector('[data-rid="' + item.key + '"]');
             if (card) card.querySelector(".cc").textContent = count;
@@ -25352,7 +25600,18 @@
          leave Friends mode cleanly. */
       window.rpFriendsOpen = function () {
         Reels.friends = true; Reels._friendsEnter = true; window.__rpFriendsMode = true;
-        Reels.server = []; Reels.ranked = false; Reels._friendsLoaded = false; // [RP-V7.128] loading state until the friends fetch lands
+        /* [RP-V7.258] (A) FRIENDS LAG: the entry used to wipe the
+           list on EVERY tap, so the screen could only paint inside
+           the fetch's return — the V7.251 disease, alive on this one
+           button. Now the last friends list (cached by the fetch
+           above, keyed to this account's token) paints on the tap
+           itself and the fresh fetch refreshes it in place; only a
+           first-ever visit (or a different account) starts from the
+           V7.128 loading line. */
+        var frCache258 = (Reels._friendsCache258 && Reels._friendsCacheTok258 === (reelToken() || "")) ? Reels._friendsCache258 : null;
+        if (frCache258) { Reels.server = frCache258.slice(); Reels._friendsLoaded = true; }
+        else { Reels.server = []; Reels._friendsLoaded = false; } // [RP-V7.128] loading state until the friends fetch lands
+        Reels.ranked = false;
         var b = $("btnMomentsPlaza"); if (b) b.click();
         setMomMode("reels");
         Reels._friendsEnter = false;
@@ -25421,7 +25680,7 @@
           '<video src="' + escHtml(item.url) + '" loop playsinline preload="metadata"></video>' +
           '<div class="hp-grad"></div>' +
           '<div class="hp-meta"><button type="button" class="hp-aname">' + escHtml(item.author) + "</button>" +
-          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption) + "</p>" : "") + postMetaLineHtml156(item) + "</div>" +
+          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption, "reels") + "</p>" : "") + postMetaLineHtml156(item) + "</div>" + // [RP-V7.258] Home reel slide: reels context
           '<div class="hp-rail">' +
           '<button type="button" class="hp-ava" aria-label="Open profile"><span class="hp-ava-in" style="background:' + reelAvColor(item.author) + '">' + escHtml(String(item.author || "?").charAt(0).toUpperCase()) + "</span>" + (item.mine ? "" : '<span class="hp-follow">+</span>') + "</button>" +
           '<button type="button" class="hp-act like' + (lk.liked ? " liked" : "") + '"><span class="hp-ico">' + RPICO.heart + '</span><span class="lc">' + (lk.count || 0) + "</span></button>" +
@@ -39471,6 +39730,21 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   50% { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #fe2c55, 0 0 18px 5px rgba(254,44,85,.95), 0 0 38px 12px rgba(254,44,85,.50); }
 }
 .sc-ring { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #fe2c55, 0 0 16px 4px rgba(254,44,85,.85), 0 0 32px 10px rgba(254,44,85,.45); animation: storyGlowPulse 1.8s ease-in-out infinite; }
+      /* [RP-V7.258] (B) caption/comment link spans: Plaza pink, tappable.
+         The pending mention is deliberately UNSTYLED — until the
+         directory proves the member exists it reads as plain text. */
+      .rp-tag258, .rp-mention258 { color: #ff2d78; font-weight: 800; cursor: pointer; pointer-events: auto; }
+      .rp-mpend258 { color: inherit; font-weight: inherit; cursor: inherit; }
+      /* [RP-V7.258] (C) STORY GLOW, STRONGER (Branden, Nov 5: "Make
+         this more glowing than it is" — the Profile "Your story" row,
+         circled). Static: a thicker ring and a wider, brighter bloom,
+         with the pulse REMOVED on these surfaces (the scroll audit
+         flagged repaint-class pulses; no new animation is added).
+         Scoped to the Profile story row and the Home trays only —
+         the Inbox glow rules above (#rpDmStoryRow, .rpdm-ava) are
+         byte-untouched and keep their unopened-marker meaning. */
+      .story-profile-row .sc-ava.sc-ring, #storyTrayHome .story-cell .sc-ava.sc-ring { animation: none; box-shadow: 0 0 0 2px #0f0f14, 0 0 0 5.5px #fe2c55, 0 0 24px 8px rgba(254,44,85,.95), 0 0 48px 18px rgba(254,44,85,.55), 0 0 76px 28px rgba(254,44,85,.30); }
+      #storyTrayFb243 .story-card243:not(.viewed243) .badge243 { box-shadow: 0 0 0 2px #fe2c55, 0 0 14px 4px rgba(254,44,85,.90), 0 0 30px 10px rgba(254,44,85,.45); }
 .sc-ring-seen { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #5a5a66; }
 .sc-plus { position: absolute; right: -1px; bottom: -1px; width: 20px; height: 20px; border-radius: 50%; background: #fe2c55; color: #fff; font-size: 15px; font-weight: 900; line-height: 20px; text-align: center; border: 2px solid #0f0f14; }
 .rpdm-ava.sring-on { box-shadow: 0 0 0 2px #0f0f14, 0 0 0 4.5px #fe2c55, 0 0 16px 4px rgba(254,44,85,.85), 0 0 32px 10px rgba(254,44,85,.45); animation: storyGlowPulse 1.8s ease-in-out infinite; cursor: pointer; } /* [RP-V7.124] story glow everywhere the ring shows */
@@ -43828,7 +44102,7 @@ html, body { overflow-x: clip; }
       card.innerHTML =
         '<div class="mom-top"><span class="who-av">' + face + '</span><div><b>' + esc243(pp.author || "Someone") + '</b><span>' + esc243(when243(pp.createdAt)) + " · Photos</span></div>" + '<span class="mom-gifted" hidden></span></div>' +
         '<div class="mom-photo">' + photoHtml + "</div>" +
-        '<p class="mom-cap"><b>' + esc243(pp.author || "Someone") + "</b>" + (pp.caption ? " " + esc243(pp.caption) : "") + "</p>" +
+        '<p class="mom-cap"><b>' + esc243(pp.author || "Someone") + "</b>" + (pp.caption ? " " + (window.rpLinkifyRaw259 ? window.rpLinkifyRaw259(pp.caption, "photos") : (window.rpLinkify258 ? window.rpLinkify258(esc243(pp.caption), "photos") : esc243(pp.caption))) : "") + "</p>" + // [RP-V7.259] Home stream captions linkify on the RAW caption via the raw bridge (photos context — this stream is photo posts); the V7.258 escaped path remains only as a fallback if the bridge is somehow absent
         '<div class="mom-acts">' +
           '<button class="mom-act like' + (fi.myLiked ? " liked" : "") + '" type="button">' + (ico.heart || "") + ' <span class="lc">' + fi.likes + "</span></button>" +
           '<button class="mom-act cmt" type="button">' + (ico.comment || "") + ' <span class="cc">' + fi.commentCount + "</span></button>" +
