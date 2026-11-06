@@ -3132,6 +3132,7 @@ app.get("/api/reels", (req, res) => {
     });
   } catch (e) { /* audience filtering must never break reels */ }
   const vdb64 = readViews(); // [RP-V7.64] public tile counts ride along
+  const pg262 = readMoney().postGifts || {}; // [RP-V7.262] one money read per request feeds every reel's gift count
   const list = all.slice(0, 100).map((r) => {
     // RP-V7.9: remix entries carry their provenance; resolve the source
     // reel's playback URL from the full index so a Duet/Stitch card can
@@ -3169,6 +3170,8 @@ app.get("/api/reels", (req, res) => {
       // state on the reel record. Counts are public; the caller's own
       // heart rides only with a valid token (same rule as myReactions).
       heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+      // [RP-V7.262] gifts this reel has received (units, server truth).
+      giftCount: postGiftCountOf262(pg262, "reel", r.id),
       // [RP-V7.89] Reposts ride the payload like heart-likes do.
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
       comments: reelPublicComments(r),
@@ -3201,6 +3204,7 @@ app.get("/api/tag/:tag", (req, res) => {
     if (u) uid = u.id;
   } catch (e) {}
   const hasTag = (text) => styleKeysForCaption(text).tags.includes(tag);
+  const pg262 = readMoney().postGifts || {}; // [RP-V7.262]
   const reels = listReels()
     .filter((r) => r && hasTag(r.caption))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
@@ -3213,6 +3217,7 @@ app.get("/api/tag/:tag", (req, res) => {
       url: "/reel-files/" + r.file,
       views: mediaViewCount(readViews(), "reel:" + r.id),
       heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+      giftCount: postGiftCountOf262(pg262, "reel", r.id), // [RP-V7.262]
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
       myReposted: !!uid && ((Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === uid))), // [RP-V7.101] own reshare state
       commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
@@ -3223,7 +3228,7 @@ app.get("/api/tag/:tag", (req, res) => {
   const photos = readPhotoPosts()
     .posts.filter((x) => x && hasTag(x.caption))
     .slice(0, 60)
-    .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb));
+    .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb, pg262));
   res.json({ ok: true, tag, reels, photos });
 });
 
@@ -4910,7 +4915,7 @@ function photoReshareSet(repostsDb, id) {
   const s2 = repostsDb && repostsDb.reshares ? repostsDb.reshares[id] : null;
   return Array.isArray(s2) ? s2 : [];
 }
-function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb) {
+function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262) {
   const list = (commentsDb.photos && commentsDb.photos[p.id]) || [];
   const set = Array.isArray(likesDb.photos[p.id]) ? likesDb.photos[p.id] : [];
   const rset = photoRepostSet(repostsDb, p.id);
@@ -4932,6 +4937,9 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb) {
     myReposted: !!uid && (rset.some((x) => x && x.u === uid) || photoReshareSet(repostsDb, p.id).some((x) => x && x.u === uid)), // [RP-V7.101] own reshare state; reposts count above stays public-only
     comments: reelPublicComments({ comments: list }),
     commentCount: list.length,
+    // [RP-V7.262] gifts this post has received (units, server truth
+    // from the money DB — the photo-post payload's gift count).
+    giftCount: postGiftCountOf262(gifts262, "photo", p.id),
     // [RP-V7.90] attached sound reference on photo posts, same shape as reels.
     musicTrackId: p.musicTrackId || null,
     musicStart: typeof p.musicStart === "number" ? p.musicStart : null,
@@ -4968,7 +4976,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
         return res.json({
           ok: true,
           deduped: true,
-          post: photoPublicPost(ex, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts()),
+          post: photoPublicPost(ex, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), readMoney().postGifts || {}), // [RP-V7.262]
         });
       }
     }
@@ -5052,7 +5060,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
     notifyFollowersOfPost129(ctx.user, (post.urls && post.urls.length > 1) ? "photos" : "photo"); // [RP-V7.129]
     return res.json({
       ok: true,
-      post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts()),
+      post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), readMoney().postGifts || {}), // [RP-V7.262]
     });
   } catch (e) {
     console.log("PHOTO POST ERROR:", e.message);
@@ -5088,9 +5096,10 @@ app.get("/api/photo/posts", (req, res) => {
       return a === "followers" && fol156.has(p.owner);
     });
   } catch (e) { /* audience filtering must never break photo posts */ }
+  const pg262 = readMoney().postGifts || {}; // [RP-V7.262] one money read per request feeds every post's gift count
   const posts = rawPosts99
     .slice(0, PHOTO_POSTS_RETURN)
-    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb));
+    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, pg262));
   res.json({ ok: true, posts });
 });
 // [RP-V7.85] Batch social state for posts that have no server post
@@ -5411,7 +5420,7 @@ app.post("/api/media/view", (req, res) => {
 // no extra filtering (the 18+ gate lives at screen entry, the same
 // place /api/reels relies on it).
 // ---------------------------------------------------------------------------
-function mediaSearchReelItem(r, all, vdb, uid, adb) {
+function mediaSearchReelItem(r, all, vdb, uid, adb, pg262) {
   const src = r.sourceId ? all.find((x) => x.id === r.sourceId) : null;
   // [RP-V7.241] The lightbox rail needs the author id (gift target +
   // self check) and the reel's social state — the same fields GET
@@ -5441,6 +5450,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb) {
     // public; the caller's own state rides only with a valid token
     // (uid), the same rule GET /api/reels applies.
     heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+    giftCount: postGiftCountOf262(pg262, "reel", r.id), // [RP-V7.262]
     reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
     comments: reelPublicComments(r),
     commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
@@ -5485,12 +5495,13 @@ app.get("/api/media/search", (req, res) => {
       String(acct.username).toLowerCase().includes(q)
     );
   };
+  const pg262s = readMoney().postGifts || {}; // [RP-V7.262]
   const byViewsThenNew = (a, b) =>
     b.views - a.views ||
     String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
   const reels = allReels
     .filter(reelHit)
-    .map((r) => mediaSearchReelItem(r, allReels, vdb, viewer241 ? viewer241.id : null, adb))
+    .map((r) => mediaSearchReelItem(r, allReels, vdb, viewer241 ? viewer241.id : null, adb, pg262s))
     .sort(byViewsThenNew)
     .slice(0, q ? 48 : 24);
   const photos = [];
@@ -7931,7 +7942,8 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
     return { kind: "reel", id: r.id, src: "/reel-files/" + r.file, views: mediaViewCount(vdb, "reel:" + r.id), caption: r.caption || "", likes: hl241,
       // [RP-V7.241] author + social state for the lightbox rail
       owner: r.authorId || null, ownerName: r.author || "",
-      heartLikes: hl241, myHeart: !!uid && Array.isArray(r.heartLikes) && r.heartLikes.includes(uid),
+      heartLikes: hl241, giftCount: postGiftCountOf262(readMoney().postGifts || {}, "reel", r.id), // [RP-V7.262]
+      myHeart: !!uid && Array.isArray(r.heartLikes) && r.heartLikes.includes(uid),
       comments: reelPublicComments(r), commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
       myReposted: !!uid && ((Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === uid))) };
@@ -7939,8 +7951,9 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
   if (kind === "photopost") {
     const p = readPhotoPosts().posts.find((x) => x && x.id === id);
     if (!p || !p.photo) return null;
-    const pub = photoPublicPost(p, uid || "", likesDb, commentsDb, repostsDb || { photos: {}, reshares: {} });
-    return { kind: "photopost", id: p.id, src: p.photo, views: 0, caption: p.caption || "", likes: pub.likes || 0, photoCount: (pub.urls || []).length || 1, // [RP-V7.123] set size for the grid's multi-photo badge
+    const pub = photoPublicPost(p, uid || "", likesDb, commentsDb, repostsDb || { photos: {}, reshares: {} }, readMoney().postGifts || {}); // [RP-V7.262]
+    return { kind: "photopost", id: p.id, src: p.photo, views: 0, caption: p.caption || "", likes: pub.likes || 0, giftCount: pub.giftCount || 0, // [RP-V7.262]
+      photoCount: (pub.urls || []).length || 1, // [RP-V7.123] set size for the grid's multi-photo badge
       // [RP-V7.241] author + social state for the lightbox rail
       owner: p.owner || null, ownerName: p.name || "",
       myLiked: !!pub.myLiked, comments: pub.comments || [], commentCount: pub.commentCount || 0,
@@ -8016,6 +8029,7 @@ app.get("/api/social/profile", (req, res) => {
   let reels = [];
   try {
     const vdb = readViews();
+    const pg262 = readMoney().postGifts || {}; // [RP-V7.262]
     reels = listReels()
       .filter((r) => r && r.author === target.name)
       .slice(0, 12)
@@ -8023,6 +8037,7 @@ app.get("/api/social/profile", (req, res) => {
         // [RP-V7.241] author + social state for the lightbox rail
         authorId: target.id,
         heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+        giftCount: postGiftCountOf262(pg262, "reel", r.id), // [RP-V7.262]
         myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id),
         comments: reelPublicComments(r),
         commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
@@ -8055,8 +8070,9 @@ app.get("/api/social/profile", (req, res) => {
         likesTotal += r.heartLikes.length;
   } catch (e) { }
   try {
+    const pg262 = readMoney().postGifts || {}; // [RP-V7.262]
     photoPosts = readPhotoPosts().posts.filter((p) => p && p.owner === target.id).slice(0, 30)
-      .map((p) => photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86));
+      .map((p) => photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86, pg262));
     for (const p of photoPosts) likesTotal += p.likes || 0;
   } catch (e) { }
   try {
@@ -11345,6 +11361,7 @@ function emptyMoney() {
     processed: {},
     giftIdem: {}, // [RP-V7.52] gift idempotency keys -> original responses
     giftBals: {}, // [RP-V7.74] under-18 earned/won gift balance (charms) — see giftBalMirrorWin
+    postGifts: {}, // [RP-V7.262] gift counts per post ("reel:<id>" / "photo:<id>") -> gift UNITS received; written only by the gift handler, in the same write as the settlement it counts
     auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — recorded outcomes are final; [RP-V7.89] insufficient-charms failures are never recorded (FAIL-1)
   };
 }
@@ -11371,6 +11388,8 @@ function readMoney() {
     d.giftIdem = {};
   if (!d.giftBals || typeof d.giftBals !== "object" || Array.isArray(d.giftBals))
     d.giftBals = {};
+  if (!d.postGifts || typeof d.postGifts !== "object" || Array.isArray(d.postGifts))
+    d.postGifts = {}; // [RP-V7.262] gift counts per post — see emptyMoney
   if (!d.auctionSettlements || typeof d.auctionSettlements !== "object" || Array.isArray(d.auctionSettlements))
     d.auctionSettlements = {};
   if (!d.bizads || typeof d.bizads !== "object" || Array.isArray(d.bizads))
@@ -11383,6 +11402,19 @@ function readMoney() {
 }
 function writeMoney(db) {
   storeWriteJson(MONEY_FILE, db);
+}
+// [RP-V7.262] GIFT COUNT ON POSTS (Branden, Nov 5: the gift icon on
+// a picture or video post shows the exact number of gifts that post
+// has received — even 1; nothing shown at zero). Counts live in the
+// money DB (postGifts) so a count lands in the SAME write as the
+// settlement it counts and can never drift from the ledger. Values
+// are UNITS: the settlement runs per unit, so a x10 combo adds 10.
+// pg is a postGifts map (readMoney().postGifts); anything malformed
+// reads as 0 — a count is never invented.
+function postGiftCountOf262(pg, kind, id) {
+  if (!pg || typeof pg !== "object" || id == null) return 0;
+  const n = pg[kind + ":" + id];
+  return typeof n === "number" && isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 function moneyEarningsFor(db, acctId) {
   let e = db.earnings[acctId];
@@ -13219,6 +13251,28 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
       .json({ ok: false, resolved: false, error: "recipient-not-found" });
   }
   const recipient = matches[0];
+  // [RP-V7.262] GIFT COUNT ON POSTS: the client tags a post gift
+  // with the post it was sent from ({ kind: "reel"|"photo", id }).
+  // The tag is honored ONLY when the post exists AND belongs to
+  // the resolved recipient — a stale or mismatched tag is dropped
+  // silently and the gift settles exactly as before (bookkeeping
+  // must never break a gift; the handler's established pattern).
+  // Gallery photos have no post record and Feed posts live in the
+  // Feed store, so nothing is ever recorded for them — no count
+  // can exist for a surface the server does not record against.
+  let postKey262 = null;
+  try {
+    const bp262 = b.post;
+    if (bp262 && (bp262.kind === "reel" || bp262.kind === "photo") && typeof bp262.id === "string" && bp262.id) {
+      if (bp262.kind === "reel") {
+        const rr262 = listReels().find((x) => x && x.id === bp262.id);
+        if (rr262 && reelAuthorKeyFor(ctx.db, rr262) === recipient.id) postKey262 = "reel:" + bp262.id;
+      } else {
+        const pp262 = readPhotoPosts().posts.find((x) => x && x.id === bp262.id);
+        if (pp262 && pp262.owner === recipient.id) postKey262 = "photo:" + bp262.id;
+      }
+    }
+  } catch (e) { postKey262 = null; }
   const db = readMoney();
   const balance = db.balances[ctx.user.id] || 0;
   // [RP-V7.74] TEEN ECONOMY — CHARMS ONLY, SPENT FROM EARNINGS/WINS.
@@ -13341,6 +13395,16 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     // total across units, as are giftValueCents-side effects.
     units: count,
   };
+  // [RP-V7.262] The batch is recorded against its post in the SAME
+  // write as the settlement — units, so a x10 combo adds 10 — and
+  // the post's new total rides the response (and its idempotent
+  // replay) so the sender's screen updates in place.
+  if (postKey262) {
+    if (!db.postGifts || typeof db.postGifts !== "object" || Array.isArray(db.postGifts)) db.postGifts = {};
+    const prev262 = typeof db.postGifts[postKey262] === "number" && isFinite(db.postGifts[postKey262]) ? db.postGifts[postKey262] : 0;
+    db.postGifts[postKey262] = prev262 + count;
+    giftResponse.postGiftCount = db.postGifts[postKey262];
+  }
   // [RP-V7.52] The idempotency record lands in the SAME write as
   // the debit itself, so a retry can never slip between the charge
   // and its record (audit C6).
