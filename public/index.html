@@ -44352,40 +44352,47 @@ html, body { overflow-x: clip; }
   </script>
 
   <style>
-    /* ================= [RP-V7.260] BUTTON GLOW PASS =================
-       Branden (Nov 6, 2026): "Make these buttons glow but make the
-       plaza button very red glowing."
-       (1) The bottom bar: Branden asked for its buttons to glow
-       in the app's standing pink family (#fe2c55) in Oct 2026 and
-       RP-V7.96 answered with a first pass (one drop-shadow layer
-       on each icon, a two-layer label aura). This pass makes the
-       bar glow HARDER, in the same family and the same places:
-       a soft round halo disc behind every tab icon (two layers
-       inactive, three for the active tab) and a wider third layer
-       on the label aura, composed over V7.96's values so nothing
-       it lit goes dimmer. STATIC glow only — the scroll-audit
-       discipline and the V7.258 story-glow precedent: no new
-       animation is introduced anywhere in this pass. The active
-       tab keeps every existing state marker (white label + white
-       icon vs grey, the brighter V7.96 drop-shadow) and simply
-       burns brightest; inactive tabs glow softer, so which tab
-       you're on still reads at a glance. The icons' own filter
-       chain is untouched. The center + create button already
-       glows in this exact family (V7.90/V7.116 box-shadow, kept
-       by V7.96) and is untouched, as are the red LIVE treatments
-       and the green Go LIVE beacon. No layout, size, or behavior
-       change: box-shadow/text-shadow paint outside the box,
-       never inside it.
-       (2) The Plaza button at the side of Home (#btnPlazaSide243)
-       gets a VERY red glow — the loudest button on the screen:
-       four red bloom layers out to 128px at higher alpha than any
-       other button in the app, over two white-hot inset layers,
-       with a brighter edge and a hotter core, overriding its
-       V7.243 shadow by id specificity. */
-    #tabbar .tab-btn .ti { border-radius: 50%; box-shadow: 0 0 10px 2px rgba(254,44,85,.45), 0 0 22px 6px rgba(254,44,85,.22); }
+    /* ================= [RP-V7.261] GLOW CORRECTION =================
+       Branden (Nov 6, 2026, circled screenshots), two corrections to
+       the V7.260 glow pass:
+       (1) THE BOTTOM BAR: "The buttons circled should only be
+       glowing if it's clicked on — the others no glow at all."
+       ONLY the active tab glows. Every inactive tab now carries NO
+       glow at all: the V7.260 icon halo is zeroed (box-shadow:
+       none), the V7.96 icon drop-shadow is neutralized (filter:
+       none !important — same specificity as V7.96's own !important
+       rule, later in the cascade; the higher-specificity .on/.active
+       filter rule still wins on the selected tab), and the label
+       aura is zeroed (text-shadow: none). The ACTIVE tab keeps the
+       full stack untouched — V7.96's brighter drop-shadow + label
+       aura and V7.260's three-layer 48px halo — and because every
+       glow below keys off .on/.active, the light follows the member
+       as they navigate. The center + is not a selectable tab and
+       never stays "clicked on": it keeps its solid pink filled
+       body (the gradient on .tab-plus is untouched) but goes FLAT
+       — its 16px/38px bloom stack is removed (box-shadow: none).
+       (2) THE PLAZA BUTTON THAT "STILL WAS NOT GLOWING" is the
+       Plaza TEXT TAB in the Home strip (#homeStrip .hs-tabs
+       button[data-hs="plaza"]) — the top row that reads LIVE ·
+       Plaza · Following · For You. It now wears a VERY red glow at
+       ALL times (he flagged it while sitting on For You): a
+       six-layer red text-shadow bloom in the same red family as
+       the Plaza side button's 128px bloom (255,32,64 / 255,0,40),
+       sized for a text tab so the word stays crisp — the glyph
+       itself is never blurred, only its halo. The !important beats
+       the design-pass rule that flattened every strip tab to a
+       plain readability shadow; Following and For You keep that
+       plain white treatment and the white active underline,
+       exactly as they are. The side Plaza button (#btnPlazaSide243)
+       stays exactly as V7.260 built it (rule below is byte-
+       identical). STATIC only: no animation added anywhere, no new
+       keyframe rules. No layout, size, or behavior change. */
+    #tabbar .tab-btn .ti { border-radius: 50%; box-shadow: none; filter: none !important; }
     #tabbar .tab-btn.on .ti, #tabbar .tab-btn.active .ti { box-shadow: 0 0 12px 3px rgba(254,44,85,.85), 0 0 28px 10px rgba(254,44,85,.45), 0 0 48px 18px rgba(254,44,85,.25); }
-    #tabbar .tab-btn { text-shadow: 0 0 9px rgba(254,44,85,.30), 0 0 3px rgba(254,44,85,.18), 0 0 18px rgba(254,44,85,.25); }
+    #tabbar .tab-btn { text-shadow: none; }
     #tabbar .tab-btn.on, #tabbar .tab-btn.active { text-shadow: 0 0 7px rgba(254,44,85,.85), 0 0 20px rgba(254,44,85,.45), 0 0 34px rgba(254,44,85,.30); }
+    #tabbar .tab-plus { box-shadow: none; }
+    #homeStrip .hs-tabs button[data-hs="plaza"] { text-shadow: 0 0 4px rgba(255,140,155,.95), 0 0 10px rgba(255,32,64,.95), 0 0 24px rgba(255,32,64,.80), 0 0 48px rgba(255,0,40,.55), 0 0 80px rgba(255,0,40,.38), 0 0 120px rgba(255,0,40,.26) !important; }
     #btnPlazaSide243 {
       border-color: #ffc9d2;
       background: linear-gradient(180deg, #ff2438, #e60023);
