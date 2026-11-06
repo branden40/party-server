@@ -9671,12 +9671,13 @@
           var first = (c.items || [])[0];
           var thumb = first ? (first.kind === "reel"
             ? '<video src="' + escHtml(first.src) + '" muted playsinline preload="metadata"></video>'
-            : '<img src="' + escHtml(first.src) + '" alt="">') : '<div style="height:64px;"></div>';
+            : '<img loading="lazy" decoding="async" src="' + escHtml(first.src) + '" alt="">') : '<div style="height:64px;"></div>'; // [RP-V7.257] findings 2+9
           h += '<button class="pprof-collcard" type="button" data-coll="' + ix + '">' + thumb + '<b>' + escHtml(c.name) + '</b><small>' + (c.count || 0) + ' posts</small></button>';
         });
         if (isSelf) h += '<button class="pprof-collcard" type="button" data-coll="new"><div style="height:64px; display:flex; align-items:center; justify-content:center; font-size:30px;">＋</div><b>New</b><small>collection</small></button>';
         h += '</div>';
         host.innerHTML = h;
+        if (window.rpPaintGate244) host.querySelectorAll("video").forEach(function (cv) { try { window.rpPaintGate244(cv); } catch (e) { } }); // [RP-V7.257] finding 9: collection thumbs were ungated preload="metadata"
         host.querySelectorAll("[data-coll]").forEach(function (btn) {
           btn.addEventListener("click", function () {
             var k = btn.getAttribute("data-coll");
@@ -9721,7 +9722,7 @@
         (j.photoPosts || []).forEach(function (pp) { own.push({ kind: "photopost", id: pp.id, src: pp.photo, caption: pp.caption || "" }); });
         var inColl = {}; ((coll && coll.items) || []).forEach(function (it) { inColl[it.kind + ":" + it.id] = 1; });
         var rows = own.map(function (it, ix) {
-          var thumb = it.kind === "reel" ? '<video src="' + escHtml(it.src) + '" muted playsinline preload="metadata"></video>' : '<img src="' + escHtml(it.src) + '" alt="">';
+          var thumb = it.kind === "reel" ? '<video src="' + escHtml(it.src) + '" muted playsinline preload="metadata"></video>' : '<img loading="lazy" decoding="async" src="' + escHtml(it.src) + '" alt="">'; // [RP-V7.257] findings 2+9
           return '<label class="pprof-collpick"><input type="checkbox" data-ix="' + ix + '"' + (inColl[it.kind + ":" + it.id] ? " checked" : "") + '>' + thumb + '<span>' + escHtml(it.caption || (it.kind === "reel" ? "Reel" : "Photo post")) + '</span></label>';
         }).join("");
         openSheet(
@@ -9735,6 +9736,7 @@
         $("sheet").querySelectorAll("[data-act]").forEach(function (b) {
           b.addEventListener("click", function () { if (b.getAttribute("data-act") === "close") closeSheet(); });
         });
+        if (window.rpPaintGate244) document.querySelectorAll(".pprof-collpick video").forEach(function (cv) { try { window.rpPaintGate244(cv); } catch (e) { } }); // [RP-V7.257] finding 9: collection-picker thumbs were ungated preload="metadata"
         $("collCancel86").addEventListener("click", function () { openProfilePage(p); });
         $("collSave86").addEventListener("click", function () {
           var name = ($("collName86").value || "").trim();
@@ -22970,7 +22972,7 @@
             var html = "";
             if (tagMode253 === "photos" && j.photos && j.photos.length) { // [RP-V7.253]
               html += '<h4 class="pprof-gridtitle">📸 Photos</h4><div class="rpmedia-grid bleed">' + j.photos.map(function (pp) {
-                return '<div class="rpmedia-tile"><img src="' + escHtml(pp.photo) + '" alt=""/><span class="rpmedia-cap">' + escHtml(pp.author || "") + "</span></div>";
+                return '<div class="rpmedia-tile"><img loading="lazy" decoding="async" src="' + escHtml(pp.photo) + '" alt=""/><span class="rpmedia-cap">' + escHtml(pp.author || "") + "</span></div>"; // [RP-V7.257] findings 2+9
               }).join("") + "</div>";
             }
             if (tagMode253 === "reels" && j.reels && j.reels.length) { // [RP-V7.253]
@@ -22979,6 +22981,7 @@
               }).join("");
             }
             body.innerHTML = html || '<p class="age-note" style="text-align:center;">Nothing with #' + escHtml(tag) + " yet — post the first one!</p>";
+            if (window.rpPaintGate244) body.querySelectorAll(".rp-tagreel video").forEach(function (tv) { try { window.rpPaintGate244(tv); } catch (e) { } }); // [RP-V7.257] finding 9: tag-row videos were ungated preload="metadata" — a tag page fetched metadata for every row at once; they ride the paint gate now
           })
           .catch(function () { var body = $("rpTagBody"); if (body) body.innerHTML = '<p class="age-note" style="text-align:center;">Couldn\'t load that tag — check your connection.</p>'; });
       };
@@ -25428,6 +25431,7 @@
           '<span class="hp-views">👁 ' + (item.views || 0) + "</span>" +
           "</div>";
         var v = slide.querySelector("video"), trk = slide._trk;
+        if (window.rpPaintGate244) { try { window.rpPaintGate244(v, { feed: true }); } catch (e) { } } // [RP-V7.257] scroll-lag audit finding 1: the Plaza pager built every slide's video ungated at preload="metadata" (up to ~200 media fetches racing the scroll). Slide paints now ride the same V7.244 gate as Moments cards (preload held at "none" until near-viewport, max-2 seek queue, feed trickle). Playback is untouched: the pager's IO still calls hpPlay, and play() loads a held video on its own.
         v.addEventListener("playing", function () { if (!trk.startedAt) trk.startedAt = Date.now(); });
         v.addEventListener("timeupdate", function () {
           if (!isFinite(v.duration) || !v.duration) return;
@@ -27740,11 +27744,30 @@
           var nodes = ms[i].addedNodes;
           for (var j = 0; j < nodes.length; j++) {
             var n = nodes[j];
-            if (n.nodeType === 1) tuneImgs(n);
+            if (n.nodeType === 1) {
+              tuneImgs(n);
+              /* [RP-V7.257] a body-level container born after boot
+                 (gift banners #rpBanners, stage #rpStage) joins the
+                 scoped set the moment it appears, so its images keep
+                 the exact same tuning the body observer used to give. */
+              if (ms[i].target === document.body && (n.id === "rpBanners" || n.id === "rpStage")) { try { mo.observe(n, { childList: true, subtree: true }); } catch (e) { } }
+            }
           }
         }
       });
-      mo.observe(document.body, { childList: true, subtree: true });
+      /* [RP-V7.257] scroll-lag audit finding 6: this tuner watched the
+         WHOLE body subtree forever, so every mutation anywhere — gift
+         banners, pot effects, toasts, stage overlays — paid its scan.
+         It now watches only the containers whose images it serves:
+         every .screen plus #overlay (the sheet lives inside it), and
+         a shallow (non-subtree) body watch that only notices new
+         top-level containers arriving. Same images tuned, same way. */
+      document.querySelectorAll(".screen").forEach(function (sc) { try { mo.observe(sc, { childList: true, subtree: true }); } catch (e) { } });
+      var ovT = document.getElementById("overlay");
+      if (ovT) { try { mo.observe(ovT, { childList: true, subtree: true }); } catch (e) { } }
+      var bnT = document.getElementById("rpBanners"); if (bnT) { try { mo.observe(bnT, { childList: true, subtree: true }); } catch (e) { } }
+      var stT = document.getElementById("rpStage"); if (stT) { try { mo.observe(stT, { childList: true, subtree: true }); } catch (e) { } }
+      try { mo.observe(document.body, { childList: true }); } catch (e) { }
     }
   })();
   </script>
@@ -28195,6 +28218,12 @@ body:not(.live-fs) #rp65How { display:none !important; }
     if (gi) gi.innerHTML = rpArt(c.getAttribute("data-gid"), gi.textContent);
   }
   try {
+    /* [RP-V7.257] scroll-lag audit finding 6: this swap watched the
+       WHOLE body subtree forever — every chat line, card and count in
+       the app paid its per-node scan. Gift cells are only ever built
+       into the gift sheet (the two builders above render into #sheet,
+       and the boot sweep below still covers any static cells), so the
+       observer now watches #sheet only. Same cells, same swap. */
     new MutationObserver(function (muts) {
       muts.forEach(function (mu) {
         mu.addedNodes.forEach(function (n) {
@@ -28203,7 +28232,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
           if (n.querySelectorAll) n.querySelectorAll(".gift-cell[data-gid]").forEach(swapCell);
         });
       });
-    }).observe(document.body, { childList: true, subtree: true });
+    }).observe(document.getElementById("sheet") || document.body, { childList: true, subtree: true });
   } catch (e) { }
   document.querySelectorAll(".gift-cell[data-gid]").forEach(swapCell);
 
@@ -30249,12 +30278,28 @@ function stageStreakBump(key, add) {
     }
     injectShows();
     bindBarDelegate();
+    /* [RP-V7.257] scroll-lag audit finding 8: these two intervals ran
+       their DOM work on EVERY screen — the ticker/bar/host watchers
+       only ever paint into the live-room and Auctions surfaces
+       (#liveAucPin, #livePanel's bar, #wnShows in #aucBody). The ticks
+       now run only where they matter: a live is active, or the member
+       is on the Auctions / Live Stage / room screen. State that must
+       stay fresh elsewhere (the 20 s showsDirty flag below) is
+       untouched, and injectShows already self-gates on
+       screen-auctions. */
+    function wnTickLive257() {
+      try { var L = live(); if (L && L.active) return true; } catch (e) { }
+      var s = document.querySelector(".screen.active");
+      return !!s && (s.id === "screen-auctions" || s.id === "screen-online" || s.id === "screen-room");
+    }
     setInterval(function () {
+      if (!wnTickLive257()) return;
       try { tickAuction(); } catch (e) { }
       try { tickBar(); } catch (e) { }
       try { tickRaid(); } catch (e) { }
     }, 600);
     setInterval(function () {
+      if (!wnTickLive257()) return;
       try { tickHost(); } catch (e) { }
       try { injectShows(); } catch (e) { }
       if (shop) {
@@ -34644,8 +34689,31 @@ button.rp72-chip{ cursor:pointer; }
   }
   if ("MutationObserver" in window) {
     try {
-      var mo = new MutationObserver(scheduleInject);
-      mo.observe(document.body, { childList: true, subtree: true });
+      /* [RP-V7.257] scroll-lag audit finding 6: this injector watched
+         the WHOLE body subtree forever — any mutation anywhere (chat
+         lines, gift banners, counters) scheduled a full-document
+         [data-follow] scan 350 ms later. Two bounds, outcome-identical
+         on its own surfaces: (1) it observes only the containers where
+         follow buttons actually render — the overlay/sheet (people,
+         member profiles, inbox) and the screens that host member
+         lists and live/profile follow buttons; (2) a batch schedules
+         the scan only when some added node IS or CONTAINS a
+         [data-follow] button — the only thing injectButtons can act
+         on. Sign-in state changes still reach it through the 2 s
+         token watcher below, which calls injectButtons directly. */
+      var mo = new MutationObserver(function (ms) {
+        for (var i = 0; i < ms.length; i++) {
+          var nodes = ms[i].addedNodes;
+          for (var j = 0; j < nodes.length; j++) {
+            var n = nodes[j];
+            if (n.nodeType !== 1) continue;
+            if ((n.getAttribute && n.getAttribute("data-follow") != null) || (n.querySelector && n.querySelector("[data-follow]"))) { scheduleInject(); return; }
+          }
+        }
+      });
+      var dmScope257 = [document.getElementById("overlay")];
+      document.querySelectorAll(".screen").forEach(function (sc) { dmScope257.push(sc); });
+      dmScope257.forEach(function (t) { if (t) { try { mo.observe(t, { childList: true, subtree: true }); } catch (e) { } } });
     } catch (e) { }
   }
   var lastToken = "";
@@ -35562,7 +35630,7 @@ button.rp72-chip{ cursor:pointer; }
   function tileHTML(it) {
     var media = it.kind === "reel"
       ? '<video src="' + esc(it.src || "") + '" muted playsinline preload="metadata"></video><span class="rpmedia-play">▶</span>'
-      : '<img src="' + esc(it.src || "") + '" alt=""/>';
+      : '<img loading="lazy" decoding="async" src="' + esc(it.src || "") + '" alt=""/>'; // [RP-V7.257] scroll-lag audit finding 2: the V7.251 lazy/async treatment, applied to grid tiles (was: eager full-size decode on every grid)
     return '<button type="button" class="rpmedia-tile" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpownername="' + esc(it.ownerName || "") + '" data-rpsrc="' + esc(it.src || "") + '" data-rpviews="' + (it.views || 0) + '">' + media + (it.photoCount > 1 ? '<span class="rpmedia-multi">▦ ×' + it.photoCount + "</span>" : "") /* [RP-V7.123] */ + '<span class="rpmedia-views">👁 ' + fmtViews(it.views || 0) + "</span></button>";
   }
   window.rpViewsTileHTML = tileHTML;
@@ -35945,31 +36013,78 @@ button.rp72-chip{ cursor:pointer; }
     rpPaintIO244.observe(v);
   }
   try { window.rpPaintGate244 = rpPaintFrame243; } catch (e) { } // [RP-V7.244] module-scope export: the Reels feed delegates its card paints to this same gate
+  var rpFeedSettleT257 = null;
+  /* [RP-V7.257] One candidate scan shared by the tick and the settle
+     painter: alive feed videos that still need a first frame (not yet
+     promoted, paused, no frame yet, measurable on screen), nearest
+     first. Zero-rect (hidden-surface) videos are neither candidates
+     nor blockers — a surface that is not showing cannot starve or
+     sustain this queue; its trickle restarts on re-entry (rpFeedWake257). */
+  function rpFeedScan257() {
+    var alive = [], cands = [];
+    for (var i = 0; i < rpFeedAll244.length; i++) {
+      var v = rpFeedAll244[i];
+      if (!v.isConnected) continue;
+      alive.push(v);
+      if (v.__rpPromoted244) continue;
+      if (!v.paused || v.readyState >= 2) continue; // already playing or already has a frame — never spend a promotion on it
+      var r = null;
+      try { r = v.getBoundingClientRect(); } catch (e) { }
+      if (!r || !r.height) continue;
+      cands.push({ v: v, d: Math.abs(r.top), top: r.top });
+    }
+    rpFeedAll244 = alive;
+    cands.sort(function (a, b) { return a.d - b.d; }); // nearest-first — same ordering rule as the original trickle
+    return cands;
+  }
+  function rpFeedSettlePaint257() {
+    /* [RP-V7.257] Settle painter: ~250 ms after the feed last scrolled,
+       paint the card the member landed on (nearest candidate within a
+       screen and a half) right away, instead of leaving it black until
+       the 2 s-quiet tick. Complements V7.255's 140 ms settle kick,
+       which restarts PLAYBACK; this restores the first FRAME of the
+       paused card it lands beside. One card per settle, inside the
+       same max-2 paint queue (rpPaintPromote244 enqueues). */
+    var cands = rpFeedScan257();
+    for (var i = 0; i < cands.length; i++) {
+      if (Math.abs(cands[i].top) <= window.innerHeight * 1.5) { rpPaintPromote244(cands[i].v); return; }
+    }
+  }
   function rpFeedTrickle244() {
+    if (!rpFeedScrollWired244) { rpFeedScrollWired244 = true; try { window.addEventListener("scroll", function (e) { var t = e.target; if (t === document || !t || !t.closest || t.closest("#screen-moments")) { rpFeedLastScroll244 = Date.now(); if (rpFeedSettleT257) clearTimeout(rpFeedSettleT257); rpFeedSettleT257 = setTimeout(function () { rpFeedSettleT257 = null; try { if (!document.hidden) rpFeedSettlePaint257(); } catch (e) { } }, 250); } }, { capture: true, passive: true }); } catch (e) { } }
     if (rpFeedTrickleT244) return;
-    if (!rpFeedScrollWired244) { rpFeedScrollWired244 = true; try { window.addEventListener("scroll", function (e) { var t = e.target; if (t === document || !t || !t.closest || t.closest("#screen-moments")) rpFeedLastScroll244 = Date.now(); }, { capture: true, passive: true }); } catch (e) { } }
     rpFeedTrickleT244 = setInterval(function () {
       if (document.hidden) return;
       rpPaintSweep244(); // [RP-V7.251]
-      if (Date.now() - rpFeedLastScroll244 < 2000) return;
-      var best = null, bestD = 1e12, alive = [], anyLeft = false;
-      for (var i = 0; i < rpFeedAll244.length; i++) {
-        var v = rpFeedAll244[i];
-        if (!v.isConnected) continue;
-        alive.push(v);
-        if (v.__rpPromoted244) continue;
-        if (!v.paused || v.readyState >= 2) continue; // already playing or already has a frame — never spend a tick on it
-        anyLeft = true;
-        var r = null;
-        try { r = v.getBoundingClientRect(); } catch (e) { }
-        if (!r || !r.height) continue;
-        var d = Math.abs(r.top); if (d < bestD) { bestD = d; best = v; } // nearest-first, no distance limit: pacing (queue-idle + scroll-quiet + one per tick) is the bound, not distance — a fixed screen-multiple band misfires whenever the feed's viewport offset is large
+      var quiet257 = Date.now() - rpFeedLastScroll244;
+      if (quiet257 < 250) return; // still scrolling — pacing is the protection (unchanged from V7.244's intent)
+      var cands = rpFeedScan257();
+      if (!cands.length) {
+        // Nothing paintable remains on a visible surface. Unpromoted
+        // videos with no measurable rect belong to a hidden surface;
+        // they no longer hold this interval open (V7.257) — it restarts
+        // on the next registration or on rpFeedWake257.
+        var anyVis257 = false;
+        for (var k = 0; k < rpFeedAll244.length; k++) { var vv = rpFeedAll244[k]; if (!vv.__rpPromoted244 && vv.paused && vv.readyState < 2) { var rr = null; try { rr = vv.getBoundingClientRect(); } catch (e) { } if (rr && rr.height) { anyVis257 = true; break; } } }
+        if (!anyVis257) { clearInterval(rpFeedTrickleT244); rpFeedTrickleT244 = null; }
+        return;
       }
-      rpFeedAll244 = alive;
-      if (best) rpPaintPromote244(best);
-      else if (!anyLeft) { clearInterval(rpFeedTrickleT244); rpFeedTrickleT244 = null; }
+      if (quiet257 >= 2000) {
+        /* [RP-V7.257] scroll-lag audit finding 5: after a fling the old
+           trickle promoted ONE card per 700 ms tick once quiet, so the
+           cards around the landing spot filled in at ~1.4 paints/sec.
+           Promote a small batch per tick now — still bounded by the
+           same max-2 seek queue in rpPaintPump244, so decode load is
+           capped exactly as before; only the queue drains faster. */
+        for (var b = 0; b < cands.length && b < 3; b++) rpPaintPromote244(cands[b].v);
+      } else {
+        /* 250 ms–2 s of quiet: the member has landed — paint just the
+           landing card promptly (same rule as the settle painter). */
+        for (var j = 0; j < cands.length; j++) { if (Math.abs(cands[j].top) <= window.innerHeight * 1.5) { rpPaintPromote244(cands[j].v); break; } }
+      }
     }, 700);
   }
+  try { window.rpFeedWake257 = function () { try { rpFeedTrickle244(); } catch (e) { } }; } catch (e) { } // [RP-V7.257] re-entry wake for the media-release module (finding 7)
   function fillGrid(el, items, opts) {
     opts = opts || {};
     if (!el) return;
@@ -43524,7 +43639,9 @@ html, body { overflow-x: clip; }
     var fLoading = false, fSig = null;
     var bizAds243 = null, bizLoading243 = false, adN243 = 0; /* [RP-V7.247] Business Ads interleave — moved here from the retired Feed wall */
     var io243 = null;
+    var railNear243 = true, railVisIO243 = null; // [RP-V7.257] finding 3: rail-near-viewport state for the preview scan gate
     function $(id) { return document.getElementById(id); }
+    function railHomeActive243() { var s = document.querySelector(".screen.active"); return !!s && s.id === "screen-home243"; } // [RP-V7.257]
     function token() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) || ""; } catch (e) { return ""; } }
     function esc243(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
     function when243(iso) { var t = Date.parse(iso || ""); if (!isFinite(t)) return "now"; var s = Math.max(1, Math.floor((Date.now() - t) / 1000)); if (s < 3600) return Math.max(1, Math.floor(s / 60)) + "m ago"; if (s < 86400) return Math.floor(s / 3600) + "h ago"; return Math.floor(s / 86400) + "d ago"; }
@@ -43561,6 +43678,21 @@ html, body { overflow-x: clip; }
     }
     function scanPreviews243() {
       if (!railEl || document.hidden) return;
+      /* [RP-V7.257] scroll-lag audit finding 3: this scan re-measured
+         EVERY rail tile (one getBoundingClientRect each, up to ~100)
+         on a 160 ms throttle from a window scroll listener — app-wide,
+         on every screen. It duplicates io243 (which already plays /
+         pauses tiles inside the rail) except for one job: pausing
+         previews when the whole RAIL leaves the window vertically.
+         Two gates now bound it to that job: unless Home is the active
+         screen it returns before touching a single rect; and unless
+         the rail is near the window viewport (railVisIO243, below) it
+         also returns — the IO pauses the previews once when the rail
+         leaves view, which is the state the scan used to re-derive
+         six times a second. On Home with the rail in view the scan
+         runs exactly as before. */
+      if (!railHomeActive243()) return;
+      if (!railNear243) return;
       var rr = railEl.getBoundingClientRect();
       if (rr.width === 0) return;
       tilesEl.querySelectorAll(".rpmedia-tile").forEach(function (tile) {
@@ -43598,6 +43730,20 @@ html, body { overflow-x: clip; }
         }, { root: railEl, threshold: 0.55 });
       }
       if (io243) tilesEl.querySelectorAll(".rpmedia-tile").forEach(function (t) { io243.observe(t); });
+      /* [RP-V7.257] Rail-vs-window visibility: the one signal io243
+         (rooted at the rail) cannot see. When the rail leaves the
+         window, pause its previews once and starve the scan; when it
+         comes back, resume through the (now un-starved) scan. */
+      if (window.IntersectionObserver && !railVisIO243 && railEl) {
+        railVisIO243 = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            railNear243 = !!en.isIntersecting;
+            if (!en.isIntersecting) { try { pausePreviews243(); } catch (e) { } }
+            else scanPreviews243();
+          });
+        }, { rootMargin: "120px" });
+        railVisIO243.observe(railEl);
+      }
       scanPreviews243();
     }
     function renderRail243(items) {
@@ -43672,8 +43818,8 @@ html, body { overflow-x: clip; }
       try { if (typeof personFace === "function") face = personFace({ name: pp.author || "Someone" }); } catch (e) { }
       if (!face) face = '<span class="pface pface-init">' + esc243((pp.author || "?").charAt(0).toUpperCase() || "?") + "</span>";
       var photoHtml;
-      if (urls.length > 1) photoHtml = '<span class="mom-flip" style="display:block;"><img src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/><button type="button" class="ff-zone prev" data-fbflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-fbflip="1" aria-label="Next photo"></button><span class="ff-count">1/' + urls.length + "</span></span>";
-      else if (urls.length) photoHtml = '<img src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/>';
+      if (urls.length > 1) photoHtml = '<span class="mom-flip" style="display:block;"><img loading="lazy" decoding="async" src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/><button type="button" class="ff-zone prev" data-fbflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-fbflip="1" aria-label="Next photo"></button><span class="ff-count">1/' + urls.length + "</span></span>";
+      else if (urls.length) photoHtml = '<img loading="lazy" decoding="async" src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/>'; // [RP-V7.257] finding 2: Home stream photos get the V7.251 lazy/async treatment (was: 30/30 eager full-size decodes)
       else photoHtml = '<span class="mom-nomedia" aria-hidden="true"></span>';
       var ico = window.RPICO || {};
       var card = document.createElement("article");
@@ -43831,6 +43977,103 @@ html, body { overflow-x: clip; }
     }, true);
     init243();
     setTimeout(init243, 1200);
+  })();
+  </script>
+
+  <script>
+  /* ============ [RP-V7.257] Media surfaces unload on exit (scroll-lag
+     audit finding 7) ============
+     A normal session accumulated ~13.7k elements and 176 <video>
+     elements in one document, because every screen keeps its media
+     when you leave it. The two heavy media surfaces — the Moments
+     Reels feed (#reelFeed) and the Plaza For You pager (#homePager) —
+     now RELEASE their videos when their screen stops being the active
+     one: each video is paused and its src is stashed on the element
+     and removed (followed by load(), which is what actually drops the
+     fetched/decoded resource). Nothing is removed from the DOM, no
+     card is rebuilt, and no signature/observer state is touched.
+     When the screen becomes active again the srcs are restored in the
+     same turn — before the surfaces' own entry machinery runs (the
+     V7.255 entry kick and spy rebind on Moments, the pager's IO on
+     Plaza) — so both surfaces come back exactly as they left,
+     autoplay contract included; the feed trickle is also re-woken
+     (rpFeedWake257) in case it had wound down while hidden.
+     Detection watches the screens' class attributes (the same
+     pattern the tab bar's sync observer uses), so it follows the
+     .active class itself rather than any one navigation function.
+     Every write is guarded: a video is only paused/stripped when it
+     actually carries a src, and only restored when it carries a
+     stash — and the whole pass only runs when the active screen's
+     identity actually changes, so unrelated class bookkeeping on
+     other screens can never re-pause a live surface. */
+  (function () {
+    "use strict";
+    var STASH = "__rp257Src";
+    function releaseBox(box) {
+      if (!box || !box.querySelectorAll) return;
+      box.querySelectorAll("video").forEach(function (v) {
+        try { if (!v.paused) v.pause(); } catch (e) { }
+        var s = null;
+        try { s = v.getAttribute("src"); } catch (e) { }
+        if (s) {
+          if (!v[STASH]) v[STASH] = s;
+          v.removeAttribute("src");
+          try { v.load(); } catch (e) { }
+        }
+        v.querySelectorAll("source").forEach(function (so) {
+          var ss = null;
+          try { ss = so.getAttribute("src"); } catch (e) { }
+          if (ss) {
+            if (!so.getAttribute("data-rp257src")) so.setAttribute("data-rp257src", ss);
+            so.removeAttribute("src");
+            try { v.load(); } catch (e) { }
+          }
+        });
+      });
+    }
+    function restoreBox(box) {
+      if (!box || !box.querySelectorAll) return;
+      box.querySelectorAll("video").forEach(function (v) {
+        if (v[STASH]) { var s = v[STASH]; v[STASH] = null; try { v.setAttribute("src", s); } catch (e) { } }
+        v.querySelectorAll("source[data-rp257src]").forEach(function (so) {
+          var ss = so.getAttribute("data-rp257src");
+          so.removeAttribute("data-rp257src");
+          if (ss) { try { so.setAttribute("src", ss); } catch (e) { } }
+        });
+        /* No load() here on purpose: the element's own preload state
+           (held at "none" by the paint gate, or "metadata" once
+           promoted) plus the spy/kick/IO decide fetching, exactly as
+           they did before the release. */
+      });
+    }
+    var lastActive257 = null;
+    function sync257() {
+      var act = document.querySelector(".screen.active");
+      var id = act ? act.id : "";
+      /* Act only on a genuine change of the active screen. Modules
+         toggle classes on screens for their own bookkeeping (the live
+         module blips screen-online roughly twice a second), and those
+         mutations reach this observer too — without this guard every
+         blip would re-run the release pass and re-pause a feed the
+         member may be watching through a surface whose .active
+         bookkeeping momentarily points elsewhere. One querySelector
+         per class mutation is the whole cost when nothing navigated. */
+      if (id === lastActive257) return;
+      lastActive257 = id;
+      var feed = document.getElementById("reelFeed");
+      var pager = document.getElementById("homePager");
+      if (id === "screen-moments") { restoreBox(feed); if (window.rpFeedWake257) window.rpFeedWake257(); }
+      else releaseBox(feed);
+      if (id === "screen-plaza") { restoreBox(pager); if (window.rpFeedWake257) window.rpFeedWake257(); }
+      else releaseBox(pager);
+    }
+    if (window.MutationObserver) {
+      try {
+        var mo257 = new MutationObserver(function () { sync257(); });
+        document.querySelectorAll(".screen").forEach(function (sc) { mo257.observe(sc, { attributes: true, attributeFilter: ["class"] }); });
+      } catch (e) { }
+    }
+    window.__rp257MediaSync = sync257; // rig + diagnostics handle
   })();
   </script>
 
