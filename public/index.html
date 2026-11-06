@@ -22878,6 +22878,7 @@
       window.rpOpenTagView = function (tag) {
         tag = String(tag || "").toLowerCase().replace(/[^a-z0-9_]/g, "");
         if (!tag) return;
+        var tagMode253 = (typeof Reels !== "undefined" && Reels && Reels.mode === "photos") ? "photos" : "reels"; // [RP-V7.253] strict separation: the tag view inherits the mode it was opened from — opened from Photos it shows photos only, from Reels reels only
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">#' + escHtml(tag) + "</h3>" +
@@ -22894,12 +22895,12 @@
             var body = $("rpTagBody"); if (!body) return;
             if (!j || !j.ok) { body.innerHTML = '<p class="age-note" style="text-align:center;">Couldn\'t load that tag — try again in a moment.</p>'; return; }
             var html = "";
-            if (j.photos && j.photos.length) {
+            if (tagMode253 === "photos" && j.photos && j.photos.length) { // [RP-V7.253]
               html += '<h4 class="pprof-gridtitle">📸 Photos</h4><div class="rpmedia-grid bleed">' + j.photos.map(function (pp) {
                 return '<div class="rpmedia-tile"><img src="' + escHtml(pp.photo) + '" alt=""/><span class="rpmedia-cap">' + escHtml(pp.author || "") + "</span></div>";
               }).join("") + "</div>";
             }
-            if (j.reels && j.reels.length) {
+            if (tagMode253 === "reels" && j.reels && j.reels.length) { // [RP-V7.253]
               html += '<h4 class="pprof-gridtitle">🎬 Reels</h4>' + j.reels.map(function (r) {
                 return '<div class="rp-tagreel"><video src="' + escHtml(r.url) + '" preload="metadata" muted playsinline></video><div><b>' + escHtml(r.author || "") + '</b><p>' + escHtml(r.caption || "") + '</p><small>❤️ ' + (r.heartLikes || 0) + " · 🔁 " + (r.reposts || 0) + " · 💬 " + (r.commentCount || 0) + "</small></div></div>";
               }).join("");
@@ -23819,10 +23820,14 @@
       function rpShowGate123() { var ov = document.getElementById("overlay"); return !(ov && ov.classList.contains("open")); }
 
       /* ---- Pager photo items: the server photo feed, time-merged
-         into the Reels pager and the Home For You pager (the V7.119
-         interleave idea, applied to these two pagers only — the
-         Plaza Feed merge itself is untouched). Friends/Following
-         stay reels-only: the photo store has no friends filter. ---- */
+         into the Home For You pager (the V7.119 interleave idea).
+         [RP-V7.253] The merge into the REELS pager is retired:
+         Branden ordered strict separation on the Reels screen
+         (Photos = photos only, Reels = reels only), so this store
+         now feeds Home alone — the Reels screen's Photos mode reads
+         the same server photo posts through momLoadServer instead.
+         Friends/Following stay reels-only: the photo store has no
+         friends filter. ---- */
       var PagerPhotos123 = { loaded: false, items: [] };
       var pagerPhotoAuthors123 = {};
       function pagerPhotoMap123(sp) {
@@ -23859,7 +23864,10 @@
                 .then(function (pj) { if (pj && pj.id) pagerPhotoAuthors123[nm] = pj.id; })
                 .catch(function () {});
             });
-            var rs = $("screen-moments"); if (rs && rs.classList.contains("active")) renderReels(); // [RP-V7.252] was $("screen-reels") — no such element exists (the screen is screen-moments), so this render NEVER fired and freshly merged photo items sat unpainted in PagerPhotos123.items until some later renderReels, which then owed a full rebuild for them (often inside the toggle's tap handler). The Home half of this check ("screen-home") is equally dead but out of this build's scope — Home still gets its renders from reelFetchFeed's direct renderHomePager call.
+            // [RP-V7.253] No renderReels() trigger here anymore: photo data no longer feeds the Reels
+            // pager (strict separation), so its arrival must not repaint this screen's pager. The
+            // V7.252 note that used to ride this line (the dead "screen-reels" check) is history —
+            // the merge it served is gone. Home renders itself via reelFetchFeed's renderHomePager.
             var hs = $("screen-home"); if (hs && hs.classList.contains("active")) renderHomePager();
           })
           .catch(function () {});
@@ -24386,7 +24394,7 @@
       }
       function renderReels() {
         var feed = $("reelFeed"); if (!feed) return;
-        var items = Reels.friends ? reelFeedItems() : pagerMerge123(reelFeedItems()); // [RP-V7.123] photo posts join the pager (Friends stays reels-only)
+        var items = reelFeedItems().filter(function (it) { return !it.photoPost; }); // [RP-V7.253] STRICT separation (Branden, Nov 5): the Reels pager shows REELS ONLY in every view — For You, Friends (already reels-only) and the tag-filtered view below all read this one list. The V7.123 pagerMerge123 interleave is retired on this screen; pagerMerge123 itself is untouched because the Home For You pager still calls it and keeps its mixed stream. reelFeedItems() builds only from reel records (server /api/reels + local reel meta), so the photoPost filter is a hard guarantee at the DOM boundary, not the mechanism.
         var barHtml = "";
         if (Reels.tagFilter) {
           var tf = Reels.tagFilter;
@@ -35903,6 +35911,16 @@ button.rp72-chip{ cursor:pointer; }
   var engaged = false, seq = 0, timer = null, inited = false;
   function $(id) { return document.getElementById(id); }
   function reelsMode() { var rf = $("reelFeed"); return !!rf && rf.style.display !== "none"; }
+  /* [RP-V7.253] Strict separation (Branden, Nov 5): search results on
+     this screen respect the ACTIVE mode — Reels mode returns reels
+     only, Photos mode returns photos only. The mode is read from the
+     toggle buttons' state because engage() hides the active feed, so
+     the feeds' own display cannot answer once search is open. */
+  function modeNow253() {
+    var tr = $("btnMomModeReels"); if (tr && tr.classList.contains("on")) return "reel";
+    var tp = $("btnMomModePhotos"); if (tp && tp.classList.contains("on")) return "photo";
+    return reelsMode() ? "reel" : "photo";
+  }
   /* Server payload -> ONE mixed item list for the shared grid
      builder: views desc, newest first on ties (photos carry no
      timestamp, so a tied photo keeps its place after tied reels). */
@@ -35929,9 +35947,10 @@ button.rp72-chip{ cursor:pointer; }
       if (label) label.style.display = "none";
       if (emptyEl) {
         emptyEl.style.display = "";
+        var mk253 = modeNow253(); // [RP-V7.253] the empty line names the active mode's kind, like the results do
         emptyEl.textContent = q
-          ? "No videos or pictures matched \u201C" + q + "\u201D yet."
-          : "No videos or pictures yet";
+          ? (mk253 === "reel" ? "No reels matched \u201C" + q + "\u201D yet." : "No photos matched \u201C" + q + "\u201D yet.")
+          : (mk253 === "reel" ? "No reels yet" : "No photos yet");
       }
       return;
     }
@@ -35956,7 +35975,7 @@ button.rp72-chip{ cursor:pointer; }
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         if (!engaged || my !== seq) return;
-        render(j && j.ok ? mix(j) : [], q);
+        render(j && j.ok ? mix(j).filter(function (it) { return it.kind === modeNow253(); }) : [], q); // [RP-V7.253] active mode's kind only — the mix still orders within the filtered set (views desc)
       })
       .catch(function () { if (engaged && my === seq) render([], q); });
   }
@@ -35982,6 +36001,7 @@ button.rp72-chip{ cursor:pointer; }
     if (!bar) return;
     var show = reelsMode();
     bar.style.display = show ? "" : "none";
+    if (input) input.placeholder = modeNow253() === "reel" ? "Search reels\u2026" : "Search photos\u2026"; // [RP-V7.253] the placeholder names what the active mode actually searches
     if (!show && engaged) disengage(false);
   }
   function onInput() {
