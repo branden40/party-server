@@ -2989,7 +2989,7 @@
         <!-- [RP-V7.70] Plaza Stories tray: "Your story" first, then friends/follows ranked by the shared For You profile (server). Rendered by the Stories module. -->
         <div class="story-tray" id="storyTrayHome" hidden></div>
         <div class="live-now-box" id="liveNowBox">
-          <h4 class="live-now-head">🔴 Live Now</h4>
+          <h4 class="live-now-head"><span class="rp-lndot264" aria-hidden="true">🔴</span> Live Now</h4>
           <div id="liveNowList"></div>
         </div>
         <!-- [RP-V7.42] Daily Pot — [RP-V7.77] TWO class pots side by
@@ -25525,7 +25525,7 @@
         var top = document.createElement("div");
         top.id = "homeTop";
         top.innerHTML = '<div id="homeStrip">' +
-          '<button type="button" id="hsLive" aria-label="Go to the Live Stage"><span class="hs-tv">📺</span><span class="hs-livetxt">LIVE</span></button>' +
+          '<button type="button" id="hsLive" aria-label="Go LIVE — start your live"><span class="hs-tv">📺</span><span class="hs-livetxt">GO LIVE</span></button>' +
           '<div class="hs-tabs">' +
           '<button type="button" data-hs="plaza">Plaza</button>' +
           '<button type="button" data-hs="following">Following</button>' +
@@ -25535,7 +25535,7 @@
           '<div id="homePager"></div>';
         sec.insertBefore(top, sec.firstChild);
         top.querySelectorAll("[data-hs]").forEach(function (b) { b.addEventListener("click", function () { setHomeTab(b.getAttribute("data-hs")); }); });
-        var lv = $("hsLive"); if (lv) lv.addEventListener("click", function () { var b = $("btnOnlineHome"); if (b) b.click(); });
+        var lv = $("hsLive"); if (lv) lv.addEventListener("click", function () { /* [RP-V7.264] the strip button IS Go LIVE: the canonical host entry (startOwnLiveEntry — the same one btnRoomGoLive and the Live Now Go button call), never the Live Stage viewer door */ if (typeof startOwnLiveEntry === "function") { startOwnLiveEntry(); return; } var g = $("btnRoomGoLive"); if (g) { g.click(); return; } var b = $("btnOnlineHome"); if (b) b.click(); });
         var sr = $("hsSearch"); if (sr) sr.addEventListener("click", function () { if (window.rpReelsOpen) window.rpReelsOpen(); if (window.rpMediaSearch) setTimeout(function () { window.rpMediaSearch.engage(); }, 500); });
         { sec.classList.add("home-feedmode"); reelFetchFeed(); setTimeout(renderHomePager, 700); }
         if (typeof window.show === "function" && !window.show.__rphome) {
@@ -43683,6 +43683,31 @@ html, body { overflow-x: clip; }
   window.rpGiftCount262 = { validPost: validPost, keyOf: keyOf, set: set262, bump: bump262, bumpFromProto: bumpFromProto };
 })();
 </script>
+
+<style id="rp7264Css">
+/* ================= [RP-V7.264] GO LIVE STRIP BUTTON + EVERY LIVE DOT GLOWS =================
+   Branden (Nov 6, 2026): the Home strip's red-dot button becomes GO
+   LIVE (label + canonical startOwnLiveEntry wiring live in
+   initHomeFeed), its dot glows — and "all red dots should glow":
+   every live-indicator dot/badge in the app takes the same red
+   bloom recipe, scaled to its size. Static only — no new keyframe
+   rules; existing pulses (livePulse = brightness, pxPulse =
+   scale) never animate box-shadow, so the bloom rides under them
+   unchanged. The Plaza strip tab's V7.261 bloom, the side Plaza
+   button, story rings and the Inbox story ring are NOT touched. */
+/* -- the dots proper: 8px circles (strip GO LIVE dot, Live Now header dot) -- */
+#hsLive::before, .live-now-head::before { box-shadow: 0 0 6px 1px rgba(254,44,85,.85), 0 0 14px 3px rgba(254,44,85,.55), 0 0 26px 7px rgba(254,44,85,.30), 0 0 44px 12px rgba(255,0,64,.16); }
+/* -- the Live Now header's big red circle is a glyph: bloom via text-shadow -- */
+.live-now-head .rp-lndot264 { text-shadow: 0 0 6px rgba(254,44,85,.80), 0 0 15px rgba(254,44,85,.55), 0 0 28px rgba(255,0,64,.38), 0 0 46px rgba(255,0,64,.20); }
+/* -- the Inbox LIVE badge: 18-20px red filled circle on story circles + thread avatars -- */
+.rpdm-livebadge249 { box-shadow: 0 0 10px 2px rgba(224,36,36,.75), 0 0 22px 6px rgba(224,36,36,.45), 0 0 40px 12px rgba(224,36,36,.22); }
+/* -- the LIVE pill badges (● LIVE / LIVE): Live Now + lobby directory rows,
+      room-switch chip, profile live line + profile avatar pill, Live Stage
+      panel pill, full-screen live pill, reel author avatar pill -- */
+.live-badge-sm, .pprof-livebadge, .live-badge { box-shadow: 0 0 10px rgba(224,36,36,.60), 0 0 22px rgba(224,36,36,.34), 0 0 38px rgba(224,36,36,.18); }
+.lv-livepill { box-shadow: 0 0 10px rgba(254,44,85,.60), 0 0 22px rgba(254,44,85,.34), 0 0 38px rgba(254,44,85,.18), 0 2px 8px rgba(0,0,0,.35); }
+.reel-livebadge189 { box-shadow: 0 0 9px rgba(255,36,56,.60), 0 0 20px rgba(216,0,28,.32), 0 0 34px rgba(216,0,28,.16), 0 1px 6px rgba(0,0,0,.45); }
+</style>
 </body>
 </html>
 
