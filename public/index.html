@@ -7358,7 +7358,7 @@
            (pfPhotoGrid) is unchanged: the builder still manages every
            photo from the Photos section. */
         if (me.photos.length) {
-          box.innerHTML = '<img class="pf-hero-ava" src="' + me.photos[0] + '" alt="Your profile photo"/>';
+          box.innerHTML = '<img class="pf-hero-ava" decoding="async" src="' + me.photos[0] + '" alt="Your profile photo"/>';
         } else {
           box.innerHTML = personFace(me, "avatar-big");
         }
@@ -7664,6 +7664,7 @@
         function addThumb(src) {
           if (!addThumbs || !src) return;
           var el = document.createElement("img");
+          el.decoding = "async";
           el.src = src;
           el.style.cssText = "width:54px; height:54px; object-fit:cover; border-radius:10px; background:#101018;";
           addThumbs.appendChild(el);
@@ -43602,6 +43603,134 @@ html, body { overflow-x: clip; }
   })();
   </script>
 
+  <script>
+  /* ================= [RP-V7.267] PAGER MEDIA WINDOW (Friends/Reels scroll) ===
+     Perf pass 2 (Branden, Nov 6: Friends scrolling still lagging after
+     V7.265). Root cause, measured: the Moments pager never lets go of a
+     video once it has loaded — after one hard pass through an 11-card
+     Friends feed, 13-18 full-HD videos sat decoded at once, and the CPU
+     profile of a swipe leg is ~2/3 native (program) time (decode +
+     raster), not JS. V7.257 releases a feed's media when its SCREEN
+     exits; this pass adds the missing per-card window INSIDE the feed:
+     cards more than KEEP positions from the card the member is on get
+     their video resources released (same stash protocol as V7.257 —
+     pause, stash the src on the element, remove it, load() to drop the
+     fetched/decoded resource); cards back inside the window are
+     restored. Playback, the paint gate, the spy and the kick are
+     untouched: a restored card fetches exactly as a promoted card does
+     (preload state is the gate's), and the landed card's play() loads
+     on its own. Sweeps run only on scroll settle / feed rebuild /
+     screen entry — never per scroll frame. */
+  (function () {
+    "use strict";
+    var STASH = "__rp257Src"; // shared with the V7.257 screen-exit release
+    var KEEP = 3;             // cards either side of the active card keep media
+    var sweepT = null;
+    function releaseCard(card) {
+      var skip = false;
+      card.querySelectorAll("video").forEach(function (v) { if (!v.paused && !v.ended) skip = true; });
+      if (skip) return; // never touch a card that is playing right now
+      card.querySelectorAll("video").forEach(function (v) {
+        var s = null;
+        try { s = v.getAttribute("src"); } catch (e) { }
+        if (s) {
+          if (!v[STASH]) v[STASH] = s;
+          v.removeAttribute("src");
+          try { v.load(); } catch (e) { }
+        }
+        v.querySelectorAll("source").forEach(function (so) {
+          var ss = null;
+          try { ss = so.getAttribute("src"); } catch (e) { }
+          if (ss) {
+            if (!so.getAttribute("data-rp257src")) so.setAttribute("data-rp257src", ss);
+            so.removeAttribute("src");
+            try { v.load(); } catch (e) { }
+          }
+        });
+      });
+    }
+    function restoreCard(card) {
+      card.querySelectorAll("video").forEach(function (v) {
+        var had = false;
+        if (v[STASH]) { var s = v[STASH]; v[STASH] = null; try { v.setAttribute("src", s); had = true; } catch (e) { } }
+        v.querySelectorAll("source[data-rp257src]").forEach(function (so) {
+          var ss = so.getAttribute("data-rp257src");
+          so.removeAttribute("data-rp257src");
+          if (ss) { try { so.setAttribute("src", ss); had = true; } catch (e) { } }
+        });
+        /* A card that was seek-painted before its release (plain cards
+           carry __rpSeek243 from the V7.243 paint path) gets the same
+           0.05s first-frame nudge once its metadata is back, so a
+           restored neighbour never sits black while paused. One-time
+           listener; duet/stitch/trim cards never took the seek paint,
+           so they are not nudged. */
+        if (had && v.__rpSeek243) {
+          var nudge = function () {
+            v.removeEventListener("loadedmetadata", nudge);
+            try {
+              if (v.paused && v.currentTime === 0 && isFinite(v.duration) && v.duration > 0) {
+                v.currentTime = Math.min(0.05, v.duration / 2);
+              }
+            } catch (e) { }
+          };
+          v.addEventListener("loadedmetadata", nudge);
+        }
+      });
+    }
+    function sweep267() {
+      var scr = document.getElementById("screen-moments");
+      if (!scr || !scr.classList.contains("active")) return 0;
+      var feed = document.getElementById("reelFeed");
+      if (!feed) return 0;
+      var cards = feed.querySelectorAll(".reel-card");
+      if (!cards.length || cards.length <= KEEP * 2 + 1) return 0;
+      var fr = feed.getBoundingClientRect();
+      if (!fr || fr.height < 10) return 0;
+      var best = -1, bestOv = 0;
+      for (var i = 0; i < cards.length; i++) {
+        var r = cards[i].getBoundingClientRect();
+        if (!r || !r.height) continue;
+        var ov = Math.min(r.bottom, fr.bottom) - Math.max(r.top, fr.top);
+        if (ov > bestOv) { bestOv = ov; best = i; }
+      }
+      if (best < 0 || bestOv <= 0) return 0;
+      var rel = 0;
+      for (var j = 0; j < cards.length; j++) {
+        if (Math.abs(j - best) > KEEP) { releaseCard(cards[j]); rel++; }
+        else restoreCard(cards[j]);
+      }
+      return rel;
+    }
+    function schedule267(ms) {
+      if (sweepT) clearTimeout(sweepT);
+      sweepT = setTimeout(function () { sweepT = null; try { sweep267(); } catch (e) { } }, ms || 320);
+    }
+    try {
+      document.addEventListener("scroll", function (e) {
+        if (e.target && e.target.id === "reelFeed") schedule267(320);
+      }, { capture: true, passive: true });
+    } catch (e) { }
+    try {
+      var feedEl = document.getElementById("reelFeed");
+      if (feedEl && window.MutationObserver) {
+        new MutationObserver(function () { schedule267(450); }).observe(feedEl, { childList: true });
+      }
+    } catch (e) { }
+    try {
+      var lastAct267 = null;
+      var mo267 = new MutationObserver(function () {
+        var act = document.querySelector(".screen.active");
+        var id = act ? act.id : "";
+        if (id === lastAct267) return;
+        lastAct267 = id;
+        if (id === "screen-moments") schedule267(700);
+      });
+      document.querySelectorAll(".screen").forEach(function (sc) { mo267.observe(sc, { attributes: true, attributeFilter: ["class"] }); });
+    } catch (e) { }
+    window.__rp267Sweep = sweep267; // rig + diagnostics handle
+  })();
+  </script>
+
   <style>
     /* ================= [RP-V7.261] GLOW CORRECTION =================
        Branden (Nov 6, 2026, circled screenshots), two corrections to
@@ -43792,6 +43921,21 @@ html, body { overflow-x: clip; }
 #hsLive::before, .live-now-head::before, .rpdm-livebadge249 { animation: rpDotPulse266 1.8s ease-in-out infinite; }
 .rp-lndot264, .pprof-livebadge, .reel-livebadge189 { animation: rpDotSwell266 1.8s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { #hsLive::before, .live-now-head::before, .rpdm-livebadge249, .rp-lndot264, .pprof-livebadge, .reel-livebadge189 { animation: none !important; } }
+</style>
+
+<style id="rp7267Css">
+/* ================= [RP-V7.267] PROFILE SCROLL — BACKDROP BLUR OFF ==========
+   Perf pass 2, by construction for iOS. Every frosted layer on the
+   Profile screen is a .btn-mini (measured: 24 in the setup-form band,
+   10 at the top of the page, 2 at the bottom) via the shared
+   .btn-mini/.px-act blur(8px) rule. .btn-mini's own background is the
+   OPAQUE var(--bg), so on this screen the blur renders nothing visible
+   — the button face is identical with it off — but WebKit still keeps
+   a live backdrop snapshot per button and re-samples it while the page
+   scrolls, which is the classic iOS scroll-ghosting cost (the double
+   render in Branden's recording). Blur stays untouched everywhere the
+   class sits over actual media (live rooms, sheets, other screens). */
+#screen-profile .btn-mini, #screen-profile .px-act { -webkit-backdrop-filter: none; backdrop-filter: none; }
 </style>
 </body>
 </html>
