@@ -928,7 +928,7 @@ function newAccountToken(db, userId) {
   };
   return token;
 }
-function accountForToken(db, req) {
+function accountForTokenRaw(db, req) {
   const h = String(req.headers.authorization || "");
   const m = h.match(/^Bearer\s+(.+)$/i);
   if (!m) return null;
@@ -942,12 +942,50 @@ function accountForToken(db, req) {
   }
   return db.users.find((u) => u.id === rec.userId) || null;
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.263] 18+ ONLY — FULL TEEN REMOVAL (Branden, Nov 6, 2026:
+// "Make Rizz Plaza 18+ only" + "Take everything off Rizz Plaza
+// about teens"). Sign-up refuses under-18 outright (see the signup
+// route), and every PRE-EXISTING under-18 account is disabled +
+// de-listed by the single lock below: its tokens resolve to nobody
+// (accountForToken), password/Google logins are refused with an
+// honest notice, and member surfaces filter it out. Records are
+// NOT deleted — disable + de-list only; the owner decides on
+// permanent deletion separately (GET /api/owner/teen-accounts
+// carries the exact list).
+// THE ONE EXEMPTION (Branden, Nov 6, 09:06 ET: "Keep popstar as
+// test account"): the owner's own test account @Popstar is exempt
+// BY ACCOUNT IDENTITY — resolved by its unique username, the same
+// way the owner grant has always identified it. It signs in and
+// functions exactly as before (charms-only economy, gift balance);
+// no other account can use this path, and the sign-up floor has
+// NO exception — Popstar already exists.
+// The same lock carries the owner's age-suspension (an "Under 18"
+// report acted on from the owner board): ageSuspended accounts are
+// locked out identically until the owner restores them after ID
+// proof through Help & Support.
+// ---------------------------------------------------------------------------
+const RP_AGE_LOCK_NOTICE_263 = "Rizz Plaza is now 18+ only, so this account can no longer sign in. Nothing has been deleted \u2014 if you believe this is a mistake, contact Help & Support (support@rizzplaza.com).";
+const RP_AGE_SUSPEND_NOTICE_263 = "Your account is paused while we verify your age \u2014 Rizz Plaza is 18+. If you are 18 or older, prove it with a photo ID through Help & Support (support@rizzplaza.com) and we will restore your account.";
+function isOwnerTestAccount263(user) {
+  return !!user && usernameKey(user.username) === "popstar";
+}
+function teenAccountDisabled(user) {
+  return !!user && ageFromDob(user.dob) < 18 && !isOwnerTestAccount263(user);
+}
+function accountLockedOut(user) {
+  return !!user && (teenAccountDisabled(user) || !!user.ageSuspended);
+}
+function accountForToken(db, req) {
+  const u = accountForTokenRaw(db, req);
+  return u && !accountLockedOut(u) ? u : null;
+}
 // [RP-V7.94] Extended profile fields — the account owns them (brain
 // rule): gender, ageRange, lookingFor, relStatus, vibe. Only known
 // values ever read back; anything else reads as null (unset). An
 // unset gender is null — the server never invents one.
 const EXT_GENDERS = ["male", "female"];
-const EXT_AGE_RANGES = ["18-24", "25-34", "35-44", "45-54", "55+", "under18"];
+const EXT_AGE_RANGES = ["18-24", "25-34", "35-44", "45-54", "55+"]; // [RP-V7.263] "under18" retired — 18+ only; the value can no longer be stored or read back
 const EXT_REL_STATUSES = ["single", "married", "divorced", "widowed"];
 const EXT_VIBES = ["Charming", "Funny", "Sweet", "Bold", "Chill", "Romantic"];
 function extProfileOf(u) {
@@ -1365,17 +1403,15 @@ app.post("/api/account/signup", (req, res) => {
     return res
       .status(400)
       .json({ ok: false, error: "That date of birth doesn't look right" });
-  // [RP-V7.80] TEEN SIGNUP IS OPEN (full-scan F1; Branden's decision,
-  // Oct 26, 2026: "Open teen signup — the full teen model goes
-  // live"). The floor is 13: an under-13 DOB is refused outright. A
-  // 13–17 sign-up creates a normal account through this same
-  // machinery — the stored DOB is what every existing gate reads
-  // (ageFromDob < 18 → teen class: charms-only economy, money doors
-  // server-locked, room/pot classes), so no downstream rule changes.
-  if (age < 13)
+  // [RP-V7.263] 18+ ONLY (Branden, Nov 6, 2026). The floor is 18
+  // for EVERYONE — no exceptions. The one pre-existing teen account
+  // the owner keeps for testing (@Popstar) already exists and is
+  // exempted at sign-in (teenAccountDisabled), never at sign-up:
+  // no new under-18 account can ever be created again.
+  if (age < 18)
     return res.status(403).json({
       ok: false,
-      error: "You must be 13 or older to join Rizz Plaza",
+      error: "You must be 18 or older to join Rizz Plaza",
     });
   const db = readAccounts();
   if (usernameTaken(db, username))
@@ -1535,6 +1571,13 @@ app.post("/api/account/login", (req, res) => {
     delete user.deletionRequestedAt;
     deletionCancelled = true;
   }
+  // [RP-V7.263] Locked-out accounts never get a session: under-18
+  // accounts (18+ only — @Popstar is the sole, identity-keyed
+  // exemption) and accounts the owner suspended pending ID proof.
+  if (teenAccountDisabled(user))
+    return res.status(403).json({ ok: false, error: RP_AGE_LOCK_NOTICE_263, ageLocked: true });
+  if (user.ageSuspended)
+    return res.status(403).json({ ok: false, error: RP_AGE_SUSPEND_NOTICE_263, ageSuspended: true });
   user.lastLoginAt = new Date().toISOString();
   const token = newAccountToken(db, user.id);
   writeAccounts(db);
@@ -1542,6 +1585,13 @@ app.post("/api/account/login", (req, res) => {
   res.json({ ok: true, token, user: publicAccount(user), deletionCancelled });
 });
 function accountMeHandler(req, res) {
+  // [RP-V7.263] A locked-out account restoring a saved session gets
+  // the honest notice for its case, not a bare 401.
+  const rawUser = accountForTokenRaw(readAccounts(), req);
+  if (rawUser && teenAccountDisabled(rawUser))
+    return res.status(403).json({ ok: false, error: RP_AGE_LOCK_NOTICE_263, ageLocked: true });
+  if (rawUser && rawUser.ageSuspended)
+    return res.status(403).json({ ok: false, error: RP_AGE_SUSPEND_NOTICE_263, ageSuspended: true });
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   const unread = ctx.user.reminders.filter((r) => !r.read).length;
@@ -5617,17 +5667,8 @@ app.post("/api/live/signal", (req, res) => {
 const POTS_FILE =
   process.env.POTS_FILE || path.join(path.dirname(PHOTO_DIR), "pots.json");
 const POT_SEED_MIN = 100;
-// [RP-V7.75] THE TEEN BUILD constants (Branden, Oct 26, 2026 — he
-// picked "Both — daily drop and boosted winnings" for how under-18
-// members earn "thousands more" charms than adults): every under-18
-// account claims TEEN_DAILY_DROP charms once per America/New_York
-// day, and every Plaza Pot / Daily Pot win by an under-18 account
-// gets TEEN_WIN_BOOST extra charms on top of the split — platform-
-// funded, never taken from the pot or the other winners. Both land
-// in the teen's main balance AND mirror into their gift balance
-// (giftBalMirrorWin), because winning is what fuels teen gifting.
-const TEEN_DAILY_DROP = 2500;
-const TEEN_WIN_BOOST = 2500;
+// [RP-V7.263] The V7.75 teen constants (TEEN_DAILY_DROP /
+// TEEN_WIN_BOOST) are GONE with the teen economy — 18+ only.
 const POT_MATCH_PCT = 10; // platform growth match, % of gift charm value
 const POT_WINNER_COUNT = 5;
 // [RP-V7.54] Winner eligibility (Branden's rule, Oct 25): to RECEIVE
@@ -5653,17 +5694,10 @@ function accountAgeClassById(accountId, adb) {
   }
 }
 function potClassForRecord(pot, adb) {
-  if (pot && (pot.potClass === "teen" || pot.potClass === "adult"))
-    return pot.potClass;
-  // [RP-V7.77] Legacy live pots predate age classes. Branden's
-  // migration rule is adult unless the host account's DOB proves the
-  // host was in the teen class.
-  return pot ? accountAgeClassById(pot.hostAccountId, adb) : "adult";
-}
-function potWrongClassError(potClass) {
-  return potClass === "teen"
-    ? "This is the teen pot — teens only"
-    : "This is the adults' pot";
+  // [RP-V7.263] One class only: every live pot is the adults' pot.
+  // Legacy teen-classed records normalize to "adult" — their
+  // escrowed charms settle by the normal draw/refund rules.
+  return "adult";
 }
 function readPots() {
   // [RP-V7.52] hardened read (audit H11): a corrupt pots.json
@@ -5681,7 +5715,7 @@ function readPots() {
   let adb = null;
   for (const pot of Object.values(db.pots || {})) {
     if (!pot || typeof pot !== "object") continue;
-    if (pot.potClass !== "teen" && pot.potClass !== "adult") {
+    if (pot.potClass !== "adult") { // [RP-V7.263] every record normalizes to the single class
       if (!adb) {
         try { adb = readAccounts(); } catch (e) { adb = { users: [] }; }
       }
@@ -5914,21 +5948,10 @@ function potRunDraw(pot, pool) {
   const adb = readAccounts();
   const winners = picked.map((id) => {
     const u = adb.users.find((x) => x.id === id);
-    // [RP-V7.75] Boosted teen winnings: an under-18 winner gets
-    // TEEN_WIN_BOOST on top of the split. The boost is platform-
-    // funded — share/remainder math over the pot itself is exact
-    // and untouched, so no other winner loses a charm to it.
-    // [RP-V7.77] The boost belongs to the TEEN pot world only: a
-    // legacy teen entrant in an adult-class pot does not receive it.
-    const boost =
-      potClassForRecord(pot) === "teen" && u && ageFromDob(u.dob) < 18
-        ? TEEN_WIN_BOOST
-        : 0;
     return {
       id,
       name: (u && u.name) || (pot.entryNames && pot.entryNames[id]) || "Winner",
-      amount: share + boost,
-      ...(boost ? { boost } : {}),
+      amount: share, // [RP-V7.263] no win boost — the boost died with the teen pot class; split math untouched
     };
   });
   const mdb = readMoney();
@@ -6180,7 +6203,7 @@ app.post("/api/pot/open", lockedHandler("pot-open", (req, res) => {
   const pot = {
     key: entry.key,
     room: entry.room,
-    potClass: accountAgeClass(ctx.user), // [RP-V7.77] a live pot is classed by its HOST, permanently at open
+    potClass: "adult", // [RP-V7.263] one class only
     hostAccountId: ctx.user.id,
     hostName: ctx.user.name,
     seed,
@@ -6283,16 +6306,8 @@ app.post("/api/pot/join", lockedHandler("pot-join", (req, res) => {
     return res
       .status(400)
       .json({ ok: false, error: "You can't enter your own pot" });
-  // [RP-V7.77] Live-pot entry is locked to the pot's HOST class.
-  // The pot remains visible across classes; only entry is refused.
-  const viewerPotClass = accountAgeClass(ctx.user);
-  const thisPotClass = potClassForRecord(pot);
-  if (viewerPotClass !== thisPotClass)
-    return res.status(403).json({
-      ok: false,
-      error: potWrongClassError(thisPotClass),
-      potClass: thisPotClass,
-    });
+  // [RP-V7.263] Entry is open to every signed-in member — there is
+  // only one pot class now (the V7.77 host-class lock is gone).
   if ((pot.entries || []).indexOf(ctx.user.id) >= 0)
     return res
       .status(409)
@@ -6505,7 +6520,11 @@ const DAILY_POT_SEED_OVERRIDE = (() => {
   return Number.isFinite(n) && n > 0 ? n : 0;
 })();
 function normalizeDailyPotDb(raw) {
-  const pots = { adult: null, teen: null };
+  // [RP-V7.263] ONE Daily Pot: the store carries the adult record
+  // only. A stored teen record is dropped from the live store on
+  // the next write (it remains in the .bak history; its entries
+  // were free taps — no member ever staked charms in it).
+  const pots = { adult: null };
   const take = (value, potClass) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
     const rec = { ...value, potClass };
@@ -6515,13 +6534,7 @@ function normalizeDailyPotDb(raw) {
   };
   if (raw && raw.pots && typeof raw.pots === "object" && !Array.isArray(raw.pots)) {
     pots.adult = take(raw.pots.adult, "adult");
-    pots.teen = take(raw.pots.teen, "teen");
   } else if (raw && "rec" in raw) {
-    // [RP-V7.77] MIGRATION: the pre-split store held ONE pot and its
-    // entry gate admitted adults only. The whole record — total,
-    // entries and burst state — therefore belongs to the ADULT pot.
-    // The teen pot starts unset here and dpEnsureClass seeds it
-    // fresh from the teen class's own tier.
     pots.adult = take(raw.rec, "adult");
   }
   return { splitVersion: 1, pots };
@@ -6541,7 +6554,7 @@ function readDailyPot() {
             typeof d.pots === "object" &&
             !Array.isArray(d.pots)))
       ),
-    { pots: { adult: null, teen: null } },
+    { pots: { adult: null } },
     "dailypot"
   );
   return normalizeDailyPotDb(raw);
@@ -6557,12 +6570,11 @@ function writeDailyPot(db) {
 // so a long streak (or a big recap) moves nobody's odds by a hair.
 // ---------------------------------------------------------------------------
 function normalizeDpStreaks(raw) {
-  const out = { classes: { adult: { users: {} }, teen: { users: {} } } };
+  const out = { classes: { adult: { users: {} } } }; // [RP-V7.263] one class
   const takeUsers = (value) =>
     value && typeof value === "object" && !Array.isArray(value) ? value : {};
   if (raw && raw.classes && typeof raw.classes === "object") {
     out.classes.adult.users = takeUsers(raw.classes.adult && raw.classes.adult.users);
-    out.classes.teen.users = takeUsers(raw.classes.teen && raw.classes.teen.users);
   }
   // [RP-V7.77] Legacy streaks belonged to the adult-only Daily Pot,
   // so the whole legacy users map migrates into the adult class.
@@ -6584,8 +6596,7 @@ function writeDpStreaks(db) {
   fs.renameSync(tmp, DAILYPOT_STREAKS_FILE);
 }
 function dpClassOrDerived(userId, potClass) {
-  if (potClass === "adult" || potClass === "teen") return potClass;
-  return accountAgeClassById(userId);
+  return "adult"; // [RP-V7.263] one class only
 }
 function dpStreakBucket(db, potClass) {
   const normalized = normalizeDpStreaks(db);
@@ -6621,13 +6632,12 @@ function dpStreakFor(userId, todayStr, potClass) {
   return 0;
 }
 function normalizeDpHistory(raw) {
-  const out = { adult: [], teen: [] };
+  const out = { adult: [] }; // [RP-V7.263] one class
   const take = (value) => (Array.isArray(value) ? value : []);
   if (Array.isArray(raw)) out.adult = take(raw);
   else if (raw && Array.isArray(raw.days)) out.adult = take(raw.days);
   else if (raw && typeof raw === "object") {
     out.adult = take(raw.adult);
-    out.teen = take(raw.teen);
   }
   return out;
 }
@@ -6640,8 +6650,7 @@ function readDpHistoryMap() {
   return normalizeDpHistory(null);
 }
 function readDpHistory(potClass) {
-  const cls = potClass === "teen" ? "teen" : "adult";
-  return readDpHistoryMap()[cls];
+  return readDpHistoryMap()["adult"]; // [RP-V7.263] one class
 }
 function writeDpHistoryMap(map) {
   const tmp = DAILYPOT_HISTORY_FILE + ".tmp";
@@ -6660,7 +6669,7 @@ function dpPushHistory(rec) {
     winners: (rec.winners || []).map((w) => ({ name: w.name, amount: w.amount })),
     entriesCount: Array.isArray(rec.entries) ? rec.entries.length : 0,
   };
-  const cls = rec.potClass === "teen" ? "teen" : "adult";
+  const cls = "adult"; // [RP-V7.263] one class
   const map = readDpHistoryMap();
   let hist = map[cls].filter((s) => s && s.date !== snap.date);
   hist.unshift({ ...snap, potClass: cls });
@@ -6678,7 +6687,7 @@ function dpYesterdayRecap(todayStr, potClass) {
 // crossed that hasn't been shouted yet. The crossed set persists on
 // the day record (milestonesHit), so restarts never re-shout.
 function dpCheckMilestones(dateStr, potClass) {
-  const cls = potClass === "teen" ? "teen" : "adult";
+  const cls = "adult"; // [RP-V7.263] one class
   const db = readDailyPot();
   const rec = db.pots[cls];
   if (!rec || rec.date !== dateStr) return;
@@ -6903,13 +6912,6 @@ function claimRecordFor(user, cdb) {
       best: rec.best || 0,
       lastKind: rec.lastKind || null,
     };
-  if (user.teenDailyDropDate)
-    return {
-      lastDate: user.teenDailyDropDate,
-      streak: 1,
-      best: 1,
-      lastKind: "teen-drop",
-    };
   return { lastDate: null, streak: 0, best: 0, lastKind: null };
 }
 // The streak as the member should see it TODAY (same display rule
@@ -6926,38 +6928,16 @@ function claimStreakShown(rec, today) {
 function claimStatePayload(user, cdb) {
   const today = dpDateStr(Date.now());
   const rec = claimRecordFor(user, cdb);
-  const teen = ageFromDob(user.dob) < 18;
   const streak = claimStreakShown(rec, today);
   return {
     date: today,
-    kind: teen ? "teen-drop" : "daily-claim",
+    kind: "daily-claim", // [RP-V7.263] the only claim kind left
     claimedToday: rec.lastDate === today,
     lastDate: rec.lastDate || null,
     streak,
     best: rec.best || 0,
-    nextAmount: teen
-      ? TEEN_DAILY_DROP
-      : DAILY_CLAIM_LADDER[Math.min(streak, DAILY_CLAIM_LADDER.length - 1)],
+    nextAmount: DAILY_CLAIM_LADDER[Math.min(streak, DAILY_CLAIM_LADDER.length - 1)],
   };
-}
-// [RP-V7.75] The teen daily-drop status for one viewer: eligible
-// only for under-18 accounts; claimed is read from the unified
-// server claim store (RP-V7.76 — claims.json, see above); the brain
-// rule stands: account-persistent, never device-local.
-function teenDropStatusFor(viewerId) {
-  const base = { eligible: false, amount: TEEN_DAILY_DROP, claimed: false };
-  if (!viewerId) return base;
-  try {
-    const u = readAccounts().users.find((x) => x.id === viewerId);
-    if (!u || ageFromDob(u.dob) >= 18) return base;
-    return {
-      eligible: true,
-      amount: TEEN_DAILY_DROP,
-      claimed: claimRecordFor(u).lastDate === dpDateStr(Date.now()),
-    };
-  } catch (e) {
-    return base;
-  }
 }
 function readDpPresence() {
   try {
@@ -7037,7 +7017,7 @@ function dailyPotPublic(rec, viewerId) {
   const secret = rec.status === "open";
   return {
     date: rec.date,
-    potClass: rec.potClass === "teen" ? "teen" : "adult",
+    potClass: "adult", // [RP-V7.263] one class
     status: rec.status,
     tier: rec.tier != null ? rec.tier : 1, // [RP-V7.42] the day's launch tier (0 = manual override)
     matchCap: rec.matchCap != null ? rec.matchCap : DAILY_POT_MATCH_CAP,
@@ -7051,7 +7031,6 @@ function dailyPotPublic(rec, viewerId) {
     presence: viewerId ? dpPresencePayload(viewerId, rec.date) : null, // [RP-V7.77] the caller's in-Plaza minutes today + be-there qualification
     winRule: "Winners must have been in the Plaza at least 30 minutes today AND be in the Plaza when it bursts — leave before it pops and the win goes to someone who's here.",
     statusNote: rec.statusNote || null, // [RP-V7.77] why a pot rolled instead of bursting, when it did
-    teenDrop: viewerId ? teenDropStatusFor(viewerId) : null, // [RP-V7.75] the caller's teen daily-drop status (null for guests)
     yesterday: dpYesterdayRecap(rec.date, rec.potClass), // [RP-V7.43 + V7.77] yesterday's recap for THIS class only
     winners: rec.status === "burst" ? rec.winners || [] : [],
     burstAt: secret ? null : rec.burstAt || null,
@@ -7069,17 +7048,12 @@ function dailyPotPublic(rec, viewerId) {
 // historical single adult-pot view in `pot`; the pair rides along
 // in `pots`/`otherPot` and the guest client renders only its own.
 function dailyPotPairPayload(viewer) {
+  // [RP-V7.263] ONE Daily Pot: `pot` is the pot; the pair keys ride
+  // along as nulls so older payload readers never crash.
   const db = readDailyPot();
-  const ownClass = viewer ? accountAgeClass(viewer) : "adult";
-  const otherClass = ownClass === "teen" ? "adult" : "teen";
-  const own = dailyPotPublic(db.pots[ownClass], viewer ? viewer.id : null);
-  const other = dailyPotPublic(db.pots[otherClass], null);
+  const own = dailyPotPublic(db.pots.adult, viewer ? viewer.id : null);
   if (own) { own.own = true; own.enterable = !!viewer; own.watchOnly = !viewer; }
-  if (other) { other.own = false; other.enterable = false; other.watchOnly = true; }
-  const pots = {};
-  pots[ownClass] = own;
-  pots[otherClass] = other;
-  return { pot: own, ownPot: own, otherPot: other, pots, ownClass, otherClass };
+  return { pot: own, ownPot: own, otherPot: null, pots: { adult: own }, ownClass: "adult", otherClass: null };
 }
 let dpLastGrowthBcastAt = 0;
 // Plaza-wide state push. Growth ticks are throttled to ~15s; joins,
@@ -7091,10 +7065,7 @@ function dpBroadcastUpdate(force) {
   try {
     const db = readDailyPot();
     const adult = dailyPotPublic(db.pots.adult, null);
-    const teen = dailyPotPublic(db.pots.teen, null);
-    // `pot` remains the adult pot for older clients. V7.77 clients
-    // select their own class from `pots` and never render the other.
-    io.emit("dailypot-update", { pot: adult, pots: { adult, teen } });
+    io.emit("dailypot-update", { pot: adult, pots: { adult } }); // [RP-V7.263] one pot
   } catch (e) {}
 }
 // The Daily Pot draw — the same discipline as potRunDraw (RP-V7.41):
@@ -7160,21 +7131,10 @@ function dpRunBurst(db, rec) {
   const adb = readAccounts();
   const winners = picked.map((id) => {
     const u = adb.users.find((x) => x.id === id);
-    // [RP-V7.75] Boosted teen winnings, same rule as the Plaza Pot:
-    // +TEEN_WIN_BOOST platform-funded charms on top of the split for
-    // an under-18 winner. The split remainder (rolledOut) is computed
-    // from share alone, so it stays exact to the charm.
-    // [RP-V7.77] Only the TEEN Daily Pot carries the boost; the adult
-    // pool never boosts an anomalously classed legacy entrant.
-    const boost =
-      rec.potClass === "teen" && u && ageFromDob(u.dob) < 18
-        ? TEEN_WIN_BOOST
-        : 0;
     return {
       id,
       name: (u && u.name) || (rec.entryNames && rec.entryNames[id]) || "Winner",
-      amount: share + boost,
-      ...(boost ? { boost } : {}),
+      amount: share, // [RP-V7.263] no win boost — split math untouched
     };
   });
   // [RP-V7.52] The settlement stamp is persisted BEFORE any payout
@@ -7202,7 +7162,7 @@ function dpRunBurst(db, rec) {
   // [RP-V7.100] Winners hear it everywhere — bell, email, and a text
   // (pot wins always send; they bypass the 15-minute cooldown).
   for (const w of winners) {
-    const potName = rec.potClass === "teen" ? "Teen Daily Pot" : "Daily Pot";
+    const potName = "Daily Pot"; // [RP-V7.263]
     notifyActivity({
       toId: w.id,
       kind: "potwin",
@@ -7231,7 +7191,7 @@ function dpRunBurst(db, rec) {
 // The settlement for a day at its drawn moment: entries -> burst; ZERO entries ->
 // NO burst (status "noburst") — the whole total rolls into tomorrow.
 function dpSettleClass(potClass) {
-  const cls = potClass === "teen" ? "teen" : "adult";
+  const cls = "adult"; // [RP-V7.263] one class
   const db = readDailyPot();
   const cur = db.pots[cls];
   if (!cur || cur.status !== "open") return null;
@@ -7250,20 +7210,13 @@ function dpGiftVolumeOn(dateStr, potClass) {
   // [RP-V7.42] Total charms gifted on one ET date, from the money
   // ledger's gift-sent transactions (one per gift, charms = the
   // gift's catalog cost). No ledger yet = zero volume = Tier 1.
-  // [RP-V7.77] Volume is measured PER AGE CLASS from the sender:
-  // adult gifts grow the adult tier track, teen gifts the teen one.
-  // The classes never lend each other volume.
-  const cls = potClass === "teen" ? "teen" : "adult";
+  // [RP-V7.263] One pot, one track: ALL gift volume counts toward
+  // the single tier track.
   let total = 0;
   try {
     const db = readMoney();
-    const adb = readAccounts();
-    const senderClass = new Map(
-      adb.users.map((u) => [u.id, accountAgeClass(u)])
-    );
     for (const tx of db.txlog || []) {
       if (!tx || tx.type !== "gift-sent") continue;
-      if ((senderClass.get(tx.from) || "adult") !== cls) continue;
       const at = Date.parse(tx.at || "");
       if (!Number.isFinite(at)) continue;
       if (dpDateStr(at) === dateStr) total += tx.charms || 0;
@@ -7290,7 +7243,7 @@ function dpTierForNewDay(dateStr, potClass) {
   return { tier: 1, seed: DAILY_POT_SEED, cap: DAILY_POT_MATCH_CAP, winMin: 1, winMax: DAILY_POT_MAX_WINNERS, prevVolume };
 }
 function dpFreshRec(dateStr, rolledIn, potClass) {
-  const cls = potClass === "teen" ? "teen" : "adult";
+  const cls = "adult"; // [RP-V7.263] one class
   const t = dpTierForNewDay(dateStr, cls); // [RP-V7.42] the day carries its own class tier
   return {
     potClass: cls,
@@ -7321,7 +7274,7 @@ function dpFreshRec(dateStr, rolledIn, potClass) {
 // (no-burst) contributes its ENTIRE total. Also settles today's pot
 // the moment it comes due, so state reads never lag the tick.
 function dpEnsureClass(potClass, now) {
-  const cls = potClass === "teen" ? "teen" : "adult";
+  const cls = "adult"; // [RP-V7.263] one class
   const today = dpDateStr(now);
   let db = readDailyPot();
   let rec = db.pots[cls];
@@ -7370,10 +7323,7 @@ function dpEnsureClass(potClass, now) {
   return rec;
 }
 function dpEnsureToday(now) {
-  // Both class worlds roll/settle independently. The adult record
-  // is returned for the few legacy-shaped internal callers; routes
-  // and gift routing always name their class explicitly.
-  dpEnsureClass("teen", now);
+  // [RP-V7.263] One Daily Pot world to roll/settle.
   return dpEnsureClass("adult", now);
 }
 // The scheduler tick (boot + every 60s): open the ET day at midnight,
@@ -7394,10 +7344,10 @@ function dailyPotTick() {
 // platform match of 2% of its charm value (floored, min 0), capped
 // for the day at the day's tier cap (rec.matchCap). Platform accounting only — the
 // gift, its split and any live-pot match are untouched.
-function dailyPotOnGift(giftCharms, senderClass) {
-  // [RP-V7.77] The 2% match follows the SENDER's age class and only
-  // that class's Daily Pot, against that pool's own cap.
-  const cls = senderClass === "teen" ? "teen" : "adult";
+function dailyPotOnGift(giftCharms) {
+  // [RP-V7.263] One Daily Pot: every gift grows it by the 2% match
+  // against the day's own cap.
+  const cls = "adult";
   const rec = dpEnsureClass(cls, Date.now());
   if (!rec || rec.status !== "open") return;
   const cap = rec.matchCap != null ? rec.matchCap : DAILY_POT_MATCH_CAP; // [RP-V7.42] the DAY's cap, from its tier
@@ -7424,23 +7374,9 @@ app.post("/api/dailypot/join", lockedHandler("dailypot-join", (req, res) => {
     return res
       .status(403)
       .json({ ok: false, error: "This account is scheduled for deletion" });
-  // [RP-V7.77] Daily Pot entry is class-locked. With no explicit
-  // target the member enters their own class's pot. A client may
-  // name a potClass (the card normally doesn't), and naming the
-  // other world is a clean refusal — the pools never mix.
-  const ownClass = accountAgeClass(ctx.user);
-  const requestedClass = String(
-    (req.body || {}).potClass || (req.body || {}).class || ownClass
-  );
-  if (requestedClass !== ownClass)
-    return res.status(403).json({
-      ok: false,
-      error:
-        requestedClass === "teen"
-          ? "This is the teen pot — teens only"
-          : "This is the adults' pot",
-      potClass: requestedClass,
-    });
+  // [RP-V7.263] One Daily Pot — entry is a free tap for every
+  // signed-in member; there is no second class to name or mix.
+  const ownClass = "adult";
   dpEnsureClass(ownClass, Date.now());
   const db = readDailyPot();
   const rec = db.pots[ownClass];
@@ -7509,37 +7445,29 @@ app.post("/api/money/daily-claim", lockedHandler("daily-claim", (req, res) => {
       .json({ ok: false, error: "This account is scheduled for deletion" });
   const user =
     ctx.db.users.find((u) => u.id === ctx.user.id) || ctx.user;
-  const teen = ageFromDob(user.dob) < 18;
   const wantKind = String((req.body || {}).kind || "");
-  // The teen claim stays teen-only in BOTH directions: an adult
-  // explicitly asking for the teen drop is refused (the V7.75 rule).
-  if (!teen && (wantKind === "teen-drop" || wantKind === "teen"))
+  // [RP-V7.263] The teen daily drop is GONE (18+ only): the kind is
+  // refused outright for everyone, with the reason stated plainly.
+  if (wantKind === "teen-drop" || wantKind === "teen")
     return res
-      .status(403)
-      .json({ ok: false, error: "The daily charm drop is for under-18 members" });
+      .status(410)
+      .json({ ok: false, error: "The teen daily drop has ended \u2014 Rizz Plaza is 18+ only" });
   const today = dpDateStr(Date.now());
   const cdb = readClaims();
   const rec = claimRecordFor(user, cdb);
-  const kind = teen ? "teen-drop" : "daily-claim";
+  const kind = "daily-claim"; // [RP-V7.263]
   if (rec.lastDate === today) {
     // ONE gate: any claim kind already made today refuses every
     // other kind today too — nothing moves, the payload carries the
     // shared state so any client surface renders the claimed day.
     return res.status(409).json({
       ok: false,
-      error: teen
-        ? "You've already claimed today's drop — the next one lands tomorrow"
-        : "You've already claimed today's reward — the next one lands tomorrow",
+      error: "You've already claimed today's reward — the next one lands tomorrow",
       claimed: true,
       kind,
-      amount: teen
-        ? TEEN_DAILY_DROP
-        : DAILY_CLAIM_LADDER[Math.min(rec.streak || 1, DAILY_CLAIM_LADDER.length) - 1],
+      amount: DAILY_CLAIM_LADDER[Math.min(rec.streak || 1, DAILY_CLAIM_LADDER.length) - 1],
       streak: rec.streak || 0,
       dailyClaim: claimStatePayload(user, cdb),
-      teenDrop: teen
-        ? { eligible: true, amount: TEEN_DAILY_DROP, claimed: true }
-        : { eligible: false, amount: TEEN_DAILY_DROP, claimed: false },
     });
   }
   // Streak advance in the claim store (ET days): yesterday -> +1,
@@ -7552,20 +7480,13 @@ app.post("/api/money/daily-claim", lockedHandler("daily-claim", (req, res) => {
     lastKind: kind,
   };
   writeClaims(cdb);
-  const amount = teen
-    ? TEEN_DAILY_DROP
-    : DAILY_CLAIM_LADDER[Math.min(streak, DAILY_CLAIM_LADDER.length) - 1];
+  const amount = DAILY_CLAIM_LADDER[Math.min(streak, DAILY_CLAIM_LADDER.length) - 1];
   const mdb = readMoney();
   mdb.balances[user.id] = (mdb.balances[user.id] || 0) + amount;
   moneyTx(mdb, {
-    // Ledger continuity: the teen claim keeps its V7.75 tx type.
-    type: teen ? "teen-daily-drop" : "daily-claim", from: null, to: user.id,
+    type: "daily-claim", from: null, to: user.id,
     charms: amount, cents: 0, cut: 0, ref: today,
   });
-  // The teen claim keeps its V7.75 fill rule: the drop is gifting
-  // fuel, so the full amount mirrors into the gift balance. The
-  // mirror helper itself no-ops for adults.
-  if (teen) giftBalMirrorWin(mdb, user, amount);
   writeMoney(mdb);
   // [RP-V7.75, kept] BRAIN + ALGORITHM: the claim also registers in
   // the server-side daily-return engine (RP-V7.43, dailypot-streaks)
@@ -7574,7 +7495,7 @@ app.post("/api/money/daily-claim", lockedHandler("daily-claim", (req, res) => {
   // enter (or enter-then-claim) counts the day once and never
   // resets a running streak. (V7.75 did this for teen claims; the
   // unified claim does it for every claim — same engine, same rule.)
-  try { dpBumpStreak(user.id, today, teen ? "teen" : "adult"); } catch (e) {}
+  try { dpBumpStreak(user.id, today, "adult"); } catch (e) {}
   console.log("[claim]", kind, today, user.name, "+", amount, "streak", streak);
   res.json({
     ok: true,
@@ -7585,9 +7506,6 @@ app.post("/api/money/daily-claim", lockedHandler("daily-claim", (req, res) => {
     balance: mdb.balances[user.id],
     giftBal: (mdb.giftBals && mdb.giftBals[user.id]) || 0,
     dailyClaim: claimStatePayload(user),
-    teenDrop: teen
-      ? { eligible: true, amount: TEEN_DAILY_DROP, claimed: true }
-      : { eligible: false, amount: TEEN_DAILY_DROP, claimed: false },
   });
 }));
 
@@ -7733,11 +7651,9 @@ function socialBrief(accountsDb, id) {
   const u = accountsDb.users.find((x) => x.id === id);
   // [RP-V7.37] A pending-deletion account is invisible everywhere a
   // brief is rendered (lists + the counts computed from them).
-  if (!u || u.deletionAt) return null;
+  if (!u || u.deletionAt || accountLockedOut(u)) return null; // [RP-V7.263] locked-out accounts are invisible everywhere a brief renders
   // [RP-V7.37] the profile-type label rides along for cards/lists.
-  // [RP-V7.212] ageClass rides the brief so clients can hide DM
-  // entry points across the teen/adult line (class only, no DOB).
-  return { id: u.id, name: u.name, profileType: profileTypeOf(u), profileTypeLabel: profileTypeLabel(u), ageClass: accountAgeClass(u) };
+  return { id: u.id, name: u.name, profileType: profileTypeOf(u), profileTypeLabel: profileTypeLabel(u) };
 }
 function socialSetFollow(db, followerId, followeeId, on) {
   const cur = socialFollowingIds(db, followerId);
@@ -7764,7 +7680,7 @@ app.post("/api/social/follow", (req, res) => {
       .status(400)
       .json({ ok: false, error: "You can't follow yourself" });
   const target = ctx.db.users.find((u) => u.id === targetId);
-  if (!target || target.deletionAt)
+  if (!target || target.deletionAt || accountLockedOut(target))
     return res.status(404).json({
       ok: false,
       error: "Account not found",
@@ -7874,7 +7790,7 @@ app.get("/api/social/user/:id", (req, res) => {
       });
     return res.status(404).json({ ok: false, error: "Account not found" });
   }
-  if (target.deletionAt)
+  if (target.deletionAt || accountLockedOut(target))
     return res.status(404).json({
       ok: false,
       error: "This account no longer exists",
@@ -7897,9 +7813,9 @@ app.get("/api/social/directory", (req, res) => {
   if (!ctx) return;
   const hidden99 = blockHiddenIds(ctx.user.id); // [RP-V7.99]
   const users = ctx.db.users
-    .filter((u) => u.id === ctx.user.id || !hidden99.has(u.id))
+    .filter((u) => !accountLockedOut(u) && (u.id === ctx.user.id || !hidden99.has(u.id))) // [RP-V7.263] locked-out accounts are de-listed
     .slice(0, 500)
-    .map((u) => ({ id: u.id, name: u.name, ageClass: accountAgeClass(u) })); // [RP-V7.212] class for DM entry-point visibility
+    .map((u) => ({ id: u.id, name: u.name }));
   res.json({ ok: true, users });
 });
 // [RP-V7.28] Full public profile for the person card + profile page.
@@ -7971,11 +7887,11 @@ app.get("/api/social/profile", (req, res) => {
   if (wantId) target = ctx.db.users.find((u) => u.id === wantId) || null;
   if (!target && wantName) {
     const m = ctx.db.users.filter(
-      (u) => u.name === wantName && !u.deletionAt
+      (u) => u.name === wantName && !u.deletionAt && !accountLockedOut(u)
     );
     if (m.length === 1) target = m[0];
   }
-  if (target && target.deletionAt)
+  if (target && (target.deletionAt || accountLockedOut(target)))
     return res.status(404).json({
       ok: false,
       error: "This account no longer exists",
@@ -8183,7 +8099,6 @@ app.get("/api/social/profile", (req, res) => {
     username: target.username || null,
     profileType: profileTypeOf(target),
     profileTypeLabel: profileTypeLabel(target),
-    ageClass: accountAgeClass(target), // [RP-V7.212] class only, no DOB
     // [RP-V7.50] the account's stored photo, live-player fallback
     photo: target.photo || livePhotoForAccount(target),
     followersCount: socialFollowerIds(sdb, target.id).length,
@@ -8418,7 +8333,7 @@ app.get("/api/social/suggestions", (req, res) => {
       for (const id of liveIds) add(byId.get(id), "Live now on the Plaza");
     } catch (e) { }
     const tsOf = (v) => { const t = Date.parse(v || ""); return Number.isFinite(t) ? t : 0; };
-    const all = ctx.db.users.filter((u) => u && !u.deletionAt);
+    const all = ctx.db.users.filter((u) => u && !u.deletionAt && !accountLockedOut(u)); // [RP-V7.263] locked-out accounts are never suggested
     // (b2) [RP-V7.248] LINKED ACCOUNTS — Branden (Nov 5, 2026):
     // "pull matching people who has accounts with Facebook instagram
     // and TikTok," the way Facebook's People You May Know pulls
@@ -9609,20 +9524,10 @@ function dmPrivacyError(db, ctx, other) {
   return null;
 }
 
-// [RP-V7.212] Teen DMs are TEEN-TO-TEEN ONLY (Branden, Nov 2, 2026):
-// every DM create/send checks BOTH parties' CURRENT age classes via
-// accountAgeClass — the same source the money/gate code uses. A teen
-// and an adult can never message each other in either direction;
-// teen-to-teen and adult-to-adult pass. The class is read fresh at
-// send time, so an existing thread stops accepting sends the moment
-// the two parties' classes differ (for example when one side turns
-// 18 before the other): the history stays readable, new sends are
-// refused here (and at the media route below).
-function dmAgeClassError(ctx, other) {
-  if (!ctx || !ctx.user || !other) return null;
-  if (accountAgeClass(ctx.user) === accountAgeClass(other)) return null;
-  return "Teens and adults can't message each other on Rizz Plaza \u2014 teen accounts message other teens, and adult accounts message other adults.";
-}
+// [RP-V7.263] The V7.212 teen/adult DM wall is GONE with the teen
+// classes: there is one member class now. Sends to a locked-out
+// account are refused at the routes above (410, read-only history),
+// exactly like sends to a pending-deletion account.
 
 function dmDeliver(ctx, other, msg) {
   const db = readDms();
@@ -9726,7 +9631,7 @@ app.get("/api/dm/thread/:userId", (req, res) => {
   // history — the label follows the account's live status.
   const gone =
     (!other && isTombstonedAccount(otherId)) ||
-    !!(other && other.deletionAt);
+    !!(other && (other.deletionAt || accountLockedOut(other))); // [RP-V7.263] locked-out accounts read as "Deleted user" history, same as deletion
   if (!other && !gone)
     return res.status(404).json({ ok: false, error: "Account not found" });
   const db = readDms();
@@ -9777,6 +9682,14 @@ app.post("/api/dm/send", (req, res) => {
       error:
         "This account no longer exists — this conversation is read-only now.",
     });
+  // [RP-V7.263] A locked-out account (under-18 / age-suspended)
+  // can't receive new DMs either — same read-only history rule.
+  if (accountLockedOut(other))
+    return res.status(410).json({
+      ok: false,
+      error:
+        "This account no longer exists — this conversation is read-only now.",
+    });
   if (other.id === ctx.user.id)
     return res
       .status(400)
@@ -9793,10 +9706,6 @@ app.post("/api/dm/send", (req, res) => {
   const dmPrivErr = dmPrivacyError(db, ctx, other);
   if (dmPrivErr)
     return res.status(403).json({ ok: false, error: dmPrivErr });
-  // [RP-V7.212] The teen/adult wall (both directions, current class).
-  const dmAgeErr = dmAgeClassError(ctx, other);
-  if (dmAgeErr)
-    return res.status(403).json({ ok: false, error: dmAgeErr });
   const msg = {
     id: crypto.randomBytes(8).toString("hex"),
     from: ctx.user.id,
@@ -9849,6 +9758,8 @@ app.post("/api/dm/media",
       }
       if (other.deletionAt)
         return fail(410, "This account no longer exists — this conversation is read-only now.");
+      if (accountLockedOut(other))
+        return fail(410, "This account no longer exists — this conversation is read-only now.");
       if (other.id === ctx.user.id)
         return fail(400, "You can't message yourself");
       const db = readDms();
@@ -9857,10 +9768,6 @@ app.post("/api/dm/media",
       // [RP-V7.99] Same message-privacy gate as text sends.
       const dmPrivErrM = dmPrivacyError(db, ctx, other);
       if (dmPrivErrM) return fail(403, dmPrivErrM);
-      // [RP-V7.212] The teen/adult wall, same as text sends
-      // (fail() above already unlinks the stored upload).
-      const dmAgeErrM = dmAgeClassError(ctx, other);
-      if (dmAgeErrM) return fail(403, dmAgeErrM);
       const isVideo = (req.file.mimetype || "").startsWith("video/");
       if (!isVideo && req.file.size > DM_PHOTO_MAX)
         return fail(413, "That photo is too big — 10 MB max");
@@ -10026,7 +9933,7 @@ app.get("/api/members", (req, res) => {
     ctx.db.users.filter((u) => u.deletionAt).map((u) => u.id)
   );
   for (const u of ctx.db.users) {
-    if (u.deletionAt) continue; // [RP-V7.37] pending deletion: invisible
+    if (u.deletionAt || accountLockedOut(u)) continue; // [RP-V7.37] pending deletion: invisible · [RP-V7.263] locked-out accounts are de-listed
     const uname = usernameKey(u.username);
     const lname = String(u.name || "").toLowerCase();
     let score = null;
@@ -10081,7 +9988,6 @@ app.get("/api/members", (req, res) => {
       name: u.name,
       profileType: profileTypeOf(u),
       profileTypeLabel: profileTypeLabel(u),
-      ageClass: accountAgeClass(u), // [RP-V7.212] class only, no DOB
       // [RP-V7.50] the account's stored photo wins; the live-player
       // name match remains as the fallback for accounts without one.
       photo: u.photo || (nameCount[k] === 1 ? photoByName[k] || null : null),
@@ -10883,7 +10789,7 @@ app.post("/api/faith/like", (req, res) => {
   if (!targetId || targetId === ctx.user.id)
     return res.status(400).json({ ok: false, error: "You can't like yourself" });
   const target = ctx.db.users.find((u) => u.id === targetId);
-  if (!target || target.deletionAt)
+  if (!target || target.deletionAt || accountLockedOut(target))
     return res.status(404).json({ ok: false, error: "Account not found" });
   if (dmEitherBlocked(readDms(), ctx.user.id, targetId))
     return res.status(403).json({ ok: false, error: "Not available" });
@@ -10904,7 +10810,7 @@ app.post("/api/faith/pass", (req, res) => {
   if (!targetId || targetId === ctx.user.id)
     return res.status(400).json({ ok: false, error: "You can't pass yourself" });
   const target = ctx.db.users.find((u) => u.id === targetId);
-  if (!target || target.deletionAt)
+  if (!target || target.deletionAt || accountLockedOut(target))
     return res.status(404).json({ ok: false, error: "Account not found" });
   const db = readFaith();
   const passes = faithIdList(db, "passes", ctx.user.id);
@@ -10995,6 +10901,9 @@ function googleHandoffGet(code) {
 // deletion is finalized and refused; an in-window one is cancelled
 // and the member is welcomed back whole.
 function googleSessionFor(user, db) {
+  // [RP-V7.263] Locked-out accounts (under-18 / age-suspended) get
+  // no Google session either — every door checks the same lock.
+  if (accountLockedOut(user)) return null;
   if (user.deletionAt && Date.parse(user.deletionAt) <= Date.now()) {
     try { finalizeAccountDeletion(user.id); } catch (e) {}
     return null;
@@ -11026,6 +10935,10 @@ app.post("/api/account/google/exchange", (req, res) => {
   const user = db.users.find((u) => u.id === rec.userId) || null;
   if (!user)
     return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
+  if (teenAccountDisabled(user))
+    return res.status(403).json({ ok: false, error: RP_AGE_LOCK_NOTICE_263, ageLocked: true });
+  if (user.ageSuspended)
+    return res.status(403).json({ ok: false, error: RP_AGE_SUSPEND_NOTICE_263, ageSuspended: true });
   const sess = googleSessionFor(user, db);
   if (!sess)
     return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
@@ -11046,14 +10959,18 @@ app.post("/api/account/google/complete", (req, res) => {
   const age = ageFromDob(dob);
   if (age < 0)
     return res.status(400).json({ ok: false, error: "That date of birth doesn't look right" });
-  if (age < 13)
-    return res.status(403).json({ ok: false, error: "You must be 13 or older to join Rizz Plaza" });
+  if (age < 18)
+    return res.status(403).json({ ok: false, error: "You must be 18 or older to join Rizz Plaza" });
   const db = readAccounts();
   // The verified email may have been registered while the member was
   // finishing this form — then this is simply their sign-in.
   const existing = db.users.find((u) => u.email && normEmailKey(u.email) === rec.email) || null;
   if (existing) {
     googleHandoffs.delete(code);
+    if (teenAccountDisabled(existing))
+      return res.status(403).json({ ok: false, error: RP_AGE_LOCK_NOTICE_263, ageLocked: true });
+    if (existing.ageSuspended)
+      return res.status(403).json({ ok: false, error: RP_AGE_SUSPEND_NOTICE_263, ageSuspended: true });
     const sess = googleSessionFor(existing, db);
     if (!sess)
       return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
@@ -13251,6 +13168,13 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
       .json({ ok: false, resolved: false, error: "recipient-not-found" });
   }
   const recipient = matches[0];
+  // [RP-V7.263] A locked-out account is de-listed everywhere —
+  // gifts to it resolve exactly like a name with no account, and
+  // nothing moves.
+  if (accountLockedOut(recipient))
+    return res
+      .status(404)
+      .json({ ok: false, resolved: false, error: "recipient-not-found" });
   // [RP-V7.262] GIFT COUNT ON POSTS: the client tags a post gift
   // with the post it was sent from ({ kind: "reel"|"photo", id }).
   // The tag is honored ONLY when the post exists AND belongs to
@@ -13452,7 +13376,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // and the split above is final. [RP-V7.77]
   try {
     // [RP-V7.219] the 2% Daily Pot match is per unit.
-    for (let u = 0; u < count; u++) dailyPotOnGift(cost, senderTeen ? "teen" : "adult");
+    for (let u = 0; u < count; u++) dailyPotOnGift(cost);
   } catch (e) { /* daily pot bookkeeping must never break a gift */ }
   console.log(
     "[money] gift", giftId, cost, count > 1 ? "x" + count : "", "charms:", ctx.user.name, "->", recipient.name,
@@ -13846,6 +13770,210 @@ function rpBizAdsActiveCount(mdb) {
     if (moneyBizAdsState(mdb, id).active) n++;
   return n;
 }
+
+// ---------------------------------------------------------------------------
+// [RP-V7.263] "UNDER 18" REPORTS — WITH TEETH (Branden, Nov 6,
+// 2026). Every report surface (profile, DM, rooms, posts) carries an
+// "Under 18" reason. Filing one routes it HERE, to the owner board,
+// as a PRIORITY flagged category: "UNDERAGE — priority". A bare
+// report NEVER suspends anyone by itself (troll-proofing) — the
+// owner's one-tap "Suspend pending ID proof" on the board is the
+// act-on-knowledge step. Suspension rides the V7.263 lockout
+// (accountLockedOut): the account cannot sign in (it gets the
+// age-verification notice naming the Help & Support appeal path),
+// vanishes from member surfaces, and the owner can restore it from
+// the same board once ID proof checks out.
+// Store: reports.json beside the other stores —
+// { reports: [{ id, reason: "Under 18", category, reporterId,
+//   reporterName, reportedId, reportedName, surface, at, status:
+//   "open"|"suspended"|"restored"|"dismissed" }] }
+// ---------------------------------------------------------------------------
+const REPORTS_FILE_263 =
+  process.env.REPORTS_FILE || path.join(path.dirname(PHOTO_DIR), "reports.json");
+function readReports263() {
+  try {
+    const d = JSON.parse(fs.readFileSync(REPORTS_FILE_263, "utf8"));
+    if (d && Array.isArray(d.reports)) return d;
+  } catch (e) {}
+  return { reports: [] };
+}
+function writeReports263(db) {
+  const tmp = REPORTS_FILE_263 + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, REPORTS_FILE_263);
+}
+// Resolve a report target to an account: a real account id wins;
+// otherwise a UNIQUE display-name match (the app's standing
+// resolution rule). Returns the account or null.
+function resolveReportedAccount263(adb, reportedId, reportedName) {
+  const users = (adb && adb.users) || [];
+  if (reportedId) {
+    const byId = users.find((u) => u && u.id === reportedId);
+    if (byId) return byId;
+  }
+  const nm = String(reportedName || "").trim();
+  if (nm) {
+    const m = users.filter((u) => u && u.name === nm);
+    if (m.length === 1) return m[0];
+  }
+  return null;
+}
+function fileAgeReport263(input) {
+  const adb = readAccounts();
+  const target = resolveReportedAccount263(adb, input.reportedId, input.reportedName);
+  const db = readReports263();
+  const now = Date.now();
+  // Dedupe: the same reporter flagging the same account inside 24h
+  // refreshes the open entry instead of stacking duplicates.
+  const dupe = db.reports.find(
+    (r) =>
+      r && r.status === "open" &&
+      r.reportedId === (target ? target.id : null) &&
+      r.reportedName === (target ? target.name : String(input.reportedName || "")) &&
+      r.reporterId === (input.reporterId || null) &&
+      now - Date.parse(r.at || 0) < 24 * 3600 * 1000
+  );
+  if (dupe) { dupe.at = new Date(now).toISOString(); writeReports263(db); return { filed: false, deduped: true, report: dupe }; }
+  const entry = {
+    id: crypto.randomBytes(8).toString("hex"),
+    reason: "Under 18",
+    category: "UNDERAGE \u2014 priority",
+    reporterId: input.reporterId || null,
+    reporterName: String(input.reporterName || ""),
+    reportedId: target ? target.id : null,
+    reportedName: target ? target.name : String(input.reportedName || ""),
+    reportedUsername: target ? target.username || "" : "",
+    surface: String(input.surface || ""),
+    at: new Date(now).toISOString(),
+    status: "open",
+  };
+  db.reports.push(entry);
+  while (db.reports.length > 1000) db.reports.shift();
+  writeReports263(db);
+  console.log("[RP-V7.263] UNDERAGE report filed:", entry.reportedName, "via", entry.surface || "?", "by", entry.reporterName || "?");
+  return { filed: true, report: entry };
+}
+function rpAgeReportsOpen263() {
+  const open = readReports263().reports
+    .filter((r) => r && r.status === "open")
+    .slice(-50)
+    .reverse();
+  return { count: open.length, items: open };
+}
+function rpAgeSuspendedList263(adb) {
+  return ((adb && adb.users) || [])
+    .filter((u) => u && u.ageSuspended)
+    .map((u) => ({
+      id: u.id, username: u.username || "", name: u.name || "",
+      at: (u.ageSuspended && u.ageSuspended.at) || null,
+    }));
+}
+// The exact teen-removal inventory for the owner's deletion call:
+// @Popstar is KEPT (owner test account, his order); every other
+// under-18 account is disabled + de-listed by teenAccountDisabled.
+function rpTeenInventory263(adb) {
+  const kept = [], disabled = [];
+  for (const u of (adb && adb.users) || []) {
+    if (!u || ageFromDob(u.dob) >= 18) continue;
+    const row = { id: u.id, username: u.username || "", name: u.name || "", createdAt: u.createdAt || null };
+    if (isOwnerTestAccount263(u)) kept.push(row);
+    else disabled.push(row);
+  }
+  return { kept, disabled, disabledCount: disabled.length };
+}
+// Owner gate shared by the V7.263 owner actions: the owner session
+// (the /api/owner/sales check) OR the OWNER_PUSH_SECRET (the grant
+// pattern). 404 for everyone else.
+function rpOwnerGate263(req, body) {
+  const adb = readAccounts();
+  const sessionUser = accountForToken(adb, req);
+  const ownerId = rpOwnerUserId(adb);
+  const viaSession = !!(sessionUser && ownerId && sessionUser.id === ownerId);
+  const want = String(process.env.OWNER_PUSH_SECRET || "");
+  const viaSecret = !!want && String((body || {}).secret || "") === want;
+  return { ok: viaSession || viaSecret, adb, ownerId };
+}
+// File an "Under 18" report (authed members; the report surfaces'
+// reason lists carry the reason — other reasons keep their
+// existing paths and are refused here).
+app.post("/api/reports", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  if (String(b.reason || "") !== "Under 18")
+    return res.status(400).json({ ok: false, error: "unsupported-reason" });
+  const target = resolveReportedAccount263(ctx.db, String(b.reportedId || ""), String(b.reportedName || ""));
+  if (!target)
+    return res.status(404).json({ ok: false, error: "Account not found" });
+  if (target.id === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't report yourself" });
+  const out = fileAgeReport263({
+    reporterId: ctx.user.id, reporterName: ctx.user.name,
+    reportedId: target.id, reportedName: target.name,
+    surface: String(b.surface || "profile"),
+  });
+  res.json({ ok: true, filed: out.filed, deduped: !!out.deduped });
+});
+// The teen-removal inventory (owner only): who was kept, who was
+// disabled + de-listed. Records are NOT deleted by this build —
+// this list is what the owner decides permanent deletion from.
+app.get("/api/owner/teen-accounts", (req, res) => {
+  const gate = rpOwnerGate263(req, req.query || {});
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  res.json({ ok: true, ...rpTeenInventory263(gate.adb) });
+});
+// One tap on an UNDERAGE report: suspend the reported account
+// pending ID proof. The suspension is the V7.263 lockout — no
+// sign-in, de-listed — until the owner restores it.
+app.post("/api/owner/age-suspend", lockedHandler("age-suspend", (req, res) => {
+  const b = req.body || {};
+  const gate = rpOwnerGate263(req, b);
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const target = resolveReportedAccount263(gate.adb, String(b.accountId || ""), String(b.username || b.reportedName || ""));
+  if (!target) return res.status(404).json({ ok: false, error: "no-such-user" });
+  if (gate.ownerId && target.id === gate.ownerId)
+    return res.status(400).json({ ok: false, error: "cannot-suspend-owner" });
+  if (target.ageSuspended)
+    return res.status(409).json({ ok: false, error: "already-suspended" });
+  target.ageSuspended = { at: new Date().toISOString(), via: "owner-board" };
+  writeAccounts(gate.adb);
+  const rdb = readReports263();
+  for (const r of rdb.reports)
+    if (r && r.status === "open" && r.reportedId === target.id) r.status = "suspended";
+  writeReports263(rdb);
+  console.log("[RP-V7.263] age-suspended:", target.username, target.name);
+  res.json({ ok: true, username: target.username, name: target.name, suspended: true });
+}));
+// Restore after ID proof (the appeal outcome): clears the
+// suspension whole — sign-in, listings and DMs return.
+app.post("/api/owner/age-restore", lockedHandler("age-restore", (req, res) => {
+  const b = req.body || {};
+  const gate = rpOwnerGate263(req, b);
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const target = resolveReportedAccount263(gate.adb, String(b.accountId || ""), String(b.username || b.reportedName || ""));
+  if (!target) return res.status(404).json({ ok: false, error: "no-such-user" });
+  if (!target.ageSuspended)
+    return res.status(409).json({ ok: false, error: "not-suspended" });
+  delete target.ageSuspended;
+  writeAccounts(gate.adb);
+  const rdb = readReports263();
+  for (const r of rdb.reports)
+    if (r && r.status === "suspended" && r.reportedId === target.id) r.status = "restored";
+  writeReports263(rdb);
+  console.log("[RP-V7.263] age-restored:", target.username, target.name);
+  res.json({ ok: true, username: target.username, name: target.name, suspended: false });
+}));
+// Boot inventory line (server console only): the sweep, in one
+// line, the moment this build first boots against real data.
+function rpLogTeenInventory263() {
+  const inv = rpTeenInventory263(readAccounts());
+  console.log(
+    "[RP-V7.263] 18+ only: " + inv.disabledCount + " under-18 account(s) disabled + de-listed [" +
+    inv.disabled.map((r) => "@" + r.username).join(", ") + "]" +
+    (inv.kept.length ? "; kept (owner test account): " + inv.kept.map((r) => "@" + r.username).join(", ") : "")
+  );
+}
+
 app.get("/api/owner/sales", (req, res) => {
   const adb = readAccounts();
   const user = accountForToken(adb, req);
@@ -13878,6 +14006,10 @@ app.get("/api/owner/sales", (req, res) => {
       storeAsOf,
     },
     marks: { step: stepDollars, cap: capDollars, crossed, next },
+    // [RP-V7.263] UNDERAGE — priority: open "Under 18" reports for
+    // the board's one-tap suspend, plus who is currently suspended.
+    ageReports: rpAgeReportsOpen263(),
+    ageSuspendedAccounts: rpAgeSuspendedList263(adb),
   });
 });
 app.post("/api/owner/store-sales", lockedHandler("owner-store-sales", (req, res) => {
@@ -14128,7 +14260,7 @@ app.get("/health", (req, res) =>
 // verified against a session token AND that account's DOB is 18+
 // (accounts are 18+ by the sign-up rule; the class is computed
 // from the verified record, never from anything a client claims).
-const ALL_AGES_ROOMS = new Set(["faith", "teen"]);
+const ALL_AGES_ROOMS = new Set(["faith"]); // [RP-V7.263] Teen Hangout is gone — Fellowship is the only all-ages socket room
 function roomNeedsAdult(room) {
   return !ALL_AGES_ROOMS.has(room);
 }
@@ -14166,7 +14298,8 @@ function socketIsTeen(socket) {
   );
 }
 function socketMayEnterRoom(socket, room) {
-  if (!roomNeedsAdult(room)) return true; // faith / teen: all ages
+  if (room === "teen") return false; // [RP-V7.263] the Teen Hangout room no longer exists — refused for every socket, direct id included
+  if (!roomNeedsAdult(room)) return true; // faith: all ages
   if (isLiveRoom(room)) return socketIsAdult(socket) || socketIsTeen(socket);
   return socketIsAdult(socket);
 }
@@ -14618,6 +14751,20 @@ io.on("connection", (socket) => {
       reason: String(data.reason || "").slice(0, 200),
       at: new Date().toISOString(),
     });
+    // [RP-V7.263] An "Under 18" report ALSO files to the owner
+    // board as UNDERAGE — priority. No auto-action ever: the
+    // owner's suspend tap is the act-on-knowledge step.
+    if (String(data.reason || "") === "Under 18") {
+      try {
+        fileAgeReport263({
+          reporterId: socket.data.accountId || null,
+          reporterName: String(data.reporterName || ""),
+          reportedId: String(data.reportedId || ""),
+          reportedName: String(data.reportedName || ""),
+          surface: String(data.room || "room"),
+        });
+      } catch (e) {}
+    }
     socket.emit("report-received", { ok: true });
   });
 
@@ -15121,6 +15268,7 @@ function rpPurgeTestAccounts195() {
   console.log("[RP-V7.195] test-account purge:", purged.length, "purged,", skipped.length, "skipped");
 }
 try { rpPurgeTestAccounts195(); } catch (e) { console.log("[RP-V7.195] purge failed:", e && e.message); }
+try { rpLogTeenInventory263(); } catch (e) { console.log("[RP-V7.263] teen inventory log failed:", e && e.message); }
 
 
 // [RP-V7.41] Plaza Pot orphan sweep: once on boot, then every 60s.
