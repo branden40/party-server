@@ -3905,7 +3905,7 @@
         var name = (person && person.name) || "You";
         var photo = person && (person.photo || person.photoUrl);
         var c = cls ? " " + cls : "";
-        if (photo) return '<img class="pface' + c + '" src="' + escHtml(photo) + '" alt="' + escHtml(name) + '\u2019s profile photo"/>';
+        if (photo) return '<img loading="lazy" decoding="async" class="pface' + c + '" src="' + escHtml(photo) + '" alt="' + escHtml(name) + '\u2019s profile photo"/>'; // [RP-V7.265] avatar img lazy+async: a 40px face must not eager-decode a full-size photo
         var h = 0;
         for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
         var g = PFACE_GRADIENTS[h % PFACE_GRADIENTS.length];
@@ -7168,10 +7168,15 @@
           return '<button class="live-now-chip" data-lnroom="' + escHtml(it.room) + '">🔴 ' + it.label + (it.n ? ' · <b>' + it.n + ' here</b>' : '') + '</button>';
         }).join("");
         if (!html) {
-          list.innerHTML = '<div class="live-now-empty"><span>No one\u2019s live yet.</span></div>';
-          var g = $("btnLiveNowGo"); if (g) g.addEventListener("click", function () { if (typeof startOwnLiveEntry === "function") startOwnLiveEntry(); else enterLiveStageCard(); });
+          if (list.__sig265 !== "empty") { // [RP-V7.265] unchanged content: skip the DOM write + rebind
+            list.__sig265 = "empty";
+            list.innerHTML = '<div class="live-now-empty"><span>No one\u2019s live yet.</span></div>';
+            var g = $("btnLiveNowGo"); if (g) g.addEventListener("click", function () { if (typeof startOwnLiveEntry === "function") startOwnLiveEntry(); else enterLiveStageCard(); });
+          }
           return;
         }
+        if (list.__sig265 === html) return; // [RP-V7.265] same lives, same counts: nothing to repaint
+        list.__sig265 = html;
         list.innerHTML = html;
         list.querySelectorAll("[data-lnroom]").forEach(function (b) {
           b.addEventListener("click", function () { openLiveFromList(b.getAttribute("data-lnroom")); });
@@ -21582,12 +21587,22 @@
       }
       /* ---------- presence strip & join/leave announcements ---------- */
       function faceHTML(p, isMe) {
-        if (isMe) return Online.myPhotoUrl ? '<img src="' + escHtml(Online.myPhotoUrl) + '" alt=""/>' : myFace();
-        if (p.photoUrl) return '<img src="' + escHtml(p.photoUrl) + '" alt=""/>';
+        if (isMe) return Online.myPhotoUrl ? '<img loading="lazy" decoding="async" src="' + escHtml(Online.myPhotoUrl) + '" alt=""/>' : myFace(); // [RP-V7.265] avatar img lazy+async: a 40px face must not eager-decode a full-size photo
+        if (p.photoUrl) return '<img loading="lazy" decoding="async" src="' + escHtml(p.photoUrl) + '" alt=""/>'; // [RP-V7.265] avatar img lazy+async: a 40px face must not eager-decode a full-size photo
         return personFace(p);
       }
       function renderPresenceStrip() {
         var faces = $("presenceFaces"); if (!faces) return;
+        /* [RP-V7.265] signature guard: this strip used to rebuild its
+           whole face DOM on every presence event/poll even when the
+           room's people hadn't changed — pure churn under scroll. */
+        var sig265 = "";
+        try {
+          var pids265 = Object.keys(Online.players);
+          sig265 = (Online.name || "") + "|" + (Online.room || "") + "|" + (Party.totalOnline || "") + "|" + pids265.length + "|" + pids265.slice(0, 11).map(function (id) { var p = Online.players[id]; return id + "~" + (p.name || "") + "~" + (p.photoUrl || p.photo || ""); }).join(",");
+        } catch (e) { }
+        if (sig265 && faces.__sig265 === sig265) return;
+        faces.__sig265 = sig265;
         faces.innerHTML = "";
         var meFace = document.createElement("span");
         meFace.className = "px-face me"; meFace.title = "You · " + (Online.name || "You");
@@ -23551,6 +23566,21 @@
       /* Mount a slideshow inside host (host becomes the stage). opts:
          dwell ms per photo (default 3000), gate() -> false freezes
          the advance. Returns { start, stop, destroy, state }. */
+      /* [RP-V7.265] one shared observer: a photo-set show only advances
+         while its card is on (or near) the screen. Off-screen shows used
+         to keep a 50ms chain repainting progress fills + count HTML
+         forever, on every screen, under every scroll. */
+      var rpShowIO265 = null;
+      function rpShowVis265(host) {
+        if (!window.IntersectionObserver) return true;
+        if (host.__rpShowVis === undefined) {
+          if (!rpShowIO265) rpShowIO265 = new IntersectionObserver(function (es) { es.forEach(function (en) { en.target.__rpShowVis = en.isIntersecting; }); }, { rootMargin: "120px" });
+          try { rpShowIO265.observe(host); } catch (e) { }
+          host.__rpShowVis = false;
+          return false;
+        }
+        return !!host.__rpShowVis;
+      }
       function rpShowMount123(host, urls, opts) {
         opts = opts || {};
         var dwell = opts.dwell || 3000;
@@ -23595,10 +23625,12 @@
             tx = null;
           }, { passive: true });
         }
+        var paintIdx265 = -1;
         function paint() {
-          if (countEl) countEl.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> " + (st.idx + 1) + "/" + st.count;
+          if (countEl && paintIdx265 !== st.idx) { paintIdx265 = st.idx; countEl.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> " + (st.idx + 1) + "/" + st.count; }
           segFills.forEach(function (f, i) {
-            f.style.width = i < st.idx ? "100%" : (i === st.idx ? Math.min(100, elapsed / dwell * 100) + "%" : "0%");
+            var pct265 = i < st.idx ? 100 : (i === st.idx ? Math.min(100, elapsed / dwell * 100) : 0);
+            if (f.__p265 === undefined || Math.abs(pct265 - f.__p265) >= 2 || (pct265 === 100 && f.__p265 !== 100) || (pct265 === 0 && f.__p265 !== 0)) { f.__p265 = pct265; f.style.width = pct265 + "%"; }
           });
         }
         function show(reset) { img.src = urls[st.idx]; if (reset) elapsed = 0; paint(); }
@@ -23606,7 +23638,7 @@
           if (destroyed) return;
           if (!host.isConnected) { destroy(); return; }
           var now = Date.now();
-          if (last && gate() && !document.hidden) {
+          if (last && gate() && !document.hidden && rpShowVis265(host)) {
             elapsed += now - last;
             if (elapsed >= dwell) { st.auto(); show(true); }
             else paint();
@@ -23616,7 +23648,7 @@
         }
         function start() { if (!destroyed && !timer) { last = 0; tick(); } }
         function stop() { if (timer) { clearTimeout(timer); timer = null; } }
-        function destroy() { destroyed = true; stop(); var i = rpShows123.indexOf(ctl); if (i >= 0) rpShows123.splice(i, 1); }
+        function destroy() { destroyed = true; stop(); if (rpShowIO265) { try { rpShowIO265.unobserve(host); } catch (e) { } } var i = rpShows123.indexOf(ctl); if (i >= 0) rpShows123.splice(i, 1); }
         var ctl = { start: start, stop: stop, destroy: destroy, state: st };
         rpShows123.push(ctl);
         paint();
@@ -24039,7 +24071,8 @@
           .then(function (j) {
             ffDone258();
             if (j && j.ok && Array.isArray(j.reels)) {
-              if (fetchFriends128) { Reels._friendsLoaded = true; Reels._friendsCache258 = j.reels; Reels._friendsCacheTok258 = fyT || ""; } // [RP-V7.258] (A) the friends list is CACHED (keyed to the account token) so a return visit paints it on the tap and this fetch just refreshes it
+              if (fetchFriends128) { Reels._friendsLoaded = true; Reels._friendsCache258 = j.reels; Reels._friendsCacheTok258 = fyT || ""; } // [RP-V7.258] (A)
+              try { localStorage.setItem(fetchFriends128 ? "rpFriendsList265" : "rpForYouList265", JSON.stringify({ t: fyT || "", at: Date.now(), reels: j.reels })); } catch (e) { } // [RP-V7.265] persist so the NEXT cold open paints instantly toothe friends list is CACHED (keyed to the account token) so a return visit paints it on the tap and this fetch just refreshes it
               Reels.serverOk = true;
               if (fetchFriends128 !== !!Reels.friends) return; // [RP-V7.258] (A) stale-mode response — the view it was fetched for is gone; never stomp the list the member is looking at
               Reels.server = j.reels;
@@ -25326,6 +25359,9 @@
            first-ever visit (or a different account) starts from the
            V7.128 loading line. */
         var frCache258 = (Reels._friendsCache258 && Reels._friendsCacheTok258 === (reelToken() || "")) ? Reels._friendsCache258 : null;
+        if (!frCache258) { // [RP-V7.265] cold session: last visit's list, persisted on disk, paints on the tap
+          try { var st265 = JSON.parse(localStorage.getItem("rpFriendsList265") || "null"); if (st265 && st265.t === (reelToken() || "") && Array.isArray(st265.reels) && st265.reels.length) { frCache258 = st265.reels; Reels._friendsCache258 = st265.reels; Reels._friendsCacheTok258 = st265.t; } } catch (e) { }
+        }
         if (frCache258) { Reels.server = frCache258.slice(); Reels._friendsLoaded = true; }
         else { Reels.server = []; Reels._friendsLoaded = false; } // [RP-V7.128] loading state until the friends fetch lands
         Reels.ranked = false;
@@ -25336,6 +25372,9 @@
       window.rpReelsOpen = function () {
         var wasFriends = !!Reels.friends;
         if (wasFriends) { Reels.friends = false; window.__rpFriendsMode = false; Reels.server = []; }
+        if (!Reels.server || !Reels.server.length) { // [RP-V7.265] seed from the persisted For You list; the fetch below refreshes it
+          try { var sy265 = JSON.parse(localStorage.getItem("rpForYouList265") || "null"); if (sy265 && sy265.t === (reelToken() || "") && Array.isArray(sy265.reels) && sy265.reels.length) Reels.server = sy265.reels.slice(); } catch (e) { }
+        }
         var b = $("btnMomentsPlaza"); if (b) b.click();
         if (Reels.mode !== "reels") setMomMode("reels"); // [RP-V7.130] the Reels tab lands on the reels feed (the button handler does this too; belt and suspenders if the click path changes)
         else if (wasFriends) { renderReels(); reelFetchFeed(); }
@@ -33180,7 +33219,7 @@ button.rp72-chip{ cursor:pointer; }
   function avHTML(id, name) {
     var p = null;
     try { p = window.rpPlayerById ? window.rpPlayerById(id) : null; } catch (e) { }
-    if (p && p.photoUrl) return '<img src="' + esc(p.photoUrl) + '" alt="">';
+    if (p && p.photoUrl) return '<img loading="lazy" decoding="async" src="' + esc(p.photoUrl) + '" alt="">'; // [RP-V7.265] avatar img lazy+async: a 40px face must not eager-decode a full-size photo
     return '<span class="rp3-init">' + esc((name || "?").slice(0, 1).toUpperCase()) + "</span>";
   }
   function ensureStrip() {
@@ -33238,11 +33277,14 @@ button.rp72-chip{ cursor:pointer; }
     var strip = ensureStrip();
     if (!strip) return;
     var list = (live && live.active) ? sorted() : [];
-    if (!list.length) { strip.className = "lv-top3"; strip.innerHTML = ""; return; }
-    strip.className = "lv-top3 on";
-    strip.innerHTML = list.slice(0, 3).map(function (e, i) {
+    if (!list.length) { if (strip.__sig265 !== "") { strip.__sig265 = ""; strip.className = "lv-top3"; strip.innerHTML = ""; } return; }
+    var html265 = list.slice(0, 3).map(function (e, i) {
       return '<button type="button" class="rp3-chip' + (i === 0 ? " rp3-fire" : " rp3-glowring") + '" title="Top gifters of this live">' + avHTML(e.id, e.name) + '<span class="rp3-rk">' + (i + 1) + "</span></button>";
     }).join("");
+    if (strip.__sig265 === html265) return; // [RP-V7.265] top-3 unchanged: skip the 900ms rebuild
+    strip.__sig265 = html265;
+    strip.className = "lv-top3 on";
+    strip.innerHTML = html265;
   }
   setInterval(render, 900);
   render();
@@ -35861,7 +35903,11 @@ button.rp72-chip{ cursor:pointer; }
   function rpPaintPromote244(v) {
     if (!v || v.__rpPromoted244) return;
     v.__rpPromoted244 = Date.now();
-    try { v.preload = "metadata"; v.load(); } catch (e) { }
+    /* [RP-V7.265] scroll-lag pass: promotion used to fire load() on
+       EVERY promoted tile at once — a whole rail of 1080p files would
+       fetch + seek together and saturate the main thread + decoder.
+       The fetch now starts inside the 2-slot paint job below, so at
+       most 2 tile videos are ever loading at the same time. */
     rpPaintEnqueue244(v);
   }
   function rpPaintEnqueue244(v) { rpPaintQ244.push(v); rpPaintPump244(); }
@@ -35875,6 +35921,7 @@ button.rp72-chip{ cursor:pointer; }
   function rpPaintJob244(v, done) {
     var finished = false;
     var finish = function () { if (finished) return; finished = true; try { done(); } catch (e) { } };
+    try { v.preload = "metadata"; v.load(); } catch (e) { } // [RP-V7.265] fetch starts here, inside the slot
     /* The seek lands ~500 ms after PROMOTION (the V7.243 autoplay
        race rule, now keyed to when the fetch actually started):
        fresh promotions wait out the race, late ones seek at once. */
@@ -35928,6 +35975,13 @@ button.rp72-chip{ cursor:pointer; }
         if (!v.isConnected) continue;
         alive.push(v);
         if (v.__rpPromoted244) continue;
+        /* [RP-V7.265] a tile on a hidden screen (no layout boxes) is
+           never this tick's pick — it promotes when its screen shows
+           (the IO + this trickle catch it then). Tiles on the visible
+           screen keep the old eventually-paints promise. */
+        var vis265 = false;
+        try { vis265 = v.getClientRects().length > 0; } catch (e) { }
+        if (!vis265) continue;
         if (!first) first = v;
         var r = null;
         try { r = v.getBoundingClientRect(); } catch (e) { }
@@ -43697,6 +43751,16 @@ html, body { overflow-x: clip; }
    button, story rings and the Inbox story ring are NOT touched. */
 /* -- the dots proper: 8px circles (strip GO LIVE dot, Live Now header dot) -- */
 #hsLive::before, .live-now-head::before { box-shadow: 0 0 6px 1px rgba(254,44,85,.85), 0 0 14px 3px rgba(254,44,85,.55), 0 0 26px 7px rgba(254,44,85,.30), 0 0 44px 12px rgba(255,0,64,.16); }
+/* ================= [RP-V7.265] SCROLL SMOOTHNESS — animated glows go static =================
+   Branden (Nov 6, 2026): "do whatever you have to do to make it fast
+   and smooth when scrolling." Two infinite box-shadow animations sat
+   on scrolling surfaces and repainted their bloom every frame forever:
+   the story rings (storyGlowPulse, up to 32px) and the Plaza back /
+   Find-friends buttons (plazaGlowPulse, up to 88px, incl. on the
+   Reels screen). The STATIC shadows from their own rules stay — the
+   glow looks the same, it just stops breathing. */
+.sc-ring, .rpdm-ava.sring-on { animation: none !important; }
+.btn-mini.plaza-glow { animation: none !important; }
 /* -- the Live Now header's big red circle is a glyph: bloom via text-shadow -- */
 .live-now-head .rp-lndot264 { text-shadow: 0 0 6px rgba(254,44,85,.80), 0 0 15px rgba(254,44,85,.55), 0 0 28px rgba(255,0,64,.38), 0 0 46px rgba(255,0,64,.20); }
 /* -- the Inbox LIVE badge: 18-20px red filled circle on story circles + thread avatars -- */
