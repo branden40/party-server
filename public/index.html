@@ -739,6 +739,52 @@
          never blow through to another person's video. */
       #reelFeed { scroll-snap-type: y mandatory; }
       #reelFeed .reel-card { scroll-snap-stop: always; max-height: calc(100dvh - 196px); }
+      /* [RP-V7.254] REELS MODE = THE PAGER ALONE, FULL SCREEN
+         (Branden, Nov 5, Facebook Reels reference + "Erase
+         everything else on there that's current"). setMomMode flags
+         #screen-moments .rpfs254 in Reels mode: the entire header
+         stack is erased (head row with its back pill / title /
+         + Reel, story tray, intro paragraph, search bar) and the
+         pager takes the whole screen — the screen is 100dvh in
+         normal flow (the bottom bar stays: body.has-tabs already
+         reserves its 98px under .screen.active, and the feed's
+         flex chain fills exactly what remains). Creating stays on
+         the bottom bar's center +. Photos mode removes the flag
+         and keeps its current layout untouched. */
+      #screen-moments.rpfs254 { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+      #screen-moments.rpfs254 .mom-head,
+      #screen-moments.rpfs254 #storyTrayReels,
+      #screen-moments.rpfs254 #momIntro,
+      #screen-moments.rpfs254 #reelIntro,
+      #screen-moments.rpfs254 #rpSearchBar,
+      #screen-moments.rpfs254 #rpSearchWrap { display: none !important; }
+      /* [RP-V7.254 PHOTOS-SWITCH] the mode toggle row is erased
+         with the rest of the stack (Branden's call pending: erase
+         outright, or keep the Photos side as one small floating
+         pill — this is the only rule that changes). */
+      #screen-moments.rpfs254 .mom-modebar { display: none !important; }
+      /* [RP-V7.255] SEARCH = ONE SMALL MAGNIFIER AT THE TOP
+         (Branden: "Erase search bar to and add a small magnifying
+         icon for a search bar at the top"). The full-width bar is
+         erased from BOTH modes' layouts; it renders only as the
+         top of the search surface while rpMediaSearch is engaged.
+         The icon floats over the full-screen pager in Reels mode
+         (the Facebook reference's top icons) and over the header
+         row in Photos mode — the head keeps right padding there so
+         the Post button never slides under it. While search is
+         engaged in Reels mode (.rpsearch-on255) the surface (bar +
+         results) escapes the V7.254 erasure and replaces the
+         pager; disengaging hands the bare feed back untouched. */
+      #screen-moments { position: relative; }
+      #momSearchBtn255 { position: absolute; top: 10px; right: 12px; z-index: 40; width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(8,8,13,.55); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+      #momSearchBtn255 .rpi { width: 20px; height: 20px; }
+      #momSearchBtn255:active { transform: scale(.93); }
+      #screen-moments:not(.rpfs254) .mom-head { padding-right: 50px; }
+      #screen-moments.rpfs254.rpsearch-on255 #rpSearchBar { display: block !important; flex: none; padding: 56px 12px 6px; }
+      #screen-moments.rpfs254.rpsearch-on255 #rpSearchWrap { display: block !important; flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-bottom: 0; padding: 6px 12px 16px; }
+      #screen-moments.rpfs254 .mom-wrap { max-width: none; margin: 0; padding: 0 !important; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+      #screen-moments.rpfs254 #reelFeed { flex: 1 1 auto; min-height: 0; max-height: none; height: auto; padding: 0; gap: 0; }
+      #screen-moments.rpfs254 #reelFeed .reel-card { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; border: none; border-radius: 0; box-shadow: none; }
       /* ---------- [RP-V7.113] Home in the TikTok layout (Branden) ---------- */
       #screen-plaza.home-feedmode > .home-classic { display: none !important; }
       #screen-plaza:not(.home-feedmode) #homePager { display: none; }
@@ -3408,8 +3454,12 @@
             <button class="mom-mode on" id="btnMomModePhotos" type="button">📸 Photos</button>
             <button class="mom-mode" id="btnMomModeReels" type="button">🎬 Reels</button>
           </div>
-          <!-- [RP-V7.65] media search: pinned at the top of the Reels
-               screen; the results wear the RP-V7.64 tile grid. -->
+          <!-- [RP-V7.65] media search: the results wear the
+               RP-V7.64 tile grid. [RP-V7.255] the bar is NOT part
+               of the screen any more (Branden: "Erase search bar
+               to") — it renders only inside the search surface
+               while a search is open, entered from the small
+               #momSearchBtn255 magnifier at the top. -->
           <div id="rpSearchBar" style="display:none;">
             <div class="rpsearch-row">
               <span class="rpsearch-ico" aria-hidden="true"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></span>
@@ -3425,6 +3475,13 @@
           <div class="mom-feed" id="momFeed"></div>
           <div class="mom-feed" id="reelFeed" style="display:none;"></div>
         </div>
+        <!-- [RP-V7.255] the ONLY search entry on this screen: one
+             small magnifying-glass icon at the top (Branden: "add a
+             small magnifying icon for a search bar at the top"). It
+             floats over the full-screen pager in Reels mode and over
+             the header row in Photos mode; the tap opens the
+             existing rpMediaSearch surface via the module's init. -->
+        <button type="button" id="momSearchBtn255" aria-label="Search reels and photos"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
       </section>
       <!-- [RP-V7.247] SCREEN: PLAZA FEED removed (Branden, Nov 5, 2026). Surface removal only — the posts are NOT deleted: they still live on their authors' profiles and the server feed store is untouched. -->
       <!-- SCREEN: LIVE AUCTIONS -->
@@ -9869,6 +9926,13 @@
           '<div class="pprof-player"><div class="rpmedia-player"><video src="' + escHtml(url) + '" controls autoplay playsinline></video>' + viewsHtml + railHtml241 + '</div>' +
           '<div><button type="button" class="btn-mini" data-act="backprof">← Back to ' + escHtml(p.name) + '\u2019s profile</button></div></div></div>'
         );
+        /* [RP-V7.254] Same full-screen flag as the lightbox: a
+           profile-grid video opens full screen too (one viewer,
+           one behavior). Dropped by the rpmedia module's guarded
+           observers when the overlay closes or the sheet's
+           content changes. */
+        var ov254 = document.getElementById("overlay");
+        if (ov254 && !ov254.classList.contains("rpvid-full254")) ov254.classList.add("rpvid-full254");
         if (fi241) { // [RP-V7.241] wire the rail to the feed handlers
           var wrap241 = $("sheet").querySelector(".rpmedia-wrap");
           if (wrap241) {
@@ -24202,7 +24266,7 @@
               var have = {}; j.reels.forEach(function (r) { have[r.id] = true; });
               reelLoadMeta().forEach(function (m) { if (m.serverId && have[m.serverId]) reelDbDel(m.id); });
               if (Reels.mode === "reels") renderReels();
-              if (Reels.mode === "reels") setTimeout(reelKick243, 60); // [RP-V7.243] entry: start the first reel even when nothing re-rendered
+              if (Reels.mode === "reels") setTimeout(function () { reelKick243(true); }, 60); // [RP-V7.243] entry: start the visible reel even when nothing re-rendered ([RP-V7.255] force: entry-class kick, generalized to the visible card)
               renderHomePager(); // [RP-V7.113] the Home feed rides the same fetch
           pagerPhotosFetch123(); // [RP-V7.123] photo posts join both pagers
               // Retry uploads for anything still only on this device.
@@ -24392,6 +24456,27 @@
         return '<div class="mom-empty">\uD83D\uDC65 No reels from people you follow yet.<br>When someone you follow posts a reel, it lands right here.</div>' +
           '<div class="mom-empty" style="padding-top:0;"><button type="button" class="btn-mini plaza-glow" id="btnFriendsFind128">Find friends</button></div>';
       }
+      /* [RP-V7.255] The scroll-spy, bound by ONE helper. A full build
+         calls it before the cards are appended (reelCard observes each
+         card as it is built); renderReels' fetch-return early return
+         calls it again over the PAINTED cards, so a fresh observer's
+         guaranteed initial entries re-assert the visible card's
+         playback on every fetch resolution — the self-healing V7.251
+         got from its full rebuilds, restored without rebuilding any
+         DOM. */
+      function reelSpyBind255(feed) {
+        if (!feed || !("IntersectionObserver" in window)) return;
+        if (Reels.observer) { try { Reels.observer.disconnect(); } catch (e) { } Reels.observer = null; }
+        Reels.observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            var card = en.target;
+            if (en.intersectionRatio >= 0.6) { if (card._rpPlay) card._rpPlay(); }
+            else if (card._rpPause) card._rpPause();
+          });
+        }, { root: feed, threshold: [0, 0.6, 1] });
+        var spc255 = feed.querySelectorAll(".reel-card");
+        for (var spi255 = 0; spi255 < spc255.length; spi255++) { try { Reels.observer.observe(spc255[spi255]); } catch (e) { } }
+      }
       function renderReels() {
         var feed = $("reelFeed"); if (!feed) return;
         var items = reelFeedItems().filter(function (it) { return !it.photoPost; }); // [RP-V7.253] STRICT separation (Branden, Nov 5): the Reels pager shows REELS ONLY in every view — For You, Friends (already reels-only) and the tag-filtered view below all read this one list. The V7.123 pagerMerge123 interleave is retired on this screen; pagerMerge123 itself is untouched because the Home For You pager still calls it and keeps its mixed stream. reelFeedItems() builds only from reel records (server /api/reels + local reel meta), so the photoPost filter is a hard guarantee at the DOM boundary, not the mechanism.
@@ -24423,6 +24508,16 @@
              nodes instead of rebuilding, then refresh the counts. */
           if (Reels._sig252 !== sig252) { rpReorderReelCards252(items); Reels._sig252 = sig252; }
           rpRefreshReelCounts252(items);
+          /* [RP-V7.255] AUTOPLAY RE-FOUNDING: a no-rebuild return must
+             still re-found playback. The reorder above moved card
+             NODES (a playing <video>'s subtree leaves the document
+             mid-move), and on engines whose observer under-delivers
+             after moves nothing would ever play again. Rebind the spy
+             over the painted cards (fresh initial entries) and
+             force-kick the card the member is looking at. No DOM is
+             rebuilt — V7.252's instant paint is untouched. */
+          reelSpyBind255(feed);
+          setTimeout(function () { reelKick243(true); }, 60);
           return;
         }
         Reels._sig252 = sig252; Reels._sigSet252 = sigSet252;
@@ -24460,15 +24555,7 @@
           feed.appendChild(bd.firstChild);
           reelClearTagWire();
         }
-        if ("IntersectionObserver" in window) {
-          Reels.observer = new IntersectionObserver(function (entries) {
-            entries.forEach(function (en) {
-              var card = en.target;
-              if (en.intersectionRatio >= 0.6) { if (card._rpPlay) card._rpPlay(); }
-              else if (card._rpPause) card._rpPause();
-            });
-          }, { root: feed, threshold: [0, 0.6, 1] });
-        }
+        reelSpyBind255(feed); // [RP-V7.255] spy bound by the shared helper (fresh builds here; fetch returns rebind over the painted cards)
         /* [RP-V7.246] First-gesture sound unlock (TikTok pattern):
            the first pointerdown anywhere on the feed unmutes the card
            that is currently playing — synchronously inside the pointer
@@ -24478,6 +24565,21 @@
            its own in-gesture toggle, and pre-flipping its state here
            would invert the member's tap; a pointerdown on it leaves
            this listener armed for the next real interaction. */
+        /* [RP-V7.255] Scroll-settle backstop: when the pager comes to
+           rest, re-assert the visible card's playback through the kick.
+           The spy stays the primary mechanism; this keeps the autoplay
+           contract even on an engine whose observer under-delivers
+           after in-place DOM moves. The kick's winner-key guard means
+           a member's tap-pause on the card they are watching is never
+           overridden. */
+        if (!feed.__rpScrollKick255) {
+          feed.__rpScrollKick255 = true;
+          var rpScrollKickT255 = null;
+          feed.addEventListener("scroll", function () {
+            if (rpScrollKickT255) clearTimeout(rpScrollKickT255);
+            rpScrollKickT255 = setTimeout(function () { rpScrollKickT255 = null; try { reelKick243(); } catch (e) { } }, 140);
+          }, { passive: true });
+        }
         if (!feed.__rpUnlock246) {
           feed.__rpUnlock246 = true;
           var rpFeedUnlock246 = function (e) {
@@ -25115,14 +25217,56 @@
          as cards pass, but a fresh render can leave the first card
          waiting on an intersection callback; this kick starts it
          through the card's own player once the feed has rendered. */
-      function reelKick243() {
+      /* [RP-V7.255] The kick is now the general autoplay
+         contract-keeper (it used to start only the FIRST card).
+         Diagnosis for the record: the spy, reelCard and cardPlay are
+         byte-identical to V7.251, where autoplay worked — what
+         V7.252/253 removed was every RE-founding of playback after
+         the first build. V7.251 rebuilt the pager, and with it the
+         scroll-spy, on the entry render, on the feed fetch's return
+         and again on the photo fetch's return, so a fresh observer's
+         guaranteed initial entries started the visible card even
+         when an earlier observer — the only one left now, born
+         inside V7.252's deferred render in the same frame-batch as
+         the display flip and the screenIn transform — never
+         delivered on the phone's engine; and the order-only path
+         appendChild-moves every card node (a playing video's
+         subtree leaves the document mid-move) with nothing
+         re-asserting play afterward. The kick now finds the card the
+         member is actually looking at (largest overlap with the
+         feed's rect), plays it and pauses the rest. Entry-class
+         callers pass force=true (the moments a mode is entered or a
+         fetch resolves — exactly when V7.251's rebuild restarted
+         playback); the scroll-settle caller passes nothing, and the
+         winner-key guard then keeps the kick from ever overriding a
+         member's tap-pause on the card they are watching. */
+      function reelKick243(force255) {
         try {
           var rf243 = $("reelFeed");
-          var first = rf243 && rf243.querySelector(".reel-card");
-          if (!first) return;
-          var vid = first.querySelector("video");
-          if (!vid || typeof first._rpPlay !== "function") return;
-          if (first.getBoundingClientRect().bottom > 0) first._rpPlay();
+          if (!rf243 || rf243.style.display === "none") return;
+          var fr243 = rf243.getBoundingClientRect();
+          if (!fr243 || fr243.height < 10) fr243 = { top: 0, bottom: (window.innerHeight || 800), height: (window.innerHeight || 800) }; /* feed rect not measurable yet (pre-layout frame): the pager is full-screen, so the window is the viewport */
+          var cards243 = rf243.querySelectorAll(".reel-card");
+          var best243 = null, bestOv243 = 0, bestH243 = 0;
+          for (var ki243 = 0; ki243 < cards243.length; ki243++) {
+            var cr243 = cards243[ki243].getBoundingClientRect();
+            if (!cr243 || !cr243.height) continue;
+            var ov243 = Math.min(cr243.bottom, fr243.bottom) - Math.max(cr243.top, fr243.top);
+            if (ov243 > bestOv243) { bestOv243 = ov243; best243 = cards243[ki243]; bestH243 = cr243.height; }
+          }
+          if (!best243 || bestOv243 <= 0) return;
+          if (bestH243 && bestOv243 < bestH243 * 0.5) return; /* settled between two cards — the spy owns those */
+          if (typeof best243._rpPlay !== "function") return;
+          var wkey243 = best243.getAttribute("data-rid") || best243.getAttribute("data-photocard") || "";
+          if (!force255 && Reels._kickKey255 && Reels._kickKey255 === wkey243) return;
+          Reels._kickKey255 = wkey243;
+          for (var pi243 = 0; pi243 < cards243.length; pi243++) {
+            var oc243 = cards243[pi243];
+            if (oc243 === best243 || typeof oc243._rpPause !== "function") continue;
+            var ovid243 = oc243.querySelector("video");
+            if (ovid243 && !ovid243.paused && !ovid243.ended) oc243._rpPause();
+          }
+          best243._rpPlay();
         } catch (e) { }
       }
       /* [RP-V7.252] The mode switch in setMomMode (display + tab +
@@ -25144,6 +25288,7 @@
           momRenderPend252 = "";
           if (Reels.mode !== mode) return;
           try { if (mode === "reels") renderReels(); else if (Moments.posts.length || Moments.srvLoaded) renderMoments(); } catch (e) { }
+          if (mode === "reels") setTimeout(function () { reelKick243(true); }, 60); /* [RP-V7.255] entry autoplay is asserted against the LANDED deferred render, not only against the mode switch's own +350 timer */
         };
         if (window.requestAnimationFrame) requestAnimationFrame(function () { setTimeout(run, 0); });
         else setTimeout(run, 0);
@@ -25153,6 +25298,15 @@
         if (Reels.friends && !Reels._friendsEnter) { Reels.friends = false; window.__rpFriendsMode = false; Reels.server = []; } // [RP-V7.112] the Photos/Reels toggle exits Friends
         Reels.mode = mode === "reels" ? "reels" : "photos";
         var reels = Reels.mode === "reels";
+        /* [RP-V7.254] Reels mode is the full-screen pager alone:
+           flag the screen (CSS erases the whole header stack and
+           stretches the pager over the screen; Photos mode drops
+           the flag and keeps its layout). Guarded writes only. */
+        var smScr254 = $("screen-moments");
+        if (smScr254) {
+          if (reels && !smScr254.classList.contains("rpfs254")) smScr254.classList.add("rpfs254");
+          else if (!reels && smScr254.classList.contains("rpfs254")) smScr254.classList.remove("rpfs254");
+        }
         var mf = $("momFeed"), rf = $("reelFeed");
         if (mf) mf.style.display = reels ? "none" : "";
         if (rf) rf.style.display = reels ? "" : "none";
@@ -25167,7 +25321,7 @@
         if (tr) tr.classList.toggle("on", reels);
         var h2 = document.querySelector(".mom-head h2");
         if (h2) h2.textContent = (Reels.friends && reels) ? "👥 Friends" : (reels ? "🎬 Reels" : "📸 Photos"); // [RP-V7.112]
-        if (reels) { momDeferRender252("reels"); reelFetchFeed(); setTimeout(reelKick243, 350); /* [RP-V7.252] warm the Photos data in the background while the member browses Reels, so the first Photos tap paints from memory instead of waiting on this fetch (momLoadServer's only other caller is the one-time migration, so without this the Photos list was never loaded before the tap). The callback paints only if the member has already switched to Photos. */
+        if (reels) { Reels._kickKey255 = ""; momDeferRender252("reels"); reelFetchFeed(); setTimeout(function () { reelKick243(true); }, 350); /* [RP-V7.252] warm the Photos data in the background while the member browses Reels, so the first Photos tap paints from memory instead of waiting on this fetch (momLoadServer's only other caller is the one-time migration, so without this the Photos list was never loaded before the tap). The callback paints only if the member has already switched to Photos. */
           if (!Moments.srvLoaded && !Moments._momWarm252) { Moments._momWarm252 = true; try { momLoadServer(function () { Moments._momWarm252 = false; if (Reels.mode === "photos") renderMoments(); }); } catch (e) { Moments._momWarm252 = false; } } }
         /* [RP-V7.243] Photos lands on the photos, already rendered —
            the same direct-open rule as Reels (Branden, Nov 5).
@@ -35276,6 +35430,26 @@ button.rp72-chip{ cursor:pointer; }
 .rpmedia-wrap { position: relative; }
 .rpmedia-x { position: absolute; top: -2px; right: 0; z-index: 10; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(28,28,38,.94); color: #fff; font-size: 16px; font-weight: 800; cursor: pointer; pointer-events: auto; box-shadow: 0 2px 10px rgba(0,0,0,.45); }
 .rpmedia-player { clear: both; }
+/* [RP-V7.254] A tapped VIDEO opens FULL SCREEN (Branden, Nov 5:
+   "When I click on the videos they don't show full screen"). The
+   sheet players below rendered their <video> inside the bottom
+   sheet capped at max-height:62vh — a letterboxed band in a half
+   sheet, iOS's own expand glyph the only way up. Video opens now
+   flag #overlay .rpvid-full254 (the .rpdm-full pattern): the sheet
+   becomes the whole viewport, the player fills it, and the video
+   is full-bleed contain (whole frame always visible, never
+   cropped). The flag drops when the overlay closes and whenever
+   the sheet stops holding the player (the comments / gift sheets
+   replace the sheet content in place), so photos and every other
+   sheet keep the standard sheet look exactly. */
+.overlay.rpvid-full254 { align-items: stretch !important; padding: 0 !important; background: #000 !important; }
+.overlay.rpvid-full254 .sheet { width: 100%; max-width: none; height: 100%; height: 100dvh; max-height: none; background: #000 !important; border: none !important; border-radius: 0 !important; padding: 0 !important; overflow: hidden; display: flex; flex-direction: column; animation: none !important; }
+.overlay.rpvid-full254 .sheet::before { display: none !important; }
+.overlay.rpvid-full254 .rpmedia-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.overlay.rpvid-full254 .pprof-player { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.overlay.rpvid-full254 .rpmedia-player { flex: 1 1 auto; min-height: 0; }
+.overlay.rpvid-full254 .rpmedia-player video { width: 100%; height: 100%; max-height: none; border-radius: 0; object-fit: contain; }
+.overlay.rpvid-full254 .rpmedia-x { top: calc(10px + env(safe-area-inset-top)); right: 12px; }
 /* [RP-V7.241] Lightbox action rail: the feed cards' right-edge
    placement — lifted inside players so it clears the native
    video controls bar. */
@@ -35550,6 +35724,24 @@ button.rp72-chip{ cursor:pointer; }
       '<span class="rpmedia-player-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span>" + rail241.html + "</div></div>"
     );
     wireSheetClose();
+    /* [RP-V7.254] A video opens FULL SCREEN: flag the overlay so
+       the sheet becomes the whole viewport and the player fills
+       it (CSS above). Set synchronously inside the tile's tap, so
+       the autoplay below still rides the opening gesture
+       (RP-V7.246: sound unlocks inside the tap; nothing about the
+       video element or its sound path changes). The flag is
+       dropped by the guarded observers at the end of this module
+       when the overlay closes or the sheet's content changes. */
+    var ov254 = document.getElementById("overlay");
+    if (ov254 && !ov254.classList.contains("rpvid-full254")) ov254.classList.add("rpvid-full254");
+    /* [RP-V7.254] Start the video explicitly, here inside the
+       opening tap — the pager's RP-V7.246 rule (an unmute / play
+       that arrives after the gesture is ignored by iOS). The
+       autoplay attribute stays as the fallback; a member's own
+       mute, set through the native controls, is never overridden
+       (nothing here touches muted/volume). */
+    var vid254 = document.querySelector("#sheet .rpmedia-player video");
+    if (vid254) { try { var pr254 = vid254.play(); if (pr254 && pr254.catch) pr254.catch(function () { }); } catch (e) { } }
     rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
     var span = document.querySelector("[data-rpvcount]");
     rpViewsPing("reel", it.id, null, function (n) {
@@ -35558,6 +35750,32 @@ button.rp72-chip{ cursor:pointer; }
     });
   }
   window.rpViewsOpenReel = openReel;
+  /* [RP-V7.254] The full-screen video flag must never outlive the
+     player: (a) any overlay close drops it (the RP-V7.222 pattern);
+     (b) the comments / gift sheets REPLACE the sheet's content
+     while the overlay stays open — when the sheet no longer holds
+     a .rpmedia-player, the flag drops too, so those sheets open
+     with the standard look. Both removes are contains()-guarded
+     (the RP-V7.226 rule: an unguarded remove of an absent class
+     still writes the attribute in Blink and self-feeds the
+     observer). When the flag is absent both observers early-out
+     on a single contains() check. */
+  (function () {
+    var ov = document.getElementById("overlay");
+    if (!ov || !window.MutationObserver) return;
+    try {
+      new MutationObserver(function () {
+        if (!ov.classList.contains("open") && ov.classList.contains("rpvid-full254")) ov.classList.remove("rpvid-full254");
+      }).observe(ov, { attributes: true, attributeFilter: ["class"] });
+    } catch (e) { }
+    var sh = document.getElementById("sheet");
+    if (!sh) return;
+    try {
+      new MutationObserver(function () {
+        if (ov.classList.contains("rpvid-full254") && !sh.querySelector(".rpmedia-player")) ov.classList.remove("rpvid-full254");
+      }).observe(sh, { childList: true, subtree: true });
+    } catch (e) { }
+  })();
   /* [RP-V7.243] FIRST-FRAME PAINT for reel tiles (Branden's phone,
      Nov 5: "The reels are dark no video showing"). tileHTML renders
      reel tiles as a bare <video preload="metadata"> with no poster:
@@ -35983,6 +36201,9 @@ button.rp72-chip{ cursor:pointer; }
     if (engaged || !wrap) return;
     engaged = true;
     if (feed) feed.style.display = "none";
+    var mf255 = $("momFeed"); if (mf255) mf255.style.display = "none"; /* [RP-V7.255] Photos mode: the search surface replaces the photos feed too, not just the pager */
+    var scr255 = $("screen-moments"); if (scr255 && !scr255.classList.contains("rpsearch-on255")) scr255.classList.add("rpsearch-on255"); /* [RP-V7.255] lets the surface escape the V7.254 erasure while search is open in Reels mode (guarded write) */
+    if (bar) bar.style.display = ""; /* [RP-V7.255] the bar exists only inside the search surface now */
     wrap.style.display = "";
     load();
   }
@@ -35992,17 +36213,25 @@ button.rp72-chip{ cursor:pointer; }
     seq++;
     if (timer) { clearTimeout(timer); timer = null; }
     if (wrap) wrap.style.display = "none";
+    if (bar) bar.style.display = "none"; /* [RP-V7.255] the bar leaves with the search surface */
+    var scr255 = $("screen-moments"); if (scr255 && scr255.classList.contains("rpsearch-on255")) scr255.classList.remove("rpsearch-on255");
     if (restoreFeed) {
-      if (feed) feed.style.display = "";
-      if (typeof window.renderReels === "function") { try { window.renderReels(); } catch (e) { } }
+      /* [RP-V7.255] hand back the ACTIVE mode's feed — Photos mode
+         gets its photos page back, Reels mode gets its pager. */
+      if (modeNow253() === "photo") { var mf255 = $("momFeed"); if (mf255) mf255.style.display = ""; }
+      else {
+        if (feed) feed.style.display = "";
+        if (typeof window.renderReels === "function") { try { window.renderReels(); } catch (e) { } }
+      }
     }
   }
   function syncBar() {
     if (!bar) return;
-    var show = reelsMode();
-    bar.style.display = show ? "" : "none";
+    /* [RP-V7.255] the bar is no longer a fixture of this screen in
+       ANY mode — it shows only while a search is open, in whichever
+       mode the search was opened from. */
+    bar.style.display = engaged ? "" : "none";
     if (input) input.placeholder = modeNow253() === "reel" ? "Search reels\u2026" : "Search photos\u2026"; // [RP-V7.253] the placeholder names what the active mode actually searches
-    if (!show && engaged) disengage(false);
   }
   function onInput() {
     if (clearBtn) clearBtn.style.display = input.value ? "" : "none";
@@ -36040,8 +36269,16 @@ button.rp72-chip{ cursor:pointer; }
     input.addEventListener("input", onInput);
     if (clearBtn) clearBtn.addEventListener("click", onClear);
     var tp = $("btnMomModePhotos"), tr = $("btnMomModeReels");
-    if (tp) tp.addEventListener("click", syncBar);
-    if (tr) tr.addEventListener("click", syncBar);
+    /* [RP-V7.255] switching modes folds any open search away first
+       (setMomMode owns the feeds; disengage(false) only closes the
+       search surface), then the bar state re-syncs. */
+    if (tp) tp.addEventListener("click", function () { if (engaged) disengage(false); syncBar(); });
+    if (tr) tr.addEventListener("click", function () { if (engaged) disengage(false); syncBar(); });
+    /* [RP-V7.255] THE search entry on this screen: the small
+       magnifier at the top. It opens the existing search surface
+       and puts the cursor in the box. */
+    var mb255 = $("momSearchBtn255");
+    if (mb255) mb255.addEventListener("click", function () { engage(); try { if (input) input.focus(); } catch (e) { } });
     hookShowScreen();
     setTimeout(hookShowScreen, 1500);
     syncBar();
