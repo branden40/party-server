@@ -23228,15 +23228,18 @@
       }
       function renderMoments() {
         var feed = $("momFeed"); if (!feed) return;
-        /* [RP-V7.251] Painted-state signature (same pattern as the Home
-           pager's HomeFeed.sig): when the freshly loaded list is exactly
-           what is already on screen, skip the rebuild — a Photos/Reels
-           toggle otherwise tears down and repaints (and re-decodes)
-           every photo even when nothing changed. Any real change
-           (new post, like, comment, gift, flip set) changes the sig. */
-        var sig251 = Moments.posts.map(function (p) { return [p.id, p.srvLikes || 0, p.liked ? 1 : 0, p.srvReposts || 0, p.reposted ? 1 : 0, p.gifts || 0, (typeof p.commentCount === "number" ? p.commentCount : (p.comments || []).length), (p.urls || []).length, p.photo || ""].join(":"); }).join("|");
-        if (feed.children.length && Moments._sig251 === sig251) return;
-        Moments._sig251 = sig251;
+        /* [RP-V7.252] Structure-only signature: V7.251's painted-state
+           signature included like/repost/gift/comment COUNTS, and on a
+           live app some count moves on nearly every fetch, so the guard
+           almost never skipped and the Photos feed still rebuilt in
+           full on the fetch's return — the toggle lag Branden still
+           felt after V7.251. The rebuild decision now keys on
+           STRUCTURE only (post ids in order + their media); when only
+           counters moved, momRefreshCounts252 updates the painted
+           cards in place and nothing is torn down or re-decoded. */
+        var sig252 = Moments.posts.map(function (p) { return [p.id, (p.urls || []).length, p.photo || "", p.srv ? 1 : 0, p.mine ? 1 : 0].join(":"); }).join("|");
+        if (feed.children.length && Moments._sig252 === sig252) { momRefreshCounts252(); return; }
+        Moments._sig252 = sig252;
         if (!Moments.posts.length) {
           feed.innerHTML = '<div class="mom-empty">No Reels yet — be the first to post a photo! 📸</div>';
           return;
@@ -23321,6 +23324,23 @@
             });
           }
           feed.appendChild(card);
+        });
+      }
+      /* [RP-V7.252] Count-only refresh for the Photos feed: a fetch
+         that returns the same posts with different counters updates
+         the painted cards' like/comment/repost numbers, the
+         liked/reposted classes and the gifted chip in place — no
+         teardown, no re-decode, scroll and flip state survive. */
+      function momRefreshCounts252() {
+        var feed = $("momFeed"); if (!feed) return;
+        Moments.posts.forEach(function (p) {
+          var card = feed.querySelector('[data-mid="' + p.id + '"]'); if (!card) return;
+          try {
+            var lb = card.querySelector(".like"); if (lb) { lb.classList.toggle("liked", !!p.liked); var lc = lb.querySelector(".lc"); if (lc) lc.textContent = momLikeCount(p); }
+            var cc = card.querySelector(".cmt .cc"); if (cc) cc.textContent = momCommentTotal(p);
+            var rb = card.querySelector(".repost"); if (rb) { rb.classList.toggle("reposted", !!p.reposted); var rc = rb.querySelector(".rc"); if (rc) rc.textContent = p.srvReposts || 0; }
+            var chip = card.querySelector(".mom-gifted"); if (chip) { if (p.gifts > 0) { chip.hidden = false; chip.textContent = "🎁 " + p.gifts.toLocaleString("en-US") + " charms gifted"; } else chip.hidden = true; }
+          } catch (e) { }
         });
       }
       /* [RP-V7.85] Like display count: the demo base (seeded posts)
@@ -23730,7 +23750,7 @@
         var destroyed = false, timer = null, last = 0, elapsed = 0;
         host.classList.add("rp-show");
         var img = document.createElement("img");
-        img.className = "rp-show-img"; img.alt = ""; img.src = urls[0];
+        img.className = "rp-show-img"; img.alt = ""; img.loading = "lazy"; img.decoding = "async"; img.src = urls[0]; // [RP-V7.252] the set-card path V7.251 missed — its cover img fetched+decoded eagerly at build; lazy/async like every other pager img
         host.appendChild(img);
         var segFills = [], countEl = null;
         if (st.active()) {
@@ -23839,7 +23859,7 @@
                 .then(function (pj) { if (pj && pj.id) pagerPhotoAuthors123[nm] = pj.id; })
                 .catch(function () {});
             });
-            var rs = $("screen-reels"); if (rs && rs.classList.contains("active")) renderReels();
+            var rs = $("screen-moments"); if (rs && rs.classList.contains("active")) renderReels(); // [RP-V7.252] was $("screen-reels") — no such element exists (the screen is screen-moments), so this render NEVER fired and freshly merged photo items sat unpainted in PagerPhotos123.items until some later renderReels, which then owed a full rebuild for them (often inside the toggle's tap handler). The Home half of this check ("screen-home") is equally dead but out of this build's scope — Home still gets its renders from reelFetchFeed's direct renderHomePager call.
             var hs = $("screen-home"); if (hs && hs.classList.contains("active")) renderHomePager();
           })
           .catch(function () {});
@@ -24373,20 +24393,31 @@
           items = items.filter(function (it) { return reelTagsOf(it.caption).indexOf(tf) >= 0; });
           barHtml = '<div class="reel-filterbar"><span>🎬 Reels tagged #' + escHtml(tf) + '</span><button type="button" id="btnReelClearTag"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg> Show all</button></div>';
         }
-        /* [RP-V7.251] Painted-state signature, the renderHomePager
-           HomeFeed.sig pattern: a Photos/Reels toggle used to render
-           this feed twice per tap (once synchronously, once when the
-           feed fetch landed) even when nothing had changed — each
-           pass tore down and rebuilt every card and restarted every
-           video's paint-gate registration. When the merged items'
-           painted state is identical to what is already on screen,
-           keep the existing DOM (playback and paint state survive)
-           and skip. Any real change — new post, like/comment/repost
-           counts, views, tag filter, Friends mode, fetch state —
-           changes the signature and rebuilds exactly as before. */
-        var sig251 = (Reels.friends ? "F" : "A") + (Reels._friendsLoaded ? "1" : "0") + (Reels.serverOk ? "1" : "0") + "|" + items.map(function (it) { return [it.key, it.views || 0, it.heartLikes || 0, it.commentCount || 0, it.reposts || 0, it.myHeart ? 1 : 0, it.myReposted ? 1 : 0, it.likes || 0, it.liked ? 1 : 0].join(":"); }).join("|");
-        if (feed.children.length && Reels._sig251 === sig251) return;
-        Reels._sig251 = sig251;
+        /* [RP-V7.252] Structure-only signature: V7.251's painted-state
+           signature included views/like/comment/repost COUNTS, and on
+           a live app some count moves on nearly every fetch (a view is
+           banked on every watch), so the guard almost never skipped and
+           the fetch-return render rebuilt the whole pager anyway — the
+           toggle still froze on Branden's phone after V7.251. The
+           rebuild decision now keys on STRUCTURE only (Friends/fetch
+           flags, tag filter, the set/order of item keys + their media
+           + trim/music flags); when only counters moved,
+           rpRefreshReelCounts252 refreshes the painted cards in place
+           and playback/paint state survives untouched. */
+        var structKey252 = function (it) { return [it.key, it.url || "", it.sourceUrl || "", it.kind || "", it.photoPost ? 1 : 0, (it.urls ? it.urls.length : 0), it.pending ? 1 : 0, it.trimStart || "", it.trimEnd || "", it.musicTrackId || (it.music ? (it.music.trackId || "m") : "")].join(":"); };
+        var sigPre252 = (Reels.friends ? "F" : "A") + (Reels._friendsLoaded ? "1" : "0") + (Reels.serverOk ? "1" : "0") + "|" + (Reels.tagFilter || "") + "|";
+        var sig252 = sigPre252 + items.map(structKey252).join("|");
+        var sigSet252 = sigPre252 + items.map(structKey252).sort().join("|");
+        if (feed.children.length && Reels._sigSet252 === sigSet252) {
+          /* Same set on screen: an order-only difference is a For You
+             reshuffle (the ranker moves on the member's own view
+             signals between fetches) — reorder the existing card
+             nodes instead of rebuilding, then refresh the counts. */
+          if (Reels._sig252 !== sig252) { rpReorderReelCards252(items); Reels._sig252 = sig252; }
+          rpRefreshReelCounts252(items);
+          return;
+        }
+        Reels._sig252 = sig252; Reels._sigSet252 = sigSet252;
         reelPauseAll();
         // [RP-V7.40] a re-render retires the on-screen card without an
         // observer pause — bank its view first so the watch still counts.
@@ -24461,6 +24492,59 @@
           feed.addEventListener("pointerdown", rpFeedUnlock246);
         }
         items.forEach(function (item) { feed.appendChild(item.photoPost ? rpPhotoCard123(item) : reelCard(item)); }); // [RP-V7.123]
+      }
+      /* [RP-V7.252] Count-only refresh for the pager: a fetch that
+         returns the same structure with different counters updates
+         the painted cards' count text, liked/reposted classes and
+         follow buttons in place — no teardown, no new media
+         elements, playback and paint-gate state untouched. Card
+         closures keep their build-time item snapshot for tap
+         handling; those handlers adopt the server's answer on the
+         first tap (the reelSetLike / reelPostRepost pattern), the
+         same optimistic-paint contract the feed already ran on. */
+      function rpRefreshReelCounts252(items) {
+        var feed = $("reelFeed"); if (!feed) return;
+        var byKey = {};
+        var cards = feed.querySelectorAll(".reel-card");
+        for (var ci = 0; ci < cards.length; ci++) {
+          var kk = cards[ci].getAttribute("data-rid") || (cards[ci].getAttribute("data-photocard") ? "ph:" + cards[ci].getAttribute("data-photocard") : "");
+          if (kk) byKey[kk] = cards[ci];
+        }
+        items.forEach(function (it) {
+          var card = byKey[it.key]; if (!card) return;
+          try {
+            if (it.photoPost) {
+              var pk = card.querySelector(".pp-heart"); if (pk) { pk.classList.toggle("liked", !!it.myLiked); var pn = pk.querySelector(".lc"); if (pn) pn.textContent = it.likes || 0; }
+              var pc = card.querySelector(".pp-cmt .cc"); if (pc) pc.textContent = it.commentCount || 0;
+              var pp = card.querySelector(".pp-repost"); if (pp) { pp.classList.toggle("reposted", !!it.myReposted); var pr = pp.querySelector(".rc"); if (pr) pr.textContent = it.reposts || 0; }
+            } else {
+              var st = reelLikeState(it);
+              var lb = card.querySelector(".like"); if (lb) { lb.classList.toggle("liked", !!st.liked); var ln = lb.querySelector(".lc"); if (ln) ln.textContent = st.count; }
+              var cc = card.querySelector(".cmt .cc"); if (cc) cc.textContent = it.server ? (it.commentCount || 0) : (reelLoadComments()[it.id] || []).length;
+              var rb = card.querySelector(".repost"); if (rb) { rb.classList.toggle("reposted", !!it.myReposted); var rr = rb.querySelector(".rc"); if (rr) rr.textContent = it.reposts || 0; }
+              var vw = card.querySelector("[data-rpviews]"); if (vw) vw.textContent = "👁 " + (window.fmtViews ? window.fmtViews(it.views || 0) : (it.views || 0));
+              var fb = card.querySelector(".reel-follow"); if (fb && typeof isFollowingName === "function") { var on = isFollowingName(it.author); fb.classList.toggle("on", on); fb.textContent = on ? "✓" : "＋"; }
+            }
+          } catch (e) { }
+        });
+      }
+      /* [RP-V7.252] Order-only refresh: the For You ranker re-orders
+         the SAME set between fetches — the member's own view signals
+         move it (verified on the rig server: one view signal changed
+         the returned order; no signal, byte-identical order) — so an
+         order difference alone must not tear the pager down. The
+         existing card nodes are moved into the new order: no new
+         media elements, no listener re-wiring, playback and
+         paint-gate state ride along on the same elements. */
+      function rpReorderReelCards252(items) {
+        var feed = $("reelFeed"); if (!feed) return;
+        var byKey = {};
+        var cards = feed.querySelectorAll(".reel-card");
+        for (var ci = 0; ci < cards.length; ci++) {
+          var kk = cards[ci].getAttribute("data-rid") || (cards[ci].getAttribute("data-photocard") ? "ph:" + cards[ci].getAttribute("data-photocard") : "");
+          if (kk) byKey[kk] = cards[ci];
+        }
+        items.forEach(function (it) { var card = byKey[it.key]; if (card && card.parentNode === feed) feed.appendChild(card); });
       }
       function reelTagsOf(caption) {
         var out = {}, m, re = /#([A-Za-z0-9_]+)/g, s = String(caption || "");
@@ -25033,6 +25117,29 @@
           if (first.getBoundingClientRect().bottom > 0) first._rpPlay();
         } catch (e) { }
       }
+      /* [RP-V7.252] The mode switch in setMomMode (display + tab +
+         title) is synchronous and instant; the CONTENT render is
+         deferred until just after the switch has painted. A render
+         can still owe a real rebuild — photo items that merged into
+         the pager while the member sat in Photos mode are the usual
+         case — and paying that build inside the tap handler is what
+         kept the toggle feeling frozen even with the count/reorder
+         fast paths in place. The deferred render coalesces rapid
+         toggles and runs only if the member is still in the mode it
+         was scheduled for. */
+      var momRenderPend252 = "";
+      function momDeferRender252(mode) {
+        if (momRenderPend252 === mode) return;
+        momRenderPend252 = mode;
+        var run = function () {
+          if (momRenderPend252 !== mode) return;
+          momRenderPend252 = "";
+          if (Reels.mode !== mode) return;
+          try { if (mode === "reels") renderReels(); else if (Moments.posts.length || Moments.srvLoaded) renderMoments(); } catch (e) { }
+        };
+        if (window.requestAnimationFrame) requestAnimationFrame(function () { setTimeout(run, 0); });
+        else setTimeout(run, 0);
+      }
       /* ---- Photos / Reels mode toggle ---- */
       function setMomMode(mode) {
         if (Reels.friends && !Reels._friendsEnter) { Reels.friends = false; window.__rpFriendsMode = false; Reels.server = []; } // [RP-V7.112] the Photos/Reels toggle exits Friends
@@ -25052,13 +25159,18 @@
         if (tr) tr.classList.toggle("on", reels);
         var h2 = document.querySelector(".mom-head h2");
         if (h2) h2.textContent = (Reels.friends && reels) ? "👥 Friends" : (reels ? "🎬 Reels" : "📸 Photos"); // [RP-V7.112]
-        if (reels) { renderReels(); reelFetchFeed(); setTimeout(reelKick243, 350); }
+        if (reels) { momDeferRender252("reels"); reelFetchFeed(); setTimeout(reelKick243, 350); /* [RP-V7.252] warm the Photos data in the background while the member browses Reels, so the first Photos tap paints from memory instead of waiting on this fetch (momLoadServer's only other caller is the one-time migration, so without this the Photos list was never loaded before the tap). The callback paints only if the member has already switched to Photos. */
+          if (!Moments.srvLoaded && !Moments._momWarm252) { Moments._momWarm252 = true; try { momLoadServer(function () { Moments._momWarm252 = false; if (Reels.mode === "photos") renderMoments(); }); } catch (e) { Moments._momWarm252 = false; } } }
         /* [RP-V7.243] Photos lands on the photos, already rendered —
-           the same direct-open rule as Reels (Branden, Nov 5). The
-           photo list is fetched and rendered HERE on entry; before
-           this it only loaded from unrelated boot/migration paths,
-           so the Photos landing could be an empty screen. */
-        else { reelPauseAll(); try { momLoadServer(function () { renderMoments(); }); } catch (e) { try { renderMoments(); } catch (e2) { } } }
+           the same direct-open rule as Reels (Branden, Nov 5).
+           [RP-V7.252] The tap now paints from the data already in
+           memory — the render is scheduled for just after the switch
+           paints (momDeferRender252) instead of living solely inside
+           the fetch callback, so the switch no longer waits on the
+           network (~0.5 s server-side, worse on cellular), and its
+           return refreshes counts in place or rebuilds on a real
+           structure change (see renderMoments). */
+        else { reelPauseAll(); momDeferRender252("photos"); if (!Moments._momWarm252) { try { momLoadServer(function () { renderMoments(); }); } catch (e) { try { renderMoments(); } catch (e2) { } } } }
       }
       /* [RP-V7.112] Friends tab (bottom bar): the Reels screen showing
          only people you follow. Entry rides the same buttons/gates as
