@@ -43772,6 +43772,27 @@ html, body { overflow-x: clip; }
 .lv-livepill { box-shadow: 0 0 10px rgba(254,44,85,.60), 0 0 22px rgba(254,44,85,.34), 0 0 38px rgba(254,44,85,.18), 0 2px 8px rgba(0,0,0,.35); }
 .reel-livebadge189 { box-shadow: 0 0 9px rgba(255,36,56,.60), 0 0 20px rgba(216,0,28,.32), 0 0 34px rgba(216,0,28,.16), 0 1px 6px rgba(0,0,0,.45); }
 </style>
+<style id="rp7266Css">
+/* ================= [RP-V7.266] THE LIVE DOTS BREATHE AGAIN — CHEAP PULSE =================
+   Branden (Nov 6, 2026): put the pulse back on the red dots only.
+   The pulse is compositor-only: the two keyframe rules below animate
+   transform (scale) and filter (brightness) — never box-shadow,
+   never a layout property — so the graphics chip runs the breathing
+   without repainting the bloom every frame. The V7.264 static bloom
+   rules above are NOT touched; every dot's computed box-shadow
+   stays byte-identical to production. Scope is the six inventoried
+   live dots that had no pulse; the other three already pulse
+   cheaply and are untouched (.live-badge-sm via pxPulse scale,
+   .live-badge and .lv-livepill via livePulse brightness), as are
+   the story rings and Plaza buttons whose shadow pulses V7.265
+   stopped. Badges centered with translateX keep their transform —
+   they get the brightness swell only. */
+@keyframes rpDotPulse266 { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.15); filter: brightness(1.35); } }
+@keyframes rpDotSwell266 { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.4); } }
+#hsLive::before, .live-now-head::before, .rpdm-livebadge249 { animation: rpDotPulse266 1.8s ease-in-out infinite; }
+.rp-lndot264, .pprof-livebadge, .reel-livebadge189 { animation: rpDotSwell266 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { #hsLive::before, .live-now-head::before, .rpdm-livebadge249, .rp-lndot264, .pprof-livebadge, .reel-livebadge189 { animation: none !important; } }
+</style>
 </body>
 </html>
 
