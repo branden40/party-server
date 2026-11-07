@@ -9510,10 +9510,10 @@
           (((postFull && j.id && j.id === rpMyId243()) || (it.owner && it.owner === rpMyId243())) ? '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>' : "");
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-          '<div class="task-head"><h3>📸 Photo post</h3></div>' +
-          '<div style="position:relative;"><img src="' + escHtml(src) + '" alt="" style="width:100%; border-radius:12px; display:block; background:#000;">' +
+          '<div class="task-head"><h3>' + ((post && post.kind === "text") ? "✍️ Text post" : "📸 Photo post") + '</h3></div>' + // [RP-V7.278]
+          '<div style="position:relative;">' + ((post && post.kind === "text" && window.RPText278) ? window.RPText278.cardHtml(post, 24) : '<img src="' + escHtml(src) + '" alt="" style="width:100%; border-radius:12px; display:block; background:#000;">') + // [RP-V7.278]
           '<div class="reel-rail">' + rail241 + "</div></div>" +
-          (cap ? '<p style="margin:10px 0 0;">' + escHtml(cap) + '</p>' : "") +
+          ((cap && !(post && post.kind === "text")) ? '<p style="margin:10px 0 0;">' + escHtml(cap) + '</p>' : "") + // [RP-V7.278] the card body IS the text — no caption line under it
           (comments.length ? '<div style="margin-top:10px; text-align:left;">' + ch + '</div>' : "")
         );
         $("sheet").querySelectorAll("[data-act]").forEach(function (b) {
@@ -9522,10 +9522,10 @@
         var sheet241 = $("sheet");
         var hb241 = sheet241.querySelector(".pp-heart"); if (hb241) hb241.addEventListener("click", function () { photoLikeToggle123(fi241, hb241); });
         var cb241 = sheet241.querySelector(".pp-cmt"); if (cb241) cb241.addEventListener("click", function () { openPhotoComments123(fi241); });
-        var gb241 = sheet241.querySelector(".pp-gift"); if (gb241) gb241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, { src: "picture", post: { kind: "photo", id: fi241.postId } }); }); // [RP-V7.262] the post rides as the gift's post
+        var gb241 = sheet241.querySelector(".pp-gift"); if (gb241) gb241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, (post && post.kind === "text") ? { post: { kind: "photo", id: fi241.postId } } : { src: "picture", post: { kind: "photo", id: fi241.postId } } ); }); // [RP-V7.262] the post rides as the gift's post — [RP-V7.278] a text post carries no src, so its gift notice keeps the honest generic wording
         var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption, fi241.postId); });
         var rb241 = sheet241.querySelector(".pp-repost"); if (rb241) rb241.addEventListener("click", function () { photoRepostToggle123(fi241, rb241); });
-        var db243 = sheet241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/photo/" + encodeURIComponent(it.id)).then(function (ok) { if (ok) rpAfterDel243("Photo deleted"); else { try { toast("Couldn't delete that photo."); } catch (e) { } } }); }); });
+        var db243 = sheet241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/photo/" + encodeURIComponent(it.id)).then(function (ok) { if (ok) rpAfterDel243((post && post.kind === "text") ? "Post deleted" : "Photo deleted"); else /* [RP-V7.278] text-aware delete toast */ { try { toast("Couldn't delete that photo."); } catch (e) { } } }); }); });
       }
       function rpProfOpen86(j, it, upd) {
         if (it.kind === "photopost") { rpOpenPhotoPost86(j, it); return; }
@@ -9596,7 +9596,7 @@
       function rpEditCollection86(p, j, coll) {
         var own = [];
         (j.reels || []).forEach(function (r) { own.push({ kind: "reel", id: r.id, src: r.url, caption: r.caption || "" }); });
-        (j.photoPosts || []).forEach(function (pp) { own.push({ kind: "photopost", id: pp.id, src: pp.photo, caption: pp.caption || "" }); });
+        (j.photoPosts || []).forEach(function (pp) { if (pp.kind !== "text") own.push({ kind: "photopost", id: pp.id, src: pp.photo, caption: pp.caption || "" }); }); // [RP-V7.278] text posts stay out of the collections picker — the server's collection tile builder needs a photo and cannot resolve them
         var inColl = {}; ((coll && coll.items) || []).forEach(function (it) { inColl[it.kind + ":" + it.id] = 1; });
         var rows = own.map(function (it, ix) {
           var thumb = it.kind === "reel" ? '<video src="' + escHtml(it.src) + '" muted playsinline preload="metadata"></video>' : '<img loading="lazy" decoding="async" src="' + escHtml(it.src) + '" alt="">'; // [RP-V7.257] findings 2+9
@@ -22939,7 +22939,7 @@
           .then(function (r) { return r.json().catch(function () { return null; }); })
           .then(function (j) {
             if (j && j.ok && Array.isArray(j.posts)) {
-              var srv = j.posts.map(momSrvPost);
+              var srv = j.posts.filter(function (sp) { return sp.kind !== "text"; }).map(momSrvPost); // [RP-V7.278] text posts live in the Home stream + profiles — never in Moments, so Photos/Reels stay media-only
               var mineLocal = Moments.posts.filter(function (p) { return p.mine && !p.srv && !p.migratedTo; });
               Moments.posts = mineLocal.concat(srv);
               Moments.srvLoaded = true;
@@ -32123,6 +32123,11 @@ function stageStreakBump(key, add) {
       } else if (go.screen === "feed") {
         /* [RP-V7.247] The Feed wall is retired — a tapped feed-era notification lands on the Plaza. */
         if (typeof show === "function") show("screen-plaza");
+      } else if (go.screen === "home") {
+        /* [RP-V7.278] text-post notifications (posted / liked /
+           commented / gifted) land on the Home stream, where text
+           posts live. */
+        if (typeof show === "function") show("screen-home243");
       } else if (go.screen === "moments") {
         // [RP-V7.270] a row that names its content opens that content,
         // not just the Moments screen.
@@ -35837,7 +35842,115 @@ button.rp72-chip{ cursor:pointer; }
 
 .reel-views { display: inline-block; margin-top: 6px; color: #fff; font-size: 13px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
 </style>
-<script>
+<style>
+    /* [RP-V7.278] TEXT POST cards — the saved text + style, rendered
+       identically in the Home stream, the lightbox and profiles. */
+    .rptext-card { border-radius: 14px; padding: 36px 22px; display: flex; align-items: center; justify-content: center; min-height: 190px; box-sizing: border-box; cursor: pointer; }
+    .rptext-in { width: 100%; }
+    .rptext-txt { line-height: 1.28; white-space: pre-wrap; word-break: break-word; }
+    .rptext-box { -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+    .rptext-card a { color: inherit; text-decoration: underline; }
+    .rptext-tile { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; overflow: hidden; box-sizing: border-box; }
+    .rptext-tile-txt { width: 100%; line-height: 1.25; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+    .rpmedia-photo-view .rptext-card { min-height: 320px; width: 100%; cursor: default; }
+  </style>
+  <script>
+  /* [RP-V7.278] TEXT POSTS — shared style tables + renderers
+     (Branden, Nov 7: "Add text post as well — like TikTok"; his
+     recording of TikTok's text editor: "Have this feature,
+     everything from this copied"). The camera's text editor and
+     every surface that renders a text post (Home stream, lightbox,
+     profile) use THIS one table set, and the server allowlists the
+     identical ids (textStyle278 in server.js) — so what the member
+     styled in the editor is exactly what renders everywhere.
+     Fonts are web-safe stacks + CSS effects under Plaza names —
+     no TikTok font files or names. */
+  (function () {
+    "use strict";
+    var FONTS = {
+      classic:    { name: "Classic",    ff: "Georgia, 'Times New Roman', serif", fw: 600 },
+      elegance:   { name: "Elegance",   ff: "'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif", fw: 500, fs: "italic", ls: ".01em" },
+      bold:       { name: "Bold",       ff: "'Arial Black', 'Arial Bold', Arial, sans-serif", fw: 900 },
+      script:     { name: "Script",     ff: "'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive", fw: 500 },
+      typewriter: { name: "Typewriter", ff: "'Courier New', Courier, monospace", fw: 700 },
+      neon:       { name: "Neon",       ff: "'Arial Rounded MT Bold', Arial, sans-serif", fw: 800, neon: true },
+      retro:      { name: "Retro",      ff: "'Trebuchet MS', Verdana, sans-serif", fw: 800, tt: "uppercase", ls: ".04em", sh: "2px 2px 0 rgba(0,0,0,.35)" },
+      comic:      { name: "Comic",      ff: "'Comic Sans MS', 'Comic Neue', 'Chalkboard SE', cursive", fw: 700 },
+      tall:       { name: "Tall",       ff: "'Arial Narrow', 'Helvetica Neue', Arial, sans-serif", fw: 700, tt: "uppercase", ls: ".06em" },
+      vintage:    { name: "Vintage",    ff: "Palatino, 'Palatino Linotype', Georgia, serif", fw: 600, tt: "uppercase", ls: ".14em", sh: "0 1px 0 rgba(0,0,0,.35)" },
+      marker:     { name: "Marker",     ff: "'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive", fw: 600 },
+      slab:       { name: "Slab",       ff: "Rockwell, 'Roboto Slab', Georgia, serif", fw: 700 }
+    };
+    var FONT_ORDER = ["classic", "elegance", "bold", "script", "typewriter", "neon", "retro", "comic", "tall", "vintage", "marker", "slab"];
+    var COLORS = ["#ffffff", "#111111", "#fe2c55", "#ff7a00", "#ffd60a", "#2ecc71", "#00c2a8", "#00b7ff", "#2f6bff", "#1b2a6b", "#8a3ffc", "#ff5ec4", "#00e5ff", "#a3e635", "#f5f0e6", "#ff9f43"];
+    var BGS = {
+      ink: "#101018", mono: "#232330", crimson: "#8f1023", grape: "#3d1d96",
+      ocean: "#0b3d91", forest: "#0d5c36", gold: "#9a7208", rose: "#a4133c",
+      sunset: "linear-gradient(135deg, #ff7a00, #fe2c55)",
+      lagoon: "linear-gradient(135deg, #00b7ff, #00c2a8)",
+      plum: "linear-gradient(135deg, #8a3ffc, #ff5ec4)",
+      sky: "linear-gradient(160deg, #2f6bff, #00e5ff)",
+      ember: "linear-gradient(135deg, #431d00, #ff5e00)",
+      mint: "linear-gradient(135deg, #0d5c36, #a3e635)"
+    };
+    var BG_ORDER = ["sunset", "lagoon", "plum", "sky", "ember", "mint", "ink", "crimson", "grape", "ocean", "forest", "gold", "rose", "mono"];
+    function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+    function norm(st) {
+      st = st && typeof st === "object" ? st : {};
+      var size = Number(st.size);
+      return {
+        font: FONTS[st.font] ? st.font : "classic",
+        color: COLORS.indexOf(String(st.color || "").toLowerCase()) >= 0 ? String(st.color).toLowerCase() : "#ffffff",
+        bg: BGS[st.bg] ? st.bg : "ink",
+        align: st.align === "left" || st.align === "right" ? st.align : "center",
+        box: st.box === "solid" || st.box === "soft" ? st.box : "none",
+        size: Math.min(1.8, Math.max(0.7, isFinite(size) ? size : 1))
+      };
+    }
+    function fontCss(fontId, color) {
+      var f = FONTS[fontId] || FONTS.classic;
+      var o = { fontFamily: f.ff, fontWeight: String(f.fw) };
+      if (f.fs) o.fontStyle = f.fs;
+      if (f.ls) o.letterSpacing = f.ls;
+      if (f.tt) o.textTransform = f.tt;
+      if (f.neon) o.textShadow = "0 0 6px " + color + ", 0 0 18px " + color + ", 0 0 38px " + color;
+      else if (f.sh) o.textShadow = f.sh;
+      return o;
+    }
+    function cssText(o) { var s = ""; for (var k in o) s += k.replace(/[A-Z]/g, function (c) { return "-" + c.toLowerCase(); }) + ":" + o[k] + ";"; return s; }
+    function boxCss(box) {
+      if (box === "solid") return "background:rgba(0,0,0,.62);padding:.16em .45em;border-radius:.32em;";
+      if (box === "soft") return "background:rgba(255,255,255,.22);padding:.16em .45em;border-radius:.32em;";
+      return "";
+    }
+    function bodyHtml(post, basePx, linkify) {
+      var st = norm(post.tstyle || post.style);
+      var f = fontCss(st.font, st.color);
+      f.fontSize = Math.round(basePx * st.size) + "px";
+      f.color = st.color;
+      var raw = String(post.text || post.caption || "");
+      var inner = linkify && window.rpLinkifyRaw259 ? window.rpLinkifyRaw259(raw, "photos") : esc(raw);
+      var txt = '<span class="rptext-txt" style="' + cssText(f) + '">' + inner + "</span>";
+      if (st.box !== "none") txt = '<span class="rptext-box" style="' + boxCss(st.box) + '">' + txt + "</span>";
+      return txt;
+    }
+    function cardHtml(post, basePx) {
+      var st = norm(post.tstyle || post.style);
+      return '<div class="rptext-card" style="background:' + BGS[st.bg] + ';"><div class="rptext-in" style="text-align:' + st.align + ';">' + bodyHtml(post, basePx || 26, true) + "</div></div>";
+    }
+    function tileHtml(it) {
+      var st = norm(it.tstyle || it.style);
+      var f = fontCss(st.font, st.color);
+      f.fontSize = Math.round(13 * st.size) + "px";
+      f.color = st.color;
+      var txt = '<span class="rptext-tile-txt" style="' + cssText(f) + '">' + esc(it.text || it.caption || "") + "</span>";
+      if (st.box !== "none") txt = '<span class="rptext-box" style="' + boxCss(st.box) + '">' + txt + "</span>";
+      return '<span class="rptext-tile" style="background:' + BGS[st.bg] + ";text-align:" + st.align + ';">' + txt + "</span>";
+    }
+    window.RPText278 = { FONTS: FONTS, FONT_ORDER: FONT_ORDER, COLORS: COLORS, BGS: BGS, BG_ORDER: BG_ORDER, norm: norm, fontCss: fontCss, cssText: cssText, cardHtml: cardHtml, tileHtml: tileHtml, esc: esc };
+  })();
+  </script>
+  <script>
 /* ================= RP-V7.64: media view counts =================
    Branden (Oct 25): "You see how these posted videos view you can
    see how many people views it" → "Make the pictures and videos just
@@ -35904,7 +36017,9 @@ button.rp72-chip{ cursor:pointer; }
      fills it, 👁 + count sits bottom-left, nothing else — except the
      small ▶ at the top-right of reel tiles. */
   function tileHTML(it) {
-    var media = it.kind === "reel"
+    var media = it.textPost // [RP-V7.278] a text post's tile is its styled card, shrunk
+      ? (window.RPText278 ? window.RPText278.tileHtml(it) : "")
+      : it.kind === "reel"
       ? '<video src="' + esc(it.src || "") + '" muted playsinline preload="metadata"></video><span class="rpmedia-play">▶</span>'
       : '<img loading="lazy" decoding="async" src="' + esc(it.src || "") + '" alt=""/>'; // [RP-V7.257] scroll-lag audit finding 2: the V7.251 lazy/async treatment, applied to grid tiles (was: eager full-size decode on every grid)
     return '<button type="button" class="rpmedia-tile" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpownername="' + esc(it.ownerName || "") + '" data-rpsrc="' + esc(it.src || "") + '" data-rpviews="' + (it.views || 0) + '">' + media + (it.photoCount > 1 ? '<span class="rpmedia-multi">▦ ×' + it.photoCount + "</span>" : "") /* [RP-V7.123] */ + '<span class="rpmedia-views">👁 ' + fmtViews(it.views || 0) + "</span></button>";
@@ -36023,7 +36138,7 @@ button.rp72-chip{ cursor:pointer; }
     html += lbShareBtn241();
     if (isPost) html += '<button class="reel-act repost pp-repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + fi.reposts + "</span></button>";
     if (isPost && mine) html += '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>'; // [RP-V7.243] your photo post — delete it right here
-    if (isPost && mine) html += '<button class="reel-act pp-ai245" type="button"><span style="font-size:19px;line-height:1;">✨</span><span>AI Filter</span></button>'; // [RP-V7.245] restyle your photo with AI
+    if (isPost && mine && !it.textPost) html += '<button class="reel-act pp-ai245" type="button"><span style="font-size:19px;line-height:1;">✨</span><span>AI Filter</span></button>'; // [RP-V7.245] restyle your photo with AI — [RP-V7.278] not on text posts (there is no photo to restyle)
     return {
       html: html ? '<div class="reel-rail">' + html + "</div>" : "",
       wire: function (root) {
@@ -36095,7 +36210,7 @@ button.rp72-chip{ cursor:pointer; }
     var rail241 = railForPhoto241(it); // [RP-V7.241]
     window.openSheet(
       '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-      '<div class="rpmedia-photo-view"><img src="' + esc(it.src || "") + '" alt=""/>' +
+      '<div class="rpmedia-photo-view">' + (it.textPost && window.RPText278 ? window.RPText278.cardHtml(it, 24) : '<img src="' + esc(it.src || "") + '" alt=""/>') + // [RP-V7.278]
       '<span class="rpmedia-photo-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span>" + rail241.html + "</div></div>"
     );
     wireSheetClose();
@@ -36435,7 +36550,7 @@ button.rp72-chip{ cursor:pointer; }
   // the profile page so both render the same profile.
   function profItems(j) {
     var items = itemsFromProfile(j);
-    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, views: 0, photoCount: (pp.urls || []).length || 1 /* [RP-V7.123] */,
+    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: (pp.urls || []).length || 1 /* [RP-V7.123] */,
       // [RP-V7.241] the full feed-item shape, for the lightbox rail
       caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: pp.commentCount || 0, reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine }); });
     (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, views: fp.views || 0, feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
@@ -40585,6 +40700,43 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       position: absolute; left: 50%; transform: translateX(-50%); bottom: 108px;
       color: #fff; font-weight: 800; font-size: 15px; text-shadow: 0 1px 8px rgba(0,0,0,.8); display: none;
     }
+    /* [RP-V7.278] TEXT mode — the full-screen text editor (TikTok's
+       text editor from Branden's recording, Plaza-built): canvas,
+       font chips, color row, background row, alignment, the A box
+       toggle, the left-edge size slider. The mode row stays visible
+       below the editor tools so VIDEO/PHOTO are one tap away. */
+    #camTextEd278 { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; background: #101018; }
+    #camTextEd278[hidden] { display: none !important; }
+    #camScreen.cam-texting278 .cam-top, #camScreen.cam-texting278 .cam-rail, #camScreen.cam-texting278 #camLensRail, #camScreen.cam-texting278 #camShutter, #camScreen.cam-texting278 #camUploadBtn, #camScreen.cam-texting278 #camTimer, #camScreen.cam-texting278 #camLensName { display: none !important; }
+    #camScreen.cam-texting278 #camVideo { visibility: hidden; }
+    #camScreen.cam-texting278 .cam-bottom { z-index: 8; }
+    .ctx-top278 { display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 16px 6px; }
+    .ctx-top278 #ctxBack278 { width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(0,0,0,.35); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
+    .ctx-title278 { color: #fff; font-weight: 800; font-size: 15px; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
+    .ctx-top278 #ctxDone278 { border: 0; border-radius: 999px; background: #fe2c55; color: #fff; font-weight: 800; font-size: 14px; padding: 8px 20px; cursor: pointer; }
+    .ctx-top278 #ctxDone278.busy { opacity: .55; }
+    .ctx-canvas278 { flex: 1; display: flex; align-items: center; justify-content: center; padding: 18px 26px 18px 46px; }
+    .ctx-box278 { display: inline-block; max-width: 100%; border-radius: 14px; }
+    #ctxInput278 { width: 100%; min-width: min(78vw, 520px); background: transparent; border: 0; outline: none; resize: none; color: #fff; font-size: 30px; line-height: 1.25; text-align: center; padding: 10px 12px; box-sizing: border-box; }
+    #ctxInput278::placeholder { color: rgba(255,255,255,.55); }
+    #ctxSize278 { position: absolute; left: -46px; top: 46%; width: 150px; transform: translateY(-50%) rotate(-90deg); accent-color: #fe2c55; z-index: 7; margin: 0; }
+    .ctx-tools278 { display: flex; flex-direction: column; gap: 9px; padding: 6px 12px 118px; }
+    .ctx-row278 { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; align-items: center; }
+    .ctx-row278::-webkit-scrollbar { display: none; }
+    .ctx-font278 { flex: 0 0 auto; border: 2px solid transparent; background: rgba(0,0,0,.38); color: #fff; border-radius: 999px; padding: 7px 13px; font-size: 14px; cursor: pointer; }
+    .ctx-font278.on { border-color: #fff; }
+    .ctx-color278 { flex: 0 0 auto; width: 27px; height: 27px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); cursor: pointer; padding: 0; }
+    .ctx-color278.on { border-color: #fff; transform: scale(1.14); box-shadow: 0 0 0 2px rgba(0,0,0,.35); }
+    .ctx-bg278 { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px; border: 2px solid rgba(255,255,255,.25); cursor: pointer; padding: 0; }
+    .ctx-bg278.on { border-color: #fff; transform: scale(1.08); }
+    .ctx-misc278 { overflow: visible; }
+    #ctxBoxBtn278 { width: 36px; height: 36px; border-radius: 10px; border: 2px solid transparent; background: rgba(0,0,0,.38); color: #fff; font-weight: 900; font-size: 16px; cursor: pointer; }
+    #ctxBoxBtn278[data-box="solid"] { background: #000; border-color: #fff; }
+    #ctxBoxBtn278[data-box="soft"] { background: rgba(255,255,255,.35); border-color: rgba(255,255,255,.6); }
+    .ctx-align278 { display: inline-flex; gap: 4px; margin-left: 6px; }
+    .ctx-align278 button { width: 34px; height: 34px; border-radius: 9px; border: 0; background: rgba(0,0,0,.38); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .ctx-align278 button.on { background: #fff; color: #111; }
+    .ctx-count278 { margin-left: auto; color: rgba(255,255,255,.75); font-size: 12px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
     /* ---- shared overlay sheets (picker / editor / lens sheet) ---- */
     .rp-ovl {
       position: fixed; inset: 0; z-index: 95; display: none;
@@ -40754,12 +40906,38 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         </span>
         <button type="button" id="camModeVideo" class="on">VIDEO</button>
         <button type="button" id="camModePhoto">PHOTO</button>
+        <button type="button" id="camModeText">TEXT</button> <!-- [RP-V7.278] TEXT is a mode in the create row, beside VIDEO/PHOTO (TikTok's create screen, per Branden's recording) -->
       </div>
       <div id="camLensRail" role="listbox" aria-label="Face lenses"></div>
       <button type="button" id="camShutter" aria-label="Record or capture"></button>
       <div id="camTimer"></div>
     </div>
     <button type="button" id="camUploadBtn" aria-label="Upload from your phone"><span class="cam-up-ic"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14.5" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2"/></svg></span><span class="cam-up-lb">Upload</span></button>
+    <div id="camTextEd278" hidden>
+      <div class="ctx-top278">
+        <button type="button" id="ctxBack278" aria-label="Back to camera">‹</button>
+        <span class="ctx-title278">Text post</span>
+        <button type="button" id="ctxDone278">Done</button>
+      </div>
+      <div class="ctx-canvas278">
+        <span class="ctx-box278" id="ctxBox278"><textarea id="ctxInput278" rows="3" maxlength="500" placeholder="Type something…" aria-label="Your text post"></textarea></span>
+      </div>
+      <input type="range" id="ctxSize278" min="0.7" max="1.8" step="0.05" value="1" aria-label="Text size"/>
+      <div class="ctx-tools278">
+        <div class="ctx-row278" id="ctxFonts278" role="listbox" aria-label="Font style"></div>
+        <div class="ctx-row278" id="ctxColors278" aria-label="Text color"></div>
+        <div class="ctx-row278" id="ctxBgs278" aria-label="Background"></div>
+        <div class="ctx-row278 ctx-misc278">
+          <button type="button" id="ctxBoxBtn278" aria-label="Text box style">A</button>
+          <span class="ctx-align278" role="group" aria-label="Text alignment">
+            <button type="button" data-al="left" aria-label="Align left"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 11h9M4 16h13"/></svg></button>
+            <button type="button" data-al="center" class="on" aria-label="Align center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7.5 11h9M5.5 16h13"/></svg></button>
+            <button type="button" data-al="right" aria-label="Align right"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M11 11h9M7 16h13"/></svg></button>
+          </span>
+          <span class="ctx-count278" id="ctxCount278">0/500</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="rp-ovl" id="sndSheet" aria-hidden="true">
@@ -41134,8 +41312,13 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       Cam.mode = m;
       el("camModeVideo").classList.toggle("on", m === "video");
       el("camModePhoto").classList.toggle("on", m === "photo");
+      el("camModeText").classList.toggle("on", m === "text"); // [RP-V7.278]
       el("camLenWrap").hidden = m !== "video";
       el("camShutter").classList.toggle("photo", m === "photo");
+      var ted278 = el("camTextEd278"); // [RP-V7.278] TEXT mode swaps the camera chrome for the text editor; the mode row stays for switching back
+      if (ted278) ted278.hidden = m !== "text";
+      el("camScreen").classList.toggle("cam-texting278", m === "text");
+      if (m === "text") { paintTextEd278(); var ti278 = el("ctxInput278"); if (ti278) { try { ti278.focus({ preventScroll: true }); } catch (e) { try { ti278.focus(); } catch (e2) { } } } }
     }
     function openCamera() {
       var scr = el("camScreen"); if (!scr) return;
@@ -41158,6 +41341,100 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     }
     window.rpOpenCamera = openCamera;
     window.rpCloseCamera = closeCamera;
+    /* ---------- [RP-V7.278] TEXT mode editor ----------
+       Branden's recording of TikTok's text editor, Plaza-built:
+       font chips, the color row, the background row (solids +
+       gradients), alignment, the A box toggle (none / solid /
+       translucent) and the left-edge size slider. Done posts
+       straight to /api/photo/text-post — the text IS the post, so
+       there is no caption step and the audience stays the default
+       Everyone; the style rides along and renders identically in
+       Home and on the profile (window.RPText278 tables). */
+    var TextEd278 = { font: "classic", color: "#ffffff", bg: "sunset", align: "center", box: "none", size: 1, posting: false };
+    function paintTextEd278() {
+      var T = window.RPText278; if (!T) return;
+      var ed = el("camTextEd278"); if (!ed) return;
+      ed.style.background = T.BGS[TextEd278.bg] || "#101018";
+      var ta = el("ctxInput278");
+      var fc = T.fontCss(TextEd278.font, TextEd278.color);
+      ta.style.fontFamily = fc.fontFamily; ta.style.fontWeight = fc.fontWeight;
+      ta.style.fontStyle = fc.fontStyle || ""; ta.style.letterSpacing = fc.letterSpacing || "";
+      ta.style.textTransform = fc.textTransform || ""; ta.style.textShadow = fc.textShadow || "";
+      ta.style.color = TextEd278.color; ta.style.textAlign = TextEd278.align;
+      ta.style.fontSize = Math.round(30 * TextEd278.size) + "px";
+      var bx = el("ctxBox278");
+      if (TextEd278.box === "solid") { bx.style.background = "rgba(0,0,0,.62)"; bx.style.padding = "4px 8px"; }
+      else if (TextEd278.box === "soft") { bx.style.background = "rgba(255,255,255,.22)"; bx.style.padding = "4px 8px"; }
+      else { bx.style.background = "transparent"; bx.style.padding = "0"; }
+      el("ctxBoxBtn278").setAttribute("data-box", TextEd278.box);
+      el("ctxCount278").textContent = (ta.value || "").length + "/500";
+      ed.querySelectorAll(".ctx-font278").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-font") === TextEd278.font); });
+      ed.querySelectorAll(".ctx-color278").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-color") === TextEd278.color); });
+      ed.querySelectorAll(".ctx-bg278").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-bg") === TextEd278.bg); });
+      ed.querySelectorAll(".ctx-align278 button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-al") === TextEd278.align); });
+    }
+    function buildTextEd278() {
+      var T = window.RPText278; if (!T) return;
+      var fr = el("ctxFonts278"), cr = el("ctxColors278"), br = el("ctxBgs278");
+      if (!fr || fr.childNodes.length) return;
+      T.FONT_ORDER.forEach(function (id) {
+        var f = T.FONTS[id]; var b = document.createElement("button");
+        b.type = "button"; b.className = "ctx-font278"; b.setAttribute("data-font", id); b.textContent = f.name;
+        b.style.fontFamily = f.ff; b.style.fontWeight = String(f.fw);
+        if (f.fs) b.style.fontStyle = f.fs; if (f.ls) b.style.letterSpacing = f.ls; if (f.tt) b.style.textTransform = f.tt;
+        if (f.neon) b.style.textShadow = "0 0 6px #fff, 0 0 14px #fff";
+        b.addEventListener("click", function () { TextEd278.font = id; paintTextEd278(); });
+        fr.appendChild(b);
+      });
+      T.COLORS.forEach(function (hex) {
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "ctx-color278"; b.setAttribute("data-color", hex); b.setAttribute("aria-label", "Text color " + hex);
+        b.style.background = hex;
+        b.addEventListener("click", function () { TextEd278.color = hex; paintTextEd278(); });
+        cr.appendChild(b);
+      });
+      T.BG_ORDER.forEach(function (id) {
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "ctx-bg278"; b.setAttribute("data-bg", id); b.setAttribute("aria-label", "Background " + id);
+        b.style.background = T.BGS[id];
+        b.addEventListener("click", function () { TextEd278.bg = id; paintTextEd278(); });
+        br.appendChild(b);
+      });
+      el("ctxInput278").addEventListener("input", paintTextEd278);
+      el("ctxSize278").addEventListener("input", function () { TextEd278.size = Number(this.value) || 1; paintTextEd278(); });
+      el("ctxBoxBtn278").addEventListener("click", function () { TextEd278.box = TextEd278.box === "none" ? "solid" : TextEd278.box === "solid" ? "soft" : "none"; paintTextEd278(); });
+      el("camTextEd278").querySelectorAll(".ctx-align278 button").forEach(function (b) { b.addEventListener("click", function () { TextEd278.align = b.getAttribute("data-al") || "center"; paintTextEd278(); }); });
+      el("ctxBack278").addEventListener("click", function () { setMode("video"); });
+      el("ctxDone278").addEventListener("click", textPost278);
+      paintTextEd278();
+    }
+    function textPost278() {
+      if (TextEd278.posting) return;
+      var ta = el("ctxInput278");
+      var text = (ta.value || "").trim();
+      if (!text) { camToast("Type something first ✍️"); return; }
+      var a = null; try { a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); } catch (e) { }
+      var tok = (a && a.token) || "";
+      if (!tok) { camToast("Sign in to post 🔐"); return; }
+      TextEd278.posting = true; el("ctxDone278").classList.add("busy");
+      fetch("/api/photo/text-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok },
+        body: JSON.stringify({ text: text, style: { font: TextEd278.font, color: TextEd278.color, bg: TextEd278.bg, align: TextEd278.align, box: TextEd278.box, size: TextEd278.size }, clientKey: "tx" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) })
+      }).then(function (r) { return r.json().catch(function () { return null; }); })
+        .then(function (j) {
+          TextEd278.posting = false; el("ctxDone278").classList.remove("busy");
+          if (j && j.ok) {
+            ta.value = ""; paintTextEd278(); closeCamera();
+            try { if (window.rpHomeRails243) window.rpHomeRails243.refresh(); } catch (e) { }
+            try { if (window.RPFeed && window.RPFeed.refresh) window.RPFeed.refresh(); } catch (e) { }
+            try { toast("✍️ Your text post is live!"); } catch (e) { }
+          } else camToast((j && j.error) || "That post didn't go up — try again.");
+        })
+        .catch(function () { TextEd278.posting = false; el("ctxDone278").classList.remove("busy"); camToast("Network error — try again."); });
+    }
+    buildTextEd278();
+
     /* [RP-V7.99] One-shot photo borrow: Stories' "Take photo" opens
        the camera in photo mode; the next capture goes to the callback
        (a full-resolution data URL) instead of the photo composer.
@@ -41454,6 +41731,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       el("camLensSheetClose").addEventListener("click", closeLensSheet);
       el("camModeVideo").addEventListener("click", function () { setMode("video"); });
       el("camModePhoto").addEventListener("click", function () { setMode("photo"); });
+      el("camModeText").addEventListener("click", function () { setMode("text"); }); // [RP-V7.278]
       el("camLenWrap").querySelectorAll("button").forEach(function (b) {
         b.addEventListener("click", function () {
           Reels.maxSecs = Number(b.getAttribute("data-len")) || 60;
@@ -43692,7 +43970,7 @@ html, body { overflow-x: clip; }
     /* ---------------- the photo-post flow -------------------------- */
     function gridItem243(pp) {
       var urls = (Array.isArray(pp.urls) && pp.urls.length) ? pp.urls : (pp.photo ? [pp.photo] : []);
-      return { kind: "photopost", id: pp.id, owner: null, ownerName: pp.author || "", src: pp.photo || "", views: 0, photoCount: urls.length || 1, caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted };
+      return { kind: "photopost", id: pp.id, owner: null, ownerName: pp.author || "", src: pp.photo || "", textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: urls.length || 1, caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted };
     }
     function share243(pp) {
       var url = (window.rpShareUrl269 && window.rpShareUrl269("post", pp.id)) || (location.origin + "/#photo-" + pp.id); // [RP-V7.269] Home-stream photo posts are server posts: share the share page
@@ -43714,7 +43992,8 @@ html, body { overflow-x: clip; }
       try { if (typeof personFace === "function") face = personFace({ name: pp.author || "Someone" }); } catch (e) { }
       if (!face) face = '<span class="pface pface-init">' + esc243((pp.author || "?").charAt(0).toUpperCase() || "?") + "</span>";
       var photoHtml;
-      if (urls.length > 1) photoHtml = '<span class="mom-flip" style="display:block;"><img loading="lazy" decoding="async" src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/><button type="button" class="ff-zone prev" data-fbflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-fbflip="1" aria-label="Next photo"></button><span class="ff-count">1/' + urls.length + "</span></span>";
+      if (pp.kind === "text") photoHtml = window.RPText278 ? window.RPText278.cardHtml(pp, 26) : '<span class="mom-nomedia" aria-hidden="true"></span>'; // [RP-V7.278] the styled text card IS the media
+      else if (urls.length > 1) photoHtml = '<span class="mom-flip" style="display:block;"><img loading="lazy" decoding="async" src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/><button type="button" class="ff-zone prev" data-fbflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-fbflip="1" aria-label="Next photo"></button><span class="ff-count">1/' + urls.length + "</span></span>";
       else if (urls.length) photoHtml = '<img loading="lazy" decoding="async" src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/>'; // [RP-V7.257] finding 2: Home stream photos get the V7.251 lazy/async treatment (was: 30/30 eager full-size decodes)
       else photoHtml = '<span class="mom-nomedia" aria-hidden="true"></span>';
       var ico = window.RPICO || {};
@@ -43722,9 +44001,9 @@ html, body { overflow-x: clip; }
       card.className = "mom-card";
       card.setAttribute("data-mid", pp.id);
       card.innerHTML =
-        '<div class="mom-top"><span class="who-av">' + face + '</span><div><b>' + esc243(pp.author || "Someone") + '</b><span>' + esc243(when243(pp.createdAt)) + " · Photos</span></div>" + '<span class="mom-gifted" hidden></span></div>' +
+        '<div class="mom-top"><span class="who-av">' + face + '</span><div><b>' + esc243(pp.author || "Someone") + '</b><span>' + esc243(when243(pp.createdAt)) + " · " + (pp.kind === "text" ? "Text" : "Photos") + "</span> // [RP-V7.278]</div>" + '<span class="mom-gifted" hidden></span></div>' +
         '<div class="mom-photo">' + photoHtml + "</div>" +
-        '<p class="mom-cap"><b>' + esc243(pp.author || "Someone") + "</b>" + (pp.caption ? " " + (window.rpLinkifyRaw259 ? window.rpLinkifyRaw259(pp.caption, "photos") : (window.rpLinkify258 ? window.rpLinkify258(esc243(pp.caption), "photos") : esc243(pp.caption))) : "") + "</p>" + // [RP-V7.259] Home stream captions linkify on the RAW caption via the raw bridge (photos context — this stream is photo posts); the V7.258 escaped path remains only as a fallback if the bridge is somehow absent
+        (pp.kind === "text" ? "" : '<p class="mom-cap"><b>' + esc243(pp.author || "Someone") + "</b>" + (pp.caption ? " " + (window.rpLinkifyRaw259 ? window.rpLinkifyRaw259(pp.caption, "photos") : (window.rpLinkify258 ? window.rpLinkify258(esc243(pp.caption), "photos") : esc243(pp.caption))) : "") + "</p>") + // [RP-V7.278] a text post's body is its card — no caption line under it // [RP-V7.259] Home stream captions linkify on the RAW caption via the raw bridge (photos context — this stream is photo posts); the V7.258 escaped path remains only as a fallback if the bridge is somehow absent
         '<div class="mom-acts">' +
           '<button class="mom-act like' + (fi.myLiked ? " liked" : "") + '" type="button">' + (ico.heart || "") + ' <span class="lc">' + fi.likes + "</span></button>" +
           '<button class="mom-act cmt" type="button">' + (ico.comment || "") + ' <span class="cc">' + fi.commentCount + "</span></button>" +
@@ -43735,7 +44014,7 @@ html, body { overflow-x: clip; }
       var lk = card.querySelector(".like"); if (lk && acts.photoLike) lk.addEventListener("click", function () { acts.photoLike(fi, lk); });
       var cm = card.querySelector(".cmt"); if (cm && acts.photoComments) cm.addEventListener("click", function () { acts.photoComments(fi); });
       var rp = card.querySelector(".repost"); if (rp && acts.photoRepost) rp.addEventListener("click", function () { acts.photoRepost(fi, rp); });
-      var gf = card.querySelector(".gift"); if (gf) gf.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(pp.author || "", pp.author || "", { src: "picture", post: { kind: "photo", id: pp.id } }); }); // [RP-V7.262] the post rides as the gift's post
+      var gf = card.querySelector(".gift"); if (gf) gf.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(pp.author || "", pp.author || "", pp.kind === "text" ? { post: { kind: "photo", id: pp.id } } : { src: "picture", post: { kind: "photo", id: pp.id } }); }); // [RP-V7.262] the post rides as the gift's post — [RP-V7.278] no src on a text post, so its gift notice keeps the honest generic wording
       var sh = card.querySelector(".share"); if (sh) sh.addEventListener("click", function () { share243(pp); });
       var idx = 0;
       card.querySelectorAll("[data-fbflip]").forEach(function (z) {
@@ -43748,6 +44027,8 @@ html, body { overflow-x: clip; }
       });
       var pim = card.querySelector(".mom-photo img");
       if (pim) pim.addEventListener("click", function () { if (typeof window.rpViewsOpenPhoto === "function") window.rpViewsOpenPhoto(gridItem243(pp), null); });
+      var ptc278 = card.querySelector(".rptext-card"); // [RP-V7.278] tapping the text card opens it in the lightbox, same as a photo
+      if (ptc278) ptc278.addEventListener("click", function () { if (typeof window.rpViewsOpenPhoto === "function") window.rpViewsOpenPhoto(gridItem243(pp), null); });
       return card;
     }
     function renderFlow243(posts) {
