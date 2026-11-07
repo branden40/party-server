@@ -3240,6 +3240,164 @@ app.get("/api/reels", (req, res) => {
   });
   res.json({ ok: true, reels: list, ...(fyUser ? { ranked: true } : {}) });
 });
+
+// ---------------------------------------------------------------------------
+// [RP-V7.269] Share pages: GET /reel/<id> and GET /post/<id>.
+// Branden (Nov 6, 2026): sharing a reel produced only a bare link —
+// the site served just the site-wide OG card and no per-content URL
+// existed at all. These two routes are that URL. For a public reel /
+// photo post they serve a small page carrying THAT content's Open
+// Graph media (the same values the feed payloads carry: author,
+// caption, the photo itself, the /reel-files/ MP4) and bounce human
+// visitors into the app at the content (/?reel=<id> / /?photo=<id>,
+// which the client's RP-V7.269 landing module opens). Crawlers get
+// the identical page — the meta is never UA-gated; the bounce rides
+// a meta refresh + location.replace, which crawlers don't follow.
+// Missing, deleted, or audience-gated (followers / only-me) content
+// serves the SITE's generic card (the homepage's own meta) and
+// bounces to the app home — a shared link never lands on a 404.
+// Read-only: lookups ride listReels() / readPhotoPosts(), the same
+// stores the feed endpoints read; nothing here writes.
+// Poster note: reels have NO poster frame anywhere in the system —
+// no field on the record, none in the feed payload, no frame file on
+// disk (clients paint the first frame from preload="metadata"). So a
+// reel card's og:image is the site's share poster (logo-poster.jpg,
+// the same image the homepage card uses) while og:video +
+// og:video:secure_url carry the reel's actual MP4. twitter:card is
+// summary_large_image: Twitter's player card needs an iframe player
+// page, and the media URL here is a raw static MP4, which does not
+// qualify — so the large-image card is the honest variant.
+// ---------------------------------------------------------------------------
+function rpShareEsc269(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+const RP_SHARE_DESC269 =
+  "Live rooms, battles, gifting, auctions, dating & faith — earn real money going live. Join free at rizzplaza.com.";
+function rpSharePage269(res, o) {
+  const title = rpShareEsc269(o.title);
+  const desc = rpShareEsc269(o.description);
+  const image = rpShareEsc269(o.image);
+  let head =
+    '<meta property="og:type" content="' + rpShareEsc269(o.type) + '" />' +
+    '<meta property="og:site_name" content="Rizz Plaza" />' +
+    '<meta property="og:title" content="' + title + '" />' +
+    '<meta property="og:description" content="' + desc + '" />' +
+    '<meta property="og:image" content="' + image + '" />' +
+    '<meta property="og:url" content="' + rpShareEsc269(o.url) + '" />';
+  if (o.video) {
+    head +=
+      '<meta property="og:video" content="' + rpShareEsc269(o.video) + '" />' +
+      '<meta property="og:video:secure_url" content="' + rpShareEsc269(o.video) + '" />' +
+      (o.videoType
+        ? '<meta property="og:video:type" content="' + rpShareEsc269(o.videoType) + '" />'
+        : "");
+  }
+  head +=
+    '<meta name="twitter:card" content="summary_large_image" />' +
+    '<meta name="twitter:title" content="' + title + '" />' +
+    '<meta name="twitter:description" content="' + desc + '" />' +
+    '<meta name="twitter:image" content="' + image + '" />';
+  const html =
+    "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\" />\n" +
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />\n' +
+    "<title>" + title + "</title>\n" +
+    head + "\n" +
+    '<meta http-equiv="refresh" content="0; url=' + rpShareEsc269(o.target) + '" />\n' +
+    "</head>\n" +
+    '<body style="background:#0a0a0f;color:#fff;font-family:system-ui,sans-serif;text-align:center;padding:48px 20px;">\n' +
+    "<p>Opening Rizz Plaza…</p>\n" +
+    '<p><a href="' + rpShareEsc269(o.target) + '" style="color:#fe2c55;">Tap here if it doesn\'t open</a></p>\n' +
+    "<script>try{location.replace(" + JSON.stringify(String(o.target)) + ");}catch(e){}</script>\n" +
+    "</body>\n</html>\n";
+  res
+    .status(200)
+    .type("html")
+    .set("Cache-Control", "public, max-age=" + (o.generic ? 60 : 300))
+    .send(html);
+}
+function rpShareGeneric269(req, res, kind, id) {
+  const origin = siteOrigin(req);
+  rpSharePage269(res, {
+    generic: true,
+    type: "website",
+    title: "Rizz Plaza",
+    description: RP_SHARE_DESC269,
+    image: origin + "/logo-poster.jpg",
+    url: origin + (kind === "reel" ? "/reel/" : "/post/") + id,
+    target: origin + "/",
+  });
+}
+app.get("/reel/:id", (req, res) => {
+  const raw = String(req.params.id || "").slice(0, 80);
+  const id = reelCleanId(req.params.id);
+  try {
+    if (id) {
+      const rec = listReels().find((r) => r && r.id === id);
+      // The feed's own audience rule (RP-V7.156): anything but
+      // "everyone" is gated, and a share card must never leak it.
+      if (rec && rec.file && (rec.audience || "everyone") === "everyone") {
+        const origin = siteOrigin(req);
+        const video = origin + "/reel-files/" + rec.file;
+        const ext = String(rec.file).split(".").pop().toLowerCase();
+        const videoType =
+          ext === "mp4" ? "video/mp4"
+          : ext === "webm" ? "video/webm"
+          : ext === "mov" ? "video/quicktime"
+          : null;
+        const cap = String(rec.caption || "").trim();
+        const author = String(rec.author || "").trim() || "Someone";
+        return rpSharePage269(res, {
+          type: "video.other",
+          title: cap ? author + ": " + cap.slice(0, 80) : author + "'s reel on Rizz Plaza",
+          description: cap || RP_SHARE_DESC269,
+          image: origin + "/logo-poster.jpg",
+          url: origin + "/reel/" + id,
+          video: video,
+          videoType: videoType,
+          target: origin + "/?reel=" + encodeURIComponent(id),
+        });
+      }
+    }
+  } catch (e) {
+    /* any lookup failure serves the generic card below */
+  }
+  return rpShareGeneric269(req, res, "reel", id || raw);
+});
+app.get("/post/:id", (req, res) => {
+  const raw = String(req.params.id || "").slice(0, 80);
+  const id = reelCleanId(req.params.id);
+  try {
+    if (id) {
+      const rec = readPhotoPosts().posts.find((p) => p && p.id === id);
+      if (rec && (rec.audience || "everyone") === "everyone") {
+        const origin = siteOrigin(req);
+        const urls = photoUrlsOf123(rec); // [RP-V7.123] sets share their first photo
+        let img = urls.length ? String(urls[0] || "") : "";
+        if (img && !/^https?:\/\//i.test(img))
+          img = img.charAt(0) === "/" ? origin + img : origin + "/" + img;
+        if (img) {
+          const cap = String(rec.caption || "").trim();
+          const author = String(rec.name || "").trim() || "Someone";
+          return rpSharePage269(res, {
+            type: "article",
+            title: cap ? author + ": " + cap.slice(0, 80) : author + "'s photo on Rizz Plaza",
+            description: cap || RP_SHARE_DESC269,
+            image: img,
+            url: origin + "/post/" + id,
+            target: origin + "/?photo=" + encodeURIComponent(id),
+          });
+        }
+      }
+    }
+  } catch (e) {
+    /* any lookup failure serves the generic card below */
+  }
+  return rpShareGeneric269(req, res, "post", id || raw);
+});
 // [RP-V7.89] Hashtag view (owner: "Hashtags help a lot to see what a
 // person likes"): GET /api/tag/<tag> lists reels + photo posts whose
 // captions carry that hashtag, newest first. Public counts; the
@@ -4030,7 +4188,7 @@ app.post("/api/reel", (req, res) => {
     });
     if (musicTrackId) soundTouchUse(authorUser ? authorUser.id : null, musicTrackId);
     console.log("[reels] new reel", entry.id, "by", author, entry.size, "bytes");
-    if (authorUser) notifyFollowersOfPost129(authorUser, "reel"); // [RP-V7.129]
+    if (authorUser) notifyFollowersOfPost129(authorUser, "reel", entry.id); // [RP-V7.129] [RP-V7.270] route the bell row to this reel
     res.json({ ok: true, id: entry.id, url: "/reel-files/" + entry.file });
   });
 });
@@ -4702,7 +4860,7 @@ app.post("/api/reel/comment", (req, res) => {
           text: "✍️ " + ctx.user.name + " commented on your photo: \"" + String(comment.text).slice(0, 60) + "\"",
           emailSubject: ctx.user.name + " commented on your photo on Rizz Plaza",
           emailText: ctx.user.name + " commented on your photo on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
-          go: { screen: "moments" },
+          go: { screen: "moments", photoId: id },
         });
     } catch (e) { /* a notification must never break a comment */ }
     return res.json({ ok: true, kind, id, comment: pub, count: list.length });
@@ -4724,7 +4882,7 @@ app.post("/api/reel/comment", (req, res) => {
         text: "✍️ " + ctx.user.name + " commented on your reel: \"" + String(comment.text).slice(0, 60) + "\"",
         emailSubject: ctx.user.name + " commented on your reel on Rizz Plaza",
         emailText: ctx.user.name + " commented on your reel on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
-        go: { screen: "moments" },
+        go: { screen: "moments", reelId: id },
       });
   } catch (e) { /* a notification must never break a comment */ }
   res.json({ ok: true, kind, id, comment: pub, count: entry.comments.length });
@@ -4784,7 +4942,7 @@ app.post("/api/reel/like", (req, res) => {
           text: "❤️ " + ctx.user.name + " liked your reel",
           emailSubject: ctx.user.name + " liked your reel on Rizz Plaza",
           emailText: ctx.user.name + " liked your reel on Rizz Plaza.\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
-          go: { screen: "moments" },
+          go: { screen: "moments", reelId: id },
         });
     } catch (e) { /* a notification must never break a like */ }
   }
@@ -4855,7 +5013,7 @@ app.post("/api/reel/repost", (req, res) => {
       text: "🔁 " + ctx.user.name + " reposted your reel",
       emailSubject: ctx.user.name + " reposted your reel on Rizz Plaza",
       emailText: ctx.user.name + " reposted your reel on Rizz Plaza — it is reaching new people.\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
-      go: { screen: "moments" },
+      go: { screen: "moments", reelId: id },
     });
   res.json({ ok: true, id, reposted: entry.reposts.some((x) => x && x.u === ctx.user.id), reposts: entry.reposts.length });
 });
@@ -5107,7 +5265,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
     db.posts.unshift(post);
     db.posts = db.posts.slice(0, PHOTO_POSTS_KEEP);
     writePhotoPosts(db);
-    notifyFollowersOfPost129(ctx.user, (post.urls && post.urls.length > 1) ? "photos" : "photo"); // [RP-V7.129]
+    notifyFollowersOfPost129(ctx.user, (post.urls && post.urls.length > 1) ? "photos" : "photo", post.id); // [RP-V7.129] [RP-V7.270] route the bell row to this post
     return res.json({
       ok: true,
       post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), readMoney().postGifts || {}), // [RP-V7.262]
@@ -5238,7 +5396,7 @@ app.post("/api/photo/like", (req, res) => {
           text: "❤️ " + ctx.user.name + " liked your photo",
           emailSubject: ctx.user.name + " liked your photo on Rizz Plaza",
           emailText: ctx.user.name + " liked your photo on Rizz Plaza.\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
-          go: { screen: "moments" },
+          go: { screen: "moments", photoId: id },
         });
     } catch (e) { /* a notification must never break a like */ }
   }
@@ -5312,7 +5470,7 @@ app.post("/api/photo/repost", (req, res) => {
       text: "🔁 " + ctx.user.name + " reposted your photo",
       emailSubject: ctx.user.name + " reposted your photo on Rizz Plaza",
       emailText: ctx.user.name + " reposted your photo on Rizz Plaza — it is reaching new people.\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
-      go: { screen: "moments" },
+      go: { screen: "moments", photoId: id },
     });
   res.json({ ok: true, id, reposted: set.some((x) => x && x.u === ctx.user.id), reposts: set.length });
 });
@@ -9196,7 +9354,7 @@ app.post("/api/feed/like", (req, res) => {
       text: "❤️ " + ctx.user.name + " liked your post",
       emailSubject: ctx.user.name + " liked your post on Rizz Plaza",
       emailText: ctx.user.name + " liked your post on Rizz Plaza.\n\nSee it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
-      go: { screen: "plaza" },
+      go: { screen: "ownprofile" },
     });
   writeFeed(db);
   res.json({ ok: true, likes: p.likes.length, likedByMe: liked });
@@ -9303,7 +9461,7 @@ app.post("/api/feed/comment", (req, res) => {
       text: "✍️ " + ctx.user.name + " commented on your post: \"" + String(comment.text).slice(0, 60) + "\"",
       emailSubject: ctx.user.name + " commented on your post on Rizz Plaza",
       emailText: ctx.user.name + " commented on your post on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nRead it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
-      go: { screen: "plaza" },
+      go: { screen: "ownprofile" },
     });
   res.json({ ok: true, comment: { name: comment.name, text: comment.text, ts: comment.ts }, comments: reelPublicComments({ comments: p.comments }), commentCount: p.comments.length });
 });
@@ -9346,7 +9504,7 @@ app.post("/api/feed/repost", (req, res) => {
       text: "🔁 " + ctx.user.name + " reposted your post",
       emailSubject: ctx.user.name + " reposted your post on Rizz Plaza",
       emailText: ctx.user.name + " reposted your post on Rizz Plaza — it is reaching new people.\n\nSee it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
-      go: { screen: "plaza" },
+      go: { screen: "ownprofile" },
     });
   }
   if (!want && has) p.reposts = p.reposts.filter((x) => !(x && x.u === ctx.user.id));
@@ -10036,7 +10194,7 @@ const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 // entry coalesces per author, so a posting spree bumps one line
 // ("· N new") instead of flooding the feed. Fully guarded: a
 // notification must never break a post.
-function notifyFollowersOfPost129(authorUser, what) {
+function notifyFollowersOfPost129(authorUser, what, contentId) { // [RP-V7.270] contentId: the new post's id, when the caller has it
   try {
     if (!authorUser || !authorUser.id) return;
     const followers = socialFollowerIds(readSocial(), authorUser.id).slice(0, 1000);
@@ -10056,7 +10214,11 @@ function notifyFollowersOfPost129(authorUser, what) {
         text,
         emailSubject: nm + " posted on Rizz Plaza",
         emailText: text + " on Rizz Plaza.\n\nSee it in Moments: https://rizzplaza.com\n\n\u2014 The Rizz Plaza team",
-        go: { screen: "moments" },
+        // [RP-V7.270] the row opens the post itself when the caller
+        // knows its id (the reel/photo create paths do).
+        go: contentId
+          ? (isReel ? { screen: "moments", reelId: contentId } : { screen: "moments", photoId: contentId })
+          : { screen: "moments" },
         coalesceKey: "post:" + authorUser.id,
       });
     }
@@ -10117,6 +10279,21 @@ function queueActivityAlert(e) {
   writeNotifyOutbox(db);
   return true;
 }
+// [RP-V7.270] Shared actor stamping for reminder records: fromId /
+// fromName come straight from the notify call; fromPhoto is read off
+// the actor's own account record (the same `photo` publicAccount
+// serves) — never invented, and omitted when the actor has none, so
+// a row's avatar can open the actor's profile while rows written
+// before this version (no stamps) stay text-only.
+function stampRemActor270(rem, o, adb) {
+  try {
+    rem.fromId = o.actorId;
+    rem.fromName = String(o.actorName || "").slice(0, 60);
+    const au = (adb.users || []).find((x) => x && x.id === o.actorId);
+    if (au && au.photo) rem.fromPhoto = String(au.photo).slice(0, 500);
+    else delete rem.fromPhoto;
+  } catch (e) { /* actor stamps must never break a notification */ }
+}
 function notifyActivity(o) {
   try {
     if (!o || !o.toId || !NOTIFY_SETTING_KEY[o.kind]) return;
@@ -10138,6 +10315,13 @@ function notifyActivity(o) {
         existing.at = nowIso;
         existing.n = (existing.n || 1) + 1;
         existing.text = o.text + " · " + existing.n + " new";
+        // [RP-V7.270] a coalesced row follows its LATEST event: refresh
+        // routing + actor so its tap lands on the newest content and
+        // its avatar opens the newest actor.
+        if (o.go) existing.go = o.go;
+        if (o.giftId) existing.giftId = o.giftId;
+        if (o.giftSrc) existing.giftSrc = o.giftSrc;
+        if (o.actorId) stampRemActor270(existing, o, adb);
       } else {
         const rem = {
           id: crypto.randomBytes(8).toString("hex"),
@@ -10155,6 +10339,8 @@ function notifyActivity(o) {
         if (o.giftSrc) rem.giftSrc = o.giftSrc;
         if (o.coalesceKey) rem.ck = o.coalesceKey;
         if (o.go) rem.go = o.go;
+        // [RP-V7.270] actor stamps (see stampRemActor270).
+        if (o.actorId) stampRemActor270(rem, o, adb);
         u.reminders.push(rem);
       }
       while (u.reminders.length > NOTIFY_REMINDERS_CAP) u.reminders.shift();
@@ -13431,7 +13617,14 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     text: "🎁 " + gCore250 + "!",
     emailSubject: "You got a gift on Rizz Plaza 🎁",
     emailText: gCore250 + " on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
-    go: { screen: "ownprofile" },
+    // [RP-V7.270] a gift tied to a post opens that post (the V7.262
+    // postKey carries its id); a live / gallery gift keeps the
+    // own-profile target, where the earnings land.
+    go: postKey262 && postKey262.indexOf("reel:") === 0
+      ? { screen: "moments", reelId: postKey262.slice(5) }
+      : postKey262 && postKey262.indexOf("photo:") === 0
+        ? { screen: "moments", photoId: postKey262.slice(6) }
+        : { screen: "ownprofile" },
     // [RP-V7.250] the settled gift id + source ride the reminder
     // record (notifyActivity persists them when present) so future
     // records carry WHICH gift it was — records written before this
