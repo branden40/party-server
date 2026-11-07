@@ -2871,6 +2871,39 @@
       } catch (e) { }
     })();
   </script>
+  <script>
+    /* [RP-V7.269] Share-link landing: the /reel/<id> and /post/<id>
+       share pages bounce human visitors here as /?reel=<id> /
+       /?photo=<id>. Stash the target before anything else runs,
+       then clean the URL — the consumer module at the end of the
+       body opens the content once the app has booted. Same pattern
+       as the V7.133 share-in stash above. */
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search || "");
+        var rid = q.get("reel"), pid = q.get("photo");
+        var tgt = rid ? { kind: "reel", id: String(rid).slice(0, 80) } : (pid ? { kind: "photo", id: String(pid).slice(0, 80) } : null);
+        if (tgt && /^[A-Za-z0-9_-]+$/.test(tgt.id)) {
+          try { sessionStorage.setItem("rpShareLink.v1", JSON.stringify({ kind: tgt.kind, id: tgt.id, at: Date.now() })); } catch (e) { }
+          q.delete("reel"); q.delete("photo");
+          var rest = q.toString();
+          history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+        }
+      } catch (e) { }
+    })();
+    /* [RP-V7.269] The one place share URLs are built: a server
+       content id becomes its share page (/reel/<id>, /post/<id>);
+       anything that can't be a server record id (gallery photos
+       carry their photo URL as id) returns "" and callers keep the
+       plain Plaza link they have always used. */
+    window.rpShareUrl269 = function (kind, id) {
+      try {
+        var s = String(id == null ? "" : id);
+        if (!/^[A-Za-z0-9_-]{1,80}$/.test(s)) return "";
+        return location.origin + (kind === "reel" ? "/reel/" : "/post/") + s;
+      } catch (e) { return ""; }
+    };
+  </script>
   </head>
   <body>
     
@@ -2983,11 +3016,79 @@
              and the card sits directly under it. -->
         <button type="button" id="earnCard" aria-label="How you get paid on Rizz Plaza">
           <span class="earn-ic">💰</span>
-          <span class="earn-tx"><b>How you get paid on Rizz Plaza</b><span>You keep 70% of gifts · 90% of auctions · Cash out from $20</span></span>
+          <span class="earn-tx">How you get paid on Rizz Plaza — keep 70% of gifts · 90% of auctions · Cash out from $20</span>
           <span class="earn-go">›</span>
         </button>
         <!-- [RP-V7.70] Plaza Stories tray: "Your story" first, then friends/follows ranked by the shared For You profile (server). Rendered by the Stories module. -->
         <div class="story-tray" id="storyTrayHome" hidden></div>
+        <!-- [RP-V7.270] Branden (Nov 6): the Reels rail rides directly
+             under the stories tray, then the five front doors grouped as
+             one block — Plaza Store · Christian Fellowship · Earn · Music ·
+             My Profile. Everything else keeps its order below. -->
+<!-- [RP-V7.24] Reels card sits directly under the Live block -->
+        <!-- [RP-V7.242] Branden (Nov 5): "I shouldn't have to press
+             reels to open reels it should be showing and open already
+             scrolling sideways like facebook" — the card now renders
+             the reels themselves as a sideways-scrolling rail, filled
+             by the RP-V7.242 module at the end of the body from the
+             Reels tab's own feed (GET /api/reels). The paragraph is
+             gone. The Open Reels button survives as the rail's end
+             tile: its id is load-bearing — the main script wires its
+             click, and the bottom-bar Reels/Friends entries funnel
+             through it — so it keeps id + handler, in the rail. -->
+        <div class="plaza-card" style="margin-top:16px;" data-adult>
+          <div>
+            <h3>🎬 Reels — photos & short videos</h3>
+          </div>
+          <div class="rp-rail242" id="rpHomeRail242">
+            <div class="rp-rail242-tiles" id="rpHomeRailTiles242"><span class="rp-rail242-note">Loading reels…</span></div>
+            <button class="rp-rail242-more" id="btnMomentsPlaza" type="button">Open Reels&nbsp;›</button>
+          </div>
+          <p class="rp-rail242-empty" id="rpHomeRailEmpty242" hidden>No reels yet — be the first to post one 🎬</p>
+        </div>
+<!-- [RP-V7.240] Plaza Store card (Branden, Nov 4, 2026): the
+             NEW member store gets its own front door on Home, beside
+             Auctions — a separate card people can click. data-adult
+             keeps it out of teen Plaza renders entirely (the store
+             is 18+, server-enforced on every store route). This is
+             NOT the hidden Magniphiscents card below: that switch
+             (RP_MAGNI_STORE_OWNER_ONLY_7223) is untouched. -->
+        <div class="plaza-card" style="margin-top:12px;" data-adult>
+          <div>
+            <h3>🛍️ Plaza Store</h3>
+            <p>The member marketplace — real people selling real products at a fixed price. Buy it now, no bidding (auctions live in their own section). List your own items in minutes, or connect your Shopify, WooCommerce, Etsy or Square store and import your products. Sellers keep 90% of every sale.</p>
+          </div>
+          <button class="speed-btn" id="btnStoreHome" type="button">🛍️ Open the Store</button>
+        </div>
+<div class="plaza-card" style="margin-top:16px;">
+          <div>
+            <h3>⛪ Christian Fellowship</h3>
+            <p>The chapel room: a verse of the day, the prayer wall, and Bible study with the fellowship — a quieter corner of the party, open to everyone.</p>
+          </div>
+          <button class="speed-btn" id="btnFellowshipHome">Enter the chapel room</button>
+        </div>
+<div class="plaza-card" style="margin-top:16px;" data-adult>
+          <div>
+            <h3>💰 Earn</h3>
+            <p>Your gifts received, earnings and cash-out — gift earnings and auction sales tracked separately, and Cash Out unlocks at $20.</p>
+          </div>
+          <button class="speed-btn" id="btnEarnHome">Open Earn</button>
+        </div>
+<div class="plaza-card" style="margin-top:16px;" data-adult>
+          <div>
+            <h3>🎵 Music</h3>
+            <p>Now playing: <span id="homeMusicName">Music</span>. Pick a track for the party — reggae at the plaza, gospel in the chapel, soft piano on live — or mute it anytime.</p>
+          </div>
+          <button class="speed-btn" id="btnMusicHome">Choose music</button>
+          <button class="speed-btn" id="btnMuteHome">Music on/off</button>
+        </div>
+<div class="plaza-card" style="margin-top:16px;">
+          <div>
+            <h3>👤 My Profile</h3>
+            <p>Your photos, prompts and party card — how everyone at the party knows you. Keep it fresh and the matches follow.</p>
+          </div>
+          <button class="speed-btn" id="btnProfileHome">Open my profile</button>
+        </div>
         <div class="live-now-box" id="liveNowBox">
           <h4 class="live-now-head"><span class="rp-lndot264" aria-hidden="true">🔴</span> Live Now</h4>
           <div id="liveNowList"></div>
@@ -3058,41 +3159,8 @@
           </div>
           <button class="speed-btn" id="btnAuctionsHome">🔨 Open auctions</button>
         </div>
-        <!-- [RP-V7.240] Plaza Store card (Branden, Nov 4, 2026): the
-             NEW member store gets its own front door on Home, beside
-             Auctions — a separate card people can click. data-adult
-             keeps it out of teen Plaza renders entirely (the store
-             is 18+, server-enforced on every store route). This is
-             NOT the hidden Magniphiscents card below: that switch
-             (RP_MAGNI_STORE_OWNER_ONLY_7223) is untouched. -->
-        <div class="plaza-card" style="margin-top:12px;" data-adult>
-          <div>
-            <h3>🛍️ Plaza Store</h3>
-            <p>The member marketplace — real people selling real products at a fixed price. Buy it now, no bidding (auctions live in their own section). List your own items in minutes, or connect your Shopify, WooCommerce, Etsy or Square store and import your products. Sellers keep 90% of every sale.</p>
-          </div>
-          <button class="speed-btn" id="btnStoreHome" type="button">🛍️ Open the Store</button>
-        </div>
-        <!-- [RP-V7.24] Reels card sits directly under the Live block -->
-        <!-- [RP-V7.242] Branden (Nov 5): "I shouldn't have to press
-             reels to open reels it should be showing and open already
-             scrolling sideways like facebook" — the card now renders
-             the reels themselves as a sideways-scrolling rail, filled
-             by the RP-V7.242 module at the end of the body from the
-             Reels tab's own feed (GET /api/reels). The paragraph is
-             gone. The Open Reels button survives as the rail's end
-             tile: its id is load-bearing — the main script wires its
-             click, and the bottom-bar Reels/Friends entries funnel
-             through it — so it keeps id + handler, in the rail. -->
-        <div class="plaza-card" style="margin-top:16px;" data-adult>
-          <div>
-            <h3>🎬 Reels — photos & short videos</h3>
-          </div>
-          <div class="rp-rail242" id="rpHomeRail242">
-            <div class="rp-rail242-tiles" id="rpHomeRailTiles242"><span class="rp-rail242-note">Loading reels…</span></div>
-            <button class="rp-rail242-more" id="btnMomentsPlaza" type="button">Open Reels&nbsp;›</button>
-          </div>
-          <p class="rp-rail242-empty" id="rpHomeRailEmpty242" hidden>No reels yet — be the first to post one 🎬</p>
-        </div>
+        
+        
         <!-- [RP-V7.67] Find People gets its own front door on Home —
              Branden (Oct 26): it "don't need to be hidden" inside
              Messages. Same member directory the Messages button opens. -->
@@ -3141,35 +3209,10 @@
           <div class="matches-list" id="matchesList"></div>
         </div>
         <!-- [RP-V7.24] the Reels card moved up under the Live block -->
-        <div class="plaza-card" style="margin-top:16px;">
-          <div>
-            <h3>⛪ Christian Fellowship</h3>
-            <p>The chapel room: a verse of the day, the prayer wall, and Bible study with the fellowship — a quieter corner of the party, open to everyone.</p>
-          </div>
-          <button class="speed-btn" id="btnFellowshipHome">Enter the chapel room</button>
-        </div>
-        <div class="plaza-card" style="margin-top:16px;" data-adult>
-          <div>
-            <h3>💰 Earn</h3>
-            <p>Your gifts received, earnings and cash-out — gift earnings and auction sales tracked separately, and Cash Out unlocks at $20.</p>
-          </div>
-          <button class="speed-btn" id="btnEarnHome">Open Earn</button>
-        </div>
-        <div class="plaza-card" style="margin-top:16px;" data-adult>
-          <div>
-            <h3>🎵 Music</h3>
-            <p>Now playing: <span id="homeMusicName">Music</span>. Pick a track for the party — reggae at the plaza, gospel in the chapel, soft piano on live — or mute it anytime.</p>
-          </div>
-          <button class="speed-btn" id="btnMusicHome">Choose music</button>
-          <button class="speed-btn" id="btnMuteHome">Music on/off</button>
-        </div>
-        <div class="plaza-card" style="margin-top:16px;">
-          <div>
-            <h3>👤 My Profile</h3>
-            <p>Your photos, prompts and party card — how everyone at the party knows you. Keep it fresh and the matches follow.</p>
-          </div>
-          <button class="speed-btn" id="btnProfileHome">Open my profile</button>
-        </div>
+        
+        
+        
+        
         <div class="plaza-card" style="margin-top:16px;">
           <div>
             <h3>🆘 Help &amp; Support</h3>
@@ -9404,9 +9447,9 @@
       // [RP-V7.241] Photo share for the profile photo-post viewer:
       // the same navigator.share -> clipboard -> toast cascade
       // reelShare uses, with photo wording.
-      function rpPhotoShare241(author, caption) {
+      function rpPhotoShare241(author, caption, postId) {
         var text = "📸 " + (caption ? caption + " — " : "") + "check out this photo on Rizz Plaza";
-        var url = "https://rizzplaza.com";
+        var url = (postId && window.rpShareUrl269 && window.rpShareUrl269("post", postId)) || "https://rizzplaza.com"; // [RP-V7.269] a real photo post shares its share page; a pinned/gallery item (no post record id) keeps the Plaza link
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
           navigator.share({ title: "Rizz Plaza 📸 Photo", text: text, url: url }).catch(function () { });
           return;
@@ -9497,7 +9540,7 @@
         var hb241 = sheet241.querySelector(".pp-heart"); if (hb241) hb241.addEventListener("click", function () { photoLikeToggle123(fi241, hb241); });
         var cb241 = sheet241.querySelector(".pp-cmt"); if (cb241) cb241.addEventListener("click", function () { openPhotoComments123(fi241); });
         var gb241 = sheet241.querySelector(".pp-gift"); if (gb241) gb241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, { src: "picture", post: { kind: "photo", id: fi241.postId } }); }); // [RP-V7.262] the post rides as the gift's post
-        var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption); });
+        var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption, fi241.postId); });
         var rb241 = sheet241.querySelector(".pp-repost"); if (rb241) rb241.addEventListener("click", function () { photoRepostToggle123(fi241, rb241); });
         var db243 = sheet241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/photo/" + encodeURIComponent(it.id)).then(function (ok) { if (ok) rpAfterDel243("Photo deleted"); else { try { toast("Couldn't delete that photo."); } catch (e) { } } }); }); });
       }
@@ -23042,7 +23085,7 @@
          cascade as the V7.241 lightbox share (native share sheet,
          else copy the link, else a toast), with photo wording. */
       function momShare243(p) {
-        var url = location.origin + "/#photo-" + p.id;
+        var url = (p.srv && window.rpShareUrl269 && window.rpShareUrl269("post", p.id)) || (location.origin + "/#photo-" + p.id); // [RP-V7.269] server photo posts share their share page; device-only posts keep the legacy hash link
         var text = (p.caption ? "\u201C" + p.caption + "\u201D on Rizz Plaza" : "A photo on Rizz Plaza") + " — " + url;
         try {
           if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: text, url: url }).catch(function () { }); return; }
@@ -25194,7 +25237,7 @@
       }
       function reelShare(item) {
         var text = "🎬 " + (item.caption ? item.caption + " — " : "") + "watch this Reel on Rizz Plaza";
-        var url = "https://rizzplaza.com";
+        var url = (item && item.server && window.rpShareUrl269 && window.rpShareUrl269("reel", item.id)) || "https://rizzplaza.com"; // [RP-V7.269] a server reel shares its own share page (real OG card); a device-only reel has no server record to point at, so it keeps the Plaza link
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
           navigator.share({ title: "Rizz Plaza 🎬 Reel", text: text, url: url }).catch(function () { });
           return;
@@ -31384,6 +31427,9 @@ function stageStreakBump(key, add) {
 .rp-rem-row .rp-rem-txt { flex: 1; min-width: 0; }
 .rp-rem-row.unread .rp-rem-txt { font-weight: 800; }
 .rp-rem-when { color: #9a9aad; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+/* [RP-V7.270] the actor's face on a bell row — its own tap target */
+.rp-rem-av270 { flex: none; cursor: pointer; border-radius: 50%; line-height: 0; }
+.rp-rem-av270 .pface { width: 38px; height: 38px; font-size: 15px; }
 </style>
 <script>
 /* ================= RP-V7.0: real server accounts + reminders ================= */
@@ -31870,6 +31916,37 @@ function stageStreakBump(key, add) {
     if (s < 86400) return Math.round(s / 3600) + "h ago";
     return Math.round(s / 86400) + "d ago";
   }
+  // [RP-V7.270] Open the exact reel / photo post a bell row points
+  // at: the same doors + poll + flash the V7.269 share-link landing
+  // uses. Content that never appears (deleted, audience-gated)
+  // leaves the member on Moments — silently, like a broken deep
+  // link.
+  function remOpenContent270(go) {
+    var isReel = !!go.reelId;
+    var id = String(isReel ? go.reelId : go.photoId || "");
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) { if (typeof show === "function") show("screen-moments"); return; }
+    try {
+      if (isReel) {
+        if (typeof window.rpReelsOpen === "function") window.rpReelsOpen();
+        else if (typeof show === "function") show("screen-moments");
+      } else {
+        if (typeof show === "function") show("screen-moments");
+        setTimeout(function () { try { var tp = document.getElementById("btnMomModePhotos"); if (tp) tp.click(); } catch (e) { } }, 450);
+      }
+    } catch (e) { }
+    var tries = 0;
+    (function poll() {
+      var el = null;
+      try { el = isReel ? document.querySelector('#reelFeed [data-rid="srv:' + id + '"]') : document.querySelector('#momFeed [data-mid="' + id + '"]'); } catch (e) { }
+      if (el) {
+        try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { try { el.scrollIntoView(); } catch (e2) { } }
+        try { el.classList.remove("reel-flash"); void el.offsetWidth; el.classList.add("reel-flash"); setTimeout(function () { try { el.classList.remove("reel-flash"); } catch (e) { } }, 1200); } catch (e) { }
+        return;
+      }
+      if (++tries > 30) return;
+      setTimeout(poll, 400);
+    })();
+  }
   // [RP-V7.100] A tapped notification goes where it points: the DM
   // thread, the follower's profile, Moments, your own
   // Profile, or the Plaza home.
@@ -31885,7 +31962,10 @@ function stageStreakBump(key, add) {
         /* [RP-V7.247] The Feed wall is retired — a tapped feed-era notification lands on the Plaza. */
         if (typeof show === "function") show("screen-plaza");
       } else if (go.screen === "moments") {
-        if (typeof show === "function") show("screen-moments");
+        // [RP-V7.270] a row that names its content opens that content,
+        // not just the Moments screen.
+        if (go.reelId || go.photoId) remOpenContent270(go);
+        else if (typeof show === "function") show("screen-moments");
       } else if (go.screen === "ownprofile") {
         if (typeof show === "function") show("screen-profile");
       } else if (go.screen === "plaza") {
@@ -31911,12 +31991,28 @@ function stageStreakBump(key, add) {
       renderRemSheet();
     });
   }
+  // [RP-V7.270] the row avatar: the actor's account photo when the
+  // record carries one, else their initial on the app's tonal tile
+  // (personFace's palette, mirrored locally — personFace lives in
+  // another module's scope).
+  var REM_GRAD270 = ["#26262e", "#1c1c24", "#33333f", "#23232c", "#2e2e38", "#1f1f27", "#2a2a33", "#252530"];
+  function remFace270(r) {
+    var nm = r.fromName || "Someone";
+    if (r.fromPhoto) return '<img loading="lazy" decoding="async" class="pface" src="' + esc(r.fromPhoto) + '" alt=""/>';
+    var h = 0; for (var i = 0; i < nm.length; i++) h = (h * 31 + nm.charCodeAt(i)) >>> 0;
+    var g = REM_GRAD270[h % REM_GRAD270.length];
+    return '<span class="pface pface-init" style="background:linear-gradient(135deg,' + g + ',' + g + ')" aria-hidden="true">' + esc((String(nm).trim().charAt(0) || "?").toUpperCase()) + '</span>';
+  }
   function renderRemSheet() {
     if (typeof window.openSheet !== "function") return;
     var html = '<h3 style="margin:4px 0">🔔 Reminders</h3>';
     if (!reminders.length) html += '<p class="age-note" style="margin-top:8px">You\'re all caught up 🎉</p>';
     else html += reminders.map(function (r, i) {
-      return '<div class="rp-rem-row' + (r.read ? "" : " unread") + '"' + (r.go ? ' data-gi="' + i + '" style="cursor:pointer"' : "") + '><div class="rp-rem-txt">' + esc(r.text) + '</div><span class="rp-rem-when">' + esc(whenText(r.at)) + '</span></div>';
+      // [RP-V7.270] rows stamped with an actor wear their face; the
+      // face is its own tap target (the actor's profile), the row
+      // itself still follows r.go to the content.
+      var av270 = r.fromId ? '<span class="rp-rem-av270" data-av="' + i + '" role="button" aria-label="Open ' + esc(r.fromName || "member") + '\'s profile">' + remFace270(r) + '</span>' : "";
+      return '<div class="rp-rem-row' + (r.read ? "" : " unread") + '"' + (r.go ? ' data-gi="' + i + '"' : "") + ((r.go || r.fromId) ? ' style="cursor:pointer"' : "") + '>' + av270 + '<div class="rp-rem-txt">' + esc(r.text) + '</div><span class="rp-rem-when">' + esc(whenText(r.at)) + '</span></div>';
     }).join("");
     html += '<div class="btn-row" style="margin-top:14px;"><button class="btn-mini" id="rpRemRead" type="button">Mark all read</button><button class="btn-mini" id="rpRemResend" type="button">🎉 Resend my welcome</button></div>';
     window.openSheet(html);
@@ -31927,6 +32023,18 @@ function stageStreakBump(key, add) {
         var go = r.go;
         try { if (window.closeSheet) window.closeSheet(); } catch (e) { }
         setTimeout(function () { remNavigate(go); }, 60);
+      });
+    });
+    // [RP-V7.270] avatar tap → the actor's profile (the openLikesSheet
+    // pattern); it never falls through to the row's content jump.
+    document.querySelectorAll(".rp-rem-av270[data-av]").forEach(function (av) {
+      av.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var r = reminders[parseInt(av.getAttribute("data-av"), 10)];
+        if (!r || !r.fromId) return;
+        var fid = r.fromId, fnm = r.fromName || "";
+        try { if (window.closeSheet) window.closeSheet(); } catch (e) { }
+        setTimeout(function () { if (window.rpDm && window.rpDm.openProfile) window.rpDm.openProfile(fid, fnm); }, 60);
       });
     });
     var rd = $("rpRemRead"), rs = $("rpRemResend");
@@ -33295,7 +33403,7 @@ button.rp72-chip{ cursor:pointer; }
 
   /* ================= RP-V7.6 — Real-Life Scenes for Meet & Greet rooms =================
      Each themed room gets a real filmed ambient backdrop (short muted loop)
-     staged under public/video/scenes/scene-<roomid>.mp4 with a poster JPG.
+     served from the R2 bucket as scenes/scene-<roomid>.mp4 with a poster JPG.
      Discipline (mirrors the RP-V6.10 wallpaper layer):
        - only the room you are standing in has a scene layer, and it is
          created on entry and torn down on exit / screen change;
@@ -33318,17 +33426,29 @@ button.rp72-chip{ cursor:pointer; }
     // all and the illustrated art stayed up forever.
     var ID_ALIAS = { singles: "city", career: "city", sports: "wellness", workout: "wellness" };
     var SCENE_ALIAS = { singles: "city", career: "city", sports: "wellness" };
-    // [RP-V7.99] Daily scene rotation (Branden, Oct 28: the scenes
-    // "switch automatically to other scenes daily — but in the same
-    // category"). Every themed room has a POOL of same-category
-    // scenes — pool sizes baked from the HD production manifest
-    // (5 per room): scene-<id>.mp4 is #1, scene-<id>-2.mp4 ... -5.
-    // The ET calendar day picks the member (day-of-year mod pool),
-    // so everyone sees the same scene that day. If a pool file is
-    // not on the server yet (404), the chain falls to the next
-    // member and finally #1 — a room is never black over rotation.
-    var POOL = { neon: 5, roof: 5, beach: 5, garden: 5, love: 5, friends: 5, faith: 5, music: 5, foodie: 5, travel: 5, movies: 5, games: 5, books: 5, comedy: 5, podcast: 5, art: 5, wellness: 5, city: 5 };
-    function etDayOfYear() {
+    // [RP-V7.99] Rotation wiring landed with a daily rule, but the
+    // pool media itself never uploaded, so the chain silently fell
+    // back to scene #1 every day. [RP-V7.268] WEEKLY rotation
+    // (Branden, Nov 6, 2026 — supersedes the Oct 28 daily ask):
+    // every themed room has a POOL of same-category scenes — pool
+    // sizes baked from the HD production manifest (5 per room):
+    // scene-<id>.mp4 is #1, scene-<id>-2.mp4 ... -5. The ISO week
+    // number (Mon–Sun) picks the member: slot = (ISO week mod
+    // pool) + 1, so everyone sees the same scene in a room all
+    // week and it changes on Monday. The week is read on the
+    // Plaza's ET clock (America/New_York) — the same anchor the
+    // Daily Pot runs on — so every member flips at the same moment
+    // whatever their own timezone. If the week's file fails to
+    // load (404 / decode error), the chain falls straight to #1,
+    // then to the classic art as before — a room is never black
+    // over rotation.
+    var POOL = { neon: 5, roof: 5, beach: 5, garden: 5, love: 5, friends: 5, faith: 5, music: 5, foodie: 5, travel: 5, movies: 5, games: 5, books: 5, comedy: 5, podcast: 5, art: 5, wellness: 5, city: 5, stage: 5 };
+    // [RP-V7.268] Scene media is served from the Cloudflare R2
+    // bucket (the same public bucket as the music shelf) under
+    // scenes/ — the git repo carries no scene binaries, so every
+    // scene URL below is absolute.
+    var SCENE_BASE = "https://pub-36984ea881324a4d86f2d7923492fb87.r2.dev/scenes/scene-";
+    function etYmd() {
       try {
         var parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "numeric", day: "numeric" }).formatToParts(new Date());
         var y = 0, m = 0, d = 0;
@@ -33337,26 +33457,35 @@ button.rp72-chip{ cursor:pointer; }
           if (parts[i].type === "month") m = +parts[i].value;
           if (parts[i].type === "day") d = +parts[i].value;
         }
-        if (y && m && d) return Math.floor((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 0)) / 86400000);
+        if (y && m && d) return { y: y, m: m, d: d };
       } catch (e) { }
       var now = new Date();
-      return Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(now.getFullYear(), 0, 0)) / 86400000);
+      return { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+    }
+    function isoWeekNumber(y, m, d) {
+      // ISO-8601 week (Mon–Sun): week 1 is the week with the year's
+      // first Thursday. Pure UTC date math on the ET calendar date.
+      var date = new Date(Date.UTC(y, m - 1, d));
+      var dayNum = (date.getUTCDay() + 6) % 7; // Mon=0 ... Sun=6
+      date.setUTCDate(date.getUTCDate() - dayNum + 3); // this week's Thursday
+      var firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+      var fDay = (firstThursday.getUTCDay() + 6) % 7;
+      firstThursday.setUTCDate(firstThursday.getUTCDate() - fDay + 3);
+      return 1 + Math.round((date - firstThursday) / 6048e5);
     }
     function sceneCandidates(sceneId) {
-      var base = "video/scenes/scene-" + sceneId;
+      var base = SCENE_BASE + sceneId;
       var n = POOL[sceneId] || 1;
-      if (n <= 1) return [{ jpg: base + ".jpg", mp4: base + ".mp4" }];
-      var start = etDayOfYear() % n;
-      var out = [];
-      for (var k = 0; k < n; k++) {
-        var slot = ((start + k) % n) + 1; // 1-based pool slot; the day's pick leads the fallback chain
-        var suf = slot === 1 ? "" : "-" + slot;
-        out.push({ jpg: base + suf + ".jpg", mp4: base + suf + ".mp4" });
-      }
-      return out;
+      var slot1 = { jpg: base + ".jpg", mp4: base + ".mp4" };
+      if (n <= 1) return [slot1];
+      var p = etYmd();
+      var slot = (isoWeekNumber(p.y, p.m, p.d) % n) + 1; // this week's member, 1-based
+      if (slot === 1) return [slot1];
+      var suf = "-" + slot;
+      return [{ jpg: base + suf + ".jpg", mp4: base + suf + ".mp4" }, slot1];
     }
     window.rpSceneCandidates = sceneCandidates;
-    window.rpSceneDaySrc = function (sceneId) { return sceneCandidates(sceneId)[0]; };
+    window.rpSceneDaySrc = function (sceneId) { return sceneCandidates(sceneId)[0]; }; // name kept from V7.99; returns the WEEK's pick since V7.268
     function sceneIdFor(roomId, meta) {
       if (roomId && THEMED[roomId]) return roomId;
       if (roomId && ID_ALIAS[roomId]) return ID_ALIAS[roomId];
@@ -33393,8 +33522,8 @@ button.rp72-chip{ cursor:pointer; }
       }
       host.insertBefore(layer, host.firstChild);
       if (art) { art.style.display = "none"; art.setAttribute("data-rpsc-hidden", "1"); }
-      // [RP-V7.99] The day's pool member leads; a missing file (404)
-      // walks the chain to the next member, down to scene #1.
+      // [RP-V7.268] The week's pool member leads; a missing file
+      // (404) falls straight to scene #1.
       var cands = sceneCandidates(sceneId);
       var ci = 0, settled = false;
       function applyCand() {
@@ -33425,8 +33554,8 @@ button.rp72-chip{ cursor:pointer; }
           var p = vid.play(); if (p && p.catch) p.catch(function () { });
         });
         vid.addEventListener("error", function () {
-          // [RP-V7.99] A pool video that isn't on the server yet
-          // walks the chain; the last candidate keeps the classic
+          // [RP-V7.268] A pool video that fails to load falls back
+          // to scene #1; the last candidate keeps the classic
           // behavior — drop the video, the poster underneath stays.
           if (!settled && ci < cands.length - 1) { ci++; applyCand(); return; }
           vid.classList.remove("on");
@@ -33451,20 +33580,25 @@ button.rp72-chip{ cursor:pointer; }
       if (host && id) mount(host, id); else if (host) teardown(host);
     };
     // screen-online (live rooms): themed ids get their scene; state
-    // rooms share the rooftop city-evening scene; the Live Stage and
-    // personal lives idle on the filmed city scene [RP-V7.25]; the
-    // Chaos Room resolves to the neon scene through its meta, as before.
+    // rooms share the city-evening scene; the Live Stage and personal
+    // lives idle on the stage pool [RP-V7.268] (before V7.268 they
+    // borrowed the city scene); the Chaos Room resolves to the neon
+    // scene through its meta, as before.
     window.rpSceneOnline = function (roomId, meta) {
       var host = document.getElementById("onlineScene");
       if (!host) return;
       // [RP-V7.25] Stage rooms first: the Live Stage and personal
-      // lives idle on the filmed city-evening scene. Their room meta
-      // points at the neon club art — the illustrated skyline Branden
-      // saw — so they must resolve before sceneIdFor reads the meta.
-      // Live video itself is untouched: the scene layer sits inside
-      // the room scene, under the stage UI.
+      // lives idle on a filmed scene. Their room meta points at the
+      // neon club art — the illustrated skyline Branden saw — so
+      // they must resolve before sceneIdFor reads the meta. Live
+      // video itself is untouched: the scene layer sits inside the
+      // room scene, under the stage UI.
+      // [RP-V7.268] The stage backdrop is its own pool now (stage):
+      // slot 1 is the city-evening film the stage has always idled
+      // on (HD encode), slots 2–5 are live-stage/concert scenes,
+      // rotating weekly through the same selection as the rooms.
       var id = null;
-      if (roomId === "live-stage" || String(roomId).indexOf("live-") === 0) id = "city";
+      if (roomId === "live-stage" || String(roomId).indexOf("live-") === 0) id = "stage";
       else id = sceneIdFor(roomId, meta);
       if (!id && roomId && roomId !== "chaos-room") id = "city";
       if (id) mount(host, id); else teardown(host);
@@ -33477,13 +33611,13 @@ button.rp72-chip{ cursor:pointer; }
     // Lobby cards: still poster imagery for themed rooms.
     window.rpScenePoster = function (roomId) {
       if (!THEMED[roomId]) return "";
-      // [RP-V7.99] The directory card shows the day's scene too.
+      // [RP-V7.268] The directory card shows the week's scene too.
       var c = sceneCandidates(roomId)[0];
       return '<img class="card-art-img" src="' + c.jpg + '" alt="" loading="lazy" onerror="window.rpScenePosterErr&&window.rpScenePosterErr(this,\'' + roomId + '\')">';
     };
     window.rpScenePosterErr = function (img, roomId) {
-      // [RP-V7.99] Day-pick poster missing -> scene #1's poster, then hide.
-      var base = "video/scenes/scene-" + roomId + ".jpg";
+      // [RP-V7.268] Week-pick poster missing -> scene #1's poster, then hide.
+      var base = SCENE_BASE + roomId + ".jpg";
       if (img.getAttribute("src") !== base) img.src = base;
       else img.style.display = "none";
     };
@@ -35654,9 +35788,9 @@ button.rp72-chip{ cursor:pointer; }
      !item.mine rule); the gift sheet's self-preview and the
      server's "You can't gift yourself" stay as backstops. */
   function lbIco241(name) { return (window.RPICO && window.RPICO[name]) || ""; }
-  function lbShare241(icon, noun, caption) {
+  function lbShare241(icon, noun, caption, url269) {
     var text = icon + " " + (caption ? caption + " — " : "") + "check out this " + noun + " on Rizz Plaza";
-    var url = "https://rizzplaza.com";
+    var url = url269 || "https://rizzplaza.com"; // [RP-V7.269] callers with a real post pass its share page; the rest keep the Plaza link
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       navigator.share({ title: "Rizz Plaza " + noun, text: text, url: url }).catch(function () { });
       return;
@@ -35740,7 +35874,7 @@ button.rp72-chip{ cursor:pointer; }
         var g = root.querySelector(".pp-gift");
         if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "picture", post: isPost ? { kind: "photo", id: it.id } : undefined }); }); // [RP-V7.262] only a real post rides
         var s = root.querySelector(".pp-share");
-        if (s) s.addEventListener("click", function () { lbShare241("📸", "photo", isPost ? (it.caption || "") : ""); });
+        if (s) s.addEventListener("click", function () { lbShare241("📸", "photo", isPost ? (it.caption || "") : "", (isPost && window.rpShareUrl269) ? window.rpShareUrl269("post", it.id) : ""); }); // [RP-V7.269] a real photo post shares its share page
         var d243 = root.querySelector(".pp-del243");
         if (d243) d243.addEventListener("click", function () { lbDel243("photo", it.id, d243); });
       },
@@ -38930,6 +39064,21 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 #storyTrayFb243 .story-card243 .plus243 { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); width: 34px; height: 34px; border-radius: 50%; background: #e91e63; color: #fff; font-size: 22px; font-weight: 800; line-height: 32px; text-align: center; border: 3px solid #000; z-index: 2; }
 #storyTrayFb243 .story-card243 .name243 { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 8px 7px; font-size: 12.5px; font-weight: 700; color: #fff; text-align: center; background: linear-gradient(transparent, rgba(0, 0, 0, .72)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #storyTrayFb243 .story-card243 .name243.left243 { text-align: left; }
+/* [RP-V7.271] Own-story tile on Home is a CIRCLE (Branden, Nov 6):
+   with an active story it carries the first story's media, without
+   one it carries the profile picture; the + badge stays on it as
+   the create entry and the label sits under the circle. */
+#storyTrayFb243 .story-circ271 { position: relative; width: 104px; height: 104px; border-radius: 50%; background: #1c1e21; padding: 0; display: block; margin: 1px auto 0; border: none; cursor: pointer; font-family: inherit; }
+#storyTrayFb243 .story-circ271 .cface271 { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+#storyTrayFb243 .story-circ271 .cinit271 { display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #ff2d78, #7b2ff7); color: #fff; font-weight: 800; font-size: 34px; }
+#storyTrayFb243 .story-circ271 .plus271 { position: absolute; right: 1px; bottom: 1px; width: 32px; height: 32px; border-radius: 50%; background: #e91e63; color: #fff; font-size: 22px; font-weight: 800; line-height: 29px; text-align: center; border: 3px solid #000; z-index: 2; cursor: pointer; }
+#storyTrayFb243 .name271 { display: block; margin-top: 6px; font-size: 12.5px; font-weight: 700; color: #fff; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* [RP-V7.271-RING] The circle's ring is the V7.258 stronger STEADY
+   story glow verbatim (same values as .story-profile-row .sc-ring
+   and #storyTrayHome .sc-ring): full bloom, pulse removed. Only in
+   the has-story state; box-shadow follows the 50% radius, so the
+   bloom wraps the circle. */
+#storyTrayFb243 .story-circ271.ring271 { animation: none; box-shadow: 0 0 0 2px #0f0f14, 0 0 0 5.5px #fe2c55, 0 0 24px 8px rgba(254,44,85,.95), 0 0 48px 18px rgba(254,44,85,.55), 0 0 76px 28px rgba(254,44,85,.30); }
 .story-tray { display: flex; gap: 14px; overflow-x: auto; padding: 12px 4px 6px; scrollbar-width: none; }
 .story-tray::-webkit-scrollbar { display: none; }
 .story-tray.rpdm-storytray { padding: 10px 2px 4px; margin: 2px 0 8px; border-bottom: 1px solid rgba(255,255,255,.07); } /* [RP-V7.110] */
@@ -39119,12 +39268,39 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
      portrait card faced with their story's own first frame, avatar
      badge top-left (pink ring until viewed), name at the bottom.
      The tap wiring mirrors the circle cells exactly. */
+  /* [RP-V7.271] Cover picker for the own-story circle: the FIRST-
+     posted active story wins (tray stories arrive createdAt-
+     ascending from the server). Photo -> the image; video -> its
+     poster if the record carries one, else a muted inline video
+     (class face243 keeps it on the tray's existing play/seek
+     wiring); a story with no usable url falls through to the next
+     one, and with nothing usable the face is the profile picture. */
+  function mineStoryFace271(entry, a) {
+    var list = (entry && entry.stories) || [];
+    for (var i = 0; i < list.length; i++) {
+      var st = list[i];
+      if (!st || !st.url) continue;
+      if (st.kind === "video") {
+        if (st.poster) return { has: true, face: '<img class="cface271" src="' + escS(st.poster) + '" alt=""/>' };
+        return { has: true, face: '<video class="cface271 face243" src="' + escS(st.url) + '" preload="none" muted playsinline></video>' };
+      }
+      return { has: true, face: '<img class="cface271" src="' + escS(st.url) + '" alt=""/>' };
+    }
+    var face = a.photo ? '<img class="cface271" src="' + escS(a.photo) + '" alt=""/>' : '<span class="cface271 cinit271">' + escS((String(a.name || "?").trim().charAt(0) || "?").toUpperCase()) + "</span>";
+    return { has: false, face: face };
+  }
   function homeCardHtml243(entry, isMine) {
     var a = entry ? entry.author : (tray ? tray.me : null);
     if (!a) return "";
     if (isMine) {
-      var myFace = a.photo ? '<img class="face243" src="' + escS(a.photo) + '" alt=""/>' : "";
-      return '<div class="story-cell"><button type="button" class="story-card243" data-story-open="' + escS(a.id) + '" data-story-mine="1" aria-label="Create story">' + myFace + '<span class="plus243">+</span><span class="name243">Create story</span></button></div>';
+      /* [RP-V7.271] CIRCLE tile (see mineStoryFace271): the first
+         story's media + glow ring when a story is up, the profile
+         picture when not. The button tap keeps the shared tray
+         wiring (own viewer when a story exists, create flow when
+         not); the + badge carries data-story-plus271 and always
+         opens the create flow. */
+      var mine271 = mineStoryFace271(entry, a);
+      return '<div class="story-cell"><button type="button" class="story-circ271' + (mine271.has ? " ring271" : "") + '" data-story-open="' + escS(a.id) + '" data-story-mine="1" aria-label="' + (mine271.has ? "Your story" : "Create story") + '">' + mine271.face + '<span class="plus271" data-story-plus271="1" role="button" aria-label="Create story">+</span></button><span class="name271">' + (mine271.has ? "Your story" : "Create story") + "</span></div>";
     }
     var st = (entry.stories && entry.stories[0]) || null;
     var face = "";
@@ -39184,6 +39360,17 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
           return;
         }
         openViewer(id);
+      });
+    });
+    /* [RP-V7.271] The circle's + badge is its own tap target: it
+       opens the create flow even when the circle itself opens the
+       story viewer. Fresh elements every render, so no observer
+       and no duplicate-binding risk. */
+    el.querySelectorAll("[data-story-plus271]").forEach(function (p) {
+      p.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (canPost()) openPoster();
+        else toastS("Posting stories opens at 18 🎬 — you can watch everybody's stories now.", 3600);
       });
     });
   }
@@ -40312,6 +40499,17 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     #earnCard .earn-tx b { display: block; font-size: 16.5px; line-height: 1.25; }
     #earnCard .earn-tx span { display: block; font-size: 12.5px; opacity: .75; margin-top: 2px; }
     #earnCard .earn-go { font-size: 24px; opacity: .55; flex: 0 0 auto; }
+    /* ---- [RP-V7.270] the pay strip becomes a real banner: bigger +
+       bolder type here; the filled gold band + glow ride in the late
+       V7.270 style block before </body>, because the V7.235 flat pass
+       strips this card's chrome with !important further down the
+       file. Its pulse is compositor-only (transform via WAAPI in
+       the V7.270 script) — deliberately no new keyframe rules and
+       no shadow animation. ---- */
+    #earnCard { padding: 18px; }
+    #earnCard .earn-ic { font-size: 36px; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .45)); }
+    #earnCard .earn-tx { font-size: 19.5px; font-weight: 900; line-height: 1.32; letter-spacing: .01em; color: #fff; text-shadow: 0 1px 3px rgba(60, 38, 0, .65), 0 0 14px rgba(255, 240, 200, .35); }
+    #earnCard .earn-go { font-size: 28px; opacity: .9; color: #fff; }
     .earn-sec { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .6; margin: 16px 0 8px; }
     .earn-row { display: flex; gap: 11px; background: rgba(255,255,255,.05); border-radius: 14px; padding: 12px; margin-bottom: 8px; }
     .earn-row .earn-ric { font-size: 21px; flex: 0 0 auto; }
@@ -40334,8 +40532,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
        Plaza Pot, battles + Add People in regular lives only).
        Not a church room: normal gifting; auctions stay confined
        to the Auctions section. Its scene is a REAL filmed podcast
-       studio (licensed stock footage, scene-podcast.mp4/.jpg in
-       public/video/scenes/, same spec as the other room scenes).
+       studio (licensed stock footage, scenes/scene-podcast.mp4/.jpg
+       on the R2 bucket, same spec as the other room scenes).
        Client-only: the server's room gate is generic (only faith
        and teen are all-ages) and the For You style profile picks
        up the "podcast" room token generically, so no server
@@ -43323,7 +43521,7 @@ html, body { overflow-x: clip; }
       return { kind: "photopost", id: pp.id, owner: null, ownerName: pp.author || "", src: pp.photo || "", views: 0, photoCount: urls.length || 1, caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted };
     }
     function share243(pp) {
-      var url = location.origin + "/#photo-" + pp.id;
+      var url = (window.rpShareUrl269 && window.rpShareUrl269("post", pp.id)) || (location.origin + "/#photo-" + pp.id); // [RP-V7.269] Home-stream photo posts are server posts: share the share page
       var text = (pp.caption ? "\u201C" + pp.caption + "\u201D on Rizz Plaza" : "A photo on Rizz Plaza") + " — " + url;
       try { if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: text, url: url }).catch(function () { }); return; } } catch (e) { }
       try {
@@ -43937,6 +44135,107 @@ html, body { overflow-x: clip; }
    class sits over actual media (live rooms, sheets, other screens). */
 #screen-profile .btn-mini, #screen-profile .px-act { -webkit-backdrop-filter: none; backdrop-filter: none; }
 </style>
+<script>
+/* =====================================================================
+   [RP-V7.269] Share-link consumer. The head script stashed a
+   /?reel=<id> / /?photo=<id> target (sessionStorage rpShareLink.v1)
+   from a share page's human bounce. Once the app has booted, open
+   that content the way a member's own taps would — Reels through
+   window.rpReelsOpen, Photos through the Moments funnel + Photos
+   tab — then scroll its card into view with the app's own flash
+   (the reelOpenSource pattern). If the card never appears (content
+   deleted, audience-gated for this viewer, or beyond the feed's
+   first page), the landing degrades to the normal HOME screen,
+   silently — a broken deep link never shows an error.
+   ===================================================================== */
+(function () {
+  "use strict";
+  var KEY = "rpShareLink.v1";
+  function stash269() {
+    try {
+      var s = JSON.parse(sessionStorage.getItem(KEY) || "null");
+      return (s && typeof s === "object" && (s.kind === "reel" || s.kind === "photo") && /^[A-Za-z0-9_-]{1,80}$/.test(String(s.id || ""))) ? s : null;
+    } catch (e) { return null; }
+  }
+  function clear269() { try { sessionStorage.removeItem(KEY); } catch (e) { } }
+  function run269() {
+    var s = stash269();
+    if (!s) return;
+    if (s.at && Date.now() - s.at > 10 * 60 * 1000) { clear269(); return; }
+    clear269(); // one attempt per landing — a failed jump never nags twice
+    var tries = 0;
+    function targetEl() {
+      try {
+        return s.kind === "reel"
+          ? document.querySelector('#reelFeed [data-rid="srv:' + s.id + '"]')
+          : document.querySelector('#momFeed [data-mid="' + s.id + '"]');
+      } catch (e) { return null; }
+    }
+    function poll() {
+      var el = targetEl();
+      if (el) {
+        try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { try { el.scrollIntoView(); } catch (e2) { } }
+        try {
+          el.classList.remove("reel-flash"); void el.offsetWidth; el.classList.add("reel-flash");
+          setTimeout(function () { try { el.classList.remove("reel-flash"); } catch (e) { } }, 1200);
+        } catch (e) { }
+        return;
+      }
+      if (++tries > 30) { // ~12 s of feed loading with no card: degrade to HOME, silently
+        try { if (typeof window.show === "function") window.show("screen-home243"); } catch (e) { }
+        return;
+      }
+      setTimeout(poll, 400);
+    }
+    try {
+      if (s.kind === "reel") {
+        if (typeof window.rpReelsOpen === "function") window.rpReelsOpen();
+        else { var b1 = document.getElementById("btnMomentsPlaza"); if (b1) b1.click(); }
+      } else {
+        var b2 = document.getElementById("btnMomentsPlaza"); if (b2) b2.click();
+        setTimeout(function () { try { var tp = document.getElementById("btnMomModePhotos"); if (tp) tp.click(); } catch (e) { } }, 450);
+      }
+    } catch (e) { }
+    setTimeout(poll, 700);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(run269, 900); });
+  else setTimeout(run269, 900);
+})();
+</script>
+<style>
+/* [RP-V7.270] the pay banner, filled + glowing. The V7.235 flat pass
+   strips #earnCard's chrome with !important; Branden ordered a real
+   banner for this one strip (Nov 6), so these rules carry the same
+   weight, later in the file, scoped to this element only. */
+#screen-plaza #earnCard {
+  background: linear-gradient(120deg, #6e4a00 0%, #c9930a 38%, #f0b90b 55%, #c9930a 72%, #6e4a00 100%) !important;
+  border: 1.5px solid rgba(255, 220, 130, .95) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 0 22px rgba(255, 186, 8, .55), 0 0 52px rgba(255, 170, 0, .30), inset 0 0 22px rgba(255, 255, 255, .20) !important;
+  margin: 10px 10px 14px !important;
+}
+</style>
+<script>
+/* [RP-V7.270] Plaza pay banner pulse: compositor-only (transform)
+   via WAAPI — deliberately no new keyframe rules (the glow battery
+   counts them) and no box-shadow animation (that repaints). */
+(function () {
+  "use strict";
+  function start270() {
+    try {
+      var el = document.getElementById("earnCard");
+      if (!el || typeof el.animate !== "function") return;
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      el.animate(
+        [{ transform: "scale(1)" }, { transform: "scale(1.015)" }],
+        { duration: 2100, iterations: Infinity, direction: "alternate", easing: "ease-in-out" }
+      );
+    } catch (e) { }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(start270, 600); });
+  else setTimeout(start270, 600);
+})();
+</script>
 </body>
 </html>
 
