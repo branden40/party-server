@@ -15267,6 +15267,89 @@ app.post("/api/owner/grant-charms", lockedHandler("owner-grant-charms", (req, re
   console.log("[owner] grant-charms", target.username, ageClass, credited, before, "->", after, "via", viaSession ? "session" : "secret");
   res.json({ ok: true, username: target.username, ageClass, credited, amount, before, after });
 }));
+// ---------------------------------------------------------------------------
+// [RP-V7.279] OWNER BROADCAST + ONE-TIME PLAY TESTER INVITE (Branden,
+// Nov 7, 2026: "send it to all of the people who signed up on the app
+// already"). POST /api/owner/broadcast { text } drops ONE in-app bell
+// notice into every eligible member's reminders, riding the EXISTING
+// notifyActivity machinery: kind "post" (a NOTIFY_SETTING_KEY kind
+// whose member switch defaults ON), inAppOnly (the bell only — a
+// broadcast never fans out to email or SMS), no actor (a system
+// notice: no avatar face on the row, and the owner themself receives
+// it too — the self-action skip only fires for an actor), and NO go
+// target: the V7.278 client renders every reminder as its plain text
+// row (renderRemSheet), and a go-less row is simply inert when
+// tapped — nothing broken to land on. Eligibility: real member
+// accounts, EXCLUDING teen-disabled accounts (teenAccountDisabled —
+// locked out and de-listed) and accounts pending deletion
+// (deletionAt; notifyActivity skips those itself too). Delivery is
+// counted exactly: every row carries the send's coalesce key (ck),
+// so the response counts the accounts whose reminders actually hold
+// the row after the fan-out — a member who turned the "posts" alert
+// or the bell channel off is not counted as delivered. The gate is
+// the shared V7.263 owner gate (rpOwnerGate263): the owner session
+// (the /api/owner/sales check) OR the OWNER_PUSH_SECRET in the body;
+// 404 for everyone else, like every /api/owner/* route.
+// ONE-TIME SEND: the first boot of this build delivers the Play
+// tester invite below to all eligible accounts exactly once; the
+// durable marker (the liveviewers store pattern, beside
+// accounts.json) records { sentAt, delivered, eligible, skipped } so
+// restarts and redeploys never re-send.
+// ---------------------------------------------------------------------------
+const RP_BROADCAST279_FILE =
+  process.env.BROADCAST279_FILE ||
+  path.join(path.dirname(ACCOUNTS_FILE), "broadcast-playtest279.json");
+const RP_PLAYTEST_INVITE279 =
+  "🤖 Android users — help RP get Rizz Plaza on the Google Play Store! DM RP your Gmail address and we'll add you as a tester: become a tester, install the app, keep it 2 weeks. That's it — thank you! 🙏";
+function readBroadcastMarker279() {
+  return storeReadJson(
+    RP_BROADCAST279_FILE,
+    (d) => !!(d && typeof d.sentAt === "string"),
+    null,
+    "broadcast279"
+  );
+}
+function rpBroadcast279(text, ckTag) {
+  const ck = "bcast279:" + ckTag;
+  const before = readAccounts();
+  let eligible = 0, skipped = 0;
+  const targets = [];
+  for (const u of before.users || []) {
+    if (!u || !u.id || teenAccountDisabled(u) || u.deletionAt) { skipped++; continue; }
+    eligible++; targets.push(u.id);
+  }
+  for (const id of targets)
+    notifyActivity({ toId: id, kind: "post", text, inAppOnly: true, coalesceKey: ck });
+  const after = readAccounts();
+  let delivered = 0;
+  for (const u of after.users || []) {
+    if (!u || !Array.isArray(u.reminders)) continue;
+    if (u.reminders.some((r) => r && r.ck === ck)) delivered++;
+  }
+  return { eligible, skipped, delivered };
+}
+app.post("/api/owner/broadcast", lockedHandler("owner-broadcast", (req, res) => {
+  const b = req.body || {};
+  const gate = rpOwnerGate263(req, b);
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const text = String(b.text || "").trim();
+  if (!text) return res.status(400).json({ ok: false, error: "text-required" });
+  if (text.length > 500) return res.status(400).json({ ok: false, error: "text-too-long" });
+  const out = rpBroadcast279(text, "route-" + Date.now());
+  console.log("[RP-V7.279] owner broadcast:", out.delivered, "delivered,", out.eligible, "eligible,", out.skipped, "skipped");
+  res.json({ ok: true, delivered: out.delivered, eligible: out.eligible, skipped: out.skipped });
+}));
+function rpPlayTestInviteOnce279() {
+  if (readBroadcastMarker279()) return;
+  const out = rpBroadcast279(RP_PLAYTEST_INVITE279, "playtest279");
+  storeWriteJson(RP_BROADCAST279_FILE, {
+    sentAt: new Date().toISOString(),
+    delivered: out.delivered,
+    eligible: out.eligible,
+    skipped: out.skipped,
+  });
+  console.log("[RP-V7.279] Play tester invite broadcast: delivered to " + out.delivered + " of " + out.eligible + " eligible member(s) (" + out.skipped + " skipped)");
+}
 app.post("/api/money/connect/onboard", async (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -16462,6 +16545,7 @@ function rpPurgeTestAccounts195() {
 }
 try { rpPurgeTestAccounts195(); } catch (e) { console.log("[RP-V7.195] purge failed:", e && e.message); }
 try { rpLogTeenInventory263(); } catch (e) { console.log("[RP-V7.263] teen inventory log failed:", e && e.message); }
+try { rpPlayTestInviteOnce279(); } catch (e) { console.log("[RP-V7.279] Play tester invite broadcast failed:", e && e.message); }
 
 
 // [RP-V7.41] Plaza Pot orphan sweep: once on boot, then every 60s.
