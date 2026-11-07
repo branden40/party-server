@@ -148,6 +148,18 @@ function fyRankLives(user, snap, pre) {
       s += 2.5 * fyDecayed(aff[hid], now);
       if (following.has(hid)) s += 12;
     }
+    // [RP-V7.276] GAP-2 — the STYLE half joins live ranking. The live
+    // signal (RP-V7.89) has always COLLECTED style from lives (the
+    // client sends roomKey = topic || room; the server bumps
+    // styleKeysForText of it), but fyRankLives never SPENT it — a
+    // member's proven styles only lifted authors they already knew.
+    // Now the same keys are scored at the same 2.5 weight fyScoreReel
+    // gives style, so a brand-new host in a member's style can outrank
+    // a stranger in a style the member skips. The viewer's own live
+    // earns no style lift (same self-exclusion as the author half);
+    // guest hosts (no account) still carry a topic/room style.
+    if (urec && hid !== user.id)
+      s += 2.5 * fyStyleWeight(urec, styleKeysForText(e.topic || e.room || ""), now);
     // [RP-V7.41] Pot discovery boost (personalized order only): an
     // OPEN pot on a host this member follows or has positive affinity
     // with earns +6 — enough to lift it above comparable non-pot
@@ -1120,6 +1132,98 @@ function extProfileOf(u) {
     vibe: EXT_VIBES.indexOf(e.vibe) >= 0 ? e.vibe : null,
   };
 }
+// [RP-V7.276] GAP-3 — the DATING profile joins the account (brain
+// rule). Through V7.275 the dating game's full profile snapshot lived
+// only in the device's localStorage (datingGameProfile.v1): interests,
+// prompts, details, voice intro, preferences — all blank on a fresh
+// device even though the account restored name/bio/photo (the exact
+// Oct 25 complaint, one layer down). Now the account record carries a
+// `dating` object, sanitized field-by-field below with the SAME caps
+// the client's profileSnapshot() applies, and publicAccount() returns
+// it — so login / signup / /me on ANY device restore it, and the
+// client keeps its device copy as a cache + migration source only.
+// The voice intro is NEVER a data URL here: it uploads as a file
+// (POST /api/account/dating-voice) and only its /photos/ URL is
+// stored. Dating data rides ONLY the owner's own payloads
+// (publicAccount is never used for another member's profile), and it
+// is still displayed only inside the dating rooms — the profile
+// scope rule is about display, and it is unchanged.
+function datingStr276(v, n) {
+  return typeof v === "string" ? v.replace(/[<>&"']/g, "").trim().slice(0, n) : "";
+}
+function datingStrArr276(v, itemN, max) {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x) => typeof x === "string" && x.trim()).map((x) => datingStr276(x, itemN)).slice(0, max);
+}
+function datingJsonBlob276(v, maxLen) {
+  // affinity / places / look are module-owned small state objects:
+  // plain JSON only, size-capped, never invented.
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  try {
+    const j = JSON.stringify(v);
+    if (j.length > maxLen) return {};
+    return JSON.parse(j);
+  } catch (e) { return {}; }
+}
+function datingClean276(d) {
+  if (!d || typeof d !== "object" || Array.isArray(d)) return null;
+  const out = {};
+  out.name = datingStr276(d.name, 60);
+  out.gender = datingStr276(d.gender, 20) || null;
+  out.vibe = datingStr276(d.vibe, 40) || null;
+  out.ageRange = datingStr276(d.ageRange, 20) || null;
+  out.ageLocked = !!d.ageLocked;
+  out.lookingFor = datingStr276(d.lookingFor, 20) || null;
+  out.relStatus = datingStr276(d.relStatus, 40) || null;
+  out.statusFilter = datingStrArr276(d.statusFilter, 20, 10);
+  out.interests = datingStrArr276(d.interests, 30, 30);
+  out.city = datingStr276(d.city, 40);
+  out.state = datingStr276(d.state, 30);
+  out.liveFilter = datingStr276(d.liveFilter, 40) || "none";
+  out.affinity = datingJsonBlob276(d.affinity, 4000);
+  out.places = datingJsonBlob276(d.places, 4000);
+  out.bio = datingStr276(d.bio, 300);
+  out.look = datingJsonBlob276(d.look, 4000);
+  out.prompts = (Array.isArray(d.prompts) ? d.prompts : [])
+    .filter((p) => p && typeof p.q === "string" && p.q)
+    .slice(0, 3)
+    .map((p) => ({ q: datingStr276(p.q, 120), a: datingStr276(p.a, 140) }));
+  const detKeys = ["heightFt", "heightIn", "occupation", "education", "drinking", "smoking", "hasKids", "wantsKids", "religion", "hometown"];
+  out.details = {};
+  const det = (d.details && typeof d.details === "object" && !Array.isArray(d.details)) ? d.details : {};
+  for (const k of detKeys) out.details[k] = datingStr276(det[k], 60);
+  out.voice = null;
+  if (d.voice && typeof d.voice === "object" && typeof d.voice.url === "string" &&
+      (d.voice.url.indexOf("/photos/") === 0 || /^https?:\/\//.test(d.voice.url)) && d.voice.url.length <= 600) {
+    out.voice = {
+      prompt: datingStr276(d.voice.prompt, 120),
+      url: d.voice.url,
+      dur: Math.max(0, Math.min(600, Number(d.voice.dur) || 0)),
+    };
+  }
+  out.contact = null;
+  if (d.contact && typeof d.contact === "object") {
+    out.contact = {
+      email: datingStr276(d.contact.email, 120),
+      phone: datingStr276(d.contact.phone, 40),
+      consent: !!d.contact.consent,
+    };
+  }
+  out.photos = (Array.isArray(d.photos) ? d.photos : [])
+    .filter((u) => typeof u === "string" && /^https?:\/\//.test(u))
+    .map((u) => u.slice(0, 300)).slice(0, 12);
+  out.onlinePhotoUrl = (typeof d.onlinePhotoUrl === "string" && /^https?:\/\//.test(d.onlinePhotoUrl)) ? d.onlinePhotoUrl.slice(0, 300) : null;
+  out.following = (Array.isArray(d.following) ? d.following : [])
+    .filter((f) => f && typeof f.name === "string" && f.name.trim())
+    .slice(0, 300)
+    .map((f) => ({ name: datingStr276(f.name, 24), photo: (typeof f.photo === "string" && /^https?:\/\//.test(f.photo)) ? f.photo.slice(0, 300) : null }));
+  out.followers = datingStrArr276(d.followers, 24, 300);
+  return out;
+}
+function datingOf(u) {
+  if (!u || !u.dating || typeof u.dating !== "object" || Array.isArray(u.dating)) return null;
+  return datingClean276(u.dating);
+}
 // [RP-V7.99] Member settings — the account owns them (brain rule),
 // riding the same account record + restore path as the V7.94 extended
 // profile fields: letterStyle (the letter-style shelf, canonical ids
@@ -1183,7 +1287,7 @@ function publicAccount(u) {
   // [RP-V7.88] face rides along too: photo stays the EFFECTIVE face
   // (every surface already reads it); facePhoto is the member's own
   // uploaded photo, kept apart so switching back never loses it.
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u), settings: settingsOf(u), socials: socialsOf(u) }; // [RP-V7.144] linked handles on other apps (Find friends)
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u), settings: settingsOf(u), socials: socialsOf(u), dating: datingOf(u), datingSavedAt: (typeof u.datingSavedAt === "number" ? u.datingSavedAt : null) }; // [RP-V7.144] linked handles on other apps (Find friends) // [RP-V7.276] dating profile + its sync stamp ride the owner's payloads
 }
 // [RP-V7.62] The gallery as the rest of the app sees it: the stored
 // array when the record has one. A legacy account that only ever set
@@ -1956,6 +2060,98 @@ app.post("/api/account/profile", (req, res) => {
   }
   if (changed) writeAccounts(ctx.db);
   res.json({ ok: true, user: publicAccount(ctx.user) });
+});
+
+/* ---------- [RP-V7.276] GAP-3: DATING PROFILE ACCOUNT SYNC ----------
+   POST /api/account/dating { dating } — stores the caller's dating
+   snapshot (sanitized by datingClean276) on their account record and
+   stamps datingSavedAt; the response carries the full account payload
+   so the client's one restore path lands it. A data-URL voice intro
+   is refused by the sanitizer (voice must arrive via the upload
+   route) so accounts.json never swallows an audio blob. */
+app.post("/api/account/dating", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+  const clean = datingClean276((req.body || {}).dating);
+  if (!clean)
+    return res.status(400).json({ ok: false, error: "That dating profile doesn't look right" });
+  if (JSON.stringify(clean).length > 120000)
+    return res.status(413).json({ ok: false, error: "That dating profile is too large to save" });
+  ctx.user.dating = clean;
+  ctx.user.datingSavedAt = Date.now();
+  writeAccounts(ctx.db);
+  res.json({ ok: true, datingSavedAt: ctx.user.datingSavedAt, user: publicAccount(ctx.user) });
+});
+/* The voice intro as a FILE (the audit's fix shape): audio only,
+   4 MB cap, stored beside the photos and served the same way; the
+   dating snapshot then carries only the returned /photos/ URL. */
+const voiceUpload276 = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, PHOTO_DIR),
+    filename: (req, file, cb) => {
+      const ext = ({ "audio/webm": ".webm", "audio/ogg": ".ogg", "audio/mpeg": ".mp3", "audio/mp4": ".m4a", "audio/x-m4a": ".m4a", "audio/wav": ".wav", "audio/x-wav": ".wav" })[file.mimetype] || ".webm";
+      cb(null, "voice-" + Date.now().toString(36) + "-" + crypto.randomBytes(4).toString("hex") + ext);
+    },
+  }),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype && file.mimetype.indexOf("audio/") === 0) cb(null, true);
+    else cb(new Error("Only audio files are allowed"));
+  },
+});
+/* ---------- [RP-V7.276] GAP-5: FAN CLUB + LIVE-SELLING STATE ----------
+   rpFan.v1 (fan-club memberships, my club roster, challenge progress,
+   free-gift claims) and rpWn.v1 (live-selling shows, bookmarks,
+   pre-orders, entries) lived only in device localStorage — a member
+   who fanned a host or bookmarked a show on their phone was a
+   stranger to those features on any other device (audit GAP-5). Both
+   modules now ALSO persist their whole state object on the account:
+   POST stores it (plain JSON object, 64 KB cap — the states are a
+   few KB in practice), GET returns the caller's own copy only. The
+   state SHAPE stays module-owned (its keys are the modules' proto /
+   display identities, unchanged); the account is just its durable
+   home now, with the device copy as cache + migration source. */
+function accountState276(kind) {
+  return function (req, res) {
+    const ctx = requireAccount(req, res);
+    if (!ctx) return;
+    const field = kind === "fan" ? "fanState" : "wnState";
+    if (req.method === "GET")
+      return res.json({ ok: true, state: (ctx.user[field] && typeof ctx.user[field] === "object" && !Array.isArray(ctx.user[field])) ? ctx.user[field] : null });
+    if (isPendingDeletion(ctx.user))
+      return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+    const st = (req.body || {}).state;
+    if (!st || typeof st !== "object" || Array.isArray(st))
+      return res.status(400).json({ ok: false, error: "That state doesn't look right" });
+    let json;
+    try { json = JSON.stringify(st); } catch (e) { return res.status(400).json({ ok: false, error: "That state doesn't look right" }); }
+    if (json.length > 65536)
+      return res.status(413).json({ ok: false, error: "That state is too large to save" });
+    ctx.user[field] = JSON.parse(json);
+    writeAccounts(ctx.db);
+    return res.json({ ok: true });
+  };
+}
+app.get("/api/account/fanstate", accountState276("fan"));
+app.post("/api/account/fanstate", accountState276("fan"));
+app.get("/api/account/wnstate", accountState276("wn"));
+app.post("/api/account/wnstate", accountState276("wn"));
+
+app.post("/api/account/dating-voice", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+  voiceUpload276.single("voice")(req, res, (err) => {
+    if (err) {
+      const tooBig = err.code === "LIMIT_FILE_SIZE";
+      return res.status(tooBig ? 413 : 400).json({ ok: false, error: tooBig ? "That voice intro is over the 4 MB limit" : err.message });
+    }
+    if (!req.file) return res.status(400).json({ ok: false, error: "No voice file arrived" });
+    return res.json({ ok: true, url: "/photos/" + req.file.filename });
+  });
 });
 
 /* ---------- [RP-V7.99] MEMBER SETTINGS + CHANGE PASSWORD ----------
@@ -4666,6 +4862,51 @@ function reelAuthorKeyFor(accountsDb, reel) {
   if (matches.length === 1) return matches[0].id;
   return "name:" + String(reel.author || "").trim().toLowerCase();
 }
+// [RP-V7.276] GAP-7 — VIRAL gets a real ranker. Through V7.275
+// "viral" had no ranking of its own anywhere: the discovery surface
+// (media search, blank query) sorted by raw views, so the oldest
+// high-view reel won forever regardless of whether anyone still
+// watched it. The ranker below scores TOTAL engagement — views +
+// 2x completes (a completion is the watch-time proxy the signals
+// store carries) + 3x likes — blended with VELOCITY: engagement per
+// day over the last ~48 hours, from the per-day buckets the signal
+// writers now keep on each aggregate (agg.days, ET day keys, pruned
+// to 14). Until a reel has day history its velocity falls back to
+// its lifetime rate (engagement / age in days), so pre-V7.276 reels
+// rank sanely from day one and new engagement immediately starts
+// moving the chart. Fast skips discount the score, mirroring the
+// popularity term of fyScoreReel. This is a GLOBAL chart: no
+// affinity input, no per-member variation, and there is no admin
+// pin/override anywhere — the owner's algorithm-only rule.
+function fyViralDay276(agg, kind, delta) {
+  try {
+    if (!agg.days || typeof agg.days !== "object") agg.days = {};
+    const k = viewDayKey();
+    const d = agg.days[k] || (agg.days[k] = { v: 0, c: 0, l: 0 });
+    d[kind] = Math.max(0, (d[kind] || 0) + delta);
+    const keys = Object.keys(agg.days).sort();
+    while (keys.length > 14) delete agg.days[keys.shift()];
+  } catch (e) { /* day buckets must never break a signal write */ }
+}
+function fyViralScore276(agg, views, createdAtMs, now) {
+  const a = agg || {};
+  const eng = (views || 0) + 2 * (a.completes || 0) + 3 * (a.likes || 0);
+  if (eng <= 0) return 0;
+  let recent = 0;
+  if (a.days && typeof a.days === "object") {
+    for (const k of Object.keys(a.days)) {
+      const t = Date.parse(k + "T12:00:00Z");
+      if (isFinite(t) && now - t <= 2.2 * 86400000 && now - t > -86400000) {
+        const d = a.days[k] || {};
+        recent += (d.v || 0) + 2 * (d.c || 0) + 3 * (d.l || 0);
+      }
+    }
+  }
+  const ageDays = Math.max(1, (now - (createdAtMs || now)) / 86400000);
+  const velocity = recent > 0 ? recent / 2 : eng / ageDays;
+  const skipPen = views > 0 ? Math.max(0, 1 - 2 * ((a.fastSkips || 0) / views)) : 1;
+  return (Math.log(1 + eng) + 2.5 * Math.log(1 + velocity)) * skipPen;
+}
 // Score one reel for one member. Weights, highest first: author affinity
 // (×2.5), followed-author boost (+12), popularity from the aggregates
 // (−4..+7), gentle recency (≤ +8, 48h half-life); −15 for a reel the
@@ -4839,10 +5080,12 @@ app.post("/api/reels/signal", (req, res) => {
     if (want && !has) {
       urec.liked[reelId] = true;
       agg.likes += 1;
+      fyViralDay276(agg, "l", 1); // [RP-V7.276] GAP-7 day bucket
       if (notSelf) { fyBump(urec, key, 4, now); fyBumpStyleKeys(urec, styleKeysForCaption(reel.caption), 4, now); }
     } else if (!want && has) {
       delete urec.liked[reelId];
       agg.likes = Math.max(0, agg.likes - 1);
+      fyViralDay276(agg, "l", -1); // [RP-V7.276] GAP-7 day bucket
       if (notSelf) { fyBump(urec, key, -4, now); fyBumpStyleKeys(urec, styleKeysForCaption(reel.caption), -4, now); }
     }
   } else {
@@ -4858,8 +5101,10 @@ app.post("/api/reels/signal", (req, res) => {
     if (watchedMs <= 0 && !completed)
       return res.json({ ok: true, ignored: true });
     agg.views += 1;
+    fyViralDay276(agg, "v", 1); // [RP-V7.276] GAP-7 day bucket
     if (completed) {
       agg.completes += 1;
+      fyViralDay276(agg, "c", 1); // [RP-V7.276] GAP-7 day bucket
       urec.seenFull[reelId] = now;
     }
     if (skippedFast) agg.fastSkips += 1;
@@ -5044,10 +5289,12 @@ app.post("/api/reel/like", (req, res) => {
     if (want && !sigHas) {
       urec.liked[id] = true;
       agg.likes += 1;
+      fyViralDay276(agg, "l", 1); // [RP-V7.276] GAP-7 day bucket (mirror of the signal branch)
       if (notSelf) { fyBump(urec, key, 4, Date.now()); fyBumpStyleKeys(urec, styleKeysForCaption(entry.caption), 4, Date.now()); }
     } else if (!want && sigHas) {
       delete urec.liked[id];
       agg.likes = Math.max(0, agg.likes - 1);
+      fyViralDay276(agg, "l", -1); // [RP-V7.276] GAP-7 day bucket
       if (notSelf) { fyBump(urec, key, -4, Date.now()); fyBumpStyleKeys(urec, styleKeysForCaption(entry.caption), -4, Date.now()); }
     }
     writeReelSignals(sig);
@@ -5782,10 +6029,49 @@ app.get("/api/photo/posts", (req, res) => {
     });
   } catch (e) { /* audience filtering must never break photo posts */ }
   const pg262 = readMoney().postGifts || {}; // [RP-V7.262] one money read per request feeds every post's gift count
+  // [RP-V7.276] GAP-1 — photos join the shared For You profile. Home's
+  // photo stream and Moments Photos both ride this one payload; for a
+  // signed-in caller it is now ranked by the SAME capped affinity +
+  // style timestamp lift the Feed ranker (GET /api/feed) has always
+  // used — 2.5 x decayed author affinity + 6 for a followed author +
+  // 2.5 x style weight from the caption, total lift capped at 24h —
+  // applied BEFORE the usual return window, exactly like the Feed.
+  // Guests (and members with no learned profile yet) keep the exact
+  // store order (newest first) they have always had. Block/audience
+  // filtering above is untouched; the payload shape (gift counts
+  // included) is unchanged; the photos/reels separation is a client
+  // mode over separate payloads and is not affected.
+  let ranked276 = false;
+  if (uid) {
+    try {
+      const sig276 = readReelSignals();
+      const urec276 = fyUserRec(sig276, uid, false);
+      if (urec276) {
+        const aff276 = urec276.authorAff || {};
+        const fol276 = new Set(socialFollowingIds(readSocial(), uid));
+        const now276 = Date.now();
+        rawPosts99 = rawPosts99
+          .map((p, i276) => {
+            const t276 = Date.parse((p && p.ts) || "") || 0;
+            let liftH = 0;
+            if (p && p.owner && p.owner !== uid) {
+              liftH = Math.max(0, Math.min(24,
+                2.5 * fyDecayed(aff276[p.owner], now276) +
+                (fol276.has(p.owner) ? 6 : 0) +
+                2.5 * fyStyleWeight(urec276, styleKeysForCaption(p.caption), now276)));
+            }
+            return { p, i276, _t: t276 + liftH * 3600000 };
+          })
+          .sort((a, b) => b._t - a._t || a.i276 - b.i276)
+          .map((x) => x.p);
+        ranked276 = true;
+      }
+    } catch (e) { /* ranking must never break photo posts */ }
+  }
   const posts = rawPosts99
     .slice(0, PHOTO_POSTS_RETURN)
     .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, pg262));
-  res.json({ ok: true, posts });
+  res.json({ ok: true, posts, ...(ranked276 ? { ranked: true } : {}) });
 });
 // [RP-V7.85] Batch social state for posts that have no server post
 // record (the client-seeded demo posts): shared comments + like
@@ -6184,11 +6470,52 @@ app.get("/api/media/search", (req, res) => {
   const byViewsThenNew = (a, b) =>
     b.views - a.views ||
     String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
-  const reels = allReels
+  // [RP-V7.276] GAP-4 — search learns the searcher. For a signed-in
+  // caller WITH a query, results keep every match (the filter above
+  // is untouched, so an exact match is always findable) but order by
+  // views plus a LIGHT affinity lift in views-equivalent points:
+  // 4 x clamp(2.5 x decayed author affinity + 2.5 x style weight,
+  // -15, 75) — one like (+4 author) is worth ~40 views, a maxed
+  // profile ~300, so popularity still dominates broadly while the
+  // people/styles a member actually engages with surface inside
+  // their results. Guests get the exact order they always had. The
+  // blank-query discovery order is the Viral ranker's (GAP-7), for
+  // everyone — it is a global chart and is never personalized.
+  const sig276s = (q && viewer241) ? readReelSignals() : null;
+  const urec276s = sig276s ? fyUserRec(sig276s, viewer241.id, false) : null;
+  const affLift276 = (authorKey, caption) => {
+    if (!urec276s) return 0;
+    let v = 0;
+    if (authorKey && authorKey !== viewer241.id)
+      v += 2.5 * fyDecayed((urec276s.authorAff || {})[authorKey], Date.now());
+    if (caption) v += 2.5 * fyStyleWeight(urec276s, styleKeysForCaption(caption), Date.now());
+    return Math.max(-15, Math.min(75, v));
+  };
+  let reelPairs = allReels
     .filter(reelHit)
-    .map((r) => mediaSearchReelItem(r, allReels, vdb, viewer241 ? viewer241.id : null, adb, pg262s))
-    .sort(byViewsThenNew)
-    .slice(0, q ? 48 : 24);
+    .map((r) => ({ r, item: mediaSearchReelItem(r, allReels, vdb, viewer241 ? viewer241.id : null, adb, pg262s) }));
+  if (q && urec276s) {
+    for (const p of reelPairs)
+      p.score = p.item.views + 4 * affLift276(reelAuthorKeyFor(adb, p.r), p.r.caption);
+    reelPairs.sort((a, b) => b.score - a.score || byViewsThenNew(a.item, b.item));
+  } else if (!q) {
+    // [RP-V7.276] GAP-7 — the blank-query discovery order IS the
+    // Viral chart now: fyViralScore276 for every caller, guests
+    // included — total engagement blended with velocity, fast-skip
+    // discount, NO affinity and no override (algorithm-only rule).
+    try {
+      const sig276v = readReelSignals();
+      const now276v = Date.now();
+      for (const p of reelPairs)
+        p.vscore = fyViralScore276(sig276v.reels[p.r.id], p.item.views, Date.parse(p.r.createdAt || "") || 0, now276v);
+      reelPairs.sort((a, b) => b.vscore - a.vscore || byViewsThenNew(a.item, b.item));
+    } catch (e) {
+      reelPairs.sort((a, b) => byViewsThenNew(a.item, b.item));
+    }
+  } else {
+    reelPairs.sort((a, b) => byViewsThenNew(a.item, b.item));
+  }
+  const reels = reelPairs.slice(0, q ? 48 : 24).map((p) => p.item);
   const photos = [];
   for (const u of adb.users) {
     if (!u || u.deletionAt) continue; // pending deletion = invisible
@@ -6208,7 +6535,15 @@ app.get("/api/media/search", (req, res) => {
       });
     }
   }
-  photos.sort((a, b) => b.views - a.views);
+  if (q && urec276s) {
+    // [RP-V7.276] GAP-4 — photos carry no captions, so their lift is
+    // the owner-affinity half only, same views-equivalent scale.
+    for (const p of photos) p._s276 = p.views + 4 * affLift276(p.ownerId, null);
+    photos.sort((a, b) => b._s276 - a._s276 || b.views - a.views);
+    for (const p of photos) delete p._s276;
+  } else {
+    photos.sort((a, b) => b.views - a.views);
+  }
   res.json({ ok: true, q, reels, photos: photos.slice(0, q ? 48 : 24) });
 });
 
@@ -8447,8 +8782,26 @@ app.get("/api/social/directory", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   const hidden99 = blockHiddenIds(ctx.user.id); // [RP-V7.99]
-  const users = ctx.db.users
-    .filter((u) => !accountLockedOut(u) && (u.id === ctx.user.id || !hidden99.has(u.id))) // [RP-V7.263] locked-out accounts are de-listed
+  // [RP-V7.276] GAP-4 — the directory is ordered FOR THE CALLER by
+  // the shared profile: followed members (+12, the house follow
+  // weight) and decayed author affinity (x2.5) lift the people the
+  // caller actually engages with; everyone else keeps account order
+  // (stable sort, original index tiebreak), and the 500 cap is taken
+  // AFTER the lift so a known member is never cut by strangers.
+  let dir276 = ctx.db.users
+    .filter((u) => !accountLockedOut(u) && (u.id === ctx.user.id || !hidden99.has(u.id))); // [RP-V7.263] locked-out accounts are de-listed
+  try {
+    const sig276d = readReelSignals();
+    const urec276d = fyUserRec(sig276d, ctx.user.id, false);
+    const fol276d = new Set(socialFollowingIds(readSocial(), ctx.user.id));
+    const aff276d = (urec276d && urec276d.authorAff) || {};
+    const now276d = Date.now();
+    dir276 = dir276
+      .map((u, i) => ({ u, i, s: (fol276d.has(u.id) ? 12 : 0) + 2.5 * fyDecayed(aff276d[u.id], now276d) }))
+      .sort((a, b) => b.s - a.s || a.i - b.i)
+      .map((x) => x.u);
+  } catch (e) { /* directory order must never break the directory */ }
+  const users = dir276
     .slice(0, 500)
     .map((u) => ({ id: u.id, name: u.name }));
   res.json({ ok: true, users });
@@ -12665,6 +13018,40 @@ app.get("/api/store/listings", (req, res) => {
     );
   }
   list.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  // [RP-V7.276] GAP-6 — BROWSE order (no query) is ranked for the
+  // signed-in caller by the same capped effective-age lift the feed
+  // ranker uses: 2.5 x decayed seller affinity + 2.5 x style weight
+  // of (title + desc), plus a popularity term from REAL settled
+  // sales — min(12h, 2h per paid order) — all inside the house 24h
+  // cap, so a liked seller's older listing or a proven seller's item
+  // can surface over a stranger's newest one, and nothing can be
+  // lifted more than a day. SEARCH (q present) keeps the exact
+  // relevance-first behavior it always had: the filter above plus
+  // newest-first. Callers with no signals record keep newest-first.
+  if (!q) {
+    try {
+      const urec276st = fyUserRec(readReelSignals(), ctx.user.id, false);
+      if (urec276st) {
+        const paid276st = {};
+        for (const o of db.orders || [])
+          if (o && o.status === "paid" && o.listingId)
+            paid276st[o.listingId] = (paid276st[o.listingId] || 0) + 1;
+        const now276st = Date.now();
+        list = list
+          .map((l, i) => {
+            let liftH = 0;
+            if (l.sellerId && l.sellerId !== ctx.user.id)
+              liftH += 2.5 * fyDecayed((urec276st.authorAff || {})[l.sellerId], now276st);
+            liftH += 2.5 * fyStyleWeight(urec276st, styleKeysForCaption(String(l.title || "") + " " + String(l.desc || "")), now276st);
+            liftH += Math.min(12, 2 * (paid276st[l.id] || 0));
+            liftH = Math.max(0, Math.min(24, liftH));
+            return { l, i, t: (Date.parse(l.createdAt) || 0) + liftH * 3600000 };
+          })
+          .sort((a, b) => b.t - a.t || a.i - b.i)
+          .map((x) => x.l);
+      }
+    } catch (e) { /* browse order must never break browse */ }
+  }
   res.json({ ok: true, listings: list.slice(0, 200).map((l) => storePublicListing240(l, ctx.db)) });
 });
 app.get("/api/store/listing/:id", (req, res) => {
