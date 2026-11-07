@@ -790,6 +790,9 @@
       #homeStrip { display: flex; align-items: center; gap: 8px; padding: 10px 12px; z-index: 6; }
       #screen-plaza.home-feedmode #homeStrip { position: absolute; top: 0; left: 0; right: 0; background: linear-gradient(180deg, rgba(0,0,0,.45), rgba(0,0,0,0)); }
       #screen-plaza:not(.home-feedmode) #homeStrip { position: sticky; top: 0; background: #0a0a0f; border-bottom: 1px solid rgba(255,255,255,.08); }
+      #hsProfile { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .85); background: #1b1b24; color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; overflow: hidden; cursor: pointer; }
+      #hsProfile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      #hsProfile .hs-pf-face { font-size: 17px; line-height: 1; }
       #hsLive { display: flex; flex-direction: column; align-items: center; gap: 0; background: none; border: none; color: #fff; cursor: pointer; font-family: inherit; padding: 2px 4px; }
       #hsLive .hs-tv { font-size: 17px; line-height: 1; }
       #hsLive .hs-livetxt { font-size: 8.5px; font-weight: 900; letter-spacing: 1.5px; }
@@ -3010,6 +3013,57 @@
       </section>
       <!-- SCREEN: PLAZA (the startup page — everything on one page) -->
       <section class="screen active" id="screen-plaza">
+        <!-- [RP-V7.277] Branden (Nov 7, 2026): Plaza top stack — Daily Pot, Support the Plaza, Live Stage and Live Auctions ride at the very top of the Plaza screen in this order. The Christian Fellowship and My Profile home cards are removed (the Fellowship room lives on in the rooms list; My Profile moved to the #hsProfile header icon). -->
+        <!-- [RP-V7.42] Daily Pot — [RP-V7.77] TWO class pots side by
+             side (Branden approved the mock): the viewer's own pot,
+             lit + YOUR POT + enterable, and the other age class's
+             pot, WATCH ONLY. Each has the LIVING POT visual. Each
+             bursts at its own SECRET random moment between 7 and
+             9 PM ET; 1 to 5 winners split it. Rendered by
+             renderDailyPotCard() from /api/dailypot/state. -->
+        <div class="dpot-card" id="dailyPotCard" hidden>
+         <div class="dpot-pair" id="dailyPotPair">
+          <article class="dpot-potcard dpot-owncard" id="dailyPotOwnCard">
+          <div class="dpot-cardhead"><h4 class="dpot-head"><span id="dpTitle">🌆 Daily Pot</span> <span class="dpot-when" id="dpWhen">Bursts tonight between 7 and 9 PM ET — be here!</span></h4><span class="dpot-badge" id="dpOwnBadge" hidden>YOUR POT</span></div>
+          <div class="dpot-potwrap"><div class="dpot-potclip" id="dpPotVisual"></div></div>
+          <div class="dpot-total" id="dpTotal">…</div>
+          <p class="dpot-sub" id="dpSub">Loading today's pot…</p>
+          <p class="dpot-presence" id="dpPresence" hidden></p>
+          <p class="dpot-recap" id="dpRecap" hidden></p>
+          <div id="dpWinners"></div>
+          <p class="dpot-streak" id="dpStreak" hidden></p>
+          <button type="button" class="btn-primary dpot-join" id="dpJoinBtn" hidden>🪙 JOIN THE DAILY POT — free</button>
+          <p class="dpot-notin" id="dpNotIn" hidden>You haven't entered today's pot yet</p>
+          <p class="dpot-joined" id="dpJoined" hidden>You're in ✓ — good luck tonight!</p>
+          <p class="dpot-msline" id="dpMsLine" hidden></p>
+          <p class="age-note" id="dpClassNote" style="text-align:center; margin-top:10px;">Free to enter once a day. The Plaza seeds it; gifts from your age class grow it a little. Bursts at a secret moment between 7 and 9 PM ET — 1 to 5 winners split it, and some nights ONE lucky winner takes it all.</p>
+          </article>
+         </div>
+        </div>
+        <!-- [RP-V7.52] Support the Plaza: the GoFundMe campaign card.
+             The campaign link lives ONLY here in the app (Branden's
+             rule — no social posts). Static Home card, visible to
+             every signed-in member; the button carries the exact
+             campaign URL and opens it in a new tab. -->
+        <div class="support-card" id="supportPlazaCard">
+          <h4 class="support-head">💚 Support the Plaza</h4>
+          <p class="support-sub">Help launch Rizz Plaza. Donations fund ads, servers, and safety.</p>
+          <button type="button" class="btn-primary support-btn" id="supportPlazaBtn" data-url="https://gofund.me/680f5620c">💚 Donate on GoFundMe</button>
+        </div>
+        <div class="online-card" style="margin-top:16px;">
+          <div>
+            <h3>⭐ Live Stage · Live Now</h3>
+            <p>The headline act — go live on camera TikTok-style, pull in hearts &amp; gifts that bank real earnings, invite viewers up on stage, and switch to any party room or state room from there. Real people only — 18+.</p>
+          </div>
+          <button class="speed-btn" id="btnOnlineHome">⭐ Enter the Live Stage</button>
+        </div>
+        <div class="online-card" style="margin-top:12px;" data-adult>
+          <div>
+            <h3>🔨 Live Auctions</h3>
+            <p>Real items, live bidding — in their own section, and pinned inside a host's own live while they sell on camera. Bid in a seller's auction, or open your selling desk: list items with photos, category, condition and shipping, queue them up, then run each one live or pin it at a Buy Now price. Auction earnings are tracked separately in Earn.</p>
+          </div>
+          <button class="speed-btn" id="btnAuctionsHome">🔨 Open auctions</button>
+        </div>
         <!-- [RP-V7.90] How-you-get-paid card: the first thing on Home.
              During a LIVE holiday the V7.87 banner inserts before the
              screen's firstChild, so the banner rides above this card
@@ -3060,13 +3114,6 @@
           </div>
           <button class="speed-btn" id="btnStoreHome" type="button">🛍️ Open the Store</button>
         </div>
-<div class="plaza-card" style="margin-top:16px;">
-          <div>
-            <h3>⛪ Christian Fellowship</h3>
-            <p>The chapel room: a verse of the day, the prayer wall, and Bible study with the fellowship — a quieter corner of the party, open to everyone.</p>
-          </div>
-          <button class="speed-btn" id="btnFellowshipHome">Enter the chapel room</button>
-        </div>
 <div class="plaza-card" style="margin-top:16px;" data-adult>
           <div>
             <h3>💰 Earn</h3>
@@ -3082,52 +3129,9 @@
           <button class="speed-btn" id="btnMusicHome">Choose music</button>
           <button class="speed-btn" id="btnMuteHome">Music on/off</button>
         </div>
-<div class="plaza-card" style="margin-top:16px;">
-          <div>
-            <h3>👤 My Profile</h3>
-            <p>Your photos, prompts and party card — how everyone at the party knows you. Keep it fresh and the matches follow.</p>
-          </div>
-          <button class="speed-btn" id="btnProfileHome">Open my profile</button>
-        </div>
         <div class="live-now-box" id="liveNowBox">
           <h4 class="live-now-head"><span class="rp-lndot264" aria-hidden="true">🔴</span> Live Now</h4>
           <div id="liveNowList"></div>
-        </div>
-        <!-- [RP-V7.42] Daily Pot — [RP-V7.77] TWO class pots side by
-             side (Branden approved the mock): the viewer's own pot,
-             lit + YOUR POT + enterable, and the other age class's
-             pot, WATCH ONLY. Each has the LIVING POT visual. Each
-             bursts at its own SECRET random moment between 7 and
-             9 PM ET; 1 to 5 winners split it. Rendered by
-             renderDailyPotCard() from /api/dailypot/state. -->
-        <div class="dpot-card" id="dailyPotCard" hidden>
-         <div class="dpot-pair" id="dailyPotPair">
-          <article class="dpot-potcard dpot-owncard" id="dailyPotOwnCard">
-          <div class="dpot-cardhead"><h4 class="dpot-head"><span id="dpTitle">🌆 Daily Pot</span> <span class="dpot-when" id="dpWhen">Bursts tonight between 7 and 9 PM ET — be here!</span></h4><span class="dpot-badge" id="dpOwnBadge" hidden>YOUR POT</span></div>
-          <div class="dpot-potwrap"><div class="dpot-potclip" id="dpPotVisual"></div></div>
-          <div class="dpot-total" id="dpTotal">…</div>
-          <p class="dpot-sub" id="dpSub">Loading today's pot…</p>
-          <p class="dpot-presence" id="dpPresence" hidden></p>
-          <p class="dpot-recap" id="dpRecap" hidden></p>
-          <div id="dpWinners"></div>
-          <p class="dpot-streak" id="dpStreak" hidden></p>
-          <button type="button" class="btn-primary dpot-join" id="dpJoinBtn" hidden>🪙 JOIN THE DAILY POT — free</button>
-          <p class="dpot-notin" id="dpNotIn" hidden>You haven't entered today's pot yet</p>
-          <p class="dpot-joined" id="dpJoined" hidden>You're in ✓ — good luck tonight!</p>
-          <p class="dpot-msline" id="dpMsLine" hidden></p>
-          <p class="age-note" id="dpClassNote" style="text-align:center; margin-top:10px;">Free to enter once a day. The Plaza seeds it; gifts from your age class grow it a little. Bursts at a secret moment between 7 and 9 PM ET — 1 to 5 winners split it, and some nights ONE lucky winner takes it all.</p>
-          </article>
-         </div>
-        </div>
-        <!-- [RP-V7.52] Support the Plaza: the GoFundMe campaign card.
-             The campaign link lives ONLY here in the app (Branden's
-             rule — no social posts). Static Home card, visible to
-             every signed-in member; the button carries the exact
-             campaign URL and opens it in a new tab. -->
-        <div class="support-card" id="supportPlazaCard">
-          <h4 class="support-head">💚 Support the Plaza</h4>
-          <p class="support-sub">Help launch Rizz Plaza. Donations fund ads, servers, and safety.</p>
-          <button type="button" class="btn-primary support-btn" id="supportPlazaBtn" data-url="https://gofund.me/680f5620c">💚 Donate on GoFundMe</button>
         </div>
         <div class="scene scene-plaza">
           <div class="hol-fall" aria-hidden="true"></div>
@@ -3145,22 +3149,6 @@
           <div class="scene-note">Your home page — no wandering between hubs. Pick a room below and walk straight in, or tap ⭐ Live Stage and party with real people.</div>
         </div>
         <div class="hol-banner" id="holBanner" hidden></div>
-        <div class="online-card" style="margin-top:16px;">
-          <div>
-            <h3>⭐ Live Stage · Live Now</h3>
-            <p>The headline act — go live on camera TikTok-style, pull in hearts &amp; gifts that bank real earnings, invite viewers up on stage, and switch to any party room or state room from there. Real people only — 18+.</p>
-          </div>
-          <button class="speed-btn" id="btnOnlineHome">⭐ Enter the Live Stage</button>
-        </div>
-        <div class="online-card" style="margin-top:12px;" data-adult>
-          <div>
-            <h3>🔨 Live Auctions</h3>
-            <p>Real items, live bidding — in their own section, and pinned inside a host's own live while they sell on camera. Bid in a seller's auction, or open your selling desk: list items with photos, category, condition and shipping, queue them up, then run each one live or pin it at a Buy Now price. Auction earnings are tracked separately in Earn.</p>
-          </div>
-          <button class="speed-btn" id="btnAuctionsHome">🔨 Open auctions</button>
-        </div>
-        
-        
         <!-- [RP-V7.67] Find People gets its own front door on Home —
              Branden (Oct 26): it "don't need to be hidden" inside
              Messages. Same member directory the Messages button opens. -->
@@ -7144,11 +7132,6 @@
       $("btnEarnHome").addEventListener("click", openEarnSheet);
       $("btnSupportHome").addEventListener("click", openSupportSheet);
       $("btnSupportPf").addEventListener("click", openSupportSheet);
-      $("btnProfileHome").addEventListener("click", openProfile);
-      $("btnFellowshipHome").addEventListener("click", function () {
-        var f = null; ROOMS.forEach(function (r) { if (r.id === "faith") f = r; });
-        if (f) enterRoomOnlineFirst(f); // [RP-V7.25] Fellowship card joins the online Fellowship directly (all-ages, no door gate)
-      });
       $("btnMusicHome").addEventListener("click", function () { var b = $("btnMusic"); if (b) b.click(); setTimeout(syncHomeMusic, 350); });
       $("btnMuteHome").addEventListener("click", function () { var b = $("btnMute"); if (b) b.click(); });
       function syncHomeMusic() { var s = $("homeMusicName"), m = $("musicName"); if (s && m) s.textContent = m.textContent; }
@@ -25726,16 +25709,21 @@
           '<button type="button" data-hs="following">Following</button>' +
           '<button type="button" data-hs="foryou" class="on">For You</button>' +
           "</div>" +
+          '<button type="button" id="hsProfile" aria-label="My Profile"><span class="hs-pf-face" aria-hidden="true">👤</span></button>' +
           '<button type="button" id="hsSearch" aria-label="Search videos and pictures"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"m16 16 4.5 4.5\"/></svg></button></div>' +
           '<div id="homePager"></div>';
         sec.insertBefore(top, sec.firstChild);
         top.querySelectorAll("[data-hs]").forEach(function (b) { b.addEventListener("click", function () { setHomeTab(b.getAttribute("data-hs")); }); });
         var lv = $("hsLive"); if (lv) lv.addEventListener("click", function () { /* [RP-V7.264] the strip button IS Go LIVE: the canonical host entry (startOwnLiveEntry — the same one btnRoomGoLive and the Live Now Go button call), never the Live Stage viewer door */ if (typeof startOwnLiveEntry === "function") { startOwnLiveEntry(); return; } var g = $("btnRoomGoLive"); if (g) { g.click(); return; } var b = $("btnOnlineHome"); if (b) b.click(); });
         var sr = $("hsSearch"); if (sr) sr.addEventListener("click", function () { if (window.rpReelsOpen) window.rpReelsOpen(); if (window.rpMediaSearch) setTimeout(function () { window.rpMediaSearch.engage(); }, 500); });
+        var pf277 = $("hsProfile");
+        function hsPfFill277() { if (!pf277) return; var ph = null; try { if (typeof acctPhotoUrl !== "undefined" && acctPhotoUrl) ph = acctPhotoUrl; } catch (e) { } try { if (!ph && typeof Online !== "undefined" && Online && Online.myPhotoUrl) ph = Online.myPhotoUrl; } catch (e) { } try { if (!ph && typeof me !== "undefined" && me && me.photo) ph = me.photo; } catch (e) { } if (ph) { pf277.innerHTML = '<img alt="Your profile photo" src="' + (typeof escHtml === "function" ? escHtml(ph) : String(ph)) + '"/>'; } else { pf277.innerHTML = '<span class="hs-pf-face" aria-hidden="true">👤</span>'; } }
+        if (pf277) { pf277.addEventListener("click", function () { if (typeof openProfile === "function") { openProfile(); return; } var tb = document.querySelector('.tab-btn[data-tab="profile"]'); if (tb) tb.click(); }); hsPfFill277(); setTimeout(hsPfFill277, 1600); setTimeout(hsPfFill277, 4000); }
+        window.rpHsProfileRefresh = hsPfFill277;
         { sec.classList.add("home-feedmode"); reelFetchFeed(); setTimeout(renderHomePager, 700); }
         if (typeof window.show === "function" && !window.show.__rphome) {
           var origShow = window.show;
-          var wrappedShow = function (id) { var r = origShow.apply(this, arguments); if (id === "screen-plaza") setTimeout(renderHomePager, 80); return r; };
+          var wrappedShow = function (id) { var r = origShow.apply(this, arguments); if (id === "screen-plaza") { setTimeout(renderHomePager, 80); setTimeout(function () { try { hsPfFill277(); } catch (e) { } }, 120); } return r; };
           wrappedShow.__rphome = true;
           window.show = wrappedShow;
         }
@@ -27804,7 +27792,7 @@
       moments: function () { if (window.rpReelsOpen) window.rpReelsOpen(); else clickId("btnMomentsPlaza"); }, // [RP-V7.112] exits Friends mode
       friends: function () { if (window.rpFriendsOpen) window.rpFriendsOpen(); }, // [RP-V7.112]
       inbox: function () { if (window.rpDm && window.rpDm.openInbox) window.rpDm.openInbox(); }, // [RP-V7.94]
-      profile: function () { clickId("btnProfileHome"); }
+      profile: function () { clickId("hsProfile"); } // [RP-V7.277] the Profile tab clicks the header profile icon now (the Home card door is gone); the icon lands on openProfile — the same destination as before
     };
     var btns = bar.querySelectorAll(".tab-btn");
     for (var i = 0; i < btns.length; i++) {
