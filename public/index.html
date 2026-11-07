@@ -23485,6 +23485,7 @@
           '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
             '<button class="btn-mini" id="btnMomPick">' + (has ? "Add / choose photos" : "Choose photos") + '</button>' +
             (Online.myPhotoUrl ? '<button class="btn-mini" id="btnMomUseOnline">Use my online photo</button>' : "") +
+            (has && momToken() ? '<button class="btn-mini" id="btnMomAi245">✨ AI Filter</button>' : "") +
           '</div>' +
           postDetailsHtml156("mom", {}) +
           momDraftsHtml156() +
@@ -23502,6 +23503,11 @@
             momSyncPicks123();
             openMomComposer();
           });
+        });
+        var aiBtn245 = $("btnMomAi245"); // [RP-V7.245]
+        if (aiBtn245) aiBtn245.addEventListener("click", function () {
+          var ciNow = $("momCapInput"); if (ciNow) momCapDraft123 = ciNow.value; // keep the caption across the AI detour
+          if (window.rpAiOpen245) window.rpAiOpen245({ mode: "composer", picks: (Moments.pendingPhotos || []).slice(), caption: momCapDraft123, reopen: function () { openMomComposer(); } });
         });
         $("btnMomPublish").addEventListener("click", function () {
           if (!Moments.pendingPhoto) { toast("Pick a photo first — photo posts start with a photo!"); return; }
@@ -35861,6 +35867,7 @@ button.rp72-chip{ cursor:pointer; }
     html += lbShareBtn241();
     if (isPost) html += '<button class="reel-act repost pp-repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + fi.reposts + "</span></button>";
     if (isPost && mine) html += '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>'; // [RP-V7.243] your photo post — delete it right here
+    if (isPost && mine) html += '<button class="reel-act pp-ai245" type="button"><span style="font-size:19px;line-height:1;">✨</span><span>AI Filter</span></button>'; // [RP-V7.245] restyle your photo with AI
     return {
       html: html ? '<div class="reel-rail">' + html + "</div>" : "",
       wire: function (root) {
@@ -35877,6 +35884,8 @@ button.rp72-chip{ cursor:pointer; }
         if (s) s.addEventListener("click", function () { lbShare241("📸", "photo", isPost ? (it.caption || "") : "", (isPost && window.rpShareUrl269) ? window.rpShareUrl269("post", it.id) : ""); }); // [RP-V7.269] a real photo post shares its share page
         var d243 = root.querySelector(".pp-del243");
         if (d243) d243.addEventListener("click", function () { lbDel243("photo", it.id, d243); });
+        var a245 = root.querySelector(".pp-ai245"); // [RP-V7.245]
+        if (a245) a245.addEventListener("click", function () { if (window.rpAiOpen245) window.rpAiOpen245({ mode: "lightbox", postId: it.id, photoUrl: it.src || "", caption: it.caption || "" }); });
       },
     };
   }
@@ -44245,6 +44254,240 @@ html, body { overflow-x: clip; }
   else setTimeout(start270, 600);
 })();
 </script>
+<style>
+/* [RP-V7.245] ✨ AI Filters sheet */
+#btnMomAi245 { background: #26262e !important; border: 1px solid rgba(255,255,255,.16) !important; box-shadow: none !important; border-radius: 10px !important; }
+.ai245-sub { text-align: center; color: var(--ink-soft); font-weight: 700; margin: 2px 0 10px; }
+.ai245-src { width: 100%; max-height: 280px; object-fit: cover; border-radius: 14px; display: block; }
+.ai245-result { width: 100%; border-radius: 14px; display: block; }
+.ai245-picks { display: flex; gap: 8px; overflow-x: auto; padding: 8px 2px 2px; }
+.ai245-pick { width: 46px; height: 46px; flex: 0 0 46px; border-radius: 10px; object-fit: cover; border: 2px solid transparent; cursor: pointer; padding: 0; background: none; }
+.ai245-pick.on { border-color: #ff5c8a; }
+.ai245-pick img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: block; }
+.ai245-rail { display: flex; gap: 10px; overflow-x: auto; padding: 8px 2px 10px; }
+.ai245-tile { flex: 0 0 86px; background: none; border: none; padding: 0; cursor: pointer; }
+.ai245-tile[disabled] { opacity: .45; cursor: default; }
+.ai245-face { display: block; width: 86px; height: 112px; border-radius: 12px; background-size: cover; background-position: center; background-color: #26262e; border: 1.5px solid rgba(255,255,255,.18); }
+.ai245-name { display: block; margin-top: 5px; font-size: 12px; font-weight: 800; color: #fff; text-align: center; }
+.ai245-tier { display: block; font-size: 10px; font-weight: 800; color: #ffd166; text-align: center; }
+.ai245-status { text-align: center; font-weight: 800; min-height: 20px; margin: 6px 0 2px; }
+.ai245-status.err { color: #ff8296; }
+.ai245-spin { display: inline-block; animation: ai245spin 1.1s linear infinite; }
+@keyframes ai245spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.ai245-post { background: #ff3366; color: #fff; border: none; border-radius: 12px; padding: 11px 22px; font-weight: 900; font-size: 15px; cursor: pointer; }
+</style>
+<script>
+/* [RP-V7.245] ✨ AI FILTERS — the photo restyle sheet (Branden, Nov 5).
+   Opened two ways: from the photo composer ("✨ AI Filter" beside the
+   pick buttons; the wiring in openMomComposer passes the current picks
+   + caption + a reopen callback) and from your own photo post's
+   lightbox rail (passes the post id). Everything runs through
+   POST /api/ai/restyle — the server holds the provider key; this side
+   only ever sees style names and result URLs. The result posts through
+   the normal /api/photo/post path, so it follows the same rules as
+   every Plaza photo. */
+(function () {
+  "use strict";
+  var CSS245 = {
+    "ai-anime": "saturate(1.45) contrast(1.1)",
+    "ai-manga": "grayscale(1) contrast(1.35)",
+    "ai-painting": "saturate(1.25) contrast(1.06)",
+    "ai-portrait": "brightness(1.06) saturate(1.12)",
+    "3d-cartoon": "saturate(1.5) brightness(1.05) contrast(1.03)",
+    "watercolor": "saturate(.85) brightness(1.08)",
+    "cyberpunk": "hue-rotate(265deg) saturate(1.5)",
+    "vintage-film": "sepia(.65) contrast(1.03)",
+    "pencil-sketch": "grayscale(1) contrast(1.5) brightness(1.12)",
+    "pop-art": "saturate(2) contrast(1.2)",
+    "cinematic": "contrast(1.16) saturate(.9)"
+  };
+  var S = null; // sheet state
+  function esc245(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function tok245() { try { var r = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (r && r.token) || ""; } catch (e) { return ""; } }
+  function toast245(m) { try { window.toast(m, 3400); } catch (e) { } }
+  function src245() {
+    if (!S) return "";
+    if (S.mode === "lightbox") return S.photoUrl || "";
+    return (S.picks && S.picks[S.pickIdx]) || "";
+  }
+  function back245() {
+    if (S && S.mode === "composer" && typeof S.reopen === "function") { S.reopen(); return; }
+    try { window.closeSheet(); } catch (e) { }
+  }
+  function head245(title) {
+    return '<button class="pd-back" id="ai245Back" aria-label="Back"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5 8 12l6.5 7"/></svg></button>' +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">' + title + "</h3>";
+  }
+  function wireBack245() { var b = document.getElementById("ai245Back"); if (b) b.addEventListener("click", back245); }
+  function renderSetup245() {
+    if (typeof window.openSheet !== "function") return;
+    window.openSheet(head245("✨ AI Filter") +
+      '<p class="ai245-sub">AI filters are being set up — check back soon ✨</p>' +
+      '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">The Plaza\'s AI engine isn\'t switched on yet. When it is, this is where your photos turn into anime, paintings, portraits and more.</p></div>');
+    wireBack245();
+  }
+  function renderRail245(statusText, isErr) {
+    if (typeof window.openSheet !== "function" || !S) return;
+    var src = src245();
+    var picksHtml = "";
+    if (S.mode === "composer" && S.picks && S.picks.length > 1) {
+      picksHtml = '<div class="ai245-picks">' + S.picks.map(function (p, i) {
+        return '<button type="button" class="ai245-pick' + (i === S.pickIdx ? " on" : "") + '" data-ai245pick="' + i + '"><img src="' + esc245(p) + '" alt="Photo ' + (i + 1) + '"/></button>';
+      }).join("") + "</div>";
+    }
+    var tiles = (S.styles || []).map(function (st) {
+      return '<button type="button" class="ai245-tile" data-ai245style="' + esc245(st.id) + '"' + (S.busy ? " disabled" : "") + '>' +
+        '<span class="ai245-face" style="background-image:url(&quot;' + esc245(src) + '&quot;); filter:' + (CSS245[st.id] || "none") + ';"></span>' +
+        '<span class="ai245-name">' + esc245(st.name) + "</span>" +
+        (st.tier === "premium" ? '<span class="ai245-tier">⭐ Premium</span>' : "") + "</button>";
+    }).join("");
+    var status = statusText != null ? statusText :
+      (S.busy ? '<span class="ai245-spin">✨</span> Working the AI magic — this can take a few seconds…' :
+        (S.remaining != null ? "Pick a style · " + S.remaining + " AI filters left today" : "Pick a style — the AI takes a few seconds"));
+    window.openSheet(head245("✨ AI Filter") +
+      '<p class="ai245-sub">Same filters energy as TikTok\'s AI lineup — made by the Plaza\'s own AI engine.</p>' +
+      (src ? '<img class="ai245-src" src="' + esc245(src) + '" alt="Your photo"/>' : "") +
+      picksHtml +
+      '<div class="ai245-rail">' + tiles + "</div>" +
+      '<p class="ai245-status' + (isErr ? " err" : "") + '">' + status + "</p></div>");
+    wireBack245();
+    var sheet = document.getElementById("sheet");
+    if (sheet) {
+      sheet.querySelectorAll("[data-ai245pick]").forEach(function (b) {
+        b.addEventListener("click", function () { S.pickIdx = parseInt(b.getAttribute("data-ai245pick"), 10) || 0; S.resultUrl = null; renderRail245(); });
+      });
+      sheet.querySelectorAll("[data-ai245style]").forEach(function (b) {
+        b.addEventListener("click", function () { doStyle245(b.getAttribute("data-ai245style")); });
+      });
+    }
+  }
+  function renderResult245() {
+    if (typeof window.openSheet !== "function" || !S) return;
+    window.openSheet(head245("✨ " + esc245(S.resultStyleName || "AI Filter")) +
+      '<img class="ai245-result" src="' + esc245(S.resultUrl) + '" alt="Your AI photo"/>' +
+      '<p class="ai245-status">' + (S.remaining != null ? S.remaining + " AI filters left today" : "Here\'s your AI photo") + "</p>" +
+      '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; gap:8px;">' +
+      '<button type="button" class="ai245-post" id="ai245Post">Post it</button>' +
+      '<button type="button" class="btn-mini" id="ai245Another">Try another style</button>' +
+      '<button type="button" class="btn-mini" id="ai245Discard">Discard</button></div></div>');
+    wireBack245();
+    var p = document.getElementById("ai245Post"); if (p) p.addEventListener("click", postIt245);
+    var a = document.getElementById("ai245Another"); if (a) a.addEventListener("click", function () { renderRail245(); });
+    var d = document.getElementById("ai245Discard"); if (d) d.addEventListener("click", discard245);
+  }
+  function doStyle245(styleId) {
+    if (!S || S.busy) return;
+    var t = tok245();
+    if (!t) { toast245("Sign in to use AI filters ✨"); return; }
+    S.busy = true;
+    renderRail245();
+    var done = function (j, httpOk) {
+      S.busy = false;
+      if (j && j.setup) { renderSetup245(); return; }
+      if (httpOk && j && j.ok && j.url) {
+        S.resultUrl = j.url; S.resultStyleName = j.styleName || "AI Filter";
+        if (typeof j.remaining === "number") S.remaining = j.remaining;
+        renderResult245();
+        return;
+      }
+      renderRail245((j && j.error) || "The AI couldn't restyle that one — try again.", true);
+    };
+    var headers = { Authorization: "Bearer " + t };
+    if (S.mode === "lightbox") {
+      fetch("/api/ai/restyle", { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, headers), body: JSON.stringify({ styleId: styleId, postId: S.postId }) })
+        .then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { j: j, ok: r.ok }; }); })
+        .then(function (x) { done(x.j, x.ok); })
+        .catch(function () { done(null, false); });
+      return;
+    }
+    var pick = src245();
+    if (/^data:image\//.test(pick)) {
+      fetch(pick).then(function (r) { return r.blob(); }).then(function (blob) {
+        var fd = new FormData();
+        fd.append("photo", blob, "aipick.jpg");
+        fd.append("styleId", styleId);
+        return fetch("/api/ai/restyle", { method: "POST", headers: headers, body: fd });
+      }).then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { j: j, ok: r.ok }; }); })
+        .then(function (x) { done(x.j, x.ok); })
+        .catch(function () { done(null, false); });
+      return;
+    }
+    fetch("/api/ai/restyle", { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, headers), body: JSON.stringify({ styleId: styleId, photoUrl: pick }) })
+      .then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { j: j, ok: r.ok }; }); })
+      .then(function (x) { done(x.j, x.ok); })
+      .catch(function () { done(null, false); });
+  }
+  function postIt245() {
+    if (!S || !S.resultUrl) return;
+    var t = tok245();
+    if (!t) { toast245("Sign in to post ✨"); return; }
+    var btn = document.getElementById("ai245Post");
+    if (btn) { btn.disabled = true; btn.textContent = "Posting…"; }
+    fetch("/api/photo/post", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+      body: JSON.stringify({ photoUrl: S.resultUrl, caption: S.caption || "" })
+    }).then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { j: j, ok: r.ok }; }); })
+      .then(function (x) {
+        if (x.ok && x.j && x.j.ok) {
+          S.resultUrl = null;
+          toast245("📸 Your AI photo is live!");
+          try { if (window.rpHomeRails243) window.rpHomeRails243.refresh(); } catch (e) { }
+          try { if (window.RPFeed) window.RPFeed.refresh(); } catch (e) { }
+          back245();
+        } else {
+          if (btn) { btn.disabled = false; btn.textContent = "Post it"; }
+          toast245((x.j && x.j.error) || "Posting didn't go through — try again.");
+        }
+      })
+      .catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = "Post it"; }
+        toast245("Posting didn't go through — try again.");
+      });
+  }
+  function discard245() {
+    if (!S || !S.resultUrl) { renderRail245(); return; }
+    var t = tok245();
+    var url = S.resultUrl;
+    S.resultUrl = null;
+    if (!t) { renderRail245(); return; }
+    fetch("/api/ai/discard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+      body: JSON.stringify({ url: url })
+    }).catch(function () { }).then(function () { renderRail245("Discarded — pick a style to try again."); });
+  }
+  window.rpAiOpen245 = function (opts) {
+    opts = opts || {};
+    if (!tok245()) { toast245("Sign in to use AI filters ✨"); return; }
+    S = {
+      mode: opts.mode === "lightbox" ? "lightbox" : "composer",
+      picks: Array.isArray(opts.picks) ? opts.picks.slice() : [],
+      pickIdx: 0,
+      postId: opts.postId || null,
+      photoUrl: opts.photoUrl || "",
+      caption: opts.caption || "",
+      reopen: typeof opts.reopen === "function" ? opts.reopen : null,
+      styles: null, remaining: null, resultUrl: null, resultStyleName: "", busy: false
+    };
+    if (S.mode === "composer" && !S.picks.length) { toast245("Pick a photo first — AI filters start with a photo!"); return; }
+    if (typeof window.openSheet !== "function") return;
+    window.openSheet(head245("✨ AI Filter") + '<p class="ai245-sub"><span class="ai245-spin">✨</span> Loading the styles…</p></div>');
+    wireBack245();
+    fetch("/api/ai/styles", { headers: { Authorization: "Bearer " + tok245() } })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (j) {
+        if (!j || !j.ok) { renderRail245("Couldn't load the styles — try again.", true); return; }
+        if (!j.enabled) { renderSetup245(); return; }
+        S.styles = j.styles || [];
+        if (typeof j.remaining === "number") S.remaining = j.remaining;
+        renderRail245();
+      })
+      .catch(function () { renderRail245("Couldn't load the styles — try again.", true); });
+  };
+})();
+</script>
+
 </body>
 </html>
 
