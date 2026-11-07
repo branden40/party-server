@@ -19995,6 +19995,60 @@
       var PROFILE_KEY = "datingGameProfile.v1";
       var profileSaveSuppressed = false;
       var lastProfileJson = "";
+      /* [RP-V7.276] GAP-3 — the dating profile's home is the ACCOUNT
+         now (server: POST /api/account/dating, restored by every
+         login/me payload). This device's copy stays as the working
+         cache + the migration source: every local save also pushes to
+         the account (dirty-checked, so only real changes travel), and
+         at boot datingHydrate276() installs the account copy when it
+         is the only copy or the newer one. A data-URL voice intro is
+         uploaded as a file first (POST /api/account/dating-voice) and
+         only its /photos/ URL is ever stored server-side. Sync state
+         (which account stamp this device last saw/pushed) lives in
+         two small local markers; all of it is best-effort — offline
+         or signed-out, the module behaves exactly as it always has. */
+      function voiceUrlOk276(u) {
+        return u.indexOf("data:audio") === 0 || u.indexOf("/photos/") === 0 || /^https?:\/\//.test(u);
+      }
+      function datingToken276() {
+        try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a.token : ""; } catch (e) { return ""; }
+      }
+      function datingMark276(savedAt, jsonStr) {
+        try {
+          localStorage.setItem("datingSrvMark.v1", String(savedAt || ""));
+          if (typeof jsonStr === "string") localStorage.setItem("datingSrvJson.v1", jsonStr);
+        } catch (e) { }
+      }
+      function datingPush276(jsonStr) {
+        var tok = datingToken276();
+        if (!tok || typeof jsonStr !== "string" || !jsonStr) return;
+        var snap;
+        try { snap = JSON.parse(jsonStr); } catch (e) { return; }
+        if (!snap || typeof snap !== "object") return;
+        var send = function (s) {
+          fetch("/api/account/dating", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok },
+            body: JSON.stringify({ dating: s })
+          }).then(function (r) { return r.json(); })
+            .then(function (j) { if (j && j.ok) datingMark276(j.datingSavedAt, JSON.stringify(s)); })
+            .catch(function () { });
+        };
+        if (snap.voice && typeof snap.voice.url === "string" && snap.voice.url.indexOf("data:audio") === 0) {
+          var dataUrl = snap.voice.url;
+          fetch(dataUrl).then(function (r) { return r.blob(); }).then(function (blob) {
+            var fd = new FormData();
+            fd.append("voice", blob, "voice.webm");
+            return fetch("/api/account/dating-voice", { method: "POST", headers: { "Authorization": "Bearer " + tok }, body: fd });
+          }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j && j.ok && j.url) {
+              snap.voice = { prompt: snap.voice.prompt || "", url: j.url, dur: snap.voice.dur || 0 };
+              if (me.voice && me.voice.url === dataUrl) { me.voice.url = j.url; lastProfileJson = ""; }
+            } else snap.voice = null;
+            send(snap);
+          }).catch(function () { var s2 = {}; for (var k in snap) s2[k] = snap[k]; s2.voice = null; send(s2); });
+        } else send(snap);
+      }
       function profileSnapshot() {
         return {
           v: 1,
@@ -20007,7 +20061,7 @@
           bio: me.bio || "", look: me.look || {},
           prompts: (me.prompts || []).filter(function (p) { return p && p.q; }).map(function (p) { return { q: String(p.q), a: String(p.a || "").slice(0, 140) }; }),
           details: (function () { var d = me.details || {}, o = {}; ["heightFt", "heightIn", "occupation", "education", "drinking", "smoking", "hasKids", "wantsKids", "religion", "hometown"].forEach(function (k) { o[k] = typeof d[k] === "string" ? d[k] : ""; }); return o; })(),
-          voice: (me.voice && typeof me.voice.url === "string" && me.voice.url.indexOf("data:audio") === 0) ? { prompt: String(me.voice.prompt || ""), url: me.voice.url, dur: me.voice.dur || 0 } : null,
+          voice: (me.voice && typeof me.voice.url === "string" && voiceUrlOk276(me.voice.url)) ? { prompt: String(me.voice.prompt || ""), url: me.voice.url, dur: me.voice.dur || 0 } : null,
           contact: me.contact ? { email: me.contact.email || "", phone: me.contact.phone || "", consent: !!me.contact.consent } : null,
           photos: (me.photos || []).filter(function (u) { return typeof u === "string" && /^https?:\/\//.test(u); }),
           onlinePhotoUrl: Online.myPhotoUrl || (typeof acctPhotoUrl !== "undefined" ? acctPhotoUrl : null) || null, // [RP-V7.50] never autosave over the account photo with a null
@@ -20023,6 +20077,7 @@
           if (j === lastProfileJson) return;
           localStorage.setItem(PROFILE_KEY, j);
           lastProfileJson = j;
+          datingPush276(j); // [RP-V7.276] the account copy follows every real change
         } catch (e) { /* storage full/blocked — the game keeps running */ }
       }
       setInterval(saveProfile, 4000);
@@ -20064,7 +20119,7 @@
         me.prompts = (Array.isArray(d.prompts) ? d.prompts : []).filter(function (p) { return p && typeof p.q === "string" && p.q; }).slice(0, 3).map(function (p) { return { q: p.q, a: typeof p.a === "string" ? p.a.slice(0, 140) : "" }; });
         me.details = {};
         if (d.details && typeof d.details === "object") ["heightFt", "heightIn", "occupation", "education", "drinking", "smoking", "hasKids", "wantsKids", "religion", "hometown"].forEach(function (k) { me.details[k] = typeof d.details[k] === "string" ? d.details[k] : ""; });
-        me.voice = (d.voice && typeof d.voice.url === "string" && d.voice.url.indexOf("data:audio") === 0) ? { prompt: typeof d.voice.prompt === "string" ? d.voice.prompt : "", url: d.voice.url, dur: d.voice.dur || 0 } : null;
+        me.voice = (d.voice && typeof d.voice.url === "string" && voiceUrlOk276(d.voice.url)) ? { prompt: typeof d.voice.prompt === "string" ? d.voice.prompt : "", url: d.voice.url, dur: d.voice.dur || 0 } : null;
         me.contact = (d.contact && typeof d.contact === "object")
           ? { email: d.contact.email || "", phone: d.contact.phone || "", consent: !!d.contact.consent }
           : null;
@@ -20117,6 +20172,57 @@
         toast("Saved profile cleared — this device starts fresh next visit. This session keeps playing; entering the party again saves a new profile.");
       });
       var savedProfileAtBoot = loadSavedProfile();
+      /* [RP-V7.276] GAP-3 boot hydration: if this device is signed in,
+         ask the account for its dating snapshot. The account copy WINS
+         when (a) this device has no snapshot (the fresh-device case),
+         or (b) the account stamp moved since this device last synced
+         AND this device holds no unsynced edits (its snapshot equals
+         what it last pushed/saw). If the account has none and this
+         device does, the device copy migrates up. If both moved, the
+         active device's copy pushes (last writer wins) — the same
+         treatment the app gives the live session. A win replaces the
+         local cache AND savedProfileAtBoot before the welcome-back
+         decision whenever the fetch lands in time; if the sheet was
+         already shown from the device copy, the corrected cache
+         governs the next boot. */
+      (function datingHydrate276() {
+        var tok = datingToken276();
+        if (!tok) return;
+        fetch("/api/account/me", { headers: { "Authorization": "Bearer " + tok } })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            var u = j && j.user;
+            if (!u) return;
+            var srv = (u.dating && typeof u.dating === "object") ? u.dating : null;
+            var srvAt = typeof u.datingSavedAt === "number" ? u.datingSavedAt : 0;
+            var mark = ""; try { mark = localStorage.getItem("datingSrvMark.v1") || ""; } catch (e) { }
+            var lastSynced = ""; try { lastSynced = localStorage.getItem("datingSrvJson.v1") || ""; } catch (e) { }
+            if (!srv) {
+              if (savedProfileAtBoot) datingPush276(JSON.stringify(savedProfileAtBoot));
+              return;
+            }
+            var srvJson = JSON.stringify(srv);
+            if (!savedProfileAtBoot) {
+              try { localStorage.setItem(PROFILE_KEY, srvJson); } catch (e) { }
+              savedProfileAtBoot = srv;
+              lastProfileJson = srvJson;
+              datingMark276(srvAt, srvJson);
+              return;
+            }
+            if (String(srvAt) === mark) return; // already in sync
+            var localJson = "";
+            try { localJson = localStorage.getItem(PROFILE_KEY) || ""; } catch (e) { }
+            if (localJson && localJson === lastSynced) {
+              try { localStorage.setItem(PROFILE_KEY, srvJson); } catch (e) { }
+              savedProfileAtBoot = srv;
+              lastProfileJson = srvJson;
+              datingMark276(srvAt, srvJson);
+            } else {
+              datingPush276(JSON.stringify(savedProfileAtBoot));
+            }
+          })
+          .catch(function () { });
+      })();
       /* RP-V7.15: everyone lands straight on the Plaza home now — no age
          screen at startup; the check lives at the 18+ doors. Deferred to
          DOMContentLoaded: the home renders reach into sections of this
@@ -29571,7 +29677,37 @@ function stageStreakBump(key, add) {
   var LS = "rpWn.v1";
   var S = { myShows: [], knownShows: {}, showBmk: {}, itemBmk: {}, myPre: {}, entered: {}, cat: -1 };
   try { var raw = JSON.parse(localStorage.getItem(LS) || "null"); if (raw && typeof raw === "object") { for (var k in S) if (raw[k] !== undefined) S[k] = raw[k]; } } catch (e) { }
-  function save() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) { } }
+  function save() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) { } wnSrvPush276(); }
+  /* [RP-V7.276] GAP-5 — this state ALSO lives on the member's
+     account (GET/POST /api/account/wnstate): every save pushes a
+     debounced, dirty-checked copy, and at boot the account copy is
+     adopted when one exists (the account is the home; the device
+     copy is its cache + the migration source when the account has
+     none yet). Signed out or offline, behavior is exactly as before. */
+  var wnSrvTimer = null, wnSrvLast = "";
+  function wnSrvToken276() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a.token : ""; } catch (e) { return ""; } }
+  function wnSrvPush276() {
+    var tok = wnSrvToken276(); if (!tok) return;
+    var j; try { j = JSON.stringify(S); } catch (e) { return; }
+    if (!j || j === wnSrvLast) return;
+    clearTimeout(wnSrvTimer);
+    wnSrvTimer = setTimeout(function () {
+      fetch("/api/account/wnstate", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok }, body: JSON.stringify({ state: S }) })
+        .then(function (r) { if (r.ok) wnSrvLast = j; }).catch(function () { });
+    }, 800);
+  }
+  (function wnSrvPull276() {
+    var tok = wnSrvToken276(); if (!tok) return;
+    fetch("/api/account/wnstate", { headers: { "Authorization": "Bearer " + tok } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok && j.state && typeof j.state === "object") {
+          for (var k in S) if (j.state[k] !== undefined) S[k] = j.state[k];
+          try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) { }
+          wnSrvLast = JSON.stringify(S);
+        } else if (j && j.ok) wnSrvPush276();
+      }).catch(function () { });
+  })();
 
   /* ---------- volatile state ---------- */
   var Remote = {};       // hostId -> { name, items: {lid: item}, seen }
@@ -30445,7 +30581,39 @@ function stageStreakBump(key, add) {
       fan.free = fj.free || {};
     }
   } catch (e) { }
-  function saveFan() { try { localStorage.setItem("rpFan.v1", JSON.stringify(fan)); } catch (e) { } }
+  function saveFan() { try { localStorage.setItem("rpFan.v1", JSON.stringify(fan)); } catch (e) { } fanSrvPush276(); }
+  /* [RP-V7.276] GAP-5 — the fan state ALSO lives on the member's
+     account (GET/POST /api/account/fanstate): every save pushes a
+     debounced, dirty-checked copy, and at boot the account copy is
+     adopted when one exists (the account is the home; the device
+     copy is its cache + the migration source when the account has
+     none yet). Signed out or offline, behavior is exactly as before. */
+  var fanSrvTimer = null, fanSrvLast = "";
+  function fanSrvToken276() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a.token : ""; } catch (e) { return ""; } }
+  function fanSrvPush276() {
+    var tok = fanSrvToken276(); if (!tok) return;
+    var j; try { j = JSON.stringify(fan); } catch (e) { return; }
+    if (!j || j === fanSrvLast) return;
+    clearTimeout(fanSrvTimer);
+    fanSrvTimer = setTimeout(function () {
+      fetch("/api/account/fanstate", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok }, body: JSON.stringify({ state: fan }) })
+        .then(function (r) { if (r.ok) fanSrvLast = j; }).catch(function () { });
+    }, 800);
+  }
+  (function fanSrvPull276() {
+    var tok = fanSrvToken276(); if (!tok) return;
+    fetch("/api/account/fanstate", { headers: { "Authorization": "Bearer " + tok } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok && j.state && typeof j.state === "object") {
+          fan.fanOf = j.state.fanOf || {};
+          if (j.state.my && typeof j.state.my === "object") { fan.my.count = j.state.my.count || 0; fan.my.members = j.state.my.members || {}; fan.my.chalDone = j.state.my.chalDone || 0; }
+          fan.free = j.state.free || {};
+          try { localStorage.setItem("rpFan.v1", JSON.stringify(fan)); } catch (e) { }
+          fanSrvLast = JSON.stringify(fan);
+        } else if (j && j.ok) fanSrvPush276();
+      }).catch(function () { });
+  })();
   var series = {};
   try { var sj = JSON.parse(localStorage.getItem("rpSeries.v1") || "{}"); if (sj && typeof sj === "object") series = sj; } catch (e) { }
   function saveSeries() { try { localStorage.setItem("rpSeries.v1", JSON.stringify(series)); } catch (e) { } }
