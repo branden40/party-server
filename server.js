@@ -3693,6 +3693,23 @@ app.get("/post/:id", (req, res) => {
       const rec = readPhotoPosts().posts.find((p) => p && p.id === id);
       if (rec && (rec.audience || "everyone") === "everyone") {
         const origin = siteOrigin(req);
+        if (rec.kind === "text") {
+          // [RP-V7.278] a text post shares its words: the text
+          // itself is the title/description, the brand poster is
+          // the image, and the target is the plain app landing
+          // (text posts live in the Home stream; the deep-link
+          // stash only knows reel/photo targets).
+          const tx278 = String(rec.text || "").trim();
+          const au278 = String(rec.name || "").trim() || "Someone";
+          return rpSharePage269(res, {
+            type: "article",
+            title: tx278 ? au278 + ": " + tx278.slice(0, 80) : au278 + "'s text post on Rizz Plaza",
+            description: tx278 || RP_SHARE_DESC269,
+            image: origin + "/logo-poster.jpg",
+            url: origin + "/post/" + id,
+            target: origin + "/",
+          });
+        }
         const urls = photoUrlsOf123(rec); // [RP-V7.123] sets share their first photo
         let img = urls.length ? String(urls[0] || "") : "";
         if (img && !/^https?:\/\//i.test(img))
@@ -3752,7 +3769,7 @@ app.get("/api/tag/:tag", (req, res) => {
   const commentsDb = readPhotoComments();
   const repostsDb = readPhotoReposts();
   const photos = readPhotoPosts()
-    .posts.filter((x) => x && hasTag(x.caption))
+    .posts.filter((x) => x && x.kind !== "text" && hasTag(x.caption)) // [RP-V7.278] tag views render photo tiles — text posts stay out (their hashtags still surface photos/reels)
     .slice(0, 60)
     .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb, pg262));
   res.json({ ok: true, tag, reels, photos });
@@ -5218,17 +5235,19 @@ app.post("/api/reel/comment", (req, res) => {
     writePhotoComments(db);
     try {
       const pcPost = readPhotoPosts().posts.find((x) => x && x.id === id);
-      if (pcPost && pcPost.owner && pcPost.owner !== ctx.user.id)
+      if (pcPost && pcPost.owner && pcPost.owner !== ctx.user.id) {
+        const isTx278 = pcPost.kind === "text"; // [RP-V7.278] text posts live in the Home stream, not Moments
         notifyActivity({
           toId: pcPost.owner,
           kind: "comment",
           actorId: ctx.user.id,
           actorName: ctx.user.name,
-          text: "✍️ " + ctx.user.name + " commented on your photo: \"" + String(comment.text).slice(0, 60) + "\"",
-          emailSubject: ctx.user.name + " commented on your photo on Rizz Plaza",
-          emailText: ctx.user.name + " commented on your photo on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
-          go: { screen: "moments", photoId: id },
+          text: "✍️ " + ctx.user.name + (isTx278 ? " commented on your text post: \"" : " commented on your photo: \"") + String(comment.text).slice(0, 60) + "\"",
+          emailSubject: ctx.user.name + (isTx278 ? " commented on your text post on Rizz Plaza" : " commented on your photo on Rizz Plaza"),
+          emailText: ctx.user.name + (isTx278 ? " commented on your text post on Rizz Plaza: \"" : " commented on your photo on Rizz Plaza: \"") + String(comment.text).slice(0, 140) + "\"\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+          go: isTx278 ? { screen: "home" } : { screen: "moments", photoId: id },
         });
+      }
     } catch (e) { /* a notification must never break a comment */ }
     return res.json({ ok: true, kind, id, comment: pub, count: list.length });
   }
@@ -5388,6 +5407,47 @@ app.post("/api/reel/repost", (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// [RP-V7.278] TEXT POSTS (Branden, Nov 7: "Add text post as well —
+// like TikTok", then his screen recording of TikTok's text editor:
+// "Have this feature, everything from this copied"). A text post is a
+// photo-posts.json record with kind:"text": no photo, the member's
+// text plus a tstyle object (font / color / background / alignment /
+// box / size) the client editor chose. Because the record lives in
+// the photo-post store, every post-generic surface carries it with
+// no new machinery: GET /api/photo/posts (the Home stream — the
+// V7.276 brain ranking reads caption, which mirrors the text),
+// /api/photo/like, /api/photo/repost, POST /api/reel/comment with
+// kind:"photo", DELETE /api/photo/:id, the V7.262 gift-by-post
+// settlement (the "photo" post key resolves any record in this
+// store), the profile payload's photoPosts, and the brain's photo
+// like/repost signals. Surfaces that are media by construction
+// never see it: Moments filters it at ingest on the client, the
+// Home pager merge requires photo urls, and GET /api/tag excludes
+// it below — Photos/Reels separation is untouched.
+// The style tables are allowlists: anything a client sends outside
+// them is replaced by the default, so a stored post always renders
+// exactly the way the editor showed it. The client keeps the
+// identical tables (window.RPText278).
+// ---------------------------------------------------------------------------
+const TEXT_POST_MAX278 = 500; // the retired Feed's FEED_TEXT_MAX — the cap this store family has always used for text
+const TEXT_FONTS278 = ["classic", "elegance", "bold", "script", "typewriter", "neon", "retro", "comic", "tall", "vintage", "marker", "slab"];
+const TEXT_COLORS278 = ["#ffffff", "#111111", "#fe2c55", "#ff7a00", "#ffd60a", "#2ecc71", "#00c2a8", "#00b7ff", "#2f6bff", "#1b2a6b", "#8a3ffc", "#ff5ec4", "#00e5ff", "#a3e635", "#f5f0e6", "#ff9f43"];
+const TEXT_BGS278 = ["ink", "mono", "crimson", "grape", "ocean", "forest", "gold", "rose", "sunset", "lagoon", "plum", "sky", "ember", "mint"];
+function textStyle278(raw) {
+  const s = raw && typeof raw === "object" ? raw : {};
+  const font = TEXT_FONTS278.includes(s.font) ? s.font : "classic";
+  const colorRaw = String(s.color || "").toLowerCase();
+  const color = TEXT_COLORS278.includes(colorRaw) ? colorRaw : "#ffffff";
+  const bg = TEXT_BGS278.includes(s.bg) ? s.bg : "ink";
+  const align = s.align === "left" || s.align === "right" ? s.align : "center";
+  const box = s.box === "solid" || s.box === "soft" ? s.box : "none";
+  let size = Number(s.size);
+  if (!isFinite(size)) size = 1;
+  size = Math.round(Math.min(1.8, Math.max(0.7, size)) * 100) / 100;
+  return { font, color, bg, align, box, size };
+}
+
+// ---------------------------------------------------------------------------
 // [RP-V7.85] FIX-3b — photo Moments posts get a server home (Branden,
 // Oct 27: "Add the photo comments"). Through V7.84 a Moments post
 // lived ONLY in the posting device's memory: Moments.posts was never
@@ -5498,6 +5558,9 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262) {
   const rset = photoRepostSet(repostsDb, p.id);
   return {
     id: p.id,
+    kind: p.kind === "text" ? "text" : "photo", // [RP-V7.278]
+    text: p.kind === "text" ? String(p.text || "") : "", // [RP-V7.278]
+    tstyle: p.kind === "text" ? textStyle278(p.tstyle) : null, // [RP-V7.278]
     author: p.name,
     photo: p.photo,
     urls: photoUrlsOf123(p), // [RP-V7.123] the full set; photo above stays urls[0] for every older reader
@@ -5645,6 +5708,58 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
     return res.status(500).json({ ok: false, error: "Posting failed. Please try again." });
   }
 }));
+// [RP-V7.278] TEXT POST create — a JSON route beside the multipart
+// photo route (a text post has no file to upload). Same guards as
+// the photo route: signed-in account, pending-deletion refused,
+// clientKey dedupe per author. The text mirrors into caption so the
+// Home ranking / style keys / brain signals that read caption treat
+// a text post exactly like any other post in this store.
+app.post("/api/photo/text-post", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+  try {
+    const b = req.body || {};
+    const text = String(b.text == null ? "" : b.text)
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+      .trim();
+    if (!text) return res.status(400).json({ ok: false, error: "Write something first" });
+    if (text.length > TEXT_POST_MAX278)
+      return res.status(400).json({ ok: false, error: "Text posts are " + TEXT_POST_MAX278 + " characters max" });
+    const aud278 = b.audience === "followers" || b.audience === "onlyme" ? b.audience : "everyone";
+    const clientKey = reelCleanId(b.clientKey);
+    const db = readPhotoPosts();
+    if (clientKey) {
+      const ex = db.posts.find((p) => p.owner === ctx.user.id && p.clientKey === clientKey);
+      if (ex)
+        return res.json({ ok: true, deduped: true, post: photoPublicPost(ex, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), readMoney().postGifts || {}) });
+    }
+    const post = {
+      id: "tx" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex"),
+      owner: ctx.user.id,
+      name: reelCleanName(ctx.user.name) || "Someone",
+      kind: "text",
+      photo: null,
+      urls: [],
+      text,
+      caption: text,
+      tstyle: textStyle278(b.style),
+      ...(aud278 !== "everyone" ? { audience: aud278 } : {}),
+      clientKey: clientKey || null,
+      ts: new Date().toISOString(),
+    };
+    db.posts.unshift(post);
+    db.posts = db.posts.slice(0, PHOTO_POSTS_KEEP);
+    writePhotoPosts(db);
+    notifyFollowersOfPost129(ctx.user, "text", post.id);
+    return res.json({ ok: true, post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), readMoney().postGifts || {}) });
+  } catch (e) {
+    console.log("TEXT POST ERROR:", e.message);
+    return res.status(500).json({ ok: false, error: "Posting failed. Please try again." });
+  }
+});
+// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // [RP-V7.245] ✨ AI FILTERS — photo restyle for the Plaza (Branden, Nov 5:
 // "Just build it into the platform"). The style rail mirrors TikTok's AI
@@ -6150,17 +6265,19 @@ app.post("/api/photo/like", (req, res) => {
   if (want && !has) {
     try {
       const pPost = readPhotoPosts().posts.find((x) => x && x.id === id);
-      if (pPost && pPost.owner && pPost.owner !== ctx.user.id)
+      if (pPost && pPost.owner && pPost.owner !== ctx.user.id) {
+        const isTx278 = pPost.kind === "text"; // [RP-V7.278] text posts live in the Home stream, not Moments
         notifyActivity({
           toId: pPost.owner,
           kind: "like",
           actorId: ctx.user.id,
           actorName: ctx.user.name,
-          text: "❤️ " + ctx.user.name + " liked your photo",
-          emailSubject: ctx.user.name + " liked your photo on Rizz Plaza",
-          emailText: ctx.user.name + " liked your photo on Rizz Plaza.\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
-          go: { screen: "moments", photoId: id },
+          text: "❤️ " + ctx.user.name + (isTx278 ? " liked your text post" : " liked your photo"),
+          emailSubject: ctx.user.name + (isTx278 ? " liked your text post on Rizz Plaza" : " liked your photo on Rizz Plaza"),
+          emailText: ctx.user.name + (isTx278 ? " liked your text post on Rizz Plaza." : " liked your photo on Rizz Plaza.") + "\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+          go: isTx278 ? { screen: "home" } : { screen: "moments", photoId: id },
         });
+      }
     } catch (e) { /* a notification must never break a like */ }
   }
   res.json({ ok: true, id, liked: set.includes(ctx.user.id), likes: set.length });
@@ -11032,8 +11149,10 @@ function notifyFollowersOfPost129(authorUser, what, contentId) { // [RP-V7.270] 
     const nm = authorUser.name || "Someone";
     const isReel = what === "reel";
     const isSet = what === "photos";
+    const isText278 = what === "text"; // [RP-V7.278]
     const text = isReel ? "\uD83C\uDFAC " + nm + " posted a new reel"
       : isSet ? "\uD83D\uDCF8 " + nm + " posted new photos"
+      : isText278 ? "\u270D\uFE0F " + nm + " posted a text post"
       : "\uD83D\uDCF8 " + nm + " posted a new photo";
     for (const fid of followers) {
       notifyActivity({
@@ -11047,7 +11166,7 @@ function notifyFollowersOfPost129(authorUser, what, contentId) { // [RP-V7.270] 
         // [RP-V7.270] the row opens the post itself when the caller
         // knows its id (the reel/photo create paths do).
         go: contentId
-          ? (isReel ? { screen: "moments", reelId: contentId } : { screen: "moments", photoId: contentId })
+          ? (isReel ? { screen: "moments", reelId: contentId } : isText278 ? { screen: "home" } : { screen: "moments", photoId: contentId })
           : { screen: "moments" },
         coalesceKey: "post:" + authorUser.id,
       });
@@ -14235,6 +14354,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // Feed store, so nothing is ever recorded for them — no count
   // can exist for a surface the server does not record against.
   let postKey262 = null;
+  let postIsText262 = false; // [RP-V7.278]
   try {
     const bp262 = b.post;
     if (bp262 && (bp262.kind === "reel" || bp262.kind === "photo") && typeof bp262.id === "string" && bp262.id) {
@@ -14243,7 +14363,10 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
         if (rr262 && reelAuthorKeyFor(ctx.db, rr262) === recipient.id) postKey262 = "reel:" + bp262.id;
       } else {
         const pp262 = readPhotoPosts().posts.find((x) => x && x.id === bp262.id);
-        if (pp262 && pp262.owner === recipient.id) postKey262 = "photo:" + bp262.id;
+        if (pp262 && pp262.owner === recipient.id) {
+          postKey262 = "photo:" + bp262.id;
+          if (pp262.kind === "text") postIsText262 = true; // [RP-V7.278] a gift on a text post lands on Home, where text posts live
+        }
       }
     }
   } catch (e) { postKey262 = null; }
@@ -14486,9 +14609,11 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     // own-profile target, where the earnings land.
     go: postKey262 && postKey262.indexOf("reel:") === 0
       ? { screen: "moments", reelId: postKey262.slice(5) }
-      : postKey262 && postKey262.indexOf("photo:") === 0
-        ? { screen: "moments", photoId: postKey262.slice(6) }
-        : { screen: "ownprofile" },
+      : postKey262 && postIsText262 // [RP-V7.278] a gift on a text post lands on Home
+        ? { screen: "home" }
+        : postKey262 && postKey262.indexOf("photo:") === 0
+          ? { screen: "moments", photoId: postKey262.slice(6) }
+          : { screen: "ownprofile" },
     // [RP-V7.250] the settled gift id + source ride the reminder
     // record (notifyActivity persists them when present) so future
     // records carry WHICH gift it was — records written before this
