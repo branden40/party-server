@@ -348,6 +348,128 @@ function emitLiveAccess138(socket, key) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// [RP-V7.274] LIVE RE-INVITE (Branden's order, Nov 5: "anyone who watches
+// a host's live automatically gets an invite next time that host goes
+// live, for EVERY host including non-followers — just like how TikTok
+// does it"). The server remembers, per host ACCOUNT, the accounts that
+// watched their PUBLIC lives (durable store, following the account-brain
+// rule — never localStorage). When the host starts a NEW public live,
+// every remembered viewer gets the invite through the existing activity
+// system (kind "liveinvite" — the member's "🔒 Live invites" switch
+// governs it; bell + email per their channel switches, never SMS),
+// stamped with the host as actor and a go target that lands straight
+// inside the live (the V7.270 reminder shape; the client has routed
+// { screen: "live", room } since V7.138). Private lives are invisible
+// to this system end to end: views of a private live are never
+// recorded, and a private live start never sends. One fan-out per live
+// (guarded by host + startedAt), one reminder per viewer per live.
+// Caps, chosen to mirror the V7.129 post-alert fan-out: the store
+// keeps the newest 2,000 viewers per host; a live start invites the
+// newest 1,000. Every helper is fully guarded — remembering a view or
+// sending an invite must never break a join, a room switch, or a live
+// start.
+// ---------------------------------------------------------------------------
+const LIVEVIEWERS_KEEP274 = 2000; // newest viewers remembered per host
+const LIVEVIEWERS_INVITE274 = 1000; // newest viewers invited per live start
+const LIVEVIEWERS_RESTAMP274 = 10 * 60 * 1000; // a fresher stamp needs no rewrite
+function liveViewersFile274() {
+  return (
+    process.env.LIVEVIEWERS_FILE ||
+    path.join(path.dirname(PHOTO_DIR), "liveviewers.json")
+  );
+}
+function readLiveViewers274() {
+  return storeReadJson(
+    liveViewersFile274(),
+    (d) => !!(d && d.hosts && typeof d.hosts === "object" && !Array.isArray(d.hosts)),
+    { hosts: {} },
+    "liveviewers"
+  );
+}
+function writeLiveViewers274(db) {
+  storeWriteJson(liveViewersFile274(), db);
+}
+// The host ACCOUNT behind a registry entry, resolved exactly the way
+// livesSnapshot resolves it (audit C4): from the host socket's
+// token-verified acct-presence binding, via the device-key map. A
+// guest host has no account identity — null, and nothing is recorded
+// or sent for their lives.
+function liveHostAccount274(entry) {
+  if (!entry) return null;
+  for (const [sid, k] of clientKeys) {
+    if (k !== entry.key) continue;
+    const hs = io.sockets.sockets.get(sid);
+    if (hs && hs.data && hs.data.accountId) return hs.data.accountId;
+  }
+  return null;
+}
+// Remember that this socket's account is watching the PUBLIC personal
+// live playing in `room`. Called from the join door, the switch-room
+// door, and acct-presence (so an announce-after-join binding still
+// records the view). No-ops for guests, the host themself, non-live
+// rooms, unregistered rooms, and private lives.
+function recordLiveView274(socket, room) {
+  try {
+    if (!socket || !room || room.indexOf("live-") !== 0) return;
+    const viewerId = socket.data && socket.data.accountId;
+    if (!viewerId) return; // guests have no account to remember
+    let entry = null;
+    for (const e of liveRegistry.values()) if (e.room === room) { entry = e; break; }
+    if (!entry || entry.priv) return; // public personal lives only
+    const hostId = liveHostAccount274(entry);
+    if (!hostId || hostId === viewerId) return;
+    const db = readLiveViewers274();
+    let h = db.hosts[hostId];
+    if (!h || typeof h !== "object") { h = { name: "", viewers: {} }; db.hosts[hostId] = h; }
+    if (!h.viewers || typeof h.viewers !== "object") h.viewers = {};
+    const now = Date.now();
+    const prevTs = Number(h.viewers[viewerId]) || 0;
+    if (prevTs && now - prevTs < LIVEVIEWERS_RESTAMP274) return; // fresh enough — skip the write
+    h.name = String(entry.name || "").slice(0, 60);
+    h.viewers[viewerId] = now;
+    const ids = Object.keys(h.viewers);
+    if (ids.length > LIVEVIEWERS_KEEP274) {
+      ids.sort((a, b) => (Number(h.viewers[b]) || 0) - (Number(h.viewers[a]) || 0));
+      for (const id of ids.slice(LIVEVIEWERS_KEEP274)) delete h.viewers[id];
+    }
+    writeLiveViewers274(db);
+  } catch (e) { /* a view record must never break a join */ }
+}
+const reinviteSent274 = new Map(); // hostId -> startedAt already fanned out
+// A NEW public live just entered the registry (live-register with no
+// previous entry, or a beat-heal creation): invite the host's
+// remembered viewers — followers or not — once for this live.
+function liveStartedReinvite274(socket, entry) {
+  try {
+    if (!entry || entry.priv) return; // public lives only
+    const hostId = socket && socket.data && socket.data.accountId;
+    if (!hostId) return; // guest host: no account, no audience memory
+    if (reinviteSent274.get(hostId) === entry.startedAt) return; // one fan-out per live
+    reinviteSent274.set(hostId, entry.startedAt);
+    const db = readLiveViewers274();
+    const h = db.hosts[hostId];
+    if (!h || !h.viewers) return;
+    const hostName = String(entry.name || h.name || "Someone").slice(0, 60);
+    const ids = Object.keys(h.viewers)
+      .sort((a, b) => (Number(h.viewers[b]) || 0) - (Number(h.viewers[a]) || 0))
+      .slice(0, LIVEVIEWERS_INVITE274);
+    for (const vid of ids) {
+      if (vid === hostId) continue;
+      notifyActivity({
+        toId: vid,
+        kind: "liveinvite",
+        actorId: hostId,
+        actorName: hostName,
+        text: "🔴 " + hostName + " is live now — you watched them before, tap to join",
+        emailSubject: hostName + " is live on Rizz Plaza",
+        emailText: hostName + " just went live on Rizz Plaza — and you watched them before, so here is your invite back in.\n\nOpen the app to watch: https://rizzplaza.com\n\n— The Rizz Plaza team",
+        go: { screen: "live", room: entry.room },
+      });
+    }
+  } catch (e) { /* invites must never break a live start */ }
+}
+
 // room -> live auction state (Whatnot-style bidding)
 const auctions = new Map();
 // [RP-V7.80] Full-scan F3: the server socket auction enforces the
@@ -14944,6 +15066,7 @@ io.on("connection", (socket) => {
     socket.emit("room-state", roomState(room)); // everyone already here
     socket.emit("lives-update", livesPayloadFor(socket)); // [RP-V7.28] current live registry, so a fresh client sees ongoing lives immediately ([RP-V7.40] in the recipient's own order)
     socket.to(room).emit("player-joined", player); // tell the room
+    recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
   });
 
   // [RP-V7.30] Account presence: a signed-in client announces which
@@ -14980,6 +15103,13 @@ io.on("connection", (socket) => {
         p.photoUrl = user.photo;
         io.to(p.room).emit("player-photo", { id: p.id, photoUrl: user.photo });
       }
+    } catch (e) { }
+    // [RP-V7.274] Announce-after-join: the account binding just landed
+    // on a socket already standing in a live room — record the view
+    // now that the viewer has an identity.
+    try {
+      const p274 = players.get(socket.id);
+      if (p274) recordLiveView274(socket, p274.room);
     } catch (e) { }
     // [RP-V7.40] now that this socket's account is known, hand it the
     // lives list in its own For You order right away.
@@ -15095,6 +15225,7 @@ io.on("connection", (socket) => {
       if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); } // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too
     }
     socket.to(room).emit("player-joined", p);
+    recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
   });
 
   // [RP-V7.28] Live registry: hosts register on Go LIVE, heartbeat while
@@ -15127,6 +15258,7 @@ io.on("connection", (socket) => {
       lastBeat: now,
       priv: acc138.priv,
     });
+    if (!prev) liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a NEW live invites the host's remembered viewers (public only — the helper refuses private)
     broadcastLives();
     emitLiveAccess138(socket, devKey);
   });
@@ -15158,6 +15290,7 @@ io.on("connection", (socket) => {
         lastBeat: now,
         priv: !!(liveAccess138.get(devKey) && liveAccess138.get(devKey).priv), // [RP-V7.138] beat-heal keeps the privacy flag
       });
+      liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a beat-healed creation is still a new live — invite past viewers (public only)
       broadcastLives();
       return;
     }
