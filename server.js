@@ -5276,6 +5276,361 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
     return res.status(500).json({ ok: false, error: "Posting failed. Please try again." });
   }
 }));
+// ---------------------------------------------------------------------------
+// [RP-V7.245] ✨ AI FILTERS — photo restyle for the Plaza (Branden, Nov 5:
+// "Just build it into the platform"). The style rail mirrors TikTok's AI
+// filter lineup by name and look — AI Anime, AI Manga, AI Painting,
+// AI Portrait, 3D Cartoon, Watercolor, Cyberpunk, Vintage Film,
+// Pencil Sketch, Pop Art, Cinematic — but every restyle is produced by
+// the Plaza's OWN engine integration (fal.ai), never ByteDance's, and
+// the recipes below are the Plaza's own prompts. ONE provider fronts
+// every model: fal.ai. Face-critical styles (AI Portrait, AI Painting,
+// 3D Cartoon) ride the premium editor (Nano Banana 2); the rest ride
+// the standard editor (FLUX.2 [dev]).
+//   FAL_KEY lives ONLY in the server environment. The client never
+//   sees the key, the prompts, or the provider. With no key (and no
+//   rig stub) the routes answer honestly that AI filters are being
+//   set up — the Plaza Store OAuth pattern — no fake results, ever.
+//   POST /api/ai/restyle — { styleId, postId } (your own photo post),
+//     { styleId, photoUrl } (your own gallery / own-post photo), or
+//     multipart field "photo" (a fresh composer pick). The result is
+//     stored in PHOTO_DIR, moderated like any Plaza photo, registered
+//     in the caller's gallery, and its URL returns for preview — so
+//     posting it rides the normal /api/photo/post path and rules.
+//   POST /api/ai/discard — { url }: drops an unposted AI result from
+//     the caller's gallery and unlinks the file when nothing else
+//     references it.
+//   GET  /api/ai/styles — the rail (names + tiers), whether the
+//     feature is enabled, and the caller's remaining restyles today.
+// Cost guard: AI_DAILY_CAP245 restyles per member per day, counted on
+// attempt (a failing provider can't be hammered for free), the app
+// owner exempt. Usage rides ai-restyle-usage.json beside PHOTO_DIR.
+// ---------------------------------------------------------------------------
+const aiExecFile245 = require("child_process").execFile;
+const AI_FAL_KEY245 = () => String(process.env.FAL_KEY || "").trim();
+const AI_STUB245 = () => process.env.RP_AI_RESTYLE_STUB === "1"; // rig-only; never set in production
+const AI_ENABLED245 = () => !!AI_FAL_KEY245() || AI_STUB245();
+const AI_DAILY_CAP245 = 20;
+const AI_USAGE_FILE245 =
+  process.env.AI_USAGE_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "ai-restyle-usage.json");
+const AI_MODEL_STD245 = "fal-ai/flux-2/edit"; // FLUX.2 [dev] image edit, ~$0.012/restyle
+const AI_MODEL_PRO245 = "fal-ai/nano-banana-2/edit"; // Nano Banana 2, ~$0.08/restyle
+const AI_STYLES245 = [
+  { id: "ai-anime", name: "AI Anime", tier: "standard", prompt: "Transform this photo into polished, high-quality anime style artwork. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same background layout — only the art style changes." },
+  { id: "ai-manga", name: "AI Manga", tier: "standard", prompt: "Transform this photo into black-and-white Japanese manga ink artwork with clean line art and screentone shading. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same composition — only the art style changes." },
+  { id: "ai-painting", name: "AI Painting", tier: "premium", prompt: "Transform this photo into a rich classical oil painting with visible brushstrokes and warm gallery lighting. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same background — only the medium changes into oil paint." },
+  { id: "ai-portrait", name: "AI Portrait", tier: "premium", prompt: "Turn this photo into a stunning professional studio portrait of the exact same person: preserve their face and identity precisely, keep the same pose and outfit, with soft studio lighting, a clean elegant backdrop and a high-end retouched finish." },
+  { id: "3d-cartoon", name: "3D Cartoon", tier: "premium", prompt: "Transform this photo into a charming 3D animated-film style render, like a modern Pixar character. Keep the exact same person with the same recognizable features, the same pose, the same outfit and the same scene — only the rendering style changes." },
+  { id: "watercolor", name: "Watercolor", tier: "standard", prompt: "Transform this photo into a soft watercolor painting with gentle pigment blooms and subtle paper texture. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same composition — only the medium changes into watercolor." },
+  { id: "cyberpunk", name: "Cyberpunk", tier: "standard", prompt: "Transform this photo into neon cyberpunk style: glowing magenta and cyan city light, futuristic mood, rain-slick reflections. Keep the exact same person with the same recognizable face, the same pose and the same outfit — only the style and lighting change." },
+  { id: "vintage-film", name: "Vintage Film", tier: "standard", prompt: "Transform this photo into a warm vintage film photograph: soft grain, faded golden tones, a gentle vignette, a 1970s snapshot feel. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same scene — only the photographic treatment changes." },
+  { id: "pencil-sketch", name: "Pencil Sketch", tier: "standard", prompt: "Transform this photo into a detailed hand-drawn pencil sketch on white paper with careful shading and line work. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same composition — only the medium changes into pencil." },
+  { id: "pop-art", name: "Pop Art", tier: "standard", prompt: "Transform this photo into bold pop art: flat saturated colors, thick outlines, halftone dots, comic poster energy. Keep the exact same person with the same recognizable face, the same pose and the same outfit — only the art style changes." },
+  { id: "cinematic", name: "Cinematic", tier: "standard", prompt: "Transform this photo into a dramatic cinematic film still: teal-and-orange blockbuster color grade, anamorphic glow, shallow depth of field. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same scene — only the film treatment changes." },
+];
+function aiStyle245(id) {
+  return AI_STYLES245.find((s) => s.id === String(id || "")) || null;
+}
+function aiUsageRead245() {
+  return storeReadJson(
+    AI_USAGE_FILE245,
+    (d) => !!(d && typeof d === "object" && d.users && typeof d.users === "object"),
+    { users: {} },
+    "ai-usage"
+  );
+}
+function aiDayKey245() {
+  return new Date().toISOString().slice(0, 10);
+}
+function aiUsedToday245(db, uid) {
+  const r = db.users[uid];
+  return r && r.day === aiDayKey245() ? r.count | 0 : 0;
+}
+function aiFileOfUrl245(u) {
+  const i = String(u || "").indexOf("/photos/");
+  return i >= 0 ? String(u).slice(i + "/photos/".length) : null;
+}
+function aiMimeOfFile245(f) {
+  const e = String(f || "").toLowerCase().split(".").pop();
+  return e === "png" ? "image/png" : e === "webp" ? "image/webp" : e === "gif" ? "image/gif" : "image/jpeg";
+}
+// The real provider call: fal.run answers synchronously for these
+// editors; if a queue-shaped answer ever comes back (status_url),
+// poll it to completion instead. Returns { buf, ct }.
+async function aiCallFal245(style, dataUri) {
+  const model = style.tier === "premium" ? AI_MODEL_PRO245 : AI_MODEL_STD245;
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), 120000);
+  try {
+    let r = await fetch("https://fal.run/" + model, {
+      method: "POST",
+      headers: { Authorization: "Key " + AI_FAL_KEY245(), "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: style.prompt, image_urls: [dataUri] }),
+      signal: ctl.signal,
+    });
+    let j = await r.json().catch(() => null);
+    if (!r.ok)
+      throw new Error("fal " + r.status + ": " + String((j && (j.detail || j.error || j.msg)) || "").slice(0, 160));
+    let tries = 0;
+    while (j && !(((j.images || [])[0] || {}).url) && j.status_url && j.response_url && tries < 40) {
+      tries++;
+      await new Promise((res2) => setTimeout(res2, 2500));
+      const sr = await fetch(j.status_url, { headers: { Authorization: "Key " + AI_FAL_KEY245() }, signal: ctl.signal });
+      const sj = await sr.json().catch(() => null);
+      if (sj && sj.status === "COMPLETED") {
+        const rr = await fetch(j.response_url, { headers: { Authorization: "Key " + AI_FAL_KEY245() }, signal: ctl.signal });
+        j = await rr.json().catch(() => null);
+        break;
+      }
+      if (sj && (sj.status === "FAILED" || sj.status === "ERROR")) throw new Error("fal job failed");
+    }
+    const url = j && j.images && j.images[0] && j.images[0].url;
+    if (!url) throw new Error("fal returned no image");
+    const ir = await fetch(url, { signal: ctl.signal });
+    if (!ir.ok) throw new Error("fal image download " + ir.status);
+    const buf = Buffer.from(await ir.arrayBuffer());
+    if (!buf.length || buf.length > 12 * 1024 * 1024) throw new Error("fal image size out of range");
+    return { buf, ct: String(ir.headers.get("content-type") || "image/jpeg") };
+  } finally {
+    clearTimeout(to);
+  }
+}
+// [rig-only stub] A REAL local transform (ffmpeg grade per style) so
+// the whole flow — storage, gallery, posting, caps, errors — is
+// genuinely exercised without a provider key. Enabled only by
+// RP_AI_RESTYLE_STUB=1, which is never set in production;
+// RP_AI_RESTYLE_STUB_FAIL=1 forces the provider-failure path.
+const AI_STUB_FILTERS245 = {
+  "ai-anime": "lutrgb=r='bitand(val,224)':g='bitand(val,224)':b='bitand(val,224)',eq=saturation=1.5:contrast=1.08",
+  "ai-manga": "format=gray,eq=contrast=1.35:brightness=0.04",
+  "ai-painting": "gblur=sigma=1.2,eq=saturation=1.25:contrast=1.05",
+  "ai-portrait": "eq=brightness=0.03:contrast=1.08:saturation=1.12",
+  "3d-cartoon": "gblur=sigma=1,lutrgb=r='bitand(val,224)':g='bitand(val,224)':b='bitand(val,224)',eq=saturation=1.45",
+  watercolor: "gblur=sigma=2,eq=saturation=0.9:brightness=0.03",
+  cyberpunk: "hue=h=280:s=1.4,eq=saturation=1.5",
+  "vintage-film": "colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131:0,eq=contrast=1.02",
+  "pencil-sketch": "edgedetect=low=0.08:high=0.28,negate,format=gray",
+  "pop-art": "lutrgb=r='bitand(val,192)':g='bitand(val,192)':b='bitand(val,192)',eq=saturation=1.9:contrast=1.15",
+  cinematic: "eq=contrast=1.18:saturation=0.88",
+};
+function aiCallStub245(style, srcPath, outPath) {
+  return new Promise((resolve, reject) => {
+    if (process.env.RP_AI_RESTYLE_STUB_FAIL === "1")
+      return reject(new Error("stub provider failure (rig)"));
+    const vf = AI_STUB_FILTERS245[style.id] || "eq=saturation=1.3";
+    aiExecFile245(
+      "ffmpeg",
+      ["-y", "-v", "error", "-i", srcPath, "-vf", vf, "-frames:v", "1", outPath],
+      (e) => (e ? reject(new Error("stub transform failed: " + e.message)) : resolve())
+    );
+  });
+}
+app.get("/api/ai/styles", (req, res) => {
+  let remaining = null;
+  try {
+    const adb = readAccounts();
+    const u = accountForToken(adb, req);
+    if (u)
+      remaining =
+        rpOwnerUserId(adb) === u.id
+          ? null
+          : Math.max(0, AI_DAILY_CAP245 - aiUsedToday245(aiUsageRead245(), u.id));
+  } catch (e) {}
+  return res.json({
+    ok: true,
+    enabled: AI_ENABLED245(),
+    cap: AI_DAILY_CAP245,
+    remaining,
+    styles: AI_STYLES245.map((s) => ({ id: s.id, name: s.name, tier: s.tier })),
+  });
+});
+app.post("/api/ai/restyle", photoUpload(async (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return;
+  }
+  const dropUpload245 = () => {
+    if (req.file) fs.unlink(req.file.path, () => {});
+  };
+  if (isPendingDeletion(ctx.user)) {
+    dropUpload245();
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  }
+  if (!AI_ENABLED245()) {
+    dropUpload245();
+    return res.status(503).json({
+      ok: false,
+      setup: true,
+      error: "AI filters are being set up — check back soon ✨",
+    });
+  }
+  const b = req.body || {};
+  const style = aiStyle245(b.styleId);
+  if (!style) {
+    dropUpload245();
+    return res.status(400).json({ ok: false, error: "Pick a style first" });
+  }
+  // Resolve the source photo — it must be the caller's own: a fresh
+  // upload, one of their photo posts, or one of their gallery photos
+  // (the same ownership rule /api/photo/post applies to photoUrl).
+  let srcPath = null;
+  try {
+    if (req.file) {
+      srcPath = req.file.path;
+    } else if (b.postId) {
+      const p = readPhotoPosts().posts.find((x) => x.id === String(b.postId));
+      if (!p) {
+        return res.status(404).json({ ok: false, error: "That post is gone" });
+      }
+      if (p.owner !== ctx.user.id) {
+        return res.status(403).json({ ok: false, error: "That's not your post" });
+      }
+      const f = aiFileOfUrl245(p.photo);
+      if (!f) return res.status(400).json({ ok: false, error: "That post has no photo file" });
+      srcPath = path.join(PHOTO_DIR, path.basename(f));
+    } else if (b.photoUrl) {
+      const f = aiFileOfUrl245(b.photoUrl);
+      const inGallery =
+        !!f && accountPhotos(ctx.user).some((x) => aiFileOfUrl245(x) === f);
+      const inOwnPost =
+        !!f &&
+        readPhotoPosts().posts.some(
+          (x) => x.owner === ctx.user.id && photoUrlsOf123(x).some((u) => aiFileOfUrl245(u) === f)
+        );
+      if (!f || (!inGallery && !inOwnPost)) {
+        return res.status(400).json({ ok: false, error: "That photo isn't one of yours" });
+      }
+      srcPath = path.join(PHOTO_DIR, path.basename(f));
+    } else {
+      return res.status(400).json({ ok: false, error: "Pick a photo first" });
+    }
+    if (!fs.existsSync(srcPath)) {
+      dropUpload245();
+      return res.status(404).json({ ok: false, error: "That photo file is gone" });
+    }
+  } catch (e) {
+    dropUpload245();
+    console.log("AI RESTYLE SOURCE ERROR:", e.message);
+    return res.status(500).json({ ok: false, error: "Couldn't read that photo. Please try again." });
+  }
+  // Daily cap — counted on attempt, owner exempt.
+  const isOwner245 = rpOwnerUserId(ctx.db) === ctx.user.id;
+  if (!isOwner245) {
+    const udb = aiUsageRead245();
+    if (aiUsedToday245(udb, ctx.user.id) >= AI_DAILY_CAP245) {
+      dropUpload245();
+      return res.status(429).json({
+        ok: false,
+        remaining: 0,
+        error:
+          "You've used today's " + AI_DAILY_CAP245 + " AI filters — they reset tomorrow ✨",
+      });
+    }
+    const rec = udb.users[ctx.user.id];
+    if (rec && rec.day === aiDayKey245()) rec.count = (rec.count | 0) + 1;
+    else udb.users[ctx.user.id] = { day: aiDayKey245(), count: 1 };
+    storeWriteJson(AI_USAGE_FILE245, udb);
+  }
+  const outName =
+    "ai" + Date.now().toString(36) + crypto.randomBytes(4).toString("hex");
+  let outFile = null;
+  try {
+    if (AI_STUB245()) {
+      outFile = outName + ".jpg";
+      await aiCallStub245(style, srcPath, path.join(PHOTO_DIR, outFile));
+    } else {
+      const dataUri =
+        "data:" +
+        aiMimeOfFile245(srcPath) +
+        ";base64," +
+        fs.readFileSync(srcPath).toString("base64");
+      const got = await aiCallFal245(style, dataUri);
+      const ext = got.ct.includes("png")
+        ? "png"
+        : got.ct.includes("webp")
+          ? "webp"
+          : "jpg";
+      outFile = outName + "." + ext;
+      fs.writeFileSync(path.join(PHOTO_DIR, outFile), got.buf);
+    }
+  } catch (e) {
+    console.log("AI RESTYLE ERROR:", ctx.user.id, style.id, e.message);
+    dropUpload245();
+    if (outFile) fs.unlink(path.join(PHOTO_DIR, outFile), () => {});
+    return res.status(502).json({
+      ok: false,
+      error: "The AI couldn't restyle that one — try again in a moment, or pick a different photo.",
+    });
+  }
+  dropUpload245(); // a fresh pick was only a source — it is not kept
+  const outUrl = `https://${req.get("host")}/photos/${outFile}`;
+  const mod = await moderateImage(outUrl);
+  if (!mod.ok) {
+    fs.unlink(path.join(PHOTO_DIR, outFile), () => {});
+    console.log("AI RESTYLE REJECTED:", ctx.user.id, mod.reason);
+    return res.status(422).json({
+      ok: false,
+      error: "That restyle didn't pass our safety check. Please try a different style.",
+    });
+  }
+  if (mod.unreviewed) {
+    console.log("AI RESTYLE UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, outUrl);
+  }
+  // Register in the caller's gallery: ownership for posting is the
+  // gallery check, so the result posts through the normal path.
+  const gal = accountPhotos(ctx.user);
+  if (!gal.includes(outUrl)) {
+    gal.push(outUrl);
+    ctx.user.photos = gal;
+    writeAccounts(ctx.db);
+  }
+  const remaining = isOwner245
+    ? null
+    : Math.max(
+        0,
+        AI_DAILY_CAP245 - aiUsedToday245(aiUsageRead245(), ctx.user.id)
+      );
+  return res.json({
+    ok: true,
+    url: outUrl,
+    styleId: style.id,
+    styleName: style.name,
+    remaining,
+  });
+}));
+app.post("/api/ai/discard", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const f = aiFileOfUrl245((req.body || {}).url);
+  if (!f || !/^ai[0-9a-z]+\.(jpg|png|webp)$/.test(f)) {
+    return res.status(400).json({ ok: false, error: "That isn't an AI result" });
+  }
+  const gal = accountPhotos(ctx.user);
+  if (!gal.some((x) => aiFileOfUrl245(x) === f)) {
+    return res.status(403).json({ ok: false, error: "That photo isn't in your gallery" });
+  }
+  ctx.user.photos = gal.filter((x) => aiFileOfUrl245(x) !== f);
+  writeAccounts(ctx.db);
+  // Unlink only when nothing anywhere references the file any more.
+  let stillUsed = readPhotoPosts().posts.some((p) =>
+    photoUrlsOf123(p).some((u) => aiFileOfUrl245(u) === f)
+  );
+  if (!stillUsed) {
+    const adb = readAccounts();
+    stillUsed = (adb.users || []).some(
+      (u) =>
+        (u.photo && aiFileOfUrl245(u.photo) === f) ||
+        accountPhotos(u).some((x) => aiFileOfUrl245(x) === f)
+    );
+  }
+  if (!stillUsed) fs.unlink(path.join(PHOTO_DIR, path.basename(f)), () => {});
+  return res.json({ ok: true });
+});
+
 app.get("/api/photo/posts", (req, res) => {
   let uid = null;
   try {
