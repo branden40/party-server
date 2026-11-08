@@ -2150,6 +2150,7 @@ app.post("/api/account/dating-voice", (req, res) => {
       return res.status(tooBig ? 413 : 400).json({ ok: false, error: tooBig ? "That voice intro is over the 4 MB limit" : err.message });
     }
     if (!req.file) return res.status(400).json({ ok: false, error: "No voice file arrived" });
+    crEnqueue286({ surface: "voice", mediaId: "/photos/" + req.file.filename, authorId: ctx.user.id, filePath: req.file.path }); // [RP-V7.286]
     return res.json({ ok: true, url: "/photos/" + req.file.filename });
   });
 });
@@ -2827,6 +2828,405 @@ async function moderateImage(publicUrl) {
     return { ok: true, unreviewed: true };
   }
 }
+
+// ---------------------------------------------------------------------------
+// [RP-V7.286] COPYRIGHT SCAN for member posts (Branden, Nov 7, 2026:
+// "Scan every video and music someone post on rizz plaza for copyright
+// content" — and "Remember this for everyone": the scan applies to
+// EVERY member with NO exceptions, the owner included; do not copy
+// the owner-exemption patterns used elsewhere in this codebase).
+// Every posted video's OWN embedded audio (reels incl. guest reels,
+// story videos, feed/Home videos, workout videos) and the one direct
+// audio upload (dating voice intros) is fingerprinted against
+// ACRCloud's Music Recognition database (Identify API, HMAC-SHA1,
+// raw-audio samples — we never ship the video file itself). The
+// Plaza's licensed catalog is never scanned: Add Sound carries only
+// a track REFERENCE (V7.90), and a post whose catalog track replaces
+// the file's audio entirely (origVol === 0) is skipped outright.
+// Enforcement pick (Branden, Nov 7, 22:04): (b) PUBLISH + MUTE — the
+// post goes up; on a match the record is flagged crMuted, every
+// player honors the flag (an attached catalog track keeps playing),
+// the poster gets a bell, and the owner board gets Restore / Take
+// down. The mode is one env var (COPYRIGHT_MODE=off|block|mute|flag,
+// default mute): block deletes on match, flag only notifies the
+// owner. NO keys = fully dark: scans record "unreviewed", posting
+// behaves exactly as before, and the 10-minute sweeper below
+// resolves the backlog once keys exist — the moderateImage fail-open
+// pattern (a third-party outage must never freeze posting).
+// ffmpeg ships as the ffmpeg-static npm package (a system install is
+// never assumed); extraction errors degrade to "unreviewed", never
+// to a broken post. Rig-only stub: RP_CR_SCAN_STUB=1 replaces the
+// ACRCloud call with a marker matcher (CRHIT286 in the source file =
+// canned match, CRERR286 = forced service error) — never set in
+// production, mirroring RP_AI_RESTYLE_STUB.
+// ---------------------------------------------------------------------------
+const crExecFile286 = require("child_process").execFile;
+const crOs286 = require("os");
+const CR_MODE286 = () => {
+  const m = String(process.env.COPYRIGHT_MODE || "mute").toLowerCase();
+  return m === "off" || m === "block" || m === "flag" ? m : "mute";
+};
+const CR_SCORE_MIN286 = () => {
+  const n = Number(process.env.COPYRIGHT_SCORE_MIN);
+  return isFinite(n) && n > 0 && n <= 100 ? n : 80;
+};
+const CR_KEYS286 = () => {
+  const host = String(process.env.ACR_HOST || "").trim();
+  const key = String(process.env.ACR_ACCESS_KEY || "").trim();
+  const secret = String(process.env.ACR_ACCESS_SECRET || "").trim();
+  return host && key && secret ? { host, key, secret } : null;
+};
+const CR_STUB286 = () => process.env.RP_CR_SCAN_STUB === "1"; // rig-only; never set in production
+const CR_SCANS_FILE286 =
+  process.env.COPYRIGHT_SCANS_FILE || path.join(path.dirname(PHOTO_DIR), "copyright-scans.json");
+let crFfmpeg286 = null;
+try { crFfmpeg286 = require("ffmpeg-static"); } catch (e) { crFfmpeg286 = null; }
+if (!crFfmpeg286) crFfmpeg286 = "ffmpeg"; // PATH fallback (rig VM); Render gets the bundled binary via package.json
+try {
+  crExecFile286(crFfmpeg286, ["-version"], (e) => {
+    console.log(
+      "[copyright] ffmpeg: " + (e ? "MISSING (" + crFfmpeg286 + ") — scans will record unreviewed" : "ok (" + crFfmpeg286 + ")") +
+      "; mode=" + CR_MODE286() +
+      "; acrcloud=" + (CR_KEYS286() ? "keys set" : "no keys (dark)") +
+      (CR_STUB286() ? "; STUB matcher on (rig)" : "")
+    );
+  });
+} catch (e) {
+  console.log("[copyright] ffmpeg self-check failed:", e.message);
+}
+function crReadScans286() {
+  return storeReadJson(
+    CR_SCANS_FILE286,
+    (d) => !!(d && Array.isArray(d.scans)),
+    { scans: [] },
+    "copyright-scans"
+  );
+}
+function crWriteScans286(db) {
+  while (db.scans.length > 500) db.scans.shift();
+  storeWriteJson(CR_SCANS_FILE286, db);
+}
+function crRecord286(rec) {
+  const db = crReadScans286();
+  db.scans.push(rec);
+  crWriteScans286(db);
+  return rec;
+}
+function crUpdate286(id, patch) {
+  const db = crReadScans286();
+  const r = db.scans.find((x) => x.id === id);
+  if (!r) return null;
+  Object.assign(r, patch);
+  crWriteScans286(db);
+  return r;
+}
+function crDuration286(filePath) {
+  return new Promise((resolve) => {
+    crExecFile286(crFfmpeg286, ["-hide_banner", "-i", filePath], { timeout: 20000 }, (e, so, se) => {
+      const m = /Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/.exec(String(se || "") + " " + String(so || ""));
+      resolve(m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : null);
+    });
+  });
+}
+function crExtract286(filePath, startSec, outPath) {
+  return new Promise((resolve) => {
+    const args = ["-y", "-v", "error", "-ss", String(Math.max(0, startSec || 0)), "-i", filePath, "-t", "20", "-vn", "-ac", "1", "-ar", "44100", outPath];
+    crExecFile286(crFfmpeg286, args, { timeout: 60000 }, (e) => {
+      if (e) return resolve(false);
+      try { resolve(fs.existsSync(outPath) && fs.statSync(outPath).size > 1024); } catch (e2) { resolve(false); }
+    });
+  });
+}
+// One Identify call. Returns { state: matched|clean|no-audio|error,
+// track?, error? } — "no result" (ACR code 1001) is clean; silent /
+// undecodable samples carry their own codes (2004/2006) and spend no
+// enforcement; anything else is an error the sweeper retries later.
+async function crIdentify286(clipPath, srcPath) {
+  if (CR_STUB286()) {
+    // Rig-only marker matcher: read the SOURCE file (rig fixtures are
+    // small) and look for the marker baked into its metadata.
+    let hay = "";
+    try {
+      const fd = fs.openSync(srcPath, "r");
+      const size = fs.fstatSync(fd).size;
+      const head = Buffer.alloc(Math.min(size, 8 * 1024 * 1024));
+      fs.readSync(fd, head, 0, head.length, 0);
+      hay = head.toString("latin1");
+      if (size > head.length) {
+        const tail = Buffer.alloc(Math.min(size, 8 * 1024 * 1024));
+        fs.readSync(fd, tail, 0, tail.length, size - tail.length);
+        hay += tail.toString("latin1");
+      }
+      fs.closeSync(fd);
+    } catch (e) { /* unreadable source reads as no marker */ }
+    if (hay.indexOf("CRERR286") >= 0) return { state: "error", error: "stub-forced-failure" };
+    if (hay.indexOf("CRHIT286") >= 0)
+      return { state: "matched", track: { title: "Stub Song (Rig)", artists: "Stub Artist", label: "Stub Label", isrc: "USSTUB286001", score: 97, acrid: "stub286" } };
+    return { state: "clean" };
+  }
+  const keys = CR_KEYS286();
+  if (!keys) return { state: "error", error: "no-acr-keys" };
+  let sample;
+  try { sample = fs.readFileSync(clipPath); } catch (e) { return { state: "error", error: "clip-unreadable" }; }
+  const timestamp = Math.floor(Date.now() / 1000);
+  const stringToSign = ["POST", "/v1/identify", keys.key, "audio", "1", String(timestamp)].join("&");
+  const signature = crypto.createHmac("sha1", keys.secret).update(stringToSign).digest("base64");
+  const form = new FormData();
+  form.append("sample", new Blob([sample], { type: "audio/mpeg" }), path.basename(clipPath));
+  form.append("sample_bytes", String(sample.length));
+  form.append("access_key", keys.key);
+  form.append("data_type", "audio");
+  form.append("signature_version", "1");
+  form.append("timestamp", String(timestamp));
+  form.append("signature", signature);
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), 10000);
+  try {
+    const r = await fetch("https://" + keys.host + "/v1/identify", { method: "POST", body: form, signal: ctl.signal });
+    const j = await r.json().catch(() => null);
+    if (!j || !j.status) return { state: "error", error: "acr-bad-response" };
+    const code = j.status.code;
+    if (code === 1001) return { state: "clean" };
+    if (code === 2004 || code === 2006) return { state: "no-audio" };
+    if (code !== 0) return { state: "error", error: "acr-code-" + code };
+    const music = j.metadata && Array.isArray(j.metadata.music) ? j.metadata.music : [];
+    if (!music.length) return { state: "clean" };
+    music.sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+    const t = music[0] || {};
+    const track = {
+      title: String(t.title || ""),
+      artists: Array.isArray(t.artists) ? t.artists.map((a) => a && a.name).filter(Boolean).join(", ") : "",
+      label: String(t.label || ""),
+      isrc: (t.external_ids && t.external_ids.isrc) || "",
+      score: Number(t.score) || 0,
+      acrid: String(t.acrid || ""),
+    };
+    if (track.score >= CR_SCORE_MIN286()) return { state: "matched", track };
+    return { state: "clean", track }; // below threshold: kept on the record, never enforced
+  } catch (e) {
+    return { state: "error", error: "acr-fetch: " + String(e.message || e).slice(0, 80) };
+  } finally {
+    clearTimeout(to);
+  }
+}
+// Set (or clear, with null) the crMuted flag on a content record,
+// through each surface's own store — the updateReelEntry pattern.
+function crSetMuted286(rec, muted) {
+  if (rec.surface === "reel") { updateReelEntry(rec.mediaId, { crMuted: muted }); return; }
+  if (rec.surface === "feed") {
+    const db = readFeed();
+    const p = db.posts[rec.mediaId];
+    if (p) { if (muted) p.crMuted = muted; else delete p.crMuted; writeFeed(db); }
+    return;
+  }
+  if (rec.surface === "story") {
+    const db = readStories();
+    const s = db.stories[rec.mediaId];
+    if (s) { if (muted) s.crMuted = muted; else delete s.crMuted; writeStories(db); }
+    return;
+  }
+  if (rec.surface === "workout") {
+    const all = listWorkout();
+    const w = all.find((x) => x && x.id === rec.mediaId);
+    if (w) {
+      if (muted) w.crMuted = muted; else delete w.crMuted;
+      const tmp = WORKOUT_FILE + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(all, null, 2));
+      fs.renameSync(tmp, WORKOUT_FILE);
+    }
+    return;
+  }
+}
+function crClearVoice286(rec) {
+  try {
+    const adb = readAccounts();
+    const u = adb.users.find((x) => x.id === rec.authorId);
+    if (u && u.dating && u.dating.voice && u.dating.voice.url === "/photos/" + rec.file) {
+      u.dating.voice = null;
+      writeAccounts(adb);
+    }
+  } catch (e) { /* the scan record still carries the match */ }
+}
+// Owner take-down: the same record-removal + file-unlink the
+// per-surface DELETE routes perform, minus their author check (the
+// owner gate on the action route is the authorization).
+function crTakeDown286(rec) {
+  try {
+    if (rec.surface === "reel") {
+      const list = listReels();
+      const r = list.find((x) => x && String(x.id) === String(rec.mediaId));
+      if (r) {
+        const keep = list.filter((x) => x !== r);
+        const tmp = REELS_FILE + ".tmp";
+        fs.writeFileSync(tmp, JSON.stringify(keep, null, 2));
+        fs.renameSync(tmp, REELS_FILE);
+        if (r.file) fs.unlink(path.join(REELS_DIR, String(r.file)), () => {});
+      }
+    } else if (rec.surface === "feed") {
+      const db = readFeed();
+      const p = db.posts[rec.mediaId];
+      if (p) {
+        if (p.file) fs.unlink(path.join(FEED_DIR, String(p.file)), () => {});
+        delete db.posts[p.id];
+        writeFeed(db);
+      }
+    } else if (rec.surface === "story") {
+      const db = readStories();
+      const s = db.stories[rec.mediaId];
+      if (s) {
+        if (s.file) fs.unlink(path.join(STORY_DIR, String(s.file)), () => {});
+        delete db.stories[s.id];
+        writeStories(db);
+      }
+    } else if (rec.surface === "workout") {
+      const all = listWorkout();
+      const w = all.find((x) => x && x.id === rec.mediaId);
+      if (w) {
+        const keep = all.filter((x) => x !== w);
+        const tmp = WORKOUT_FILE + ".tmp";
+        fs.writeFileSync(tmp, JSON.stringify(keep, null, 2));
+        fs.renameSync(tmp, WORKOUT_FILE);
+        if (w.file) fs.unlink(path.join(WORKOUT_DIR, String(w.file)), () => {});
+      }
+    } else if (rec.surface === "voice") {
+      crClearVoice286(rec);
+      if (rec.path) fs.unlink(rec.path, () => {});
+    }
+  } catch (e) {
+    console.log("[copyright] takedown error:", e.message);
+  }
+}
+function crApplyMatch286(rec) {
+  try {
+    if (!rec || !rec.track) return;
+    const mode = CR_MODE286();
+    const t = rec.track;
+    if (mode === "flag") {
+      crUpdate286(rec.id, { action: "flagged" });
+      try {
+        const ownerId = rpOwnerUserId(readAccounts());
+        if (ownerId)
+          notifyActivity({ toId: ownerId, kind: "post", inAppOnly: true, text: "🎵 Copyright match flagged: \"" + t.title + "\" by " + t.artists + " in a " + rec.surface + " post — see the owner board (🎵 Copyright matches)." });
+      } catch (e) {}
+      return;
+    }
+    if (mode === "block") {
+      crTakeDown286(rec);
+      crUpdate286(rec.id, { action: "taken-down" });
+      if (rec.authorId)
+        notifyActivity({ toId: rec.authorId, kind: "post", inAppOnly: true, text: "That video couldn't stay up — it uses \"" + t.title + "\" by " + t.artists + ", a copyrighted song. Post it with your own audio, or pick a track from the Plaza music library instead." });
+      return;
+    }
+    // mute — the shipped pick. Voice intros have no muted-playback
+    // state, so there the pick collapses into removal (§3b).
+    if (rec.surface === "voice") {
+      crClearVoice286(rec);
+      crUpdate286(rec.id, { action: "voice-cleared" });
+      if (rec.authorId)
+        notifyActivity({ toId: rec.authorId, kind: "post", inAppOnly: true, text: "Your voice intro was removed — it uses \"" + t.title + "\" by " + t.artists + ", a copyrighted song. Record an intro in your own voice and it goes right back up." });
+      return;
+    }
+    crSetMuted286(rec, { title: t.title, artists: t.artists, isrc: t.isrc, score: t.score, at: new Date().toISOString() });
+    crUpdate286(rec.id, { action: "muted" });
+    if (rec.authorId)
+      notifyActivity({ toId: rec.authorId, kind: "post", inAppOnly: true, text: "Your video was posted, but its audio was muted — it uses \"" + t.title + "\" by " + t.artists + ", a copyrighted song. You can repost it with a track from the Plaza music library." });
+  } catch (e) {
+    console.log("[copyright] match action error:", e.message);
+  }
+}
+const crQueue286 = [];
+let crBusy286 = false;
+function crEnqueue286(job) {
+  try {
+    if (!job || !job.filePath || !job.surface) return;
+    const rec = {
+      id: crypto.randomBytes(8).toString("hex"),
+      surface: job.surface,
+      mediaId: job.mediaId || null,
+      authorId: job.authorId || null,
+      file: path.basename(job.filePath),
+      path: job.filePath,
+      state: "pending",
+      track: null,
+      action: null,
+      queries: 0,
+      at: new Date().toISOString(),
+    };
+    // Catalog skip rule: an attached catalog track with the original
+    // volume at 0 means the file's own audio is never played by
+    // anyone — spend no query on it (the catalog itself is licensed).
+    if (job.musicTrackId && job.origVol === 0) {
+      rec.state = "skipped-catalog-only";
+      crRecord286(rec);
+      return;
+    }
+    if (CR_MODE286() === "off") {
+      rec.state = "unreviewed";
+      crRecord286(rec);
+      return;
+    }
+    crRecord286(rec);
+    crQueue286.push({ recId: rec.id, filePath: job.filePath, trimStart: job.trimStart });
+    crPump286();
+  } catch (e) {
+    console.log("[copyright] enqueue error:", e.message);
+  }
+}
+function crPump286() {
+  if (crBusy286) return;
+  const next = crQueue286.shift();
+  if (!next) return;
+  crBusy286 = true;
+  crRunScan286(next)
+    .catch((e) => console.log("[copyright] scan error:", e.message))
+    .finally(() => { crBusy286 = false; crPump286(); });
+}
+async function crRunScan286(job) {
+  const db0 = crReadScans286();
+  const rec = db0.scans.find((x) => x.id === job.recId);
+  if (!rec) return;
+  if (!fs.existsSync(job.filePath)) { crUpdate286(rec.id, { state: "expired" }); return; }
+  if (!CR_KEYS286() && !CR_STUB286()) { crUpdate286(rec.id, { state: "unreviewed" }); return; }
+  const tmpDir = fs.mkdtempSync(path.join(crOs286.tmpdir(), "cr286-"));
+  let queries = 0;
+  try {
+    const dur = await crDuration286(job.filePath);
+    const aStart = Math.max(0, (job.trimStart || 0) + 2);
+    const starts = [aStart];
+    if (dur && dur > aStart + 25) starts.push(Math.floor(dur / 2));
+    let outcome = null;
+    for (const st of starts) {
+      let clip = path.join(tmpDir, "s" + Math.round(st) + ".mp3");
+      let okClip = await crExtract286(job.filePath, st, clip);
+      if (!okClip) {
+        const clipW = path.join(tmpDir, "s" + Math.round(st) + ".wav");
+        if (await crExtract286(job.filePath, st, clipW)) { clip = clipW; okClip = true; }
+      }
+      if (!okClip) {
+        if (st === aStart) outcome = { state: "no-audio" };
+        continue;
+      }
+      queries++;
+      const r = await crIdentify286(clip, job.filePath);
+      if (r.state === "matched" || r.state === "error") { outcome = r; break; } // stop at the first match (or a service error the sweeper retries)
+      if (r.state === "clean") outcome = r; // a later silent sample must not erase a clean verdict
+      else if (!outcome) outcome = r; // no-audio: the fallback verdict — still try the next sample
+    }
+    if (!outcome) outcome = { state: "clean" };
+    if (outcome.state === "matched") {
+      crUpdate286(rec.id, { state: "matched", track: outcome.track, queries });
+      const fresh = crReadScans286().scans.find((x) => x.id === rec.id);
+      crApplyMatch286(fresh);
+    } else if (outcome.state === "error") {
+      crUpdate286(rec.id, { state: "unreviewed", queries, error: String(outcome.error || "error").slice(0, 120) });
+    } else {
+      crUpdate286(rec.id, { state: outcome.state, queries, ...(outcome.track ? { track: outcome.track } : {}) });
+    }
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e) {}
+  }
+}
+
 
 // [RP-V7.62] Best-effort: if this account is live in a room right now,
 // refresh its player record + room broadcast with a new main photo —
@@ -3529,6 +3929,7 @@ app.get("/api/reels", (req, res) => {
       musicStart: typeof r.musicStart === "number" ? r.musicStart : null,
       musicVol: typeof r.musicVol === "number" ? r.musicVol : null,
       origVol: typeof r.origVol === "number" ? r.origVol : null,
+      crMuted: r.crMuted || null, // [RP-V7.286] copyright mute flag — players force the reel's own audio silent and show the chip; an attached catalog track keeps playing
       // [RP-V7.64] Real server-owned view count (the tile number).
       views: mediaViewCount(vdb64, "reel:" + r.id),
       // [RP-V7.51] Compact reaction summary: counts for everyone, the
@@ -4522,6 +4923,7 @@ app.post("/api/reel", (req, res) => {
       ...(musicTrackId ? { musicTrackId, musicStart, musicVol, origVol } : {}),
     });
     if (musicTrackId) soundTouchUse(authorUser ? authorUser.id : null, musicTrackId);
+    crEnqueue286({ surface: "reel", mediaId: entry.id, authorId: authorUser ? authorUser.id : null, filePath: req.file.path, trimStart: trimStart, musicTrackId: musicTrackId, origVol: origVol }); // [RP-V7.286] copyright scan — every reel, guests included
     console.log("[reels] new reel", entry.id, "by", author, entry.size, "bytes");
     if (authorUser) notifyFollowersOfPost129(authorUser, "reel", entry.id); // [RP-V7.129] [RP-V7.270] route the bell row to this reel
     res.json({ ok: true, id: entry.id, url: "/reel-files/" + entry.file });
@@ -8661,6 +9063,7 @@ app.get("/api/workout-videos", (req, res) => {
       createdAt: w.createdAt,
       clientId: w.clientId || "",
       url: "/workout-files/" + w.file,
+      crMuted: w.crMuted || null, // [RP-V7.286]
     }));
   res.json({ ok: true, videos });
 });
@@ -8692,6 +9095,7 @@ app.post("/api/workout-video", workoutUpload.single("video"), (req, res) => {
     size: req.file.size,
     clientId: clean(req.body.clientId, 60),
   });
+  crEnqueue286({ surface: "workout", mediaId: entry.id, authorId: user.id, filePath: req.file.path }); // [RP-V7.286]
   console.log("[workout] post", entry.id, "by", user.name, "in", category);
   res.json({ ok: true, id: entry.id, url: "/workout-files/" + entry.file });
 });
@@ -9063,6 +9467,7 @@ app.get("/api/social/profile", (req, res) => {
         comments: reelPublicComments(r),
         commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
         reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
+        crMuted: r.crMuted || null, // [RP-V7.286]
         myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) }));
   } catch (e) { }
   let reelsCount = reels.length;
@@ -9118,7 +9523,7 @@ app.get("/api/social/profile", (req, res) => {
     const fdb109 = readFeed();
     feedPosts = Object.values(fdb109.posts || {})
       .filter((fp) => fp && fp.authorId === target.id && fp.file)
-      .map((fp) => ({ id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "" }))
+      .map((fp) => ({ id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null })) // [RP-V7.286]
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 60);
   } catch (e) { }
@@ -9715,6 +10120,7 @@ function storyPublic(s, vdb, meId) {
     likes: likes.length,
     likedByMe: meId ? likes.includes(meId) : false,
     viewedByMe: meId ? viewedBy.includes(meId) : false,
+    crMuted: s.crMuted || null, // [RP-V7.286]
   };
 }
 const storyUpload = multer({
@@ -9783,6 +10189,7 @@ app.post("/api/story/post",
     };
     db.stories[story.id] = story;
     writeStories(db);
+    if (!isPhoto) crEnqueue286({ surface: "story", mediaId: story.id, authorId: ctx.user.id, filePath: req.file.path }); // [RP-V7.286]
     res.json({ ok: true, story: storyPublic(story, readViews(), ctx.user.id) });
   }
 );
@@ -10072,6 +10479,7 @@ function feedPublic(ctx, p, following) {
     views: typeof p.views === "number" ? p.views : 0,
     iFollow: following ? following.has(p.authorId) : false,
     isSelf: p.authorId === ctx.user.id,
+    crMuted: p.crMuted || null, // [RP-V7.286]
   };
 }
 const FEED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -10170,6 +10578,7 @@ app.post("/api/feed/post",
       };
       db.posts[post.id] = post;
       writeFeed(db);
+      if (kind === "video") crEnqueue286({ surface: "feed", mediaId: post.id, authorId: ctx.user.id, filePath: req.file.path }); // [RP-V7.286]
       const sdb = readSocial();
       const following = new Set(socialFollowingIds(sdb, ctx.user.id));
       res.json({ ok: true, post: feedPublic(ctx, post, following) });
@@ -15096,6 +15505,55 @@ app.post("/api/reports", (req, res) => {
   });
   res.json({ ok: true, filed: out.filed, deduped: !!out.deduped });
 });
+// [RP-V7.286] Copyright matches — owner oversight (the teen-accounts
+// gate pattern: rpOwnerGate263, 404 for everyone else). The list
+// shows what matched; Restore clears a false positive's mute, Take
+// down removes the post through the same store writes its own
+// DELETE route performs, Dismiss just closes the row's action state.
+app.get("/api/owner/copyright", (req, res) => {
+  const gate = rpOwnerGate263(req, req.query || {});
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const names = {};
+  for (const u of gate.adb.users) names[u.id] = u.name;
+  const scans = crReadScans286().scans.slice().reverse().slice(0, 100).map((r) => ({
+    id: r.id,
+    surface: r.surface,
+    mediaId: r.mediaId,
+    authorId: r.authorId,
+    authorName: r.authorId ? (names[r.authorId] || "") : "",
+    file: r.file,
+    state: r.state,
+    track: r.track || null,
+    action: r.action || null,
+    queries: r.queries || 0,
+    at: r.at,
+  }));
+  res.json({ ok: true, mode: CR_MODE286(), scans });
+});
+app.post("/api/owner/copyright-action", lockedHandler("copyright-action", (req, res) => {
+  const b = req.body || {};
+  const gate = rpOwnerGate263(req, b);
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const rec = crReadScans286().scans.find((x) => x.id === String(b.scanId || ""));
+  if (!rec) return res.status(404).json({ ok: false, error: "no-such-scan" });
+  const action = String(b.action || "");
+  if (action === "restore") {
+    if (rec.surface !== "voice") crSetMuted286(rec, null); // a cleared voice intro stays cleared — the member re-records
+    crUpdate286(rec.id, { action: "restored" });
+    return res.json({ ok: true, action: "restored" });
+  }
+  if (action === "takedown") {
+    crTakeDown286(rec);
+    crUpdate286(rec.id, { action: "taken-down" });
+    return res.json({ ok: true, action: "taken-down" });
+  }
+  if (action === "dismiss") {
+    crUpdate286(rec.id, { action: "dismissed" });
+    return res.json({ ok: true, action: "dismissed" });
+  }
+  return res.status(400).json({ ok: false, error: "bad-action" });
+}));
+
 // The teen-removal inventory (owner only): who was kept, who was
 // disabled + de-listed. Records are NOT deleted by this build —
 // this list is what the owner decides permanent deletion from.
@@ -16601,4 +17059,28 @@ const shareInSweepTimer = setInterval(() => {
   } catch (e) {}
 }, 10 * 60 * 1000);
 if (shareInSweepTimer.unref) shareInSweepTimer.unref();
+
+// [RP-V7.286] Copyright-scan sweeper: every 10 minutes, re-enqueue
+// scans that resolved "unreviewed" (ACR outage, or keys not yet set
+// when the post landed) whose files still exist; a file that is gone
+// (an expired story, a deleted post) settles the record as expired.
+// Dark while the mode is off or no keys/stub exist.
+const crSweepTimer286 = setInterval(() => {
+  try {
+    if (CR_MODE286() === "off") return;
+    if (!CR_KEYS286() && !CR_STUB286()) return;
+    const db = crReadScans286();
+    let queued = false;
+    for (const r of db.scans) {
+      if (!r || r.state !== "unreviewed") continue;
+      if (!r.path || !fs.existsSync(r.path)) { crUpdate286(r.id, { state: "expired" }); continue; }
+      crUpdate286(r.id, { state: "pending" });
+      crQueue286.push({ recId: r.id, filePath: r.path, trimStart: null });
+      queued = true;
+    }
+    if (queued) crPump286();
+  } catch (e) {}
+}, 10 * 60 * 1000);
+if (crSweepTimer286.unref) crSweepTimer286.unref();
+
 
