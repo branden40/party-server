@@ -13149,6 +13149,7 @@ function moneyMePayload(db, user, connect) {
     premium: moneyPremiumState(db, user.id),
     bizads: moneyBizAdsState(db, user.id), // [RP-V7.224]
     dailyClaim: claimStatePayload(user), // [RP-V7.76] the unified claim gate + streak (FIX-2): every device renders the same claimed state and streak from this
+    creatorPool: rpCpMemberSummary(db, user.id), // [RP-V7.293] Creator Pool: all-time pool earnings + this week's views / projected share
     cashoutEligibility: { canCashOut: reasons.length === 0, reasons },
     connect,
     paymentsConfigured: stripeConfigured(),
@@ -14517,6 +14518,7 @@ function handleStripeEvent(event) {
         moneyTx(db, {
           type: "purchase", from: null, to: acctId,
           charms, cents: parseInt(md.priceCents, 10) || 0, cut: 0, ref: obj.id,
+          pi: obj.payment_intent || null, // [RP-V7.293] refund resolution (charge.refunded matches on this)
         });
         console.log("[money] charms credited", charms, "to", user.name);
       }
@@ -14534,6 +14536,7 @@ function handleStripeEvent(event) {
       moneyTx(db, {
         type: "premium", from: null, to: acctId, charms: 0,
         cents: plan === "yearly" ? 5999 : 999, cut: 0, ref: obj.id,
+        pi: obj.payment_intent || null, // [RP-V7.293] refund resolution
       });
       console.log("[money] premium on for", user.name, plan);
     } else if (md.kind === "bizads") {
@@ -14607,6 +14610,7 @@ function handleStripeEvent(event) {
     moneyTx(db, {
       type: "premium-renew", from: null, to: acctId, charms: 0,
       cents: obj.amount_paid || 0, cut: 0, ref: obj.id,
+      pi: obj.payment_intent || null, charge: obj.charge || null, // [RP-V7.293] refund resolution (invoice id is the primary key: it IS this tx's ref)
     });
     writeMoney(db);
     return;
@@ -14645,6 +14649,71 @@ function handleStripeEvent(event) {
       cents: 0, cut: 0, ref: obj.id,
     });
     writeMoney(db);
+    return;
+  }
+  if (type === "charge.refunded") {
+    // [RP-V7.293] A refunded sale leaves the Creator Pool accrual —
+    // and the owner board's totals with it: append a REVERSAL tx of
+    // the ORIGINAL type with negative cents, so every reader of the
+    // txlog (rpSalesStreams on the board, the pool's weekly accrual,
+    // the member's Earn history) sees the sale leave by the same
+    // amount. The reversal is bucketed by its own timestamp — a
+    // refund that lands after its sale's week settled reduces the
+    // week it lands in, never rewrites a settled week.
+    // Resolution order: (1) charge.invoice -> the premium /
+    // premium-renew tx whose ref IS that invoice id; (2)
+    // charge.payment_intent -> a pool-sale tx that recorded the
+    // payment intent at settle time (every charm-pack / premium
+    // sale settled from RP-V7.293 on carries pi); (3) charge
+    // metadata (acctId + kind) + amount -> the earliest
+    // not-yet-reversed match. Stripe reports amount_refunded
+    // CUMULATIVELY per charge, so only the not-yet-reversed delta
+    // is written: a re-delivered event writes nothing, and partial
+    // refunds accumulate exactly. An unmatched refund is logged,
+    // never invented. Charms are NOT clawed back (the pre-V7.293
+    // ledger never touched balances on a refund either); only the
+    // money-side accrual reverses.
+    const chargeId = String(obj.id || "");
+    const refundedTotal = Math.round(Number(obj.amount_refunded) || 0);
+    if (!chargeId || refundedTotal <= 0) return;
+    const db = readMoney();
+    const poolTypes = ["purchase", "premium", "premium-renew"];
+    const saleTxs = (db.txlog || []).filter(
+      (t) => t && poolTypes.indexOf(t.type) >= 0 && !(Math.round(Number(t.cents) || 0) < 0) && !t.refundOf
+    );
+    let orig = null;
+    if (obj.invoice)
+      orig = saleTxs.find((t) => t.ref === String(obj.invoice)) || null;
+    if (!orig && obj.payment_intent)
+      orig = saleTxs.find((t) => t.pi && t.pi === String(obj.payment_intent)) || null;
+    if (!orig && obj.metadata && obj.metadata.acctId) {
+      const kinds =
+        obj.metadata.kind === "charms" ? ["purchase"] :
+        obj.metadata.kind === "premium" ? ["premium", "premium-renew"] : poolTypes;
+      orig =
+        saleTxs.find(
+          (t) =>
+            kinds.indexOf(t.type) >= 0 &&
+            t.to === String(obj.metadata.acctId) &&
+            Math.round(Number(t.cents) || 0) === Math.round(Number(obj.amount) || 0)
+        ) || null;
+    }
+    if (!orig) {
+      console.log("[creator-pool] refund unmatched, logged only:", chargeId);
+      return;
+    }
+    const already = (db.txlog || [])
+      .filter((t) => t && t.refundOf && t.refundOf === orig.ref)
+      .reduce((sum, t) => sum + Math.abs(Math.round(Number(t.cents) || 0)), 0);
+    const target = Math.min(refundedTotal, Math.round(Number(orig.cents) || 0));
+    const delta = target - already;
+    if (delta <= 0) return; // already fully recorded — idempotent
+    moneyTx(db, {
+      type: orig.type, from: null, to: orig.to, charms: 0,
+      cents: -delta, cut: 0, ref: chargeId, refundOf: orig.ref, refund: true,
+    });
+    writeMoney(db);
+    console.log("[creator-pool] refund reversal:", orig.type, -delta, "of", orig.ref, "charge", chargeId);
     return;
   }
 }
@@ -15648,10 +15717,418 @@ app.get("/api/owner/sales", (req, res) => {
     marks: { step: stepDollars, cap: capDollars, crossed, next },
     // [RP-V7.263] UNDERAGE — priority: open "Under 18" reports for
     // the board's one-tap suspend, plus who is currently suspended.
+    creatorPool: rpCpBoardSummary(mdb, adb), // [RP-V7.293] Creator Pool: this week's accrual + last settled week + rollover
     ageReports: rpAgeReportsOpen263(),
     ageSuspendedAccounts: rpAgeSuspendedList263(adb),
   });
 });
+// ---------------------------------------------------------------------------
+// [RP-V7.293] CREATOR POOL — "Views pay you" (Branden, Nov 8, 2026:
+// the first of the pay sheet's COMING money streams to build; he
+// picked it first). Implements EXACTLY the terms published in the
+// pay sheet: "A Creator Pool takes 15% of charm-pack and premium
+// sales and splits it weekly by real views on your reels, photos,
+// and lives. No ads needed — you get paid like YouTube, without
+// the ads."
+//
+// ACCRUAL — from the SAME settled-sale records the owner sales
+// board reads (rpSalesStreams over money.json's txlog): "purchase"
+// (charm packs), "premium" + "premium-renew" tx. 15% is taken per
+// sale, rounded to the cent. Business Ads revenue is NOT in the
+// pool — the sheet names charm-pack + premium sales only. Refunds
+// leave the accrual through the charge.refunded reversal tx in the
+// webhook (same type, negative cents), so board and pool always
+// agree. State lives in creator-pool.json beside money.json.
+//
+// VIEWS — the platform's own real-view records, never raw taps:
+// views.json seen stamps (RP-V7.162: one viewer per item, ever;
+// the stamp is the ET day the view counted) for REELS (author via
+// reelAuthorKeyFor) and gallery PHOTOS (the owner id rides the
+// item key); lives from liveviewers.json (RP-V7.274): a host's
+// unique recorded viewers whose latest-watch stamp falls inside
+// the week. Stories and photo posts carry no deduped view record
+// anywhere in the platform, so they are not counted. A creator is
+// payable when the account exists, is not teen-disabled
+// (RP-V7.263) and is not pending deletion; views on anyone else's
+// content are excluded from the split and reported as
+// excludedViews so the owner can see them. The platform owner is
+// treated like any other creator — the published terms name no
+// carve-out (CREATOR_POOL_EXCLUDE_OWNER flips that on his word).
+//
+// WEEKS — an ET calendar week runs Monday 00:00 -> Sunday 23:59 ET
+// and settles the following Monday at 03:00 ET. Settlement is
+// idempotent (a settled week never re-runs) and conserves money
+// exactly: shares are floor(pool x views / total views); rounding
+// remainders — and the WHOLE pool when a week has zero payable
+// views — stay in carryCents and roll into the next settled week.
+// Credits land in the same Earn wallet as every other stream
+// (availableCents + totalEarnedCents) with a "creator-pool" tx
+// (ref = the week key) so they show in the member's Earn history
+// like any other stream, and cash out on the existing Connect
+// rail at $20. The first settleable week is the week this build
+// first runs in (state.firstWeek) — sales from before the feature
+// existed never enter the pool.
+// ---------------------------------------------------------------------------
+const CREATOR_POOL_FILE =
+  process.env.CREATOR_POOL_FILE || path.join(path.dirname(PHOTO_DIR), "creator-pool.json");
+const CREATOR_POOL_PCT = 15; // the published share of charm-pack + premium sales
+const CREATOR_POOL_EXCLUDE_OWNER = false; // published terms name no owner carve-out
+const CREATOR_POOL_SETTLE_SLOT = "Mondays 03:00 ET";
+
+function rpCpReadState() {
+  try {
+    const d = JSON.parse(fs.readFileSync(CREATOR_POOL_FILE, "utf8"));
+    if (d && typeof d === "object" && d.weeks && typeof d.weeks === "object" && !Array.isArray(d.weeks)) {
+      if (typeof d.carryCents !== "number") d.carryCents = 0;
+      return d;
+    }
+  } catch (e) {}
+  return { weeks: {}, carryCents: 0, firstWeek: null, createdAt: null };
+}
+function rpCpWriteState(db) {
+  const tmp = CREATOR_POOL_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, CREATOR_POOL_FILE);
+}
+function rpCpEnsureFirstWeek(state, nowMs) {
+  if (state.firstWeek) return false;
+  const envWk = String(process.env.CREATOR_POOL_FIRST_WEEK || "").trim();
+  state.firstWeek = /^\d{4}-\d{2}-\d{2}$/.test(envWk) ? rpCpMondayKey(envWk) : rpCpMondayKey(rpCpDayKey(nowMs));
+  state.createdAt = new Date(nowMs).toISOString();
+  return true;
+}
+function rpCpMoney(cents) { return "$" + (Math.round(Number(cents) || 0) / 100).toFixed(2); }
+
+// --- ET week math (Intl only, the viewDayKey construction) --------
+const rpCpEtFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York", hour12: false,
+  year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", second: "2-digit",
+});
+function rpCpEtWall(ms) {
+  const parts = {};
+  for (const p of rpCpEtFmt.formatToParts(new Date(ms))) parts[p.type] = p.value;
+  return { y: Number(parts.year), mo: Number(parts.month), d: Number(parts.day), h: Number(parts.hour) % 24, mi: Number(parts.minute), s: Number(parts.second) };
+}
+function rpCpPad2(n) { return (n < 10 ? "0" : "") + n; }
+function rpCpDayKey(ms) { const w = rpCpEtWall(ms); return w.y + "-" + rpCpPad2(w.mo) + "-" + rpCpPad2(w.d); }
+function rpCpAddDays(dayKey, n) {
+  const p = dayKey.split("-").map(Number);
+  const t = new Date(Date.UTC(p[0], p[1] - 1, p[2] + n));
+  return t.getUTCFullYear() + "-" + rpCpPad2(t.getUTCMonth() + 1) + "-" + rpCpPad2(t.getUTCDate());
+}
+function rpCpMondayKey(dayKey) {
+  const p = dayKey.split("-").map(Number);
+  const dow = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); // 0 = Sunday
+  return rpCpAddDays(dayKey, -((dow + 6) % 7));
+}
+function rpCpWeekDays(mondayKey) {
+  const out = [];
+  for (let i = 0; i < 7; i++) out.push(rpCpAddDays(mondayKey, i));
+  return out;
+}
+function rpCpEtMidnightMs(dayKey) {
+  const p = dayKey.split("-").map(Number);
+  let t = Date.UTC(p[0], p[1] - 1, p[2], 12, 0, 0);
+  for (let i = 0; i < 3; i++) {
+    const w = rpCpEtWall(t);
+    const wallAsUtc = Date.UTC(w.y, w.mo - 1, w.d, w.h, w.mi, w.s);
+    const target = Date.UTC(p[0], p[1] - 1, p[2], 0, 0, 0);
+    const delta = target - wallAsUtc;
+    t += delta;
+    if (delta === 0) break;
+  }
+  return t;
+}
+function rpCpWeekDue(mondayKey, nowMs) {
+  // A week is due once its settle slot — the following Monday
+  // 03:00 ET — has passed.
+  return nowMs >= rpCpEtMidnightMs(rpCpAddDays(mondayKey, 7)) + 3 * 3600 * 1000;
+}
+function rpCpLastDueWeek(nowMs) {
+  const cur = rpCpMondayKey(rpCpDayKey(nowMs));
+  let cand = rpCpAddDays(cur, -7);
+  if (!rpCpWeekDue(cand, nowMs)) cand = rpCpAddDays(cand, -7);
+  return cand;
+}
+
+// --- accrual: 15% of the board's own sale records ------------------
+function rpCpSalePoolCents(cents) {
+  return Math.round(((Number(cents) || 0) * CREATOR_POOL_PCT) / 100);
+}
+function rpCpWeekSales(mdb, daySet) {
+  let salesCents = 0, poolCents = 0;
+  for (const tx of (mdb && mdb.txlog) || []) {
+    if (!tx || (tx.type !== "purchase" && tx.type !== "premium" && tx.type !== "premium-renew")) continue;
+    const t = Date.parse(tx.at || "");
+    if (!isFinite(t) || !daySet.has(rpCpDayKey(t))) continue;
+    const c = Math.round(Number(tx.cents) || 0);
+    salesCents += c;
+    poolCents += rpCpSalePoolCents(c);
+  }
+  return { salesCents, poolCents };
+}
+
+// --- views: the platform's real-view records, bucketed by ET day ---
+function rpCpWeekViews(adb, daySet) {
+  const per = new Map();
+  let excluded = 0;
+  const ownerId = rpOwnerUserId(adb);
+  const byId = new Map();
+  for (const u of (adb && adb.users) || []) if (u && u.id) byId.set(u.id, u);
+  const payable = (id) => {
+    const u = id ? byId.get(id) : null;
+    if (!u) return false;
+    if (teenAccountDisabled(u) || isPendingDeletion(u)) return false;
+    if (CREATOR_POOL_EXCLUDE_OWNER && ownerId && id === ownerId) return false;
+    return true;
+  };
+  const add = (id, n) => {
+    if (!n) return;
+    if (id && payable(id)) per.set(id, (per.get(id) || 0) + n);
+    else excluded += n;
+  };
+  const vdb = readViews();
+  const reelsById = new Map();
+  for (const r of listReels() || []) if (r && r.id) reelsById.set(r.id, r);
+  for (const key of Object.keys(vdb.items || {})) {
+    const it = vdb.items[key];
+    if (!it || !it.seen || typeof it.seen !== "object") continue;
+    let owner = null;
+    if (key.indexOf("reel:") === 0) {
+      const r = reelsById.get(key.slice(5));
+      if (r) {
+        const k = reelAuthorKeyFor(adb, r);
+        if (k && k.indexOf("name:") !== 0) owner = k;
+      }
+    } else if (key.indexOf("photo:") === 0) {
+      const rest = key.slice(6);
+      const ix = rest.indexOf(":");
+      if (ix > 0) owner = rest.slice(0, ix);
+    } else continue; // story: and anything else is not a pool surface
+    let n = 0;
+    for (const dk of Object.values(it.seen)) if (daySet.has(dk)) n++;
+    add(owner, n);
+  }
+  const lv = readLiveViewers274();
+  for (const hostId of Object.keys(lv.hosts || {})) {
+    const h = lv.hosts[hostId];
+    if (!h || !h.viewers || typeof h.viewers !== "object") continue;
+    let n = 0;
+    for (const ts of Object.values(h.viewers)) {
+      const t = Number(ts) || 0;
+      if (t > 0 && daySet.has(rpCpDayKey(t))) n++;
+    }
+    add(hostId, n);
+  }
+  let total = 0;
+  for (const v of per.values()) total += v;
+  return { perCreator: per, totalViews: total, excludedViews: excluded };
+}
+
+// --- one week's full computation (preview AND settle share this) ---
+function rpCpComputeWeek(mdb, adb, mondayKey, carryInCents) {
+  const days = rpCpWeekDays(mondayKey);
+  const daySet = new Set(days);
+  const sales = rpCpWeekSales(mdb, daySet);
+  const tally = rpCpWeekViews(adb, daySet);
+  const carryIn = Math.round(Number(carryInCents) || 0);
+  const poolCents = sales.poolCents + carryIn;
+  const rows = [];
+  let distributed = 0;
+  if (tally.totalViews > 0) {
+    for (const [acctId, views] of tally.perCreator) {
+      const share = poolCents > 0 ? Math.floor((poolCents * views) / tally.totalViews) : 0;
+      const u = (adb.users || []).find((x) => x && x.id === acctId) || {};
+      rows.push({ acctId, name: u.name || "", username: u.username || "", views, shareCents: share });
+      distributed += share;
+    }
+    rows.sort((a, b) => b.views - a.views || (a.acctId < b.acctId ? -1 : 1));
+  }
+  return {
+    weekKey: mondayKey, days,
+    salesCents: sales.salesCents, poolFromSalesCents: sales.poolCents,
+    carryInCents: carryIn, poolCents,
+    totalViews: tally.totalViews, excludedViews: tally.excludedViews,
+    rows, distributedCents: distributed,
+    remainderCents: poolCents - distributed,
+  };
+}
+
+// --- settlement (callers wrap in withMoneyLock) ---------------------
+function rpCpSettleWeek(mondayKey, nowMs) {
+  const state = rpCpReadState();
+  rpCpEnsureFirstWeek(state, nowMs);
+  if (state.weeks[mondayKey])
+    return { weekKey: mondayKey, alreadySettled: true, record: state.weeks[mondayKey] };
+  if (mondayKey < state.firstWeek) return { weekKey: mondayKey, error: "before-launch" };
+  if (nowMs < rpCpEtMidnightMs(rpCpAddDays(mondayKey, 7)))
+    return { weekKey: mondayKey, error: "week-not-complete" };
+  const mdb = readMoney();
+  const adb = readAccounts();
+  const comp = rpCpComputeWeek(mdb, adb, mondayKey, Math.round(Number(state.carryCents) || 0));
+  const paid = [];
+  for (const row of comp.rows) {
+    if (!(row.shareCents > 0)) continue;
+    const e = moneyEarningsFor(mdb, row.acctId);
+    e.availableCents += row.shareCents;
+    e.totalEarnedCents += row.shareCents;
+    moneyTx(mdb, {
+      type: "creator-pool", from: null, to: row.acctId, charms: 0,
+      cents: row.shareCents, cut: 0, ref: mondayKey,
+    });
+    paid.push(row);
+  }
+  writeMoney(mdb);
+  const record = {
+    settledAt: new Date(nowMs).toISOString(),
+    salesCents: comp.salesCents, poolFromSalesCents: comp.poolFromSalesCents,
+    carryInCents: comp.carryInCents, poolCents: comp.poolCents,
+    totalViews: comp.totalViews, excludedViews: comp.excludedViews,
+    paidCents: comp.distributedCents, remainderCents: comp.remainderCents,
+    payouts: paid.map((r) => ({ acctId: r.acctId, views: r.views, cents: r.shareCents })),
+  };
+  state.weeks[mondayKey] = record;
+  state.carryCents = comp.remainderCents;
+  rpCpWriteState(state);
+  for (const row of paid) {
+    try {
+      notifyActivity({
+        toId: row.acctId, kind: "post", inAppOnly: true,
+        text: "👀 Creator Pool: you earned " + rpCpMoney(row.shareCents) + " from " + row.views.toLocaleString("en-US") + " views last week — it's in your Earn wallet now.",
+      });
+    } catch (e) {}
+  }
+  console.log("[creator-pool] settled week", mondayKey, "pool", comp.poolCents, "paid", comp.distributedCents, "to", paid.length, "creators; remainder", comp.remainderCents, "rolls forward");
+  return { weekKey: mondayKey, settled: true, record };
+}
+function rpCpSettleDue(nowMs) {
+  const state = rpCpReadState();
+  if (rpCpEnsureFirstWeek(state, nowMs)) rpCpWriteState(state);
+  const lastDue = rpCpLastDueWeek(nowMs);
+  let start = state.firstWeek;
+  const settledKeys = Object.keys(state.weeks).sort();
+  if (settledKeys.length) {
+    const next = rpCpAddDays(settledKeys[settledKeys.length - 1], 7);
+    if (next > start) start = next;
+  }
+  const out = [];
+  for (let wk = start; wk <= lastDue; wk = rpCpAddDays(wk, 7)) {
+    const r = rpCpSettleWeek(wk, nowMs);
+    if (r && (r.settled || r.alreadySettled)) out.push(r);
+    else { if (r && r.error) console.log("[creator-pool] settle skipped", wk, r.error); break; }
+  }
+  return out;
+}
+function rpCpTick293() {
+  withMoneyLock(() => { rpCpSettleDue(Date.now()); }).catch(() => {});
+}
+
+// --- owner board summary + member summary ---------------------------
+function rpCpBoardSummary(mdb, adb) {
+  try {
+    const mondayKey = rpCpMondayKey(rpCpDayKey(Date.now()));
+    const state = rpCpReadState();
+    const comp = rpCpComputeWeek(mdb, adb, mondayKey, Math.round(Number(state.carryCents) || 0));
+    const settledKeys = Object.keys(state.weeks).sort();
+    const lastKey = settledKeys.length ? settledKeys[settledKeys.length - 1] : null;
+    const last = lastKey ? state.weeks[lastKey] : null;
+    return {
+      weekKey: mondayKey,
+      salesThisWeekCents: comp.salesCents,
+      accruedThisWeekCents: comp.poolFromSalesCents,
+      carryInCents: comp.carryInCents,
+      thisWeekViews: comp.totalViews,
+      carryCents: Math.round(Number(state.carryCents) || 0),
+      lastSettledWeekKey: lastKey,
+      lastSettledPaidCents: last ? last.paidCents : null,
+      settleSlot: CREATOR_POOL_SETTLE_SLOT,
+    };
+  } catch (e) { return null; }
+}
+function rpCpMemberSummary(mdb, acctId) {
+  try {
+    let allTime = 0;
+    for (const tx of (mdb && mdb.txlog) || [])
+      if (tx && tx.type === "creator-pool" && tx.to === acctId)
+        allTime += Math.round(Number(tx.cents) || 0);
+    const adb = readAccounts();
+    const mondayKey = rpCpMondayKey(rpCpDayKey(Date.now()));
+    const state = rpCpReadState();
+    const comp = rpCpComputeWeek(mdb, adb, mondayKey, Math.round(Number(state.carryCents) || 0));
+    const mine = comp.rows.find((r) => r.acctId === acctId);
+    return {
+      allTimeCents: allTime,
+      thisWeekViews: mine ? mine.views : 0,
+      thisWeekProjectedCents: mine ? mine.shareCents : 0,
+      weekKey: mondayKey,
+    };
+  } catch (e) {
+    return { allTimeCents: 0, thisWeekViews: 0, thisWeekProjectedCents: 0, weekKey: null };
+  }
+}
+
+// --- owner endpoints: dry-run preview + manual settle ---------------
+// GET /api/owner/creator-pool?week=YYYY-MM-DD — the owner-gated
+// dry run: the current week's (or any named week's) projected split
+// computed by the SAME function settlement uses, crediting nothing.
+// A settled week answers with its recorded actuals instead.
+app.get("/api/owner/creator-pool", (req, res) => {
+  const adb = readAccounts();
+  const user = accountForToken(adb, req);
+  const ownerId = rpOwnerUserId(adb);
+  if (!user || !ownerId || user.id !== ownerId) return res.status(404).json({ ok: false, error: "not-found" });
+  const nowMs = Date.now();
+  let mondayKey = rpCpMondayKey(rpCpDayKey(nowMs));
+  const q = String((req.query && req.query.week) || "").trim();
+  if (q) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(q)) return res.status(400).json({ ok: false, error: "bad-week" });
+    mondayKey = rpCpMondayKey(q);
+  }
+  const state = rpCpReadState();
+  const record = state.weeks[mondayKey] || null;
+  let preview = null;
+  if (!record) {
+    const comp = rpCpComputeWeek(readMoney(), adb, mondayKey, Math.round(Number(state.carryCents) || 0));
+    preview = {
+      salesCents: comp.salesCents, poolFromSalesCents: comp.poolFromSalesCents,
+      carryInCents: comp.carryInCents, poolCents: comp.poolCents,
+      totalViews: comp.totalViews, excludedViews: comp.excludedViews,
+      projected: comp.rows, projectedDistributedCents: comp.distributedCents,
+      projectedRemainderCents: comp.remainderCents,
+    };
+  }
+  res.json({
+    ok: true, weekKey: mondayKey, settled: !!record, record, preview,
+    carryCents: Math.round(Number(state.carryCents) || 0),
+    firstWeek: state.firstWeek || null, settleSlot: CREATOR_POOL_SETTLE_SLOT,
+  });
+});
+// POST /api/owner/creator-pool/settle — owner session OR the push
+// secret (the grant-charms gate). Body { week } settles that one
+// completed week; no week settles every due week. Idempotent: a
+// settled week answers alreadySettled and changes nothing.
+app.post("/api/owner/creator-pool/settle", lockedHandler("creator-pool-settle", (req, res) => {
+  const body = req.body || {};
+  const adb = readAccounts();
+  const sessionUser = accountForToken(adb, req);
+  const ownerId = rpOwnerUserId(adb);
+  const viaSession = !!(sessionUser && ownerId && sessionUser.id === ownerId);
+  const want = String(process.env.OWNER_PUSH_SECRET || "");
+  const viaSecret = !!want && String(body.secret || "") === want;
+  if (!viaSession && !viaSecret) return res.status(404).json({ ok: false, error: "not-found" });
+  const nowMs = Date.now();
+  const wk = String(body.week || "").trim();
+  if (wk) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(wk)) return res.status(400).json({ ok: false, error: "bad-week" });
+    const mondayKey = rpCpMondayKey(wk);
+    const r = rpCpSettleWeek(mondayKey, nowMs);
+    if (r.error) return res.status(400).json({ ok: false, error: r.error, weekKey: mondayKey });
+    return res.json({ ok: true, settled: [r] });
+  }
+  const out = rpCpSettleDue(nowMs);
+  res.json({ ok: true, settled: out });
+}));
 app.post("/api/owner/store-sales", lockedHandler("owner-store-sales", (req, res) => {
   const want = String(process.env.OWNER_PUSH_SECRET || "");
   // Disabled entirely (404) until the push secret is configured.
@@ -17129,5 +17606,15 @@ const crSweepTimer286 = setInterval(() => {
   } catch (e) {}
 }, 10 * 60 * 1000);
 if (crSweepTimer286.unref) crSweepTimer286.unref();
+
+// [RP-V7.293] Creator Pool weekly settle: once on boot, then every
+// 60s (the Daily Pot pattern) — settles each completed week once,
+// Mondays 03:00 ET, idempotently; all state in creator-pool.json.
+try { rpCpTick293(); } catch (e) {}
+const creatorPoolTimer293 = setInterval(() => {
+  try { rpCpTick293(); } catch (e) {}
+}, 60 * 1000);
+if (creatorPoolTimer293.unref) creatorPoolTimer293.unref();
+
 
 
