@@ -624,6 +624,11 @@ for (const [p, b] of Object.entries(RP_ICONS_7127)) {
   const buf = Buffer.from(b, "base64");
   app.get(p, (req, res) => { res.type("png").set("Cache-Control", "public, max-age=86400").send(buf); });
 }
+/* [RP-V7.297] Decoded icon-192 buffer, reused by the touch-icon routes
+   further down: the repo's public/icon-192.png FILE is base64 TEXT (the
+   GitHub push path is text-only, so the "PNG" in git is ASCII base64),
+   and res.sendFile would serve that text verbatim as the icon body. */
+const RP_ICON192_BUF_7297 = Buffer.from(RP_ICONS_7127["/icon-192.png"], "base64");
 // [RP-V7.132] The three $1,000-tier gifts' ANIMATED ART, embedded
 // as base64 and served by the routes below — the exact pattern
 // RP-V7.127 set for the app icons. Why embedded: the GitHub push
@@ -882,13 +887,15 @@ console.log("[RP-V7.208] weekly gift art:", Object.keys(RP_GIFT_ART_7208).join("
 // it; no resize) at BOTH touch-icon paths, registered BEFORE express.static
 // so the routes shadow the poster file (same shadow recipe as
 // RP-V7.199/204/208). The poster file itself is NOT deleted or renamed.
+// [RP-V7.297 correction] The first cut used res.sendFile(public/icon-192.png)
+// — but that repo file is base64 TEXT (text-only push path), so production
+// served 68,376 bytes of ASCII instead of the PNG (the rig missed it: its
+// public/ held a real decoded PNG). The routes now send the DECODED buffer
+// from the RP-V7.127 embedded map — the exact bytes /icon-192.png serves.
 // ---------------------------------------------------------------------------
 ["/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"].forEach((iconPath296) => {
   app.get(iconPath296, (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "icon-192.png"), {
-      maxAge: "1d",
-      headers: { "Content-Type": "image/png" },
-    });
+    res.type("png").set("Cache-Control", "public, max-age=86400").send(RP_ICON192_BUF_7297);
   });
 });
 
