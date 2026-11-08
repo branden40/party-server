@@ -17005,6 +17005,53 @@ try { rpPurgeTestAccounts195(); } catch (e) { console.log("[RP-V7.195] purge fai
 try { rpLogTeenInventory263(); } catch (e) { console.log("[RP-V7.263] teen inventory log failed:", e && e.message); }
 try { rpPlayTestInviteOnce279(); } catch (e) { console.log("[RP-V7.279] Play tester invite broadcast failed:", e && e.message); }
 
+// ---------------------------------------------------------------------------
+// [RP-PURGE-MIKETEST763] One-time purge of the miketest763 test account
+// (Branden approved Nov 8, 2026). The RP-V7.195 purge deliberately
+// EXCLUDED miketest763 because the Stripe Connect clear-watch logged in
+// as that account; Connect CLEARED Nov 8, 2026 and the watch is done, so
+// the hold is over. SAME mechanism as RP-V7.195: runs ONCE at boot
+// (marker file next to accounts.json), a single explicit target matched
+// on id + username + email together, never the owner, and the account
+// is skipped as a safety stop if it holds charms, gift balance, or
+// earnings. Balances were verified all-zero via /api/money/me on
+// Nov 8, 2026 before this build; the boot check re-reads them anyway.
+// ---------------------------------------------------------------------------
+const RP_PURGE_MIKE763_MARKER = path.join(path.dirname(ACCOUNTS_FILE), "purge-miketest763-v1.json");
+const RP_PURGE_MIKE763_ID = "68e899fc4fba27e876073d8d";
+function rpPurgeMiketest763() {
+  if (fs.existsSync(RP_PURGE_MIKE763_MARKER)) return;
+  const db = readAccounts();
+  const mdb = readMoney();
+  const result = { doneAt: new Date().toISOString(), purged: [], skipped: [] };
+  const u = db.users.find((x) => x.id === RP_PURGE_MIKE763_ID);
+  if (!u) {
+    result.skipped.push({ id: RP_PURGE_MIKE763_ID, why: "not found" });
+  } else if (u.id === RP_OWNER_ID_195) {
+    result.skipped.push({ id: u.id, why: "owner - never" });
+  } else if (usernameKey(u.username || "") !== "miketest763" || String(u.email || "").toLowerCase() !== "miketest763@example.com") {
+    result.skipped.push({ id: u.id, username: u.username || "", why: "identity mismatch" });
+  } else {
+    const bal = (mdb.balances && mdb.balances[u.id]) || 0;
+    const giftBal = (mdb.giftBals && mdb.giftBals[u.id]) || 0;
+    const earn = mdb.earnings && mdb.earnings[u.id];
+    let cents = 0;
+    if (earn) { cents += earn.availableCents || 0; for (const h of earn.held || []) cents += (h && h.cents) || 0; }
+    if (bal > 0 || giftBal > 0 || cents > 0) {
+      result.skipped.push({ id: u.id, username: u.username || "", why: "holds value", bal: bal, giftBal: giftBal, cents: cents });
+    } else {
+      finalizeAccountDeletion(u.id);
+      const after = readAccounts();
+      if (!after.users.find((x) => x.id === u.id)) result.purged.push({ id: u.id, username: u.username || "", name: u.name || "" });
+      else result.skipped.push({ id: u.id, username: u.username || "", why: "finalize did not remove" });
+    }
+  }
+  fs.writeFileSync(RP_PURGE_MIKE763_MARKER, JSON.stringify(result, null, 2));
+  console.log("[RP-PURGE-MIKETEST763] miketest763 purge:", result.purged.length, "purged,", result.skipped.length, "skipped");
+}
+try { rpPurgeMiketest763(); } catch (e) { console.log("[RP-PURGE-MIKETEST763] purge failed:", e && e.message); }
+
+
 
 // [RP-V7.41] Plaza Pot orphan sweep: once on boot, then every 60s.
 // Any open pot whose live is no longer in the registry is settled by
