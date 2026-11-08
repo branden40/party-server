@@ -946,6 +946,8 @@
       .reel-tag { pointer-events: auto; background: none; border: none; color: #7dd7ff; font: inherit; font-weight: 800; cursor: pointer; padding: 0; }
       .reel-filterbar { flex: none; display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-weight: 800; font-size: 13.5px; }
       .reel-filterbar button { margin-left: auto; border: none; background: var(--chip); color: var(--ink); border-radius: 999px; padding: 5px 12px; font-weight: 900; cursor: pointer; font-family: inherit; }
+      /* [RP-V7.283] Friends filter bar only: drop it below the floating search icon (icon bottom = safe-area inset + 48; this margin puts the bar's top 10px clear of it, feed shifts with it). */
+      .reel-filterbar-friends283 { margin-top: 58px; }
       .rp-trimbar169 { position:relative; height:10px; border-radius:6px; background:rgba(255,255,255,.12); margin:12px 0 4px; overflow:hidden; }
       .rp-trimwin169 { position:absolute; top:0; bottom:0; background:linear-gradient(90deg, #fe2c55, #ff7d9c); border-radius:6px; }
       .rp-trimlab169 { display:flex; align-items:center; gap:10px; font-weight:800; font-size:13px; margin-top:8px; }
@@ -24512,7 +24514,7 @@
         }
         if (Reels.friends) { // [RP-V7.112] Friends: only followed authors' server reels, never my own or device-only posts
           items = items.filter(function (it) { return it.server && !it.mine; });
-          barHtml = '<div class="reel-filterbar"><span>👥 Friends — latest reels from people you follow</span></div>';
+          barHtml = '<div class="reel-filterbar reel-filterbar-friends283"><span>👥 Friends — latest reels from people you follow</span></div>';
         }
         if (barHtml) {
           var bd = document.createElement("div");
