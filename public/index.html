@@ -3663,7 +3663,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
                 <button type="button" id="lvRailLike" aria-label="Send hearts to the stage">❤️<span id="lvLikeCount">Like</span></button>
                 <button type="button" id="lvRailViewers" aria-label="See who is watching">👥<span>Viewers</span></button>
                 <button type="button" id="lvRailGift" aria-label="Send a gift">🎁<span>Gift</span></button>
-                <button type="button" id="lvRailShare" aria-label="Share this live"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg><span>Share</span></button>
+                <button type="button" id="lvRailShare" aria-label="Share this live"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6"/><path d="M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6"/></svg><span>Share</span></button>
                 <button type="button" id="lvRailJoin" aria-label="Request to join the stage" hidden>🙋<span>Join</span></button>
               </div>
               <button type="button" class="lv-morebtn" id="lvMoreBtn" aria-label="More live options" hidden>•••</button>
@@ -31524,9 +31524,12 @@ function stageStreakBump(key, add) {
     for (var i = 0; i < btns.length; i++) {
       var fb = btns[i];
       if (fb.getAttribute("data-follow") !== hostName) continue;
-      var next = fb.nextElementSibling;
-      if (next && next.classList && next.classList.contains("rp65-fanjoin") && !force) continue;
-      if (next && next.classList && next.classList.contains("rp65-fanjoin")) next.remove();
+      // [RP-V7.290] guard by the whole parent, not just the next sibling: the DM
+      // module parks its Message button directly after the follow button, which
+      // used to hide the existing Fan button from this check and duplicate it.
+      var sibs = fb.parentNode ? fb.parentNode.querySelectorAll(".rp65-fanjoin") : [];
+      if (sibs.length && !force) continue;
+      for (var k = 0; k < sibs.length; k++) sibs[k].remove();
       var joined = fan.fanOf[L.hostId];
       var jb = document.createElement("button");
       jb.type = "button";
