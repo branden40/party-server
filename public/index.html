@@ -40568,6 +40568,15 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .rp-og-row input{ flex:1; min-width:0; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:9px 10px; color:#fff; font-size:14px; }
 .rp-owner-grant button{ background:#f5c542; color:#141414; border:none; border-radius:10px; padding:9px 16px; font-size:14px; font-weight:800; cursor:pointer; }
 .rp-owner-grant button:disabled{ opacity:.5; cursor:default; }
+/* [RP-V7.291] Broadcast panel — same card family as the sales board. */
+.rp-ob-ta{ width:100%; box-sizing:border-box; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:9px 10px; color:#fff; font-size:14px; font-family:inherit; min-height:88px; resize:vertical; margin-top:8px; }
+.rp-ob-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; }
+.rp-ob-count{ font-size:12px; opacity:.65; }
+.rp-ob-count.over{ color:#ff8080; opacity:1; font-weight:800; }
+body.rp-light .rp-ob-count.over{ color:#c81e1e; }
+.rp-owner-bcast button{ background:#f5c542; color:#141414; border:none; border-radius:10px; padding:9px 16px; font-size:14px; font-weight:800; cursor:pointer; }
+.rp-owner-bcast button:disabled{ opacity:.5; cursor:default; }
+.rp-owner-bcast button.armed{ background:#e02424; color:#fff; }
 /* ================= [RP-V7.87] HOLIDAY DECOR — the Plaza TRANSFORMS =================
    Restores the decor the C5 clean pass flattened (garland killed, banner
    flattened, scene glow zeroed) and takes it to the owner's bar: animated and
@@ -40891,6 +40900,99 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       rEl.textContent = "✗ Network error — grant not sent.";
     });
   }
+  /* [RP-V7.291] Owner-only "Broadcast to everyone" panel. Rides the
+     EXACT owner signal of the sales board: created only inside
+     rpOwnerSalesInit after GET /api/owner/sales answered ok for this
+     account, as a SIBLING of the sales panel (same as the grant and
+     copyright panels), so the board's 5-minute re-render never wipes
+     a half-typed message — and removed wherever the board is
+     removed. On Send it POSTs /api/owner/broadcast with this
+     account's session token (the same osToken() pattern as the
+     grant panel); the server trims, refuses empty and >500 chars,
+     and answers with the exact { delivered, eligible, skipped }
+     recount, which is shown in place. The composer is prefilled
+     ONCE at mount with the owner's approved announcement; after
+     that the text is his alone — nothing here ever writes the
+     textarea again. Pocket-send guard: the first Send tap only arms
+     ("Tap again to send to everyone"); the second tap fires. Any
+     edit disarms, and every finished send (success or failure)
+     disarms again. */
+  var RP_OB_PREFILL291 = "💰 CASH-OUTS ARE LIVE 💰\n\nCreators — your charms are now REAL money. Open Earn → \"Connect Stripe to get paid,\" finish the quick ID + bank setup, and cash out starting at $20. You keep 70% of every gift you receive. Going live on the Plaza pays for real now. — RP";
+  var rpObArmed291 = false;
+  function osBroadcastEnsure291(panel) {
+    if (document.getElementById("rpOwnerBroadcast")) return;
+    if (!panel || !panel.parentNode) return;
+    var host = document.createElement("div");
+    host.className = "rp-owner-sales rp-owner-bcast";
+    host.id = "rpOwnerBroadcast";
+    host.innerHTML = '<h4>📣 Broadcast to everyone</h4>' +
+      '<textarea id="rpObText" class="rp-ob-ta" placeholder="Message to every member…"></textarea>' +
+      '<div class="rp-ob-row"><span class="rp-ob-count" id="rpObCount">0 / 500</span>' +
+      '<button type="button" id="rpObBtn">Send</button></div>' +
+      '<div class="rp-os-note" id="rpObResult">Goes to every member\'s bell as a plain notice from you. Nothing is emailed or texted.</div>';
+    var anchor = document.getElementById("rpOwnerGrant") || panel;
+    if (!anchor.parentNode) return;
+    anchor.parentNode.insertBefore(host, anchor.nextSibling);
+    var ta = document.getElementById("rpObText");
+    ta.value = RP_OB_PREFILL291;
+    ta.addEventListener("input", osBroadcastCount291);
+    document.getElementById("rpObBtn").addEventListener("click", osBroadcastGo291);
+    osBroadcastCount291();
+  }
+  function osBroadcastArm291(on) {
+    rpObArmed291 = !!on;
+    var btn = document.getElementById("rpObBtn");
+    if (!btn) return;
+    btn.textContent = rpObArmed291 ? "Tap again to send to everyone" : "Send";
+    btn.classList.toggle("armed", rpObArmed291);
+  }
+  function osBroadcastCount291() {
+    var ta = document.getElementById("rpObText"), cEl = document.getElementById("rpObCount"), btn = document.getElementById("rpObBtn");
+    if (!ta || !cEl || !btn) return;
+    var n = ta.value.length;
+    cEl.textContent = n + " / 500";
+    cEl.classList.toggle("over", n > 500);
+    if (rpObArmed291 && !btn.disabled) osBroadcastArm291(false);
+    btn.disabled = n === 0 || n > 500;
+  }
+  function osBroadcastGo291() {
+    var ta = document.getElementById("rpObText"), rEl = document.getElementById("rpObResult"), btn = document.getElementById("rpObBtn");
+    if (!ta || !rEl || !btn) return;
+    var text = ta.value;
+    if (!text.trim()) { rEl.textContent = "Write a message first."; return; }
+    if (text.length > 500) { rEl.textContent = "Too long — " + text.length + " of 500 characters max."; return; }
+    if (!rpObArmed291) {
+      osBroadcastArm291(true);
+      rEl.textContent = "Ready — tap the button again to send this to every member's bell.";
+      return;
+    }
+    var t = osToken();
+    if (!t || typeof fetch !== "function") { osBroadcastArm291(false); rEl.textContent = "✗ Not signed in."; return; }
+    osBroadcastArm291(false);
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    rEl.textContent = "Sending…";
+    fetch("/api/owner/broadcast", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text })
+    }).then(function (r) {
+      return r.json().then(function (j) { return { status: r.status, j: j }; }, function () { return { status: r.status, j: null }; });
+    }).then(function (res) {
+      var j = res.j;
+      if (j && j.ok) {
+        rEl.textContent = "✓ Sent — delivered to " + (Number(j.delivered) || 0) + " members (" + (Number(j.eligible) || 0) + " eligible, " + (Number(j.skipped) || 0) + " skipped)";
+      } else {
+        rEl.textContent = "✗ " + (j && j.error ? j.error : ("Broadcast failed (HTTP " + res.status + ")"));
+      }
+      btn.textContent = "Send";
+      osBroadcastCount291();
+    }).catch(function () {
+      rEl.textContent = "✗ Network error — broadcast not sent.";
+      btn.textContent = "Send";
+      osBroadcastCount291();
+    });
+  }
   /* [RP-V7.263] UNDERAGE actions: one delegated listener for the
      board’s Suspend / Restore buttons (the board re-renders
      every 5 minutes, so per-button wiring would rot). */
@@ -40927,6 +41029,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         var gp0 = document.getElementById("rpOwnerGrant");
         if (gp0) gp0.remove();
         var cp0 = document.getElementById("rpOwnerCopyright"); if (cp0) cp0.remove(); // [RP-V7.286]
+        var bc0 = document.getElementById("rpOwnerBroadcast"); if (bc0) bc0.remove(); // [RP-V7.291]
         osStop();
         return;
       }
@@ -40939,6 +41042,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       }
       panel.innerHTML = window.rpOwnerSalesRender(d) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
       osGrantEnsure(panel);
+      osBroadcastEnsure291(panel); // [RP-V7.291]
       if (!osTimer) {
       osCopyrightEnsure286(panel); // [RP-V7.286]
         osTimer = setInterval(function () {
@@ -40947,7 +41051,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
             var p2 = document.getElementById("rpOwnerSales");
             if (!p2) { osStop(); return; }
             magniStoreApply(!!d2); // [RP-V7.223] refresh verdicts re-apply the store gate
-            if (!d2) { p2.remove(); var gp2 = document.getElementById("rpOwnerGrant"); if (gp2) gp2.remove(); var cp2 = document.getElementById("rpOwnerCopyright"); if (cp2) cp2.remove(); osStop(); return; } // [RP-V7.286]
+            if (!d2) { p2.remove(); var gp2 = document.getElementById("rpOwnerGrant"); if (gp2) gp2.remove(); var cp2 = document.getElementById("rpOwnerCopyright"); if (cp2) cp2.remove(); var bc2 = document.getElementById("rpOwnerBroadcast"); if (bc2) bc2.remove(); osStop(); return; } // [RP-V7.286]
             p2.innerHTML = window.rpOwnerSalesRender(d2) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
           });
         }, 300000);
