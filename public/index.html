@@ -9958,6 +9958,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
               '<button type="button" class="follow-btn big" id="pprofShare"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg> Share</button></div>'
             : '<div class="pprof-actions">' + followBtnHTML(p.name, "big") +
               '<button type="button" class="follow-btn big" data-dm="' + escHtml(p.name) + '" data-act="msg">💬 Message</button>' +
+              '<button type="button" class="follow-btn big" data-act="tip">💝 Tip</button>' + /* [RP-V7.294] profile tips — earn stream #2 */
               '<button type="button" class="follow-btn big" id="pprofShare"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg> Share</button>' +
               '<button type="button" class="pprof-more" data-act="more" aria-label="More actions">•••</button></div>' +
               '<div class="pprof-menu" id="pprofMenu" hidden><button class="action-btn" data-act="report">' + icon("flag") + ' Report</button><button class="action-btn" data-act="mute">' + icon("flag") + ' Block</button></div>') +
@@ -9984,6 +9985,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             var act = b.getAttribute("data-act");
             if (act === "close") closeSheet();
             else if (act === "msg") closeSheet(); // DM module's [data-dm] handler opens the thread on this click
+            else if (act === "tip") { if (window.rpOpenTipSheet294) window.rpOpenTipSheet294(p.id, p.name); } // [RP-V7.294] the money layer's tip sheet replaces this sheet (openSheet semantics, same as every sheet hop)
             else if (act === "editprof") { closeSheet(); showScreen("profile"); }
             else if (act === "more") { var m = $("pprofMenu"); if (m) m.hidden = !m.hidden; }
             else if (act === "report") openOnlineReport(p);
@@ -35212,7 +35214,10 @@ button.rp72-chip{ cursor:pointer; }
     var following = j ? !!j.iFollow : false;
     box.innerHTML =
       '<button type="button" class="follow-btn big' + (following ? " on" : "") + '" id="rpMpFollow">' + (following ? "Following" : "+ Follow") + "</button>" +
-      '<button type="button" class="follow-btn big" id="rpMpMsg">💬 Message</button>';
+      '<button type="button" class="follow-btn big" id="rpMpMsg">💬 Message</button>' +
+      '<button type="button" class="follow-btn big" id="rpMpTip">💝 Tip</button>'; /* [RP-V7.294] profile tips — same button as the profile page, so every member profile carries it */
+    var tb294 = $("rpMpTip");
+    if (tb294) tb294.addEventListener("click", function () { if (window.rpOpenTipSheet294) window.rpOpenTipSheet294(accountId, name); });
     var fb = $("rpMpFollow");
     if (fb) fb.addEventListener("click", function () {
       var on = fb.classList.contains("on");
@@ -37445,6 +37450,73 @@ button.rp72-chip{ cursor:pointer; }
     });
   }
 
+  /* ---------- [RP-V7.294] profile tips: charm tips from the profile ---------- */
+  // The ladder mirrors TIP_LADDER_294 on the server (which enforces
+  // it) — every rung is also a real gift-catalog price (coffee 10 /
+  // clap 50 / kiss 100 / sportscar 500 / castle 1000), so a tip
+  // prices exactly like a gift. Settlement is the server's gift
+  // split: the creator keeps 70%, banked into the same Earn wallet.
+  var TIP_LADDER_294 = [10, 50, 100, 500, 1000];
+  var tipAttemptSeq294 = 0;
+  window.rpOpenTipSheet294 = function (targetId, targetName) {
+    if (!targetId && !targetName) { toast2("Pick someone to tip first!", 2600); return; }
+    refreshMoney(); // the balance line lands on server truth right behind the sheet (the gift sheet's FIX-1 pattern)
+    var bal = (typeof window.rpServerCharms === "function") ? window.rpServerCharms() : null;
+    var html =
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💝 Tip ' + esc(targetName || "them") + '</h3>' +
+      '<p style="text-align:center; color:var(--ink);">Your charms: <b>' + (bal == null ? "…" : bal.toLocaleString("en-US")) + '</b> · 1 charm = 1¢ of tip value. ' + esc(targetName || "They") + ' keep' + (targetName ? "s" : "") + ' 70% of every tip — it banks straight into their earnings.</p>' + /* [RP-V7.294] color:var(--ink) — the V7.292 lesson: this sheet family's default paragraph tone washes to ~2.1:1 in white mode; the theme ink holds >= 4.5 in both modes */
+      '<div class="gift-notice" id="tipNotice294" role="alert"></div>' +
+      '<div class="gift-grid">' + TIP_LADDER_294.map(function (c) {
+        return '<button type="button" class="gift-cell small' + (bal != null && bal < c ? " cant" : "") + '" data-tip294="' + c + '"><b>' + c.toLocaleString("en-US") + '</b><small>' + c.toLocaleString("en-US") + ' charms · ' + fmt$(c) + '</small></button>';
+      }).join("") + '</div>' + /* [RP-V7.294] the $ value rides the <small> line, not the gift cell's gold price <span>: that gold measures 1.41:1 on the white-mode sheet (measured, both modes, rig diag2-294) and this sheet's text must hold >= 4.5:1 in both modes — <small> measures 5.05 white / 6.67 black */
+      '<button class="btn-mini btn-big" id="tipGetCharms294" type="button">⭐ Get charms</button></div>';
+    if (!sheetOpen(html)) return;
+    var sh = $("sheet"); if (!sh) return;
+    var busy294 = false;
+    sh.querySelectorAll("[data-tip294]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (busy294) return; // one send in flight — the server dedupes by idem too, this just keeps the sheet calm
+        var amount = parseInt(btn.getAttribute("data-tip294"), 10) || 0;
+        if (!amount) return;
+        busy294 = true;
+        var idem = "t" + Date.now().toString(36) + (tipAttemptSeq294++).toString(36) + Math.random().toString(36).slice(2, 8); // one key per tap/attempt (the gift combo-pill rule: each deliberate tap is a new send; busy294 blocks a second tap while one is in flight, and the server dedupes any replay of the same key)
+        api("/api/money/tip", "POST", { toId: targetId || "", toName: targetName || "", charms: amount, idem: idem }, 30000).then(function (r) {
+          busy294 = false;
+          if (r.json && r.json.ok) {
+            if (typeof r.json.balance === "number") setLocalCharms(r.json.balance);
+            // [RP-V7.232] the gift SEND sound rule: a send made while
+            // NOT in a live room plays ONE SMALL BEEP — a profile tip
+            // is never sent from inside a live room, so it beeps,
+            // through the same AudioFX entry point sendGift uses.
+            try { if (window.AudioFX && window.AudioFX.beep) window.AudioFX.beep(); } catch (e) { }
+            toast2("💝 You tipped " + ((r.json.recipient && r.json.recipient.name) || targetName || "them") + " " + amount.toLocaleString("en-US") + " charms — it banks toward their earnings!", 3600);
+            try { window.closeSheet(); } catch (e) { }
+            setTimeout(function () { refreshMoney(); }, 400);
+            return;
+          }
+          if (r.json && r.json.error === "insufficient-charms") {
+            // The gift rule (RP-V7.26.1): stay ON the sheet with an
+            // inline notice — the charm shop opens only from the
+            // ⭐ Get charms button below, never as a bounce.
+            if (typeof r.json.balance === "number") setLocalCharms(r.json.balance);
+            var n = $("tipNotice294");
+            if (n) {
+              n.textContent = (r.json.message ? r.json.message + " — " : "Not enough charms — ") + "this tip is " + amount.toLocaleString("en-US") + " charms" + (typeof r.json.balance === "number" ? " and you have " + r.json.balance.toLocaleString("en-US") : "") + ". Tap ⭐ Get charms to top up.";
+              n.classList.add("show");
+            }
+            return;
+          }
+          if (r.json && r.json.error === "recipient-not-found") { toast2("That profile can't take tips right now.", 3200); return; }
+          if (!r.json) { offlineToast(); return; }
+          toast2("That tip didn't go through — " + (r.json.error || "please try again") + ".", 3200);
+        });
+      });
+    });
+    var gc294 = $("tipGetCharms294");
+    if (gc294) gc294.addEventListener("click", function () { if (typeof window.openCharmShop === "function") window.openCharmShop(); });
+  };
+
   /* ---------- Earn sheet: server earnings for accounts ---------- */
   var origEarnings = (typeof window.openEarnings === "function") ? window.openEarnings : null;
   function openServerEarnings() {
@@ -37537,6 +37609,8 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "auction") { label = "🔨 Auction sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); }
         else if (t.type === "store-sale") { label = "🛍️ Store sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); } // [RP-V7.240]
         else if (t.type === "creator-pool") { label = "👀 Creator Pool — weekly views payout"; amt = "+" + fmt$(t.cents); } // [RP-V7.293]
+        else if (t.type === "profile-tip") { label = "💝 Profile tip" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.294] the recipient's wallet row (kind "profile-tip") — charms-only tips show charms, never a $ figure (V7.217 honesty pattern)
+        else if (t.type === "tip-sent") { label = "💝 Tip sent" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.294]
         else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
         else if (t.type === "bizads" || t.type === "bizads-renew") { label = "📣 Business Ads"; amt = fmt$(t.cents); } // [RP-V7.224]
         else if (t.type === "cashout") { label = "💸 Cash-out requested"; amt = fmt$(t.cents); }
@@ -40710,6 +40784,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       row("🎁 Charm packs", st.charmPacksCents) +
       row("⭐ Premium subscriptions", st.premiumSubsCents) +
       row("🎁 Gifts volume", st.giftsVolumeCents) +
+      row("💝 Profile tips", st.profileTipsVolumeCents == null ? null : st.profileTipsVolumeCents,
+        '<div class="rp-os-note" style="margin-top:2px">' + Number(st.profileTipsCharms || 0).toLocaleString("en-US") + " charms tipped · creators earned " + money(st.profileTipsCreatorCents || 0) + " (70%) · Plaza kept " + money(st.profileTipsCutCents || 0) + " (30%)</div>") + /* [RP-V7.294] */
       row("🔨 Auctions volume", st.auctionsVolumeCents) +
       row("📣 Business Ads", st.bizadsCents == null ? null : st.bizadsCents,
         (typeof st.bizadsActive === "number") ? '<div class="rp-os-note" style="margin-top:2px">' + st.bizadsActive + " active advertiser" + (st.bizadsActive === 1 ? "" : "s") + "</div>" : "") +
