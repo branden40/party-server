@@ -37484,6 +37484,12 @@ button.rp72-chip{ cursor:pointer; }
         (e.nextUnlockAt ? ' — it unlocks <b>' + fmtDate(e.nextUnlockAt) + '</b>' : '') +
         '. Big gifts ($100+) wait 3 days before cash-out, in case a payment is disputed. It is yours — just not cashable yet.</div>';
     }
+    var cp293 = me.creatorPool || null; // [RP-V7.293] Creator Pool: settled pool earnings + this week's views / projected share
+    if (cp293 && ((cp293.allTimeCents || 0) > 0 || (cp293.thisWeekViews || 0) > 0)) {
+      html += '<p style="text-align:center; margin:8px 0 0; color:var(--ink);">👀 <b>Creator Pool</b> — ' +
+        ((cp293.allTimeCents || 0) > 0 ? fmt$(cp293.allTimeCents) + ' earned from your views so far' : 'no payout yet') +
+        ((cp293.thisWeekViews || 0) > 0 ? ' · ' + Number(cp293.thisWeekViews).toLocaleString("en-US") + ' views this week · projected payout ' + fmt$(cp293.thisWeekProjectedCents || 0) + ' (pays Monday)' : '') + '</p>';
+    }
     html += '<p class="rpM-timing">Request any day once you\'re past $20 — payout lands after Stripe clears it (usually a couple of days), minus a 25¢ payout fee.</p>';
     html += '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:10px;">';
     if (elig.canCashOut) {
@@ -37524,11 +37530,13 @@ button.rp72-chip{ cursor:pointer; }
         // was tagged (t.src). Rows with neither render exactly as
         // they always have.
         var srcTag233 = t.src === "picture" ? " · 📷 picture" : t.src === "video" ? " · 🎥 video" : t.src === "live" ? " · 🔴 live" : "";
-        if (t.type === "gift-received") { label = "🎁 Gift received" + (t.fromName ? " — from " + esc(t.fromName) : "") + srcTag233 + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.74] charms-only gifts (a teen on either side) earn no money — show the charms, never "+$0.00" // [RP-V7.217] + the stored charmsOnly flag labels the entry and pins the amount to charms even if a legacy record carried cents
+        if (t.refund) { label = "↩️ Refund — " + (t.type === "purchase" ? "charm pack" : "Premium"); amt = fmt$(t.cents); } // [RP-V7.293] a reversed sale
+        else if (t.type === "gift-received") { label = "🎁 Gift received" + (t.fromName ? " — from " + esc(t.fromName) : "") + srcTag233 + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.74] charms-only gifts (a teen on either side) earn no money — show the charms, never "+$0.00" // [RP-V7.217] + the stored charmsOnly flag labels the entry and pins the amount to charms even if a legacy record carried cents
         else if (t.type === "gift-sent") { label = "🎁 Gift sent" + (t.toName ? " — to " + esc(t.toName) : "") + srcTag233; amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "purchase") { label = "⭐ Charm pack"; amt = "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "auction") { label = "🔨 Auction sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); }
         else if (t.type === "store-sale") { label = "🛍️ Store sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); } // [RP-V7.240]
+        else if (t.type === "creator-pool") { label = "👀 Creator Pool — weekly views payout"; amt = "+" + fmt$(t.cents); } // [RP-V7.293]
         else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
         else if (t.type === "bizads" || t.type === "bizads-renew") { label = "📣 Business Ads"; amt = fmt$(t.cents); } // [RP-V7.224]
         else if (t.type === "cashout") { label = "💸 Cash-out requested"; amt = fmt$(t.cents); }
@@ -40689,6 +40697,15 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     function row(label, cents, extra) {
       return '<div class="rp-os-row"><span>' + label + '</span><b>' + (cents == null ? "—" : money(cents)) + "</b></div>" + (extra || "");
     }
+    var cp293 = d.creatorPool || null; // [RP-V7.293] Creator Pool rows (accrual rides /api/owner/sales)
+    var poolRows293 = "";
+    if (cp293) {
+      poolRows293 =
+        row("👀 Creator Pool — accrued this week", cp293.accruedThisWeekCents,
+          '<div class="rp-os-note" style="margin-top:2px">15% of ' + money(cp293.salesThisWeekCents || 0) + ' in charm-pack + Premium sales · ' + Number(cp293.thisWeekViews || 0).toLocaleString("en-US") + ' payable views so far · settles ' + esc2(cp293.settleSlot || "Mondays 03:00 ET") + "</div>") +
+        row("👀 Creator Pool — paid last settled week", cp293.lastSettledPaidCents == null ? null : cp293.lastSettledPaidCents,
+          '<div class="rp-os-note" style="margin-top:2px">' + (cp293.lastSettledWeekKey ? "Week of " + esc2(cp293.lastSettledWeekKey) + " · " : "") + money(cp293.carryCents || 0) + " in the pool rolls into next week</div>");
+    }
     h += '<div class="rp-os-rows">' +
       row("🎁 Charm packs", st.charmPacksCents) +
       row("⭐ Premium subscriptions", st.premiumSubsCents) +
@@ -40701,6 +40718,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         ((typeof st.plazaStoreReports === "number" && st.plazaStoreReports > 0) ? '<div class="rp-os-note" style="margin-top:2px">🚩 ' + st.plazaStoreReports + " product report" + (st.plazaStoreReports === 1 ? "" : "s") + " to review</div>" : "")) +
       row("🛍️ Store · Magniphiscents", st.storeCents == null ? null : st.storeCents,
         st.storeCents == null ? "" : '<div class="rp-os-note" style="margin-top:2px">Store total as of ' + esc2(st.storeAsOf || "") + "</div>") +
+      poolRows293 +
       "</div>";
     // [RP-V7.263] UNDERAGE — priority: open "Under 18" reports
     // + the one-tap suspend (a bare report never suspends anyone;
@@ -40744,6 +40762,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
      RP_MAGNI_STORE_OWNER_ONLY_7223 to false and reload — no markup,
      product, or data was removed. To hide from everyone including the
      owner instead, delete the magniStoreOwnerCheck() invocations. */
+  /* [RP-V7.293 rider] The pay sheet's Shop commissions row was decoupled from this gate on Branden's Nov 8 order ("just list it") — it renders for everyone like the other earn rows. The Plaza shop card stays owner-only behind this switch; the store itself is unchanged. */
   var RP_MAGNI_STORE_OWNER_ONLY_7223 = true;
   function magniStoreApply(isOwner) {
     var show = !RP_MAGNI_STORE_OWNER_ONLY_7223 || !!isOwner;
@@ -41503,17 +41522,17 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       <div class="earn-row"><span class="earn-ric">📸</span><div><b>Gifts on your pictures & videos — you keep 70%</b><p>Fans can gift your photo posts and reels, not just your lives. No other platform has this feature!</p></div></div>
       <div class="earn-row"><span class="earn-ric">🔨</span><div><b>Live auctions — you keep 90%</b><p>Sell live, Whatnot-style. You keep 90% of every winning bid.</p></div></div>
       <div class="earn-row"><span class="earn-ric">🛍️</span><div><b>Plaza Store sales — you keep 90%</b><p>Sell in the Plaza Store and keep 90% of every sale.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">👀</span><div><b>Views pay you</b><p>A Creator Pool takes 15% of charm-pack and premium sales and splits it weekly by real views on your reels, photos, and lives. No ads needed — you get paid like YouTube, without the ads.</p></div></div>
       <div class="earn-note">One Stripe connection covers all of it — connect once in Earn, and cash out everything together starting at $20.</div>
-      <div class="earn-sec">Coming to the Plaza</div>
-      <div class="earn-row"><span class="earn-ric">👀</span><div><b>Views pay you<span class="earn-badge">COMING</span></b><p>A Creator Pool takes 15% of charm-pack and premium sales and splits it weekly by real views on your reels, photos, and lives. No ads needed — you get paid like YouTube, without the ads.</p></div></div>
-      <div class="earn-row"><span class="earn-ric">⭐</span><div><b>Fan subscriptions<span class="earn-badge">COMING</span></b><p>Your fans subscribe to YOU monthly.</p></div></div>
-      <div class="earn-row"><span class="earn-ric">💌</span><div><b>Profile tips<span class="earn-badge">COMING</span></b><p>Anyone can tip you right from your profile, any time.</p></div></div>
-      <div class="earn-row"><span class="earn-ric">🎟️</span><div><b>Ticketed lives<span class="earn-badge">COMING</span></b><p>Charge at the door for concerts, classes, and showcases. Church is always free on Rizz Plaza.</p></div></div>
-      <div class="earn-row"><span class="earn-ric">📣</span><div><b>Paid shoutouts<span class="earn-badge">COMING</span></b><p>Set your price for birthday shoutouts, song requests, and advice.</p></div></div>
-      <div class="earn-row rp-magni-store-surface" id="rpMagniStoreEarnRow" hidden aria-hidden="true"><span class="earn-ric">🛍️</span><div><b>Shop commissions<span class="earn-badge">COMING</span></b><p>Earn a cut selling Magniphiscents products in your lives and posts.</p></div></div>
-      <div class="earn-row"><span class="earn-ric">👑</span><div><b>Fan clubs<span class="earn-badge">COMING</span></b><p>Paid memberships with member-only rooms.</p></div></div>
+      <div class="earn-sec">More ways to earn</div>
+      <div class="earn-row"><span class="earn-ric">⭐</span><div><b>Fan subscriptions</b><p>Your fans subscribe to YOU monthly.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">💌</span><div><b>Profile tips</b><p>Anyone can tip you right from your profile, any time.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">🎟️</span><div><b>Ticketed lives</b><p>Charge at the door for concerts, classes, and showcases. Church is always free on Rizz Plaza.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">📣</span><div><b>Paid shoutouts</b><p>Set your price for birthday shoutouts, song requests, and advice.</p></div></div>
+      <div class="earn-row" id="rpMagniStoreEarnRow"><span class="earn-ric">🛍️</span><div><b>Shop commissions</b><p>Earn a cut selling Magniphiscents products in your lives and posts.</p></div></div>
+      <div class="earn-row"><span class="earn-ric">👑</span><div><b>Fan clubs</b><p>Paid memberships with member-only rooms.</p></div></div>
       <div class="earn-sec">How cash-out works</div>
-      <div class="earn-note">Everything you earn lands in your Plaza wallet. At <b>$20</b> you cash out to your bank through Stripe. Cash earnings are <b>18+</b>; younger members earn charms. Plus: Daily Pots and Plaza Pots pay out <b>charms</b> every day — the Plaza Pot bursts live in hosted rooms, and both Daily Pots burst between 7–9 PM ET.</div>
+      <div class="earn-note">Everything you earn lands in your Plaza wallet. At <b>$20</b> you cash out to your bank through Stripe. Cash earnings are <b>18+</b>. Plus: the Daily Pot and the Plaza Pot pay out <b>charms</b> — the Daily Pot bursts sometime between 7 and 9 PM ET with up to five winners, and the Plaza Pot bursts live in hosted rooms.</div>
     </div>
   </div>
 
