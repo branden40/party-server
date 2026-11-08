@@ -39776,6 +39776,8 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     if (!acctRec()) { toastS("Sign in to post a story 🎬", 3600); return; }
     if (!postGateTap(function () { openPoster(); })) return;
     if (typeof window.openSheet !== "function") { toastS("Stories open from inside the Plaza app.", 3600); return; }
+    var ov285 = document.getElementById("overlay"); // [RP-V7.285] the poster is a standard sheet: drop the full-screen DM mode the Inbox latches (same strip as the V7.222 conversation menu / report) — opened from the Inbox story row it otherwise renders jammed at the very top of the black full-screen sheet, its X up in the status bar
+    if (ov285) ov285.classList.remove("rpdm-full");
     window.openSheet(
       '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
       '<div class="game-box" style="text-align:center;"><h3>🎬 Post to your story</h3>' +
