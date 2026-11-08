@@ -11541,7 +11541,7 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites" }; // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites" }; // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true };
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 // [RP-V7.129] NEW-POST ALERTS: when a member posts, every follower gets
@@ -12821,6 +12821,7 @@ function emptyMoney() {
     txlog: [],
     processed: {},
     giftIdem: {}, // [RP-V7.52] gift idempotency keys -> original responses
+    tipIdem: {}, // [RP-V7.294] profile-tip idempotency keys -> original responses
     giftBals: {}, // [RP-V7.74] under-18 earned/won gift balance (charms) — see giftBalMirrorWin
     postGifts: {}, // [RP-V7.262] gift counts per post ("reel:<id>" / "photo:<id>") -> gift UNITS received; written only by the gift handler, in the same write as the settlement it counts
     auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — recorded outcomes are final; [RP-V7.89] insufficient-charms failures are never recorded (FAIL-1)
@@ -12847,6 +12848,8 @@ function readMoney() {
     d.processed = {};
   if (!d.giftIdem || typeof d.giftIdem !== "object" || Array.isArray(d.giftIdem))
     d.giftIdem = {};
+  if (!d.tipIdem || typeof d.tipIdem !== "object" || Array.isArray(d.tipIdem))
+    d.tipIdem = {}; // [RP-V7.294] profile-tip idempotency records (same pattern as giftIdem)
   if (!d.giftBals || typeof d.giftBals !== "object" || Array.isArray(d.giftBals))
     d.giftBals = {};
   if (!d.postGifts || typeof d.postGifts !== "object" || Array.isArray(d.postGifts))
@@ -15102,6 +15105,197 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   });
   res.json(giftResponse);
 }));
+// ---------------------------------------------------------------------------
+// [RP-V7.294] PROFILE TIPS — earn stream #2 (Branden's approved queue,
+// Nov 8, 2026; #1 Creator Pool shipped as V7.293). Implements the pay
+// sheet's published row: "Profile tips — Anyone can tip you right
+// from your profile, any time." A tip is a gift-class money movement
+// with no catalog item: the fan pays CHARMS from the same balance
+// gifts spend, and settlement reuses the gift machinery EXACTLY —
+// CHARM_CENT_VALUE (1 charm = 1¢), GIFT_HOST_PCT (creator 70% /
+// platform 30%), the LARGE_GIFT_HOLD_CENTS safety hold, the money
+// lock, the ledger pair, and the Earn wallet (availableCents /
+// totalEarnedCents), so a tip counts toward the $20 Stripe Connect
+// cash-out like every other stream. The recipient's ledger row is
+// type "profile-tip" (the wallet kind the Earn history renders);
+// the sender's row is "tip-sent". Amounts come from a fixed ladder
+// the client offers and the server enforces — every rung is also a
+// real gift-catalog price (coffee 10 / clap 50 / kiss 100 /
+// sportscar 500 / castle 1000), so tips price exactly like gifts.
+// A tip is NOT a gift: it grows no pot, credits no rank/affinity,
+// and stamps no post — those hooks are gift-only by their rules.
+// Teen corner mirrors gifts (RP-V7.74): with an under-18 account on
+// either side (in the 18+ Plaza that is only the owner's @Popstar
+// test account) the tip runs CHARMS-ONLY — a teen sender spends
+// their earned/won gift balance, the recipient is credited charms,
+// and no earnings exist. Tips to a locked-out (teen-disabled /
+// age-suspended) or pending-deletion account resolve exactly like
+// gifts to one: 404 recipient-not-found, nothing moves.
+// ---------------------------------------------------------------------------
+const TIP_LADDER_294 = [10, 50, 100, 500, 1000];
+app.post("/api/money/tip", lockedHandler("tip", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  // Idempotency, the gift pattern (RP-V7.52): the client stamps each
+  // tip ATTEMPT with a key; a retry (double-tap, network retry)
+  // returns the original result and never re-charges.
+  const idemKey = String(b.idem || "").slice(0, 64);
+  const idemStoreKey = idemKey ? ctx.user.id + ":" + idemKey : null;
+  const db = readMoney();
+  if (idemStoreKey) {
+    const seen = db.tipIdem[idemStoreKey];
+    if (seen && seen.response)
+      return res.json(Object.assign({}, seen.response, { deduped: true }));
+  }
+  const charmsRaw294 = Number(b.charms);
+  if (!Number.isInteger(charmsRaw294) || TIP_LADDER_294.indexOf(charmsRaw294) < 0)
+    return res.status(400).json({ ok: false, error: "invalid-tip-amount" });
+  const charms = charmsRaw294;
+  // Recipient: the profile sheet passes the account id (an id match
+  // must agree with the name when both ride); otherwise the gift
+  // rule — exact unique display-name match.
+  const toId = String(b.toId || "").slice(0, 64);
+  const toName = String(b.toName || "").trim().slice(0, 40);
+  let recipient = null;
+  if (toId) {
+    const byId = ctx.db.users.find((u) => u && u.id === toId);
+    if (byId && (!toName || byId.name === toName)) recipient = byId;
+  }
+  if (!recipient && toName) {
+    const ms = ctx.db.users.filter(
+      (u) => u && u.name === toName && u.id !== ctx.user.id
+    );
+    if (ms.length === 1) recipient = ms[0];
+  }
+  if (!recipient) {
+    if ((toId && toId === ctx.user.id) || (toName && toName === ctx.user.name))
+      return res
+        .status(400)
+        .json({ ok: false, error: "You can't tip yourself" });
+    return res
+      .status(404)
+      .json({ ok: false, resolved: false, error: "recipient-not-found" });
+  }
+  if (recipient.id === ctx.user.id)
+    return res
+      .status(400)
+      .json({ ok: false, error: "You can't tip yourself" });
+  // [RP-V7.263] A locked-out or pending-deletion account is
+  // de-listed everywhere — tips to it resolve like gifts to it.
+  if (accountLockedOut(recipient) || recipient.deletionAt)
+    return res
+      .status(404)
+      .json({ ok: false, resolved: false, error: "recipient-not-found" });
+  const balance = db.balances[ctx.user.id] || 0;
+  const senderTeen = ageFromDob(ctx.user.dob) < 18;
+  const charmsOnly = senderTeen || ageFromDob(recipient.dob) < 18;
+  let giftBal = (db.giftBals && db.giftBals[ctx.user.id]) || 0;
+  if (senderTeen) {
+    if (giftBal < charms)
+      return res.status(400).json({
+        ok: false,
+        error: "insufficient-charms",
+        message: "Earn or win charms to tip",
+        balance,
+        giftBal,
+        needed: charms,
+      });
+  } else if (balance < charms) {
+    return res.status(400).json({
+      ok: false,
+      error: "insufficient-charms",
+      balance,
+      needed: charms,
+    });
+  }
+  if (senderTeen) {
+    giftBal -= charms;
+    db.giftBals[ctx.user.id] = giftBal;
+  } else {
+    db.balances[ctx.user.id] = balance - charms;
+  }
+  let tipValueCents = 0, tipShare = 0, tipCut = 0, tipHeld = false;
+  if (charmsOnly) {
+    db.balances[recipient.id] = (db.balances[recipient.id] || 0) + charms;
+  } else {
+    tipValueCents = charms * CHARM_CENT_VALUE;
+    tipShare = Math.floor((tipValueCents * GIFT_HOST_PCT) / 100);
+    tipCut = tipValueCents - tipShare;
+    const earn = moneyEarningsFor(db, recipient.id);
+    if (tipValueCents >= LARGE_GIFT_HOLD_CENTS) {
+      earn.held.push({
+        cents: tipShare,
+        unlockAt: new Date(
+          Date.now() + HOLD_DAYS * 24 * 3600 * 1000
+        ).toISOString(),
+        reason: "large-tip",
+      });
+      tipHeld = true;
+    } else {
+      earn.availableCents += tipShare;
+    }
+    earn.totalEarnedCents += tipShare;
+  }
+  const tipTxBase = { from: ctx.user.id, to: recipient.id, charms, ref: "tip" };
+  moneyTx(db, Object.assign({}, tipTxBase, {
+    type: "tip-sent", cents: tipValueCents, cut: tipCut,
+  }));
+  moneyTx(db, Object.assign({}, tipTxBase, {
+    // The recipient's wallet row — kind "profile-tip"; the stored
+    // charmsOnly flag (RP-V7.217 pattern) keeps a charms-only tip
+    // from ever rendering as a $ figure in Earn history.
+    type: "profile-tip", cents: tipShare, cut: tipCut, charmsOnly,
+  }));
+  const tipResponse = {
+    ok: true,
+    balance: db.balances[ctx.user.id],
+    charged: charms,
+    recipient: { id: recipient.id, name: recipient.name },
+    hostShareCents: tipShare,
+    held: tipHeld,
+    charmsOnly,
+    recipientCharms: charmsOnly ? charms : 0,
+    giftBal,
+  };
+  // The idempotency record lands in the SAME write as the debit
+  // (audit C6 pattern), so a retry can never slip between them.
+  if (idemStoreKey) {
+    db.tipIdem[idemStoreKey] = {
+      at: new Date().toISOString(),
+      response: tipResponse,
+    };
+    const tipIdemKeys = Object.keys(db.tipIdem);
+    if (tipIdemKeys.length > 400) {
+      tipIdemKeys.sort((a, b2) =>
+        String(db.tipIdem[a].at).localeCompare(String(db.tipIdem[b2].at))
+      );
+      for (let i = 0; i < tipIdemKeys.length - 400; i++)
+        delete db.tipIdem[tipIdemKeys[i]];
+    }
+  }
+  writeMoney(db);
+  console.log(
+    "[money] tip", charms, "charms:", ctx.user.name, "->", recipient.name,
+    "| host", tipShare, "c", tipHeld ? "(held)" : "", "| cut", tipCut, "c",
+    charmsOnly ? "| CHARMS-ONLY (teen involved)" : ""
+  );
+  // The recipient hears about the tip — bell + email, through the
+  // same notifyActivity plumbing as gifts (kind "tip" rides the
+  // member's "gifts" bell switch; idempotent retries returned
+  // earlier and never reach this line, so a tip notifies once).
+  notifyActivity({
+    toId: recipient.id,
+    kind: "tip",
+    actorId: ctx.user.id,
+    actorName: ctx.user.name,
+    text: "💝 " + ctx.user.name + " tipped you " + charms.toLocaleString("en-US") + " charms!",
+    emailSubject: "You got a tip on Rizz Plaza 💝",
+    emailText: ctx.user.name + " tipped you " + charms.toLocaleString("en-US") + " charms on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    go: { screen: "ownprofile" },
+  });
+  res.json(tipResponse);
+}));
 // RP-V7.22: Daily host rankings. A lightweight tally of charms gifted
 // per host per calendar day (America/New_York), credited from the
 // /api/money/gift path below - the money ledger stays the source of
@@ -15410,6 +15604,12 @@ function rpOwnerUserId(adb) {
 }
 function rpSalesStreams(mdb) {
   let charmPacksCents = 0, premiumSubsCents = 0, giftsVolumeCents = 0, auctionsVolumeCents = 0, bizadsCents = 0, plazaStoreSalesCents = 0, plazaStoreCutCents = 0; // [RP-V7.240] plazaStore* = the member Plaza Store ("store-sale" tx: cents = gross sale, cut = the Plaza's 10%)
+  // [RP-V7.294] Profile tips: volume + charm count ride the
+  // "tip-sent" rows (cents = the tip's dollar value, 0 for a
+  // charms-only tip exactly like gift-sent); the creator 70% and
+  // the platform's 30% ride the recipient's "profile-tip" rows
+  // (cents = creator share, cut = platform share).
+  let profileTipsVolumeCents = 0, profileTipsCharms = 0, profileTipsCreatorCents = 0, profileTipsCutCents = 0;
   for (const tx of mdb.txlog || []) {
     if (!tx || typeof tx !== "object") continue;
     const c = Math.round(Number(tx.cents) || 0);
@@ -15419,8 +15619,10 @@ function rpSalesStreams(mdb) {
     else if (tx.type === "auction-paid") auctionsVolumeCents += c;
     else if (tx.type === "bizads" || tx.type === "bizads-renew") bizadsCents += c; // [RP-V7.224]
     else if (tx.type === "store-sale") { plazaStoreSalesCents += c; plazaStoreCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.240]
+    else if (tx.type === "tip-sent") { profileTipsVolumeCents += c; profileTipsCharms += Math.round(Number(tx.charms) || 0); } // [RP-V7.294]
+    else if (tx.type === "profile-tip") { profileTipsCreatorCents += c; profileTipsCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.294]
   }
-  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents, plazaStoreSalesCents, plazaStoreCutCents }; // [RP-V7.240]
+  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents, plazaStoreSalesCents, plazaStoreCutCents, profileTipsVolumeCents, profileTipsCharms, profileTipsCreatorCents, profileTipsCutCents }; // [RP-V7.240] // [RP-V7.294] + profile tips
 }
 // [RP-V7.224] How many Business Ads subscriptions are active right now
 // (state-checked, so a lapsed sub never counts).
@@ -15692,7 +15894,7 @@ app.get("/api/owner/sales", (req, res) => {
   const s = rpSalesStreams(mdb);
   const storeCents = mdb.ownerStore && isFinite(Number(mdb.ownerStore.storeCents)) ? Math.round(Number(mdb.ownerStore.storeCents)) : null;
   const storeAsOf = storeCents === null ? null : (mdb.ownerStore.at || null);
-  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + s.plazaStoreSalesCents + (storeCents || 0); // [RP-V7.240] Plaza Store gross sales count in the Plaza total like auctions volume
+  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.profileTipsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + s.plazaStoreSalesCents + (storeCents || 0); // [RP-V7.240] Plaza Store gross sales count in the Plaza total like auctions volume // [RP-V7.294] profile-tip volume counts in the total like gift volume
   const stepDollars = 10000, capDollars = 3000000;
   const totalDollars = totalCents / 100;
   const crossed = totalDollars >= stepDollars ? Math.min(capDollars, Math.floor(totalDollars / stepDollars) * stepDollars) : 0;
@@ -15704,6 +15906,10 @@ app.get("/api/owner/sales", (req, res) => {
       charmPacksCents: s.charmPacksCents,
       premiumSubsCents: s.premiumSubsCents,
       giftsVolumeCents: s.giftsVolumeCents,
+      profileTipsVolumeCents: s.profileTipsVolumeCents, // [RP-V7.294]
+      profileTipsCharms: s.profileTipsCharms, // [RP-V7.294]
+      profileTipsCreatorCents: s.profileTipsCreatorCents, // [RP-V7.294]
+      profileTipsCutCents: s.profileTipsCutCents, // [RP-V7.294]
       auctionsVolumeCents: s.auctionsVolumeCents,
       bizadsCents: s.bizadsCents, // [RP-V7.224]
       bizadsActive: rpBizAdsActiveCount(mdb), // [RP-V7.224]
