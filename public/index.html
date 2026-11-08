@@ -840,6 +840,22 @@
       .rp-lock296 .lk-sub { font-size: 12.5px; font-weight: 600; line-height: 1.35; }
       .rp-lock296 .rp-lock-btn296 { background: #fe2c2c; color: #fff; border: 0; border-radius: 999px; padding: 8px 18px; font-weight: 800; font-size: 13.5px; cursor: pointer; font-family: inherit; }
       .ctx-subs278 { border: 0; border-radius: 999px; background: #26262e; color: #fff; font-weight: 800; font-size: 12.5px; padding: 8px 13px; cursor: pointer; }
+      /* [RP-V7.298] Fan clubs: the club lock button (panel styling is
+         the shared .rp-lock296), the profile club card, and the club
+         room's member list / post rows. */
+      .rp-lock296 .rp-lock-btn298 { background: #fe2c2c; color: #fff; border: 0; border-radius: 999px; padding: 8px 18px; font-weight: 800; font-size: 13.5px; cursor: pointer; font-family: inherit; }
+      .ctx-club278 { border: 0; border-radius: 999px; background: #26262e; color: #fff; font-weight: 800; font-size: 12.5px; padding: 8px 13px; cursor: pointer; }
+      .ctx-club278.on { background: #fe2c2c; }
+      .pprof-clubcard { text-align: left; background: var(--panel); color: var(--ink); border-radius: 14px; padding: 12px 14px; margin: 12px auto 0; max-width: 520px; cursor: pointer; box-sizing: border-box; }
+      .pprof-clubcard b { display: block; font-size: 15px; }
+      .pprof-clubcard p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; opacity: .85; }
+      .fc298-members { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 4px; }
+      .fc298-member { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 64px; text-align: center; font-size: 11.5px; font-weight: 700; color: var(--ink); }
+      .fc298-member img, .fc298-member .fc298-init { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+      .fc298-member .fc298-init { display: flex; align-items: center; justify-content: center; background: #26262e; color: #fff; font-size: 18px; font-weight: 900; }
+      .fc298-post { margin: 10px 0; text-align: left; }
+      .fc298-post img, .fc298-post video { width: 100%; border-radius: 12px; display: block; }
+      .fc298-post p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ink); }
       .ctx-subs278.on { background: #fe2c2c; }
       .pprof-subline { text-align: center; font-weight: 700; margin: 8px 0 0; }
       .pd-bar { display: flex; gap: 10px; margin-top: 16px; }
@@ -3971,6 +3987,20 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
                 <button type="button" class="pd-aud" data-fansub-tier296="2500">2,500 / mo</button>
                 <button type="button" class="pd-aud" data-fansub-tier296="5000">5,000 / mo</button>
               </div>
+            </div>
+            <div class="field" id="fanClubSetup298">
+              <label>👑 Fan Club</label>
+              <p class="age-note" style="margin:0 0 8px;">Your Fan Club is a member-only room on your profile: members see your club-only posts and the member list. Paid clubs settle like fan subscriptions — you keep 70% of every month, banked into your Earn wallet. <b><span id="fanClubCount298">0</span> members</b><span id="fanClubState298"> · no club yet — name it and tap Save club</span>. Changing your price applies to NEW members — current members keep the price they joined at.</p>
+              <input type="text" id="fanClubName298" maxlength="40" placeholder="Club name (up to 40 characters)" aria-label="Fan Club name" style="width:100%; box-sizing:border-box; margin:0 0 8px;" />
+              <input type="text" id="fanClubAbout298" maxlength="140" placeholder="About your club (up to 140 characters)" aria-label="About your Fan Club" style="width:100%; box-sizing:border-box; margin:0 0 8px;" />
+              <div class="btn-row" style="flex-wrap:wrap; margin:0 0 8px;">
+                <button type="button" class="pd-aud" data-fanclub-tier298="0">Free</button>
+                <button type="button" class="pd-aud" data-fanclub-tier298="500">500 / mo</button>
+                <button type="button" class="pd-aud" data-fanclub-tier298="1000">1,000 / mo</button>
+                <button type="button" class="pd-aud" data-fanclub-tier298="2500">2,500 / mo</button>
+                <button type="button" class="pd-aud" data-fanclub-tier298="5000">5,000 / mo</button>
+              </div>
+              <div class="btn-row"><button type="button" class="btn-mini" id="fanClubSave298">👑 Save club</button></div>
             </div>
             <div class="btn-row">
               <button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnSaveProfile">Save profile</button>
@@ -9985,10 +10015,13 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
               '<button type="button" class="follow-btn big" data-dm="' + escHtml(p.name) + '" data-act="msg">💬 Message</button>' +
               '<button type="button" class="follow-btn big" data-act="tip">💝 Tip</button>' + /* [RP-V7.294] profile tips — earn stream #2 */
               '<button type="button" class="follow-btn big" data-act="fansub" id="pprofSub296">⭐ Subscribe</button>' + /* [RP-V7.296] fan subscriptions — earn stream #3 */
+              '<button type="button" class="follow-btn big" data-act="fanclub" id="pprofClub298">👑 Fan Club</button>' + /* [RP-V7.298] fan clubs — earn stream #4 */
               '<button type="button" class="follow-btn big" id="pprofShare"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg> Share</button>' +
               '<button type="button" class="pprof-more" data-act="more" aria-label="More actions">•••</button></div>' +
               '<div class="pprof-menu" id="pprofMenu" hidden><button class="action-btn" data-act="report">' + icon("flag") + ' Report</button><button class="action-btn" data-act="mute">' + icon("flag") + ' Block</button></div>') +
           '<p class="pprof-subline" id="pprofSubLine" hidden></p>' + /* [RP-V7.296] own-profile subscriber line, painted from j.fanSub */
+          '<p class="pprof-subline" id="pprofClubLine" hidden></p>' + /* [RP-V7.298] own-profile club line, painted from j.fanClub */
+          '<div class="pprof-clubcard" id="pprofClubCard298" hidden></div>' + /* [RP-V7.298] the club card: name / about / members / price, tap opens the room or the join sheet */
           '<div class="pprof-tabs">' +
           '<button class="pprof-tab on" id="pprofTabPosts" type="button">Posts</button>' +
           '<button class="pprof-tab" id="pprofTabLiked" type="button">Liked</button>' +
@@ -10014,6 +10047,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             else if (act === "msg") closeSheet(); // DM module's [data-dm] handler opens the thread on this click
             else if (act === "tip") { if (window.rpOpenTipSheet294) window.rpOpenTipSheet294(p.id, p.name); } // [RP-V7.294] the money layer's tip sheet replaces this sheet (openSheet semantics, same as every sheet hop)
             else if (act === "fansub") { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(p.id, p.name); } // [RP-V7.296]
+            else if (act === "fanclub") { if (window.rpOpenFanClubSheet298) window.rpOpenFanClubSheet298(p.id, p.name); } // [RP-V7.298]
             else if (act === "editprof") { closeSheet(); showScreen("profile"); }
             else if (act === "more") { var m = $("pprofMenu"); if (m) m.hidden = !m.hidden; }
             else if (act === "report") openOnlineReport(p);
@@ -10056,6 +10090,29 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             if (sb296p) sb296p.textContent = (fs296p.subscription && fs296p.subscription.access) ? "⭐ Subscribed ✓" : "⭐ Subscribe · " + Number(fs296p.priceCharms || 0).toLocaleString("en-US") + "/mo";
             var sl296p = $("pprofSubLine");
             if (sl296p && isSelf) { sl296p.textContent = "⭐ " + (fs296p.subscriberCount || 0) + " subscriber" + ((fs296p.subscriberCount || 0) === 1 ? "" : "s") + " · your price " + Number(fs296p.priceCharms || 0).toLocaleString("en-US") + " charms/mo — set it in Profile setup"; sl296p.hidden = false; }
+          }
+          var fc298p = j.fanClub || null; // [RP-V7.298] paint the Fan Club button, the own-profile club line, and the club card from the server payload
+          if (fc298p) {
+            var club298p = fc298p.club || null;
+            var cb298p = $("pprofClub298");
+            if (cb298p) {
+              if (!club298p) cb298p.hidden = true; // no club yet — no Join button to show
+              else cb298p.textContent = (fc298p.membership && fc298p.membership.access) ? "👑 Joined ✓" : "👑 Fan Club · " + (club298p.priceCharms > 0 ? Number(club298p.priceCharms).toLocaleString("en-US") + "/mo" : "Free");
+            }
+            var cl298p = $("pprofClubLine");
+            if (cl298p && isSelf) {
+              cl298p.textContent = club298p ? "👑 Your Fan Club \u201C" + (club298p.name || "Fan Club") + "\u201D — " + (fc298p.memberCount || 0) + " member" + ((fc298p.memberCount || 0) === 1 ? "" : "s") + " · " + (club298p.priceCharms > 0 ? Number(club298p.priceCharms).toLocaleString("en-US") + " charms/mo" : "Free") + " — manage it in Profile setup" : "👑 No Fan Club yet — create yours in Profile setup";
+              cl298p.hidden = false;
+            }
+            var cc298p = $("pprofClubCard298");
+            if (cc298p && club298p) {
+              cc298p.innerHTML = "<b>👑 " + escHtml(club298p.name || "Fan Club") + "</b>" + (club298p.about ? "<p>" + escHtml(club298p.about) + "</p>" : "") + "<p>" + (fc298p.memberCount || 0) + " member" + ((fc298p.memberCount || 0) === 1 ? "" : "s") + " · " + (club298p.priceCharms > 0 ? Number(club298p.priceCharms).toLocaleString("en-US") + " charms/mo" : "Free to join") + ((fc298p.membership && fc298p.membership.access) || isSelf ? " · Tap to enter the club room" : " · Tap to join") + "</p>";
+              cc298p.hidden = false;
+              cc298p.addEventListener("click", function () {
+                if ((fc298p.membership && fc298p.membership.access) || isSelf) { if (window.rpOpenFanClubRoom298) window.rpOpenFanClubRoom298(p.id, p.name); }
+                else if (window.rpOpenFanClubSheet298) window.rpOpenFanClubSheet298(p.id, p.name);
+              });
+            }
           }
           $("pprofFollowing").textContent = j.followingCount;
           $("pprofFollowers").textContent = j.followersCount;
@@ -23266,7 +23323,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       }
       function momSrvPost(sp) {
         return {
-          id: sp.id, srv: true, mine: !!sp.mine, name: sp.author || "Someone", locked: !!sp.locked, subsOnly: !!sp.subsOnly, authorId: sp.authorId || "", /* [RP-V7.296] */
+          id: sp.id, srv: true, mine: !!sp.mine, name: sp.author || "Someone", locked: !!sp.locked, subsOnly: !!sp.subsOnly, clubOnly: !!sp.clubOnly, authorId: sp.authorId || "", /* [RP-V7.296] */ /* [RP-V7.298] */
           photo: sp.photo || "", urls: (sp.urls && sp.urls.length ? sp.urls.slice() : (sp.photo ? [sp.photo] : [])), /* [RP-V7.123] */ caption: sp.caption || "", location: sp.location || "", link: sp.link || "", audience: sp.audience || "everyone", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
           likeBase: 0, srvLikes: sp.likes || 0, liked: !!sp.myLiked, srvReposts: sp.reposts || 0, reposted: !!sp.myReposted, /* [RP-V7.89] */ gifts: 0, giftCount: sp.giftCount || 0, /* [RP-V7.262] gifts RECEIVED (units) — not the charms sum in gifts */
           comments: Array.isArray(sp.comments) ? sp.comments : [],
@@ -23444,6 +23501,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           if (postMeta156.link) fd.append("link", postMeta156.link);
           if (postMeta156.audience && postMeta156.audience !== "everyone") fd.append("audience", postMeta156.audience);
           if (postMeta156.subsOnly) fd.append("subsOnly", "1"); // [RP-V7.296]
+          if (postMeta156.clubOnly) fd.append("clubOnly", "1"); // [RP-V7.298]
           if (snd) { fd.append("musicTrackId", snd.trackId); fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
           return fd;
         }).catch(function () { return null; });
@@ -23501,7 +23559,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           fetch("/api/photo/post", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
-            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : {}, (postMeta156.location || postMeta156.link || postMeta156.subsOnly || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience, subsOnly: postMeta156.subsOnly ? true : undefined } : {})) /* [RP-V7.296] subsOnly rides the same meta object */
+            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : {}, (postMeta156.location || postMeta156.link || postMeta156.subsOnly || postMeta156.clubOnly || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience, subsOnly: postMeta156.subsOnly ? true : undefined, clubOnly: postMeta156.clubOnly ? true : undefined } : {})) /* [RP-V7.296] subsOnly rides the same meta object */ /* [RP-V7.298] clubOnly too */
           }).then(function (r) { return r.json().catch(function () { return null; }); })
             .then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
             .catch(function () { momPublishLocal(cap); });
@@ -23554,9 +23612,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             var avl296 = p.mine ? (Online.myPhotoUrl ? '<img class="hud-photo" src="' + escHtml(Online.myPhotoUrl) + '" alt=""/>' : myFace()) : personFace({ name: p.name });
             card.innerHTML =
               '<div class="mom-top"><span class="who-av">' + avl296 + '</span><div><b>' + escHtml(p.name) + '</b><span>' + escHtml(p.when || "now") + ' · Reels</span></div></div>' +
-              '<div class="mom-photo">' + (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(p.name || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>') + '</div>';
-            var mlk296 = card.querySelector(".rp-lock-btn296");
-            if (mlk296) mlk296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(p.authorId || "", p.name || ""); });
+              '<div class="mom-photo">' + (window.rpAnyLockHtml298 ? window.rpAnyLockHtml298(p, p.name || "") : '<div class="rp-lock296"><span class="lk-tx">🔒 Locked</span></div>') + '</div>'; // [RP-V7.298] chooser picks subs/club panel by flags
+            if (window.rpWireLockBtns298) window.rpWireLockBtns298(card, p.authorId || "", p.name || ""); // [RP-V7.298]
             feed.appendChild(card);
             return;
           }
@@ -23799,8 +23856,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
          location + link, and the audience is enforced server-side. Back
          rule (Branden): the X exit lives only on the FIRST page; every
          later page gets a back arrow. */
-      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, subsOnly: false }; // [RP-V7.296] subsOnly: the Fan Subscriptions composer toggle
-      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, subsOnly: false }; }
+      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, subsOnly: false, clubOnly: false }; // [RP-V7.296] subsOnly: the Fan Subscriptions composer toggle // [RP-V7.298] clubOnly: the Fan Clubs composer toggle
+      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, subsOnly: false, clubOnly: false }; } // [RP-V7.298]
       function postToken156() { try { var r = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (r && r.token) || ""; } catch (e) { return ""; } }
       function postAudText156() { return postMeta156.audience === "followers" ? "Followers can view this post" : postMeta156.audience === "onlyme" ? "Only you can view this post" : "Everyone can view this post"; }
       function postDetailsSync156(k) {
@@ -23823,6 +23880,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           '</div>' +
           (opts.remix ? '<div class="pd-row" style="cursor:default;"><span class="pd-ic">⚙</span><span class="pd-lb">More options</span></div><div class="pd-sub"><span style="flex:1; font-weight:700;">Allow duet, stitch & remix</span><button type="button" class="pd-aud' + (postMeta156.remix ? " on" : "") + '" id="' + k + 'RemixBtn">' + (postMeta156.remix ? "On" : "Off") + '</button></div>' : "") +
           '<div class="pd-sub"><span style="flex:1; font-weight:700;">🔒 Subscribers only — only your subscribers can watch this post</span><button type="button" class="pd-aud' + (postMeta156.subsOnly ? " on" : "") + '" id="' + k + 'SubsBtn296">' + (postMeta156.subsOnly ? "On" : "Off") + '</button></div>' + /* [RP-V7.296] the fan-subscriptions toggle: set at creation, the server gates every payload */
+          '<div class="pd-sub"><span style="flex:1; font-weight:700;">🔒 Fan club — only your Fan Club members can watch this post</span><button type="button" class="pd-aud' + (postMeta156.clubOnly ? " on" : "") + '" id="' + k + 'ClubBtn298">' + (postMeta156.clubOnly ? "On" : "Off") + '</button></div>' + /* [RP-V7.298] the fan-clubs toggle: same pattern, the server gates every payload */
           '<button type="button" class="pd-row" id="' + k + 'ShareRow"><span class="pd-ic">↗</span><span class="pd-lb">Share to</span><span class="pd-val">Invite friends</span><span class="pd-chv">›</span></button>' +
           '</div>';
       }
@@ -23836,6 +23894,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         if (sheet) sheet.querySelectorAll("[data-pdaud]").forEach(function (b) { b.addEventListener("click", function () { postMeta156.audience = b.getAttribute("data-pdaud"); var v = $(k + "AudVal"); if (v) v.textContent = postAudText156(); sheet.querySelectorAll("[data-pdaud]").forEach(function (x) { x.classList.toggle("on", x === b); }); }); });
         var rx = $(k + "RemixBtn"); if (rx) rx.addEventListener("click", function () { postMeta156.remix = !postMeta156.remix; rx.textContent = postMeta156.remix ? "On" : "Off"; rx.classList.toggle("on", postMeta156.remix); });
         var sb296 = $(k + "SubsBtn296"); if (sb296) sb296.addEventListener("click", function () { postMeta156.subsOnly = !postMeta156.subsOnly; sb296.textContent = postMeta156.subsOnly ? "On" : "Off"; sb296.classList.toggle("on", postMeta156.subsOnly); }); // [RP-V7.296]
+        var cb298 = $(k + "ClubBtn298"); if (cb298) cb298.addEventListener("click", function () { postMeta156.clubOnly = !postMeta156.clubOnly; cb298.textContent = postMeta156.clubOnly ? "On" : "Off"; cb298.classList.toggle("on", postMeta156.clubOnly); }); // [RP-V7.298]
         var sh = $(k + "ShareRow"); if (sh) sh.addEventListener("click", function () {
           var url = "https://rizzplaza.com";
           if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: "Join me on Rizz Plaza 🎉", url: url }).catch(function () { }); return; }
@@ -23894,7 +23953,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           var d = momDraftsLoad156().filter(function (x) { return x.id === b.getAttribute("data-mdresume"); })[0]; if (!d) return;
           Moments.pendingPhotos = (d.photos || []).slice(); momSyncPicks123(); momCapDraft123 = d.caption || "";
           Moments.resumedDraft156 = d.id;
-          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true, subsOnly: false };
+          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true, subsOnly: false, clubOnly: false }; // [RP-V7.298]
           openMomComposer();
         }); });
         sheet.querySelectorAll("[data-mddel]").forEach(function (b) { b.addEventListener("click", function () {
@@ -24169,7 +24228,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         if (sp.locked) { // [RP-V7.296] a locked photo post still rides the pager — as its placeholder (no urls, no caption)
           return {
             id: "ph:" + sp.id, key: "ph:" + sp.id, photoPost: true, postId: sp.id,
-            url: "", urls: [], locked: true, subsOnly: true,
+            url: "", urls: [], locked: true, subsOnly: !!sp.subsOnly, clubOnly: !!sp.clubOnly, // [RP-V7.298] real flags ride (was a hardcoded subsOnly)
             author: sp.author || "Someone",
             authorId: sp.authorId || "",
             mine: false, caption: "", location: "", link: "", audience: sp.audience || "everyone", createdAt: sp.createdAt || "",
@@ -24386,9 +24445,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         slide.className = "hp-slide";
         slide.setAttribute("data-photocard", item.postId);
         if (item.locked) { // [RP-V7.296] the locked placeholder slide — no media, no caption; the button opens the subscribe sheet
-          slide.innerHTML = (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(item.author || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>');
-          var lkb296 = slide.querySelector(".rp-lock-btn296");
-          if (lkb296) lkb296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(item.authorId || "", item.author || ""); });
+          slide.innerHTML = (window.rpAnyLockHtml298 ? window.rpAnyLockHtml298(item, item.author || "") : '<div class="rp-lock296"><span class="lk-tx">🔒 Locked</span></div>'); // [RP-V7.298]
+          if (window.rpWireLockBtns298) window.rpWireLockBtns298(slide, item.authorId || "", item.author || ""); // [RP-V7.298]
           slide._rpPlay = function () { }; slide._rpPause = function () { };
           return slide;
         }
@@ -24720,6 +24778,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           fd.append("allowRemix", meta.allowRemix === false ? "false" : "true");
           if (meta.location) fd.append("location", meta.location); // [RP-V7.156]
           if (meta.subsOnly) fd.append("subsOnly", "1"); // [RP-V7.296]
+          if (meta.clubOnly) fd.append("clubOnly", "1"); // [RP-V7.298]
           if (meta.link) fd.append("link", meta.link);
           if (meta.audience && meta.audience !== "everyone") fd.append("audience", meta.audience);
           if (meta.musicTrackId) { fd.append("musicTrackId", meta.musicTrackId); fd.append("musicStart", String(meta.musicStart || 0)); fd.append("musicVol", String(meta.musicVol != null ? meta.musicVol : 0.8)); fd.append("origVol", String(meta.origVol != null ? meta.origVol : 1)); } /* [RP-V7.90] */
@@ -24742,7 +24801,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly /* [RP-V7.296] */ });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly /* [RP-V7.296] */ /* [RP-V7.298] */ });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
@@ -25214,9 +25273,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         if (item.locked) { // [RP-V7.296] a locked reel renders its placeholder — no video element, no caption; Subscribe opens the sheet
           card.classList.add("reel-locked296");
           card.setAttribute("data-rid", item.key);
-          card.innerHTML = (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(item.author || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>');
-          var rlk296 = card.querySelector(".rp-lock-btn296");
-          if (rlk296) rlk296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(item.authorId || "", item.author || ""); });
+          card.innerHTML = (window.rpAnyLockHtml298 ? window.rpAnyLockHtml298(item, item.author || "") : '<div class="rp-lock296"><span class="lk-tx">🔒 Locked</span></div>'); // [RP-V7.298]
+          if (window.rpWireLockBtns298) window.rpWireLockBtns298(card, item.authorId || "", item.author || ""); // [RP-V7.298]
           return card;
         }
         card.setAttribute("data-rid", item.key);
@@ -25958,9 +26016,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         slide.className = "hp-slide";
         slide._item = item;
         if (item.locked) { // [RP-V7.296] the locked placeholder slide — no video element at all
-          slide.innerHTML = (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(item.author || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>');
-          var hlk296 = slide.querySelector(".rp-lock-btn296");
-          if (hlk296) hlk296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(item.authorId || "", item.author || ""); });
+          slide.innerHTML = (window.rpAnyLockHtml298 ? window.rpAnyLockHtml298(item, item.author || "") : '<div class="rp-lock296"><span class="lk-tx">🔒 Locked</span></div>'); // [RP-V7.298]
+          if (window.rpWireLockBtns298) window.rpWireLockBtns298(slide, item.authorId || "", item.author || ""); // [RP-V7.298]
           return slide;
         }
         slide._trk = { acc: 0, startedAt: 0, maxFrac: 0, completed: false, lastT: 0 };
@@ -26483,7 +26540,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var draftId = Reels.editingDraftId;
         var meta = reelPublishBlob(blob, cap);
         postDetailsSync156("reel"); // [RP-V7.156]
-        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly }); // [RP-V7.156] // [RP-V7.296]
+        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298]
         reelTrimMeta169(meta.id); // [RP-V7.169]
         if (Reels.pendingSound && Reels.pendingSound.trackId) {
           reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol });
@@ -26509,7 +26566,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var cap = capEl ? (capEl.value || "").trim() : (Reels.pendingCaption || "");
         postDetailsSync156("reel"); // [RP-V7.156]
         if (Reels.editingDraftId) {
-          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly }); // [RP-V7.156] // [RP-V7.296]
+          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298]
           if (Reels.remix) { reelUpdateMeta(Reels.editingDraftId, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
           reelTrimMeta169(Reels.editingDraftId); // [RP-V7.169]
           Reels.editingDraftId = null;
@@ -26518,7 +26575,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             id: "draft" + Date.now() + Math.floor(Math.random() * 100000),
             draft: true,
             author: reelMyName(), caption: cap,
-            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly, /* [RP-V7.296] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
+            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
           };
           var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
           if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }); }
@@ -26544,7 +26601,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           Reels.pendingSound = m.musicTrackId ? { trackId: m.musicTrackId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : null; /* [RP-V7.90] */
           Reels.trimStart = (typeof m.trimStart === "number") ? m.trimStart : null; Reels.trimEnd = (typeof m.trimEnd === "number") ? m.trimEnd : null; Reels.trimOpen = Reels.trimStart != null; Reels.mustTrim = false; /* [RP-V7.169] */
           Reels.pendingCaption = m.caption || "";
-          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, subsOnly: !!m.subsOnly }; // [RP-V7.156] // [RP-V7.296]
+          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, subsOnly: !!m.subsOnly, clubOnly: !!m.clubOnly }; // [RP-V7.156] // [RP-V7.296] // [RP-V7.298]
           Reels.remix = m.kind ? { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur } : null;
           Reels.editingDraftId = id;
           Reels.stage = "preview";
@@ -35297,11 +35354,14 @@ button.rp72-chip{ cursor:pointer; }
       '<button type="button" class="follow-btn big' + (following ? " on" : "") + '" id="rpMpFollow">' + (following ? "Following" : "+ Follow") + "</button>" +
       '<button type="button" class="follow-btn big" id="rpMpMsg">💬 Message</button>' +
       '<button type="button" class="follow-btn big" id="rpMpTip">💝 Tip</button>' + /* [RP-V7.294] profile tips — same button as the profile page, so every member profile carries it */
-      '<button type="button" class="follow-btn big" id="rpMpSub296">' + ((j && j.fanSub && j.fanSub.subscription && j.fanSub.subscription.access) ? "⭐ Subscribed ✓" : "⭐ Subscribe" + ((j && j.fanSub && j.fanSub.priceCharms) ? " · " + Number(j.fanSub.priceCharms).toLocaleString("en-US") + "/mo" : "")) + '</button>'; /* [RP-V7.296] fan subscriptions — same button as the profile page */
+      '<button type="button" class="follow-btn big" id="rpMpSub296">' + ((j && j.fanSub && j.fanSub.subscription && j.fanSub.subscription.access) ? "⭐ Subscribed ✓" : "⭐ Subscribe" + ((j && j.fanSub && j.fanSub.priceCharms) ? " · " + Number(j.fanSub.priceCharms).toLocaleString("en-US") + "/mo" : "")) + '</button>' + /* [RP-V7.296] fan subscriptions — same button as the profile page */
+      ((j && j.fanClub && j.fanClub.club) ? '<button type="button" class="follow-btn big" id="rpMpClub298">' + ((j.fanClub.membership && j.fanClub.membership.access) ? "👑 Joined ✓" : "👑 Fan Club" + (j.fanClub.club.priceCharms > 0 ? " · " + Number(j.fanClub.club.priceCharms).toLocaleString("en-US") + "/mo" : " · Free")) + '</button>' : ""); /* [RP-V7.298] fan clubs — same button as the profile page; no club, no button */
     var tb294 = $("rpMpTip");
     if (tb294) tb294.addEventListener("click", function () { if (window.rpOpenTipSheet294) window.rpOpenTipSheet294(accountId, name); });
     var sb296m = $("rpMpSub296");
     if (sb296m) sb296m.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(accountId, name); });
+    var cb298m = $("rpMpClub298"); // [RP-V7.298]
+    if (cb298m) cb298m.addEventListener("click", function () { if (window.rpOpenFanClubSheet298) window.rpOpenFanClubSheet298(accountId, name); });
     var fb = $("rpMpFollow");
     if (fb) fb.addEventListener("click", function () {
       var on = fb.classList.contains("on");
@@ -36421,7 +36481,7 @@ button.rp72-chip{ cursor:pointer; }
      small ▶ at the top-right of reel tiles. */
   function tileHTML(it) {
     if (it.locked) { // [RP-V7.296] a locked tile carries NO media at all — the lock panel only; the grid's click routes to the subscribe sheet (fillGrid)
-      return '<button type="button" class="rpmedia-tile rpmedia-locked296" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpownername="' + esc(it.ownerName || "") + '" data-rpsrc="" data-rpviews="0">' + (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(it.ownerName || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>') + '</button>';
+      return '<button type="button" class="rpmedia-tile rpmedia-locked296" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpownername="' + esc(it.ownerName || "") + '" data-rpsrc="" data-rpviews="0">' + (window.rpAnyLockHtml298 ? window.rpAnyLockHtml298(it, it.ownerName || "") : '<div class="rp-lock296"><span class="lk-tx">🔒 Locked</span></div>') + '</button>'; // [RP-V7.298]
     }
     var media = it.textPost // [RP-V7.278] a text post's tile is its styled card, shrunk
       ? (window.RPText278 ? window.RPText278.tileHtml(it) : "")
@@ -36928,7 +36988,7 @@ button.rp72-chip{ cursor:pointer; }
         };
         var viewsEl = tb.querySelector(".rpmedia-views");
         var upd = function (n) { if (viewsEl) viewsEl.textContent = "👁 " + fmtViews(n); };
-        if (it.locked) { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(it.owner || "", it.ownerName || ""); return; } // [RP-V7.296] a locked tile never opens a player — it opens the subscribe sheet
+        if (it.locked) { if (it.clubOnly && window.rpOpenFanClubSheet298) window.rpOpenFanClubSheet298(it.owner || "", it.ownerName || ""); else if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(it.owner || "", it.ownerName || ""); return; } // [RP-V7.296] a locked tile never opens a player — it opens the subscribe sheet // [RP-V7.298] club-locked tiles open the club sheet
         if (it.kind === "reel") { if (opts.onReel) opts.onReel(it, upd); else openReel(it, upd); }
         else { if (opts.onPhoto) opts.onPhoto(it, upd); else openPhoto(it, upd); }
       });
@@ -36945,7 +37005,7 @@ button.rp72-chip{ cursor:pointer; }
       items.push({ kind: "photo", id: url, owner: j.id, ownerName: j.name || "", src: url, views: (j.photoViews && j.photoViews[url]) || 0 });
     });
     (j.reels || []).forEach(function (r) {
-      items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", locked: !!r.locked, subsOnly: !!r.subsOnly, /* [RP-V7.296] */ views: r.views || 0,
+      items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: r.views || 0,
         // [RP-V7.241] rail state rides along for the lightbox
         caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null /* [RP-V7.286] */ });
     });
@@ -36958,10 +37018,10 @@ button.rp72-chip{ cursor:pointer; }
   // the profile page so both render the same profile.
   function profItems(j) {
     var items = itemsFromProfile(j);
-    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, locked: !!pp.locked, subsOnly: !!pp.subsOnly, /* [RP-V7.296] */ textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: pp.locked ? 1 : ((pp.urls || []).length || 1) /* [RP-V7.123] */,
+    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, locked: !!pp.locked, subsOnly: !!pp.subsOnly, clubOnly: !!pp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: pp.locked ? 1 : ((pp.urls || []).length || 1) /* [RP-V7.123] */,
       // [RP-V7.241] the full feed-item shape, for the lightbox rail
       caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: pp.commentCount || 0, reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine }); });
-    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, locked: !!fp.locked, subsOnly: !!fp.subsOnly, /* [RP-V7.296] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
+    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, locked: !!fp.locked, subsOnly: !!fp.subsOnly, clubOnly: !!fp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
     var order = {}; (j.pins || []).forEach(function (pn, ix) { order[pn.kind + ":" + pn.id] = ix; });
     var pinned = [], rest = [];
     items.forEach(function (it) { (order[it.kind + ":" + it.id] !== undefined ? pinned : rest).push(it); });
@@ -37627,6 +37687,42 @@ button.rp72-chip{ cursor:pointer; }
       '<span class="rp-lock-btn296">' + esc(btnLabel || "⭐ Subscribe") + '</span></div>';
   }
   window.rpFanSubLockHtml296 = rpFanSubLockHtml296;
+  /* ---------- [RP-V7.298] fan clubs: the club lock + the chooser ---------- */
+  // The club placeholder mirrors the subscriber one word-for-word in
+  // shape: lock, line, action pill — the pill opens the JOIN sheet,
+  // never a player. rpAnyLockHtml298 picks the right panel for a
+  // locked payload's flags (a post carrying BOTH flags gets both
+  // pills; each surface wires both classes).
+  function rpFanClubLockHtml298(authorName, btnLabel) {
+    return '<div class="rp-lock296"><span class="lk-ic" aria-hidden="true">🔒</span>' +
+      '<span class="lk-tx">Fan Club only</span>' +
+      '<span class="lk-sub">Join @' + esc(authorName || "them") + "'s Fan Club to watch</span>" +
+      '<span class="rp-lock-btn298">' + esc(btnLabel || "👑 Join Fan Club") + '</span></div>';
+  }
+  window.rpFanClubLockHtml298 = rpFanClubLockHtml298;
+  function rpAnyLockHtml298(flags, authorName) {
+    flags = flags || {};
+    if (flags.clubOnly && flags.subsOnly) {
+      return '<div class="rp-lock296"><span class="lk-ic" aria-hidden="true">🔒</span>' +
+        '<span class="lk-tx">Members only</span>' +
+        '<span class="lk-sub">Subscribe to @' + esc(authorName || "them") + " and join their Fan Club to watch</span>" +
+        '<span class="rp-lock-btn296">⭐ Subscribe</span>' +
+        '<span class="rp-lock-btn298">👑 Join Fan Club</span></div>';
+    }
+    if (flags.clubOnly) return rpFanClubLockHtml298(authorName);
+    return rpFanSubLockHtml296(authorName);
+  }
+  window.rpAnyLockHtml298 = rpAnyLockHtml298;
+  // Wire BOTH pills of a locked panel inside a container: subs pill
+  // -> subscribe sheet, club pill -> club sheet.
+  function rpWireLockBtns298(container, authorId, authorName) {
+    if (!container) return;
+    var b296 = container.querySelector(".rp-lock-btn296");
+    if (b296) b296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(authorId || "", authorName || ""); });
+    var b298 = container.querySelector(".rp-lock-btn298");
+    if (b298) b298.addEventListener("click", function () { if (window.rpOpenFanClubSheet298) window.rpOpenFanClubSheet298(authorId || "", authorName || ""); });
+  }
+  window.rpWireLockBtns298 = rpWireLockBtns298;
   window.rpOpenFanSubSheet296 = function (targetId, targetName) {
     if (!targetId && !targetName) { toast2("Pick someone to subscribe to first!", 2600); return; }
     refreshMoney();
@@ -37766,6 +37862,257 @@ button.rp72-chip{ cursor:pointer; }
     } catch (e) { }
   })();
 
+  /* ---------- [RP-V7.298] fan clubs: join / manage / club room ---------- */
+  // Earn stream #4 (Branden's approved queue, Nov 8, 2026). The pay
+  // sheet's published words: "Fan clubs — Paid memberships with
+  // member-only rooms." The sheet ALWAYS opens on the server's
+  // /api/fanclub/status truth (club + the viewer's membership
+  // state): a member sees their renewal date, the club room door
+  // and a Cancel; anyone else sees the club, its price in charms
+  // (or Free) and one Join button. Settlement is the server's gift
+  // split (70% to the creator, banked into the same Earn wallet) —
+  // a paid join beeps like a tip send (RP-V7.232: sends beep once,
+  // outside lives); a free join charges nothing and never beeps.
+  var fanClubAttemptSeq298 = 0;
+  window.rpOpenFanClubSheet298 = function (targetId, targetName) {
+    if (!targetId && !targetName) { toast2("Pick someone whose Fan Club to open first!", 2600); return; }
+    refreshMoney();
+    var bal = (typeof window.rpServerCharms === "function") ? window.rpServerCharms() : null;
+    var html =
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">👑 ' + esc(targetName || "Fan Club") + "'s Fan Club</h3>" +
+      '<p style="text-align:center; color:var(--ink);">Your charms: <b>' + (bal == null ? "…" : bal.toLocaleString("en-US")) + '</b></p>' +
+      '<div class="gift-notice" id="fanClubNotice298" role="alert"></div>' +
+      '<div id="fanClubBody298"><p style="text-align:center; color:var(--ink);">Loading…</p></div>' +
+      '<button class="btn-mini btn-big" id="fanClubGetCharms298" type="button">⭐ Get charms</button></div>';
+    if (!sheetOpen(html)) return;
+    var gc298 = $("fanClubGetCharms298");
+    if (gc298) gc298.addEventListener("click", function () { if (typeof window.openCharmShop === "function") window.openCharmShop(); });
+    var q = targetId ? ("creatorId=" + encodeURIComponent(targetId)) : ("name=" + encodeURIComponent(targetName || ""));
+    api("/api/fanclub/status?" + q, "GET").then(function (r) {
+      var body = $("fanClubBody298"); if (!body) return; // sheet moved on
+      var j = r.json;
+      if (!j || !j.ok) { body.innerHTML = '<p style="text-align:center; color:var(--ink);">Fan Clubs are not available for this profile right now.</p>'; return; }
+      var creatorId = (j.creator && j.creator.id) || targetId || "";
+      var creatorName = (j.creator && j.creator.name) || targetName || "them";
+      var club = j.club || null;
+      var mem = j.membership || null;
+      if (!club) {
+        body.innerHTML = j.isSelf
+          ? '<p style="text-align:center; color:var(--ink);">👑 You haven\'t opened your Fan Club yet — name it and set a price (or keep it free) in Profile setup, and your club room opens right here on your profile.</p>'
+          : '<p style="text-align:center; color:var(--ink);">' + esc(creatorName) + ' hasn\'t opened a Fan Club yet.</p>';
+        return;
+      }
+      var price = club.priceCharms || 0;
+      var priceTxt = price > 0 ? price.toLocaleString("en-US") + " charms/mo" : "Free";
+      var head = '<p style="text-align:center; color:var(--ink);">👑 <b>' + esc(club.name || "Fan Club") + '</b>' + (club.about ? '<br>' + esc(club.about) : '') + '<br><b>' + (j.memberCount || 0) + '</b> member' + ((j.memberCount || 0) === 1 ? "" : "s") + ' · <b>' + priceTxt + '</b></p>';
+      if (j.isSelf) {
+        body.innerHTML = head + '<p style="text-align:center; color:var(--ink);">This is your club room door — members see your club-only posts and the member list inside. Manage the name, about and price any time in Profile setup. Members keep the price they joined at.</p>' +
+          '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="fanClubRoom298" type="button">👑 Enter your club room</button></div>';
+        var ob = $("fanClubRoom298");
+        if (ob) ob.addEventListener("click", function () { window.rpOpenFanClubRoom298(creatorId, creatorName); });
+        return;
+      }
+      if (mem && mem.access && mem.status === "active") {
+        body.innerHTML = head + '<p style="text-align:center; color:var(--ink);">✅ You\'re a member of ' + esc(creatorName) + "'s Fan Club — <b>" + (mem.priceCharms > 0 ? Number(mem.priceCharms).toLocaleString("en-US") + " charms/mo" : "Free") + '</b>' + (mem.priceCharms > 0 ? ', renews ' + fmtDate(mem.nextRenewalAt || mem.periodEnd) : '') + '. The club room is open to you.</p>' +
+          '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="fanClubRoom298" type="button">👑 Enter the club room</button>' +
+          '<button class="btn-mini" id="fanClubCancel298" type="button">' + (mem.priceCharms > 0 ? "Cancel membership" : "Leave club") + '</button></div>';
+        var ob2 = $("fanClubRoom298");
+        if (ob2) ob2.addEventListener("click", function () { window.rpOpenFanClubRoom298(creatorId, creatorName); });
+        var cb = $("fanClubCancel298");
+        if (cb) cb.addEventListener("click", function () { window.rpFanClubCancel298(creatorId, creatorName, mem.periodEnd, mem.priceCharms); });
+        return;
+      }
+      if (mem && mem.access && mem.status === "cancelled") {
+        body.innerHTML = head + '<p style="text-align:center; color:var(--ink);">Your membership in ' + esc(creatorName) + "'s Fan Club is cancelled — your access runs until <b>" + fmtDate(mem.periodEnd) + '</b>. Join again to turn renewal back on (no charge until then).</p>' +
+          '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="fanClubRoom298" type="button">👑 Enter the club room</button>' +
+          '<button class="btn-mini" id="fanClubGo298" type="button">👑 Turn renewal back on</button></div>';
+        var ob3 = $("fanClubRoom298");
+        if (ob3) ob3.addEventListener("click", function () { window.rpOpenFanClubRoom298(creatorId, creatorName); });
+        var rb = $("fanClubGo298");
+        if (rb) rb.addEventListener("click", function () { rpFanClubJoin298(creatorId, creatorName, mem.priceCharms); });
+        return;
+      }
+      body.innerHTML = head + '<p style="text-align:center; color:var(--ink);">Join ' + esc(creatorName) + "'s Fan Club" + (price > 0 ? ' for <b>' + price.toLocaleString("en-US") + ' charms a month</b>' : ' — it\'s <b>free</b>') + ' — their club-only posts open up for you inside the club room' + (price > 0 ? ', and it renews monthly while your balance covers it. ' + esc(creatorName) + ' keeps 70% of every month — it banks straight into their earnings.' : '.') + '</p>' +
+        '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="fanClubGo298" type="button">👑 Join Fan Club' + (price > 0 ? ' · ' + price.toLocaleString("en-US") + ' charms/mo' : ' · Free') + '</button></div>';
+      var gb = $("fanClubGo298");
+      if (gb) gb.addEventListener("click", function () { rpFanClubJoin298(creatorId, creatorName, price); });
+    });
+  };
+  function rpFanClubJoin298(creatorId, creatorName, price) {
+    var btn = $("fanClubGo298");
+    if (btn && btn.disabled) return;
+    if (btn) { btn.disabled = true; btn.textContent = "Joining…"; }
+    var idem = "c" + Date.now().toString(36) + (fanClubAttemptSeq298++).toString(36) + Math.random().toString(36).slice(2, 8); // one key per attempt; the server dedupes any replay
+    api("/api/fanclub/join", "POST", { toId: creatorId || "", toName: creatorName || "", idem: idem }, 30000).then(function (r) {
+      if (btn) { btn.disabled = false; }
+      if (r.json && r.json.ok) {
+        if (typeof r.json.balance === "number") setLocalCharms(r.json.balance);
+        if ((r.json.charged || 0) > 0) { try { if (window.AudioFX && window.AudioFX.beep) window.AudioFX.beep(); } catch (e) { } } // a paid join beeps like a send; a free join is silent
+        toast2(r.json.reactivated
+          ? "👑 Renewal is back on for " + creatorName + "'s Fan Club — no charge until " + fmtDate(r.json.periodEnd) + "!"
+          : "👑 You're in! Welcome to " + creatorName + "'s Fan Club — the club room is open to you.", 3800);
+        try { window.closeSheet(); } catch (e) { }
+        setTimeout(function () { refreshMoney(); }, 400);
+        return;
+      }
+      if (btn) btn.textContent = "👑 Join Fan Club" + (price > 0 ? " · " + Number(price || 0).toLocaleString("en-US") + " charms/mo" : " · Free");
+      if (r.json && r.json.error === "insufficient-charms") {
+        if (typeof r.json.balance === "number") setLocalCharms(r.json.balance);
+        var n = $("fanClubNotice298");
+        if (n) {
+          n.textContent = (r.json.message ? r.json.message + " — " : "Not enough charms — ") + "this club is " + Number(r.json.needed || price || 0).toLocaleString("en-US") + " charms" + (typeof r.json.balance === "number" ? " and you have " + r.json.balance.toLocaleString("en-US") : "") + ". Tap ⭐ Get charms to top up.";
+          n.classList.add("show");
+        }
+        return;
+      }
+      if (r.json && r.json.error === "already-member") { toast2("You're already a member of " + creatorName + "'s Fan Club ✓", 3000); return; }
+      if (r.json && r.json.error === "club-not-found") { toast2(creatorName + " hasn't opened a Fan Club yet.", 3200); return; }
+      if (r.json && r.json.error === "recipient-not-found") { toast2("That profile can't take Fan Club members right now.", 3200); return; }
+      if (!r.json) { offlineToast(); return; }
+      toast2("That join didn't go through — " + (r.json.error || "please try again") + ".", 3200);
+    });
+  }
+  window.rpFanClubCancel298 = function (creatorId, creatorName, periodEnd, priceCharms) {
+    var paid = (priceCharms || 0) > 0;
+    var msg = paid
+      ? "Cancel your membership in " + (creatorName || "them") + "'s Fan Club? Renewal stops — you keep access until " + (periodEnd ? fmtDate(periodEnd) : "the end of this period") + "."
+      : "Leave " + (creatorName || "them") + "'s Fan Club? It's free, so your access ends right away — you can join again any time.";
+    if (!window.confirm(msg)) return;
+    api("/api/fanclub/cancel", "POST", { toId: creatorId || "", toName: creatorName || "" }, 30000).then(function (r) {
+      if (r.json && r.json.ok) {
+        toast2(paid ? "Membership cancelled — your access runs until " + fmtDate((r.json.membership && r.json.membership.periodEnd) || periodEnd) + "." : "You've left the Fan Club.", 3600);
+        try { window.closeSheet(); } catch (e) { }
+        setTimeout(function () { refreshMoney(); }, 400);
+        return;
+      }
+      if (!r.json) { offlineToast(); return; }
+      toast2("That didn't go through — please try again.", 3200);
+    });
+  };
+  /* The club room itself: member list + the club-only posts feed.
+     Posts ride the server's gated payloads — a non-member opening
+     the room sees locked placeholders (and the Join door), never
+     media, captions or comments. */
+  window.rpOpenFanClubRoom298 = function (targetId, targetName) {
+    if (!targetId && !targetName) { toast2("Pick a Fan Club first!", 2600); return; }
+    var html =
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">👑 ' + esc(targetName || "Fan Club") + "'s club room</h3>" +
+      '<div id="fanClubRoomBody298"><p style="text-align:center; color:var(--ink);">Loading the club room…</p></div></div>';
+    if (!sheetOpen(html)) return;
+    var q = targetId ? ("creatorId=" + encodeURIComponent(targetId)) : ("name=" + encodeURIComponent(targetName || ""));
+    api("/api/fanclub/club?" + q, "GET").then(function (r) {
+      var body = $("fanClubRoomBody298"); if (!body) return; // sheet moved on
+      var j = r.json;
+      if (!j || !j.ok || !j.club) { body.innerHTML = '<p style="text-align:center; color:var(--ink);">This Fan Club isn\'t available right now.</p>'; return; }
+      var club = j.club;
+      var creatorId = (j.creator && j.creator.id) || targetId || "";
+      var creatorName = (j.creator && j.creator.name) || targetName || "them";
+      var out = '<p style="text-align:center; color:var(--ink);">👑 <b>' + esc(club.name || "Fan Club") + '</b>' + (club.about ? '<br>' + esc(club.about) : '') + '<br><b>' + (j.memberCount || 0) + '</b> member' + ((j.memberCount || 0) === 1 ? "" : "s") + ' · ' + (club.priceCharms > 0 ? Number(club.priceCharms).toLocaleString("en-US") + ' charms/mo' : 'Free') + '</p>';
+      if (!j.canAccess && !j.isSelf) {
+        out += '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="fanClubRoomJoin298" type="button">👑 Join to enter</button></div>' +
+          '<p style="text-align:center; color:var(--ink);">You\'re looking at the door — the posts below are locked until you join.</p>';
+      }
+      var members = j.members || [];
+      out += '<h4 style="margin:14px 0 2px;">Members</h4>';
+      if (members.length) {
+        out += '<div class="fc298-members">' + members.map(function (m) {
+          return '<span class="fc298-member">' + (m.photo ? '<img src="' + esc(m.photo) + '" alt=""/>' : '<span class="fc298-init">' + esc((m.name || "?").charAt(0).toUpperCase()) + '</span>') + '<span>' + esc(m.name || "Member") + '</span></span>';
+        }).join("") + '</div>';
+      } else {
+        out += '<p style="color:var(--ink);">No members yet — be the first to join!</p>';
+      }
+      var posts = j.posts || {};
+      var reels = posts.reels || [], photos = posts.photoPosts || [], feed = posts.feedPosts || [];
+      out += '<h4 style="margin:14px 0 2px;">Club-only posts</h4>';
+      if (!reels.length && !photos.length && !feed.length) {
+        out += '<p style="color:var(--ink);">No club-only posts yet' + (j.isSelf ? ' — post one with the 🔒 Fan club toggle in the composer.' : '.') + '</p>';
+      }
+      reels.forEach(function (rl) {
+        out += '<div class="fc298-post">' + (rl.locked ? window.rpAnyLockHtml298(rl, creatorName) : '<video src="' + esc(rl.url || "") + '" controls playsinline preload="metadata"></video>' + (rl.caption ? '<p>' + esc(rl.caption) + '</p>' : '')) + '</div>';
+      });
+      photos.forEach(function (pp) {
+        if (pp.locked) { out += '<div class="fc298-post">' + window.rpAnyLockHtml298(pp, creatorName) + '</div>'; return; }
+        if (pp.kind === "text") { out += '<div class="fc298-post">' + (window.RPText278 ? window.RPText278.cardHtml(pp, 26) : '<p>' + esc(pp.text || "") + '</p>') + '</div>'; return; }
+        out += '<div class="fc298-post"><img loading="lazy" decoding="async" src="' + esc(pp.photo || "") + '" alt=""/>' + (pp.caption ? '<p>' + esc(pp.caption) + '</p>' : '') + '</div>';
+      });
+      feed.forEach(function (fp) {
+        if (fp.locked) { out += '<div class="fc298-post">' + window.rpAnyLockHtml298(fp, creatorName) + '</div>'; return; }
+        var media = "";
+        if (fp.url && fp.kind === "video") media = '<video src="' + esc(fp.url) + '" controls playsinline preload="metadata"></video>';
+        else if (fp.url) media = '<img loading="lazy" decoding="async" src="' + esc(fp.url) + '" alt=""/>';
+        out += '<div class="fc298-post">' + media + (fp.text ? '<p>' + esc(fp.text) + '</p>' : '') + '</div>';
+      });
+      body.innerHTML = out;
+      var jb = $("fanClubRoomJoin298");
+      if (jb) jb.addEventListener("click", function () { window.rpOpenFanClubSheet298(creatorId, creatorName); });
+      // Locked placeholders inside the room wire both pills.
+      body.querySelectorAll(".rp-lock-btn298").forEach(function (b) { b.addEventListener("click", function () { window.rpOpenFanClubSheet298(creatorId, creatorName); }); });
+      body.querySelectorAll(".rp-lock-btn296").forEach(function (b) { b.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(creatorId, creatorName); }); });
+    });
+  };
+  /* Profile setup: my club block. The block lives in the static
+     Profile screen HTML (id fanClubSetup298); it wires itself once,
+     paints from /api/fanclub/mine, and re-paints whenever the
+     Profile screen is shown (showScreen is wrapped, chaining the
+     current wrapper — the module never owns navigation). Tier
+     buttons SELECT a price; Save club posts name + about + price
+     together (a club needs its name before it exists). */
+  var fanClubSelPrice298 = 0;
+  function rpFanClubSetupPaint298() {
+    var box = $("fanClubSetup298"); if (!box) return;
+    api("/api/fanclub/mine", "GET").then(function (r) {
+      var j = r.json; if (!j || !j.ok) return;
+      var fc = j.fanClubs || j;
+      var club = fc.club || null;
+      var cnt = $("fanClubCount298"); if (cnt) cnt.textContent = String(fc.memberCount || 0);
+      var st = $("fanClubState298");
+      if (st) st.textContent = club ? " · your club \\u201C" + (club.name || "Fan Club") + "\\u201D is live at " + (club.priceCharms > 0 ? Number(club.priceCharms).toLocaleString("en-US") + " charms/mo" : "Free") : " · no club yet — name it and tap Save club";
+      var nm = $("fanClubName298"); if (nm && club && document.activeElement !== nm) nm.value = club.name || "";
+      var ab = $("fanClubAbout298"); if (ab && club && document.activeElement !== ab) ab.value = club.about || "";
+      fanClubSelPrice298 = club ? (club.priceCharms || 0) : 0;
+      box.querySelectorAll("[data-fanclub-tier298]").forEach(function (b) {
+        b.classList.toggle("on", Number(b.getAttribute("data-fanclub-tier298")) === fanClubSelPrice298);
+      });
+    });
+  }
+  (function rpFanClubSetupWire298() {
+    var box = $("fanClubSetup298"); if (!box || box.__wired298) return;
+    box.__wired298 = true;
+    box.querySelectorAll("[data-fanclub-tier298]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        fanClubSelPrice298 = Number(b.getAttribute("data-fanclub-tier298")) || 0;
+        box.querySelectorAll("[data-fanclub-tier298]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      });
+    });
+    var sv = $("fanClubSave298");
+    if (sv) sv.addEventListener("click", function () {
+      var nm = $("fanClubName298"); var name = nm ? nm.value.trim() : "";
+      if (!name) { toast2("Give your Fan Club a name first 👑", 3000); if (nm) nm.focus(); return; }
+      var ab = $("fanClubAbout298");
+      api("/api/fanclub/create", "POST", { name: name, about: ab ? ab.value.trim() : "", priceCharms: fanClubSelPrice298 }, 30000).then(function (r) {
+        if (r.json && r.json.ok) {
+          toast2(r.json.created ? "👑 Your Fan Club \\u201C" + name + "\\u201D is live on your profile!" : "👑 Your Fan Club is saved.", 3400);
+          rpFanClubSetupPaint298();
+          return;
+        }
+        if (r.json && r.json.error === "invalid-club-price") { toast2("Pick one of the listed prices for your club.", 3000); return; }
+        toast2("That club didn't save — please try again.", 3000);
+      });
+    });
+    rpFanClubSetupPaint298();
+    try {
+      var origShow298 = window.showScreen;
+      if (typeof origShow298 === "function" && !origShow298.__fc298) {
+        var wrappedShow298 = function (id) { var out = origShow298.apply(this, arguments); if (id === "profile") setTimeout(rpFanClubSetupPaint298, 60); return out; };
+        wrappedShow298.__fc298 = true;
+        if (origShow298.__fs296) wrappedShow298.__fs296 = true;
+        window.showScreen = wrappedShow298;
+      }
+    } catch (e) { }
+  })();
+
   /* ---------- Earn sheet: server earnings for accounts ---------- */
   var origEarnings = (typeof window.openEarnings === "function") ? window.openEarnings : null;
   function openServerEarnings() {
@@ -37821,6 +38168,18 @@ button.rp72-chip{ cursor:pointer; }
         }).join("") + '</div>';
       }
     }
+    var fc298 = me.fanClubs || null; // [RP-V7.298] Fan clubs: my club shelf + the memberships I hold, with Cancel / Leave
+    if (fc298) {
+      html += '<p style="text-align:center; margin:8px 0 0; color:var(--ink);">👑 <b>Fan Club</b> — ' + (fc298.club
+        ? '<b>' + esc(fc298.club.name || 'Fan Club') + '</b> · ' + (fc298.memberCount || 0) + ' member' + ((fc298.memberCount || 0) === 1 ? "" : "s") + ' at ' + (fc298.club.priceCharms > 0 ? Number(fc298.club.priceCharms).toLocaleString("en-US") + ' charms/mo' : 'Free') + ' · you keep 70%. Manage your club in Profile setup.'
+        : 'you haven\'t opened yours yet — name it and set a price (or keep it free) in Profile setup.') + '</p>';
+      var act298 = (fc298.asMember || []).filter(function (m) { return m && m.access; });
+      if (act298.length) {
+        html += '<h4 style="margin:14px 0 2px;">My club memberships</h4><div class="rpM-hist">' + act298.map(function (m) {
+          return '<div class="rpM-hrow"><span>👑 ' + esc(m.creatorName || "Creator") + ' — ' + esc(m.clubName || "Fan Club") + ' · ' + (Number(m.priceCharms || 0) > 0 ? Number(m.priceCharms).toLocaleString("en-US") + ' charms/mo · ' + (m.status === "cancelled" ? 'ends ' + fmtDate(m.periodEnd) : 'renews ' + fmtDate(m.nextRenewalAt || m.periodEnd)) : 'Free · member since ' + fmtDate(m.joinedAt)) + '</span>' + (m.status === "active" ? '<button type="button" class="btn-mini" data-fanclub-cancel298="' + esc(m.creatorId || "") + '" data-fanclub-name298="' + esc(m.creatorName || "") + '" data-fanclub-end298="' + esc(m.periodEnd || "") + '" data-fanclub-price298="' + Number(m.priceCharms || 0) + '">' + (Number(m.priceCharms || 0) > 0 ? 'Cancel' : 'Leave') + '</button>' : '<span class="rpM-hamt">cancelled</span>') + '</div>';
+        }).join("") + '</div>';
+      }
+    }
     html += '<p class="rpM-timing">Request any day once you\'re past $20 — payout lands after Stripe clears it (usually a couple of days), minus a 25¢ payout fee.</p>';
     html += '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:10px;">';
     if (elig.canCashOut) {
@@ -37872,6 +38231,8 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "tip-sent") { label = "💝 Tip sent" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.294]
         else if (t.type === "fan-subscription") { label = "⭐ Fan subscription" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.296] the creator's wallet row — charms-only subscriptions show charms, never a $ figure
         else if (t.type === "fansub-sent") { label = "⭐ Subscription" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.296]
+        else if (t.type === "fan-club") { label = "👑 Fan Club" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.298] the creator's wallet row — free months mint no row at all
+        else if (t.type === "club-sent") { label = "👑 Fan Club" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.298]
         else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
         else if (t.type === "bizads" || t.type === "bizads-renew") { label = "📣 Business Ads"; amt = fmt$(t.cents); } // [RP-V7.224]
         else if (t.type === "cashout") { label = "💸 Cash-out requested"; amt = fmt$(t.cents); }
@@ -37884,6 +38245,9 @@ button.rp72-chip{ cursor:pointer; }
     if (!sheetOpen(html)) return;
     document.querySelectorAll("[data-fansub-cancel296]").forEach(function (b296) { // [RP-V7.296] Manage: cancel a subscription I hold (access runs to period end)
       b296.addEventListener("click", function () { if (window.rpFanSubCancel296) window.rpFanSubCancel296(b296.getAttribute("data-fansub-cancel296"), b296.getAttribute("data-fansub-name296"), b296.getAttribute("data-fansub-end296")); });
+    });
+    document.querySelectorAll("[data-fanclub-cancel298]").forEach(function (b298) { // [RP-V7.298] Manage: cancel (paid, access to period end) or leave (free, ends now) a club membership I hold
+      b298.addEventListener("click", function () { if (window.rpFanClubCancel298) window.rpFanClubCancel298(b298.getAttribute("data-fanclub-cancel298"), b298.getAttribute("data-fanclub-name298"), b298.getAttribute("data-fanclub-end298"), Number(b298.getAttribute("data-fanclub-price298") || 0)); });
     });
     var co = $("rpMCoBtn");
     if (co) co.addEventListener("click", doCashOut);
@@ -41052,6 +41416,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         '<div class="rp-os-note" style="margin-top:2px">' + Number(st.profileTipsCharms || 0).toLocaleString("en-US") + " charms tipped · creators earned " + money(st.profileTipsCreatorCents || 0) + " (70%) · Plaza kept " + money(st.profileTipsCutCents || 0) + " (30%)</div>") + /* [RP-V7.294] */
       row("⭐ Fan subscriptions", st.fanSubsVolumeCents == null ? null : st.fanSubsVolumeCents,
         '<div class="rp-os-note" style="margin-top:2px">' + Number(st.fanSubsCharms || 0).toLocaleString("en-US") + " charms subscribed · creators earned " + money(st.fanSubsCreatorCents || 0) + " (70%) · Plaza kept " + money(st.fanSubsCutCents || 0) + " (30%) · " + Number(st.fanSubsActive || 0).toLocaleString("en-US") + " active subscription" + (Number(st.fanSubsActive || 0) === 1 ? "" : "s") + "</div>") + /* [RP-V7.296] */
+      row("👑 Fan clubs", st.fanClubsVolumeCents == null ? null : st.fanClubsVolumeCents,
+        '<div class="rp-os-note" style="margin-top:2px">' + Number(st.fanClubsCharms || 0).toLocaleString("en-US") + " charms joined · creators earned " + money(st.fanClubsCreatorCents || 0) + " (70%) · Plaza kept " + money(st.fanClubsCutCents || 0) + " (30%) · " + Number(st.fanClubsActive || 0).toLocaleString("en-US") + " active membership" + (Number(st.fanClubsActive || 0) === 1 ? "" : "s") + "</div>") + /* [RP-V7.298] */
       row("🔨 Auctions volume", st.auctionsVolumeCents) +
       row("📣 Business Ads", st.bizadsCents == null ? null : st.bizadsCents,
         (typeof st.bizadsActive === "number") ? '<div class="rp-os-note" style="margin-top:2px">' + st.bizadsActive + " active advertiser" + (st.bizadsActive === 1 ? "" : "s") + "</div>" : "") +
@@ -41798,6 +42164,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
             <button type="button" data-al="right" aria-label="Align right"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M11 11h9M7 16h13"/></svg></button>
           </span>
           <button type="button" id="ctxSubs278" class="ctx-subs278" aria-pressed="false">🔒 Subscribers only: Off</button>
+          <button type="button" id="ctxClub278" class="ctx-club278" aria-pressed="false">🔒 Fan club: Off</button> <!-- [RP-V7.298] -->
           <span class="ctx-count278" id="ctxCount278">0/500</span>
         </div>
       </div>
@@ -42215,7 +42582,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
        there is no caption step and the audience stays the default
        Everyone; the style rides along and renders identically in
        Home and on the profile (window.RPText278 tables). */
-    var TextEd278 = { font: "classic", color: "#ffffff", bg: "sunset", align: "center", box: "none", size: 1, posting: false, subsOnly: false }; // [RP-V7.296] subsOnly
+    var TextEd278 = { font: "classic", color: "#ffffff", bg: "sunset", align: "center", box: "none", size: 1, posting: false, subsOnly: false, clubOnly: false }; // [RP-V7.296] subsOnly // [RP-V7.298] clubOnly
     function paintTextEd278() {
       var T = window.RPText278; if (!T) return;
       var ed = el("camTextEd278"); if (!ed) return;
@@ -42234,6 +42601,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       el("ctxBoxBtn278").setAttribute("data-box", TextEd278.box);
       var csb296p = el("ctxSubs278"); // [RP-V7.296]
       if (csb296p) { csb296p.classList.toggle("on", !!TextEd278.subsOnly); csb296p.textContent = TextEd278.subsOnly ? "🔒 Subscribers only: On" : "🔒 Subscribers only: Off"; csb296p.setAttribute("aria-pressed", TextEd278.subsOnly ? "true" : "false"); }
+      var ccb298p = el("ctxClub278"); // [RP-V7.298]
+      if (ccb298p) { ccb298p.classList.toggle("on", !!TextEd278.clubOnly); ccb298p.textContent = TextEd278.clubOnly ? "🔒 Fan club: On" : "🔒 Fan club: Off"; ccb298p.setAttribute("aria-pressed", TextEd278.clubOnly ? "true" : "false"); }
       el("ctxCount278").textContent = (ta.value || "").length + "/500";
       ed.querySelectorAll(".ctx-font278").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-font") === TextEd278.font); });
       ed.querySelectorAll(".ctx-color278").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-color") === TextEd278.color); });
@@ -42275,6 +42644,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       el("ctxDone278").addEventListener("click", textPost278);
       var csb296 = el("ctxSubs278"); // [RP-V7.296] the subscribers-only toggle chip
       if (csb296) csb296.addEventListener("click", function () { TextEd278.subsOnly = !TextEd278.subsOnly; paintTextEd278(); });
+      var ccb298 = el("ctxClub278"); // [RP-V7.298] the fan-club toggle chip
+      if (ccb298) ccb298.addEventListener("click", function () { TextEd278.clubOnly = !TextEd278.clubOnly; paintTextEd278(); });
       paintTextEd278();
     }
     function textPost278() {
@@ -42289,7 +42660,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       fetch("/api/photo/text-post", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok },
-        body: JSON.stringify({ text: text, style: { font: TextEd278.font, color: TextEd278.color, bg: TextEd278.bg, align: TextEd278.align, box: TextEd278.box, size: TextEd278.size }, subsOnly: !!TextEd278.subsOnly, /* [RP-V7.296] */ clientKey: "tx" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) })
+        body: JSON.stringify({ text: text, style: { font: TextEd278.font, color: TextEd278.color, bg: TextEd278.bg, align: TextEd278.align, box: TextEd278.box, size: TextEd278.size }, subsOnly: !!TextEd278.subsOnly, clubOnly: !!TextEd278.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ clientKey: "tx" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) })
       }).then(function (r) { return r.json().catch(function () { return null; }); })
         .then(function (j) {
           TextEd278.posting = false; el("ctxDone278").classList.remove("busy");
@@ -44878,10 +45249,9 @@ html, body { overflow-x: clip; }
         try { if (typeof personFace === "function") lface296 = personFace({ name: pp.author || "Someone" }); } catch (e) { }
         if (!lface296) lface296 = '<span class="pface pface-init">' + esc243((pp.author || "?").charAt(0).toUpperCase() || "?") + "</span>";
         lcard296.innerHTML =
-          '<div class="mom-top"><span class="who-av">' + lface296 + '</span><div><b>' + esc243(pp.author || "Someone") + '</b><span>' + esc243(when243(pp.createdAt)) + " · Subscribers only</span></div></div>" +
-          '<div class="mom-photo">' + (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(pp.author || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>') + '</div>';
-        var clk296 = lcard296.querySelector(".rp-lock-btn296");
-        if (clk296) clk296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(pp.authorId || "", pp.author || ""); });
+          '<div class="mom-top"><span class="who-av">' + lface296 + '</span><div><b>' + esc243(pp.author || "Someone") + '</b><span>' + esc243(when243(pp.createdAt)) + " · " + ((pp.clubOnly && pp.subsOnly) ? "Members only" : pp.clubOnly ? "Fan Club only" : "Subscribers only") + "</span></div></div>" + // [RP-V7.298] the header names the actual lock
+          '<div class="mom-photo">' + (window.rpAnyLockHtml298 ? window.rpAnyLockHtml298(pp, pp.author || "") : '<div class="rp-lock296"><span class="lk-tx">🔒 Locked</span></div>') + '</div>'; // [RP-V7.298]
+        if (window.rpWireLockBtns298) window.rpWireLockBtns298(lcard296, pp.authorId || "", pp.author || ""); // [RP-V7.298]
         return lcard296;
       }
       var acts = window.rpFeedActs241 || {};
