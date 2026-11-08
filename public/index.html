@@ -919,6 +919,12 @@
       .reel-when { font-size: 12px; opacity: .85; font-weight: 700; margin-left: 6px; }
       .reel-cap { margin: 4px 0 0; font-size: 14px; font-weight: 600; line-height: 1.35; text-shadow: 0 1px 6px rgba(0,0,0,.65); }
       .reel-chip { display: inline-block; margin-top: 7px; font-size: 11.5px; font-weight: 800; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.35); color: #fff; padding: 3px 9px; border-radius: 999px; }
+      /* [RP-V7.286] Copyright-mute chip — shared by the Moments pager, the Home pager, the story viewer, the media lightbox and the workout player. */
+      .cr286-chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(0,0,0,.62); color: #fff; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; pointer-events: none; margin-top: 6px; }
+      .cr286-chip[hidden] { display: none; }
+      .cr286-chip.sv-cr286 { position: absolute; top: calc(58px + env(safe-area-inset-top, 0px)); left: 12px; margin-top: 0; z-index: 6; }
+      .cr286-chip.rpmedia-cr286 { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); left: 14px; margin-top: 0; z-index: 6; }
+      .cr286-chip.wo-cr286 { margin: 8px 12px 0; }
       .reel-rail { position: absolute; right: 8px; bottom: 12px; display: flex; flex-direction: column; gap: 13px; align-items: center; }
       .reel-act { display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; color: #fff; font-size: 21px; cursor: pointer; font-family: inherit; text-shadow: 0 1px 6px rgba(0,0,0,.7); padding: 2px; line-height: 1.1; }
       .reel-act span { font-size: 11.5px; font-weight: 800; }
@@ -24384,7 +24390,7 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0 /* [RP-V7.262] */ });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0 /* [RP-V7.262] */ });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
@@ -24858,6 +24864,7 @@
         var cmts = reelLoadComments()[item.id] || [];
         var cmtCount = item.server ? (item.commentCount || 0) : cmts.length;
         var chip = item.pending ? '<span class="reel-chip">📱 On this device — posts to the Plaza from the live site</span>' : "";
+        var crChip286 = item.crMuted ? '<div class="cr286-chip"><span>🔇</span><span>Audio muted — copyrighted song detected</span></div>' : ""; // [RP-V7.286]
         /* RP-V7.9: Duet = my video beside the source; Stitch = a ≤5s
            source segment, then my video. Both are just references — the
            two halves play from their own files, in sync on this card. */
@@ -24894,7 +24901,7 @@
           '<div class="reel-play">▶</div>' +
           '<div class="reel-meta"><span class="reel-author"' + rpProfAttrs259(item) + '>' + escHtml(item.author) + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" +
           (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption, "reels") + "</p>" : "") + postMetaLineHtml156(item) + chip + provHtml + // [RP-V7.258] pager reel card: reels context
-          (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : "Plaza sound") + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound">☆</button></div>' : '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>") +
+          (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : "Plaza sound") + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound">☆</button></div>' : '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>") + crChip286 + // [RP-V7.286]
           "</div>" +
           '<div class="reel-rail">' + avHtml +
             '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + lk.count + "</span></button>" +
@@ -25002,7 +25009,7 @@
            mute (__userMuted244) always wins, and the speaker icon is
            kept in sync exactly as cardPlay syncs it. */
         function rpGestureUnmute246() {
-          if (!vMine || vMine.__userMuted244 || !vMine.muted) return;
+          if (!vMine || vMine.__userMuted244 || !vMine.muted || (item && item.crMuted)) return; // [RP-V7.286] copyright-muted: the flag wins over every gesture
           vMine.muted = false;
           try {
             if (mb) {
@@ -25027,7 +25034,7 @@
              then brings sound exactly as before. Rail/story/home
              PREVIEWS stay muted by design — this is only the opened
              reel's own play path. */
-          if (vMine && !vMine.__userMuted244 && vMine.muted) {
+          if (vMine && !vMine.__userMuted244 && vMine.muted && !(item && item.crMuted)) { // [RP-V7.286]
             vMine.muted = false;
             try { if (mb) mb.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"M15.5 9.6a3.8 3.8 0 0 1 0 4.8M18.2 7.2a7.3 7.3 0 0 1 0 9.6\"/></svg>"; } catch (e) { }
           }
@@ -25150,6 +25157,7 @@
         var mb = card.querySelector(".reel-mute");
         mb.addEventListener("click", function () {
           var target = (stitch && stitch.phase === "src") ? vSrc : vMine;
+          if (item && item.crMuted && target === vMine) { target.muted = true; target.__userMuted244 = true; mb.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"m15.8 9.8 4.7 4.7M20.5 9.8l-4.7 4.7\"/></svg>"; return; } // [RP-V7.286]
           target.muted = !target.muted;
           target.__userMuted244 = target.muted; /* [RP-V7.244] the member's own mute choice sticks — cardPlay never overrides it */
           mb.innerHTML = target.muted ? "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"m15.8 9.8 4.7 4.7M20.5 9.8l-4.7 4.7\"/></svg>" : "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"M15.5 9.6a3.8 3.8 0 0 1 0 4.8M18.2 7.2a7.3 7.3 0 0 1 0 9.6\"/></svg>";
@@ -25545,7 +25553,7 @@
          18+ door verifies once before the feed plays. */
       var HomeFeed = { tab: "foryou", friendsItems: null, friendsLoaded: false, sig: "", observer: null };
       function homeMapServer(r) {
-        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)) };
+        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), crMuted: r.crMuted || null }; // [RP-V7.286]
       }
       function homeFetchFriends() {
         var tok = reelToken();
@@ -25569,11 +25577,14 @@
          (__userMuted244) always wins. */
       function hpGestureUnmute246(v) {
         if (!v || v.__userMuted244 || !v.muted) return;
+        var sl286 = v.closest ? v.closest(".hp-slide") : null;
+        if (sl286 && sl286._item && sl286._item.crMuted) { v.muted = true; v.volume = 0; return; } // [RP-V7.286]
         v.muted = false;
       }
       function hpPlay(slide) {
         if (slide._rpPlay) { slide._rpPlay(); return; } // [RP-V7.123] photo slide
         var v = slide.querySelector("video"); if (!v) return;
+        if (slide._item && slide._item.crMuted) { v.muted = true; v.volume = 0; } // [RP-V7.286]
         if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () { v.muted = true; v.play().catch(function () { }); }); }
       }
       function hpPause(slide, emit) {
@@ -25592,7 +25603,7 @@
           '<video src="' + escHtml(item.url) + '" loop playsinline preload="metadata"></video>' +
           '<div class="hp-grad"></div>' +
           '<div class="hp-meta"><button type="button" class="hp-aname">' + escHtml(item.author) + "</button>" +
-          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption, "reels") + "</p>" : "") + postMetaLineHtml156(item) + "</div>" + // [RP-V7.258] Home reel slide: reels context
+          (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption, "reels") + "</p>" : "") + postMetaLineHtml156(item) + (item.crMuted ? '<span class="cr286-chip">🔇 Audio muted — copyrighted song detected</span>' : "") + "</div>" + // [RP-V7.258] Home reel slide: reels context // [RP-V7.286] chip
           '<div class="hp-rail">' +
           '<button type="button" class="hp-ava" aria-label="Open profile"><span class="hp-ava-in" style="background:' + reelAvColor(item.author) + '">' + escHtml(String(item.author || "?").charAt(0).toUpperCase()) + "</span>" + (item.mine ? "" : '<span class="hp-follow">+</span>') + "</button>" +
           '<button type="button" class="hp-act like' + (lk.liked ? " liked" : "") + '"><span class="hp-ico">' + RPICO.heart + '</span><span class="lc">' + (lk.count || 0) + "</span></button>" +
@@ -36245,7 +36256,7 @@ button.rp72-chip{ cursor:pointer; }
     window.openSheet(
       '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
       '<div class="rpmedia-player"><video src="' + esc(it.src || "") + '" controls autoplay playsinline></video>' +
-      '<span class="rpmedia-player-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span>" + rail241.html + "</div></div>"
+      '<span class="rpmedia-player-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span>" + (it.crMuted ? '<span class="cr286-chip rpmedia-cr286">🔇 Audio muted — copyrighted song detected</span>' : "") + rail241.html + "</div></div>" // [RP-V7.286]
     );
     wireSheetClose();
     /* [RP-V7.254] A video opens FULL SCREEN: flag the overlay so
@@ -36266,6 +36277,7 @@ button.rp72-chip{ cursor:pointer; }
        (nothing here touches muted/volume). */
     var vid254 = document.querySelector("#sheet .rpmedia-player video");
     if (vid254) { try { var pr254 = vid254.play(); if (pr254 && pr254.catch) pr254.catch(function () { }); } catch (e) { } }
+    if (vid254 && it.crMuted) { vid254.muted = true; vid254.volume = 0; vid254.addEventListener("volumechange", function () { if (!vid254.muted) { vid254.muted = true; vid254.volume = 0; } }); } // [RP-V7.286] the native controls cannot unmute a copyright-muted video
     rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
     var span = document.querySelector("[data-rpvcount]");
     rpViewsPing("reel", it.id, null, function (n) {
@@ -36556,7 +36568,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.reels || []).forEach(function (r) {
       items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", views: r.views || 0,
         // [RP-V7.241] rail state rides along for the lightbox
-        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted });
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null /* [RP-V7.286] */ });
     });
     return items;
   }
@@ -36570,7 +36582,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: (pp.urls || []).length || 1 /* [RP-V7.123] */,
       // [RP-V7.241] the full feed-item shape, for the lightbox rail
       caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: pp.commentCount || 0, reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine }); });
-    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, views: fp.views || 0, feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
+    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
     var order = {}; (j.pins || []).forEach(function (pn, ix) { order[pn.kind + ":" + pn.id] = ix; });
     var pinned = [], rest = [];
     items.forEach(function (it) { (order[it.kind + ":" + it.id] !== undefined ? pinned : rest).push(it); });
@@ -36730,7 +36742,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.reels || []).forEach(function (r) {
       items.push({ kind: "reel", id: r.id, owner: r.authorId || null, ownerName: r.author || "", src: r.url || "", views: r.views || 0, createdAt: r.createdAt || "",
         // [RP-V7.241] rail state rides along for the lightbox
-        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted });
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null /* [RP-V7.286] */ });
     });
     (j.photos || []).forEach(function (p) {
       items.push({ kind: "photo", id: p.url, owner: p.ownerId, ownerName: p.ownerName || "", src: p.url, views: p.views || 0, createdAt: "" });
@@ -38530,6 +38542,7 @@ button.rp72-chip{ cursor:pointer; }
         '<div id="rpWoViewBrowse">' +
           '<div class="wo-sheet-head"><h3>🏋️ Workout Room Videos</h3><button class="wo-x" type="button" id="rpWoClose"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>' +
           '<div class="wo-player-wrap"><video id="rpWoPlayer" controls playsinline preload="metadata"></video></div>' +
+          '<div id="rpWoCr286" class="cr286-chip wo-cr286" hidden><span>🔇</span><span>Audio muted — copyrighted song detected</span></div>' + // [RP-V7.286]
           '<div class="wo-now-title" id="rpWoNowTitle">Pick a video to start watching</div>' +
           '<p class="wo-now-sub" id="rpWoNowSub">Real workout, nutrition and fitness clips. When you play one, everyone in the room can join and watch with you.</p>' +
           '<div class="wo-join-banner" id="rpWoJoinBanner"><span id="rpWoJoinTxt"></span><button type="button" id="rpWoJoinBtn">▶ Join</button></div>' +
@@ -38602,7 +38615,7 @@ button.rp72-chip{ cursor:pointer; }
   /* ---------- Catalog + shelves ---------- */
   function postItem(p, local) {
     return { id: local ? p.id : "srv-" + p.id, kind: "post", cat: p.category || p.cat || "workouts",
-      title: p.title || "Workout video", author: p.author || "Member", url: p.url || "", file: p.file || "", local: !!local, at: p.createdAt || p.at || 0 };
+      title: p.title || "Workout video", author: p.author || "Member", url: p.url || "", file: p.file || "", local: !!local, at: p.createdAt || p.at || 0, crMuted: p.crMuted || null /* [RP-V7.286] */ };
   }
   function allItems() {
     var items = STOCK.map(function (s) { return { id: s.id, kind: "stock", cat: s.cat, title: s.title, file: s.file, url: "video/workout/" + s.file, dur: s.dur }; });
@@ -38715,6 +38728,13 @@ button.rp72-chip{ cursor:pointer; }
     showView("browse");
     $("rpWoSheet").classList.add("on");
     setPlayerSrc(it, opts.seek || 0);
+    var wp286 = $("rpWoPlayer"); // [RP-V7.286] copyright-mute wiring for the shared player
+    if (wp286) {
+      wp286.__crMuted286 = !!it.crMuted;
+      wp286.muted = !!it.crMuted; if (it.crMuted) { try { wp286.volume = 0; } catch (e) {} }
+      if (!wp286.__crWire286) { wp286.__crWire286 = true; wp286.addEventListener("volumechange", function () { if (wp286.__crMuted286 && !wp286.muted) { wp286.muted = true; wp286.volume = 0; } }); }
+    }
+    var wc286 = $("rpWoCr286"); if (wc286) wc286.hidden = !it.crMuted;
     $("rpWoNowTitle").textContent = it.title;
     $("rpWoNowSub").textContent = it.kind === "post" ? ("Posted by " + (it.author || "a member")) : "Rizz Plaza pick — stock fitness library";
     if (!opts.remote && inWorkout()) {
@@ -39882,6 +39902,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       '<video playsinline preload="auto"></video>' +
       '<img class="sv-photo" alt="" hidden>' +
       '<div class="sv-segs"></div>' +
+      '<div class="cr286-chip sv-cr286" data-sv-cr286 hidden><span>🔇</span><span>Audio muted — copyrighted song detected</span></div>' + // [RP-V7.286]
       '<div class="sv-top"><button type="button" class="sv-chip"></button>' +
       '<button type="button" class="sv-del" aria-label="Delete this story" hidden><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.5 6.5h15M9.5 6.3V4.8A1.8 1.8 0 0 1 11.3 3h1.4a1.8 1.8 0 0 1 1.8 1.8v1.5M6.5 6.5l1 13.2h9l1-13.2\"/><path d=\"M10 10.5v6M14 10.5v6\"/></svg></button>' +
       '<button type="button" class="sv-x" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>' +
@@ -39971,10 +39992,13 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       stopPhotoTimer();
       if (V.photo) { V.photo.hidden = true; V.photo.removeAttribute("src"); }
       V.video.style.display = "";
+      V.video.muted = !!s.crMuted; // [RP-V7.286]
       V.video.src = s.url;
       V.video.play().catch(function () {});
     }
     var chip = V.el.querySelector(".sv-chip");
+    var crChip286s = V.el.querySelector("[data-sv-cr286]"); // [RP-V7.286]
+    if (crChip286s) crChip286s.hidden = !(s.kind !== "photo" && s.crMuted);
     chip.innerHTML = avaInner(e.author) + "<span><b>" + escS(e.author.name) + "</b><span>" + escS(timeAgo(s.createdAt)) + "</span></span>";
     V.el.querySelector(".sv-del").hidden = !e.isSelf;
     V.el.querySelector(".sv-del").dataset.armed = "";
@@ -40467,6 +40491,73 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
      session token (same auth as osFetch); the server credits a teen
      target's gift balance only, or an adult target's main balance,
      and the result line shows the endpoint's answer plainly. */
+  // [RP-V7.286] Copyright matches panel on the owner board: rides the
+  // EXACT owner signal of the sales board (created only inside
+  // rpOwnerSalesInit after /api/owner/sales answered ok for this
+  // account, removed wherever the board is removed). A SIBLING of
+  // the sales panel, same as the grant panel. Lists matched scans
+  // from GET /api/owner/copyright with Restore / Take down / Dismiss
+  // buttons wired to POST /api/owner/copyright-action.
+  function osCopyrightEnsure286(panel) {
+    if (document.getElementById("rpOwnerCopyright")) return;
+    if (!panel || !panel.parentNode) return;
+    var host = document.createElement("div");
+    host.className = "rp-owner-sales rp-owner-copyright";
+    host.id = "rpOwnerCopyright";
+    host.innerHTML = '<h4>🎵 Copyright matches</h4>' +
+      '<div class="rp-os-note" data-cr286-meta>Loading…</div>' +
+      '<div data-cr286-list></div>';
+    panel.parentNode.insertBefore(host, panel.nextSibling);
+    fetch("/api/owner/copyright", { headers: { Authorization: "Bearer " + osToken() }, cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var meta = host.querySelector("[data-cr286-meta]");
+        var list = host.querySelector("[data-cr286-list]");
+        if (!d || !d.ok) { if (meta) meta.textContent = "Could not load matches."; return; }
+        if (meta) meta.textContent = "Mode: " + (d.mode || "mute") + " — a match mutes the post's own audio automatically (a Plaza catalog track on it keeps playing). Restore clears a false positive; Take down removes the post.";
+        var rows = (d.scans || []).filter(function (r) { return r.state === "matched" || r.action; });
+        if (!rows.length) { list.innerHTML = '<div class="rp-os-note">No matches yet — every posted video and voice intro is being scanned.</div>'; return; }
+        list.innerHTML = rows.map(function (r) {
+          var t = r.track || {};
+          var acted = r.action === "restored" || r.action === "taken-down";
+          var btns = acted ? "" :
+            '<button type="button" data-cr286-act="restore" data-cr286-id="' + esc2(r.id) + '" style="margin-left:8px; background:#2f7d4f; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Restore</button>' +
+            '<button type="button" data-cr286-act="takedown" data-cr286-id="' + esc2(r.id) + '" style="margin-left:8px; background:#b52a2a; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Take down</button>' +
+            '<button type="button" data-cr286-act="dismiss" data-cr286-id="' + esc2(r.id) + '" style="margin-left:8px; background:#2a7ab5; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Dismiss</button>';
+          return '<div style="padding:7px 0; border-bottom:1px solid rgba(255,255,255,.08)"><b>' + esc2(t.title || "(untitled)") + "</b>" +
+            (t.artists ? " — " + esc2(t.artists) : "") +
+            '<div class="rp-os-note">' + esc2(r.surface) + " · by " + esc2(r.authorName || r.authorId || "guest") + " · score " + (t.score != null ? t.score : "?") + (t.isrc ? " · ISRC " + esc2(t.isrc) : "") + " · " + esc2(r.action || r.state || "") + " · " + esc2(String(r.at || "").slice(0, 10)) + "</div>" + btns + "</div>";
+        }).join("");
+        if (!window.__rpCrWire286) {
+          window.__rpCrWire286 = true;
+          document.addEventListener("click", function (ev) {
+            var b = ev.target && ev.target.closest ? ev.target.closest("[data-cr286-act]") : null;
+            if (!b) return;
+            var act = b.getAttribute("data-cr286-act");
+            var id = b.getAttribute("data-cr286-id");
+            var t = osToken();
+            if (!t || !act || !id) return;
+            b.disabled = true; b.textContent = "Working…";
+            fetch("/api/owner/copyright-action", {
+              method: "POST",
+              headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+              body: JSON.stringify({ scanId: id, action: act, token: t })
+            }).then(function (r) { return r.json().catch(function () { return null; }); })
+              .then(function (jj) {
+                if (jj && jj.ok) {
+                  try { toast(act === "restore" ? "Restored — the audio is live again." : act === "takedown" ? "Taken down." : "Dismissed."); } catch (e) { }
+                  var h = document.getElementById("rpOwnerCopyright"); if (h) h.remove();
+                  var p = document.getElementById("rpOwnerSales"); if (p) osCopyrightEnsure286(p);
+                } else { b.disabled = false; b.textContent = act === "restore" ? "Restore" : act === "takedown" ? "Take down" : "Dismiss"; }
+              }).catch(function () { b.disabled = false; });
+          });
+        }
+      })
+      .catch(function () {
+        var meta2 = host.querySelector("[data-cr286-meta]");
+        if (meta2) meta2.textContent = "Could not load matches.";
+      });
+  }
   function osGrantEnsure(panel) {
     if (document.getElementById("rpOwnerGrant")) return;
     if (!panel || !panel.parentNode) return;
@@ -40550,6 +40641,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         if (panel) panel.remove();
         var gp0 = document.getElementById("rpOwnerGrant");
         if (gp0) gp0.remove();
+        var cp0 = document.getElementById("rpOwnerCopyright"); if (cp0) cp0.remove(); // [RP-V7.286]
         osStop();
         return;
       }
@@ -40563,13 +40655,14 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       panel.innerHTML = window.rpOwnerSalesRender(d) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
       osGrantEnsure(panel);
       if (!osTimer) {
+      osCopyrightEnsure286(panel); // [RP-V7.286]
         osTimer = setInterval(function () {
           if (!document.getElementById("rpOwnerSales")) { osStop(); return; }
           osFetch().then(function (d2) {
             var p2 = document.getElementById("rpOwnerSales");
             if (!p2) { osStop(); return; }
             magniStoreApply(!!d2); // [RP-V7.223] refresh verdicts re-apply the store gate
-            if (!d2) { p2.remove(); var gp2 = document.getElementById("rpOwnerGrant"); if (gp2) gp2.remove(); osStop(); return; }
+            if (!d2) { p2.remove(); var gp2 = document.getElementById("rpOwnerGrant"); if (gp2) gp2.remove(); var cp2 = document.getElementById("rpOwnerCopyright"); if (cp2) cp2.remove(); osStop(); return; } // [RP-V7.286]
             p2.innerHTML = window.rpOwnerSalesRender(d2) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
           });
         }, 300000);
@@ -41677,7 +41770,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         if (Snd.owner !== "reel") { Snd.owner = "reel"; try { AudioFX.holdMusic("reelsnd"); } catch (e) { } }
         sndSetTrack(item.musicTrackId);
         a.loop = true; a.volume = num(item.musicVol, 0.8);
-        try { av.video.volume = num(item.origVol, 1); if (num(item.origVol, 1) === 0) av.video.muted = true; } catch (e) { }
+        try { if (item.crMuted) { av.video.muted = true; av.video.volume = 0; } else { av.video.volume = num(item.origVol, 1); if (num(item.origVol, 1) === 0) av.video.muted = true; } } catch (e) { } // [RP-V7.286] copyright-muted: own audio silent, the catalog track keeps playing
         syncPair(av.video, item.musicStart || 0);
         if (!av.video.paused && av.video.readyState > 1) { if (a.paused) sndPlay(); }
         else if (!a.paused) a.pause();
