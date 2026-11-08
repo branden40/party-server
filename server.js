@@ -3932,21 +3932,22 @@ app.get("/api/reels", (req, res) => {
   // [RP-V7.296] Subscriber-only gating for the map below: the
   // caller's access set + one accounts read for author keys.
   const fanAccess296r = fanSubAccessSet296(mdb262r, fyUser ? fyUser.id : null);
+  const clubAccess298r = fanClubAccessSet298(mdb262r, fyUser ? fyUser.id : null); // [RP-V7.298] club access set for the same map
   let adb296r = null;
   try { adb296r = readAccounts(); } catch (e) { adb296r = null; }
   const list = all.slice(0, 100).map((r) => {
     // [RP-V7.296] A subscriber-only reel a viewer cannot open
     // rides as a locked placeholder: id, author, lock state — no
     // playback URL, no caption, no source, no comments.
-    if (r.subsOnly) {
+    if (r.subsOnly || r.clubOnly) { // [RP-V7.298] club-only reels gate exactly like subscriber-only reels (a post carrying BOTH flags needs BOTH accesses)
       const aKey296 = adb296r ? reelAuthorKeyFor(adb296r, r) : (r.authorId || null);
-      const canSee296 = !!(fyUser && aKey296 && (aKey296 === fyUser.id || fanAccess296r.has(aKey296)));
+      const canSee296 = !!(fyUser && aKey296 && (aKey296 === fyUser.id || ((!r.subsOnly || fanAccess296r.has(aKey296)) && (!r.clubOnly || clubAccess298r.has(aKey296)))));
       if (!canSee296) {
         return {
           id: r.id,
           author: r.author,
           authorId: aKey296 || null,
-          subsOnly: true, locked: true,
+          ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
           caption: "",
           location: "",
           link: "",
@@ -3987,6 +3988,7 @@ app.get("/api/reels", (req, res) => {
       author: r.author,
       authorId: (adb296r ? reelAuthorKeyFor(adb296r, r) : (r.authorId || null)), // [RP-V7.296] the subscribe route rides the payload (the client already reads r.authorId)
       ...(r.subsOnly ? { subsOnly: true } : {}), // [RP-V7.296]
+      ...(r.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
       caption: r.caption,
       location: r.location || "",
       link: r.link || "",
@@ -4136,7 +4138,7 @@ app.get("/reel/:id", (req, res) => {
       const rec = listReels().find((r) => r && r.id === id);
       // The feed's own audience rule (RP-V7.156): anything but
       // "everyone" is gated, and a share card must never leak it.
-      if (rec && rec.file && !rec.subsOnly && (rec.audience || "everyone") === "everyone") { // [RP-V7.296] a subscriber-only reel never rides the public share card
+      if (rec && rec.file && !rec.subsOnly && !rec.clubOnly && (rec.audience || "everyone") === "everyone") { // [RP-V7.296] a subscriber-only reel never rides the public share card // [RP-V7.298] nor does a club-only reel
         const origin = siteOrigin(req);
         const video = origin + "/reel-files/" + rec.file;
         const ext = String(rec.file).split(".").pop().toLowerCase();
@@ -4170,7 +4172,7 @@ app.get("/post/:id", (req, res) => {
   try {
     if (id) {
       const rec = readPhotoPosts().posts.find((p) => p && p.id === id);
-      if (rec && !rec.subsOnly && (rec.audience || "everyone") === "everyone") { // [RP-V7.296] a subscriber-only post never rides the public share card
+      if (rec && !rec.subsOnly && !rec.clubOnly && (rec.audience || "everyone") === "everyone") { // [RP-V7.296] a subscriber-only post never rides the public share card // [RP-V7.298] nor does a club-only post
         const origin = siteOrigin(req);
         if (rec.kind === "text") {
           // [RP-V7.278] a text post shares its words: the text
@@ -4228,6 +4230,7 @@ app.get("/api/tag/:tag", (req, res) => {
   const hasTag = (text) => styleKeysForCaption(text).tags.includes(tag);
   const mdb262tag = readMoney(); const pg262 = mdb262tag.postGifts || {}; // [RP-V7.262]
   const fanAccess296tag = fanSubAccessSet296(mdb262tag, uid); // [RP-V7.296]
+  const clubAccess298tag = fanClubAccessSet298(mdb262tag, uid); // [RP-V7.298]
   let adb296tag = null;
   try { adb296tag = readAccounts(); } catch (e) { adb296tag = null; }
   const reels = listReels()
@@ -4238,12 +4241,12 @@ app.get("/api/tag/:tag", (req, res) => {
       // [RP-V7.296] A subscriber-only reel surfaces in tag results
       // only as its locked placeholder (no URL, no caption) for a
       // viewer without access.
-      if (r.subsOnly) {
+      if (r.subsOnly || r.clubOnly) { // [RP-V7.298]
         const aKey296 = adb296tag ? reelAuthorKeyFor(adb296tag, r) : (r.authorId || null);
-        if (!uid || !aKey296 || (aKey296 !== uid && !fanAccess296tag.has(aKey296))) {
+        if (!uid || !aKey296 || (aKey296 !== uid && ((r.subsOnly && !fanAccess296tag.has(aKey296)) || (r.clubOnly && !clubAccess298tag.has(aKey296))))) {
           return {
             id: r.id, author: r.author, authorId: aKey296 || null,
-            subsOnly: true, locked: true,
+            ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
             caption: "", createdAt: r.createdAt, url: null,
             views: 0,
             heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
@@ -4274,7 +4277,7 @@ app.get("/api/tag/:tag", (req, res) => {
   const photos = readPhotoPosts()
     .posts.filter((x) => x && x.kind !== "text" && hasTag(x.caption)) // [RP-V7.278] tag views render photo tiles — text posts stay out (their hashtags still surface photos/reels)
     .slice(0, 60)
-    .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296tag));
+    .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296tag, clubAccess298tag)); // [RP-V7.298] club set rides along
   res.json({ ok: true, tag, reels, photos });
 });
 
@@ -5023,6 +5026,7 @@ app.post("/api/reel", (req, res) => {
       ...(link156 ? { link: link156 } : {}),
       ...(aud156 !== "everyone" && authorUser ? { audience: aud156 } : {}),
       ...((rb156.subsOnly === "1" || rb156.subsOnly === "true" || rb156.subsOnly === true) && authorUser ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation — needs an account author (the gate keys on the account id)
+      ...((rb156.clubOnly === "1" || rb156.clubOnly === "true" || rb156.clubOnly === true) && authorUser ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation — same rule
       ...(musicTrackId ? { musicTrackId, musicStart, musicVol, origVol } : {}),
     });
     if (musicTrackId) soundTouchUse(authorUser ? authorUser.id : null, musicTrackId);
@@ -6057,7 +6061,7 @@ function photoReshareSet(repostsDb, id) {
   const s2 = repostsDb && repostsDb.reshares ? repostsDb.reshares[id] : null;
   return Array.isArray(s2) ? s2 : [];
 }
-function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAccess296) {
+function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAccess296, clubAccess298) { // [RP-V7.298] clubAccess298 = the caller's fan-club access set (same pattern as fanAccess296)
   const list = (commentsDb.photos && commentsDb.photos[p.id]) || [];
   const set = Array.isArray(likesDb.photos[p.id]) ? likesDb.photos[p.id] : [];
   const rset = photoRepostSet(repostsDb, p.id);
@@ -6068,12 +6072,13 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
   // — id, author and lock state only. No photo URL, no caption, no
   // text, no comments ride a locked payload, on any surface.
   const subsOnly296 = !!p.subsOnly;
-  const locked296 = subsOnly296 && uid !== p.owner && !(fanAccess296 && fanAccess296.has(p.owner));
+  const clubOnly298 = !!p.clubOnly; // [RP-V7.298]
+  const locked296 = uid !== p.owner && ((subsOnly296 && !(fanAccess296 && fanAccess296.has(p.owner))) || (clubOnly298 && !(clubAccess298 && clubAccess298.has(p.owner)))); // [RP-V7.298] BOTH flags gate: a viewer needs every access the post demands
   if (locked296) {
     return {
       id: p.id,
       kind: p.kind === "text" ? "text" : "photo",
-      subsOnly: true, locked: true,
+      ...(subsOnly296 ? { subsOnly: true } : {}), ...(clubOnly298 ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
       author: p.name,
       authorId: p.owner || null,
       photo: null,
@@ -6102,6 +6107,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     id: p.id,
     kind: p.kind === "text" ? "text" : "photo", // [RP-V7.278]
     ...(subsOnly296 ? { subsOnly: true } : {}), // [RP-V7.296]
+    ...(clubOnly298 ? { clubOnly: true } : {}), // [RP-V7.298]
     authorId: p.owner || null, // [RP-V7.296] the subscribe route rides every post payload
     text: p.kind === "text" ? String(p.text || "") : "", // [RP-V7.278]
     tstyle: p.kind === "text" ? textStyle278(p.tstyle) : null, // [RP-V7.278]
@@ -6234,6 +6240,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       ...(link156 ? { link: link156 } : {}),
       ...(aud156 !== "everyone" ? { audience: aud156 } : {}),
       ...((b.subsOnly === "1" || b.subsOnly === "true" || b.subsOnly === true) ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation
+      ...((b.clubOnly === "1" || b.clubOnly === "true" || b.clubOnly === true) ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation
       clientKey: clientKey || null,
       ts: new Date().toISOString(),
       ...(musicTrackId ? { musicTrackId, musicStart: reelNum(b.musicStart, 0, 3600) || 0, musicVol: reelNum(b.musicVol, 0, 1) ?? 0.8 } : {}),
@@ -6292,6 +6299,7 @@ app.post("/api/photo/text-post", (req, res) => {
       tstyle: textStyle278(b.style),
       ...(aud278 !== "everyone" ? { audience: aud278 } : {}),
       ...(b.subsOnly === true ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation
+      ...(b.clubOnly === true ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation
       clientKey: clientKey || null,
       ts: new Date().toISOString(),
     };
@@ -6728,10 +6736,12 @@ app.get("/api/photo/posts", (req, res) => {
       }
     } catch (e) { /* ranking must never break photo posts */ }
   }
-  const fanAccess296pp = fanSubAccessSet296(readMoney(), uid); // [RP-V7.296] one lookup set per request gates every locked payload below
+  const mdb296pp = readMoney(); // [RP-V7.298] one money read feeds both access sets
+  const fanAccess296pp = fanSubAccessSet296(mdb296pp, uid); // [RP-V7.296] one lookup set per request gates every locked payload below
+  const clubAccess298pp = fanClubAccessSet298(mdb296pp, uid); // [RP-V7.298]
   const posts = rawPosts99
     .slice(0, PHOTO_POSTS_RETURN)
-    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296pp));
+    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296pp, clubAccess298pp));
   res.json({ ok: true, posts, ...(ranked276 ? { ranked: true } : {}) });
 });
 // [RP-V7.85] Batch social state for posts that have no server post
@@ -6755,11 +6765,13 @@ app.get("/api/photo/extras", (req, res) => {
   // [RP-V7.296] Extras are a payload too: for a subscriber-only
   // post, a viewer without access gets counts only — no comments.
   const postsDbE296 = readPhotoPosts().posts;
-  const fanAccess296e = fanSubAccessSet296(readMoney(), uid);
+  const mdb298e = readMoney(); // [RP-V7.298]
+  const fanAccess296e = fanSubAccessSet296(mdb298e, uid);
+  const clubAccess298e = fanClubAccessSet298(mdb298e, uid); // [RP-V7.298]
   const posts = {};
   for (const id of ids) {
     const recE296 = postsDbE296.find((x) => x && x.id === id);
-    if (recE296 && recE296.subsOnly && uid !== recE296.owner && !fanAccess296e.has(recE296.owner)) {
+    if (recE296 && (recE296.subsOnly || recE296.clubOnly) && uid !== recE296.owner && ((recE296.subsOnly && !fanAccess296e.has(recE296.owner)) || (recE296.clubOnly && !clubAccess298e.has(recE296.owner)))) { // [RP-V7.298]
       const setE = Array.isArray(likesDb.photos[id]) ? likesDb.photos[id] : [];
       const rsetE = photoRepostSet(repostsDbE, id);
       posts[id] = {
@@ -6768,7 +6780,7 @@ app.get("/api/photo/extras", (req, res) => {
         myLiked: !!uid && setE.includes(uid),
         reposts: rsetE.length,
         myReposted: !!uid && (rsetE.some((x) => x && x.u === uid) || photoReshareSet(repostsDbE, id).some((x) => x && x.u === uid)),
-        locked: true, subsOnly: true,
+        locked: true, ...(recE296.subsOnly ? { subsOnly: true } : {}), ...(recE296.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
       };
       continue;
     }
@@ -7072,18 +7084,18 @@ app.post("/api/media/view", (req, res) => {
 // no extra filtering (the 18+ gate lives at screen entry, the same
 // place /api/reels relies on it).
 // ---------------------------------------------------------------------------
-function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296) {
+function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAccess298) { // [RP-V7.298] clubAccess298 mirrors fanAccess296
   // [RP-V7.296] Subscriber-only gating for search results: a
   // viewer without access gets the locked placeholder — no URL,
   // no caption, no source, no comments (the hit itself may ride:
   // search matched on public vocabulary, the payload never does).
-  if (r.subsOnly) {
+  if (r.subsOnly || r.clubOnly) { // [RP-V7.298]
     const aKey296 = adb ? reelAuthorKeyFor(adb, r) : (r.authorId || null);
     const realKey296 = aKey296 && aKey296.indexOf("name:") !== 0 ? aKey296 : (r.authorId || null);
-    if (!uid || !realKey296 || (realKey296 !== uid && !(fanAccess296 && fanAccess296.has(realKey296)))) {
+    if (!uid || !realKey296 || (realKey296 !== uid && ((r.subsOnly && !(fanAccess296 && fanAccess296.has(realKey296))) || (r.clubOnly && !(clubAccess298 && clubAccess298.has(realKey296)))))) {
       return {
         id: r.id, author: r.author, authorId: realKey296,
-        subsOnly: true, locked: true,
+        ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
         caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null,
         sourceId: null, sourceAuthor: null, sourceUrl: null,
         stitchStart: null, stitchDur: null, trimStart: null, trimEnd: null,
@@ -7110,6 +7122,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296) {
     authorId: (aKey241 && aKey241.indexOf("name:") !== 0) ? aKey241 : (r.authorId || null),
     caption: r.caption,
     ...(r.subsOnly ? { subsOnly: true } : {}), // [RP-V7.296]
+    ...(r.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
     createdAt: r.createdAt,
     url: "/reel-files/" + r.file,
     kind: r.kind || null,
@@ -7198,7 +7211,7 @@ app.get("/api/media/search", (req, res) => {
   };
   let reelPairs = allReels
     .filter(reelHit)
-    .map((r) => ({ r, item: mediaSearchReelItem(r, allReels, vdb, viewer241 ? viewer241.id : null, adb, pg262s, fanSubAccessSet296(readMoney(), viewer241 ? viewer241.id : null)) })); // [RP-V7.296]
+    .map((r) => { const mdb298s = readMoney(); const vid298s = viewer241 ? viewer241.id : null; return { r, item: mediaSearchReelItem(r, allReels, vdb, vid298s, adb, pg262s, fanSubAccessSet296(mdb298s, vid298s), fanClubAccessSet298(mdb298s, vid298s)) }; }); // [RP-V7.296] // [RP-V7.298] club set rides along
   if (q && urec276s) {
     for (const p of reelPairs)
       p.score = p.item.views + 4 * affLift276(reelAuthorKeyFor(adb, p.r), p.r.caption);
@@ -9552,12 +9565,12 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
     const hl241 = Array.isArray(r.heartLikes) ? r.heartLikes.length : 0;
     // [RP-V7.296] Subscriber-only tile: no src, no caption, no
     // comments for a viewer without access — the locked tile.
-    if (r.subsOnly) {
+    if (r.subsOnly || r.clubOnly) { // [RP-V7.298]
       let owner296 = r.authorId || null;
       if (!owner296) { try { const m296 = readAccounts().users.filter((u) => u && u.name === r.author); if (m296.length === 1) owner296 = m296[0].id; } catch (e) { } }
       const mdb296r = readMoney();
-      if (!uid || (owner296 !== uid && !fanSubAccess296(mdb296r, uid, owner296)))
-        return { kind: "reel", id: r.id, src: null, views: 0, caption: "", likes: hl241, subsOnly: true, locked: true,
+      if (!uid || (owner296 !== uid && ((r.subsOnly && !fanSubAccess296(mdb296r, uid, owner296)) || (r.clubOnly && !fanClubAccess298(mdb296r, uid, owner296)))))
+        return { kind: "reel", id: r.id, src: null, views: 0, caption: "", likes: hl241, ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
           owner: owner296, ownerName: r.author || "",
           heartLikes: hl241, giftCount: postGiftCountOf262(mdb296r.postGifts || {}, "reel", r.id),
           myHeart: false, comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, myReposted: false };
@@ -9575,9 +9588,9 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
     const p = readPhotoPosts().posts.find((x) => x && x.id === id);
     if (!p || !p.photo) return null;
     const mdb296tile = readMoney();
-    const pub = photoPublicPost(p, uid || "", likesDb, commentsDb, repostsDb || { photos: {}, reshares: {} }, mdb296tile.postGifts || {}, fanSubAccessSet296(mdb296tile, uid || null)); // [RP-V7.262] // [RP-V7.296]
+    const pub = photoPublicPost(p, uid || "", likesDb, commentsDb, repostsDb || { photos: {}, reshares: {} }, mdb296tile.postGifts || {}, fanSubAccessSet296(mdb296tile, uid || null), fanClubAccessSet298(mdb296tile, uid || null)); // [RP-V7.262] // [RP-V7.296] // [RP-V7.298]
     return { kind: "photopost", id: p.id, src: pub.photo, views: 0, caption: pub.caption || "", likes: pub.likes || 0, giftCount: pub.giftCount || 0, // [RP-V7.262] // [RP-V7.296] src/caption ride the GATED payload — a locked post tiles without its photo or words
-      ...(pub.locked ? { subsOnly: true, locked: true } : {}), // [RP-V7.296]
+      ...(pub.locked ? { ...(pub.subsOnly ? { subsOnly: true } : {}), ...(pub.clubOnly ? { clubOnly: true } : {}), locked: true } : {}), // [RP-V7.296] // [RP-V7.298]
       photoCount: (pub.urls || []).length || 1, // [RP-V7.123] set size for the grid's multi-photo badge
       // [RP-V7.241] author + social state for the lightbox rail
       owner: p.owner || null, ownerName: p.name || "",
@@ -9657,16 +9670,18 @@ app.get("/api/social/profile", (req, res) => {
     const pg262 = readMoney().postGifts || {}; // [RP-V7.262]
     // [RP-V7.296] The viewer's access to THIS profile's
     // subscriber-only posts — one lookup for the whole response.
-    const canSeeSubs296 = ctx.user.id === target.id || fanSubAccess296(readMoney(), ctx.user.id, target.id);
+    const mdb298prof = readMoney(); // [RP-V7.298] one money read for both access checks
+    const canSeeSubs296 = ctx.user.id === target.id || fanSubAccess296(mdb298prof, ctx.user.id, target.id);
+    const canSeeClub298 = ctx.user.id === target.id || fanClubAccess298(mdb298prof, ctx.user.id, target.id); // [RP-V7.298]
     reels = listReels()
       .filter((r) => r && r.author === target.name)
       .slice(0, 12)
       .map((r) => {
-        if (r.subsOnly && !canSeeSubs296) {
+        if ((r.subsOnly && !canSeeSubs296) || (r.clubOnly && !canSeeClub298)) { // [RP-V7.298]
           // Locked placeholder: no playback URL, no caption, no
           // comments — the profile grid renders the lock card.
           return { id: r.id, url: null, kind: r.kind || "video", caption: "", createdAt: r.createdAt || null, views: 0,
-            subsOnly: true, locked: true,
+            ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
             authorId: target.id,
             heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
             giftCount: postGiftCountOf262(pg262, "reel", r.id),
@@ -9677,7 +9692,7 @@ app.get("/api/social/profile", (req, res) => {
             crMuted: null,
             myReposted: false };
         }
-        return { id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id),
+        return { id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id), ...(r.clubOnly ? { clubOnly: true } : {}), ...(r.subsOnly ? { subsOnly: true } : {}), // [RP-V7.298]
         // [RP-V7.241] author + social state for the lightbox rail
         authorId: target.id,
         heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
@@ -9718,7 +9733,7 @@ app.get("/api/social/profile", (req, res) => {
   try {
     const pg262 = readMoney().postGifts || {}; // [RP-V7.262]
     photoPosts = readPhotoPosts().posts.filter((p) => p && p.owner === target.id).slice(0, 30)
-      .map((p) => photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86, pg262, fanSubAccessSet296(readMoney(), ctx.user.id))); // [RP-V7.296]
+      .map((p) => { const mdb298pp2 = readMoney(); return photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86, pg262, fanSubAccessSet296(mdb298pp2, ctx.user.id), fanClubAccessSet298(mdb298pp2, ctx.user.id)); }); // [RP-V7.296] // [RP-V7.298]
     for (const p of photoPosts) likesTotal += p.likes || 0;
   } catch (e) { }
   try {
@@ -9742,11 +9757,12 @@ app.get("/api/social/profile", (req, res) => {
   try {
     const fdb109 = readFeed();
     const canSeeSubsFeed296 = ctx.user.id === target.id || fanSubAccess296(readMoney(), ctx.user.id, target.id); // [RP-V7.296]
+    const canSeeClubFeed298 = ctx.user.id === target.id || fanClubAccess298(readMoney(), ctx.user.id, target.id); // [RP-V7.298]
     feedPosts = Object.values(fdb109.posts || {})
       .filter((fp) => fp && fp.authorId === target.id && fp.file)
-      .map((fp) => (fp.subsOnly && !canSeeSubsFeed296)
-        ? { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: null, views: 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: null, subsOnly: true, locked: true, authorId: target.id } // [RP-V7.296] locked feed tile: no media URL rides the payload
-        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null }) // [RP-V7.286]
+      .map((fp) => ((fp.subsOnly && !canSeeSubsFeed296) || (fp.clubOnly && !canSeeClubFeed298))
+        ? { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: null, views: 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: null, ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.clubOnly ? { clubOnly: true } : {}), locked: true, authorId: target.id } // [RP-V7.296] locked feed tile: no media URL rides the payload // [RP-V7.298]
+        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}) }) // [RP-V7.286] // [RP-V7.298]
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 60);
   } catch (e) { }
@@ -9865,6 +9881,20 @@ app.get("/api/social/profile", (req, res) => {
         subscriberCount: fanSubCount296(mdb296, target.id),
         isSelf: ctx.user.id === target.id,
         subscription: fanSubPublicRecord296(fanSubRecord296(mdb296, ctx.user.id, target.id)),
+      };
+    })(),
+    // [RP-V7.298] Fan club on this profile: the club itself (name /
+    // about / price / live member count) and the viewer's own
+    // membership state — the club card + Join button paint from this.
+    fanClub: (() => {
+      const mdb298 = readMoney();
+      const club298 = fanClubPublic298(mdb298, target.id);
+      return {
+        exists: !!club298,
+        club: club298,
+        memberCount: fanClubCount298(mdb298, target.id),
+        isSelf: ctx.user.id === target.id,
+        membership: fanClubPublicRecord298(fanClubRecord298(mdb298, ctx.user.id, target.id)),
       };
     })(),
   });
@@ -10688,7 +10718,7 @@ function feedRatePct(count, views) {
   if (!views || views <= 0) return 0;
   return Math.round((count / views) * 10000) / 100;
 }
-function feedPublic(ctx, p, following, fanAccess296) {
+function feedPublic(ctx, p, following, fanAccess296, clubAccess298) { // [RP-V7.298] clubAccess298 mirrors fanAccess296
   const brief = socialBrief(ctx.db, p.authorId);
   if (!brief) return null; // pending-deletion / gone authors don't show
   const acct = ctx.db.users.find((u) => u.id === p.authorId);
@@ -10697,11 +10727,11 @@ function feedPublic(ctx, p, following, fanAccess296) {
   // [RP-V7.296] Subscriber-only feed post: a viewer who is not the
   // author and holds no current access receives the locked
   // placeholder — no text, no media URL, no comments.
-  if (p.subsOnly && p.authorId !== ctx.user.id && !(fanAccess296 && fanAccess296.has(p.authorId))) {
+  if ((p.subsOnly || p.clubOnly) && p.authorId !== ctx.user.id && ((p.subsOnly && !(fanAccess296 && fanAccess296.has(p.authorId))) || (p.clubOnly && !(clubAccess298 && clubAccess298.has(p.authorId))))) { // [RP-V7.298]
     return {
       id: p.id,
       author: { id: p.authorId, name: brief.name, photo: (acct && acct.photo) || photos[0] || null },
-      subsOnly: true, locked: true,
+      ...(p.subsOnly ? { subsOnly: true } : {}), ...(p.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
       text: "",
       kind: p.kind || (p.file ? "photo" : "text"),
       url: null,
@@ -10740,6 +10770,7 @@ function feedPublic(ctx, p, following, fanAccess296) {
     iFollow: following ? following.has(p.authorId) : false,
     isSelf: p.authorId === ctx.user.id,
     ...(p.subsOnly ? { subsOnly: true } : {}), // [RP-V7.296]
+    ...(p.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
     crMuted: p.crMuted || null, // [RP-V7.286]
   };
 }
@@ -10837,6 +10868,7 @@ app.post("/api/feed/post",
         views: 0, // [RP-V7.95] real rendered views (POST /api/feed/view)
         viewSeen: {}, // [RP-V7.95] viewerId -> ET day of last counted view
         ...(((req.body || {}).subsOnly === true || (req.body || {}).subsOnly === "1" || (req.body || {}).subsOnly === "true") ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation
+        ...(((req.body || {}).clubOnly === true || (req.body || {}).clubOnly === "1" || (req.body || {}).clubOnly === "true") ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation
       };
       db.posts[post.id] = post;
       writeFeed(db);
@@ -10860,7 +10892,9 @@ app.get("/api/feed", (req, res) => {
   if (!feedAdultOk(ctx.user))
     return res.json({ ok: true, adultOnly: true, posts: [] });
   const limit = Math.max(1, Math.min(FEED_PAGE_MAX, parseInt(req.query.limit, 10) || 30));
-  const fanAccess296f = fanSubAccessSet296(readMoney(), ctx.user.id); // [RP-V7.296] one lookup set gates every feed payload below
+  const mdb298f = readMoney(); // [RP-V7.298]
+  const fanAccess296f = fanSubAccessSet296(mdb298f, ctx.user.id); // [RP-V7.296] one lookup set gates every feed payload below
+  const clubAccess298f = fanClubAccessSet298(mdb298f, ctx.user.id); // [RP-V7.298]
   const db = readFeed();
   const sdb = readSocial();
   const following = new Set(socialFollowingIds(sdb, ctx.user.id));
@@ -10873,7 +10907,7 @@ app.get("/api/feed", (req, res) => {
   for (const p of Object.values(db.posts)) {
     if (!p || !p.authorId) continue;
     if (hidden99.has(p.authorId)) continue; // [RP-V7.99]
-    const pub = feedPublic(ctx, p, following, fanAccess296f);
+    const pub = feedPublic(ctx, p, following, fanAccess296f, clubAccess298f); // [RP-V7.298]
     if (!pub) continue;
     // [RP-V7.89] the lift is now author affinity + STYLE affinity (from
     // the post's caption text), still capped at 24h total.
@@ -10891,7 +10925,7 @@ app.get("/api/feed", (req, res) => {
     for (const r of listReels()) {
       if (!r || (!Array.isArray(r.reposts) && !Array.isArray(r.reshares))) continue; // [RP-V7.101]
       for (const rp of (r.reposts || []).concat(r.reshares || [])) { // [RP-V7.101] own reshares resurface to followers, attributed to the author
-        if (r.subsOnly) break; // [RP-V7.296] a subscriber-only reel is never reposted into other members' feeds — its repost blocks are skipped whole
+        if (r.subsOnly || r.clubOnly) break; // [RP-V7.296] a subscriber-only reel is never reposted into other members' feeds — its repost blocks are skipped whole // [RP-V7.298] same for club-only
         if (!rp || rp.u === ctx.user.id || !following.has(rp.u)) continue;
         const by = byId(rp.u); if (!by) continue;
         const aKey = reelAuthorKeyFor(ctx.db, r);
@@ -10903,7 +10937,7 @@ app.get("/api/feed", (req, res) => {
     for (const pp of readPhotoPosts().posts) {
       const set = photoRepostSet(rpDbF, pp.id).concat(photoReshareSet(rpDbF, pp.id)); // [RP-V7.101] own reshares resurface too
       for (const rp of set) {
-        if (pp.subsOnly) break; // [RP-V7.296] a subscriber-only photo post is never reposted into other members' feeds
+        if (pp.subsOnly || pp.clubOnly) break; // [RP-V7.296] a subscriber-only photo post is never reposted into other members' feeds // [RP-V7.298] same for club-only
         if (!rp || rp.u === ctx.user.id || !following.has(rp.u)) continue;
         if (hidden99.has(rp.u) || hidden99.has(pp.owner)) continue; // [RP-V7.99]
         const by = byId(rp.u); if (!by) continue;
@@ -10917,7 +10951,7 @@ app.get("/api/feed", (req, res) => {
     for (const fp of Object.values(db.posts)) {
       if (!fp || (!Array.isArray(fp.reposts) && !Array.isArray(fp.reshares))) continue; // [RP-V7.101] reshare-only posts surface too
       if (hidden99.has(fp.authorId)) continue; // [RP-V7.99]
-      const fpub0 = feedPublic(ctx, fp, following, fanAccess296f);
+      const fpub0 = feedPublic(ctx, fp, following, fanAccess296f, clubAccess298f); // [RP-V7.298]
       if (!fpub0 || fpub0.locked) continue; // [RP-V7.296] a locked feed post is never reposted into other members' feeds
       for (const rp of (fp.reposts || []).concat(fp.reshares || [])) { // [RP-V7.101] own reshares resurface to followers, attributed to the author
         if (!rp || rp.u === ctx.user.id || !following.has(rp.u)) continue;
@@ -11806,7 +11840,8 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites" }; // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS
+ like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites" }; // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true };
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 // [RP-V7.129] NEW-POST ALERTS: when a member posts, every follower gets
@@ -13090,6 +13125,9 @@ function emptyMoney() {
     fanSubs: {}, // [RP-V7.296] fan subscriptions: "<fanId>><creatorId>" -> { fanId, creatorId, priceCharms, status, startedAt, periodStart, periodEnd, nextRenewalAt, lastChargeKey, charges }
     fanSubPrices: {}, // [RP-V7.296] creatorId -> monthly price in charms (a FANSUB_TIERS_296 rung; absent = the default tier)
     fanSubIdem: {}, // [RP-V7.296] fan-subscribe idempotency keys -> original responses
+    fanClubs: {}, // [RP-V7.298] fan clubs: creatorId -> { creatorId, name, about, priceCharms, createdAt, updatedAt } (ONE club per creator)
+    fanClubMembers: {}, // [RP-V7.298] fan-club memberships: "<memberId>><creatorId>" -> { memberId, creatorId, priceCharms, status, startedAt, periodStart, periodEnd, nextRenewalAt, lastChargeKey, charges }
+    fanClubIdem: {}, // [RP-V7.298] fan-club join idempotency keys -> original responses
     giftBals: {}, // [RP-V7.74] under-18 earned/won gift balance (charms) — see giftBalMirrorWin
     postGifts: {}, // [RP-V7.262] gift counts per post ("reel:<id>" / "photo:<id>") -> gift UNITS received; written only by the gift handler, in the same write as the settlement it counts
     auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — recorded outcomes are final; [RP-V7.89] insufficient-charms failures are never recorded (FAIL-1)
@@ -13124,6 +13162,12 @@ function readMoney() {
     d.fanSubPrices = {}; // [RP-V7.296] creator fan-sub prices
   if (!d.fanSubIdem || typeof d.fanSubIdem !== "object" || Array.isArray(d.fanSubIdem))
     d.fanSubIdem = {}; // [RP-V7.296] fan-subscribe idempotency records
+  if (!d.fanClubs || typeof d.fanClubs !== "object" || Array.isArray(d.fanClubs))
+    d.fanClubs = {}; // [RP-V7.298] fan-club definitions
+  if (!d.fanClubMembers || typeof d.fanClubMembers !== "object" || Array.isArray(d.fanClubMembers))
+    d.fanClubMembers = {}; // [RP-V7.298] fan-club membership records
+  if (!d.fanClubIdem || typeof d.fanClubIdem !== "object" || Array.isArray(d.fanClubIdem))
+    d.fanClubIdem = {}; // [RP-V7.298] fan-club join idempotency records
   if (!d.giftBals || typeof d.giftBals !== "object" || Array.isArray(d.giftBals))
     d.giftBals = {};
   if (!d.postGifts || typeof d.postGifts !== "object" || Array.isArray(d.postGifts))
@@ -13428,6 +13472,7 @@ function moneyMePayload(db, user, connect) {
     dailyClaim: claimStatePayload(user), // [RP-V7.76] the unified claim gate + streak (FIX-2): every device renders the same claimed state and streak from this
     creatorPool: rpCpMemberSummary(db, user.id), // [RP-V7.293] Creator Pool: all-time pool earnings + this week's views / projected share
     fanSubs: rpFanSubMemberSummary296(db, user.id), // [RP-V7.296] Fan subscriptions: my subscriptions + my creator shelf (price, subscriber count)
+    fanClubs: rpFanClubMemberSummary298(db, user.id), // [RP-V7.298] Fan clubs: my club (if any) + the club memberships I hold
     cashoutEligibility: { canCashOut: reasons.length === 0, reasons },
     connect,
     paymentsConfigured: stripeConfigured(),
@@ -13454,6 +13499,12 @@ app.get("/api/money/me", async (req, res) => {
         if (!s296.creatorName) s296.creatorName = nameById296[s296.creatorId] || null;
       for (const s296 of payload296.fanSubs.asCreator || [])
         if (!s296.fanName) s296.fanName = nameById296[s296.fanId] || null;
+    }
+    if (payload296.fanClubs) { // [RP-V7.298] club membership rows name their other side the same way
+      for (const s298 of payload296.fanClubs.asMember || [])
+        if (!s298.creatorName) s298.creatorName = nameById296[s298.creatorId] || null;
+      for (const s298 of payload296.fanClubs.asCreator || [])
+        if (!s298.memberName) s298.memberName = nameById296[s298.memberId] || null;
     }
   } catch (e) { }
   res.json(payload296);
@@ -16056,6 +16107,635 @@ function fanSubTick296() {
     for (const n of notices) { try { notifyActivity(n); } catch (e) { } }
   }).catch((e) => { console.error("[fansub] renewal tick failed:", e && e.message); });
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.298] FAN CLUBS — earn stream #4 (Branden's approved queue,
+// Nov 8, 2026; #1 Creator Pool V7.293, #2 Profile Tips V7.294,
+// #3 Fan Subscriptions V7.296). Implements the pay sheet's
+// published row: "Fan clubs — Paid memberships with member-only
+// rooms." The club room IS the club surface: a member-only space
+// on the creator's profile holding the member list and the
+// club-only posts feed. A creator runs ONE club (create/edit in
+// Profile setup: name, about, and a monthly price in charms from
+// the SAME ladder as fan subs PLUS the free rung — 0 / 500 /
+// 1,000 / 2,500 / 5,000; default free).
+//
+// MONEY mirrors fan subscriptions EXACTLY: charms from the same
+// balance gifts and tips spend, CHARM_CENT_VALUE, GIFT_HOST_PCT
+// (creator 70% / platform 30%), the LARGE_GIFT_HOLD_CENTS safety
+// hold, the shared money lock and the Earn wallet (so club money
+// counts toward the $20 Stripe Connect cash-out). The recipient's
+// ledger row is type "fan-club"; the sender's is "club-sent".
+// A month = 30 days; renewals ride fanClubTick298 (boot + 60s),
+// keyed "<memberId>><creatorId>><periodStart it pays for>" on the
+// record in the SAME write as the debit, anchored to the
+// scheduled due instant — exactly-once across restarts.
+// Insufficient balance at renewal = lapse with bells to BOTH
+// sides. Cancel stops the next charge and keeps access to the
+// paid period end; re-joining inside a paid period reactivates
+// free; a price change applies to NEW members only (every record
+// carries its own priceCharms). FREE clubs charge nothing: join
+// opens a 30-day membership the tick rolls forward silently, and
+// leaving a free club ends access at once (there is no paid
+// period to honour). Teen corner mirrors gifts/tips/subs
+// (RP-V7.74): an under-18 account on either side (in the 18+
+// Plaza only the owner's @Popstar test account) runs the charge
+// CHARMS-ONLY — no earnings exist; access is granted the same.
+//
+// THE PERK — club-only posts, gated SERVER-side like subsOnly:
+// the composer carries a "Fan club" toggle (postMeta156.clubOnly)
+// stored on the post record (reels, photo posts incl. text posts,
+// feed posts). Every payload builder that gates subsOnly gates
+// clubOnly the same way (a post carrying BOTH flags needs BOTH
+// accesses): a viewer without access receives a locked
+// placeholder — id, author and lock state, with NO media URL, NO
+// caption/text and NO comments anywhere in the payload.
+// (The V6.5 live-room "Fan Club" — fan numbers, challenges, free
+// gifts in lives, rpFan.v1 — is a separate free feature and is
+// untouched by this build.)
+// ---------------------------------------------------------------------------
+const FANCLUB_TIERS_298 = [0, 500, 1000, 2500, 5000];
+const FANCLUB_PERIOD_MS_298 = 30 * 24 * 3600 * 1000; // a month = 30 days
+function fanClubKey298(memberId, creatorId) { return String(memberId) + ">" + String(creatorId); }
+function fanClubOf298(db, creatorId) {
+  if (!db || !db.fanClubs) return null;
+  const c = db.fanClubs[creatorId];
+  return c && typeof c === "object" ? c : null;
+}
+function fanClubPrice298(db, creatorId) {
+  const c = fanClubOf298(db, creatorId);
+  if (!c) return null;
+  const p = Number(c.priceCharms);
+  return FANCLUB_TIERS_298.indexOf(p) >= 0 ? p : 0;
+}
+function fanClubRecord298(db, memberId, creatorId) {
+  if (!db || !db.fanClubMembers) return null;
+  const s = db.fanClubMembers[fanClubKey298(memberId, creatorId)];
+  return s && typeof s === "object" ? s : null;
+}
+function fanClubAccess298(db, memberId, creatorId, nowMs) {
+  if (!memberId || !creatorId) return false;
+  if (memberId === creatorId) return true; // the creator always sees their own club posts
+  const s = fanClubRecord298(db, memberId, creatorId);
+  if (!s) return false;
+  if (s.status !== "active" && s.status !== "cancelled") return false;
+  return Date.parse(s.periodEnd) > (nowMs || Date.now());
+}
+function fanClubAccessSet298(db, memberId) {
+  const out = new Set();
+  if (!db || !db.fanClubMembers || !memberId) return out;
+  const now = Date.now();
+  for (const k of Object.keys(db.fanClubMembers)) {
+    const s = db.fanClubMembers[k];
+    if (s && s.memberId === memberId && fanClubAccess298(db, memberId, s.creatorId, now))
+      out.add(s.creatorId);
+  }
+  return out;
+}
+function fanClubCount298(db, creatorId) {
+  if (!db || !db.fanClubMembers) return 0;
+  const now = Date.now();
+  let n = 0;
+  for (const k of Object.keys(db.fanClubMembers)) {
+    const s = db.fanClubMembers[k];
+    if (s && s.creatorId === creatorId && fanClubAccess298(db, s.memberId, creatorId, now)) n++;
+  }
+  return n;
+}
+function fanClubPublic298(db, creatorId) {
+  const c = fanClubOf298(db, creatorId);
+  if (!c) return null;
+  return {
+    creatorId,
+    name: String(c.name || "Fan Club"),
+    about: String(c.about || ""),
+    priceCharms: fanClubPrice298(db, creatorId),
+    memberCount: fanClubCount298(db, creatorId),
+    createdAt: c.createdAt || null,
+    updatedAt: c.updatedAt || null,
+  };
+}
+// The member list for the club room: access-holding members only,
+// identities resolved from the accounts store (never invented).
+function fanClubMembersList298(db, creatorId, adb) {
+  const out = [];
+  if (!db || !db.fanClubMembers) return out;
+  const users = adb && Array.isArray(adb.users) ? adb.users : [];
+  const now = Date.now();
+  for (const k of Object.keys(db.fanClubMembers)) {
+    const s = db.fanClubMembers[k];
+    if (!s || s.creatorId !== creatorId) continue;
+    if (!fanClubAccess298(db, s.memberId, creatorId, now)) continue;
+    const u = users.find((x) => x && x.id === s.memberId);
+    if (!u || u.deletionAt) continue;
+    let photo = u.photo || null;
+    if (!photo) { try { const ph = accountPhotos(u); if (ph && ph[0]) photo = ph[0]; } catch (e) { } }
+    out.push({ id: u.id, name: u.name, username: u.username || "", photo, joinedAt: s.startedAt || null, since: s.periodStart || null });
+  }
+  out.sort((a, b) => String(a.joinedAt || "").localeCompare(String(b.joinedAt || "")));
+  return out;
+}
+// One charge + settlement, shared by join and the renewal sweep —
+// the fanSubSettle296 body with club ledger kinds. Returns
+// { ok:false, error } WITHOUT moving anything when the member
+// cannot pay, so a lapse never half-charges.
+function fanClubSettle298(db, member, creator, priceCharms, ref298) {
+  const balance = db.balances[member.id] || 0;
+  const memberTeen = ageFromDob(member.dob) < 18;
+  const charmsOnly = memberTeen || ageFromDob(creator.dob) < 18;
+  let giftBal = (db.giftBals && db.giftBals[member.id]) || 0;
+  if (memberTeen) {
+    if (giftBal < priceCharms)
+      return { ok: false, error: "insufficient-charms", balance, giftBal, needed: priceCharms };
+  } else if (balance < priceCharms) {
+    return { ok: false, error: "insufficient-charms", balance, needed: priceCharms };
+  }
+  if (memberTeen) {
+    giftBal -= priceCharms;
+    db.giftBals[member.id] = giftBal;
+  } else {
+    db.balances[member.id] = balance - priceCharms;
+  }
+  let valueCents = 0, share = 0, cut = 0, held = false;
+  if (charmsOnly) {
+    db.balances[creator.id] = (db.balances[creator.id] || 0) + priceCharms;
+  } else {
+    valueCents = priceCharms * CHARM_CENT_VALUE;
+    share = Math.floor((valueCents * GIFT_HOST_PCT) / 100);
+    cut = valueCents - share;
+    const earn = moneyEarningsFor(db, creator.id);
+    if (valueCents >= LARGE_GIFT_HOLD_CENTS) {
+      earn.held.push({
+        cents: share,
+        unlockAt: new Date(Date.now() + HOLD_DAYS * 24 * 3600 * 1000).toISOString(),
+        reason: "large-fanclub",
+      });
+      held = true;
+    } else {
+      earn.availableCents += share;
+    }
+    earn.totalEarnedCents += share;
+  }
+  const txBase = { from: member.id, to: creator.id, charms: priceCharms, ref: ref298 || "fanclub" };
+  moneyTx(db, Object.assign({}, txBase, { type: "club-sent", cents: valueCents, cut }));
+  moneyTx(db, Object.assign({}, txBase, { type: "fan-club", cents: share, cut, charmsOnly }));
+  return { ok: true, valueCents, share, cut, held, charmsOnly, balance: db.balances[member.id], giftBal };
+}
+// Creator resolution — the tip/fan-sub rule verbatim.
+function fanClubResolveCreator298(ctx, b) {
+  const toId = String((b && b.toId) || (b && b.creatorId) || "").slice(0, 64);
+  const toName = String((b && b.toName) || (b && b.creatorName) || "").trim().slice(0, 40);
+  let recipient = null;
+  if (toId) {
+    const byId = ctx.db.users.find((u) => u && u.id === toId);
+    if (byId && (!toName || byId.name === toName)) recipient = byId;
+  }
+  if (!recipient && toName) {
+    const ms = ctx.db.users.filter((u) => u && u.name === toName && u.id !== ctx.user.id);
+    if (ms.length === 1) recipient = ms[0];
+  }
+  return { recipient, toId, toName };
+}
+function fanClubPublicRecord298(s) {
+  if (!s) return null;
+  return {
+    status: s.status,
+    priceCharms: s.priceCharms,
+    periodEnd: s.periodEnd,
+    nextRenewalAt: s.status === "active" ? s.nextRenewalAt : null,
+    access: fanClubAccess298({ fanClubMembers: { [fanClubKey298(s.memberId, s.creatorId)]: s } }, s.memberId, s.creatorId),
+  };
+}
+function fanClubCleanText298(v, max) {
+  return String(v == null ? "" : v).replace(/[<>&"']/g, "").trim().slice(0, max);
+}
+// Create OR edit my club (one per creator). Price changes apply
+// to NEW members only — live records keep their own priceCharms.
+app.post("/api/fanclub/create", lockedHandler("fanclub-create", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const db = readMoney();
+  const existing = fanClubOf298(db, ctx.user.id);
+  const nameIn = fanClubCleanText298(b.name, 40);
+  const name = nameIn || (existing ? String(existing.name || "") : "");
+  if (!name) return res.status(400).json({ ok: false, error: "club-name-required" });
+  const about = typeof b.about === "string" ? fanClubCleanText298(b.about, 140) : (existing ? String(existing.about || "") : "");
+  let price = existing ? fanClubPrice298(db, ctx.user.id) : 0;
+  const priceIn = b.priceCharms != null ? b.priceCharms : b.charms;
+  if (priceIn != null && priceIn !== "") {
+    const p = Number(priceIn);
+    if (!Number.isInteger(p) || FANCLUB_TIERS_298.indexOf(p) < 0)
+      return res.status(400).json({ ok: false, error: "invalid-club-price" });
+    price = p;
+  }
+  const nowIso = new Date().toISOString();
+  const club = {
+    creatorId: ctx.user.id,
+    name, about, priceCharms: price,
+    createdAt: existing && existing.createdAt ? existing.createdAt : nowIso,
+    updatedAt: nowIso,
+  };
+  db.fanClubs[ctx.user.id] = club;
+  writeMoney(db);
+  res.json({ ok: true, created: !existing, club: fanClubPublic298(db, ctx.user.id), tiers: FANCLUB_TIERS_298.slice() });
+}));
+app.post("/api/fanclub/join", lockedHandler("fanclub-join", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const idemKey = String(b.idem || "").slice(0, 64);
+  const idemStoreKey = idemKey ? ctx.user.id + ":" + idemKey : null;
+  const db = readMoney();
+  if (idemStoreKey) {
+    const seen = db.fanClubIdem[idemStoreKey];
+    if (seen && seen.response)
+      return res.json(Object.assign({}, seen.response, { deduped: true }));
+  }
+  const { recipient, toId, toName } = fanClubResolveCreator298(ctx, b);
+  if (!recipient) {
+    if ((toId && toId === ctx.user.id) || (toName && toName === ctx.user.name))
+      return res.status(400).json({ ok: false, error: "You can't join your own Fan Club" });
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  }
+  if (recipient.id === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't join your own Fan Club" });
+  if (accountLockedOut(recipient) || recipient.deletionAt)
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  const club = fanClubOf298(db, recipient.id);
+  if (!club) return res.status(404).json({ ok: false, error: "club-not-found" });
+  const price = fanClubPrice298(db, recipient.id);
+  const now = Date.now();
+  const existing = fanClubRecord298(db, ctx.user.id, recipient.id);
+  if (existing && fanClubAccess298(db, ctx.user.id, recipient.id, now)) {
+    if (existing.status === "active") {
+      return res.status(400).json({ ok: false, error: "already-member", periodEnd: existing.periodEnd, priceCharms: existing.priceCharms });
+    }
+    // Cancelled inside its paid period: joining again just turns
+    // renewal back on — the current period is already paid.
+    existing.status = "active";
+    existing.nextRenewalAt = existing.periodEnd;
+    delete existing.cancelledAt;
+    const reactResponse = {
+      ok: true, reactivated: true, charged: 0,
+      balance: db.balances[ctx.user.id] || 0,
+      recipient: { id: recipient.id, name: recipient.name },
+      club: fanClubPublic298(db, recipient.id),
+      priceCharms: existing.priceCharms, periodEnd: existing.periodEnd,
+      membership: fanClubPublicRecord298(existing),
+    };
+    if (idemStoreKey) db.fanClubIdem[idemStoreKey] = { at: new Date().toISOString(), response: reactResponse };
+    writeMoney(db);
+    return res.json(reactResponse);
+  }
+  const periodStart = new Date(now).toISOString();
+  const chargeKey = fanClubKey298(ctx.user.id, recipient.id) + ">" + periodStart;
+  let settled = { ok: true, share: 0, cut: 0, held: false, charmsOnly: false, balance: db.balances[ctx.user.id] || 0, giftBal: (db.giftBals && db.giftBals[ctx.user.id]) || 0 };
+  if (price > 0) {
+    settled = fanClubSettle298(db, ctx.user, recipient, price, chargeKey);
+    if (!settled.ok) {
+      return res.status(400).json({
+        ok: false, error: settled.error,
+        message: ageFromDob(ctx.user.dob) < 18 ? "Earn or win charms to join" : undefined,
+        balance: settled.balance, giftBal: settled.giftBal, needed: settled.needed,
+      });
+    }
+  }
+  const periodEnd = new Date(now + FANCLUB_PERIOD_MS_298).toISOString();
+  const record = {
+    memberId: ctx.user.id, creatorId: recipient.id,
+    priceCharms: price, status: "active",
+    startedAt: periodStart, periodStart, periodEnd,
+    nextRenewalAt: periodEnd, lastChargeKey: chargeKey, charges: price > 0 ? 1 : 0,
+  };
+  db.fanClubMembers[fanClubKey298(ctx.user.id, recipient.id)] = record;
+  const joinResponse = {
+    ok: true,
+    balance: settled.balance,
+    charged: price,
+    recipient: { id: recipient.id, name: recipient.name },
+    club: fanClubPublic298(db, recipient.id),
+    priceCharms: price, periodEnd,
+    hostShareCents: settled.share, held: settled.held, charmsOnly: settled.charmsOnly,
+    giftBal: settled.giftBal,
+    membership: fanClubPublicRecord298(record),
+  };
+  if (idemStoreKey) {
+    db.fanClubIdem[idemStoreKey] = { at: new Date().toISOString(), response: joinResponse };
+    const keys = Object.keys(db.fanClubIdem);
+    if (keys.length > 400) {
+      keys.sort((a, b2) => String(db.fanClubIdem[a].at).localeCompare(String(db.fanClubIdem[b2].at)));
+      for (let i = 0; i < keys.length - 400; i++) delete db.fanClubIdem[keys[i]];
+    }
+  }
+  writeMoney(db);
+  console.log("[money] fanclub", price, "charms/mo:", ctx.user.name, "->", recipient.name,
+    "| host", settled.share, "c", settled.held ? "(held)" : "", "| cut", settled.cut, "c",
+    settled.charmsOnly ? "| CHARMS-ONLY (teen involved)" : "");
+  notifyActivity({
+    toId: recipient.id,
+    kind: "fanclub",
+    actorId: ctx.user.id,
+    actorName: ctx.user.name,
+    text: "👑 " + ctx.user.name + " joined your Fan Club \"" + String(club.name || "Fan Club") + "\"" + (price > 0 ? " — " + price.toLocaleString("en-US") + " charms/mo!" : "!"),
+    emailSubject: "You have a new Fan Club member on Rizz Plaza 👑",
+    emailText: ctx.user.name + " joined your Fan Club \"" + String(club.name || "Fan Club") + "\" on Rizz Plaza" + (price > 0 ? " for " + price.toLocaleString("en-US") + " charms a month" : "") + ".\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    go: { screen: "ownprofile" },
+  });
+  res.json(joinResponse);
+}));
+// Cancel / leave: a PAID membership stops the next charge and
+// keeps access to the paid period end (the subscription rule); a
+// FREE membership ends at once — there is no paid period.
+const fanClubCancel298 = lockedHandler("fanclub-cancel", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const { recipient } = fanClubResolveCreator298(ctx, b);
+  if (!recipient)
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  const db = readMoney();
+  const record = fanClubRecord298(db, ctx.user.id, recipient.id);
+  if (!record || record.status === "expired")
+    return res.status(404).json({ ok: false, error: "not-a-member" });
+  if (record.status === "active") {
+    if (record.priceCharms > 0) {
+      record.status = "cancelled";
+      record.cancelledAt = new Date().toISOString();
+    } else {
+      record.status = "expired";
+      record.periodEnd = new Date().toISOString();
+      record.nextRenewalAt = null;
+      record.expiredAt = record.periodEnd;
+    }
+    writeMoney(db);
+  }
+  res.json({
+    ok: true,
+    recipient: { id: recipient.id, name: recipient.name },
+    membership: fanClubPublicRecord298(record),
+  });
+});
+app.post("/api/fanclub/cancel", fanClubCancel298);
+app.post("/api/fanclub/leave", fanClubCancel298);
+app.get("/api/fanclub/status", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const { recipient } = fanClubResolveCreator298(ctx, {
+    toId: String(req.query.creatorId || req.query.id || ""),
+    toName: String(req.query.name || ""),
+  });
+  if (!recipient)
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  const db = readMoney();
+  const mine = fanClubRecord298(db, ctx.user.id, recipient.id);
+  res.json({
+    ok: true,
+    creator: { id: recipient.id, name: recipient.name },
+    exists: !!fanClubOf298(db, recipient.id),
+    club: fanClubPublic298(db, recipient.id),
+    priceCharms: fanClubPrice298(db, recipient.id),
+    tiers: FANCLUB_TIERS_298.slice(),
+    memberCount: fanClubCount298(db, recipient.id),
+    members: fanClubMembersList298(db, recipient.id, ctx.db).slice(0, 100),
+    isSelf: recipient.id === ctx.user.id,
+    membership: fanClubPublicRecord298(mine),
+  });
+});
+app.get("/api/fanclub/members", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const { recipient } = fanClubResolveCreator298(ctx, {
+    toId: String(req.query.creatorId || req.query.id || ""),
+    toName: String(req.query.name || ""),
+  });
+  if (!recipient)
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  const db = readMoney();
+  if (!fanClubOf298(db, recipient.id))
+    return res.status(404).json({ ok: false, error: "club-not-found" });
+  const members = fanClubMembersList298(db, recipient.id, ctx.db);
+  res.json({ ok: true, creator: { id: recipient.id, name: recipient.name }, club: fanClubPublic298(db, recipient.id), memberCount: members.length, members: members.slice(0, 200) });
+});
+// The club room: club info + member list + the club-only posts
+// feed for this creator. Every post rides its normal gated
+// builder, so a non-member sees locked placeholders and a member
+// (or the creator) sees the posts in full.
+app.get("/api/fanclub/club", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const { recipient } = fanClubResolveCreator298(ctx, {
+    toId: String(req.query.creatorId || req.query.id || ""),
+    toName: String(req.query.name || ""),
+  });
+  if (!recipient)
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  const db = readMoney();
+  if (!fanClubOf298(db, recipient.id))
+    return res.status(404).json({ ok: false, error: "club-not-found" });
+  const canAccess = ctx.user.id === recipient.id || fanClubAccess298(db, ctx.user.id, recipient.id);
+  const fanSet = fanSubAccessSet296(db, ctx.user.id); // [RP-V7.298] the 296 access-set helper gates the subsOnly side inside the club room
+  const clubSet = fanClubAccessSet298(db, ctx.user.id);
+  const pg298 = db.postGifts || {};
+  let reels = [];
+  try {
+    const vdb = readViews();
+    reels = listReels()
+      .filter((r) => r && r.clubOnly && reelAuthorKeyFor(ctx.db, r) === recipient.id)
+      .slice(0, 60)
+      .map((r) => {
+        const locked = (r.clubOnly && !canAccess) || (r.subsOnly && ctx.user.id !== recipient.id && !fanSet.has(recipient.id));
+        if (locked) {
+          return { id: r.id, author: r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, locked: true, caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null, views: 0, heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: null };
+        }
+        return { id: r.id, author: r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, caption: r.caption || "", createdAt: r.createdAt, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || null, views: mediaViewCount(vdb, "reel:" + r.id), heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id), comments: reelPublicComments(r), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: r.crMuted || null, myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
+      });
+  } catch (e) { }
+  let photoPosts = [];
+  try {
+    photoPosts = readPhotoPosts().posts
+      .filter((x) => x && x.owner === recipient.id && x.clubOnly)
+      .slice(0, 60)
+      .map((x) => photoPublicPost(x, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), pg298, fanSet, clubSet));
+  } catch (e) { }
+  let feedPosts = [];
+  try {
+    const following = new Set(socialFollowingIds(readSocial(), ctx.user.id));
+    const fakeCtx = { db: ctx.db, user: ctx.user };
+    feedPosts = Object.values(readFeed().posts || {})
+      .filter((fp) => fp && fp.authorId === recipient.id && fp.clubOnly)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .slice(0, 60)
+      .map((fp) => feedPublic(fakeCtx, fp, following, fanSet, clubSet))
+      .filter(Boolean);
+  } catch (e) { }
+  const members = fanClubMembersList298(db, recipient.id, ctx.db);
+  res.json({
+    ok: true,
+    creator: { id: recipient.id, name: recipient.name },
+    club: fanClubPublic298(db, recipient.id),
+    memberCount: members.length,
+    members: members.slice(0, 200),
+    canAccess,
+    isSelf: recipient.id === ctx.user.id,
+    membership: fanClubPublicRecord298(fanClubRecord298(db, ctx.user.id, recipient.id)),
+    posts: { reels, photoPosts, feedPosts },
+  });
+});
+app.get("/api/fanclub/mine", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readMoney();
+  const sum = rpFanClubMemberSummary298(db, ctx.user.id, ctx.db);
+  res.json(Object.assign({ ok: true, fanClubs: sum }, sum));
+});
+// The member summary riding GET /api/money/me: my club (if I run
+// one) with its live member count, plus the memberships I hold.
+function rpFanClubMemberSummary298(db, acctId, adb) {
+  const nameOf = (id) => {
+    if (!adb || !Array.isArray(adb.users)) return null;
+    const u = adb.users.find((x) => x && x.id === id);
+    return u ? u.name : null;
+  };
+  const clubNameOf = (creatorId) => {
+    const c = fanClubOf298(db, creatorId);
+    return c ? String(c.name || "Fan Club") : null;
+  };
+  const asMember = [];
+  const asCreator = [];
+  const members = db && db.fanClubMembers ? db.fanClubMembers : {};
+  for (const k of Object.keys(members)) {
+    const s = members[k];
+    if (!s) continue;
+    if (s.memberId === acctId) {
+      asMember.push(Object.assign(
+        { creatorId: s.creatorId, creatorName: nameOf(s.creatorId), clubName: clubNameOf(s.creatorId) },
+        fanClubPublicRecord298(s)
+      ));
+    }
+    if (s.creatorId === acctId && fanClubAccess298(db, s.memberId, acctId)) {
+      asCreator.push({
+        memberId: s.memberId, memberName: nameOf(s.memberId),
+        priceCharms: s.priceCharms, status: s.status, periodEnd: s.periodEnd,
+      });
+    }
+  }
+  asMember.sort((a, b) => String(b.periodEnd).localeCompare(String(a.periodEnd)));
+  const club = fanClubPublic298(db, acctId);
+  return {
+    club,
+    priceCharms: club ? club.priceCharms : null,
+    tiers: FANCLUB_TIERS_298.slice(),
+    memberCount: asCreator.length,
+    asMember, asCreator,
+  };
+}
+// How many live fan-club memberships exist Plaza-wide (owner board).
+function rpFanClubActiveCount298(db) {
+  if (!db || !db.fanClubMembers) return 0;
+  const now = Date.now();
+  let n = 0;
+  for (const k of Object.keys(db.fanClubMembers)) {
+    const s = db.fanClubMembers[k];
+    if (s && fanClubAccess298(db, s.memberId, s.creatorId, now)) n++;
+  }
+  return n;
+}
+// The renewal sweep — the fanSubTick296 pattern verbatim, with
+// the free-club roll-forward: a free membership charges nothing,
+// it just extends (anchored, exactly-once by the same key rule).
+function fanClubTick298() {
+  return withMoneyLock(() => {
+    const db = readMoney();
+    let adb = null;
+    try { adb = readAccounts(); } catch (e) { adb = null; }
+    if (!adb || !Array.isArray(adb.users)) return;
+    const now = Date.now();
+    let changed = false;
+    const notices = [];
+    for (const k of Object.keys(db.fanClubMembers || {})) {
+      const s = db.fanClubMembers[k];
+      if (!s) continue;
+      if (s.status === "cancelled") {
+        if (Date.parse(s.periodEnd) <= now) {
+          s.status = "expired";
+          s.expiredAt = new Date(now).toISOString();
+          changed = true;
+        }
+        continue;
+      }
+      if (s.status !== "active") continue;
+      let guard = 0;
+      while (s.status === "active" && Date.parse(s.nextRenewalAt) <= now && guard++ < 3) {
+        const newPeriodStart = s.nextRenewalAt;
+        const chargeKey = fanClubKey298(s.memberId, s.creatorId) + ">" + newPeriodStart;
+        if (s.lastChargeKey === chargeKey) {
+          s.periodStart = newPeriodStart;
+          s.periodEnd = new Date(Date.parse(newPeriodStart) + FANCLUB_PERIOD_MS_298).toISOString();
+          s.nextRenewalAt = s.periodEnd;
+          changed = true;
+          continue;
+        }
+        const member = adb.users.find((u) => u && u.id === s.memberId);
+        const creator = adb.users.find((u) => u && u.id === s.creatorId);
+        if (!member || !creator || accountLockedOut(member) || member.deletionAt || accountLockedOut(creator) || creator.deletionAt) {
+          s.status = "expired";
+          s.expiredAt = new Date(now).toISOString();
+          changed = true;
+          if (member && creator) notices.push({
+            toId: s.memberId, kind: "fanclub", actorId: s.creatorId, actorName: creator.name,
+            text: "👑 Your Fan Club membership with " + creator.name + " has ended.",
+            go: { screen: "ownprofile" },
+          });
+          break;
+        }
+        if (!(s.priceCharms > 0)) {
+          // Free club: roll the membership forward, no charge,
+          // no ledger, no bell — the member simply stays a member.
+          s.lastChargeKey = chargeKey;
+          s.periodStart = newPeriodStart;
+          s.periodEnd = new Date(Date.parse(newPeriodStart) + FANCLUB_PERIOD_MS_298).toISOString();
+          s.nextRenewalAt = s.periodEnd;
+          changed = true;
+          continue;
+        }
+        const settled = fanClubSettle298(db, member, creator, s.priceCharms, chargeKey);
+        if (!settled.ok) {
+          s.status = "expired";
+          s.expiredAt = new Date(now).toISOString();
+          changed = true;
+          const clubName = (fanClubOf298(db, s.creatorId) || {}).name || "Fan Club";
+          notices.push({
+            toId: s.memberId, kind: "fanclub", actorId: s.creatorId, actorName: creator.name,
+            text: "👑 Your membership in " + creator.name + "'s Fan Club \"" + clubName + "\" lapsed — not enough charms to renew. Top up and join again to keep watching.",
+            emailSubject: "Your Rizz Plaza Fan Club membership lapsed 👑",
+            emailText: "Your membership in " + creator.name + "'s Fan Club on Rizz Plaza lapsed because your charm balance could not cover the " + s.priceCharms.toLocaleString("en-US") + " charm renewal.\n\nOpen the Plaza to top up and join again: https://rizzplaza.com\n\n— The Rizz Plaza team",
+            go: { screen: "ownprofile" },
+          });
+          notices.push({
+            toId: s.creatorId, kind: "fanclub", actorId: s.memberId, actorName: member.name,
+            text: "👑 " + member.name + "'s Fan Club membership has lapsed.",
+            go: { screen: "ownprofile" },
+          });
+          break;
+        }
+        s.lastChargeKey = chargeKey;
+        s.periodStart = newPeriodStart;
+        s.periodEnd = new Date(Date.parse(newPeriodStart) + FANCLUB_PERIOD_MS_298).toISOString();
+        s.nextRenewalAt = s.periodEnd;
+        s.charges = (s.charges || 0) + 1;
+        changed = true;
+        notices.push({
+          toId: s.creatorId, kind: "fanclub", actorId: s.memberId, actorName: member.name,
+          text: "👑 " + member.name + "'s Fan Club membership renewed — " + s.priceCharms.toLocaleString("en-US") + " charms for another month!",
+          go: { screen: "ownprofile" },
+        });
+      }
+    }
+    if (changed) writeMoney(db);
+    for (const n of notices) { try { notifyActivity(n); } catch (e) { } }
+  }).catch((e) => { console.error("[fanclub] renewal tick failed:", e && e.message); });
+}
+
 // RP-V7.22: Daily host rankings. A lightweight tally of charms gifted
 // per host per calendar day (America/New_York), credited from the
 // /api/money/gift path below - the money ledger stays the source of
@@ -16374,6 +17054,10 @@ function rpSalesStreams(mdb) {
   // "fansub-sent" rows; the creator 70% and the platform's 30%
   // ride the recipient's "fan-subscription" rows — the tip pattern.
   let fanSubsVolumeCents = 0, fanSubsCharms = 0, fanSubsCreatorCents = 0, fanSubsCutCents = 0;
+  // [RP-V7.298] Fan clubs: volume + charm count ride the
+  // "club-sent" rows; the creator 70% and the platform's 30%
+  // ride the recipient's "fan-club" rows — the fan-sub pattern.
+  let fanClubsVolumeCents = 0, fanClubsCharms = 0, fanClubsCreatorCents = 0, fanClubsCutCents = 0;
   for (const tx of mdb.txlog || []) {
     if (!tx || typeof tx !== "object") continue;
     const c = Math.round(Number(tx.cents) || 0);
@@ -16387,8 +17071,10 @@ function rpSalesStreams(mdb) {
     else if (tx.type === "profile-tip") { profileTipsCreatorCents += c; profileTipsCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.294]
     else if (tx.type === "fansub-sent") { fanSubsVolumeCents += c; fanSubsCharms += Math.round(Number(tx.charms) || 0); } // [RP-V7.296]
     else if (tx.type === "fan-subscription") { fanSubsCreatorCents += c; fanSubsCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.296]
+    else if (tx.type === "club-sent") { fanClubsVolumeCents += c; fanClubsCharms += Math.round(Number(tx.charms) || 0); } // [RP-V7.298]
+    else if (tx.type === "fan-club") { fanClubsCreatorCents += c; fanClubsCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.298]
   }
-  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents, plazaStoreSalesCents, plazaStoreCutCents, profileTipsVolumeCents, profileTipsCharms, profileTipsCreatorCents, profileTipsCutCents, fanSubsVolumeCents, fanSubsCharms, fanSubsCreatorCents, fanSubsCutCents }; // [RP-V7.240] // [RP-V7.294] + profile tips // [RP-V7.296] + fan subscriptions
+  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents, plazaStoreSalesCents, plazaStoreCutCents, profileTipsVolumeCents, profileTipsCharms, profileTipsCreatorCents, profileTipsCutCents, fanSubsVolumeCents, fanSubsCharms, fanSubsCreatorCents, fanSubsCutCents, fanClubsVolumeCents, fanClubsCharms, fanClubsCreatorCents, fanClubsCutCents }; // [RP-V7.240] // [RP-V7.294] + profile tips // [RP-V7.296] + fan subscriptions // [RP-V7.298] + fan clubs
 }
 // [RP-V7.224] How many Business Ads subscriptions are active right now
 // (state-checked, so a lapsed sub never counts).
@@ -16660,7 +17346,7 @@ app.get("/api/owner/sales", (req, res) => {
   const s = rpSalesStreams(mdb);
   const storeCents = mdb.ownerStore && isFinite(Number(mdb.ownerStore.storeCents)) ? Math.round(Number(mdb.ownerStore.storeCents)) : null;
   const storeAsOf = storeCents === null ? null : (mdb.ownerStore.at || null);
-  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.profileTipsVolumeCents + s.fanSubsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + s.plazaStoreSalesCents + (storeCents || 0); // [RP-V7.240] Plaza Store gross sales count in the Plaza total like auctions volume // [RP-V7.294] profile-tip volume counts in the total like gift volume // [RP-V7.296] fan-subscription volume counts in the total the same way
+  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.profileTipsVolumeCents + s.fanSubsVolumeCents + s.fanClubsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + s.plazaStoreSalesCents + (storeCents || 0); // [RP-V7.298] fan-club volume counts in the total the same way // [RP-V7.240] Plaza Store gross sales count in the Plaza total like auctions volume // [RP-V7.294] profile-tip volume counts in the total like gift volume // [RP-V7.296] fan-subscription volume counts in the total the same way
   const stepDollars = 10000, capDollars = 3000000;
   const totalDollars = totalCents / 100;
   const crossed = totalDollars >= stepDollars ? Math.min(capDollars, Math.floor(totalDollars / stepDollars) * stepDollars) : 0;
@@ -16681,6 +17367,11 @@ app.get("/api/owner/sales", (req, res) => {
       fanSubsCreatorCents: s.fanSubsCreatorCents, // [RP-V7.296]
       fanSubsCutCents: s.fanSubsCutCents, // [RP-V7.296]
       fanSubsActive: rpFanSubActiveCount296(mdb), // [RP-V7.296] live subscriptions right now (access-checked)
+      fanClubsVolumeCents: s.fanClubsVolumeCents, // [RP-V7.298]
+      fanClubsCharms: s.fanClubsCharms, // [RP-V7.298]
+      fanClubsCreatorCents: s.fanClubsCreatorCents, // [RP-V7.298]
+      fanClubsCutCents: s.fanClubsCutCents, // [RP-V7.298]
+      fanClubsActive: rpFanClubActiveCount298(mdb), // [RP-V7.298] live club memberships right now (access-checked)
       auctionsVolumeCents: s.auctionsVolumeCents,
       bizadsCents: s.bizadsCents, // [RP-V7.224]
       bizadsActive: rpBizAdsActiveCount(mdb), // [RP-V7.224]
@@ -18603,6 +19294,17 @@ const fanSubTimer296 = setInterval(() => {
   try { fanSubTick296(); } catch (e) {}
 }, 60 * 1000);
 if (fanSubTimer296.unref) fanSubTimer296.unref();
+
+// [RP-V7.298] Fan club renewals: once on boot, then every 60s —
+// charges each paid membership once per period (period-keyed,
+// restart-safe), rolls free memberships forward, lapses what
+// cannot pay, and retires cancelled records whose paid period
+// has run out. All state persists in money.json.
+try { fanClubTick298(); } catch (e) {}
+const fanClubTimer298 = setInterval(() => {
+  try { fanClubTick298(); } catch (e) {}
+}, 60 * 1000);
+if (fanClubTimer298.unref) fanClubTimer298.unref();
 
 
 
