@@ -122,6 +122,8 @@ function livesSnapshot() {
       startedAt: e.startedAt,
       watchers,
       priv: !!e.priv, // [RP-V7.138] private lives are badged for the people allowed to see them
+      ticketPrice: e.ticketPrice || 0, // [RP-V7.299] ticketed lives still SHOW in discovery — badge + price ride the snapshot
+      ticketSold: liveTicketSold299(e.key, e.startedAt), // [RP-V7.299] gross tickets sold for this live instance
       pot: potSnapshotFrom(potsDb, e.key, e.startedAt), // [RP-V7.41] null unless a pot is open/drawn here; [RP-V7.49] terminal pots from a previous live are scoped out
     };
   });
@@ -263,7 +265,7 @@ setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [k, e] of [...liveRegistry]) {
-    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); } // [RP-V7.41] a stale live is an ended live — settle its pot
+    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); ticketLiveEnded299(k); } // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
   }
   for (const k of [...liveAccess138.keys()]) if (!liveRegistry.has(k) && changed) endLiveAccess138(k); // [RP-V7.138] access state dies with its live
   if (changed) broadcastLives();
@@ -347,6 +349,41 @@ function liveJoinRefusal138(socket, room, data) {
   if (tok) return { room, reason: "badlink", error: "This link isn't valid anymore." };
   return { room, reason: "private", error: "🔒 This live is private — the host invites who joins." };
 }
+// [RP-V7.299] TICKET DOOR — the ticketed-live sibling of
+// liveJoinRefusal138. Returns null when the socket may enter, or a
+// "ticket" refusal payload (emitted as "live-ticket"). The host
+// always enters; the host's invited members (the live's invite list)
+// and accepted stage guests are exempt; everyone else needs an
+// ACTIVE ticket record for THIS live instance in the money store.
+// A kicked socket is 138's refusal (checked first) and never
+// reaches this door.
+function liveJoinRefusal299(socket, room, data) {
+  if (!room || room.indexOf("live-") !== 0 || room === "live-stage") return null;
+  const key = room.slice(5);
+  const cfg = liveTicketCfg299.get(key);
+  if (!cfg || !(cfg.price > 0)) return null;
+  const myKey = clientKeys.get(socket.id) || sanitizeDevKey138(data && data.key);
+  if (myKey && myKey === key) return null; // the host's own room
+  const reg = liveRegistry.get(key);
+  const door = {
+    room, reason: "ticket",
+    error: "\uD83C\uDF9F\uFE0F This is a ticketed live \u2014 " + cfg.price.toLocaleString("en-US") + " charms to watch. Grab a ticket and you\u2019re in!",
+    ticket: { key, room, hostId: cfg.hostId || null, hostName: reg ? reg.name : "", title: reg ? reg.title : "", priceCharms: cfg.price, startedAt: cfg.startedAt },
+  };
+  const acctId = socket.data && socket.data.accountId;
+  if (!acctId) return door;
+  if (cfg.hostId && acctId === cfg.hostId) return null;
+  if (cfg.guests && cfg.guests.has(acctId)) return null; // host-invited / accepted stage guest
+  const acc = liveAccess138.get(key);
+  if (acc && acc.invited && acc.invited.has(acctId)) return null; // the host's invite list
+  try {
+    const db = readMoney();
+    const rec = db.liveTickets && db.liveTickets[acctId + ">" + ticketLiveId299(key, cfg.startedAt)];
+    if (rec && rec.status === "active") return null; // ticket holder
+  } catch (e) { }
+  return door;
+}
+
 // The host's authoritative private-room state, pushed on every change
 // (register, invite, un-invite, link reset) so their panel is never stale.
 function emitLiveAccess138(socket, key) {
@@ -11840,7 +11877,7 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS
  like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites" }; // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true };
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -13128,6 +13165,8 @@ function emptyMoney() {
     fanClubs: {}, // [RP-V7.298] fan clubs: creatorId -> { creatorId, name, about, priceCharms, createdAt, updatedAt } (ONE club per creator)
     fanClubMembers: {}, // [RP-V7.298] fan-club memberships: "<memberId>><creatorId>" -> { memberId, creatorId, priceCharms, status, startedAt, periodStart, periodEnd, nextRenewalAt, lastChargeKey, charges }
     fanClubIdem: {}, // [RP-V7.298] fan-club join idempotency keys -> original responses
+    liveTickets: {}, // [RP-V7.299] ticketed lives: "<buyerId>><liveId>" -> ticket record (liveId = "<devKey>@<startedAt>")
+    liveTicketIdem: {}, // [RP-V7.299] ticket-buy idempotency keys -> original responses
     giftBals: {}, // [RP-V7.74] under-18 earned/won gift balance (charms) — see giftBalMirrorWin
     postGifts: {}, // [RP-V7.262] gift counts per post ("reel:<id>" / "photo:<id>") -> gift UNITS received; written only by the gift handler, in the same write as the settlement it counts
     auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — recorded outcomes are final; [RP-V7.89] insufficient-charms failures are never recorded (FAIL-1)
@@ -13168,6 +13207,10 @@ function readMoney() {
     d.fanClubMembers = {}; // [RP-V7.298] fan-club membership records
   if (!d.fanClubIdem || typeof d.fanClubIdem !== "object" || Array.isArray(d.fanClubIdem))
     d.fanClubIdem = {}; // [RP-V7.298] fan-club join idempotency records
+  if (!d.liveTickets || typeof d.liveTickets !== "object" || Array.isArray(d.liveTickets))
+    d.liveTickets = {}; // [RP-V7.299] ticketed-live ticket records
+  if (!d.liveTicketIdem || typeof d.liveTicketIdem !== "object" || Array.isArray(d.liveTicketIdem))
+    d.liveTicketIdem = {}; // [RP-V7.299] ticket-buy idempotency records
   if (!d.giftBals || typeof d.giftBals !== "object" || Array.isArray(d.giftBals))
     d.giftBals = {};
   if (!d.postGifts || typeof d.postGifts !== "object" || Array.isArray(d.postGifts))
@@ -13473,6 +13516,7 @@ function moneyMePayload(db, user, connect) {
     creatorPool: rpCpMemberSummary(db, user.id), // [RP-V7.293] Creator Pool: all-time pool earnings + this week's views / projected share
     fanSubs: rpFanSubMemberSummary296(db, user.id), // [RP-V7.296] Fan subscriptions: my subscriptions + my creator shelf (price, subscriber count)
     fanClubs: rpFanClubMemberSummary298(db, user.id), // [RP-V7.298] Fan clubs: my club (if any) + the club memberships I hold
+    liveTickets: rpLiveTicketSummary299(db, user.id), // [RP-V7.299] Ticketed lives: the tickets I hold + my door sales (count + earned)
     cashoutEligibility: { canCashOut: reasons.length === 0, reasons },
     connect,
     paymentsConfigured: stripeConfigured(),
@@ -13505,6 +13549,10 @@ app.get("/api/money/me", async (req, res) => {
         if (!s298.creatorName) s298.creatorName = nameById296[s298.creatorId] || null;
       for (const s298 of payload296.fanClubs.asCreator || [])
         if (!s298.memberName) s298.memberName = nameById296[s298.memberId] || null;
+    }
+    if (payload296.liveTickets) { // [RP-V7.299] ticket rows name their host the same way
+      for (const t299 of payload296.liveTickets.tickets || [])
+        if (!t299.hostName) t299.hostName = nameById296[t299.hostId] || null;
     }
   } catch (e) { }
   res.json(payload296);
@@ -16736,6 +16784,443 @@ function fanClubTick298() {
   }).catch((e) => { console.error("[fanclub] renewal tick failed:", e && e.message); });
 }
 
+// ---------------------------------------------------------------------------
+// [RP-V7.299] TICKETED LIVES — earn stream #5 (Branden's approved
+// queue, Nov 8, 2026; #1 Creator Pool V7.293, #2 Profile Tips
+// V7.294, #3 Fan Subs V7.296, #4 Fan Clubs V7.298). Implements the
+// pay sheet's published row: "Ticketed lives — Charge at the door
+// for concerts, classes, and showcases. Church is always free on
+// Rizz Plaza." The pay sheet names NO split and NO ladder, so the
+// split settles like gifts at 70/30 (GIFT_HOST_PCT) and the ladder
+// is 100 / 250 / 500 / 1,000 / 2,500 charms (JUDGMENT CALLS, flagged
+// in REPORT.md).
+//
+// SHAPE: at go-live setup a host may price admission to a REGULAR
+// personal live from the ladder; free (no ticket) is the default.
+// The price is decided ONCE when the live registers (see the
+// live-register handler) and is LOCKED for the instance — re-asserts
+// can never change it. A live instance is "<devKey>@<startedAt>".
+// Tickets live in money.json (liveTickets) so a purchase, its
+// settlement and its refund can never drift apart.
+//
+// MONEY mirrors fan clubs / fan subs EXACTLY: charms from the same
+// balance gifts and tips spend, CHARM_CENT_VALUE, GIFT_HOST_PCT
+// (host 70% / platform 30%), the LARGE_GIFT_HOLD_CENTS safety hold,
+// the shared money lock and the Earn wallet (door money counts
+// toward the $20 Stripe Connect cash-out). The recipient's ledger
+// row is type "live-ticket"; the sender's is "ticket-sent". The
+// bell notice kind is "ticket", riding the member's "gifts" switch,
+// never SMS. Teen corner mirrors gifts/tips/subs (RP-V7.74): an
+// under-18 account on either side (in the 18+ Plaza only the
+// owner's @Popstar test account) runs the charge CHARMS-ONLY.
+//
+// ENTRY IS SERVER-SIDE: liveJoinRefusal299 (beside the V7.138
+// private door) runs on join AND switch-room before any player
+// record exists, the chat relay re-checks it, and anyone standing
+// in the room when a ticketed live starts is evicted at register
+// time. Non-holders never receive stream, chat or presence. The
+// lives snapshot still SHOWS the live (discovery) with its
+// ticketPrice + ticketSold; tapping it opens the buy sheet.
+// Exemptions: the host, the host's invited members (the live's
+// invite list), and stage guests the host accepted.
+//
+// EXCLUSIONS (settled rules, enforced at register): no ticketed
+// lives from Christian Fellowship (origin room "faith" — church is
+// commerce-free, admission included), no ticketed auction lives,
+// no ticketed battle lives, and ticketed + private never combine.
+//
+// REFUNDS (server-enforced, see ticketLiveEnded299): when a
+// ticketed live ends, a ticket auto-refunds IN FULL when (a) the
+// live's whole run lasted <= 2 minutes (cancelled / never properly
+// started), or (b) the host ended the live within 2 minutes of
+// that ticket's purchase. Any other ticket closes as "used". A
+// server restart ends every live, so tickets still active at boot
+// refund in full too (ticketBootSweep299). A refund is a ledger
+// REVERSAL: the same two row types written back negative, the
+// buyer's charms restored, the host's share pulled back out of
+// their earnings (available first, then held), and a bell to the
+// buyer (kind "ticket").
+// ---------------------------------------------------------------------------
+const TICKET_TIERS_299 = [100, 250, 500, 1000, 2500];
+const TICKET_REFUND_WINDOW_MS_299 = 2 * 60 * 1000; // the 2-minute refund rule
+const liveTicketCfg299 = new Map(); // devKey -> { price, org, hostId, startedAt, guests:Set<acctId> } — memory only, like the registry it describes
+const liveTicketSales299 = new Map(); // liveId -> gross tickets sold this instance (snapshot badge)
+function ticketLiveId299(key, startedAt) { return String(key) + "@" + String(startedAt || 0); }
+function liveTicketSold299(key, startedAt) { return liveTicketSales299.get(ticketLiveId299(key, startedAt)) || 0; }
+function ticketCfgForRoom299(room) {
+  if (!room || typeof room !== "string" || room.indexOf("live-") !== 0) return null;
+  const cfg = liveTicketCfg299.get(room.slice(5));
+  return cfg && cfg.price > 0 ? cfg : null;
+}
+function ticketPublic299(t) {
+  if (!t) return null;
+  return {
+    liveId: t.liveId, hostId: t.hostId, liveKey: t.liveKey,
+    priceCharms: t.priceCharms, status: t.status,
+    boughtAt: t.boughtAt, startedAt: t.startedAt,
+    refundedAt: t.refundedAt || null, charmsOnly: !!t.charmsOnly,
+  };
+}
+// One charge + settlement — the fanClubSettle298 body with ticket
+// ledger kinds. Returns { ok:false, error } WITHOUT moving anything
+// when the buyer cannot pay.
+function ticketSettle299(db, buyer, host, priceCharms, ref299) {
+  const balance = db.balances[buyer.id] || 0;
+  const buyerTeen = ageFromDob(buyer.dob) < 18;
+  const charmsOnly = buyerTeen || ageFromDob(host.dob) < 18;
+  let giftBal = (db.giftBals && db.giftBals[buyer.id]) || 0;
+  if (buyerTeen) {
+    if (giftBal < priceCharms)
+      return { ok: false, error: "insufficient-charms", balance, giftBal, needed: priceCharms };
+  } else if (balance < priceCharms) {
+    return { ok: false, error: "insufficient-charms", balance, needed: priceCharms };
+  }
+  if (buyerTeen) {
+    giftBal -= priceCharms;
+    db.giftBals[buyer.id] = giftBal;
+  } else {
+    db.balances[buyer.id] = balance - priceCharms;
+  }
+  let valueCents = 0, share = 0, cut = 0, held = false;
+  if (charmsOnly) {
+    db.balances[host.id] = (db.balances[host.id] || 0) + priceCharms;
+  } else {
+    valueCents = priceCharms * CHARM_CENT_VALUE;
+    share = Math.floor((valueCents * GIFT_HOST_PCT) / 100);
+    cut = valueCents - share;
+    const earn = moneyEarningsFor(db, host.id);
+    if (valueCents >= LARGE_GIFT_HOLD_CENTS) {
+      earn.held.push({
+        cents: share,
+        unlockAt: new Date(Date.now() + HOLD_DAYS * 24 * 3600 * 1000).toISOString(),
+        reason: "large-liveticket",
+      });
+      held = true;
+    } else {
+      earn.availableCents += share;
+    }
+    earn.totalEarnedCents += share;
+  }
+  const txBase = { from: buyer.id, to: host.id, charms: priceCharms, ref: ref299 || "liveticket" };
+  moneyTx(db, Object.assign({}, txBase, { type: "ticket-sent", cents: valueCents, cut }));
+  moneyTx(db, Object.assign({}, txBase, { type: "live-ticket", cents: share, cut, charmsOnly }));
+  return { ok: true, valueCents, share, cut, held, charmsOnly, balance: db.balances[buyer.id], giftBal };
+}
+// Resolve a live registry entry from a request's identifiers —
+// exactly one of key / room / hostId may narrow the search; the
+// registry itself is the truth (a ticket is only ever sold for a
+// live that is on air right now).
+function ticketResolveLive299(b) {
+  const wantKey = String((b && b.key) || (b && b.liveKey) || "").slice(0, 40);
+  const wantRoom = String((b && b.room) || "").slice(0, 40);
+  const wantHost = String((b && b.hostId) || "").slice(0, 64);
+  for (const e of liveRegistry.values()) {
+    if (wantKey && e.key !== wantKey) continue;
+    if (wantRoom && e.room !== wantRoom) continue;
+    if (wantHost && liveHostAccount274(e) !== wantHost) continue;
+    return e;
+  }
+  return null;
+}
+app.post("/api/liveticket/buy", lockedHandler("liveticket-buy", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const idemKey = String(b.idem || "").slice(0, 64);
+  const idemStoreKey = idemKey ? ctx.user.id + ":" + idemKey : null;
+  const db = readMoney();
+  if (idemStoreKey) {
+    const seen = db.liveTicketIdem[idemStoreKey];
+    if (seen && seen.response)
+      return res.json(Object.assign({}, seen.response, { deduped: true }));
+  }
+  const entry = ticketResolveLive299(b);
+  if (!entry) return res.status(404).json({ ok: false, error: "live-not-found" });
+  if (entry.priv) return res.status(400).json({ ok: false, error: "live-is-private" });
+  const cfg = liveTicketCfg299.get(entry.key);
+  const price = cfg ? cfg.price : 0;
+  if (!(price > 0)) return res.status(400).json({ ok: false, error: "live-not-ticketed" });
+  const hostId = liveHostAccount274(entry) || cfg.hostId || null;
+  const host = hostId ? ctx.db.users.find((u) => u && u.id === hostId) : null;
+  if (!host) return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  if (host.id === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't buy a ticket to your own live" });
+  if (accountLockedOut(host) || host.deletionAt)
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  const liveId = ticketLiveId299(entry.key, entry.startedAt);
+  const existing = db.liveTickets[ctx.user.id + ">" + liveId];
+  if (existing && existing.status === "active")
+    return res.status(400).json({ ok: false, error: "already-have-ticket", liveId });
+  const settled = ticketSettle299(db, ctx.user, host, price, liveId);
+  if (!settled.ok) {
+    return res.status(400).json({
+      ok: false, error: settled.error,
+      message: ageFromDob(ctx.user.dob) < 18 ? "Earn or win charms to buy a ticket" : undefined,
+      balance: settled.balance, giftBal: settled.giftBal, needed: settled.needed,
+    });
+  }
+  const record = {
+    buyerId: ctx.user.id, hostId: host.id, liveKey: entry.key, liveId,
+    priceCharms: price, shareCents: settled.share, cutCents: settled.cut,
+    valueCents: settled.valueCents, charmsOnly: settled.charmsOnly,
+    status: "active", boughtAt: new Date().toISOString(),
+    startedAt: entry.startedAt, ref: liveId,
+  };
+  db.liveTickets[ctx.user.id + ">" + liveId] = record;
+  liveTicketSales299.set(liveId, (liveTicketSales299.get(liveId) || 0) + 1);
+  const buyResponse = {
+    ok: true,
+    charged: price,
+    balance: settled.balance,
+    giftBal: settled.giftBal,
+    recipient: { id: host.id, name: host.name },
+    hostShareCents: settled.share, held: settled.held, charmsOnly: settled.charmsOnly,
+    liveId,
+    ticket: ticketPublic299(record),
+  };
+  if (idemStoreKey) {
+    db.liveTicketIdem[idemStoreKey] = { at: new Date().toISOString(), response: buyResponse };
+    const keys = Object.keys(db.liveTicketIdem);
+    if (keys.length > 400) {
+      keys.sort((a, b2) => String(db.liveTicketIdem[a].at).localeCompare(String(db.liveTicketIdem[b2].at)));
+      for (let i = 0; i < keys.length - 400; i++) delete db.liveTicketIdem[keys[i]];
+    }
+  }
+  writeMoney(db);
+  console.log("[money] liveticket", price, "charms:", ctx.user.name, "->", host.name,
+    "| host", settled.share, "c", settled.held ? "(held)" : "", "| cut", settled.cut, "c",
+    settled.charmsOnly ? "| CHARMS-ONLY (teen involved)" : "");
+  notifyActivity({
+    toId: host.id,
+    kind: "ticket",
+    actorId: ctx.user.id,
+    actorName: ctx.user.name,
+    text: "\uD83C\uDF9F\uFE0F " + ctx.user.name + " bought a ticket to your live \u2014 " + price.toLocaleString("en-US") + " charms!",
+    emailSubject: "A ticket to your live just sold on Rizz Plaza \uD83C\uDF9F\uFE0F",
+    emailText: ctx.user.name + " bought a ticket to your live on Rizz Plaza for " + price.toLocaleString("en-US") + " charms. Your 70% share is in your Earn wallet.\n\nOpen the Plaza: https://rizzplaza.com\n\n\u2014 The Rizz Plaza team",
+    go: { screen: "live", room: entry.room },
+  });
+  res.json(buyResponse);
+}));
+app.get("/api/liveticket/status", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const entry = ticketResolveLive299({
+    key: String(req.query.key || req.query.liveKey || ""),
+    room: String(req.query.room || ""),
+    hostId: String(req.query.hostId || ""),
+  });
+  if (!entry) return res.status(404).json({ ok: false, error: "live-not-found" });
+  const cfg = liveTicketCfg299.get(entry.key);
+  const price = cfg ? cfg.price : 0;
+  const hostId = liveHostAccount274(entry) || (cfg ? cfg.hostId : null);
+  const db = readMoney();
+  const liveId = ticketLiveId299(entry.key, entry.startedAt);
+  const mine = db.liveTickets ? db.liveTickets[ctx.user.id + ">" + liveId] : null;
+  res.json({
+    ok: true,
+    live: {
+      key: entry.key, room: entry.room, hostId,
+      hostName: entry.name || "", title: entry.title || "",
+      ticketPrice: price, startedAt: entry.startedAt,
+      sold: liveTicketSold299(entry.key, entry.startedAt),
+      priv: !!entry.priv,
+    },
+    tiers: TICKET_TIERS_299.slice(),
+    hasTicket: !!(mine && mine.status === "active"),
+    ticket: ticketPublic299(mine),
+  });
+});
+app.get("/api/liveticket/mine", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readMoney();
+  const sum = rpLiveTicketSummary299(db, ctx.user.id);
+  try {
+    const nameById = {};
+    for (const u of (ctx.db && ctx.db.users) || [])
+      if (u && u.id && u.name) nameById[u.id] = u.name;
+    for (const t of sum.tickets) if (!t.hostName) t.hostName = nameById[t.hostId] || null;
+  } catch (e) { }
+  res.json(Object.assign({ ok: true, liveTickets: sum }, sum));
+});
+// The member summary riding GET /api/money/me: the tickets I hold
+// (newest first) + my door totals as a host.
+function rpLiveTicketSummary299(db, acctId) {
+  const tickets = [];
+  const recs = (db && db.liveTickets) || {};
+  for (const k of Object.keys(recs)) {
+    const t = recs[k];
+    if (t && t.buyerId === acctId)
+      tickets.push(Object.assign({ hostName: null }, ticketPublic299(t)));
+  }
+  tickets.sort((a, b) => String(b.boughtAt || "").localeCompare(String(a.boughtAt || "")));
+  let soldCount = 0;
+  for (const k of Object.keys(recs)) {
+    const t = recs[k];
+    if (t && t.hostId === acctId && t.status !== "refunded") soldCount++;
+  }
+  let earnedCents = 0;
+  for (const tx of (db && db.txlog) || [])
+    if (tx && tx.type === "live-ticket" && tx.to === acctId)
+      earnedCents += Math.round(Number(tx.cents) || 0);
+  return { tickets: tickets.slice(0, 50), soldCount, earnedCents };
+}
+// How many tickets exist Plaza-wide right now in "active" state
+// (owner board context).
+function rpLiveTicketActiveCount299(db) {
+  if (!db || !db.liveTickets) return 0;
+  let n = 0;
+  for (const k of Object.keys(db.liveTickets)) {
+    const t = db.liveTickets[k];
+    if (t && t.status === "active") n++;
+  }
+  return n;
+}
+// Reverse ONE ticket in full (the caller holds the money lock and
+// writes the db). Returns the buyer's bell payload, or null.
+function ticketRefundOne299(db, adb, t, endedAt) {
+  const buyer = adb.users.find((u) => u && u.id === t.buyerId) || null;
+  const host = adb.users.find((u) => u && u.id === t.hostId) || null;
+  if (t.charmsOnly) {
+    // Charms-only (teen corner): the buyer spent gift balance, the
+    // host was credited charms — both legs reverse in charms.
+    if (buyer) {
+      if (!db.giftBals || typeof db.giftBals !== "object") db.giftBals = {};
+      db.giftBals[buyer.id] = (db.giftBals[buyer.id] || 0) + t.priceCharms;
+    }
+    if (host) db.balances[host.id] = Math.max(0, (db.balances[host.id] || 0) - t.priceCharms);
+  } else {
+    if (buyer) db.balances[buyer.id] = (db.balances[buyer.id] || 0) + t.priceCharms;
+    if (host) {
+      const earn = moneyEarningsFor(db, host.id);
+      let rem = t.shareCents || 0;
+      const fromAvail = Math.min(Math.max(0, earn.availableCents), rem);
+      earn.availableCents -= fromAvail;
+      rem -= fromAvail;
+      if (rem > 0) {
+        for (let i = earn.held.length - 1; i >= 0 && rem > 0; i--) {
+          const h = earn.held[i];
+          if (!h) continue;
+          const take = Math.min(Math.max(0, h.cents || 0), rem);
+          h.cents -= take;
+          rem -= take;
+          if (h.cents <= 0) earn.held.splice(i, 1);
+        }
+      }
+      earn.totalEarnedCents = Math.max(0, (earn.totalEarnedCents || 0) - (t.shareCents || 0));
+    }
+  }
+  const txBase = { from: t.hostId, to: t.buyerId, charms: -t.priceCharms, ref: (t.ref || t.liveId) + ":refund" };
+  moneyTx(db, Object.assign({}, txBase, { type: "ticket-sent", cents: -(t.valueCents || 0), cut: -(t.cutCents || 0) }));
+  moneyTx(db, Object.assign({}, txBase, { type: "live-ticket", cents: -(t.shareCents || 0), cut: -(t.cutCents || 0), charmsOnly: !!t.charmsOnly }));
+  t.status = "refunded";
+  t.refundedAt = new Date(endedAt).toISOString();
+  if (!buyer) return null;
+  return {
+    toId: buyer.id, kind: "ticket", actorId: t.hostId, actorName: host ? host.name : "",
+    text: "\uD83C\uDF9F\uFE0F Your ticket to " + (host ? host.name : "the host") + "'s live was refunded in full \u2014 " + Number(t.priceCharms || 0).toLocaleString("en-US") + " charms are back in your balance.",
+    go: { screen: "ownprofile" },
+  };
+}
+// A ticketed live just ended (unregister / walk-out / disconnect /
+// staleness sweep — every registry-removal site calls this beside
+// potLiveEnded). THE REFUND RULE: a ticket refunds in full when
+// the live's whole run lasted <= 2 minutes, or the live ended
+// within 2 minutes of that ticket's purchase; anything else
+// closes as "used". Runs through the shared money lock.
+function ticketLiveEnded299(key) {
+  const cfg = liveTicketCfg299.get(key);
+  if (!cfg) return;
+  liveTicketCfg299.delete(key);
+  if (!(cfg.price > 0)) return;
+  const endedAt = Date.now();
+  const liveId = ticketLiveId299(key, cfg.startedAt);
+  withMoneyLock(() => {
+    const db = readMoney();
+    let adb = null;
+    try { adb = readAccounts(); } catch (e) { adb = null; }
+    if (!adb || !Array.isArray(adb.users)) return [];
+    const notices = [];
+    let changed = false;
+    for (const k of Object.keys(db.liveTickets || {})) {
+      const t = db.liveTickets[k];
+      if (!t || t.liveId !== liveId || t.status !== "active") continue;
+      const boughtMs = Date.parse(t.boughtAt) || endedAt;
+      const refund = (endedAt - cfg.startedAt <= TICKET_REFUND_WINDOW_MS_299) ||
+        (endedAt - boughtMs <= TICKET_REFUND_WINDOW_MS_299);
+      if (!refund) { t.status = "used"; changed = true; continue; }
+      const n = ticketRefundOne299(db, adb, t, endedAt);
+      if (n) notices.push(n);
+      changed = true;
+    }
+    if (changed) writeMoney(db);
+    return notices;
+  }).then((notices) => {
+    for (const n of notices || []) { try { notifyActivity(n); } catch (e) { } }
+  }).catch((e) => { console.error("[liveticket] live-end refund failed:", e && e.message); });
+}
+// Boot: the registry is memory-only, so a restart ends every live —
+// any ticket still "active" belongs to a live that no longer
+// exists (cancelled) and refunds in full.
+function ticketBootSweep299() {
+  return withMoneyLock(() => {
+    const db = readMoney();
+    let adb = null;
+    try { adb = readAccounts(); } catch (e) { adb = null; }
+    if (!adb || !Array.isArray(adb.users)) return;
+    const endedAt = Date.now();
+    const notices = [];
+    let n = 0;
+    for (const k of Object.keys(db.liveTickets || {})) {
+      const t = db.liveTickets[k];
+      if (!t || t.status !== "active") continue;
+      const note = ticketRefundOne299(db, adb, t, endedAt);
+      if (note) notices.push(note);
+      n++;
+    }
+    if (n) {
+      writeMoney(db);
+      console.log("[liveticket] boot sweep refunded " + n + " ticket(s) from lives ended by the restart");
+    }
+    for (const note of notices) { try { notifyActivity(note); } catch (e) { } }
+  }).catch((e) => { console.error("[liveticket] boot sweep failed:", e && e.message); });
+}
+// Register-time eviction: when a ticketed live starts, anyone
+// already standing in the room without a ticket (or an exemption)
+// is removed — the door applies from the live's first second, not
+// just to later join attempts.
+function ticketEvictRoom299(key, room, hostSocket) {
+  const cfg = liveTicketCfg299.get(key);
+  if (!cfg || !(cfg.price > 0)) return;
+  let db = null;
+  try { db = readMoney(); } catch (e) { db = null; }
+  const acc = liveAccess138.get(key);
+  const liveId = ticketLiveId299(key, cfg.startedAt);
+  for (const [sid, p] of [...players]) {
+    if (!p || p.room !== room) continue;
+    if (hostSocket && sid === hostSocket.id) continue;
+    const s = io.sockets.sockets.get(sid);
+    if (!s) continue;
+    const acctId = s.data && s.data.accountId;
+    if (acctId && cfg.hostId && acctId === cfg.hostId) continue;
+    if (acctId && cfg.guests && cfg.guests.has(acctId)) continue;
+    if (acc && acctId && acc.invited && acc.invited.has(acctId)) continue;
+    const rec = acctId && db && db.liveTickets ? db.liveTickets[acctId + ">" + liveId] : null;
+    if (rec && rec.status === "active") continue;
+    players.delete(sid);
+    chatTimes.delete(sid);
+    try { s.data.room = null; } catch (e) { } // [RP-V7.299] clear the app's room tracking too — otherwise the member's switch-room back in (after buying, or on a host invite) compares equal and no-ops, locking them out on this socket
+    try { s.leave(room); } catch (e) { }
+    s.emit("live-ticket", {
+      room, reason: "ticket",
+      error: "\uD83C\uDF9F\uFE0F This live just went ticketed \u2014 " + cfg.price.toLocaleString("en-US") + " charms to watch. Grab a ticket and you're in!",
+      ticket: { key, room, hostId: cfg.hostId || null, hostName: p.name || "", priceCharms: cfg.price, startedAt: cfg.startedAt },
+    });
+    io.to(room).emit("player-left", { id: sid });
+  }
+}
+
 // RP-V7.22: Daily host rankings. A lightweight tally of charms gifted
 // per host per calendar day (America/New_York), credited from the
 // /api/money/gift path below - the money ledger stays the source of
@@ -17058,6 +17543,11 @@ function rpSalesStreams(mdb) {
   // "club-sent" rows; the creator 70% and the platform's 30%
   // ride the recipient's "fan-club" rows — the fan-sub pattern.
   let fanClubsVolumeCents = 0, fanClubsCharms = 0, fanClubsCreatorCents = 0, fanClubsCutCents = 0;
+  // [RP-V7.299] Ticketed lives: volume + charm count ride the
+  // "ticket-sent" rows (refunds ride the same types NEGATIVE, so
+  // the board always shows net); the host 70% and the platform's
+  // 30% ride the recipient's "live-ticket" rows — the tip pattern.
+  let ticketsVolumeCents = 0, ticketsCharms = 0, ticketsCreatorCents = 0, ticketsCutCents = 0, ticketsSold = 0;
   for (const tx of mdb.txlog || []) {
     if (!tx || typeof tx !== "object") continue;
     const c = Math.round(Number(tx.cents) || 0);
@@ -17073,8 +17563,10 @@ function rpSalesStreams(mdb) {
     else if (tx.type === "fan-subscription") { fanSubsCreatorCents += c; fanSubsCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.296]
     else if (tx.type === "club-sent") { fanClubsVolumeCents += c; fanClubsCharms += Math.round(Number(tx.charms) || 0); } // [RP-V7.298]
     else if (tx.type === "fan-club") { fanClubsCreatorCents += c; fanClubsCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.298]
+    else if (tx.type === "ticket-sent") { ticketsVolumeCents += c; ticketsCharms += Math.round(Number(tx.charms) || 0); if ((Number(tx.charms) || 0) > 0) ticketsSold++; } // [RP-V7.299] a positive ticket-sent row is one ticket sold; refund rows are negative and never count
+    else if (tx.type === "live-ticket") { ticketsCreatorCents += c; ticketsCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.299]
   }
-  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents, plazaStoreSalesCents, plazaStoreCutCents, profileTipsVolumeCents, profileTipsCharms, profileTipsCreatorCents, profileTipsCutCents, fanSubsVolumeCents, fanSubsCharms, fanSubsCreatorCents, fanSubsCutCents, fanClubsVolumeCents, fanClubsCharms, fanClubsCreatorCents, fanClubsCutCents }; // [RP-V7.240] // [RP-V7.294] + profile tips // [RP-V7.296] + fan subscriptions // [RP-V7.298] + fan clubs
+  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents, plazaStoreSalesCents, plazaStoreCutCents, profileTipsVolumeCents, profileTipsCharms, profileTipsCreatorCents, profileTipsCutCents, fanSubsVolumeCents, fanSubsCharms, fanSubsCreatorCents, fanSubsCutCents, fanClubsVolumeCents, fanClubsCharms, fanClubsCreatorCents, fanClubsCutCents, ticketsVolumeCents, ticketsCharms, ticketsCreatorCents, ticketsCutCents, ticketsSold }; // [RP-V7.240] // [RP-V7.294] + profile tips // [RP-V7.296] + fan subscriptions // [RP-V7.298] + fan clubs // [RP-V7.299] + ticketed lives
 }
 // [RP-V7.224] How many Business Ads subscriptions are active right now
 // (state-checked, so a lapsed sub never counts).
@@ -17346,7 +17838,7 @@ app.get("/api/owner/sales", (req, res) => {
   const s = rpSalesStreams(mdb);
   const storeCents = mdb.ownerStore && isFinite(Number(mdb.ownerStore.storeCents)) ? Math.round(Number(mdb.ownerStore.storeCents)) : null;
   const storeAsOf = storeCents === null ? null : (mdb.ownerStore.at || null);
-  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.profileTipsVolumeCents + s.fanSubsVolumeCents + s.fanClubsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + s.plazaStoreSalesCents + (storeCents || 0); // [RP-V7.298] fan-club volume counts in the total the same way // [RP-V7.240] Plaza Store gross sales count in the Plaza total like auctions volume // [RP-V7.294] profile-tip volume counts in the total like gift volume // [RP-V7.296] fan-subscription volume counts in the total the same way
+  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.profileTipsVolumeCents + s.fanSubsVolumeCents + s.fanClubsVolumeCents + s.ticketsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + s.plazaStoreSalesCents + (storeCents || 0); // [RP-V7.299] ticket volume counts in the total the same way // [RP-V7.298] fan-club volume counts in the total the same way // [RP-V7.240] Plaza Store gross sales count in the Plaza total like auctions volume // [RP-V7.294] profile-tip volume counts in the total like gift volume // [RP-V7.296] fan-subscription volume counts in the total the same way
   const stepDollars = 10000, capDollars = 3000000;
   const totalDollars = totalCents / 100;
   const crossed = totalDollars >= stepDollars ? Math.min(capDollars, Math.floor(totalDollars / stepDollars) * stepDollars) : 0;
@@ -17372,6 +17864,11 @@ app.get("/api/owner/sales", (req, res) => {
       fanClubsCreatorCents: s.fanClubsCreatorCents, // [RP-V7.298]
       fanClubsCutCents: s.fanClubsCutCents, // [RP-V7.298]
       fanClubsActive: rpFanClubActiveCount298(mdb), // [RP-V7.298] live club memberships right now (access-checked)
+      ticketsVolumeCents: s.ticketsVolumeCents, // [RP-V7.299]
+      ticketsCharms: s.ticketsCharms, // [RP-V7.299]
+      ticketsCreatorCents: s.ticketsCreatorCents, // [RP-V7.299]
+      ticketsCutCents: s.ticketsCutCents, // [RP-V7.299]
+      ticketsSold: s.ticketsSold, // [RP-V7.299] gross tickets sold (refunds never add)
       auctionsVolumeCents: s.auctionsVolumeCents,
       bizadsCents: s.bizadsCents, // [RP-V7.224]
       bizadsActive: rpBizAdsActiveCount(mdb), // [RP-V7.224]
@@ -18219,6 +18716,11 @@ io.on("connection", (socket) => {
     // clean "live-private" note and never sees partial room state.
     const privRefusalJoin = liveJoinRefusal138(socket, room, data);
     if (privRefusalJoin) { socket.emit("live-private", privRefusalJoin); return; }
+    // [RP-V7.299] Ticket door, same position as the private door: a
+    // non-holder join to a ticketed live is refused BEFORE any player
+    // record exists — no stream, no chat, no presence.
+    const ticketRefusalJoin = liveJoinRefusal299(socket, room, data);
+    if (ticketRefusalJoin) { socket.emit("live-ticket", ticketRefusalJoin); return; }
     // [RP-V7.24] A reconnecting client keeps its identity via a stable
     // per-device key: if an older socket still holds the same key, it
     // is a ghost (its connection died but the ping timeout hasn't
@@ -18367,6 +18869,16 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // [RP-V7.299] Chat in a ticketed live needs a ticket too (a
+    // socket standing in the room from before the live started is
+    // evicted at register time; this keeps the relay honest anyway).
+    if (liveJoinRefusal299(socket, p.room, {})) {
+      socket.emit("chat-blocked", {
+        reason: "\uD83C\uDF9F\uFE0F This is a ticketed live \u2014 grab a ticket to join the chat.",
+      });
+      return;
+    }
+
     // Spam protection: max 8 messages per 10 seconds
     const now = Date.now();
     const times = (chatTimes.get(socket.id) || []).filter(
@@ -18408,6 +18920,9 @@ io.on("connection", (socket) => {
     // leaves the player exactly where they were.
     const privRefusalSwitch = liveJoinRefusal138(socket, room, data);
     if (privRefusalSwitch) { socket.emit("live-private", privRefusalSwitch); return; }
+    // [RP-V7.299] Same ticket door on the switch path.
+    const ticketRefusalSwitch = liveJoinRefusal299(socket, room, data);
+    if (ticketRefusalSwitch) { socket.emit("live-ticket", ticketRefusalSwitch); return; }
     socket.leave(p.room);
     socket.to(p.room).emit("player-left", { id: p.id });
     p.room = room;
@@ -18420,7 +18935,7 @@ io.on("connection", (socket) => {
     const swKey = clientKeys.get(socket.id);
     if (swKey) {
       const reg = liveRegistry.get(swKey);
-      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); } // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too
+      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); ticketLiveEnded299(swKey); } // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
     }
     socket.to(room).emit("player-joined", p);
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
@@ -18445,6 +18960,36 @@ io.on("connection", (socket) => {
     if (typeof data.priv === "boolean") acc138.priv = data.priv;
     if (acc138.priv && !acc138.token) acc138.token = newLiveToken138();
     if (!acc138.priv) acc138.token = null;
+    // [RP-V7.299] Ticketed + private are mutually exclusive for the
+    // WHOLE live: a ticketed live cannot be flipped private mid-live
+    // (the private toggle is simply overridden while a ticket price
+    // stands — the host was told at setup the two don't combine).
+    const preCfg299 = liveTicketCfg299.get(devKey);
+    if (preCfg299 && preCfg299.price > 0 && acc138.priv) { acc138.priv = false; acc138.token = null; }
+    // [RP-V7.299] The ticket config is decided ONCE, when the live is
+    // created: the price is locked for the instance, and later
+    // registers (the 20s re-assert) can never change it. Exclusions
+    // (settled rules): no ticketed church lives (origin room "faith"
+    // — the V7.89 origin signal), no private ticketed lives, no
+    // ticketed auction or battle lives, and a guest host (no account
+    // to settle to) can never charge at the door.
+    if (!prev) {
+      let tPrice299 = Math.floor(Number(data.ticketPrice) || 0);
+      if (TICKET_TIERS_299.indexOf(tPrice299) < 0) tPrice299 = 0;
+      let tDeny299 = null;
+      const org299 = String(data.org || "").slice(0, 24);
+      if (tPrice299 > 0) {
+        if (acc138.priv) { tPrice299 = 0; tDeny299 = "private"; }
+        else if (org299 === "faith") { tPrice299 = 0; tDeny299 = "church"; }
+        else if (!(socket.data && socket.data.accountId)) { tPrice299 = 0; tDeny299 = "no-account"; }
+        else if (auctions.has(p.room)) { tPrice299 = 0; tDeny299 = "auction"; }
+        else if (p.live) { tPrice299 = 0; tDeny299 = "battle"; }
+      }
+      liveTicketCfg299.set(devKey, { price: tPrice299, org: org299, hostId: (socket.data && socket.data.accountId) || null, startedAt: now, guests: new Set() });
+      socket.emit("live-ticket-state", { room: p.room, price: tPrice299, denied: tDeny299 });
+      if (tPrice299 > 0) ticketEvictRoom299(devKey, p.room, socket); // anyone standing in the room without a ticket leaves now
+    }
+    const cfg299 = liveTicketCfg299.get(devKey);
     liveRegistry.set(devKey, {
       key: devKey,
       room: p.room,
@@ -18455,6 +19000,7 @@ io.on("connection", (socket) => {
       startedAt: prev ? prev.startedAt : now,
       lastBeat: now,
       priv: acc138.priv,
+      ticketPrice: cfg299 ? cfg299.price : 0, // [RP-V7.299]
     });
     if (!prev) liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a NEW live invites the host's remembered viewers (public only — the helper refuses private)
     broadcastLives();
@@ -18487,6 +19033,7 @@ io.on("connection", (socket) => {
         startedAt: now,
         lastBeat: now,
         priv: !!(liveAccess138.get(devKey) && liveAccess138.get(devKey).priv), // [RP-V7.138] beat-heal keeps the privacy flag
+        ticketPrice: 0, // [RP-V7.299] a beat-healed live never had a setup pass — free at the door
       });
       liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a beat-healed creation is still a new live — invite past viewers (public only)
       broadcastLives();
@@ -18499,7 +19046,7 @@ io.on("connection", (socket) => {
   socket.on("live-unregister", () => {
     const devKey = clientKeys.get(socket.id);
     if (!devKey) return;
-    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); } // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it
+    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); ticketLiveEnded299(devKey); } // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
   });
 
   // [RP-V7.138] PRIVATE LIVE controls — invite / un-invite / link
@@ -18531,6 +19078,7 @@ io.on("connection", (socket) => {
     if (!target || target.deletionAt) return;
     const wasIn = ctx.acc.invited.has(toId);
     ctx.acc.invited.add(toId);
+    { const tcfg299 = liveTicketCfg299.get(ctx.key); if (tcfg299) tcfg299.guests.add(toId); } // [RP-V7.299] a host invite also exempts from the ticket door
     ctx.acc.kicked.delete(toId); // re-inviting forgives a kick for this session
     emitLiveAccess138(socket, ctx.key);
     // The invitee's live list refreshes at once (the private live is
@@ -18663,6 +19211,7 @@ io.on("connection", (socket) => {
     if (!p) return;
     const t = String(data.t || "");
     if (t === "reg") { p.live = data.on ? { name: p.name, at: Date.now() } : null; return; }
+    if ((t === "invite" || t === "accept") && ticketCfgForRoom299(p.room)) return; // [RP-V7.299] no battles on ticketed lives
     if (t === "who") {
       const list = [];
       players.forEach((pl) => { if (pl.live && pl.id !== socket.id) list.push({ id: pl.id, name: pl.live.name }); });
@@ -18750,6 +19299,17 @@ io.on("connection", (socket) => {
     pend.delete(to);
     if (!pend.size) stageRequests.delete(socket.id);
     const me = players.get(socket.id);
+    // [RP-V7.299] An accepted stage guest is exempt from the ticket
+    // door for the rest of this live (they were invited on stage).
+    if (data.accept) {
+      try {
+        const ts299 = io.sockets.sockets.get(to);
+        const ta299 = ts299 && ts299.data ? ts299.data.accountId : null;
+        const mk299 = clientKeys.get(socket.id);
+        const cfg299sr = mk299 ? liveTicketCfg299.get(mk299) : null;
+        if (cfg299sr && ta299) cfg299sr.guests.add(ta299);
+      } catch (e) { }
+    }
     io.to(to).emit(data.accept ? "stage-accepted" : "stage-denied", {
       fromId: socket.id,
       fromName: me ? me.name : "",
@@ -18887,6 +19447,7 @@ io.on("connection", (socket) => {
     const me = players.get(socket.id);
     if (!me) return;
     if (socketIsTeen(socket)) return; // [RP-V7.75] auctions stay 18+ — a teen in a live room can't run one
+    if (ticketCfgForRoom299(me.room)) { socket.emit("auction-blocked", { reason: "ticketed", error: "\uD83C\uDF9F\uFE0F Ticketed lives can\u2019t run auctions \u2014 this live charges at the door instead." }); return; } // [RP-V7.299] no ticketing on auction lives, and no auctions on ticketed lives
     const room = me.room;
     if (auctions.has(room)) return;
     const startBid = Math.max(1, Math.min(100000, Math.floor(Number(data.startBid) || 1)));
@@ -19019,6 +19580,7 @@ io.on("connection", (socket) => {
         endLiveAccess138(discKey); // [RP-V7.138] access state ends with the live
         broadcastLives();
         potLiveEnded(discKey);
+        ticketLiveEnded299(discKey); // [RP-V7.299] ticket refunds run too
       }
     }
     // [RP-V7.52] Stage-request bookkeeping dies with either side.
@@ -19305,6 +19867,12 @@ const fanClubTimer298 = setInterval(() => {
   try { fanClubTick298(); } catch (e) {}
 }, 60 * 1000);
 if (fanClubTimer298.unref) fanClubTimer298.unref();
+
+// [RP-V7.299] Ticketed lives: a server (re)start ends every live
+// (the registry is memory-only), so any ticket still "active" at
+// boot belongs to a live that no longer exists — refund them all
+// in full, once, at boot.
+try { ticketBootSweep299(); } catch (e) {}
 
 
 
