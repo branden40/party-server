@@ -45379,6 +45379,43 @@ html, body { overflow-x: clip; }
   window.addEventListener("focus", apply);
 })();
 </script>
+<style id="rp288-style">
+/* [RP-V7.288] White-mode text fix (Branden, Nov 8, 2026: "All the letters
+   need to be black"). The Plaza section-card family (and every surface
+   sharing its mechanisms) rendered WHITE text + pink glow on the white
+   light-mode background: .online-card/.plaza-card carry color:#fff in
+   their base rules while V7.287 flipped only their backgrounds; the
+   late rule at .live-now-head forces color:#fff !important; and the
+   global body/h1-h3 text-shadow glow (the dark-mode brand halo) sat
+   behind the letters. Light mode only — dark mode is byte-identical
+   in effect. Scope-out media surfaces (live panel, gift overlays,
+   camera, story viewer, room scenes) re-assert the dark glow below. */
+body.rp-light { text-shadow: none; }
+body.rp-light h1, body.rp-light h2, body.rp-light h3, body.rp-light .display { text-shadow: none; }
+body.rp-light #livePanel, body.rp-light .gfx, body.rp-light #camScreen, body.rp-light #storyViewer, body.rp-light .rpmedia-wrap, body.rp-light .scene { text-shadow: 0 0 6px rgba(254,44,85,.13), 0 0 2px rgba(255,255,255,.05); }
+body.rp-light #livePanel h1, body.rp-light #livePanel h2, body.rp-light #livePanel h3, body.rp-light #livePanel .display,
+body.rp-light .gfx h1, body.rp-light .gfx h2, body.rp-light .gfx h3, body.rp-light .gfx .display,
+body.rp-light #camScreen h1, body.rp-light #camScreen h2, body.rp-light #camScreen h3, body.rp-light #camScreen .display,
+body.rp-light #storyViewer h1, body.rp-light #storyViewer h2, body.rp-light #storyViewer h3, body.rp-light #storyViewer .display,
+body.rp-light .rpmedia-wrap h1, body.rp-light .rpmedia-wrap h2, body.rp-light .rpmedia-wrap h3, body.rp-light .rpmedia-wrap .display,
+body.rp-light .scene h1, body.rp-light .scene h2, body.rp-light .scene h3, body.rp-light .scene .display { text-shadow: 0 0 16px rgba(254,44,85,.38), 0 0 6px rgba(254,44,85,.26); }
+/* the card family: black headings, dark-gray copy, clean on white */
+body.rp-light .online-card { color: #111111; }
+body.rp-light .online-card p { color: #444444; }
+body.rp-light .plaza-card { color: #111111; }
+body.rp-light .plaza-card p { color: #444444; }
+body.rp-light .plaza-card h3 { text-shadow: none; }
+body.rp-light .support-head { color: #111111; }
+body.rp-light .support-sub { color: #444444; }
+body.rp-light .live-now-head { color: #111111 !important; }
+body.rp-light #lobbyTitle, body.rp-light #matchesSection h3, body.rp-light .state-rooms-head { color: #111111 !important; }
+/* holiday banner: its holiday-window rule outranks the V7.287 flip;
+   equal specificity + later position wins, letters go black */
+body.rp-light[data-holiday] .hol-banner, body.rp-light .hol-banner { background: #ffffff !important; color: #111111 !important; }
+body.rp-light .hol-banner b { color: #9c6600; }
+/* Daily Pot total: brand gold deepened until it reads on white */
+body.rp-light .dpot-total { color: #9c6600; }
+</style>
 </body>
 </html>
 
