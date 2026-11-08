@@ -8847,6 +8847,40 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
               }
             } catch (e) { }
           });
+          socket.on("live-ticket", function (d) { // [RP-V7.299] the server refused a ticketed live at the door: no player record, no stream — settle in the lobby and offer the ticket
+            try {
+              toast((d && d.error) || "\uD83C\uDF9F\uFE0F This is a ticketed live \u2014 grab a ticket to watch.", 4200);
+              if (Online.state === "connecting") {
+                Online.room = LIVE_ROOM_ID; Online.players = {};
+                Online.quietBoot = true;
+                socket.emit("join", { name: Online.name, avatar: onlineAvatarPayload(), room: LIVE_ROOM_ID, age: myAge(), key: onlineDeviceKey() });
+                try { show("screen-plaza"); } catch (e) { }
+              } else if (d && d.room && Online.room === d.room && typeof window.rpRejoinLobby138 === "function") {
+                window.rpRejoinLobby138();
+              }
+              var tk = (d && d.ticket) || null;
+              if (tk && tk.room && typeof window.rpOpenTicketSheet299 === "function") {
+                var tEntry299 = { room: tk.room, name: tk.hostName || "Host", title: tk.title || "", regKey: tk.key || "", hostAccountId: tk.hostId || null, ticketPrice: tk.priceCharms || 0, startedAt: tk.startedAt || 0 };
+                setTimeout(function () { window.rpOpenTicketSheet299(tEntry299, function () { joinOnlineRoomFromHome(tk.room); }); }, 450);
+              }
+            } catch (e) { }
+          });
+          socket.on("live-ticket-state", function (d) { // [RP-V7.299] the server's verdict on my live's ticket price (locked at start, or denied with a reason)
+            try {
+              if (!d) return;
+              Live.ticketPrice = d.price || 0;
+              Live.ticketDenied = d.denied || null;
+              if (d.denied === "church") toast("\uD83C\uDF9F\uFE0F Church lives are always free on Rizz Plaza \u2014 tickets are off for this live.", 4200);
+              else if (d.denied === "private") toast("\uD83C\uDF9F\uFE0F Private lives are invite-only \u2014 tickets are off for this live.", 4200);
+              else if (d.denied === "auction") toast("\uD83C\uDF9F\uFE0F Auction lives can\u2019t charge at the door \u2014 tickets are off for this live.", 4200);
+              else if (d.denied === "battle") toast("\uD83C\uDF9F\uFE0F Battle lives can\u2019t charge at the door \u2014 tickets are off for this live.", 4200);
+              else if (d.denied === "no-account") toast("\uD83C\uDF9F\uFE0F Sign in with a Plaza account to charge at the door \u2014 this live is free.", 4200);
+              else if (d.price > 0) toast("\uD83C\uDF9F\uFE0F Tickets are ON \u2014 " + Number(d.price).toLocaleString("en-US") + " charms at the door. The price is locked for this live.", 4200);
+            } catch (e) { }
+          });
+          socket.on("auction-blocked", function (d) { // [RP-V7.299] a ticketed live can't run an auction
+            try { toast((d && d.error) || "\uD83C\uDF9F\uFE0F Ticketed lives can\u2019t run auctions.", 4200); } catch (e) { }
+          });
           socket.on("live-kicked", function (d) { // [RP-V7.138] the host removed me — the server already deleted my player record
             try {
               toast("The host removed you from this live.", 4200);
@@ -11305,6 +11339,9 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         privToken: null,       // [RP-V7.138] my private-link token (server-minted, never chosen here)
         privSig: "",           // [RP-V7.138] last live-access payload signature (change detection)
         setupPriv: false,      // [RP-V7.138] the go-live setup's Private room toggle
+        setupTicket: 0,        // [RP-V7.299] the go-live setup's ticket price in charms (0 = free at the door)
+        ticketPrice: 0,        // [RP-V7.299] the ticket price of the live I'm hosting (locked by the server at start), 0 = free
+        ticketDenied: null,    // [RP-V7.299] the server's denial reason when a ticket price didn't take (church/private/auction/battle/no-account)
         setupInviteIds: [],    // [RP-V7.138] account ids picked in setup — invited the moment the live starts
         myPendingReq: false,   // I asked to join and am waiting on the host
         myStream: null, camOn: true, micOn: true,
@@ -11364,7 +11401,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         });
         var list = Object.keys(Live.directory).map(function (id) {
           var e = Live.directory[id];
-          var o = { hostId: id, room: e.room, name: e.name || "Host", title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0 };
+          var o = { hostId: id, room: e.room, name: e.name || "Host", title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0, regKey: e.regKey || "", hostAccountId: e.hostAccountId || null, priv: !!e.priv, pot: e.pot || null, startedAt: e.startedAt || 0, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0 }; // [RP-V7.299] registry fields ride the render object — the ticket badge/door (and the priv/pot lines liveRowHTML already draws) read them from here
           // the host's own announced home + interests win over any
           // fallback location guessed from the room they announced in
           var hm = Live.hostMeta[id];
@@ -11425,6 +11462,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
          exactly as it did before this build. */
       function onLivesUpdate(data) {
         if (!data || !Array.isArray(data.lives)) return;
+        // [RP-V7.299] keep the held-ticket cache warm for Live Now card paint (throttled; the server stays the door)
+        try { var nowT299 = Date.now(); if (window.rpRefreshMyTickets299 && nowT299 - (window.__rpTicketPaintAt299 || 0) > 30000) { window.__rpTicketPaintAt299 = nowT299; window.rpRefreshMyTickets299(); } } catch (e) { }
         var now = Date.now();
         Live.regAt = now;
         // [RP-V7.40] a snapshot the server ranked for my account carries
@@ -11453,10 +11492,12 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             e.pot = lv.pot || null; // [RP-V7.41] Plaza Pot state rides the snapshot
             if (typeof lv.watchers === "number") e.watchers = lv.watchers; // [RP-V7.63] carried for the signup invite's busiest-live pick
             if (lv.startedAt) e.startedAt = lv.startedAt; // [RP-V7.63] …and its earliest-started tie-break
+            if (typeof lv.ticketPrice === "number") e.ticketPrice = lv.ticketPrice; // [RP-V7.299] door price refreshes on existing entries too
+            if (typeof lv.ticketSold === "number") e.ticketSold = lv.ticketSold; // [RP-V7.299]
             e.seen = now; e.reg = true; e.regKey = lv.key || e.regKey || "";
             if (foundId !== key && lv.hostId) { Live.directory[key] = e; delete Live.directory[foundId]; }
           } else {
-            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, pot: lv.pot || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0 }; // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
+            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, pot: lv.pot || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0 }; // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
           }
         });
         Live.regRooms = rooms;
@@ -11663,7 +11704,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
          20s registry heartbeat, independent of the 8s in-room state. */
       function liveRegistrySyncHost() {
         if (!Online.socket || !Live.active || !Live.hostWasMe) return;
-        try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn }); } catch (e) { } // [RP-V7.138] priv: my Private room toggle — the server mints the link token
+        try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn, ticketPrice: Live.setupTicket || 0, org: String(Live.originRoom || "") }); } catch (e) { } // [RP-V7.138] priv: my Private room toggle — the server mints the link token
         startRegBeat();
       }
       function startRegBeat() {
@@ -11675,7 +11716,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           // deferred room switch, player record not ready), the live used to
           // stay invisible forever — live-register is idempotent and also
           // refreshes lastBeat server-side, so the entry self-heals in ≤20s.
-          try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn }); } catch (e) { } // [RP-V7.138] priv rides every re-assert too
+          try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn, ticketPrice: Live.setupTicket || 0, org: String(Live.originRoom || "") }); } catch (e) { } // [RP-V7.138] priv rides every re-assert too
         }, 20000);
       }
       function stopRegBeat() { if (Live.regBeat) { clearInterval(Live.regBeat); Live.regBeat = null; } }
@@ -11693,12 +11734,18 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         // [RP-V7.41] advertise an OPEN pot right on the card — guests
         // see it too; 💥 when a burst target is set and the pot is
         // at least 75% there
+        // [RP-V7.299] a ticketed live advertises its door price right
+        // on the card (discovery stays public — the door is inside);
+        // a holder sees their Ticket check instead of the price pitch.
+        var ticketLine = (e.ticketPrice > 0)
+          ? '<span class="lnr-pot">\uD83C\uDF9F\uFE0F ' + ((window.rpTicketHeld299 && window.rpTicketHeld299(e)) ? "Ticket \u2713 \u2014 tap to watch" : Number(e.ticketPrice).toLocaleString("en-US") + " charms at the door" + (e.ticketSold ? " \u00B7 " + e.ticketSold + " in" : "")) + "</span>"
+          : "";
         var potLine = (e.pot && e.pot.status === "open")
           ? '<span class="lnr-pot">🪙 Pot: ' + Number(e.pot.total || 0).toLocaleString("en-US") + " charms" +
             ((e.pot.burstAt && (e.pot.total || 0) >= Math.ceil(e.pot.burstAt * 0.75)) ? " 💥" : "") + "</span>"
           : "";
         return '<button class="live-now-row" data-lnroom="' + escHtml(e.room) + '">' + av +
-          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + privBadge + fyBadge + riseBadge + pushBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i>' + potLine + '</span>' +
+          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + privBadge + fyBadge + riseBadge + pushBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i>' + ticketLine + potLine + '</span>' +
           '<span class="lnr-n">👁 ' + (e.n || 1) + " watching</span></button>";
       }
       /* Tap a 🔴 Live Now / lobby entry: join that host's live room. */
@@ -11714,6 +11761,16 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         if (room && typeof room === "string" && room.indexOf("live-") === 0 && room !== myLiveRoomId() && Live.regAt &&
             !inviteLinkDirectoryHas(room) && !(window.rpLiveLinkToks && window.rpLiveLinkToks[room])) {
           toast("🔒 That live is private or has ended.", 3600);
+          return;
+        }
+        // [RP-V7.299] A ticketed live opens the BUY SHEET, not the
+        // player: the sheet checks my ticket on the server — holders
+        // get "Ticket \u2713 \u2014 tap to watch" and walk straight in,
+        // everyone else buys at the door first.
+        var tdir299 = null;
+        Object.keys(Live.directory).forEach(function (id) { var de = Live.directory[id]; if (de && de.room === room) tdir299 = de; });
+        if (tdir299 && (tdir299.ticketPrice || 0) > 0 && room !== myLiveRoomId() && typeof window.rpOpenTicketSheet299 === "function") {
+          window.rpOpenTicketSheet299(tdir299, function () { joinOnlineRoomFromHome(room); });
           return;
         }
         joinOnlineRoomFromHome(room);
@@ -11947,7 +12004,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           var b = document.createElement("button"); b.type = "button"; b.className = cls; b.textContent = label;
           b.addEventListener("click", fn); wrap.appendChild(b); return b;
         }
-        if (!Live.active) { mkBtn("🔴 Go Live", "btn-primary", liveAskGoLive); return; }
+        if (!Live.active) { mkBtn("🔴 Go Live", "btn-primary", liveAskGoLive); var tkBtn299 = mkBtn(Live.setupTicket > 0 ? "🎟️ Tickets: " + Number(Live.setupTicket).toLocaleString("en-US") + " charms" : "🎟️ Tickets: Free", "btn-mini", function () { openLiveSetup(); }); tkBtn299.id = "lvTicketSetupBtn"; return; } // [RP-V7.299] the door-price entry: opens the go-live setup sheet where the picker lives
         if (!iAmHost() && Live.hostId) mkBtn("🎁 Send a gift", "btn-mini", function () { openGiftSheet(Live.hostId, Live.hostName, { src: "live" }); }); // [RP-V7.233] src tag: live
         if (iAmOnStage()) {
           mkBtn("✨ Filters", "btn-mini", openLiveFilterSheet);
@@ -16294,7 +16351,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         if (Online.state === "on") {
           if (iAmHost()) { show("screen-online"); toast("You're already live — your broadcast is running! 🎥"); return; }
           show("screen-online");
-          if (!isLiveRoomId(Online.room)) { Live.wantSetup = true; switchOnlineRoom(LIVE_ROOM_ID); }
+          if (!isLiveRoomId(Online.room)) { Live.originRoom = Online.room; Live.wantSetup = true; switchOnlineRoom(LIVE_ROOM_ID); } // [RP-V7.299] capture the origin room BEFORE the lobby hop — liveStartHosting's own capture (RP-V7.89) only sees the post-hop room, so a Fellowship host's "faith" origin (and the church gates that read it, tickets included) never reached the server
           else liveAskGoLive();
           return;
         }
@@ -16336,6 +16393,16 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             '<button type="button" class="lv-topic' + (Live.setupPriv ? " sel" : "") + '" data-priv="1"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"5\" y=\"10.5\" width=\"14\" height=\"9.5\" rx=\"2.5\"/><path d=\"M8 10.5V8a4 4 0 0 1 8 0v2.5\"/><circle cx=\"12\" cy=\"15.2\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg> Private room</button>' +
             '</div><p class="age-note" id="lvPrivNote">' + (Live.setupPriv ? "Only people you invite — or anyone with your private link — can join. Your live stays hidden from 🔴 Live Now for everyone else." : "Anyone can find and join your live from 🔴 Live Now.") + '</p>' +
             '<button class="btn-mini" id="lvSetupInvite" type="button" style="display:' + (Live.setupPriv ? "" : "none") + ';">👥 Invite people' + (Live.setupInviteIds.length ? " · " + Live.setupInviteIds.length + " picked" : "") + '</button></div>' +
+          (function () { // [RP-V7.299] the ticket field: price chips for a fresh live, a locked line for a running one, a church note in Fellowship
+            var editing299 = !!(Live.active && typeof iAmHost === "function" && iAmHost());
+            if (editing299) return '<div class="field"><label>\uD83C\uDF9F\uFE0F Tickets</label><p class="age-note" style="margin:0;">' + (Live.ticketPrice > 0 ? "This live charges <b>" + Number(Live.ticketPrice).toLocaleString("en-US") + " charms</b> at the door \u2014 the price is locked once a live starts." : "This live is <b>free</b> at the door \u2014 tickets are chosen when a live starts and can\u2019t be added mid-live.") + "</p></div>";
+            var orgRoom299 = String(Live.originRoom || Online.room || ""); // [RP-V7.299] the captured origin (RP-V7.89) is the church signal — Online.room is already the lobby by sheet time
+            if (orgRoom299 === "faith") return '<div class="field"><label>\uD83C\uDF9F\uFE0F Tickets</label><p class="age-note" style="margin:0;">Church is always free on Rizz Plaza \u2014 a live hosted from Christian Fellowship can\u2019t charge at the door.</p></div>';
+            var tiers299 = [0, 100, 250, 500, 1000, 2500];
+            return '<div class="field"><label>\uD83C\uDF9F\uFE0F Tickets \u2014 charge at the door</label><div class="lv-topics" id="lvTicketTopics">' +
+              tiers299.map(function (tp) { return '<button type="button" class="lv-topic' + ((Live.setupTicket || 0) === tp ? " sel" : "") + '" data-ticket="' + tp + '">' + (tp === 0 ? "Free" : tp.toLocaleString("en-US")) + "</button>"; }).join("") +
+              '</div><p class="age-note" id="lvTicketNote">' + (Live.setupTicket > 0 ? "Viewers pay " + Number(Live.setupTicket).toLocaleString("en-US") + " charms to watch \u2014 you keep 70%, banked into your Earn wallet. The price locks when the live starts. If the live ends within 2 minutes of a sale, that ticket refunds in full." : "Anyone can watch free. Pick a price to charge at the door \u2014 for concerts, classes and showcases.") + "</p></div>";
+          })() +
           '<p class="age-note">This live is <b>your own</b> \u2014 you\u2019re the host, and you can invite up to 11 viewers up on camera with you (12 on stage max). Your camera and mic are used <b>only while you\u2019re live</b>, and people find and join your live from the 🔴 Live Now list. Keep it clean \u2014 the guidelines you accepted apply on camera too.</p>' +
           '<button class="btn-primary lv-golive" id="btnLiveStart2" type="button">🔴 Go LIVE</button>' +
           '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" data-act="close2">Not now</button></div></div>'
@@ -16360,11 +16427,34 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         sheet.querySelectorAll("[data-priv]").forEach(function (b) {
           b.addEventListener("click", function () {
             Live.setupPriv = b.getAttribute("data-priv") === "1";
+            if (Live.setupPriv && Live.setupTicket) { // [RP-V7.299] private + ticketed never combine: going private clears the door price
+              Live.setupTicket = 0;
+              sheet.querySelectorAll("[data-ticket]").forEach(function (x) { x.classList.toggle("sel", x.getAttribute("data-ticket") === "0"); });
+              var tn9 = $("lvTicketNote"); if (tn9) tn9.textContent = "Private lives are invite-only \u2014 tickets are off.";
+            }
             sheet.querySelectorAll("[data-priv]").forEach(function (x) { x.classList.toggle("sel", x === b); });
             var note = $("lvPrivNote");
             if (note) note.textContent = Live.setupPriv ? "Only people you invite — or anyone with your private link — can join. Your live stays hidden from 🔴 Live Now for everyone else." : "Anyone can find and join your live from 🔴 Live Now.";
             var ib = $("lvSetupInvite");
             if (ib) ib.style.display = Live.setupPriv ? "" : "none";
+          });
+        });
+        // [RP-V7.299] Ticket chips: picking a price and picking
+        // Private are mutually exclusive — each clears the other.
+        sheet.querySelectorAll("[data-ticket]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            Live.setupTicket = parseInt(b.getAttribute("data-ticket"), 10) || 0;
+            sheet.querySelectorAll("[data-ticket]").forEach(function (x) { x.classList.toggle("sel", x === b); });
+            var tn = $("lvTicketNote");
+            if (Live.setupTicket > 0 && Live.setupPriv) {
+              Live.setupPriv = false;
+              sheet.querySelectorAll("[data-priv]").forEach(function (x) { x.classList.toggle("sel", x.getAttribute("data-priv") === "0"); });
+              var pn = $("lvPrivNote"); if (pn) pn.textContent = "Anyone can find and join your live from \uD83D\uDD34 Live Now.";
+              var ib2 = $("lvSetupInvite"); if (ib2) ib2.style.display = "none";
+            }
+            if (tn) tn.textContent = Live.setupTicket > 0
+              ? "Viewers pay " + Number(Live.setupTicket).toLocaleString("en-US") + " charms to watch \u2014 you keep 70%, banked into your Earn wallet. The price locks when the live starts. If the live ends within 2 minutes of a sale, that ticket refunds in full."
+              : "Anyone can watch free. Pick a price to charge at the door \u2014 for concerts, classes and showcases.";
           });
         });
         var lvInvBtn = $("lvSetupInvite");
@@ -16433,6 +16523,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           Live.stage = [Online.myId];
           Live.hearts = 0; Live.requests = {}; Live.invited = {}; Live.myPendingReq = false;
           Live.privOn = !!Live.setupPriv; Live.privInvited = []; Live.privToken = null; Live.privSig = ""; // [RP-V7.138] fresh session: privacy from the setup toggle; invites + token come from the server
+          Live.ticketPrice = Live.setupTicket || 0; Live.ticketDenied = null; // [RP-V7.299] the door price I asked for; the server's live-ticket-state verdict is authoritative
           EngLog[Online.myId] = []; // a fresh broadcast starts with a clean engagement score
           Live.directory[Online.myId] = { room: myRoom, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: Online.myPhotoUrl || null, n: 1, seen: Date.now(), city: me.city || "", state: me.state || "", ints: (me.interests || []).slice(0, 8) };
           pruneDirRoom(myRoom, Online.myId); // [RP-V7.24]
@@ -16840,11 +16931,11 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           html += '<button type="button" class="btn-mini" id="lvMoreReport">🚩 Report ' + escHtml(Live.hostName || "host") + '</button>';
           html += '<button type="button" class="btn-mini" id="lvMoreHide">🚫 Mute &amp; Hide ' + escHtml(Live.hostName || "host") + '</button>';
         }
-        if (host && !liveChurchCtx()) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>'; // [RP-V7.89] no Sell row in a church live
+        if (host && !liveChurchCtx() && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>'; // [RP-V7.89] no Sell row in a church live
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreSetup"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z\"/><path d=\"M14.5 6.5l3 3\"/></svg> Edit title &amp; topic</button>'; // [RP-V7.63] the setup sheet's new home: an optional editor, no longer a mandatory pre-live gate
         if (host) html += '<button type="button" class="btn-mini" id="lvMorePot">🪙 Plaza Pot' + (Live.pot && Live.pot.status === "open" ? " · " + (Live.pot.total || 0) + " charms · " + (Live.pot.entries || 0) + " in" : (liveAcctToken() ? "" : " · sign in to open")) + "</button>"; // [RP-V7.41] host opens/manages the pot from the ••• tray // [RP-V7.48] guest hosts see the sign-in requirement on the row itself
-        if (host && !aucCtx) html += '<button type="button" class="btn-mini" id="lvMoreBattle">⚔️ Battle</button>'; // [RP-V7.83] Battle's home is this sheet now (was a floating button) — regular lives only, never an auction show
-        if (host && !aucCtx) html += '<button type="button" class="btn-mini" id="lvMoreAddPeople">＋ Add people</button>'; // [RP-V7.83] Add people moved with Battle
+        if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreBattle">⚔️ Battle</button>'; // [RP-V7.83] Battle's home is this sheet now (was a floating button) — regular lives only, never an auction show
+        if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreAddPeople">＋ Add people</button>'; // [RP-V7.83] Add people moved with Battle
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreEnd">⏹ End Live</button>';
         else if (onStage) html += '<button type="button" class="btn-mini" id="lvMoreLeave">Leave the stage</button>';
         if (!host) html += '<button type="button" class="btn-mini" id="lvMoreClose"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg> Close this live</button>';
@@ -37862,6 +37953,123 @@ button.rp72-chip{ cursor:pointer; }
     } catch (e) { }
   })();
 
+  /* ---------- [RP-V7.299] ticketed lives: buy sheet + my tickets ---------- */
+  // Earn stream #5 (Branden's approved queue, Nov 8, 2026). The pay
+  // sheet's published words: "Ticketed lives — Charge at the door
+  // for concerts, classes, and showcases. Church is always free on
+  // Rizz Plaza." The sheet ALWAYS opens on the server's
+  // /api/liveticket/status truth: a holder sees "Ticket ✓ — tap to
+  // watch" and walks straight in; everyone else sees the door price
+  // and buys with charms (the server settles 70% to the host into
+  // the same Earn wallet, like a gift). A paid buy beeps once like a
+  // gift send (RP-V7.232). The held-ticket cache only paints the
+  // Live Now card's "Ticket ✓" state — the server is the door.
+  window.rpMyTickets299 = window.rpMyTickets299 || {}; // liveId -> true (card paint only)
+  window.rpTicketHeld299 = function (e) {
+    try {
+      if (!e || !e.regKey || !e.startedAt) return false;
+      return !!window.rpMyTickets299[e.regKey + "@" + e.startedAt];
+    } catch (err) { return false; }
+  };
+  window.rpRefreshMyTickets299 = function () {
+    try {
+      api("/api/liveticket/mine", "GET").then(function (r) {
+        var j = r && r.json;
+        if (!j || !j.ok) return;
+        var held = {};
+        (j.tickets || []).forEach(function (t) { if (t && t.status === "active" && t.liveId) held[t.liveId] = true; });
+        window.rpMyTickets299 = held;
+        try { if (typeof renderLiveNow === "function") renderLiveNow(); } catch (e) { }
+      }).catch(function () { });
+    } catch (e) { }
+  };
+  var ticketAttemptSeq299 = 0;
+  window.rpOpenTicketSheet299 = function (entry, onEnter) {
+    if (!entry || !entry.room) { toast2("That live isn't on right now.", 2600); return; }
+    if (typeof refreshMoney === "function") refreshMoney();
+    var bal = (typeof window.rpServerCharms === "function") ? window.rpServerCharms() : null;
+    var hostName = entry.name || "the host";
+    var price = entry.ticketPrice || 0;
+    var html =
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">\uD83C\uDF9F\uFE0F ' + esc(hostName) + "'s live is ticketed</h3>" +
+      (entry.title ? '<p style="text-align:center; color:var(--ink);">\u201C' + esc(entry.title) + '\u201D</p>' : "") +
+      '<p style="text-align:center; color:var(--ink);">Your charms: <b>' + (bal == null ? "\u2026" : bal.toLocaleString("en-US")) + '</b></p>' +
+      '<div class="gift-notice" id="ticketNotice299" role="alert"></div>' +
+      '<div id="ticketBody299"><p style="text-align:center; color:var(--ink);">Checking the door\u2026</p></div>' +
+      '<button class="btn-mini btn-big" id="ticketGetCharms299" type="button">\u2B50 Get charms</button></div>';
+    if (!sheetOpen(html)) return;
+    var gc = $("ticketGetCharms299");
+    if (gc) gc.addEventListener("click", function () { if (typeof window.openCharmShop === "function") window.openCharmShop(); });
+    var q = entry.regKey ? ("key=" + encodeURIComponent(entry.regKey)) : (entry.hostAccountId ? ("hostId=" + encodeURIComponent(entry.hostAccountId)) : ("room=" + encodeURIComponent(entry.room)));
+    api("/api/liveticket/status?" + q, "GET").then(function (r) {
+      var body = $("ticketBody299"); if (!body) return; // sheet moved on
+      var j = r.json;
+      if (!j || !j.ok || !j.live) { body.innerHTML = '<p style="text-align:center; color:var(--ink);">That live just ended \u2014 no ticket needed now.</p>'; return; }
+      var lv = j.live;
+      var doorPrice = lv.ticketPrice || price || 0;
+      var head = '<p style="text-align:center; color:var(--ink);">\uD83C\uDF9F\uFE0F <b>' + Number(doorPrice).toLocaleString("en-US") + ' charms</b> at the door' + (lv.sold ? ' \u00B7 ' + Number(lv.sold).toLocaleString("en-US") + ' already in' : '') + '</p>';
+      if (j.hasTicket) {
+        window.rpMyTickets299[lv.key + "@" + lv.startedAt] = true;
+        body.innerHTML = head + '<p style="text-align:center; color:var(--ink);">\u2705 <b>Ticket \u2713 \u2014 you have a ticket to this live.</b></p>' +
+          '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="ticketEnter299" type="button">\uD83C\uDF9F\uFE0F Tap to watch</button></div>';
+        var eb = $("ticketEnter299");
+        if (eb) eb.addEventListener("click", function () { try { window.closeSheet(); } catch (e) { } if (typeof onEnter === "function") onEnter(); });
+        return;
+      }
+      body.innerHTML = head + '<p style="text-align:center; color:var(--ink);">One ticket covers this whole live. ' + esc(hostName) + ' keeps 70% of the door \u2014 it banks straight into their earnings. If the live ends within 2 minutes of your purchase, your ticket refunds in full.</p>' +
+        '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="ticketBuy299" type="button">\uD83C\uDF9F\uFE0F Buy ticket \u00B7 ' + Number(doorPrice).toLocaleString("en-US") + ' charms</button></div>';
+      var bb = $("ticketBuy299");
+      if (bb) bb.addEventListener("click", function () { rpBuyTicket299(entry, lv, doorPrice, onEnter); });
+    }).catch(function () {
+      var body = $("ticketBody299"); if (body) body.innerHTML = '<p style="text-align:center; color:var(--ink);">Couldn\u2019t reach the door \u2014 check your connection and try again.</p>';
+    });
+  };
+  function rpBuyTicket299(entry, lv, price, onEnter) {
+    var btn = $("ticketBuy299");
+    if (btn && btn.disabled) return;
+    if (btn) { btn.disabled = true; btn.textContent = "Buying\u2026"; }
+    var notice = $("ticketNotice299");
+    if (notice) { notice.textContent = ""; notice.style.display = "none"; }
+    var idem = "t" + Date.now().toString(36) + (ticketAttemptSeq299++).toString(36) + Math.random().toString(36).slice(2, 8); // one key per attempt; the server dedupes any replay
+    api("/api/liveticket/buy", "POST", { key: lv.key || entry.regKey || "", hostId: lv.hostId || entry.hostAccountId || "", idem: idem }, 30000).then(function (r) {
+      if (btn) { btn.disabled = false; }
+      if (r.json && r.json.ok) {
+        if (typeof r.json.balance === "number" && typeof setLocalCharms === "function") setLocalCharms(r.json.balance);
+        try { if (window.AudioFX && window.AudioFX.beep) window.AudioFX.beep(); } catch (e) { } // a send beeps once (RP-V7.232)
+        if (r.json.liveId) window.rpMyTickets299[r.json.liveId] = true;
+        toast2("\uD83C\uDF9F\uFE0F Ticket bought \u2014 enjoy the show!", 3200);
+        var body = $("ticketBody299");
+        if (body) {
+          body.innerHTML = '<p style="text-align:center; color:var(--ink);">\u2705 <b>Ticket \u2713 \u2014 tap to watch.</b></p>' +
+            '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="ticketEnter299" type="button">\uD83C\uDF9F\uFE0F Tap to watch</button></div>';
+          var eb = $("ticketEnter299");
+          if (eb) eb.addEventListener("click", function () { try { window.closeSheet(); } catch (e) { } if (typeof onEnter === "function") onEnter(); });
+        }
+        setTimeout(function () { if (typeof refreshMoney === "function") refreshMoney(); }, 400);
+        return;
+      }
+      if (btn) btn.textContent = "\uD83C\uDF9F\uFE0F Buy ticket \u00B7 " + Number(price || 0).toLocaleString("en-US") + " charms";
+      if (r.json && r.json.error === "insufficient-charms") {
+        if (notice) {
+          notice.style.display = "";
+          notice.textContent = "Not enough charms \u2014 this ticket costs " + Number(price || r.json.needed || 0).toLocaleString("en-US") + " and you have " + Number(r.json.balance != null ? r.json.balance : 0).toLocaleString("en-US") + ". Tap \u2B50 Get charms to top up.";
+        }
+        return;
+      }
+      if (r.json && r.json.error === "already-have-ticket") {
+        toast2("\uD83C\uDF9F\uFE0F You already have a ticket to this live!", 3000);
+        if (typeof onEnter === "function") { try { window.closeSheet(); } catch (e) { } onEnter(); }
+        return;
+      }
+      if (r.json && r.json.error === "live-not-found") { toast2("That live just ended.", 3000); try { window.closeSheet(); } catch (e) { } return; }
+      toast2((r.json && (r.json.error || r.json.message)) || "The ticket didn't go through \u2014 try again.", 3200);
+    }).catch(function () {
+      if (btn) { btn.disabled = false; btn.textContent = "\uD83C\uDF9F\uFE0F Buy ticket \u00B7 " + Number(price || 0).toLocaleString("en-US") + " charms"; }
+      toast2("The ticket didn't go through \u2014 check your connection and try again.", 3200);
+    });
+  }
+
   /* ---------- [RP-V7.298] fan clubs: join / manage / club room ---------- */
   // Earn stream #4 (Branden's approved queue, Nov 8, 2026). The pay
   // sheet's published words: "Fan clubs — Paid memberships with
@@ -38180,6 +38388,16 @@ button.rp72-chip{ cursor:pointer; }
         }).join("") + '</div>';
       }
     }
+    var lt299 = me.liveTickets || null; // [RP-V7.299] Ticketed lives: my door sales + the tickets I hold
+    if (lt299) {
+      html += '<p style="text-align:center; margin:8px 0 0; color:var(--ink);">\uD83C\uDF9F\uFE0F <b>Ticketed lives</b> \u2014 ' + (lt299.soldCount || 0) + ' ticket' + ((lt299.soldCount || 0) === 1 ? "" : "s") + ' sold at your door \u00B7 ' + fmt$(lt299.earnedCents || 0) + ' earned (you keep 70%). Set a door price in the go-live setup.</p>';
+      var myT299 = (lt299.tickets || []).slice(0, 20);
+      if (myT299.length) {
+        html += '<h4 style="margin:14px 0 2px;">My tickets</h4><div class="rpM-hist">' + myT299.map(function (t) {
+          return '<div class="rpM-hrow"><span>\uD83C\uDF9F\uFE0F ' + esc(t.hostName || "Host") + ' \u00B7 ' + Number(t.priceCharms || 0).toLocaleString("en-US") + ' charms \u00B7 ' + fmtDate(t.boughtAt) + '</span><span class="rpM-hamt">' + (t.status === "active" ? "Ticket \u2713" : t.status === "refunded" ? "refunded" : "used") + '</span></div>';
+        }).join("") + '</div>';
+      }
+    }
     html += '<p class="rpM-timing">Request any day once you\'re past $20 — payout lands after Stripe clears it (usually a couple of days), minus a 25¢ payout fee.</p>';
     html += '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:10px;">';
     if (elig.canCashOut) {
@@ -38233,6 +38451,8 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "fansub-sent") { label = "⭐ Subscription" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.296]
         else if (t.type === "fan-club") { label = "👑 Fan Club" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.298] the creator's wallet row — free months mint no row at all
         else if (t.type === "club-sent") { label = "👑 Fan Club" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.298]
+        else if (t.type === "live-ticket") { var ltRef299 = (t.cents || 0) < 0 || (t.charms || 0) < 0; label = "\uD83C\uDF9F\uFE0F Ticketed live" + (t.fromName ? " \u2014 from " + esc(t.fromName) : "") + (t.charmsOnly ? " \u00B7 charms-only" : "") + (ltRef299 ? " \u00B7 refunded" : ""); amt = t.charmsOnly ? (ltRef299 ? "-" : "+") + Math.abs(t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? (t.cents < 0 ? "-" : "+") + fmt$(Math.abs(t.cents)) : Math.abs(t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.299] the host wallet row (kind live-ticket); a refund row rides negative and says so
+        else if (t.type === "ticket-sent") { var tsRef299 = (t.charms || 0) < 0; label = "\uD83C\uDF9F\uFE0F Live ticket" + (tsRef299 ? " refund" : "") + (t.toName ? " \u2014 " + (tsRef299 ? "from " : "to ") + esc(t.toName) : ""); amt = (tsRef299 ? "+" : "-") + Math.abs(t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.299] the buyer wallet row (kind ticket-sent); a refund returns the charms
         else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
         else if (t.type === "bizads" || t.type === "bizads-renew") { label = "📣 Business Ads"; amt = fmt$(t.cents); } // [RP-V7.224]
         else if (t.type === "cashout") { label = "💸 Cash-out requested"; amt = fmt$(t.cents); }
@@ -41418,6 +41638,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         '<div class="rp-os-note" style="margin-top:2px">' + Number(st.fanSubsCharms || 0).toLocaleString("en-US") + " charms subscribed · creators earned " + money(st.fanSubsCreatorCents || 0) + " (70%) · Plaza kept " + money(st.fanSubsCutCents || 0) + " (30%) · " + Number(st.fanSubsActive || 0).toLocaleString("en-US") + " active subscription" + (Number(st.fanSubsActive || 0) === 1 ? "" : "s") + "</div>") + /* [RP-V7.296] */
       row("👑 Fan clubs", st.fanClubsVolumeCents == null ? null : st.fanClubsVolumeCents,
         '<div class="rp-os-note" style="margin-top:2px">' + Number(st.fanClubsCharms || 0).toLocaleString("en-US") + " charms joined · creators earned " + money(st.fanClubsCreatorCents || 0) + " (70%) · Plaza kept " + money(st.fanClubsCutCents || 0) + " (30%) · " + Number(st.fanClubsActive || 0).toLocaleString("en-US") + " active membership" + (Number(st.fanClubsActive || 0) === 1 ? "" : "s") + "</div>") + /* [RP-V7.298] */
+      row("🎟️ Ticketed lives", st.ticketsVolumeCents == null ? null : st.ticketsVolumeCents,
+        '<div class="rp-os-note" style="margin-top:2px">' + Number(st.ticketsCharms || 0).toLocaleString("en-US") + " charms at the door \u00B7 hosts earned " + money(st.ticketsCreatorCents || 0) + " (70%) \u00B7 Plaza kept " + money(st.ticketsCutCents || 0) + " (30%) \u00B7 " + Number(st.ticketsSold || 0).toLocaleString("en-US") + " ticket" + (Number(st.ticketsSold || 0) === 1 ? "" : "s") + " sold</div>") + /* [RP-V7.299] */
       row("🔨 Auctions volume", st.auctionsVolumeCents) +
       row("📣 Business Ads", st.bizadsCents == null ? null : st.bizadsCents,
         (typeof st.bizadsActive === "number") ? '<div class="rp-os-note" style="margin-top:2px">' + st.bizadsActive + " active advertiser" + (st.bizadsActive === 1 ? "" : "s") + "</div>" : "") +
