@@ -26000,7 +26000,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         sec.classList.toggle("home-feedmode", tab !== "plaza");
         document.querySelectorAll("#homeStrip [data-hs]").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-hs") === tab); });
         if (tab === "following" && !HomeFeed.friendsLoaded) homeFetchFriends();
-        if (tab !== "plaza") { HomeFeed.sig = ""; renderHomePager(); }
+        if (tab !== "plaza") renderHomePager(); /* [RP-V7.289] no blanket sig reset here: renderHomePager's own signature (tab + ordered item keys) already rebuilds when the items actually change and early-returns — with the V7.262 in-place gift-count refresh — when they don't. The old reset forced a full teardown + rebuild of every slide (~100-183 video/photo subtrees, one uninterrupted main-thread task, plus a fresh media-fetch storm) on EVERY Following / For You tap, even when nothing had changed since the last render: the measured tab-tap freeze (rig, 8x CPU, 100-slide Following: one 350-452ms long task per tap vs 0 for Plaza taps). */
       }
       window.__rpHomeReset = function () { // Home tab re-tap from the classic view returns to the feed
         if (!$("screen-plaza") || !$("screen-plaza").classList.contains("active")) return false;
