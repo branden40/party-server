@@ -829,6 +829,19 @@
       .pd-sub .online-input-full { flex: 1; }
       .pd-aud { background: #26262e; color: #fff; border: 0; border-radius: 999px; padding: 8px 14px; font-weight: 800; cursor: pointer; }
       .pd-aud.on { background: #fe2c2c; }
+      /* [RP-V7.296] Fan subscriptions: the locked placeholder every
+         surface renders for a subscriber-only post the viewer cannot
+         open. Panel + ink theme vars hold >= 4.5:1 in BOTH appearance
+         modes (the V7.292/294 lesson); the pill copies .pd-aud.on. */
+      .rp-lock296 { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; text-align: center; padding: 16px 12px; background: var(--panel); color: var(--ink); box-sizing: border-box; }
+      .rpmedia-tile > .rp-lock296, .hp-slide > .rp-lock296, .mom-photo > .rp-lock296, .reel-card > .rp-lock296 { position: absolute; inset: 0; }
+      .rp-lock296 .lk-ic { font-size: 32px; line-height: 1; }
+      .rp-lock296 .lk-tx { font-weight: 800; font-size: 14.5px; line-height: 1.35; }
+      .rp-lock296 .lk-sub { font-size: 12.5px; font-weight: 600; line-height: 1.35; }
+      .rp-lock296 .rp-lock-btn296 { background: #fe2c2c; color: #fff; border: 0; border-radius: 999px; padding: 8px 18px; font-weight: 800; font-size: 13.5px; cursor: pointer; font-family: inherit; }
+      .ctx-subs278 { border: 0; border-radius: 999px; background: #26262e; color: #fff; font-weight: 800; font-size: 12.5px; padding: 8px 13px; cursor: pointer; }
+      .ctx-subs278.on { background: #fe2c2c; }
+      .pprof-subline { text-align: center; font-weight: 700; margin: 8px 0 0; }
       .pd-bar { display: flex; gap: 10px; margin-top: 16px; }
       .pd-drafts { flex: 1; background: #26262e; color: #fff; border: 0; border-radius: 999px; padding: 14px 10px; font-weight: 900; font-size: 15px; cursor: pointer; }
       .pd-post { flex: 1.4; background: #fe2c2c; color: #fff; border: 0; border-radius: 999px; padding: 14px 10px; font-weight: 900; font-size: 15px; cursor: pointer; }
@@ -3062,6 +3075,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
   body.rp-light .pd-thumb { background: #ffffff; }
   body.rp-light .pd-chip { background: #ffffff; color: #111111; }
   body.rp-light .pd-aud { background: #ffffff; color: #111111; }
+  body.rp-light .ctx-subs278 { background: #ffffff; color: #111111; }
+  body.rp-light .ctx-subs278.on { background: #fe2c2c; color: #ffffff; }
   body.rp-light .pd-drafts { background: #ffffff; color: #111111; }
   body.rp-light .pd-back { background: #ffffff; color: #111111; }
   body.rp-light .mom-photo { background: #ffffff; }
@@ -3947,6 +3962,16 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
               <p class="age-note">Only used on this device: your ✨ For You live list puts hosts near you first — and when you host, it helps viewers near you find your live.</p>
             </div>
                                     <!-- [RP-V7.94] The Background picker is deleted with the whole live-wallpaper feature (Branden, Oct 28: "No just delete."). -->
+            <div class="field" id="fanSubSetup296">
+              <label>⭐ Fan subscriptions</label>
+              <p class="age-note" style="margin:0 0 8px;">Fans subscribe to YOU monthly with charms and unlock your subscribers-only posts. You keep 70% of every month — it banks into your Earn wallet. <b><span id="fanSubCount296">0</span> subscribers</b> · your price now: <b><span id="fanSubPriceNow296">1,000</span> charms/mo</b>. Changing your price applies to NEW subscribers — current subscribers keep the price they signed up at.</p>
+              <div class="btn-row" style="flex-wrap:wrap;">
+                <button type="button" class="pd-aud" data-fansub-tier296="500">500 / mo</button>
+                <button type="button" class="pd-aud" data-fansub-tier296="1000">1,000 / mo</button>
+                <button type="button" class="pd-aud" data-fansub-tier296="2500">2,500 / mo</button>
+                <button type="button" class="pd-aud" data-fansub-tier296="5000">5,000 / mo</button>
+              </div>
+            </div>
             <div class="btn-row">
               <button class="btn-primary" style="width:auto; padding:12px 26px;" id="btnSaveProfile">Save profile</button>
               <button class="btn-mini" id="btnSupportPf" type="button">🆘 Help &amp; Support</button>
@@ -9959,9 +9984,11 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             : '<div class="pprof-actions">' + followBtnHTML(p.name, "big") +
               '<button type="button" class="follow-btn big" data-dm="' + escHtml(p.name) + '" data-act="msg">💬 Message</button>' +
               '<button type="button" class="follow-btn big" data-act="tip">💝 Tip</button>' + /* [RP-V7.294] profile tips — earn stream #2 */
+              '<button type="button" class="follow-btn big" data-act="fansub" id="pprofSub296">⭐ Subscribe</button>' + /* [RP-V7.296] fan subscriptions — earn stream #3 */
               '<button type="button" class="follow-btn big" id="pprofShare"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg> Share</button>' +
               '<button type="button" class="pprof-more" data-act="more" aria-label="More actions">•••</button></div>' +
               '<div class="pprof-menu" id="pprofMenu" hidden><button class="action-btn" data-act="report">' + icon("flag") + ' Report</button><button class="action-btn" data-act="mute">' + icon("flag") + ' Block</button></div>') +
+          '<p class="pprof-subline" id="pprofSubLine" hidden></p>' + /* [RP-V7.296] own-profile subscriber line, painted from j.fanSub */
           '<div class="pprof-tabs">' +
           '<button class="pprof-tab on" id="pprofTabPosts" type="button">Posts</button>' +
           '<button class="pprof-tab" id="pprofTabLiked" type="button">Liked</button>' +
@@ -9986,6 +10013,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             if (act === "close") closeSheet();
             else if (act === "msg") closeSheet(); // DM module's [data-dm] handler opens the thread on this click
             else if (act === "tip") { if (window.rpOpenTipSheet294) window.rpOpenTipSheet294(p.id, p.name); } // [RP-V7.294] the money layer's tip sheet replaces this sheet (openSheet semantics, same as every sheet hop)
+            else if (act === "fansub") { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(p.id, p.name); } // [RP-V7.296]
             else if (act === "editprof") { closeSheet(); showScreen("profile"); }
             else if (act === "more") { var m = $("pprofMenu"); if (m) m.hidden = !m.hidden; }
             else if (act === "report") openOnlineReport(p);
@@ -10022,6 +10050,13 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           if (window.RPStories && j.id) window.RPStories.decorateHero(j.id, document.querySelector(".pprof-avatar"));
           var lv = $("pprofLive"); if (lv) lv.hidden = !j.liveNow;
           var ptEl2 = $("pprofType"); if (ptEl2) { var ptB2 = rpTypeBadge(j.profileType); if (ptB2) { ptEl2.textContent = ptB2; ptEl2.hidden = false; } } // [RP-V7.39] star badge (streamer/creator) — the ONLY type display anywhere
+          var fs296p = j.fanSub || null; // [RP-V7.296] paint the Subscribe button + the own-profile subscriber line from the server payload
+          if (fs296p) {
+            var sb296p = $("pprofSub296");
+            if (sb296p) sb296p.textContent = (fs296p.subscription && fs296p.subscription.access) ? "⭐ Subscribed ✓" : "⭐ Subscribe · " + Number(fs296p.priceCharms || 0).toLocaleString("en-US") + "/mo";
+            var sl296p = $("pprofSubLine");
+            if (sl296p && isSelf) { sl296p.textContent = "⭐ " + (fs296p.subscriberCount || 0) + " subscriber" + ((fs296p.subscriberCount || 0) === 1 ? "" : "s") + " · your price " + Number(fs296p.priceCharms || 0).toLocaleString("en-US") + " charms/mo — set it in Profile setup"; sl296p.hidden = false; }
+          }
           $("pprofFollowing").textContent = j.followingCount;
           $("pprofFollowers").textContent = j.followersCount;
           $("pprofLikes").textContent = j.likesTotal || 0;
@@ -23231,7 +23266,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       }
       function momSrvPost(sp) {
         return {
-          id: sp.id, srv: true, mine: !!sp.mine, name: sp.author || "Someone",
+          id: sp.id, srv: true, mine: !!sp.mine, name: sp.author || "Someone", locked: !!sp.locked, subsOnly: !!sp.subsOnly, authorId: sp.authorId || "", /* [RP-V7.296] */
           photo: sp.photo || "", urls: (sp.urls && sp.urls.length ? sp.urls.slice() : (sp.photo ? [sp.photo] : [])), /* [RP-V7.123] */ caption: sp.caption || "", location: sp.location || "", link: sp.link || "", audience: sp.audience || "everyone", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
           likeBase: 0, srvLikes: sp.likes || 0, liked: !!sp.myLiked, srvReposts: sp.reposts || 0, reposted: !!sp.myReposted, /* [RP-V7.89] */ gifts: 0, giftCount: sp.giftCount || 0, /* [RP-V7.262] gifts RECEIVED (units) — not the charms sum in gifts */
           comments: Array.isArray(sp.comments) ? sp.comments : [],
@@ -23408,6 +23443,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           if (postMeta156.location) fd.append("location", postMeta156.location); // [RP-V7.156]
           if (postMeta156.link) fd.append("link", postMeta156.link);
           if (postMeta156.audience && postMeta156.audience !== "everyone") fd.append("audience", postMeta156.audience);
+          if (postMeta156.subsOnly) fd.append("subsOnly", "1"); // [RP-V7.296]
           if (snd) { fd.append("musicTrackId", snd.trackId); fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
           return fd;
         }).catch(function () { return null; });
@@ -23465,7 +23501,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           fetch("/api/photo/post", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
-            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : {}, (postMeta156.location || postMeta156.link || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience } : {}))
+            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : {}, (postMeta156.location || postMeta156.link || postMeta156.subsOnly || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience, subsOnly: postMeta156.subsOnly ? true : undefined } : {})) /* [RP-V7.296] subsOnly rides the same meta object */
           }).then(function (r) { return r.json().catch(function () { return null; }); })
             .then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
             .catch(function () { momPublishLocal(cap); });
@@ -23514,6 +23550,16 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         Moments.posts.forEach(function (p) {
           var card = document.createElement("article");
           card.className = "mom-card"; card.setAttribute("data-mid", p.id);
+          if (p.locked) { // [RP-V7.296] locked Moments card: header + lock panel, no photo, no caption, no actions
+            var avl296 = p.mine ? (Online.myPhotoUrl ? '<img class="hud-photo" src="' + escHtml(Online.myPhotoUrl) + '" alt=""/>' : myFace()) : personFace({ name: p.name });
+            card.innerHTML =
+              '<div class="mom-top"><span class="who-av">' + avl296 + '</span><div><b>' + escHtml(p.name) + '</b><span>' + escHtml(p.when || "now") + ' · Reels</span></div></div>' +
+              '<div class="mom-photo">' + (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(p.name || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>') + '</div>';
+            var mlk296 = card.querySelector(".rp-lock-btn296");
+            if (mlk296) mlk296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(p.authorId || "", p.name || ""); });
+            feed.appendChild(card);
+            return;
+          }
           var av = p.mine
             ? (Online.myPhotoUrl ? '<img class="hud-photo" src="' + escHtml(Online.myPhotoUrl) + '" alt=""/>' : myFace())
             : personFace(p.srv ? { name: p.name } : p);
@@ -23753,8 +23799,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
          location + link, and the audience is enforced server-side. Back
          rule (Branden): the X exit lives only on the FIRST page; every
          later page gets a back arrow. */
-      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true };
-      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true }; }
+      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, subsOnly: false }; // [RP-V7.296] subsOnly: the Fan Subscriptions composer toggle
+      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, subsOnly: false }; }
       function postToken156() { try { var r = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (r && r.token) || ""; } catch (e) { return ""; } }
       function postAudText156() { return postMeta156.audience === "followers" ? "Followers can view this post" : postMeta156.audience === "onlyme" ? "Only you can view this post" : "Everyone can view this post"; }
       function postDetailsSync156(k) {
@@ -23776,6 +23822,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             [["everyone", "🌐 Everyone"], ["followers", "👥 Followers"], ["onlyme", "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"5\" y=\"10.5\" width=\"14\" height=\"9.5\" rx=\"2.5\"/><path d=\"M8 10.5V8a4 4 0 0 1 8 0v2.5\"/><circle cx=\"12\" cy=\"15.2\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg> Only me"]].map(function (a) { return '<button type="button" class="pd-aud' + (postMeta156.audience === a[0] ? " on" : "") + '" data-pdaud="' + a[0] + '">' + a[1] + '</button>'; }).join("") +
           '</div>' +
           (opts.remix ? '<div class="pd-row" style="cursor:default;"><span class="pd-ic">⚙</span><span class="pd-lb">More options</span></div><div class="pd-sub"><span style="flex:1; font-weight:700;">Allow duet, stitch & remix</span><button type="button" class="pd-aud' + (postMeta156.remix ? " on" : "") + '" id="' + k + 'RemixBtn">' + (postMeta156.remix ? "On" : "Off") + '</button></div>' : "") +
+          '<div class="pd-sub"><span style="flex:1; font-weight:700;">🔒 Subscribers only — only your subscribers can watch this post</span><button type="button" class="pd-aud' + (postMeta156.subsOnly ? " on" : "") + '" id="' + k + 'SubsBtn296">' + (postMeta156.subsOnly ? "On" : "Off") + '</button></div>' + /* [RP-V7.296] the fan-subscriptions toggle: set at creation, the server gates every payload */
           '<button type="button" class="pd-row" id="' + k + 'ShareRow"><span class="pd-ic">↗</span><span class="pd-lb">Share to</span><span class="pd-val">Invite friends</span><span class="pd-chv">›</span></button>' +
           '</div>';
       }
@@ -23788,6 +23835,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var sheet = $("sheet");
         if (sheet) sheet.querySelectorAll("[data-pdaud]").forEach(function (b) { b.addEventListener("click", function () { postMeta156.audience = b.getAttribute("data-pdaud"); var v = $(k + "AudVal"); if (v) v.textContent = postAudText156(); sheet.querySelectorAll("[data-pdaud]").forEach(function (x) { x.classList.toggle("on", x === b); }); }); });
         var rx = $(k + "RemixBtn"); if (rx) rx.addEventListener("click", function () { postMeta156.remix = !postMeta156.remix; rx.textContent = postMeta156.remix ? "On" : "Off"; rx.classList.toggle("on", postMeta156.remix); });
+        var sb296 = $(k + "SubsBtn296"); if (sb296) sb296.addEventListener("click", function () { postMeta156.subsOnly = !postMeta156.subsOnly; sb296.textContent = postMeta156.subsOnly ? "On" : "Off"; sb296.classList.toggle("on", postMeta156.subsOnly); }); // [RP-V7.296]
         var sh = $(k + "ShareRow"); if (sh) sh.addEventListener("click", function () {
           var url = "https://rizzplaza.com";
           if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: "Join me on Rizz Plaza 🎉", url: url }).catch(function () { }); return; }
@@ -23846,7 +23894,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           var d = momDraftsLoad156().filter(function (x) { return x.id === b.getAttribute("data-mdresume"); })[0]; if (!d) return;
           Moments.pendingPhotos = (d.photos || []).slice(); momSyncPicks123(); momCapDraft123 = d.caption || "";
           Moments.resumedDraft156 = d.id;
-          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true };
+          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true, subsOnly: false };
           openMomComposer();
         }); });
         sheet.querySelectorAll("[data-mddel]").forEach(function (b) { b.addEventListener("click", function () {
@@ -24118,6 +24166,17 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       var PagerPhotos123 = { loaded: false, items: [] };
       var pagerPhotoAuthors123 = {};
       function pagerPhotoMap123(sp) {
+        if (sp.locked) { // [RP-V7.296] a locked photo post still rides the pager — as its placeholder (no urls, no caption)
+          return {
+            id: "ph:" + sp.id, key: "ph:" + sp.id, photoPost: true, postId: sp.id,
+            url: "", urls: [], locked: true, subsOnly: true,
+            author: sp.author || "Someone",
+            authorId: sp.authorId || "",
+            mine: false, caption: "", location: "", link: "", audience: sp.audience || "everyone", createdAt: sp.createdAt || "",
+            likes: sp.likes || 0, myLiked: false, reposts: 0, myReposted: false,
+            comments: [], commentCount: 0, music: null, giftCount: sp.giftCount || 0
+          };
+        }
         var urls = (sp.urls && sp.urls.length) ? sp.urls.slice() : (sp.photo ? [sp.photo] : []);
         if (!urls.length) return null;
         return {
@@ -24326,6 +24385,13 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var slide = document.createElement("div");
         slide.className = "hp-slide";
         slide.setAttribute("data-photocard", item.postId);
+        if (item.locked) { // [RP-V7.296] the locked placeholder slide — no media, no caption; the button opens the subscribe sheet
+          slide.innerHTML = (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(item.author || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>');
+          var lkb296 = slide.querySelector(".rp-lock-btn296");
+          if (lkb296) lkb296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(item.authorId || "", item.author || ""); });
+          slide._rpPlay = function () { }; slide._rpPause = function () { };
+          return slide;
+        }
         var ctl = null;
         if (item.urls.length > 1) {
           var stage = document.createElement("div");
@@ -24653,6 +24719,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           if (typeof meta.trimStart === "number" && typeof meta.trimEnd === "number") { fd.append("trimStart", String(meta.trimStart)); fd.append("trimEnd", String(meta.trimEnd)); } // [RP-V7.169]
           fd.append("allowRemix", meta.allowRemix === false ? "false" : "true");
           if (meta.location) fd.append("location", meta.location); // [RP-V7.156]
+          if (meta.subsOnly) fd.append("subsOnly", "1"); // [RP-V7.296]
           if (meta.link) fd.append("link", meta.link);
           if (meta.audience && meta.audience !== "everyone") fd.append("audience", meta.audience);
           if (meta.musicTrackId) { fd.append("musicTrackId", meta.musicTrackId); fd.append("musicStart", String(meta.musicStart || 0)); fd.append("musicVol", String(meta.musicVol != null ? meta.musicVol : 0.8)); fd.append("origVol", String(meta.origVol != null ? meta.origVol : 1)); } /* [RP-V7.90] */
@@ -24675,7 +24742,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0 /* [RP-V7.262] */ });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly /* [RP-V7.296] */ });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
@@ -25144,6 +25211,14 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       function reelCard(item) {
         var card = document.createElement("article");
         card.className = "reel-card paused";
+        if (item.locked) { // [RP-V7.296] a locked reel renders its placeholder — no video element, no caption; Subscribe opens the sheet
+          card.classList.add("reel-locked296");
+          card.setAttribute("data-rid", item.key);
+          card.innerHTML = (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(item.author || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>');
+          var rlk296 = card.querySelector(".rp-lock-btn296");
+          if (rlk296) rlk296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(item.authorId || "", item.author || ""); });
+          return card;
+        }
         card.setAttribute("data-rid", item.key);
         var lk = reelLikeState(item);
         var cmts = reelLoadComments()[item.id] || [];
@@ -25850,7 +25925,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       }
       function homeItems() {
         if (HomeFeed.tab === "following") return (HomeFeed.friendsItems || []).filter(function (it) { return !!it.url; });
-        return pagerMerge123(reelFeedItems().filter(function (it) { return !!it.url && !it.pending; })); // [RP-V7.123] photo posts join For You
+        return pagerMerge123(reelFeedItems().filter(function (it) { return (!!it.url || it.locked) && !it.pending; })); // [RP-V7.123] photo posts join For You // [RP-V7.296] locked reels ride as placeholders
       }
       /* [RP-V7.246] Pager gesture unmute — the same iOS rule as the
          feed: hpPlay is observer-driven, so its unmuted play() is
@@ -25882,6 +25957,12 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var slide = document.createElement("article");
         slide.className = "hp-slide";
         slide._item = item;
+        if (item.locked) { // [RP-V7.296] the locked placeholder slide — no video element at all
+          slide.innerHTML = (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(item.author || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>');
+          var hlk296 = slide.querySelector(".rp-lock-btn296");
+          if (hlk296) hlk296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(item.authorId || "", item.author || ""); });
+          return slide;
+        }
         slide._trk = { acc: 0, startedAt: 0, maxFrac: 0, completed: false, lastT: 0 };
         var lk = reelLikeState(item);
         slide.innerHTML =
@@ -26402,7 +26483,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var draftId = Reels.editingDraftId;
         var meta = reelPublishBlob(blob, cap);
         postDetailsSync156("reel"); // [RP-V7.156]
-        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false }); // [RP-V7.156]
+        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly }); // [RP-V7.156] // [RP-V7.296]
         reelTrimMeta169(meta.id); // [RP-V7.169]
         if (Reels.pendingSound && Reels.pendingSound.trackId) {
           reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol });
@@ -26428,7 +26509,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var cap = capEl ? (capEl.value || "").trim() : (Reels.pendingCaption || "");
         postDetailsSync156("reel"); // [RP-V7.156]
         if (Reels.editingDraftId) {
-          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false }); // [RP-V7.156]
+          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly }); // [RP-V7.156] // [RP-V7.296]
           if (Reels.remix) { reelUpdateMeta(Reels.editingDraftId, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
           reelTrimMeta169(Reels.editingDraftId); // [RP-V7.169]
           Reels.editingDraftId = null;
@@ -26437,7 +26518,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             id: "draft" + Date.now() + Math.floor(Math.random() * 100000),
             draft: true,
             author: reelMyName(), caption: cap,
-            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
+            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly, /* [RP-V7.296] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
           };
           var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
           if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }); }
@@ -26463,7 +26544,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           Reels.pendingSound = m.musicTrackId ? { trackId: m.musicTrackId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : null; /* [RP-V7.90] */
           Reels.trimStart = (typeof m.trimStart === "number") ? m.trimStart : null; Reels.trimEnd = (typeof m.trimEnd === "number") ? m.trimEnd : null; Reels.trimOpen = Reels.trimStart != null; Reels.mustTrim = false; /* [RP-V7.169] */
           Reels.pendingCaption = m.caption || "";
-          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false }; // [RP-V7.156]
+          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, subsOnly: !!m.subsOnly }; // [RP-V7.156] // [RP-V7.296]
           Reels.remix = m.kind ? { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur } : null;
           Reels.editingDraftId = id;
           Reels.stage = "preview";
@@ -35215,9 +35296,12 @@ button.rp72-chip{ cursor:pointer; }
     box.innerHTML =
       '<button type="button" class="follow-btn big' + (following ? " on" : "") + '" id="rpMpFollow">' + (following ? "Following" : "+ Follow") + "</button>" +
       '<button type="button" class="follow-btn big" id="rpMpMsg">💬 Message</button>' +
-      '<button type="button" class="follow-btn big" id="rpMpTip">💝 Tip</button>'; /* [RP-V7.294] profile tips — same button as the profile page, so every member profile carries it */
+      '<button type="button" class="follow-btn big" id="rpMpTip">💝 Tip</button>' + /* [RP-V7.294] profile tips — same button as the profile page, so every member profile carries it */
+      '<button type="button" class="follow-btn big" id="rpMpSub296">' + ((j && j.fanSub && j.fanSub.subscription && j.fanSub.subscription.access) ? "⭐ Subscribed ✓" : "⭐ Subscribe" + ((j && j.fanSub && j.fanSub.priceCharms) ? " · " + Number(j.fanSub.priceCharms).toLocaleString("en-US") + "/mo" : "")) + '</button>'; /* [RP-V7.296] fan subscriptions — same button as the profile page */
     var tb294 = $("rpMpTip");
     if (tb294) tb294.addEventListener("click", function () { if (window.rpOpenTipSheet294) window.rpOpenTipSheet294(accountId, name); });
+    var sb296m = $("rpMpSub296");
+    if (sb296m) sb296m.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(accountId, name); });
     var fb = $("rpMpFollow");
     if (fb) fb.addEventListener("click", function () {
       var on = fb.classList.contains("on");
@@ -36336,6 +36420,9 @@ button.rp72-chip{ cursor:pointer; }
      fills it, 👁 + count sits bottom-left, nothing else — except the
      small ▶ at the top-right of reel tiles. */
   function tileHTML(it) {
+    if (it.locked) { // [RP-V7.296] a locked tile carries NO media at all — the lock panel only; the grid's click routes to the subscribe sheet (fillGrid)
+      return '<button type="button" class="rpmedia-tile rpmedia-locked296" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpownername="' + esc(it.ownerName || "") + '" data-rpsrc="" data-rpviews="0">' + (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(it.ownerName || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>') + '</button>';
+    }
     var media = it.textPost // [RP-V7.278] a text post's tile is its styled card, shrunk
       ? (window.RPText278 ? window.RPText278.tileHtml(it) : "")
       : it.kind === "reel"
@@ -36841,6 +36928,7 @@ button.rp72-chip{ cursor:pointer; }
         };
         var viewsEl = tb.querySelector(".rpmedia-views");
         var upd = function (n) { if (viewsEl) viewsEl.textContent = "👁 " + fmtViews(n); };
+        if (it.locked) { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(it.owner || "", it.ownerName || ""); return; } // [RP-V7.296] a locked tile never opens a player — it opens the subscribe sheet
         if (it.kind === "reel") { if (opts.onReel) opts.onReel(it, upd); else openReel(it, upd); }
         else { if (opts.onPhoto) opts.onPhoto(it, upd); else openPhoto(it, upd); }
       });
@@ -36857,7 +36945,7 @@ button.rp72-chip{ cursor:pointer; }
       items.push({ kind: "photo", id: url, owner: j.id, ownerName: j.name || "", src: url, views: (j.photoViews && j.photoViews[url]) || 0 });
     });
     (j.reels || []).forEach(function (r) {
-      items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", views: r.views || 0,
+      items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", locked: !!r.locked, subsOnly: !!r.subsOnly, /* [RP-V7.296] */ views: r.views || 0,
         // [RP-V7.241] rail state rides along for the lightbox
         caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null /* [RP-V7.286] */ });
     });
@@ -36870,10 +36958,10 @@ button.rp72-chip{ cursor:pointer; }
   // the profile page so both render the same profile.
   function profItems(j) {
     var items = itemsFromProfile(j);
-    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: (pp.urls || []).length || 1 /* [RP-V7.123] */,
+    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, locked: !!pp.locked, subsOnly: !!pp.subsOnly, /* [RP-V7.296] */ textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: pp.locked ? 1 : ((pp.urls || []).length || 1) /* [RP-V7.123] */,
       // [RP-V7.241] the full feed-item shape, for the lightbox rail
       caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: pp.commentCount || 0, reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine }); });
-    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
+    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, locked: !!fp.locked, subsOnly: !!fp.subsOnly, /* [RP-V7.296] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
     var order = {}; (j.pins || []).forEach(function (pn, ix) { order[pn.kind + ":" + pn.id] = ix; });
     var pinned = [], rest = [];
     items.forEach(function (it) { (order[it.kind + ":" + it.id] !== undefined ? pinned : rest).push(it); });
@@ -37517,6 +37605,167 @@ button.rp72-chip{ cursor:pointer; }
     if (gc294) gc294.addEventListener("click", function () { if (typeof window.openCharmShop === "function") window.openCharmShop(); });
   };
 
+  /* ---------- [RP-V7.296] fan subscriptions: subscribe / manage ---------- */
+  // Earn stream #3 (Branden's approved queue, Nov 8, 2026). The pay
+  // sheet's published words: "Fan subscriptions — Your fans
+  // subscribe to YOU monthly." The sheet ALWAYS opens on the
+  // server's /api/fansub/status truth (price + the viewer's current
+  // subscription state), never on a guess: an active subscriber
+  // sees their renewal date and a Cancel; anyone else sees the
+  // creator's monthly price in charms and one Subscribe button.
+  // Settlement is the server's gift split (70% to the creator,
+  // banked into the same Earn wallet) — the subscribe charge beeps
+  // like a tip send (RP-V7.232: sends beep once, outside lives).
+  var fanSubAttemptSeq296 = 0;
+  function rpFanSubLockHtml296(authorName, btnLabel) {
+    // The locked placeholder every surface renders for a
+    // subscriber-only post (server-gated payloads only — the media
+    // and caption never reach the client). Copy per the brief.
+    return '<div class="rp-lock296"><span class="lk-ic" aria-hidden="true">🔒</span>' +
+      '<span class="lk-tx">Subscribers only</span>' +
+      '<span class="lk-sub">Subscribe to @' + esc(authorName || "them") + ' to watch</span>' +
+      '<span class="rp-lock-btn296">' + esc(btnLabel || "⭐ Subscribe") + '</span></div>';
+  }
+  window.rpFanSubLockHtml296 = rpFanSubLockHtml296;
+  window.rpOpenFanSubSheet296 = function (targetId, targetName) {
+    if (!targetId && !targetName) { toast2("Pick someone to subscribe to first!", 2600); return; }
+    refreshMoney();
+    var bal = (typeof window.rpServerCharms === "function") ? window.rpServerCharms() : null;
+    var html =
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">⭐ Subscribe to ' + esc(targetName || "them") + '</h3>' +
+      '<p style="text-align:center; color:var(--ink);">Your charms: <b>' + (bal == null ? "…" : bal.toLocaleString("en-US")) + '</b></p>' +
+      '<div class="gift-notice" id="fanSubNotice296" role="alert"></div>' +
+      '<div id="fanSubBody296"><p style="text-align:center; color:var(--ink);">Loading…</p></div>' +
+      '<button class="btn-mini btn-big" id="fanSubGetCharms296" type="button">⭐ Get charms</button></div>';
+    if (!sheetOpen(html)) return;
+    var gc296 = $("fanSubGetCharms296");
+    if (gc296) gc296.addEventListener("click", function () { if (typeof window.openCharmShop === "function") window.openCharmShop(); });
+    var q = targetId ? ("creatorId=" + encodeURIComponent(targetId)) : ("name=" + encodeURIComponent(targetName || ""));
+    api("/api/fansub/status?" + q, "GET").then(function (r) {
+      var body = $("fanSubBody296"); if (!body) return; // sheet moved on
+      var j = r.json;
+      if (!j || !j.ok) { body.innerHTML = '<p style="text-align:center; color:var(--ink);">Subscriptions are not available for this profile right now.</p>'; return; }
+      var creatorId = (j.creator && j.creator.id) || targetId || "";
+      var creatorName = (j.creator && j.creator.name) || targetName || "them";
+      var price = j.priceCharms || 0;
+      var sub = j.subscription || null;
+      if (j.isSelf) {
+        body.innerHTML = '<p style="text-align:center; color:var(--ink);">⭐ <b>' + (j.subscriberCount || 0) + '</b> subscriber' + ((j.subscriberCount || 0) === 1 ? "" : "s") + ' · your price is <b>' + price.toLocaleString("en-US") + ' charms/mo</b> — change it any time in Profile setup. Subscribers keep the price they signed up at.</p>';
+        return;
+      }
+      if (sub && sub.access && sub.status === "active") {
+        body.innerHTML = '<p style="text-align:center; color:var(--ink);">✅ You subscribe to ' + esc(creatorName) + ' — <b>' + (sub.priceCharms || price).toLocaleString("en-US") + ' charms/mo</b>, renews ' + fmtDate(sub.nextRenewalAt || sub.periodEnd) + '. Their subscribers-only posts are open to you.</p>' +
+          '<div class="btn-row" style="justify-content:center;"><button class="btn-mini" id="fanSubCancel296" type="button">Cancel subscription</button></div>';
+        var cb = $("fanSubCancel296");
+        if (cb) cb.addEventListener("click", function () { window.rpFanSubCancel296(creatorId, creatorName, sub.periodEnd); });
+        return;
+      }
+      if (sub && sub.access && sub.status === "cancelled") {
+        body.innerHTML = '<p style="text-align:center; color:var(--ink);">Your subscription to ' + esc(creatorName) + ' is cancelled — your access runs until <b>' + fmtDate(sub.periodEnd) + '</b>. Subscribe again to turn renewal back on (no charge until then).</p>' +
+          '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="fanSubGo296" type="button">⭐ Turn renewal back on</button></div>';
+        var rb = $("fanSubGo296");
+        if (rb) rb.addEventListener("click", function () { rpFanSubSubscribe296(creatorId, creatorName, price); });
+        return;
+      }
+      body.innerHTML = '<p style="text-align:center; color:var(--ink);">Subscribe to ' + esc(creatorName) + ' for <b>' + price.toLocaleString("en-US") + ' charms a month</b> — their subscribers-only posts open up for you, and it renews monthly while your balance covers it. ' + esc(creatorName) + ' keeps 70% of every month — it banks straight into their earnings.</p>' +
+        '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="fanSubGo296" type="button">⭐ Subscribe · ' + price.toLocaleString("en-US") + ' charms/mo</button></div>';
+      var gb = $("fanSubGo296");
+      if (gb) gb.addEventListener("click", function () { rpFanSubSubscribe296(creatorId, creatorName, price); });
+    });
+  };
+  function rpFanSubSubscribe296(creatorId, creatorName, price) {
+    var btn = $("fanSubGo296");
+    if (btn && btn.disabled) return;
+    if (btn) { btn.disabled = true; btn.textContent = "Subscribing…"; }
+    var idem = "s" + Date.now().toString(36) + (fanSubAttemptSeq296++).toString(36) + Math.random().toString(36).slice(2, 8); // one key per attempt; the server dedupes any replay
+    api("/api/fansub/subscribe", "POST", { toId: creatorId || "", toName: creatorName || "", idem: idem }, 30000).then(function (r) {
+      if (btn) { btn.disabled = false; }
+      if (r.json && r.json.ok) {
+        if (typeof r.json.balance === "number") setLocalCharms(r.json.balance);
+        try { if (window.AudioFX && window.AudioFX.beep) window.AudioFX.beep(); } catch (e) { }
+        toast2(r.json.reactivated
+          ? "⭐ Renewal is back on for " + creatorName + " — no charge until " + fmtDate(r.json.periodEnd) + "!"
+          : "⭐ You're subscribed to " + creatorName + "! Their subscribers-only posts are open to you.", 3800);
+        try { window.closeSheet(); } catch (e) { }
+        setTimeout(function () { refreshMoney(); }, 400);
+        return;
+      }
+      if (btn) btn.textContent = "⭐ Subscribe · " + Number(price || 0).toLocaleString("en-US") + " charms/mo";
+      if (r.json && r.json.error === "insufficient-charms") {
+        if (typeof r.json.balance === "number") setLocalCharms(r.json.balance);
+        var n = $("fanSubNotice296");
+        if (n) {
+          n.textContent = (r.json.message ? r.json.message + " — " : "Not enough charms — ") + "this subscription is " + Number(r.json.needed || price || 0).toLocaleString("en-US") + " charms" + (typeof r.json.balance === "number" ? " and you have " + r.json.balance.toLocaleString("en-US") : "") + ". Tap ⭐ Get charms to top up.";
+          n.classList.add("show");
+        }
+        return;
+      }
+      if (r.json && r.json.error === "already-subscribed") { toast2("You're already subscribed to " + creatorName + " ✓", 3000); return; }
+      if (r.json && r.json.error === "recipient-not-found") { toast2("That profile can't take subscriptions right now.", 3200); return; }
+      if (!r.json) { offlineToast(); return; }
+      toast2("That subscription didn't go through — " + (r.json.error || "please try again") + ".", 3200);
+    });
+  }
+  window.rpFanSubCancel296 = function (creatorId, creatorName, periodEnd) {
+    if (!window.confirm("Cancel your subscription to " + (creatorName || "them") + "? Renewal stops — you keep access until " + (periodEnd ? fmtDate(periodEnd) : "the end of this period") + ".")) return;
+    api("/api/fansub/cancel", "POST", { toId: creatorId || "", toName: creatorName || "" }, 30000).then(function (r) {
+      if (r.json && r.json.ok) {
+        toast2("Subscription cancelled — your access runs until " + fmtDate((r.json.subscription && r.json.subscription.periodEnd) || periodEnd) + ".", 3600);
+        try { window.closeSheet(); } catch (e) { }
+        setTimeout(function () { refreshMoney(); }, 400);
+        return;
+      }
+      if (!r.json) { offlineToast(); return; }
+      toast2("That cancel didn't go through — please try again.", 3200);
+    });
+  };
+  /* Profile setup: the creator price block. The block lives in the
+     static Profile screen HTML (id fanSubSetup296); it wires itself
+     once, paints from /api/fansub/mine, and re-paints whenever the
+     Profile screen is shown (showScreen is wrapped, chaining the
+     original — the module never owns navigation). */
+  function rpFanSubSetupPaint296() {
+    var box = $("fanSubSetup296"); if (!box) return;
+    api("/api/fansub/mine", "GET").then(function (r) {
+      var j = r.json; if (!j || !j.ok) return;
+      var fs = j.fanSubs || {};
+      var cur = $("fanSubPriceNow296"); if (cur) cur.textContent = Number(fs.priceCharms || 1000).toLocaleString("en-US");
+      var cnt = $("fanSubCount296"); if (cnt) cnt.textContent = String(fs.subscriberCount || 0);
+      box.querySelectorAll("[data-fansub-tier296]").forEach(function (b) {
+        b.classList.toggle("on", Number(b.getAttribute("data-fansub-tier296")) === Number(fs.priceCharms || 1000));
+      });
+    });
+  }
+  (function rpFanSubSetupWire296() {
+    var box = $("fanSubSetup296"); if (!box || box.__wired296) return;
+    box.__wired296 = true;
+    box.querySelectorAll("[data-fansub-tier296]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var price = Number(b.getAttribute("data-fansub-tier296")) || 0;
+        if (!price) return;
+        api("/api/fansub/price", "POST", { charms: price }, 30000).then(function (r) {
+          if (r.json && r.json.ok) {
+            box.querySelectorAll("[data-fansub-tier296]").forEach(function (x) { x.classList.toggle("on", x === b); });
+            var cur = $("fanSubPriceNow296"); if (cur) cur.textContent = price.toLocaleString("en-US");
+            toast2("⭐ Your subscription price is now " + price.toLocaleString("en-US") + " charms/mo for new subscribers.", 3400);
+            return;
+          }
+          toast2("That price didn't save — please try again.", 3000);
+        });
+      });
+    });
+    rpFanSubSetupPaint296();
+    try {
+      var origShow = window.showScreen;
+      if (typeof origShow === "function" && !origShow.__fs296) {
+        var wrappedShow = function (id) { var out = origShow.apply(this, arguments); if (id === "profile") setTimeout(rpFanSubSetupPaint296, 60); return out; };
+        wrappedShow.__fs296 = true;
+        window.showScreen = wrappedShow;
+      }
+    } catch (e) { }
+  })();
+
   /* ---------- Earn sheet: server earnings for accounts ---------- */
   var origEarnings = (typeof window.openEarnings === "function") ? window.openEarnings : null;
   function openServerEarnings() {
@@ -37561,6 +37810,16 @@ button.rp72-chip{ cursor:pointer; }
       html += '<p style="text-align:center; margin:8px 0 0; color:var(--ink);">👀 <b>Creator Pool</b> — ' +
         ((cp293.allTimeCents || 0) > 0 ? fmt$(cp293.allTimeCents) + ' earned from your views so far' : 'no payout yet') +
         ((cp293.thisWeekViews || 0) > 0 ? ' · ' + Number(cp293.thisWeekViews).toLocaleString("en-US") + ' views this week · projected payout ' + fmt$(cp293.thisWeekProjectedCents || 0) + ' (pays Monday)' : '') + '</p>';
+    }
+    var fs296 = me.fanSubs || null; // [RP-V7.296] Fan subscriptions: creator shelf + the subscriptions I hold, with Cancel
+    if (fs296) {
+      html += '<p style="text-align:center; margin:8px 0 0; color:var(--ink);">⭐ <b>Fan subscriptions</b> — ' + (fs296.subscriberCount || 0) + ' subscriber' + ((fs296.subscriberCount || 0) === 1 ? "" : "s") + ' at ' + Number(fs296.priceCharms || 0).toLocaleString("en-US") + ' charms/mo · you keep 70%. Set your price in Profile setup.</p>';
+      var act296 = (fs296.asFan || []).filter(function (s) { return s && s.access; });
+      if (act296.length) {
+        html += '<h4 style="margin:14px 0 2px;">My subscriptions</h4><div class="rpM-hist">' + act296.map(function (s) {
+          return '<div class="rpM-hrow"><span>⭐ ' + esc(s.creatorName || "Creator") + ' · ' + Number(s.priceCharms || 0).toLocaleString("en-US") + ' charms/mo · ' + (s.status === "cancelled" ? 'ends ' + fmtDate(s.periodEnd) : 'renews ' + fmtDate(s.nextRenewalAt || s.periodEnd)) + '</span>' + (s.status === "active" ? '<button type="button" class="btn-mini" data-fansub-cancel296="' + esc(s.creatorId || "") + '" data-fansub-name296="' + esc(s.creatorName || "") + '" data-fansub-end296="' + esc(s.periodEnd || "") + '">Cancel</button>' : '<span class="rpM-hamt">cancelled</span>') + '</div>';
+        }).join("") + '</div>';
+      }
     }
     html += '<p class="rpM-timing">Request any day once you\'re past $20 — payout lands after Stripe clears it (usually a couple of days), minus a 25¢ payout fee.</p>';
     html += '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:10px;">';
@@ -37611,6 +37870,8 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "creator-pool") { label = "👀 Creator Pool — weekly views payout"; amt = "+" + fmt$(t.cents); } // [RP-V7.293]
         else if (t.type === "profile-tip") { label = "💝 Profile tip" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.294] the recipient's wallet row (kind "profile-tip") — charms-only tips show charms, never a $ figure (V7.217 honesty pattern)
         else if (t.type === "tip-sent") { label = "💝 Tip sent" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.294]
+        else if (t.type === "fan-subscription") { label = "⭐ Fan subscription" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.charmsOnly ? " · charms-only" : ""); amt = t.charmsOnly ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.296] the creator's wallet row — charms-only subscriptions show charms, never a $ figure
+        else if (t.type === "fansub-sent") { label = "⭐ Subscription" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.296]
         else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
         else if (t.type === "bizads" || t.type === "bizads-renew") { label = "📣 Business Ads"; amt = fmt$(t.cents); } // [RP-V7.224]
         else if (t.type === "cashout") { label = "💸 Cash-out requested"; amt = fmt$(t.cents); }
@@ -37621,6 +37882,9 @@ button.rp72-chip{ cursor:pointer; }
     }
     html += '</div>';
     if (!sheetOpen(html)) return;
+    document.querySelectorAll("[data-fansub-cancel296]").forEach(function (b296) { // [RP-V7.296] Manage: cancel a subscription I hold (access runs to period end)
+      b296.addEventListener("click", function () { if (window.rpFanSubCancel296) window.rpFanSubCancel296(b296.getAttribute("data-fansub-cancel296"), b296.getAttribute("data-fansub-name296"), b296.getAttribute("data-fansub-end296")); });
+    });
     var co = $("rpMCoBtn");
     if (co) co.addEventListener("click", doCashOut);
     var cn = $("rpMConnectBtn");
@@ -40786,6 +41050,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       row("🎁 Gifts volume", st.giftsVolumeCents) +
       row("💝 Profile tips", st.profileTipsVolumeCents == null ? null : st.profileTipsVolumeCents,
         '<div class="rp-os-note" style="margin-top:2px">' + Number(st.profileTipsCharms || 0).toLocaleString("en-US") + " charms tipped · creators earned " + money(st.profileTipsCreatorCents || 0) + " (70%) · Plaza kept " + money(st.profileTipsCutCents || 0) + " (30%)</div>") + /* [RP-V7.294] */
+      row("⭐ Fan subscriptions", st.fanSubsVolumeCents == null ? null : st.fanSubsVolumeCents,
+        '<div class="rp-os-note" style="margin-top:2px">' + Number(st.fanSubsCharms || 0).toLocaleString("en-US") + " charms subscribed · creators earned " + money(st.fanSubsCreatorCents || 0) + " (70%) · Plaza kept " + money(st.fanSubsCutCents || 0) + " (30%) · " + Number(st.fanSubsActive || 0).toLocaleString("en-US") + " active subscription" + (Number(st.fanSubsActive || 0) === 1 ? "" : "s") + "</div>") + /* [RP-V7.296] */
       row("🔨 Auctions volume", st.auctionsVolumeCents) +
       row("📣 Business Ads", st.bizadsCents == null ? null : st.bizadsCents,
         (typeof st.bizadsActive === "number") ? '<div class="rp-os-note" style="margin-top:2px">' + st.bizadsActive + " active advertiser" + (st.bizadsActive === 1 ? "" : "s") + "</div>" : "") +
@@ -41531,6 +41797,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
             <button type="button" data-al="center" class="on" aria-label="Align center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7.5 11h9M5.5 16h13"/></svg></button>
             <button type="button" data-al="right" aria-label="Align right"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M11 11h9M7 16h13"/></svg></button>
           </span>
+          <button type="button" id="ctxSubs278" class="ctx-subs278" aria-pressed="false">🔒 Subscribers only: Off</button>
           <span class="ctx-count278" id="ctxCount278">0/500</span>
         </div>
       </div>
@@ -41948,7 +42215,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
        there is no caption step and the audience stays the default
        Everyone; the style rides along and renders identically in
        Home and on the profile (window.RPText278 tables). */
-    var TextEd278 = { font: "classic", color: "#ffffff", bg: "sunset", align: "center", box: "none", size: 1, posting: false };
+    var TextEd278 = { font: "classic", color: "#ffffff", bg: "sunset", align: "center", box: "none", size: 1, posting: false, subsOnly: false }; // [RP-V7.296] subsOnly
     function paintTextEd278() {
       var T = window.RPText278; if (!T) return;
       var ed = el("camTextEd278"); if (!ed) return;
@@ -41965,6 +42232,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       else if (TextEd278.box === "soft") { bx.style.background = "rgba(255,255,255,.22)"; bx.style.padding = "4px 8px"; }
       else { bx.style.background = "transparent"; bx.style.padding = "0"; }
       el("ctxBoxBtn278").setAttribute("data-box", TextEd278.box);
+      var csb296p = el("ctxSubs278"); // [RP-V7.296]
+      if (csb296p) { csb296p.classList.toggle("on", !!TextEd278.subsOnly); csb296p.textContent = TextEd278.subsOnly ? "🔒 Subscribers only: On" : "🔒 Subscribers only: Off"; csb296p.setAttribute("aria-pressed", TextEd278.subsOnly ? "true" : "false"); }
       el("ctxCount278").textContent = (ta.value || "").length + "/500";
       ed.querySelectorAll(".ctx-font278").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-font") === TextEd278.font); });
       ed.querySelectorAll(".ctx-color278").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-color") === TextEd278.color); });
@@ -42004,6 +42273,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       el("camTextEd278").querySelectorAll(".ctx-align278 button").forEach(function (b) { b.addEventListener("click", function () { TextEd278.align = b.getAttribute("data-al") || "center"; paintTextEd278(); }); });
       el("ctxBack278").addEventListener("click", function () { setMode("video"); });
       el("ctxDone278").addEventListener("click", textPost278);
+      var csb296 = el("ctxSubs278"); // [RP-V7.296] the subscribers-only toggle chip
+      if (csb296) csb296.addEventListener("click", function () { TextEd278.subsOnly = !TextEd278.subsOnly; paintTextEd278(); });
       paintTextEd278();
     }
     function textPost278() {
@@ -42018,7 +42289,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       fetch("/api/photo/text-post", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok },
-        body: JSON.stringify({ text: text, style: { font: TextEd278.font, color: TextEd278.color, bg: TextEd278.bg, align: TextEd278.align, box: TextEd278.box, size: TextEd278.size }, clientKey: "tx" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) })
+        body: JSON.stringify({ text: text, style: { font: TextEd278.font, color: TextEd278.color, bg: TextEd278.bg, align: TextEd278.align, box: TextEd278.box, size: TextEd278.size }, subsOnly: !!TextEd278.subsOnly, /* [RP-V7.296] */ clientKey: "tx" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) })
       }).then(function (r) { return r.json().catch(function () { return null; }); })
         .then(function (j) {
           TextEd278.posting = false; el("ctxDone278").classList.remove("busy");
@@ -44600,6 +44871,19 @@ html, body { overflow-x: clip; }
       try { toast(text); } catch (e) { }
     }
     function cardEl243(pp) {
+      if (pp.locked) { // [RP-V7.296] locked Home-stream card: author header + lock panel, nothing else (the payload carries no media or caption)
+        var lcard296 = document.createElement("article");
+        lcard296.className = "mom-card"; lcard296.setAttribute("data-mid", pp.id);
+        var lface296 = "";
+        try { if (typeof personFace === "function") lface296 = personFace({ name: pp.author || "Someone" }); } catch (e) { }
+        if (!lface296) lface296 = '<span class="pface pface-init">' + esc243((pp.author || "?").charAt(0).toUpperCase() || "?") + "</span>";
+        lcard296.innerHTML =
+          '<div class="mom-top"><span class="who-av">' + lface296 + '</span><div><b>' + esc243(pp.author || "Someone") + '</b><span>' + esc243(when243(pp.createdAt)) + " · Subscribers only</span></div></div>" +
+          '<div class="mom-photo">' + (window.rpFanSubLockHtml296 ? window.rpFanSubLockHtml296(pp.author || "", "⭐ Subscribe") : '<div class="rp-lock296"><span class="lk-tx">🔒 Subscribers only</span></div>') + '</div>';
+        var clk296 = lcard296.querySelector(".rp-lock-btn296");
+        if (clk296) clk296.addEventListener("click", function () { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(pp.authorId || "", pp.author || ""); });
+        return lcard296;
+      }
       var acts = window.rpFeedActs241 || {};
       var fi = { postId: pp.id, author: pp.author || "", authorId: null, caption: pp.caption || "", likes: pp.likes || 0, myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine };
       var urls = (Array.isArray(pp.urls) && pp.urls.length) ? pp.urls : (pp.photo ? [pp.photo] : []);
