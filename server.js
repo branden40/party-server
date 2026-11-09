@@ -7179,6 +7179,112 @@ app.post("/api/media/view", (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// [RP-V7.303] Who watched — the viewer LIST behind the 👁 counts
+// (Branden, Nov 8: "Show me who looked at my videos along with who
+// gifted me." Gifters already ride the Earn sheet since RP-V7.232;
+// this is the other half.) The view store has always recorded WHO
+// viewed — the one-person-once seen stamps are how the count
+// dedupes — but no surface ever listed them. This read-only
+// endpoint serves the list to the item's AUTHOR and nobody else:
+//   GET /api/media/viewers?kind=reel&id=<reelId>
+//   GET /api/media/viewers?kind=photopost&id=<postId>
+//   GET /api/media/viewers?kind=photo&id=<photoUrl>&owner=<ownerId>
+//     (the photo parameter shape mirrors POST /api/media/view)
+// Rules:
+//  - signed-in members only (401 signed-out);
+//  - only the author may read an item's list — 403 for every other
+//    member, the app owner included (no admin bypass: RP reads the
+//    lists of RP's own posts by being their author, like anyone);
+//  - unknown item → 404 (a deleted item is unknown; a text post
+//    carries no views and reads as not found, like everywhere a
+//    text post meets the photo surfaces);
+//  - the response carries the item's full recorded total (the same
+//    number the 👁 count shows) plus the viewer list, NEWEST
+//    first, capped at 200 named entries. A stamp names a viewer
+//    only when it is an account stamp ("acct:<id>") whose account
+//    is a currently visible member — the directory's own line
+//    (no pending deletion, not locked out): device-key stamps
+//    (signed-out views on reels/photos) and stamps from accounts
+//    that have since left count toward the total but are never
+//    named. Locked (subs-only / club-only) items are unaffected —
+//    the author reads their list like any other item's.
+//  - stamps are America/New_York calendar days ("YYYY-MM-DD") —
+//    day precision is what the record holds (RP-V7.162), so
+//    `viewedDay` is the honest timestamp; within a day, later
+//    stamps in the record sort first.
+//  - READ-ONLY: the handler only reads the stores; it never
+//    writes views.json or anything else.
+// ---------------------------------------------------------------------------
+const RP_VIEWERS_CAP_303 = 200;
+app.get("/api/media/viewers", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const kind = String(req.query.kind || "");
+  const id = String(req.query.id || "").trim();
+  if (kind !== "reel" && kind !== "photo" && kind !== "photopost")
+    return res.status(400).json({ ok: false, error: "kind must be \"reel\", \"photo\" or \"photopost\"" });
+  let itemKey = null;
+  let itemId = null;
+  let authorId = null;
+  if (kind === "reel") {
+    const reelId = reelCleanId(id);
+    if (!reelId) return res.status(400).json({ ok: false, error: "Missing reel id" });
+    const reel = listReels().find((r) => r.id === reelId);
+    if (!reel) return res.status(404).json({ ok: false, error: "Reel not found" });
+    authorId = reelAuthorKeyFor(ctx.db, reel);
+    itemKey = "reel:" + reelId;
+    itemId = reelId;
+  } else if (kind === "photopost") {
+    const postId = reelCleanId(id);
+    if (!postId) return res.status(400).json({ ok: false, error: "Missing photo post id" });
+    const post = readPhotoPosts().posts.find((p) => p && p.id === postId);
+    if (!post || post.kind === "text")
+      return res.status(404).json({ ok: false, error: "Photo post not found" });
+    authorId = post.owner;
+    itemKey = "photopost:" + postId;
+    itemId = postId;
+  } else {
+    const ownerId = String(req.query.owner || "").trim();
+    const url = id.slice(0, 600);
+    if (!ownerId || !url)
+      return res.status(400).json({ ok: false, error: "Missing photo owner or url" });
+    const owner = ctx.db.users.find((u) => u.id === ownerId);
+    if (!owner) return res.status(404).json({ ok: false, error: "Account not found" });
+    if (!accountPhotos(owner).includes(url))
+      return res.status(404).json({ ok: false, error: "Photo not found" });
+    authorId = owner.id;
+    itemKey = "photo:" + ownerId + ":" + url;
+    itemId = url;
+  }
+  if (authorId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the author can see who watched" });
+  const vdb = readViews();
+  const total = mediaViewCount(vdb, itemKey);
+  const it = vdb.items[itemKey];
+  const stamps = [];
+  if (it && it.seen && typeof it.seen === "object") {
+    const keys = Object.keys(it.seen);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      if (k.indexOf("acct:") !== 0) continue; // device views: counted in the total, never named
+      stamps.push({ uid: k.slice(5), day: String(it.seen[k] || ""), ord: i });
+    }
+  }
+  stamps.sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : b.ord - a.ord)); // newest first
+  const byId = {};
+  for (const u of ctx.db.users) byId[u.id] = u;
+  const viewers = [];
+  let truncated = false;
+  for (const s of stamps) {
+    const u = byId[s.uid];
+    if (!u || u.deletionAt || accountLockedOut(u)) continue; // only currently visible members are named
+    if (viewers.length >= RP_VIEWERS_CAP_303) { truncated = true; break; }
+    viewers.push({ id: u.id, name: u.name, username: u.username || "", photo: u.photo || null, viewedDay: s.day });
+  }
+  res.json({ ok: true, kind, id: itemId, total, viewers, truncated });
+});
+
+// ---------------------------------------------------------------------------
 // [RP-V7.65] Media search — Branden (Oct 25): the Facebook screenshot
 // he circled was the video SEARCH results grid ("This was for
 // searching for videos"). GET /api/media/search?q=<text> searches
