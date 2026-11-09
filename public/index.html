@@ -9170,6 +9170,11 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       /* ---------- room state & presence ---------- */
       function sxToPct(x) { return Math.max(2, Math.min(90, (Number(x) || 0) / 8)); }
       function syToPct(y) { return Math.max(6, Math.min(64, (Number(y) || 0) / 6)); }
+      /* [RP-V7.305] My own account id from the saved session — the
+         identity the roster ghost guard below keys on (same source
+         as rpMyId243). Empty string for guests, who hold no account
+         and are never deduped. */
+      function rpOnlineMyAcct305() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.userId) || ""; } catch (e) { return ""; } }
       function onRoomState(list) {
         var rejoin = Online.state === "reconnecting";
         var first = Online.state !== "on" && !rejoin;
@@ -9180,8 +9185,16 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         if (typeof renderLiveNow === "function") renderLiveNow();
         clearTimeout(Online.watchdog);
         var seen = {};
+        var myAcct305 = rpOnlineMyAcct305();
         (list || []).forEach(function (p) {
           if (!p || !p.id) return;
+          // [RP-V7.305] a roster entry carrying MY account id under a
+          // DIFFERENT socket id is my own ghost — my previous
+          // connection, not yet timed out server-side. Never render
+          // it as a second person, and leave it out of `seen` so a
+          // copy rendered earlier is swept away below. The comparison
+          // is on the account id only, never on the display name.
+          if (myAcct305 && p.acctId && p.acctId === myAcct305 && p.id !== Online.myId) return;
           if (p.id === Online.myId) {
             Online.mx = Online.mtx = sxToPct(p.x); Online.my = Online.mty = syToPct(p.y);
             if (p.photoUrl) Online.myPhotoUrl = p.photoUrl;
@@ -9219,6 +9232,11 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       }
       function upsertOnlinePlayer(p, snap) {
         if (Online.blocked[p.id]) return null;
+        // [RP-V7.305] backstop: my own ghost (my account id, another
+        // socket id) never enters the rendered roster, whichever
+        // event carried it in.
+        var myAcct305u = rpOnlineMyAcct305();
+        if (myAcct305u && p.acctId && p.acctId === myAcct305u && p.id !== Online.myId) return null;
         var cur = Online.players[p.id];
         if (!cur) {
           cur = Online.players[p.id] = { id: p.id, el: null };
@@ -9234,6 +9252,14 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       }
       function onPlayerJoined(p) {
         if (!p || !p.id || p.id === Online.myId) return;
+        // [RP-V7.305] a "join" carrying my account id on another
+        // socket is my own ghost, not a new person: drop it — and if
+        // it was somehow rendered already, take it down now.
+        var myAcct305j = rpOnlineMyAcct305();
+        if (myAcct305j && p.acctId && p.acctId === myAcct305j) {
+          if (Online.players[p.id]) { removeOnlinePlayer(p.id); renderOnlinePeople(); updateOnlineBadge(); }
+          return;
+        }
         if (Online.blocked[p.id]) return;
         // a host who walks back into a regular room has left their live — unlist it
         // [RP-V7.28] registry-backed entries are exempt: the server snapshot,
