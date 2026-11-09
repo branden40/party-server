@@ -13172,6 +13172,301 @@ app.post("/auth/apple/callback", async (req, res) => {
 // ---------------------------------------------------------------------------
 const MONEY_FILE =
   process.env.MONEY_FILE || path.join(path.dirname(PHOTO_DIR), "money.json");
+// ---------------------------------------------------------------------------
+// [RP-V7.306] BATTLE BOOSTERS (Branden, Nov 8, 2026: "Yes add it all" —
+// the full booster layer from the TikTok battle he sent: Mist, Gloves,
+// Booster x2/x3, Hammer, Timer, plus the First-Gift x3 Bonus Mission).
+//
+// AUTHORITY: battle scoring used to live on the clients (the V5/V6.5
+// layers tallied gift protos locally). From V7.306 the SERVER decides:
+// a battle is a server record created on accept; points are computed
+// ONLY here, ONLY from gifts that settled in /api/money/gift carrying
+// the battle's id (see battle306OnGift, hooked into that handler after
+// its ledger write — a deduped idempotent replay returns earlier in
+// that handler and never reaches the hook, so a retried gift can never
+// score twice). Clients display the server's numbers; the legacy
+// client tallies stand down whenever a server battle is live
+// (window.__rpBat306Managed on the client). The legacy client "score"
+// relay is dropped for managed battles. Boosters move battle POINTS
+// only — charm amounts, the 70/30 split and payouts never change.
+//
+// MULTIPLIER ORDER (fixed, documented): points for one settled gift =
+//   base (gift charm value, batch total)
+//   x3  if the Bonus Mission is open AND this is the sender's first
+//       gift of the window (once per viewer per window)
+//   x2 or x3  if the receiving side's Booster is active
+//   x5  if the receiving side's Gloves are active AND the 30% proc rolls
+// A side under a Hammer freeze scores 0 for the whole gift (the gift
+// itself still settles normally for the host).
+//
+// BOOSTER STOCK: per account, persisted in boosters.json beside the
+// other stores. EARNED ONLY — there is deliberately NO purchase path
+// (no charm price, no cash price, no endpoint that sells one):
+//   - a gift sent during a battle can drop a random booster for the
+//     SENDER'S TEAM HOST (the host who received the gift): odds scale
+//     with gift size — under 100 charms 6%, 100-999 charms 12.5%
+//     (~1 in 8), 1000+ charms 20%.
+//   - the WINNING host earns one random booster at battle end.
+// Drop weights: mist 22, gloves 22, boost2 22, boost3 10, hammer 12,
+// timer 12 (of 100).
+// EFFECTS: Mist 30s (opposing side's payloads carry the misted score
+// as null — the real number never leaves the server for them; the
+// misting side's own payloads stay true), Gloves 30s (30% proc, x5),
+// Booster 30s (x2 or x3 by item), Hammer instant (removes 10% of the
+// opponent's current points, floor 0, and freezes their scoring for
+// 10s), Timer instant (+30s to the clock, once per side per battle).
+// Guards: one timed effect of a type per side at a time (re-play while
+// active is refused and consumes nothing); no plays in the final 5
+// seconds except Timer; only the two hosts can play, for their own
+// side; playing consumes one from stock; 0 stock is refused.
+// BONUS MISSION: once per battle, at a random point in the first half
+// (start offset 15%-40% of the duration, window 30s, never opening in
+// the final 35s): every viewer's FIRST gift in the window scores x3.
+// Battles are regular lives only (the existing ticket gate already
+// refuses battles on ticketed lives; auction lives never battle).
+// ---------------------------------------------------------------------------
+const BOOSTERS_FILE306 =
+  process.env.BOOSTERS_FILE || path.join(path.dirname(PHOTO_DIR), "boosters.json");
+const BOOSTER_ITEMS306 = ["mist", "gloves", "boost2", "boost3", "hammer", "timer"];
+const BOOSTER_DROP_WEIGHTS306 = { mist: 22, gloves: 22, boost2: 22, boost3: 10, hammer: 12, timer: 12 };
+function emptyBoosters306() { return { stock: {} }; }
+function readBoosters306() {
+  const d = storeReadJson(BOOSTERS_FILE306, (x) => !!(x && x.stock && typeof x.stock === "object" && !Array.isArray(x.stock)), emptyBoosters306(), "boosters306");
+  if (!d.stock || typeof d.stock !== "object" || Array.isArray(d.stock)) d.stock = {};
+  return d;
+}
+function writeBoosters306(db) { storeWriteJson(BOOSTERS_FILE306, db); }
+function boosterStockOf306(db, acctId) {
+  let s = db.stock[acctId];
+  if (!s || typeof s !== "object") { s = { mist: 0, gloves: 0, boost2: 0, boost3: 0, hammer: 0, timer: 0 }; db.stock[acctId] = s; }
+  for (const k of BOOSTER_ITEMS306) if (typeof s[k] !== "number" || !(s[k] >= 0)) s[k] = 0;
+  return s;
+}
+function boosterRandomItem306() {
+  let r = Math.random() * 100, acc = 0;
+  for (const k of BOOSTER_ITEMS306) { acc += BOOSTER_DROP_WEIGHTS306[k]; if (r < acc) return k; }
+  return "mist";
+}
+function boosterDropChance306(totalCharms) {
+  if (totalCharms >= 1000) return 0.20;
+  if (totalCharms >= 100) return 0.125;
+  return 0.06;
+}
+// battleId -> battle record. Sides are "a" (the host who was invited /
+// accepted) and "b" (the challenger who sent the invite) — matching
+// the client's rpBatBegin convention (accept => a = acceptor).
+const battles306 = new Map();
+const battleBySocket306 = new Map(); // host socket id -> battleId
+function battle306SideOf(b, socketId) {
+  if (b.aSock === socketId) return "a";
+  if (b.bSock === socketId) return "b";
+  return null;
+}
+function battle306Other(side) { return side === "a" ? "b" : "a"; }
+function battle306EffectsView(b, side, now) {
+  const e = b.effects[side];
+  return {
+    mist: Math.max(0, (e.mistUntil || 0) - now),
+    gloves: Math.max(0, (e.glovesUntil || 0) - now),
+    booster: Math.max(0, (e.boosterUntil || 0) - now),
+    boosterMult: (e.boosterUntil || 0) > now ? (e.boosterMult || 2) : 0,
+    freeze: Math.max(0, (e.freezeUntil || 0) - now),
+    timerUsed: !!b.timerUsed[side],
+  };
+}
+// The payload for ONE audience: "forSide" is the side whose room / host
+// is receiving (their own score is always true; the opponent's score
+// is null while the opponent's Mist is up). Stock rides ONLY in the
+// host-directed copy (forHostAcct set) — room broadcasts never carry it.
+function battle306Payload(b, forSide, forHostAcct, ev) {
+  const now = Date.now();
+  const opp = battle306Other(forSide);
+  const oppMisted = (b.effects[opp].mistUntil || 0) > now;
+  const mine = forSide === "a" ? b.aPts : b.bPts;
+  const theirs = opp === "a" ? b.aPts : b.bPts;
+  const p = {
+    battleId: b.id,
+    aId: b.aSock, bId: b.bSock, aName: b.aName, bName: b.bName,
+    endsAt: b.endsAt,
+    aPts: forSide === "a" ? mine : (oppMisted ? null : theirs),
+    bPts: forSide === "b" ? mine : (oppMisted ? null : theirs),
+    youSide: forSide,
+    effects: { a: battle306EffectsView(b, "a", now), b: battle306EffectsView(b, "b", now) },
+    mission: b.mission ? { active: now >= b.mission.startsAt && now < b.mission.endsAt, opensAt: b.mission.startsAt, endsAt: b.mission.endsAt } : null,
+    ev: ev || null,
+  };
+  if (forHostAcct) {
+    const db = readBoosters306();
+    p.stock = Object.assign({}, boosterStockOf306(db, forHostAcct));
+  }
+  if (b.ended) { p.ended = { winnerSide: b.winnerSide || null, aPts: b.aPts, bPts: b.bPts }; }
+  return p;
+}
+function battle306Emit(b, ev) {
+  // Both rooms (each gets its own mist-tailored copy) + both hosts
+  // directly (their copy also carries their stock).
+  try { io.to(b.aRoom).emit("battle306", battle306Payload(b, "a", null, ev)); } catch (e) { }
+  try { io.to(b.bRoom).emit("battle306", battle306Payload(b, "b", null, ev)); } catch (e) { }
+  try { io.to(b.aSock).emit("battle306", battle306Payload(b, "a", b.aAcct, ev)); } catch (e) { }
+  try { io.to(b.bSock).emit("battle306", battle306Payload(b, "b", b.bAcct, ev)); } catch (e) { }
+}
+function battle306Award(acctId, why) {
+  if (!acctId) return null;
+  const item = boosterRandomItem306();
+  const db = readBoosters306();
+  const s = boosterStockOf306(db, acctId);
+  s[item] += 1;
+  writeBoosters306(db);
+  console.log("[battle306] booster award", why, item, "->", acctId, "stock", s[item]);
+  return item;
+}
+function battle306Create306(aSock, aPlayer, bSock, bPlayer, endsAt) {
+  const id = "bat" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const now = Date.now();
+  const dur = Math.max(30000, endsAt - now);
+  // Bonus mission: random point in the first half; the 30s window
+  // must close before the final 5s, so the open offset is capped.
+  let mStart = now + Math.round(dur * (0.15 + Math.random() * 0.25));
+  // The window must OPEN inside the first half and CLOSE before the
+  // final 5s: latest legal open = min(first-half mark, endsAt - 35s).
+  const mLatest = Math.min(now + Math.round(dur / 2), endsAt - 35000);
+  if (mStart > mLatest) mStart = mLatest;
+  // A battle too short to fit the window legally gets no mission.
+  const mSkip = mLatest <= now + 1000;
+  const b = {
+    id, aSock, bSock,
+    aAcct: (aPlayer && (aPlayer.acctId || null)) || null,
+    bAcct: (bPlayer && (bPlayer.acctId || null)) || null,
+    aName: (aPlayer && aPlayer.name) || "Host",
+    bName: (bPlayer && bPlayer.name) || "Host",
+    aRoom: (aPlayer && aPlayer.room) || "",
+    bRoom: (bPlayer && bPlayer.room) || "",
+    aPts: 0, bPts: 0, endsAt, startedAt: now, ended: false, winnerSide: null,
+    effects: { a: { mistUntil: 0, glovesUntil: 0, boosterUntil: 0, boosterMult: 0, freezeUntil: 0 }, b: { mistUntil: 0, glovesUntil: 0, boosterUntil: 0, boosterMult: 0, freezeUntil: 0 } },
+    timerUsed: { a: false, b: false },
+    mission: { startsAt: mSkip ? endsAt + 1 : mStart, endsAt: mStart + 30000, announced: false, closed: mSkip, usedBy: {} },
+  };
+  battles306.set(id, b);
+  battleBySocket306.set(aSock, id);
+  battleBySocket306.set(bSock, id);
+  return b;
+}
+function battle306End(b, reason) {
+  if (!b || b.ended) return;
+  b.ended = true;
+  b.winnerSide = b.aPts > b.bPts ? "a" : (b.bPts > b.aPts ? "b" : null);
+  const winAcct = b.winnerSide === "a" ? b.aAcct : (b.winnerSide === "b" ? b.bAcct : null);
+  const award = winAcct ? battle306Award(winAcct, "battle-win") : null;
+  battle306Emit(b, { kind: "end", reason: reason || "time", winnerSide: b.winnerSide, awardItem: award, awardSide: b.winnerSide });
+  battles306.delete(b.id);
+  if (battleBySocket306.get(b.aSock) === b.id) battleBySocket306.delete(b.aSock);
+  if (battleBySocket306.get(b.bSock) === b.id) battleBySocket306.delete(b.bSock);
+  console.log("[battle306] end", b.id, "a", b.aPts, "b", b.bPts, "winner", b.winnerSide || "draw", reason || "time");
+}
+// The gift hook: called from /api/money/gift AFTER settlement with the
+// settled batch total. Returns the points scored (0 when no battle /
+// frozen / not a side). Never throws into the gift path.
+function battle306OnGift(info) {
+  try {
+    const battleId = String((info && info.battleId) || "");
+    if (!battleId) return 0;
+    const b = battles306.get(battleId);
+    if (!b || b.ended) return 0;
+    const now = Date.now();
+    if (now >= b.endsAt) return 0;
+    const recipientId = info.recipient && info.recipient.id;
+    const senderId = info.sender && info.sender.id;
+    if (!recipientId || recipientId === senderId) return 0;
+    let side = null;
+    if (recipientId === b.aAcct) side = "a";
+    else if (recipientId === b.bAcct) side = "b";
+    else return 0;
+    const total = Math.max(0, Math.floor(Number(info.totalCharms) || 0));
+    if (total <= 0) return 0;
+    // Booster drop for the receiving host (the sender's team host) —
+    // rolled on the settled gift regardless of freeze/multipliers.
+    let dropItem = null;
+    if (Math.random() < boosterDropChance306(total)) {
+      dropItem = battle306Award(recipientId, "gift-drop");
+    }
+    const e = b.effects[side];
+    let pts = 0, mults = [];
+    if ((e.freezeUntil || 0) > now) {
+      pts = 0; mults.push("frozen");
+    } else {
+      pts = total;
+      if (b.mission && now >= b.mission.startsAt && now < b.mission.endsAt && senderId && !b.mission.usedBy[senderId]) {
+        b.mission.usedBy[senderId] = 1;
+        pts *= 3; mults.push("firstgift3");
+      }
+      if ((e.boosterUntil || 0) > now && e.boosterMult) { pts *= e.boosterMult; mults.push("boost" + e.boosterMult); }
+      if ((e.glovesUntil || 0) > now && Math.random() < 0.30) { pts *= 5; mults.push("gloves5"); }
+    }
+    if (side === "a") b.aPts += pts; else b.bPts += pts;
+    const ev = { kind: "gift", side, pts, base: total, mults, fromName: (info.sender && info.sender.name) || "A fan", giftName: info.giftName || "gift", dropItem, dropSide: dropItem ? side : null };
+    battle306Emit(b, ev);
+    return pts;
+  } catch (e) { return 0; }
+}
+// Host plays a booster. Returns {ok} or {ok:false,error} — refusals
+// consume nothing.
+function battle306Play(socketId, battleId, item) {
+  const b = battles306.get(String(battleId || ""));
+  if (!b || b.ended) return { ok: false, error: "no-battle" };
+  const side = battle306SideOf(b, socketId);
+  if (!side) return { ok: false, error: "not-a-host" };
+  if (!BOOSTER_ITEMS306.includes(item)) return { ok: false, error: "bad-item" };
+  const acct = side === "a" ? b.aAcct : b.bAcct;
+  if (!acct) return { ok: false, error: "no-account" };
+  const now = Date.now();
+  if (now >= b.endsAt) return { ok: false, error: "battle-over" };
+  if (item !== "timer" && b.endsAt - now <= 5000) return { ok: false, error: "too-late" };
+  const e = b.effects[side];
+  if (item === "mist" && (e.mistUntil || 0) > now) return { ok: false, error: "already-active" };
+  if (item === "gloves" && (e.glovesUntil || 0) > now) return { ok: false, error: "already-active" };
+  if ((item === "boost2" || item === "boost3") && (e.boosterUntil || 0) > now) return { ok: false, error: "already-active" };
+  if (item === "timer" && b.timerUsed[side]) return { ok: false, error: "timer-used" };
+  const db = readBoosters306();
+  const s = boosterStockOf306(db, acct);
+  if ((s[item] || 0) < 1) return { ok: false, error: "no-stock" };
+  s[item] -= 1;
+  writeBoosters306(db);
+  let ev;
+  if (item === "mist") { e.mistUntil = now + 30000; ev = { kind: "mist", side }; }
+  else if (item === "gloves") { e.glovesUntil = now + 30000; ev = { kind: "gloves", side }; }
+  else if (item === "boost2" || item === "boost3") { e.boosterUntil = now + 30000; e.boosterMult = item === "boost3" ? 3 : 2; ev = { kind: "booster", side, mult: e.boosterMult }; }
+  else if (item === "timer") { b.endsAt += 30000; b.timerUsed[side] = true; ev = { kind: "timer", side }; }
+  else if (item === "hammer") {
+    const opp = battle306Other(side);
+    const before = opp === "a" ? b.aPts : b.bPts;
+    const cut = Math.floor(before * 0.10);
+    if (opp === "a") b.aPts = Math.max(0, b.aPts - cut); else b.bPts = Math.max(0, b.bPts - cut);
+    b.effects[opp].freezeUntil = now + 10000;
+    ev = { kind: "hammer", side, cut, oppSide: opp };
+  }
+  battle306Emit(b, ev);
+  console.log("[battle306] play", b.id, side, item);
+  return { ok: true, item, side };
+}
+// Battle clock sweep: mission open/close announcements + battle end.
+setInterval(() => {
+  try {
+    const now = Date.now();
+    for (const b of [...battles306.values()]) {
+      if (b.ended) continue;
+      if (b.mission && !b.mission.announced && now >= b.mission.startsAt && now < b.mission.endsAt) {
+        b.mission.announced = true;
+        battle306Emit(b, { kind: "mission-start" });
+      }
+      if (b.mission && b.mission.announced && !b.mission.closed && now >= b.mission.endsAt) {
+        b.mission.closed = true;
+        battle306Emit(b, { kind: "mission-end" });
+      }
+      if (now >= b.endsAt) battle306End(b, "time");
+    }
+  } catch (e) { }
+}, 500);
+
 const CHARM_CENT_VALUE = 1; // 1 charm of gift value = 1 cent (the Plaza's
 // charm packs price charms at roughly 1c each in the base pack, and the
 // gift catalog is denominated in charms at 1 charm = 1c of gift value).
@@ -15613,6 +15908,11 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     }
   }
   writeMoney(db);
+  // [RP-V7.306] Battle scoring: a settled gift that carried a battle
+  // id scores HERE — server-side, from the settled batch total — and
+  // can drop a booster for the receiving host. Wrapped so battle
+  // bookkeeping can never fail a gift that already moved money.
+  try { battle306OnGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, giftName: (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId }); } catch (e) { }
   // [RP-V7.219] the daily-rank credit is per unit, exactly as if the
   // sender had tapped N times (rankCreditDaily counts gifts +1 each).
   for (let u = 0; u < count; u++) rankCreditDaily(recipient.id, recipient.name, cost);
@@ -15717,6 +16017,17 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   });
   res.json(giftResponse);
 }));
+// ---------------------------------------------------------------------------
+// [RP-V7.306] Booster stock read for the battle tray (auth; the
+// account is the token's — there is no way to ask for anyone else's,
+// and no endpoint sells boosters: they are earned only).
+// ---------------------------------------------------------------------------
+app.get("/api/battle/boosters", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readBoosters306();
+  res.json({ ok: true, stock: Object.assign({}, boosterStockOf306(db, ctx.user.id)) });
+});
 // ---------------------------------------------------------------------------
 // [RP-V7.294] PROFILE TIPS — earn stream #2 (Branden's approved queue,
 // Nov 8, 2026; #1 Creator Pool shipped as V7.293). Implements the pay
@@ -19960,17 +20271,39 @@ io.on("connection", (socket) => {
     const mins = Math.min(10, Math.max(1, parseInt(data.mins, 10) || 5));
     if (t === "invite") io.to(other.id).emit("battle", { t: "invite", from: socket.id, fromName: p.name, mins });
     else if (t === "decline") io.to(other.id).emit("battle", { t: "decline", from: socket.id, fromName: p.name });
-    else if (t === "score") io.to(other.id).emit("battle", { t: "score", from: socket.id, pts: Math.max(0, parseInt(data.pts, 10) || 0) });
-    else if (t === "end") io.to(other.id).emit("battle", { t: "end", from: socket.id });
+    else if (t === "score") {
+      // [RP-V7.306] managed battles are scored by the server — a
+      // client's own tally is dropped, never relayed.
+      if (!battleBySocket306.has(socket.id)) io.to(other.id).emit("battle", { t: "score", from: socket.id, pts: Math.max(0, parseInt(data.pts, 10) || 0) });
+    }
+    else if (t === "end") {
+      const endBid306 = battleBySocket306.get(socket.id);
+      const endB306 = endBid306 ? battles306.get(endBid306) : null;
+      if (endB306) battle306End(endB306, "host-end");
+      io.to(other.id).emit("battle", { t: "end", from: socket.id });
+    }
     // [RP-V7.174] split-screen battles: WebRTC signaling between the two
     // battlers (and viewers asking a battler for their stream) rides the
     // battle relay untouched — SDP/ICE payloads pass through as-is.
     else if (t === "rtc") io.to(other.id).emit("battle", { t: "rtc", from: socket.id, kind: String(data.kind || ""), view: data.view ? 1 : 0, sdp: data.sdp || null, ice: data.ice || null });
     else if (t === "accept") {
       const endsAt = Date.now() + mins * 60000;
-      io.to(other.id).emit("battle", { t: "accept", from: socket.id, fromName: p.name, endsAt });
-      socket.emit("battle", { t: "start", from: other.id, fromName: other.name, endsAt });
+      // [RP-V7.306] the server opens the battle record: side "a" is
+      // the acceptor (this socket), side "b" the challenger — the
+      // client's rpBatBegin convention.
+      const b306 = battle306Create306(socket.id, p, other.id, other, endsAt);
+      io.to(other.id).emit("battle", { t: "accept", from: socket.id, fromName: p.name, endsAt, battleId: b306.id });
+      socket.emit("battle", { t: "start", from: other.id, fromName: other.name, endsAt, battleId: b306.id });
+      battle306Emit(b306, { kind: "start" });
     }
+  });
+
+  // [RP-V7.306] A host plays a booster from their tray. Stock +
+  // guards are the server's (battle306Play); the ack goes only to the
+  // player, the effect broadcast goes to both rooms + hosts.
+  socket.on("battle-boost", (data = {}) => {
+    const r = battle306Play(socket.id, data.battleId, String(data.item || ""));
+    socket.emit("battle-boost-ack", r);
   });
 
   // [RP-V7.52] Stage requests ride a DEDICATED relay (audit H3).
@@ -20297,6 +20630,14 @@ io.on("connection", (socket) => {
       players.delete(socket.id);
       chatTimes.delete(socket.id);
     }
+    // [RP-V7.306] a host whose socket dies mid-battle ends the battle
+    // on the spot at the current score (the other host + both rooms
+    // get the authoritative end) — no ghost battle outlives its host.
+    try {
+      const discBid306 = battleBySocket306.get(socket.id);
+      const discB306 = discBid306 ? battles306.get(discBid306) : null;
+      if (discB306) battle306End(discB306, "host-gone");
+    } catch (e) { }
     // [RP-V7.52] Host disconnect teardown (audit H13): a host whose
     // socket dies (tab close, crash, deploy) deregisters their live
     // NOW — settle its pot by the lifecycle rule and broadcast the
