@@ -4026,6 +4026,7 @@ app.get("/api/reels", (req, res) => {
       authorId: (adb296r ? reelAuthorKeyFor(adb296r, r) : (r.authorId || null)), // [RP-V7.296] the subscribe route rides the payload (the client already reads r.authorId)
       ...(r.subsOnly ? { subsOnly: true } : {}), // [RP-V7.296]
       ...(r.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
+      ...(r.shoutoutFor ? { shoutoutFor: r.shoutoutFor } : {}), // [RP-V7.300] fulfilled-shoutout marker (server record, never caption text)
       caption: r.caption,
       location: r.location || "",
       link: r.link || "",
@@ -5070,6 +5071,21 @@ app.post("/api/reel", (req, res) => {
     crEnqueue286({ surface: "reel", mediaId: entry.id, authorId: authorUser ? authorUser.id : null, filePath: req.file.path, trimStart: trimStart, musicTrackId: musicTrackId, origVol: origVol }); // [RP-V7.286] copyright scan — every reel, guests included
     console.log("[reels] new reel", entry.id, "by", author, entry.size, "bytes");
     if (authorUser) notifyFollowersOfPost129(authorUser, "reel", entry.id); // [RP-V7.129] [RP-V7.270] route the bell row to this reel
+    // [RP-V7.300] A reel created with a shoutoutId fulfills that
+    // shoutout: settle the escrow, then stamp the marker on the
+    // stored entry (server record — the marker never comes from
+    // caption text). Any failure leaves a normal, unmarked reel.
+    const shoutoutId300r = String(rb156.shoutoutId || "").slice(0, 64);
+    if (authorUser && shoutoutId300r) {
+      return shoutoutFulfillForPost300({ user: authorUser, db: readAccounts() }, { id: entry.id, kind: "reel", authorId: authorUser.id }, shoutoutId300r)
+        .then((so300) => {
+          if (so300 && so300.ok) {
+            try { updateReelEntry(entry.id, { shoutoutFor: { id: so300.requestId, name: so300.buyerName || "" }, shoutoutRequestId: so300.requestId }); } catch (e) { }
+          }
+          res.json({ ok: true, id: entry.id, url: "/reel-files/" + entry.file, shoutout: so300 });
+        })
+        .catch(() => res.json({ ok: true, id: entry.id, url: "/reel-files/" + entry.file }));
+    }
     res.json({ ok: true, id: entry.id, url: "/reel-files/" + entry.file });
   });
 });
@@ -6145,6 +6161,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     kind: p.kind === "text" ? "text" : "photo", // [RP-V7.278]
     ...(subsOnly296 ? { subsOnly: true } : {}), // [RP-V7.296]
     ...(clubOnly298 ? { clubOnly: true } : {}), // [RP-V7.298]
+    shoutoutFor: p.shoutoutFor || null, // [RP-V7.300] fulfilled-shoutout marker (server record, never caption text)
     authorId: p.owner || null, // [RP-V7.296] the subscribe route rides every post payload
     text: p.kind === "text" ? String(p.text || "") : "", // [RP-V7.278]
     tstyle: p.kind === "text" ? textStyle278(p.tstyle) : null, // [RP-V7.278]
@@ -6287,9 +6304,18 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
     db.posts = db.posts.slice(0, PHOTO_POSTS_KEEP);
     writePhotoPosts(db);
     notifyFollowersOfPost129(ctx.user, (post.urls && post.urls.length > 1) ? "photos" : "photo", post.id); // [RP-V7.129] [RP-V7.270] route the bell row to this post
+    // [RP-V7.300] A photo post created with a shoutoutId fulfills
+    // that shoutout (escrow settles, marker stamped on the record).
+    const so300p = await shoutoutFulfillForPost300(ctx, { id: post.id, kind: "photo", authorId: ctx.user.id }, b.shoutoutId);
+    if (so300p && so300p.ok) {
+      post.shoutoutFor = { id: so300p.requestId, name: so300p.buyerName || "" };
+      post.shoutoutRequestId = so300p.requestId;
+      writePhotoPosts(db);
+    }
     return res.json({
       ok: true,
       post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), readMoney().postGifts || {}), // [RP-V7.262]
+      ...(so300p ? { shoutout: so300p } : {}), // [RP-V7.300]
     });
   } catch (e) {
     console.log("PHOTO POST ERROR:", e.message);
@@ -6344,6 +6370,21 @@ app.post("/api/photo/text-post", (req, res) => {
     db.posts = db.posts.slice(0, PHOTO_POSTS_KEEP);
     writePhotoPosts(db);
     notifyFollowersOfPost129(ctx.user, "text", post.id);
+    // [RP-V7.300] A text post created with a shoutoutId fulfills
+    // that shoutout (escrow settles, marker stamped on the record).
+    const soId300t = String(b.shoutoutId || "").slice(0, 64);
+    if (soId300t) {
+      return shoutoutFulfillForPost300(ctx, { id: post.id, kind: "text", authorId: ctx.user.id }, soId300t)
+        .then((so300t) => {
+          if (so300t && so300t.ok) {
+            post.shoutoutFor = { id: so300t.requestId, name: so300t.buyerName || "" };
+            post.shoutoutRequestId = so300t.requestId;
+            writePhotoPosts(db);
+          }
+          return res.json({ ok: true, post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), readMoney().postGifts || {}), shoutout: so300t });
+        })
+        .catch(() => res.json({ ok: true, post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), readMoney().postGifts || {}) }));
+    }
     return res.json({ ok: true, post: photoPublicPost(post, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), readMoney().postGifts || {}) });
   } catch (e) {
     console.log("TEXT POST ERROR:", e.message);
@@ -9729,7 +9770,7 @@ app.get("/api/social/profile", (req, res) => {
             crMuted: null,
             myReposted: false };
         }
-        return { id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id), ...(r.clubOnly ? { clubOnly: true } : {}), ...(r.subsOnly ? { subsOnly: true } : {}), // [RP-V7.298]
+        return { id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id), ...(r.clubOnly ? { clubOnly: true } : {}), ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.shoutoutFor ? { shoutoutFor: r.shoutoutFor } : {}), // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker
         // [RP-V7.241] author + social state for the lightbox rail
         authorId: target.id,
         heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
@@ -9799,7 +9840,7 @@ app.get("/api/social/profile", (req, res) => {
       .filter((fp) => fp && fp.authorId === target.id && fp.file)
       .map((fp) => ((fp.subsOnly && !canSeeSubsFeed296) || (fp.clubOnly && !canSeeClubFeed298))
         ? { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: null, views: 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: null, ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.clubOnly ? { clubOnly: true } : {}), locked: true, authorId: target.id } // [RP-V7.296] locked feed tile: no media URL rides the payload // [RP-V7.298]
-        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}) }) // [RP-V7.286] // [RP-V7.298]
+        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}) }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 60);
   } catch (e) { }
@@ -9932,6 +9973,16 @@ app.get("/api/social/profile", (req, res) => {
         memberCount: fanClubCount298(mdb298, target.id),
         isSelf: ctx.user.id === target.id,
         membership: fanClubPublicRecord298(fanClubRecord298(mdb298, ctx.user.id, target.id)),
+      };
+    })(),
+    shoutout: (() => { // [RP-V7.300] paid shoutouts: the offer rides every profile payload (both profile surfaces read it)
+      const mdb300 = readMoney();
+      const offer300 = shoutoutOffer300(mdb300, target.id);
+      return {
+        on: !!offer300.on,
+        priceCharms: offer300.priceCharms,
+        isSelf: ctx.user.id === target.id,
+        pendingCount: ctx.user.id === target.id ? shoutoutPendingCount300(mdb300, target.id) : 0,
       };
     })(),
   });
@@ -10808,6 +10859,7 @@ function feedPublic(ctx, p, following, fanAccess296, clubAccess298) { // [RP-V7.
     isSelf: p.authorId === ctx.user.id,
     ...(p.subsOnly ? { subsOnly: true } : {}), // [RP-V7.296]
     ...(p.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
+    ...(p.shoutoutFor ? { shoutoutFor: p.shoutoutFor } : {}), // [RP-V7.300] fulfilled-shoutout marker (server record, never caption text)
     crMuted: p.crMuted || null, // [RP-V7.286]
   };
 }
@@ -10910,9 +10962,17 @@ app.post("/api/feed/post",
       db.posts[post.id] = post;
       writeFeed(db);
       if (kind === "video") crEnqueue286({ surface: "feed", mediaId: post.id, authorId: ctx.user.id, filePath: req.file.path }); // [RP-V7.286]
+      // [RP-V7.300] A feed post created with a shoutoutId fulfills
+      // that shoutout (escrow settles, marker stamped on the record).
+      const so300f = await shoutoutFulfillForPost300(ctx, { id: post.id, kind: "feed", authorId: ctx.user.id }, (req.body || {}).shoutoutId);
+      if (so300f && so300f.ok) {
+        post.shoutoutFor = { id: so300f.requestId, name: so300f.buyerName || "" };
+        post.shoutoutRequestId = so300f.requestId;
+        writeFeed(db);
+      }
       const sdb = readSocial();
       const following = new Set(socialFollowingIds(sdb, ctx.user.id));
-      res.json({ ok: true, post: feedPublic(ctx, post, following) });
+      res.json({ ok: true, post: feedPublic(ctx, post, following), ...(so300f ? { shoutout: so300f } : {}) });
     } catch (e) {
       console.log("FEED POST ERROR:", e.message);
       if (req.file) fs.unlink(req.file.path, () => {});
@@ -11877,7 +11937,7 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
  like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites" }; // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true };
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -13167,6 +13227,9 @@ function emptyMoney() {
     fanClubIdem: {}, // [RP-V7.298] fan-club join idempotency keys -> original responses
     liveTickets: {}, // [RP-V7.299] ticketed lives: "<buyerId>><liveId>" -> ticket record (liveId = "<devKey>@<startedAt>")
     liveTicketIdem: {}, // [RP-V7.299] ticket-buy idempotency keys -> original responses
+    shoutoutOffers: {}, // [RP-V7.300] paid shoutouts: creatorId -> { on, priceCharms, updatedAt }
+    shoutouts: {}, // [RP-V7.300] shoutout requests: requestId -> { id, buyerId, buyerName, creatorId, creatorName, priceCharms, note, status (requested|fulfilled|declined|expired), paidFrom, charmsOnly, createdAt, expiresAt, postId, postKind, settledAt, refundedAt, shareCents, cutCents }
+    shoutoutIdem: {}, // [RP-V7.300] shoutout-request idempotency keys -> original responses
     giftBals: {}, // [RP-V7.74] under-18 earned/won gift balance (charms) — see giftBalMirrorWin
     postGifts: {}, // [RP-V7.262] gift counts per post ("reel:<id>" / "photo:<id>") -> gift UNITS received; written only by the gift handler, in the same write as the settlement it counts
     auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — recorded outcomes are final; [RP-V7.89] insufficient-charms failures are never recorded (FAIL-1)
@@ -13211,6 +13274,12 @@ function readMoney() {
     d.liveTickets = {}; // [RP-V7.299] ticketed-live ticket records
   if (!d.liveTicketIdem || typeof d.liveTicketIdem !== "object" || Array.isArray(d.liveTicketIdem))
     d.liveTicketIdem = {}; // [RP-V7.299] ticket-buy idempotency records
+  if (!d.shoutoutOffers || typeof d.shoutoutOffers !== "object" || Array.isArray(d.shoutoutOffers))
+    d.shoutoutOffers = {}; // [RP-V7.300] paid-shoutout offers
+  if (!d.shoutouts || typeof d.shoutouts !== "object" || Array.isArray(d.shoutouts))
+    d.shoutouts = {}; // [RP-V7.300] paid-shoutout request records (the escrow state machine)
+  if (!d.shoutoutIdem || typeof d.shoutoutIdem !== "object" || Array.isArray(d.shoutoutIdem))
+    d.shoutoutIdem = {}; // [RP-V7.300] shoutout-request idempotency records
   if (!d.giftBals || typeof d.giftBals !== "object" || Array.isArray(d.giftBals))
     d.giftBals = {};
   if (!d.postGifts || typeof d.postGifts !== "object" || Array.isArray(d.postGifts))
@@ -13517,6 +13586,7 @@ function moneyMePayload(db, user, connect) {
     fanSubs: rpFanSubMemberSummary296(db, user.id), // [RP-V7.296] Fan subscriptions: my subscriptions + my creator shelf (price, subscriber count)
     fanClubs: rpFanClubMemberSummary298(db, user.id), // [RP-V7.298] Fan clubs: my club (if any) + the club memberships I hold
     liveTickets: rpLiveTicketSummary299(db, user.id), // [RP-V7.299] Ticketed lives: the tickets I hold + my door sales (count + earned)
+    shoutouts: rpShoutoutSummary300(db, user.id), // [RP-V7.300] Paid shoutouts: my offer + requests inbox (as creator) + my requests (as buyer)
     cashoutEligibility: { canCashOut: reasons.length === 0, reasons },
     connect,
     paymentsConfigured: stripeConfigured(),
@@ -13553,6 +13623,12 @@ app.get("/api/money/me", async (req, res) => {
     if (payload296.liveTickets) { // [RP-V7.299] ticket rows name their host the same way
       for (const t299 of payload296.liveTickets.tickets || [])
         if (!t299.hostName) t299.hostName = nameById296[t299.hostId] || null;
+    }
+    if (payload296.shoutouts) { // [RP-V7.300] shoutout rows name their other side the same way
+      for (const s300 of payload296.shoutouts.asBuyer || [])
+        if (!s300.creatorName) s300.creatorName = nameById296[s300.creatorId] || null;
+      for (const s300 of payload296.shoutouts.inbox || [])
+        if (!s300.buyerName) s300.buyerName = nameById296[s300.buyerId] || null;
     }
   } catch (e) { }
   res.json(payload296);
@@ -17221,6 +17297,417 @@ function ticketEvictRoom299(key, room, hostSocket) {
   }
 }
 
+// =====================================================================
+// [RP-V7.300] PAID SHOUTOUTS — earn-stream queue #6 (the pay sheet:
+// "Set your price for birthday shoutouts, song requests, and
+// advice"). The NEW part is an ESCROW state machine: the buyer pays
+// charms up front and the creator is credited NOTHING — the charms
+// sit in escrow as a `requested` record in money.json until the
+// creator FULFILLS by posting (any normal post — text, photo or
+// reel — created with the request id settles 70/30 through
+// GIFT_HOST_PCT into the creator's Earn wallet, ledger kind
+// "shoutout"; the buyer's spend row "shoutout-sent" is written at
+// purchase), DECLINES, or the request EXPIRES after 72 hours.
+// Decline and expiry refund the buyer in full as a ledger reversal.
+// Every transition flips the record's single `status` field under
+// the shared money lock, so the escrow can never settle twice or
+// settle after a refund — across restarts included (the records
+// live in money.json, never in memory). Teen corner mirrors gifts:
+// charms-only end to end (only the exempt @Popstar can reach it).
+// =====================================================================
+const SHOUTOUT_TIERS_300 = [250, 500, 1000, 2500, 5000];
+const SHOUTOUT_DEFAULT_PRICE_300 = 500;
+const SHOUTOUT_EXPIRY_MS_300 = 72 * 3600 * 1000; // 72 hours to fulfill
+const SHOUTOUT_NOTE_MAX_300 = 200;
+
+function shoutoutOffer300(db, creatorId) {
+  const o = (db.shoutoutOffers || {})[creatorId];
+  if (!o || typeof o !== "object")
+    return { on: false, priceCharms: SHOUTOUT_DEFAULT_PRICE_300, updatedAt: null };
+  return {
+    on: !!o.on,
+    priceCharms: SHOUTOUT_TIERS_300.includes(o.priceCharms) ? o.priceCharms : SHOUTOUT_DEFAULT_PRICE_300,
+    updatedAt: o.updatedAt || null,
+  };
+}
+function shoutoutPendingCount300(db, creatorId) {
+  let n = 0;
+  for (const k of Object.keys(db.shoutouts || {})) {
+    const r = db.shoutouts[k];
+    if (r && r.creatorId === creatorId && r.status === "requested") n++;
+  }
+  return n;
+}
+function shoutoutPublicRecord300(r) {
+  if (!r) return null;
+  return {
+    id: r.id, status: r.status, priceCharms: r.priceCharms,
+    note: r.note || "", createdAt: r.createdAt, expiresAt: r.expiresAt,
+    postId: r.postId || null, postKind: r.postKind || null,
+    settledAt: r.settledAt || null, refundedAt: r.refundedAt || null,
+    creatorId: r.creatorId, buyerId: r.buyerId,
+  };
+}
+// Earn-sheet summary (moneyMePayload + /api/shoutout/mine): my
+// offer + pending inbox as creator, my requests as buyer. Names are
+// filled by the callers from the account records (the V7.296
+// pattern — names ride responses, never stored summary rows).
+function rpShoutoutSummary300(db, userId) {
+  const offer = shoutoutOffer300(db, userId);
+  const asBuyer = [], inbox = [];
+  let earnedCents = 0;
+  for (const k of Object.keys(db.shoutouts || {})) {
+    const r = db.shoutouts[k];
+    if (!r) continue;
+    if (r.buyerId === userId)
+      asBuyer.push(Object.assign(shoutoutPublicRecord300(r), { creatorName: null }));
+    if (r.creatorId === userId) {
+      if (r.status === "requested")
+        inbox.push(Object.assign(shoutoutPublicRecord300(r), { buyerName: null }));
+      if (r.status === "fulfilled") earnedCents += Math.round(Number(r.shareCents) || 0);
+    }
+  }
+  asBuyer.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  inbox.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  return { offer, pendingCount: inbox.length, earnedCents, inbox: inbox.slice(0, 50), asBuyer: asBuyer.slice(0, 50) };
+}
+// Refund ONE escrowed request in full (decline or expiry): the
+// buyer's debit leg reverses — charms return to the exact balance
+// they were taken from (paidFrom) — and the reversal row negates
+// the purchase row cent-for-cent, so the ledger nets to zero. The
+// creator was never credited, so there is nothing to claw back.
+// Caller owns the write + the bells. The status gate is what makes
+// every refund exactly-once. Mutates db; returns refund info.
+function shoutoutRefundOne300(db, rec, reason) {
+  if (!rec || rec.status !== "requested") return null;
+  if (rec.paidFrom === "giftBal") {
+    if (!db.giftBals || typeof db.giftBals !== "object") db.giftBals = {};
+    db.giftBals[rec.buyerId] = (db.giftBals[rec.buyerId] || 0) + rec.priceCharms;
+  } else {
+    db.balances[rec.buyerId] = (db.balances[rec.buyerId] || 0) + rec.priceCharms;
+  }
+  const valueCents = rec.charmsOnly ? 0 : rec.priceCharms * CHARM_CENT_VALUE;
+  const cut = rec.charmsOnly ? 0 : valueCents - Math.floor((valueCents * GIFT_HOST_PCT) / 100);
+  moneyTx(db, { type: "shoutout-sent", from: rec.creatorId, to: rec.buyerId, charms: -rec.priceCharms, cents: -valueCents, cut: -cut, ref: rec.id + ":refund" });
+  rec.status = reason === "declined" ? "declined" : "expired";
+  rec.refundedAt = new Date().toISOString();
+  return { buyerId: rec.buyerId, priceCharms: rec.priceCharms, status: rec.status };
+}
+// Settle ONE request against a just-created post. Runs inside the
+// caller's money lock. The status gate is the whole exactly-once
+// story: a second post carrying the same id, or a post landing
+// after a refund, moves no money and stamps nothing. An expired
+// request settles nothing — it runs the refund transition instead
+// and the post still publishes as a normal post.
+function shoutoutTryFulfill300(db, adb, rec, post) {
+  if (!rec || rec.creatorId !== post.authorId) return { ok: false, error: "not-your-request" };
+  if (rec.status === "fulfilled") return { ok: false, error: "already-fulfilled" };
+  if (rec.status !== "requested") return { ok: false, error: "request-closed" };
+  if (Date.now() > Date.parse(rec.expiresAt)) {
+    shoutoutRefundOne300(db, rec, "expired");
+    return { ok: false, error: "request-expired", refunded: true, buyerId: rec.buyerId, priceCharms: rec.priceCharms };
+  }
+  let share = 0, cut = 0, held = false;
+  if (rec.charmsOnly) {
+    // Charms-only (teen corner): the creator is credited charms,
+    // never earnings — exactly like a charms-only gift settle.
+    db.balances[rec.creatorId] = (db.balances[rec.creatorId] || 0) + rec.priceCharms;
+  } else {
+    const valueCents = rec.priceCharms * CHARM_CENT_VALUE;
+    share = Math.floor((valueCents * GIFT_HOST_PCT) / 100);
+    cut = valueCents - share;
+    const earn = moneyEarningsFor(db, rec.creatorId);
+    if (valueCents >= LARGE_GIFT_HOLD_CENTS) {
+      earn.held.push({
+        cents: share,
+        unlockAt: new Date(Date.now() + HOLD_DAYS * 24 * 3600 * 1000).toISOString(),
+        reason: "large-shoutout",
+      });
+      held = true;
+    } else {
+      earn.availableCents += share;
+    }
+    earn.totalEarnedCents += share;
+  }
+  moneyTx(db, { type: "shoutout", from: rec.buyerId, to: rec.creatorId, charms: rec.priceCharms, cents: share, cut, charmsOnly: !!rec.charmsOnly, ref: rec.id });
+  rec.status = "fulfilled";
+  rec.settledAt = new Date().toISOString();
+  rec.postId = post.id;
+  rec.postKind = post.kind;
+  rec.shareCents = share;
+  rec.cutCents = cut;
+  return { ok: true, requestId: rec.id, shareCents: share, cutCents: cut, held, charmsOnly: !!rec.charmsOnly, priceCharms: rec.priceCharms, buyerId: rec.buyerId, buyerName: rec.buyerName || "" };
+}
+// Post-creation hook: a post created with a shoutoutId settles its
+// escrow here. Owns its own money lock (the post handlers are not
+// locked handlers). Resolves the settle result for the creation
+// response (or null when no id rode along). The CALLER stamps its
+// own post record on result.ok — stamping lives with each store.
+function shoutoutFulfillForPost300(ctx, post, shoutoutId) {
+  const id = String(shoutoutId || "").slice(0, 64);
+  if (!id) return Promise.resolve(null);
+  return withMoneyLock(() => {
+    const db = readMoney();
+    const rec = (db.shoutouts || {})[id];
+    if (!rec) return { ok: false, error: "request-not-found" };
+    const result = shoutoutTryFulfill300(db, ctx.db, rec, post);
+    if (result.ok || result.refunded) writeMoney(db);
+    return result;
+  }).then((result) => {
+    if (result && result.ok) {
+      const go = post.kind === "reel" ? { screen: "moments", reelId: post.id }
+        : post.kind === "photo" ? { screen: "moments", photoId: post.id }
+        : { screen: "home" };
+      try {
+        notifyActivity({
+          toId: result.buyerId, kind: "shoutout", actorId: ctx.user.id, actorName: ctx.user.name,
+          text: "\uD83D\uDCE3 " + ctx.user.name + " posted your shoutout \u2014 tap to see it!",
+          emailSubject: "Your shoutout is live on Rizz Plaza \uD83D\uDCE3",
+          emailText: ctx.user.name + " posted the shoutout you requested on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n\u2014 The Rizz Plaza team",
+          go,
+        });
+      } catch (e) { }
+      console.log("[shoutout] fulfilled", result.requestId, result.priceCharms, "charms | share", result.shareCents, "c", result.charmsOnly ? "| CHARMS-ONLY (teen involved)" : "");
+    } else if (result && result.refunded) {
+      try {
+        notifyActivity({
+          toId: ctx.user.id, kind: "shoutout", actorId: ctx.user.id, actorName: ctx.user.name,
+          text: "\u231B That shoutout request had already expired \u2014 the buyer was refunded in full, and your post went up as a normal post.",
+          go: { screen: "ownprofile" },
+        });
+      } catch (e) { }
+    }
+    return result;
+  }).catch((e) => {
+    console.error("[shoutout] fulfill failed:", e && e.message);
+    return { ok: false, error: "server-error" };
+  });
+}
+// The creator's offer: on/off + a ladder price. Price changes
+// apply to NEW requests — an escrowed request always settles at
+// the price it was bought at (the price rides the record).
+app.post("/api/shoutout/offer", lockedHandler("shoutout-offer", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  if (b.priceCharms !== undefined && !SHOUTOUT_TIERS_300.includes(Math.round(Number(b.priceCharms))))
+    return res.status(400).json({ ok: false, error: "bad-price" });
+  const db = readMoney();
+  const cur = shoutoutOffer300(db, ctx.user.id);
+  db.shoutoutOffers[ctx.user.id] = {
+    on: b.on !== undefined ? !!b.on : cur.on,
+    priceCharms: b.priceCharms !== undefined ? Math.round(Number(b.priceCharms)) : cur.priceCharms,
+    updatedAt: new Date().toISOString(),
+  };
+  writeMoney(db);
+  res.json({ ok: true, offer: shoutoutOffer300(db, ctx.user.id), pendingCount: shoutoutPendingCount300(db, ctx.user.id) });
+}));
+// Request a shoutout: the buyer's charms move into ESCROW now
+// (gift-pattern debit + idempotency); the creator is credited
+// nothing until they fulfill. The note is plain text, control
+// characters stripped, 200 chars max, escaped everywhere it
+// renders (it is only ever rendered, never trusted as markup).
+app.post("/api/shoutout/request", lockedHandler("shoutout-request", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const idemKey = String(b.idem || "").slice(0, 64);
+  const idemStoreKey = idemKey ? ctx.user.id + ":" + idemKey : null;
+  const db = readMoney();
+  if (idemStoreKey) {
+    const seen = db.shoutoutIdem[idemStoreKey];
+    if (seen && seen.response)
+      return res.json(Object.assign({}, seen.response, { deduped: true }));
+  }
+  const { recipient, toId, toName } = fanSubResolveCreator296(ctx, b);
+  if (!recipient) {
+    if ((toId && toId === ctx.user.id) || (toName && toName === ctx.user.name))
+      return res.status(400).json({ ok: false, error: "You can't request a shoutout from yourself" });
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  }
+  if (recipient.id === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't request a shoutout from yourself" });
+  // [RP-V7.263] A locked-out or pending-deletion account is
+  // de-listed everywhere — requesting from it resolves like
+  // tipping it.
+  if (accountLockedOut(recipient) || recipient.deletionAt)
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  const offer = shoutoutOffer300(db, recipient.id);
+  if (!offer.on)
+    return res.status(400).json({ ok: false, error: "shoutouts-off" });
+  const note = String(b.note || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, SHOUTOUT_NOTE_MAX_300);
+  const price = offer.priceCharms;
+  const buyerTeen = ageFromDob(ctx.user.dob) < 18;
+  const charmsOnly = buyerTeen || ageFromDob(recipient.dob) < 18;
+  const balance = db.balances[ctx.user.id] || 0;
+  let giftBal = (db.giftBals && db.giftBals[ctx.user.id]) || 0;
+  if (buyerTeen) {
+    if (giftBal < price)
+      return res.status(400).json({ ok: false, error: "insufficient-charms", message: "Earn or win charms to request a shoutout", balance, giftBal, needed: price });
+  } else if (balance < price) {
+    return res.status(400).json({ ok: false, error: "insufficient-charms", balance, giftBal, needed: price });
+  }
+  // ESCROW: debit the buyer now; credit the creator NOTHING.
+  // paidFrom remembers which balance a refund must return to.
+  let paidFrom;
+  if (buyerTeen) {
+    giftBal -= price;
+    db.giftBals[ctx.user.id] = giftBal;
+    paidFrom = "giftBal";
+  } else {
+    db.balances[ctx.user.id] = balance - price;
+    paidFrom = "balance";
+  }
+  const now = Date.now();
+  const id = "so" + now.toString(36) + crypto.randomBytes(3).toString("hex");
+  const valueCents = charmsOnly ? 0 : price * CHARM_CENT_VALUE;
+  const cut = charmsOnly ? 0 : valueCents - Math.floor((valueCents * GIFT_HOST_PCT) / 100);
+  moneyTx(db, { type: "shoutout-sent", from: ctx.user.id, to: recipient.id, charms: price, cents: valueCents, cut, ref: id });
+  const rec = {
+    id, buyerId: ctx.user.id, buyerName: ctx.user.name,
+    creatorId: recipient.id, creatorName: recipient.name,
+    priceCharms: price, note, status: "requested",
+    paidFrom, charmsOnly,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + SHOUTOUT_EXPIRY_MS_300).toISOString(),
+    postId: null, postKind: null, settledAt: null, refundedAt: null,
+    shareCents: 0, cutCents: 0,
+  };
+  db.shoutouts[id] = rec;
+  const response = {
+    ok: true, requestId: id, charged: price,
+    balance: db.balances[ctx.user.id] || 0, giftBal,
+    recipient: { id: recipient.id, name: recipient.name },
+    priceCharms: price, expiresAt: rec.expiresAt, charmsOnly,
+    request: shoutoutPublicRecord300(rec),
+  };
+  // The idempotency record lands in the SAME write as the debit
+  // (audit C6 pattern), so a retry can never slip between them.
+  if (idemStoreKey) {
+    db.shoutoutIdem[idemStoreKey] = { at: new Date().toISOString(), response };
+    const keys = Object.keys(db.shoutoutIdem);
+    if (keys.length > 400) {
+      keys.sort((a, b2) => String(db.shoutoutIdem[a].at).localeCompare(String(db.shoutoutIdem[b2].at)));
+      for (let i = 0; i < keys.length - 400; i++) delete db.shoutoutIdem[keys[i]];
+    }
+  }
+  writeMoney(db);
+  console.log("[shoutout] requested", id, price, "charms escrowed:", ctx.user.name, "->", recipient.name, charmsOnly ? "| CHARMS-ONLY (teen involved)" : "");
+  notifyActivity({
+    toId: recipient.id,
+    kind: "shoutout",
+    actorId: ctx.user.id,
+    actorName: ctx.user.name,
+    text: "\uD83D\uDCE3 " + ctx.user.name + " requested a shoutout \u2014 " + price.toLocaleString("en-US") + " charms are held in escrow. Post it within 72 hours to get paid!",
+    emailSubject: "You have a shoutout request on Rizz Plaza \uD83D\uDCE3",
+    emailText: ctx.user.name + " requested a shoutout from you on Rizz Plaza for " + price.toLocaleString("en-US") + " charms, held in escrow.\n\nPost the shoutout within 72 hours to get paid \u2014 after that the request expires and the buyer is refunded.\n\nOpen the Plaza: https://rizzplaza.com\n\n\u2014 The Rizz Plaza team",
+    go: { screen: "ownprofile" },
+  });
+  res.json(response);
+}));
+// Decline: full refund, bell to the buyer. Only the creator, only
+// while the request is still escrowed.
+app.post("/api/shoutout/decline", lockedHandler("shoutout-decline", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const id = String(b.requestId || "").slice(0, 64);
+  const db = readMoney();
+  const rec = (db.shoutouts || {})[id];
+  if (!rec || rec.creatorId !== ctx.user.id)
+    return res.status(404).json({ ok: false, error: "request-not-found" });
+  if (rec.status !== "requested")
+    return res.status(409).json({ ok: false, error: "request-closed", status: rec.status });
+  shoutoutRefundOne300(db, rec, "declined");
+  writeMoney(db);
+  notifyActivity({
+    toId: rec.buyerId,
+    kind: "shoutout",
+    actorId: ctx.user.id,
+    actorName: ctx.user.name,
+    text: "\uD83D\uDCE3 " + ctx.user.name + " couldn't do your shoutout \u2014 your " + rec.priceCharms.toLocaleString("en-US") + " charms were refunded in full.",
+    go: { screen: "ownprofile" },
+  });
+  res.json({ ok: true, requestId: id, status: rec.status, refunded: rec.priceCharms });
+}));
+app.get("/api/shoutout/status", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const { recipient } = fanSubResolveCreator296(ctx, { toId: req.query.creatorId, toName: req.query.name });
+  if (!recipient)
+    return res.status(404).json({ ok: false, resolved: false, error: "recipient-not-found" });
+  const db = readMoney();
+  const mine = [];
+  for (const k of Object.keys(db.shoutouts || {})) {
+    const r = db.shoutouts[k];
+    if (r && r.buyerId === ctx.user.id && r.creatorId === recipient.id)
+      mine.push(shoutoutPublicRecord300(r));
+  }
+  mine.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  res.json({
+    ok: true,
+    creator: { id: recipient.id, name: recipient.name },
+    offer: shoutoutOffer300(db, recipient.id),
+    isSelf: recipient.id === ctx.user.id,
+    pendingCount: shoutoutPendingCount300(db, recipient.id),
+    myRequests: mine.slice(0, 20),
+  });
+});
+app.get("/api/shoutout/mine", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readMoney();
+  const shoutouts = rpShoutoutSummary300(db, ctx.user.id);
+  try {
+    const nameById300 = {};
+    for (const u300 of (ctx.db && ctx.db.users) || [])
+      if (u300 && u300.id && u300.name) nameById300[u300.id] = u300.name;
+    for (const s300 of shoutouts.asBuyer || [])
+      if (!s300.creatorName) s300.creatorName = nameById300[s300.creatorId] || null;
+    for (const s300 of shoutouts.inbox || [])
+      if (!s300.buyerName) s300.buyerName = nameById300[s300.buyerId] || null;
+  } catch (e) { }
+  res.json(Object.assign({ ok: true, shoutouts }, shoutouts));
+});
+// Expiry sweep (boot + every 60s, registered at the bottom with
+// the other money timers): every still-escrowed request past its
+// 72h deadline refunds in full — exactly once, by the status gate —
+// with bells to BOTH sides. Escrow survives restarts untouched
+// because the records live in money.json; the boot run simply
+// catches anything that expired while the server was down.
+function shoutoutTick300() {
+  return withMoneyLock(() => {
+    const db = readMoney();
+    const now = Date.now();
+    const notices = [];
+    let n = 0;
+    for (const k of Object.keys(db.shoutouts || {})) {
+      const rec = db.shoutouts[k];
+      if (!rec || rec.status !== "requested") continue;
+      if (!(Date.parse(rec.expiresAt) <= now)) continue;
+      if (!shoutoutRefundOne300(db, rec, "expired")) continue;
+      n++;
+      notices.push({
+        toId: rec.buyerId, kind: "shoutout", actorId: rec.creatorId, actorName: rec.creatorName || "",
+        text: "\u231B Your shoutout request to " + (rec.creatorName || "the creator") + " expired \u2014 " + rec.priceCharms.toLocaleString("en-US") + " charms refunded in full.",
+        go: { screen: "ownprofile" },
+      });
+      notices.push({
+        toId: rec.creatorId, kind: "shoutout", actorId: rec.buyerId, actorName: rec.buyerName || "",
+        text: "\u231B " + (rec.buyerName || "A member") + "'s shoutout request expired unfulfilled \u2014 the escrowed charms were refunded.",
+        go: { screen: "ownprofile" },
+      });
+    }
+    if (n) {
+      writeMoney(db);
+      console.log("[shoutout] expiry sweep refunded " + n + " request(s)");
+    }
+    return notices;
+  }).then((notices) => {
+    for (const note of notices || []) { try { notifyActivity(note); } catch (e) { } }
+  }).catch((e) => { console.error("[shoutout] tick failed:", e && e.message); });
+}
+
 // RP-V7.22: Daily host rankings. A lightweight tally of charms gifted
 // per host per calendar day (America/New_York), credited from the
 // /api/money/gift path below - the money ledger stays the source of
@@ -17548,6 +18035,13 @@ function rpSalesStreams(mdb) {
   // the board always shows net); the host 70% and the platform's
   // 30% ride the recipient's "live-ticket" rows — the tip pattern.
   let ticketsVolumeCents = 0, ticketsCharms = 0, ticketsCreatorCents = 0, ticketsCutCents = 0, ticketsSold = 0;
+  // [RP-V7.300] Paid shoutouts: ESCROW means the buyer-side
+  // "shoutout-sent" rows are NOT volume (a request is a hold, not a
+  // sale — declined/expired requests refund and net to zero there).
+  // Volume is SETTLED sales only, so it rides the creator's
+  // "shoutout" rows, written once at fulfill: cents = creator 70%,
+  // cut = platform 30%, volume = cents + cut.
+  let shoutoutsVolumeCents = 0, shoutoutsCharms = 0, shoutoutsCreatorCents = 0, shoutoutsCutCents = 0;
   for (const tx of mdb.txlog || []) {
     if (!tx || typeof tx !== "object") continue;
     const c = Math.round(Number(tx.cents) || 0);
@@ -17565,8 +18059,9 @@ function rpSalesStreams(mdb) {
     else if (tx.type === "fan-club") { fanClubsCreatorCents += c; fanClubsCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.298]
     else if (tx.type === "ticket-sent") { ticketsVolumeCents += c; ticketsCharms += Math.round(Number(tx.charms) || 0); if ((Number(tx.charms) || 0) > 0) ticketsSold++; } // [RP-V7.299] a positive ticket-sent row is one ticket sold; refund rows are negative and never count
     else if (tx.type === "live-ticket") { ticketsCreatorCents += c; ticketsCutCents += Math.round(Number(tx.cut) || 0); } // [RP-V7.299]
+    else if (tx.type === "shoutout") { shoutoutsCreatorCents += c; shoutoutsCutCents += Math.round(Number(tx.cut) || 0); shoutoutsVolumeCents += c + Math.round(Number(tx.cut) || 0); shoutoutsCharms += Math.round(Number(tx.charms) || 0); } // [RP-V7.300] settled shoutouts only — escrow never reaches this row type
   }
-  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents, plazaStoreSalesCents, plazaStoreCutCents, profileTipsVolumeCents, profileTipsCharms, profileTipsCreatorCents, profileTipsCutCents, fanSubsVolumeCents, fanSubsCharms, fanSubsCreatorCents, fanSubsCutCents, fanClubsVolumeCents, fanClubsCharms, fanClubsCreatorCents, fanClubsCutCents, ticketsVolumeCents, ticketsCharms, ticketsCreatorCents, ticketsCutCents, ticketsSold }; // [RP-V7.240] // [RP-V7.294] + profile tips // [RP-V7.296] + fan subscriptions // [RP-V7.298] + fan clubs // [RP-V7.299] + ticketed lives
+  return { charmPacksCents, premiumSubsCents, giftsVolumeCents, auctionsVolumeCents, bizadsCents, plazaStoreSalesCents, plazaStoreCutCents, profileTipsVolumeCents, profileTipsCharms, profileTipsCreatorCents, profileTipsCutCents, fanSubsVolumeCents, fanSubsCharms, fanSubsCreatorCents, fanSubsCutCents, fanClubsVolumeCents, fanClubsCharms, fanClubsCreatorCents, fanClubsCutCents, ticketsVolumeCents, ticketsCharms, ticketsCreatorCents, ticketsCutCents, ticketsSold, shoutoutsVolumeCents, shoutoutsCharms, shoutoutsCreatorCents, shoutoutsCutCents }; // [RP-V7.240] // [RP-V7.294] + profile tips // [RP-V7.296] + fan subscriptions // [RP-V7.298] + fan clubs // [RP-V7.299] + ticketed lives // [RP-V7.300] + paid shoutouts
 }
 // [RP-V7.224] How many Business Ads subscriptions are active right now
 // (state-checked, so a lapsed sub never counts).
@@ -17838,7 +18333,21 @@ app.get("/api/owner/sales", (req, res) => {
   const s = rpSalesStreams(mdb);
   const storeCents = mdb.ownerStore && isFinite(Number(mdb.ownerStore.storeCents)) ? Math.round(Number(mdb.ownerStore.storeCents)) : null;
   const storeAsOf = storeCents === null ? null : (mdb.ownerStore.at || null);
-  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.profileTipsVolumeCents + s.fanSubsVolumeCents + s.fanClubsVolumeCents + s.ticketsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + s.plazaStoreSalesCents + (storeCents || 0); // [RP-V7.299] ticket volume counts in the total the same way // [RP-V7.298] fan-club volume counts in the total the same way // [RP-V7.240] Plaza Store gross sales count in the Plaza total like auctions volume // [RP-V7.294] profile-tip volume counts in the total like gift volume // [RP-V7.296] fan-subscription volume counts in the total the same way
+  const totalCents = s.charmPacksCents + s.premiumSubsCents + s.giftsVolumeCents + s.profileTipsVolumeCents + s.fanSubsVolumeCents + s.fanClubsVolumeCents + s.ticketsVolumeCents + s.shoutoutsVolumeCents + s.auctionsVolumeCents + s.bizadsCents + s.plazaStoreSalesCents + (storeCents || 0); // [RP-V7.300] SETTLED shoutout volume counts in the total; escrow-held charms never do // [RP-V7.299] ticket volume counts in the total the same way // [RP-V7.298] fan-club volume counts in the total the same way // [RP-V7.240] Plaza Store gross sales count in the Plaza total like auctions volume // [RP-V7.294] profile-tip volume counts in the total like gift volume // [RP-V7.296] fan-subscription volume counts in the total the same way
+  // [RP-V7.300] Shoutout escrow state: fulfilled count + what is
+  // held in escrow right now (records still "requested") — read off
+  // the request records, never the ledger, so an unsettled hold can
+  // never inflate a sales number.
+  let shoutoutsFulfilled300 = 0, shoutoutsEscrowCents300 = 0, shoutoutsEscrowCharms300 = 0;
+  for (const k300 of Object.keys(mdb.shoutouts || {})) {
+    const r300 = mdb.shoutouts[k300];
+    if (!r300) continue;
+    if (r300.status === "fulfilled") shoutoutsFulfilled300++;
+    else if (r300.status === "requested") {
+      shoutoutsEscrowCharms300 += Math.round(Number(r300.priceCharms) || 0);
+      if (!r300.charmsOnly) shoutoutsEscrowCents300 += Math.round(Number(r300.priceCharms) || 0) * CHARM_CENT_VALUE;
+    }
+  }
   const stepDollars = 10000, capDollars = 3000000;
   const totalDollars = totalCents / 100;
   const crossed = totalDollars >= stepDollars ? Math.min(capDollars, Math.floor(totalDollars / stepDollars) * stepDollars) : 0;
@@ -17869,6 +18378,13 @@ app.get("/api/owner/sales", (req, res) => {
       ticketsCreatorCents: s.ticketsCreatorCents, // [RP-V7.299]
       ticketsCutCents: s.ticketsCutCents, // [RP-V7.299]
       ticketsSold: s.ticketsSold, // [RP-V7.299] gross tickets sold (refunds never add)
+      shoutoutsVolumeCents: s.shoutoutsVolumeCents, // [RP-V7.300]
+      shoutoutsCharms: s.shoutoutsCharms, // [RP-V7.300]
+      shoutoutsCreatorCents: s.shoutoutsCreatorCents, // [RP-V7.300]
+      shoutoutsCutCents: s.shoutoutsCutCents, // [RP-V7.300]
+      shoutoutsFulfilled: shoutoutsFulfilled300, // [RP-V7.300] fulfilled requests, all time
+      shoutoutsEscrowCents: shoutoutsEscrowCents300, // [RP-V7.300] value held in escrow right now (adult requests only; charms-only holds carry no cents)
+      shoutoutsEscrowCharms: shoutoutsEscrowCharms300, // [RP-V7.300] charms held in escrow right now
       auctionsVolumeCents: s.auctionsVolumeCents,
       bizadsCents: s.bizadsCents, // [RP-V7.224]
       bizadsActive: rpBizAdsActiveCount(mdb), // [RP-V7.224]
@@ -19873,6 +20389,17 @@ if (fanClubTimer298.unref) fanClubTimer298.unref();
 // boot belongs to a live that no longer exists — refund them all
 // in full, once, at boot.
 try { ticketBootSweep299(); } catch (e) {}
+
+// [RP-V7.300] Paid shoutouts: the expiry sweep — once on boot,
+// then every 60s (the fan-sub / fan-club pattern). Escrow records
+// persist in money.json, so a restart settles/refunds nothing
+// early; the boot run only catches requests that expired while
+// the server was down.
+try { shoutoutTick300(); } catch (e) {}
+const shoutoutTimer300 = setInterval(() => {
+  try { shoutoutTick300(); } catch (e) {}
+}, 60 * 1000);
+if (shoutoutTimer300.unref) shoutoutTimer300.unref();
 
 
 
