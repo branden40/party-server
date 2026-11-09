@@ -2884,6 +2884,22 @@
       .pf-grid { gap: 3px; }
       .pf-tile { border-radius: 4px; overflow: hidden; }
     </style>
+  <script>/* [RP-V7.304] RPICO hoisted to the top of the document: the
+     canonical definition lives near the end of the file (V7.192), but
+     card renderers reference bare RPICO — on a slow parse (phone CPU)
+     a fetch can resolve and render before that late script runs, and
+     the render dies with "RPICO is not defined" (measured in the
+     perf rig at 4x CPU throttle, baseline AND fixed builds). Same
+     literal, assigned again by the V7.192 block when it runs. */
+  window.RPICO = {
+    heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="hf" d="M12 20.2C6.6 17 3.7 13.7 3.7 10.3c0-2.5 1.9-4.4 4.3-4.4 1.6 0 3.1.8 4 2.1.9-1.3 2.4-2.1 4-2.1 2.4 0 4.3 1.9 4.3 4.4 0 3.4-2.9 6.7-8.3 9.9z"/></svg>',
+    comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.5L7 19.2V15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><circle cx="8.4" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="15.6" cy="9.5" r="1" fill="currentColor" stroke="none"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.3 4.3 20 10.6l-6.7 6.3v-3.9c-4.9 0-7.9 1.5-9.8 4.4.2-6 3.3-10.1 9.8-10.6z"/></svg>',
+    repost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3.8 20.2 7 17 10.2"/><path d="M4.5 12.8v-1.6a3.7 3.7 0 0 1 3.7-3.7h11.5"/><path d="M7 20.2 3.8 17 7 13.8"/><path d="M19.5 11.2v1.6a3.7 3.7 0 0 1-3.7 3.7H4.3"/></svg>',
+    gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10.2" width="16" height="9.3" rx="1"/><path d="M3.8 6.9h16.4v3.3H3.8z"/><path d="M12 6.9v12.6"/><path d="M12 6.9c-2.3 0-3.8-1.1-3.8-2.6 0-1 .8-1.9 1.9-1.9 1.4 0 1.9 1.7 1.9 4.5zm0 0c2.3 0 3.8-1.1 3.8-2.6 0-1-.8-1.9-1.9-1.9-1.4 0-1.9 1.7-1.9 4.5z"/></svg>',
+    remix: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="12" height="11" rx="2.5"/><path d="M8.2 8V6.8A2.8 2.8 0 0 1 11 4h7.2A2.8 2.8 0 0 1 21 6.8v7.4a2.8 2.8 0 0 1-2.8 2.8H16"/><path d="M7.4 10.9l3.8 2.6-3.8 2.6z" fill="currentColor" stroke="none"/></svg>'
+  };
+  </script>
   <script>/* [RP-V7.99] Letter style: the saved choice paints from the first frame (the account restore re-confirms it after login). */
   (function(){try{var a=JSON.parse(localStorage.getItem("rpAcct.v1")||"null");var s=a&&a.settings&&a.settings.letterStyle;var ok={roman:1,royal:1,slab:1,blackletter:1,vintage:1,elegant:1,script:1,calligraphy:1,handwritten:1,signature:1,brush:1,bubble:1,comic:1,retro:1,arcade:1,display:1,condensed:1,typewriter:1,mono:1,outline:1,neon:1,techno:1,rounded:1,chunky:1,pirate:1,deco:1,marker:1,chalk:1,stencil:1,school:1,luxury:1};if(s&&ok[s])document.documentElement.setAttribute("data-font",s);}catch(e){}})();
   </script>
@@ -6201,13 +6217,22 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           syncUI();
         }
         function syncUI() {
+          /* [RP-V7.304] write only on change: updateLivePanel reaches
+             this via setLiveRoom→refresh on a fast cadence and used to
+             rewrite the track name + rebuild the mute icon ~13x/sec,
+             forever, on every screen. */
           var mn = $("musicName");
-          if (mn) mn.textContent = liveRoomSoft ? "🌙 Soft Piano" : trackById(trackNow()).name;
+          var nm304 = liveRoomSoft ? "🌙 Soft Piano" : trackById(trackNow()).name;
+          if (mn && mn.textContent !== nm304) mn.textContent = nm304;
           var mb = $("btnMute");
           if (mb) {
-            mb.innerHTML = !wantPlay
-              ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l6 5V4L7 9H3z" opacity=".55"/><path d="M16.2 8.6l5.2 5.2M21.4 8.6l-5.2 5.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>'
-              : '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l6 5V4L7 9H3z"/><path d="M16 8.8a4.4 4.4 0 0 1 0 6.4M18.4 6a8 8 0 0 1 0 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" fill="none"/></svg>';
+            var key304 = !wantPlay ? "off" : "on";
+            if (mb.__rp304Ui !== key304) {
+              mb.__rp304Ui = key304;
+              mb.innerHTML = !wantPlay
+                ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l6 5V4L7 9H3z" opacity=".55"/><path d="M16.2 8.6l5.2 5.2M21.4 8.6l-5.2 5.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>'
+                : '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l6 5V4L7 9H3z"/><path d="M16 8.8a4.4 4.4 0 0 1 0 6.4M18.4 6a8 8 0 0 1 0 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" fill="none"/></svg>';
+            }
             mb.classList.toggle("off", !wantPlay);
           }
         }
@@ -9313,10 +9338,31 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         Online.rafOn = true; Online.lastFrame = 0;
         requestAnimationFrame(onlineTick);
       }
+      /* [RP-V7.304] Figure class writes only on a real walking-state
+         change. The tick used to re-issue add/remove every frame;
+         in Blink/WebKit each redundant op still dirties the figure's
+         style and forces recalc of the room subtree (measured: 120
+         class writes/sec on the local figure while stationary). */
+      function figWalk304(el, walking, dancing) {
+        if (!el) return;
+        if (el.__w304 === walking) return;
+        el.__w304 = walking;
+        if (walking) { el.classList.add("walking"); el.classList.remove("idle"); }
+        else { el.classList.remove("walking"); if (!dancing) el.classList.add("idle"); }
+      }
       function onlineTick(t) {
         if (!Online.rafOn) return;
         requestAnimationFrame(onlineTick);
         if (Online.state !== "on") return;
+        /* [RP-V7.304] The movement loop's DOM writes run ONLY while
+           the online screen is the active one. Off-screen (Profile,
+           Reels, Home…) the loop kept rewriting figure classes and
+           styles every frame — the standing churn a member's taps
+           had to fight on a phone CPU. Server positions keep
+           tracking (tx/ty) and snap in on return; the loop's own
+           move-emit only matters while the floor is on screen. */
+        var scr304 = document.getElementById("screen-online");
+        if (!scr304 || !scr304.classList.contains("active")) { Online.lastFrame = t; return; }
         var dt = Online.lastFrame ? Math.min(80, t - Online.lastFrame) : 16;
         Online.lastFrame = t;
         var k = Math.min(1, dt / 90);
@@ -9328,7 +9374,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           Online.mx += mdx / mdist * step; Online.my += mdy / mdist * step;
           if (Online.meFig) {
             Online.meFig.style.left = Online.mx + "%"; Online.meFig.style.top = Online.my + "%";
-            Online.meFig.classList.add("walking"); Online.meFig.classList.remove("idle");
+            figWalk304(Online.meFig, true, Online.dancing);
           }
           var sx = Math.round(Online.mx * 8), sy = Math.round(Online.my * 6);
           if ((Math.abs(sx - Online.sentX) > 3 || Math.abs(sy - Online.sentY) > 3) && t - Online.lastEmit > 120 && Online.socket) {
@@ -9336,7 +9382,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             Online.socket.emit("move", { x: sx, y: sy });
           }
         } else if (Online.meFig) {
-          Online.meFig.classList.remove("walking"); if (!Online.dancing) Online.meFig.classList.add("idle");
+          figWalk304(Online.meFig, false, Online.dancing);
           var fsx = Math.round(Online.mx * 8), fsy = Math.round(Online.my * 6);
           if ((fsx !== Online.sentX || fsy !== Online.sentY) && Online.socket) {
             Online.sentX = fsx; Online.sentY = fsy;
@@ -9351,11 +9397,15 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           if (d > 0.08) {
             p.x += dx * k; p.y += dy * k;
             p.el.style.left = p.x + "%"; p.el.style.top = p.y + "%";
-            p.el.classList.add("walking"); p.el.classList.remove("idle");
+            figWalk304(p.el, true, p.dancing);
           } else {
             p.x = p.tx; p.y = p.ty;
-            p.el.style.left = p.x + "%"; p.el.style.top = p.y + "%";
-            p.el.classList.remove("walking"); if (!p.dancing) p.el.classList.add("idle");
+            /* [RP-V7.304] a stationary figure's position is written
+               once, not re-asserted every frame. */
+            var lx304 = p.x + "%", ly304 = p.y + "%";
+            if (p.el.__l304 !== lx304) { p.el.__l304 = lx304; p.el.style.left = lx304; }
+            if (p.el.__t304 !== ly304) { p.el.__t304 = ly304; p.el.style.top = ly304; }
+            figWalk304(p.el, false, p.dancing);
           }
         });
       }
@@ -20905,6 +20955,22 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         if (!card) return;
         var p = dpot.state;
         if (!p) { card.hidden = true; return; }
+        /* [RP-V7.304] Signature guard: dpotTickCountdown re-renders
+           this card every second, and the render rewrites ~17 nodes
+           (text, hidden flips, winners HTML, pot data attrs + style
+           transforms) whether anything changed or not. Every value
+           the render paints is in the signature, so an unchanged
+           second costs one string build and zero DOM writes; any
+           real change — a gift growing the pot, an entry, a streak,
+           the countdown text rolling over — changes the signature
+           and repaints exactly as before. */
+        var sig304 = [p.status, p.total, p.entriesCount, p.joined ? 1 : 0, p.tier || "", p.rolledIn || 0, p.seedPart || 0, p.matchCap || 0, p.streak || 0, p.statusNote || "",
+          (p.winners || []).map(function (w) { return (w.name || "") + ":" + (w.amount || 0); }).join(","),
+          p.presence ? [p.presence.minutes, p.presence.minutesQualified ? 1 : 0, p.presence.presentNow ? 1 : 0, p.presence.requiredMinutes || 0].join("/") : "",
+          p.yesterday ? [p.yesterday.status, p.yesterday.total || 0, (p.yesterday.winners || []).map(function (w) { return (w.name || "") + ":" + (w.amount || 0); }).join(",")].join("/") : "",
+          liveAcctToken() ? 1 : 0, dpotCountdownText()].join("~");
+        if (renderDailyPotCard._sig304 === sig304) return;
+        renderDailyPotCard._sig304 = sig304;
         // [RP-V7.75] the Daily Pot card is all-ages now — teens enter
         // free and claim their daily drop right on this card
         card.hidden = false;
@@ -46374,6 +46440,115 @@ html, body { overflow-x: clip; }
       document.querySelectorAll(".screen").forEach(function (sc) { mo267.observe(sc, { attributes: true, attributeFilter: ["class"] }); });
     } catch (e) { }
     window.__rp267Sweep = sweep267; // rig + diagnostics handle
+  })();
+  </script>
+
+  <script>
+  /* ============ [RP-V7.304] RAIL + PAGER MEDIA RELEASE ============
+     Perf sweep (Branden, Nov 8: a Live tap froze ~14s on his phone;
+     Reels still lagging). Measured on the staged live build: the two
+     Reels rails — #fbRailTiles243 on Home and #rpHomeRailTiles242 on
+     the Plaza — keep all 40 of their <video> elements loaded on
+     EVERY screen, forever. The Home rail's tiles promote to
+     preload=metadata (metadata + first frame fetched and decoded,
+     ~19 of 20 tiles) and nothing releases them when the member
+     leaves Home; the Plaza rail's 20 ride along the same way.
+     V7.257 covers #reelFeed and #homePager on screen changes, but
+     the pager can also be BUILT after the last screen change (it
+     fills while Home is landing), which left its 26 videos loaded
+     on screens that never show it.
+     This module extends the exact V7.257 stash protocol (same
+     __rp257Src / data-rp257src fields, so the modules interleave
+     safely — a double release or restore is a no-op) to both rails,
+     and enforces the invariant on content changes as well as screen
+     changes: a box's videos hold a src only while the box's own
+     screen is the active one. Restores run in the same observer
+     turn as the screen flip — before the rails' own entry timers
+     (their show hooks re-scan at +60/+200ms) — so previews and
+     posters return exactly as they left. Nothing is removed from
+     the DOM and no card is rebuilt. */
+  (function () {
+    "use strict";
+    var STASH = "__rp257Src";
+    function releaseBox(box) {
+      if (!box || !box.querySelectorAll) return;
+      box.querySelectorAll("video").forEach(function (v) {
+        try { if (!v.paused) v.pause(); } catch (e) { }
+        var s = null;
+        try { s = v.getAttribute("src"); } catch (e) { }
+        if (s) {
+          if (!v[STASH]) v[STASH] = s;
+          v.removeAttribute("src");
+          try { v.load(); } catch (e) { }
+        }
+        v.querySelectorAll("source").forEach(function (so) {
+          var ss = null;
+          try { ss = so.getAttribute("src"); } catch (e) { }
+          if (ss) {
+            if (!so.getAttribute("data-rp257src")) so.setAttribute("data-rp257src", ss);
+            so.removeAttribute("src");
+            try { v.load(); } catch (e) { }
+          }
+        });
+      });
+    }
+    function restoreBox(box) {
+      if (!box || !box.querySelectorAll) return;
+      box.querySelectorAll("video").forEach(function (v) {
+        if (v[STASH]) { var s = v[STASH]; v[STASH] = null; try { v.setAttribute("src", s); } catch (e) { } }
+        v.querySelectorAll("source[data-rp257src]").forEach(function (so) {
+          var ss = so.getAttribute("data-rp257src");
+          so.removeAttribute("data-rp257src");
+          if (ss) { try { so.setAttribute("src", ss); } catch (e) { } }
+        });
+      });
+    }
+    var BOXES = [
+      { id: "fbRailTiles243", screen: "screen-home243" },
+      { id: "rpHomeRailTiles242", screen: "screen-plaza" },
+      { id: "homePager", screen: "screen-plaza" }
+    ];
+    function watchBox304(b) {
+      /* #homePager is rebuilt by the home renderer — re-attach to
+         whichever element instance currently carries the id. */
+      var box = document.getElementById(b.id);
+      if (box && box !== b._el304) {
+        b._el304 = box;
+        try { new MutationObserver(schedule304).observe(box, { childList: true }); } catch (e) { }
+      }
+      return box;
+    }
+    function enforce304() {
+      var act = document.querySelector(".screen.active");
+      var aid = act ? act.id : "";
+      BOXES.forEach(function (b) {
+        var box = watchBox304(b);
+        if (!box) return;
+        if (aid === b.screen) restoreBox(box); else releaseBox(box);
+      });
+    }
+    var lastActive304 = null;
+    function onScreen304() {
+      var act = document.querySelector(".screen.active");
+      var id = act ? act.id : "";
+      if (id === lastActive304) return;
+      lastActive304 = id;
+      enforce304();
+    }
+    var sweepT304 = null;
+    function schedule304() {
+      if (sweepT304) return;
+      sweepT304 = setTimeout(function () { sweepT304 = null; try { enforce304(); } catch (e) { } }, 350);
+    }
+    if (window.MutationObserver) {
+      try {
+        var mo304 = new MutationObserver(onScreen304);
+        document.querySelectorAll(".screen").forEach(function (sc) { mo304.observe(sc, { attributes: true, attributeFilter: ["class"] }); });
+      } catch (e) { }
+      try { BOXES.forEach(function (b) { watchBox304(b); }); } catch (e) { }
+    }
+    setTimeout(function () { try { enforce304(); } catch (e) { } }, 2500);
+    window.__rp304MediaSync = enforce304; // rig + diagnostics handle
   })();
   </script>
 
