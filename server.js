@@ -936,6 +936,24 @@ console.log("[RP-V7.208] weekly gift art:", Object.keys(RP_GIFT_ART_7208).join("
   });
 });
 
+
+// [RP-V7.308] Weekly gifts (Nov 9, 2026) — ANIMATED ART for the five new
+// gifts, embedded base64 WebP (320x320, 40 frames, infinite loop) in the
+// sibling module giftart7308.js, served at /img/gifts/<id>.webp ahead of
+// express.static (same recipe as RP-V7.208). Their films
+// giftfx-<id>.mp4 ride Branden's guided GitHub upload into public/;
+// until they land, shows fall back to this animated art (never a still).
+const RP_GIFT_ART_7308 = require("./giftart7308.js");
+Object.keys(RP_GIFT_ART_7308).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7308[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+console.log("[RP-V7.308] weekly gift art:", Object.keys(RP_GIFT_ART_7308).join(", "));
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
@@ -13565,6 +13583,10 @@ const MONEY_GIFT_TABLE = {
   // $500, prestige — id + price mirror the client's GIFT_SHOP
   // exactly; the catalog is now 40 gifts.
   ascension: 50000,
+  // [RP-V7.308] +5 weekly gifts (Nov 9, 2026): fireflyjar 60 + seahorse 99 (small),
+  // skylanterns 450 + crystalfox 700 (medium), celestialstag 6000 (big) — ids + prices mirror
+  // the client's GIFT_SHOP exactly; the catalog is now 56 gifts.
+  fireflyjar: 60, seahorse: 99, skylanterns: 450, crystalfox: 700, celestialstag: 6000,
   // [RP-V7.208] +5 weekly gifts (Nov 2, 2026): honeybee 60 + bubblewand 99 (small),
   // peacock 450 + carousel 700 (medium), emeraldelephant 6000 (big) — ids + prices mirror
   // the client's GIFT_SHOP exactly; the catalog is now 50 gifts.
@@ -13634,6 +13656,11 @@ const MONEY_GIFT_INFO = {
   supernova: { name: "Rizz Supernova", tier: "prestige" },
   crownjewel: { name: "The Crown Jewel", tier: "prestige" },
   plazadiamond: { name: "Plaza Diamond", tier: "prestige" },
+  fireflyjar: { name: "Firefly Jar", tier: "small" },
+  seahorse: { name: "Bubble Seahorse", tier: "small" },
+  skylanterns: { name: "Sky Lanterns", tier: "medium" },
+  crystalfox: { name: "Crystal Fox", tier: "medium" },
+  celestialstag: { name: "Celestial Stag", tier: "big" },
 };
 // [RP-V7.250] The dollar-priced top ladder: the gifts the catalog
 // itself headlines by a dollar price (Rizz Supernova $750 · The Crown
