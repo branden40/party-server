@@ -29898,6 +29898,7 @@ function stageStreakBump(key, add) {
   function liveInfo() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
   function ptsOf(id) { if (!Bat.iAm) return id === Bat.aId ? (Bat.known ? Bat.known.ap : 0) : (Bat.known ? Bat.known.bp : 0); return id === myId() ? Bat.myPts : Bat.oppPts; }
   function batSyncProto() {
+    if (window.__rpBat306Managed && window.__rpBat306Managed()) return; // [RP-V7.306] the server syncs managed battles
     if (!window.rpProtoSend) return;
     var payload = { k: "bat", a: Bat.aId, an: String(Bat.aName || "").slice(0, 12), b: Bat.bId, bn: String(Bat.bName || "").slice(0, 12), ap: ptsOf(Bat.aId), bp: ptsOf(Bat.bId), e: Bat.endsAt };
     try { var x65 = window.rpBat65Sync ? window.rpBat65Sync({ aId: Bat.aId, bId: Bat.bId, me: myId() }) : null; if (x65) { payload.ts = x65.ts; if (x65.sw) payload.sw = x65.sw; if (x65.tm) payload.tm = x65.tm; } } catch (e) { }
@@ -29916,6 +29917,7 @@ function stageStreakBump(key, add) {
     }
   };
   function rpBatOnGift(o, fromId, fromName) {
+    if (window.__rpBat306Managed && window.__rpBat306Managed()) return; // [RP-V7.306] server scores settled gifts; no local tally
     if (!Bat.active || !Bat.iAm) return;
     if (o.to === myId()) {
       var add65 = o.v || 0;
@@ -29925,16 +29927,60 @@ function stageStreakBump(key, add) {
       batSyncProto(); rpBatRender();
     }
   }
-  function rpBatBegin(oppId, oppName, endsAt, iChallenged) {
+  function rpBatBegin(oppId, oppName, endsAt, iChallenged, battleId) {
     var me = myId(), myName = myProfileName();
     Bat.active = true; Bat.iAm = true; Bat.oppId = oppId; Bat.oppName = oppName; Bat.endsAt = endsAt; Bat.myPts = 0; Bat.oppPts = 0;
     Bat.lastOpp = { id: oppId, name: oppName };
     if (iChallenged) { Bat.aId = me; Bat.aName = myName; Bat.bId = oppId; Bat.bName = oppName; }
     else { Bat.aId = oppId; Bat.aName = oppName; Bat.bId = me; Bat.bName = myName; }
+    Bat.battleId306 = battleId || null; // [RP-V7.306]
+    try { if (window.rpBat306Begin) window.rpBat306Begin(battleId, Bat.aId, Bat.bId, endsAt); } catch (e) { }
     toast2("⚔️ BATTLE STARTED vs " + oppName + " — most gift points wins!", 3600);
     batSyncProto(); rpBatRender();
   }
+  /* [RP-V7.306] bridges the booster layer uses to keep this bar on
+     server numbers: pts arrive per payload (null = misted — the last
+     true value stays in the tally, the booster layer paints ??? over
+     the number), endsAt moves with Timer, and the final result is the
+     server's, not a local guess. */
+  window.__rpBat306SetPts = function (pl) {
+    if (!pl) return;
+    if (pl.endsAt) Bat.endsAt = pl.endsAt;
+    if (Bat.iAm) {
+      var mine = myId();
+      var mySidePts = pl.aId === mine ? pl.aPts : pl.bPts;
+      var oppSidePts = pl.aId === mine ? pl.bPts : pl.aPts;
+      if (typeof mySidePts === "number") Bat.myPts = mySidePts;
+      if (typeof oppSidePts === "number") Bat.oppPts = oppSidePts;
+    } else {
+      var prev = Bat.known || { ap: 0, bp: 0 };
+      Bat.known = { aId: pl.aId, aName: pl.aName || prev.aName || "Host", bId: pl.bId, bName: pl.bName || prev.bName || "Host", ap: (typeof pl.aPts === "number" ? pl.aPts : prev.ap || 0), bp: (typeof pl.bPts === "number" ? pl.bPts : prev.bp || 0), endsAt: pl.endsAt || prev.endsAt || 0 };
+      Bat.aId = pl.aId; Bat.bId = pl.bId; Bat.aName = pl.aName; Bat.bName = pl.bName; Bat.endsAt = pl.endsAt || Bat.endsAt;
+    }
+    rpBatRender();
+  };
+  window.__rpBat306Finalize = function (ap, bp, wName) {
+    if (Bat.iAm) {
+      var mine2 = myId();
+      Bat.myPts = Bat.aId === mine2 ? ap : bp;
+      Bat.oppPts = Bat.aId === mine2 ? bp : ap;
+      var winnerId = ap > bp ? Bat.aId : (bp > ap ? Bat.bId : "");
+      var st = { s: 0, w: 0 };
+      try { st = JSON.parse(localStorage.getItem("rpBatStreak") || '{"s":0,"w":0}'); } catch (e) { }
+      if (winnerId && winnerId === mine2) { st.s = (st.s || 0) + 1; st.w = (st.w || 0) + 1; }
+      else if (winnerId) { st.s = 0; }
+      try { localStorage.setItem("rpBatStreak", JSON.stringify(st)); } catch (e) { }
+      Bat.active = false;
+      rpBatShowResult(wName || "", ap, bp, Bat.aName, Bat.bName, true, st);
+    } else {
+      Bat.active = false;
+      rpBatShowResult(wName || "", ap, bp, Bat.aName, Bat.bName, false);
+    }
+    var bar = $("rpBatBar"); if (bar) bar.hidden = true;
+    Bat.known = null;
+  };
   function rpBatFinalize(fromRemote) {
+    if (window.__rpBat306Managed && window.__rpBat306Managed()) return; // [RP-V7.306] the server ends managed battles (battle306 -> __rpBat306Finalize)
     if (!Bat.active) return;
     Bat.active = false;
     var winnerId = Bat.myPts > Bat.oppPts ? myId() : (Bat.oppPts > Bat.myPts ? Bat.oppId : "");
@@ -29987,8 +30033,9 @@ function stageStreakBump(key, add) {
     nmB.textContent = (bp > ap ? "👑 " : "") + (bN || "Host");
     nmA.className = "bb-nm" + (ap > bp ? " lead" : "");
     nmB.className = "bb-nm" + (bp > ap ? " lead" : "");
-    $("bbPtA").textContent = Number(ap || 0).toLocaleString();
-    $("bbPtB").textContent = Number(bp || 0).toLocaleString();
+    var mask306 = null; try { mask306 = (window.__rpBat306Managed && window.__rpBat306Managed() && window.__rpBat306Masked) ? window.__rpBat306Masked() : null; } catch (e) { }
+    $("bbPtA").textContent = (mask306 && mask306.a) ? "???" : Number(ap || 0).toLocaleString();
+    $("bbPtB").textContent = (mask306 && mask306.b) ? "???" : Number(bp || 0).toLocaleString();
     var tot = (ap || 0) + (bp || 0), share = tot ? (ap / tot) * 100 : 50;
     share = Math.max(6, Math.min(94, share));
     $("bbFillA").style.width = share + "%";
@@ -30022,8 +30069,8 @@ function stageStreakBump(key, add) {
       } catch (e) { }
     } else if (m.t === "decline") { toast2((m.fromName || "That host") + " declined the battle.", 2600); }
     else if (m.t === "gone") { toast2("That host is no longer live.", 2600); }
-    else if (m.t === "accept") { rpBatBegin(m.from, m.fromName || "Host", m.endsAt, true); }
-    else if (m.t === "start") { rpBatBegin(m.from, m.fromName || "Host", m.endsAt, false); }
+    else if (m.t === "accept") { rpBatBegin(m.from, m.fromName || "Host", m.endsAt, true, m.battleId); }
+    else if (m.t === "start") { rpBatBegin(m.from, m.fromName || "Host", m.endsAt, false, m.battleId); }
     else if (m.t === "score") { if (Bat.active && m.from === Bat.oppId) { Bat.oppPts = m.pts || 0; batSyncProto(); rpBatRender(); } }
     else if (m.t === "end") { if (Bat.active) rpBatFinalize(true); }
   }
@@ -31444,6 +31491,7 @@ function stageStreakBump(key, add) {
 
   /* ---------------- tile scoring core ---------------- */
   function creditBattle(o, fromId, fromName) {
+    if (window.__rpBat306Managed && window.__rpBat306Managed()) return 0; // [RP-V7.306] server-scored battle: tiles stand down
     if (!o || o.fan || typeof o.v !== "number" || o.v <= 0) return 0;
     if (!battleActiveHere()) return 0;
     var host = sideHost(); if (!host) return 0;
@@ -37870,6 +37918,7 @@ button.rp72-chip{ cursor:pointer; }
     // untagged surface sends nothing and no source is recorded.
     var src233 = (opts && (opts.src === "picture" || opts.src === "video" || opts.src === "live")) ? opts.src : null;
     var body233 = { toName: targetName, giftId: g.id, charms: g.cents, count: cnt219, idem: idem };
+    try { var bid306 = (window.rpBattleId306 && window.rpBattleId306()) || null; if (bid306) body233.battleId = bid306; } catch (e) { } // [RP-V7.306] a gift sent during a server battle carries its id — the server scores settled gifts only
     if (src233) body233.src = src233;
     // [RP-V7.262] The post this gift was sent from rides along
     // (validated shape only; the server re-validates — the post
@@ -47206,6 +47255,207 @@ body.rp-light .store-tile .soldout { color: #d91f1f; }
 body.rp-light #rpSetDel span { color: #d91f1f !important; }
 body.rp-light #rpAcctDel { color: #d91f1f !important; }
 </style>
+<style>
+/* ================= RP-V7.306: battle boosters =================
+   Chips row + host tray + centre callouts for the server-run battle.
+   Lives are always dark by design; accent is the app red (V7.295). */
+#rpBoostChips306{ position:fixed; top:118px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; display:flex; gap:6px; flex-wrap:wrap; justify-content:center; pointer-events:none; }
+#rpBoostChips306 .bchip{ display:inline-flex; align-items:center; gap:5px; background:rgba(8,8,14,.85); border:1px solid rgba(255,255,255,.22); color:#fff; border-radius:99px; padding:3px 10px; font-size:11.5px; font-weight:800; backdrop-filter:blur(10px); }
+#rpBoostChips306 .bchip .cd{ color:#ffb3b3; font-variant-numeric:tabular-nums; }
+#rpBoostChips306 .bchip.mine{ border-color:#fe2c2c; box-shadow:0 0 10px rgba(254,44,44,.45); }
+#rpBoostChips306 .bchip.mission{ border-color:#ffd23c; color:#ffe9a8; }
+#rpBoostChips306 .bchip.frozen{ border-color:#7ac2ff; color:#cfe8ff; }
+#rpBoostTray306{ position:fixed; left:50%; transform:translateX(-50%); bottom:118px; width:min(620px,96vw); z-index:44; background:rgba(8,8,14,.88); border:1px solid rgba(254,44,44,.55); border-radius:14px; padding:8px 10px; color:#fff; backdrop-filter:blur(12px); }
+#rpBoostTray306 .bt-head{ font-size:11px; font-weight:900; letter-spacing:.06em; color:#ffb3b3; margin:0 2px 6px; }
+#rpBoostTray306 .bt-row{ display:flex; gap:6px; flex-wrap:wrap; }
+#rpBoostTray306 .bt-btn{ flex:1 1 30%; min-width:86px; border:1.5px solid rgba(255,255,255,.25); background:rgba(255,255,255,.07); color:#fff; border-radius:11px; padding:7px 4px; font-family:inherit; font-weight:800; font-size:12px; cursor:pointer; }
+#rpBoostTray306 .bt-btn .n{ display:block; font-size:10.5px; color:#ffb3b3; font-weight:900; margin-top:1px; }
+#rpBoostTray306 .bt-btn:disabled{ opacity:.38; cursor:default; }
+#rpBoostTray306 .bt-btn:not(:disabled):active{ background:rgba(254,44,44,.35); }
+#rpBoostCall306{ position:fixed; inset:0; z-index:46; display:none; align-items:center; justify-content:center; pointer-events:none; }
+#rpBoostCall306.on{ display:flex; }
+#rpBoostCall306 .bc-card{ background:rgba(8,8,14,.88); border:2px solid #fe2c2c; color:#fff; border-radius:18px; padding:16px 26px; text-align:center; font-weight:900; font-size:19px; box-shadow:0 18px 50px rgba(0,0,0,.6), 0 0 24px rgba(254,44,44,.4); animation:bcPop306 .3s ease; max-width:86vw; }
+#rpBoostCall306 .bc-card small{ display:block; font-size:12.5px; font-weight:700; color:#ffb3b3; margin-top:3px; }
+@keyframes bcPop306{ from{ transform:scale(.75); opacity:0; } to{ transform:scale(1); opacity:1; } }
+body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display:none; }
+</style>
+<script>
+/* ================= RP-V7.306: BATTLE BOOSTERS (client) =================
+   The server runs the battle (see server [RP-V7.306]): it creates the
+   record on accept, scores ONLY settled gifts, owns every effect and
+   the Bonus Mission, and broadcasts a mist-tailored state on the
+   "battle306" socket event to both rooms + both hosts. This layer:
+   - stands the legacy V5/V6.5 local tallies down while a server battle
+     is live (window.__rpBat306Managed, consulted by their gates),
+   - renders the chips row (effects + mission countdowns) under the
+     battle bar, the host's booster tray (stock from the server; tap
+     emits battle-boost; the server refuses 0-stock / guarded plays),
+   - paints centre callouts for the big moments and mirrors the
+     server's gift announcements into the room chat feed,
+   - keeps the legacy bar honest: host totals come from the server
+     payload, and a misted opponent score renders ??? (the real number
+     is never in this client's payload at all).
+   Boosters move battle points only — gift money is untouched. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function myId() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function sock() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function live() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function toast2(m, t) { try { if (window.toast) window.toast(m, t || 3000); } catch (e) { } }
+
+  var B = { id: null, active: false, aId: "", bId: "", aName: "", bName: "", endsAt: 0, aPts: 0, bPts: 0, aMasked: false, bMasked: false, youSide: null, effects: null, mission: null, stock: null, ended: null, lastShare: 50, boundSock: null, callTimer: 0 };
+  window.__rpBat306Managed = function () { return !!(B.id && B.active); };
+  window.__rpBat306Masked = function () { return { a: !!B.aMasked, b: !!B.bMasked }; };
+  window.rpBattleId306 = function () { return (B.id && B.active) ? B.id : null; };
+  // [RP-V7.306] fed by the V5 battle handler when a start/accept lands.
+  window.rpBat306Begin = function (battleId, aId, bId, endsAt) {
+    if (!battleId) return;
+    B.id = battleId; B.active = true; B.aId = aId || ""; B.bId = bId || ""; B.endsAt = endsAt || 0;
+    B.aPts = 0; B.bPts = 0; B.aMasked = false; B.bMasked = false; B.ended = null; B.lastShare = 50;
+    B.youSide = (aId && aId === myId()) ? "a" : ((bId && bId === myId()) ? "b" : null);
+    render306();
+  };
+
+  function isHost() { return !!B.youSide; }
+  function sideName(side) { return side === "a" ? (B.aName || "Host") : (B.bName || "Host"); }
+  function fmtCd(ms) { var s = Math.max(0, Math.ceil(ms / 1000)); return "0:" + String(s).padStart(2, "0"); }
+
+  function callout(main, sub) {
+    var ov = $("rpBoostCall306");
+    if (!ov) { ov = document.createElement("div"); ov.id = "rpBoostCall306"; document.body.appendChild(ov); }
+    ov.innerHTML = '<div class="bc-card">' + esc(main) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</div>";
+    ov.classList.add("on");
+    clearTimeout(B.callTimer);
+    B.callTimer = setTimeout(function () { ov.classList.remove("on"); }, 2400);
+  }
+  function feedLine(text) {
+    try {
+      var log = $("onlineChatLog"); if (!log) return;
+      var row = document.createElement("div");
+      row.className = "chat-row sys";
+      row.innerHTML = "<span>" + esc(text) + "</span>";
+      log.appendChild(row);
+      while (log.children.length > 60) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    } catch (e) { }
+  }
+
+  function render306() {
+    var chips = $("rpBoostChips306");
+    var show = !!(B.id && B.active && live() && live().active && document.body.classList.contains("live-fs"));
+    if (!show) {
+      if (chips) chips.style.display = "none";
+      var tr0 = $("rpBoostTray306"); if (tr0) tr0.style.display = "none";
+      return;
+    }
+    if (!chips) { chips = document.createElement("div"); chips.id = "rpBoostChips306"; document.body.appendChild(chips); }
+    chips.style.display = "flex";
+    var now = Date.now(), html = "";
+    ["a", "b"].forEach(function (side) {
+      var e = B.effects && B.effects[side]; if (!e) return;
+      var nm = esc(sideName(side));
+      var mine = B.youSide === side;
+      if (e.mist > 0) html += '<span class="bchip' + (mine ? " mine" : "") + '">🌫️ ' + nm + ' · Mist <span class="cd">' + fmtCd(e.mist) + "</span></span>";
+      if (e.gloves > 0) html += '<span class="bchip' + (mine ? " mine" : "") + '">🥊 ' + nm + ' · Gloves <span class="cd">' + fmtCd(e.gloves) + "</span></span>";
+      if (e.booster > 0) html += '<span class="bchip' + (mine ? " mine" : "") + '">⚡ ' + nm + ' · ×' + (e.boosterMult || 2) + ' <span class="cd">' + fmtCd(e.booster) + "</span></span>";
+      if (e.freeze > 0) html += '<span class="bchip frozen">🔨 ' + nm + ' · Frozen <span class="cd">' + fmtCd(e.freeze) + "</span></span>";
+    });
+    if (B.mission) {
+      if (B.mission.active) html += '<span class="bchip mission">🎁 Bonus Mission · First Gift ×3 <span class="cd">' + fmtCd(B.mission.endsAt - now) + "</span></span>";
+      else if (B.mission.opensAt > now && B.mission.opensAt < B.endsAt) html += '<span class="bchip mission">🎁 Bonus Mission soon…</span>';
+    }
+    chips.innerHTML = html;
+    // host tray
+    var tray = $("rpBoostTray306");
+    if (isHost()) {
+      if (!tray) { tray = document.createElement("div"); tray.id = "rpBoostTray306"; document.body.appendChild(tray); }
+      tray.style.display = "block";
+      var st = B.stock || { mist: 0, gloves: 0, boost2: 0, boost3: 0, hammer: 0, timer: 0 };
+      var e2 = B.effects && B.effects[B.youSide];
+      var left = B.endsAt - now;
+      function dis(item) {
+        if (!st[item]) return true;
+        if (left <= 5000 && item !== "timer") return true;
+        if (!e2) return false;
+        if (item === "mist" && e2.mist > 0) return true;
+        if (item === "gloves" && e2.gloves > 0) return true;
+        if ((item === "boost2" || item === "boost3") && e2.booster > 0) return true;
+        if (item === "timer" && e2.timerUsed) return true;
+        return false;
+      }
+      var btn = function (item, label) { return '<button type="button" class="bt-btn" data-boost306="' + item + '"' + (dis(item) ? " disabled" : "") + ">" + label + '<span class="n">× ' + (st[item] || 0) + "</span></button>"; };
+      var sig = JSON.stringify(st) + "|" + Math.floor(left / 1000) + "|" + (e2 ? [e2.mist > 0, e2.gloves > 0, e2.booster > 0, e2.timerUsed].join(",") : "");
+      if (tray.__sig !== sig) {
+        tray.__sig = sig;
+        tray.innerHTML = '<p class="bt-head">⚔️ YOUR BOOSTERS — EARNED, NEVER SOLD</p><div class="bt-row">' +
+          btn("mist", "🌫️ Mist") + btn("gloves", "🥊 Gloves") + btn("boost2", "⚡ ×2") + btn("boost3", "⚡ ×3") + btn("hammer", "🔨 Hammer") + btn("timer", "⏱️ +30s") + "</div>";
+        tray.querySelectorAll("[data-boost306]").forEach(function (bEl) {
+          bEl.addEventListener("click", function () {
+            var s = sock(); if (!s || !B.id) return;
+            s.emit("battle-boost", { battleId: B.id, item: bEl.getAttribute("data-boost306") });
+          });
+        });
+      }
+    } else if (tray) { tray.style.display = "none"; }
+    // bar honesty: masked score shows ??? — the true number was never sent here.
+    var pa = $("bbPtA"), pb = $("bbPtB");
+    if (pa && B.aMasked) pa.textContent = "???";
+    if (pb && B.bMasked) pb.textContent = "???";
+  }
+
+  function onState(p) {
+    if (!p || !p.battleId) return;
+    if (B.id && p.battleId !== B.id && !B.ended) return;
+    if (!B.id) { // a viewer (or a host whose begin we missed) adopts the battle
+      B.id = p.battleId; B.active = true;
+      B.youSide = (p.aId === myId()) ? "a" : ((p.bId === myId()) ? "b" : null);
+    }
+    B.aId = p.aId; B.bId = p.bId; B.aName = p.aName || B.aName; B.bName = p.bName || B.bName;
+    B.endsAt = p.endsAt || B.endsAt;
+    B.aMasked = (p.aPts === null); B.bMasked = (p.bPts === null);
+    if (p.aPts !== null && typeof p.aPts === "number") B.aPts = p.aPts;
+    if (p.bPts !== null && typeof p.bPts === "number") B.bPts = p.bPts;
+    B.effects = p.effects || B.effects;
+    B.mission = p.mission || null;
+    if (p.stock) B.stock = p.stock;
+    try { if (window.__rpBat306SetPts) window.__rpBat306SetPts(p); } catch (e) { }
+    var ev = p.ev;
+    if (ev && ev.kind === "gift") {
+      var multTxt = (ev.mults || []).indexOf("gloves5") >= 0 ? " · 🥊 GLOVES ×5!" : ((ev.mults || []).indexOf("firstgift3") >= 0 ? " · 🎁 First Gift ×3" : ((ev.mults || []).indexOf("boost3") >= 0 ? " · ⚡ ×3" : ((ev.mults || []).indexOf("boost2") >= 0 ? " · ⚡ ×2" : "")));
+      if ((ev.mults || []).indexOf("frozen") >= 0) feedLine("🔨 " + sideName(ev.side) + "'s gift landed but the freeze kept it at 0 points.");
+      else if (ev.pts > 0) feedLine("⚔️ " + (ev.fromName || "A fan") + "'s " + (ev.giftName || "gift") + " scored " + Number(ev.pts).toLocaleString() + " for " + sideName(ev.side) + multTxt);
+      if ((ev.mults || []).indexOf("gloves5") >= 0) callout("🥊 GLOVES ×5!", sideName(ev.side) + "'s gift just scored five times");
+      if (ev.dropItem && ev.dropSide === B.youSide && isHost()) toast2("🎁 A gift in your battle dropped a booster for you — check your tray!", 3600);
+    } else if (ev && ev.kind === "mist") { callout("🌫️ MIST!", sideName(ev.side) + "'s score is hidden for 30s"); feedLine("🌫️ " + sideName(ev.side) + " raised the Mist — their score is hidden."); }
+    else if (ev && ev.kind === "gloves") { callout("🥊 GLOVES ON!", sideName(ev.side) + " — gifts can land ×5 for 30s"); }
+    else if (ev && ev.kind === "booster") { callout("⚡ BOOSTER ×" + (ev.mult || 2) + "!", sideName(ev.side) + "'s gifts count ×" + (ev.mult || 2) + " for 30s"); }
+    else if (ev && ev.kind === "hammer") { callout("🔨 HAMMER HIT!", sideName(ev.oppSide) + " loses " + Number(ev.cut || 0).toLocaleString() + " points and is frozen 10s"); feedLine("🔨 " + sideName(ev.side) + "'s Hammer smashed " + Number(ev.cut || 0).toLocaleString() + " points off " + sideName(ev.oppSide) + " — frozen for 10s!"); }
+    else if (ev && ev.kind === "timer") { callout("⏱️ +30 SECONDS!", sideName(ev.side) + " extended the battle"); }
+    else if (ev && ev.kind === "mission-start") { callout("🎁 BONUS MISSION!", "First gift from each fan counts ×3 — 30 seconds!"); feedLine("🎁 BONUS MISSION is open — every fan's first gift counts ×3 for 30 seconds!"); }
+    else if (ev && ev.kind === "mission-end") { feedLine("🎁 Bonus Mission closed."); }
+    if (p.ended) {
+      B.ended = p.ended; B.active = false;
+      var wName = p.ended.winnerSide ? sideName(p.ended.winnerSide) : "";
+      if (ev && ev.kind === "end" && ev.awardItem && ev.awardSide === B.youSide && isHost()) toast2("🏆 You won a booster for winning the battle — it's in your tray stock!", 4200);
+      // legacy overlay reads local tallies; feed it the server's final numbers first.
+      try { if (window.__rpBat306Finalize) window.__rpBat306Finalize(p.ended.aPts, p.ended.bPts, wName); } catch (e) { }
+    }
+    render306();
+  }
+
+  setInterval(function () {
+    var s = sock();
+    if (s && B.boundSock !== s) {
+      B.boundSock = s;
+      try { s.on("battle306", onState); } catch (e) { }
+      try { s.on("battle-boost-ack", function (r) { if (r && !r.ok) toast2(r.error === "no-stock" ? "No boosters of that kind left — earn them in battles!" : (r.error === "already-active" ? "That boost is already running!" : (r.error === "timer-used" ? "Timer already used this battle." : (r.error === "too-late" ? "Too late — the battle is almost over!" : "That booster didn't play."))), 2600); }); } catch (e) { }
+    }
+    if (B.id) render306();
+  }, 600);
+})();
+</script>
 </body>
 </html>
 
