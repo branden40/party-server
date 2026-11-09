@@ -4823,7 +4823,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var liveOnlineOk = screenId === "screen-online" && typeof Online !== "undefined" && Online && rpIsLiveRoomId(Online.room); // [RP-V7.75] standing in a live room (Live Stage or a personal live) — all-ages for signed-in accounts, teens included
         if (!faithOk && !faithOnlineOk && RP_DOOR_18.indexOf(screenId) >= 0 && !rpAdultOk()) { rpDoorGate(doorAreaName(screenId), function () { show(screenId); }); return; }
         var screens = document.querySelectorAll(".screen");
-        for (var i = 0; i < screens.length; i++) screens[i].classList.remove("active");
+        for (var i = 0; i < screens.length; i++) if (screens[i].classList.contains("active")) screens[i].classList.remove("active"); /* [RP-V7.308] guarded remove: an absent-token remove still writes the class attribute in Blink and fans out to every screen class observer on every navigation tap */
         $(screenId).classList.add("active");
         if (window.rpSceneOnShow) window.rpSceneOnShow(screenId);
         var ahBtn = $("btnAuctionsHud"); if (ahBtn) ahBtn.style.display = screenId === "screen-online" ? "none" : "";
@@ -7087,7 +7087,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       $("btnLeave").addEventListener("click", function () { closeSheet(); show("screen-plaza"); });
       /* ================= Guest sheet ================= */
       function openSheet(html) { $("sheet").innerHTML = html; $("overlay").classList.add("open"); }
-      function closeSheet() { $("overlay").classList.remove("open"); currentGuest = null; AudioFX.setArcade(false); }
+      function closeSheet() { var _ov308 = $("overlay"); if (_ov308 && _ov308.classList.contains("open")) _ov308.classList.remove("open"); /* [RP-V7.308] guarded: redundant closes no longer fan out to every overlay observer */ currentGuest = null; AudioFX.setArcade(false); }
       $("overlay").addEventListener("click", function (e) { if (e.target === $("overlay")) closeSheet(); });
       /* [RP-V7.133] Gesture isolation for every sheet on #sheet
          (Branden, on the 🔔 Reminders sheet: a swipe on the sheet
@@ -21669,19 +21669,23 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         { id: "donut", art: "img/gifts/donut.webp", name: "Donut", icon: "🍩", cents: 30, tier: "small", fx: "float" },
         { id: "clap", art: "img/gifts/clap.webp", name: "Clap", icon: "👏", cents: 50, tier: "small", fx: "float" },
         { id: "heartburst", art: "img/gifts/heartburst.webp", name: "Heart Burst", icon: "💖", cents: 60, tier: "small", fx: "float" },
+        { id: "fireflyjar", art: "img/gifts/fireflyjar.webp", name: "Firefly Jar", icon: "✨", cents: 60, tier: "small", fx: "float" }, // [RP-V7.308] weekly gifts Nov 9, 2026
         { id: "honeybee", art: "img/gifts/honeybee.webp", name: "Honey Bee", icon: "🐝", cents: 60, tier: "small", fx: "float" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "thunderbolt", art: "img/gifts/thunderbolt.webp", name: "Thunderbolt", icon: "⚡", cents: 75, tier: "small", fx: "float" },
+        { id: "seahorse", art: "img/gifts/seahorse.webp", name: "Bubble Seahorse", icon: "🌊", cents: 99, tier: "small", fx: "float" }, // [RP-V7.308] weekly gifts Nov 9, 2026
         { id: "bubblewand", art: "img/gifts/bubblewand.webp", name: "Bubble Wand", icon: "🫧", cents: 99, tier: "small", fx: "float" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "fingerheart", art: "img/gifts/fingerheart.webp", name: "Finger Heart", icon: "🫰", cents: 99, tier: "small", fx: "float" },
         { id: "kiss", art: "img/gifts/kiss.webp", name: "Kiss", icon: "💋", cents: 100, tier: "small", fx: "float" },
         { id: "fireworks", art: "img/gifts/fireworks.webp", name: "Fireworks", icon: "🎆", cents: 200, tier: "medium", fx: "burst" },
         { id: "motorcycle", art: "img/gifts/motorcycle.webp", name: "Motorcycle", icon: "🏍️", cents: 300, tier: "medium", fx: "across" },
         { id: "goldgloves", art: "img/gifts/goldgloves.webp", name: "Gold Gloves", icon: "🥊", cents: 450, tier: "medium", fx: "burst" },
+        { id: "skylanterns", art: "img/gifts/skylanterns.webp", name: "Sky Lanterns", icon: "🏮", cents: 450, tier: "medium", fx: "rise" }, // [RP-V7.308] weekly gifts Nov 9, 2026
         { id: "peacock", art: "img/gifts/peacock.webp", name: "Peacock Fan", icon: "🦚", cents: 450, tier: "medium", fx: "burst" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "sportscar", art: "img/gifts/sportscar.webp", name: "Sports Car", icon: "🏎️", cents: 500, tier: "medium", fx: "across" },
         { id: "worldtree", art: "worldtree", name: "World Tree", icon: "🌳", cents: 500, tier: "medium", fx: "rise" }, // [RP-V7.199] +1 gift (Branden, Nov 1, 2026): World Tree $5, after Sports Car
         { id: "loveballoon", art: "img/gifts/loveballoon.webp", name: "Love Balloon", icon: "🎈", cents: 600, tier: "medium", fx: "rise" },
         { id: "guardianpalm", art: "img/gifts/guardianpalm.webp", name: "Guardian Palm", icon: "🖐️", cents: 700, tier: "medium", fx: "burst" },
+        { id: "crystalfox", art: "img/gifts/crystalfox.webp", name: "Crystal Fox", icon: "🦊", cents: 700, tier: "medium", fx: "across" }, // [RP-V7.308] weekly gifts Nov 9, 2026
         { id: "carousel", art: "img/gifts/carousel.webp", name: "Neon Carousel", icon: "🎠", cents: 700, tier: "medium", fx: "rise" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "airplane", art: "img/gifts/airplane.webp", name: "Airplane", icon: "✈️", cents: 800, tier: "medium", fx: "across" },
         { id: "moneygun", art: "img/gifts/moneygun.webp", name: "Money Gun", icon: "💸", cents: 999, tier: "medium", fx: "across" },
@@ -21698,6 +21702,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         { id: "rizzuniverse", art: "rizzuniverse", name: "Rizz Plaza Universe", icon: "🌐", cents: 5000, tier: "big", fx: "rizzuniverse" }, // [RP-V7.197] restored — V7.188 entry lost in the V7.189 stack
         { id: "starsurge", art: "img/gifts/starsurge.webp", name: "Star Surge", icon: "🌟", cents: 5500, tier: "big", fx: "burst" },
         { id: "diamonds", art: "img/gifts/diamonds.webp", name: "Diamond Shower", icon: "💎", cents: 6000, tier: "big", fx: "rain" },
+        { id: "celestialstag", art: "img/gifts/celestialstag.webp", name: "Celestial Stag", icon: "🦌", cents: 6000, tier: "big", fx: "rise" }, // [RP-V7.308] weekly gifts Nov 9, 2026
         { id: "emeraldelephant", art: "img/gifts/emeraldelephant.webp", name: "Emerald Elephant", icon: "🐘", cents: 6000, tier: "big", fx: "rise" }, // [RP-V7.208] weekly gifts Nov 2, 2026
         { id: "rocket", art: "img/gifts/rocket.webp", name: "Rocket", icon: "🚀", cents: 7500, tier: "big", fx: "launch" },
         { id: "ferriswheel", art: "img/gifts/ferriswheel.webp", name: "Ferris Wheel", icon: "🎡", cents: 9900, tier: "big", fx: "rise" },
@@ -21726,7 +21731,14 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
       // never a broken-image glyph.
       function giftImgHTML(g) {
         if (!g || !g.art) return (g && g.icon) || "🎁";
-        return '<img class="gift-img" src="' + g.art + '" alt="" onerror="this.parentNode.textContent=\'' + (g.icon || "🎁") + '\'">';
+        /* [RP-V7.308] onerror null-guard: when a gift's art fails AND the
+           <img> has already been detached (sheet re-render), the old
+           handler threw "Cannot set properties of null (setting
+           'textContent')" — one throw per failed gift, a 26-throw burst
+           on every gift-sheet open wherever art is missing (incl. gifts
+           whose films are not uploaded yet). Attached-node behaviour is
+           byte-identical: the emoji fallback still paints. */
+        return '<img class="gift-img" src="' + g.art + '" alt="" onerror="this.parentNode&&(this.parentNode.textContent=\'' + (g.icon || "🎁") + '\')">';
       }
       function moneyLabel(cents) {
         var neg = cents < 0; cents = Math.abs(Math.round(cents));
@@ -22617,16 +22629,18 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var live = liveEvent(), nx = nextEvent();
         var liveHol = activeHoliday();
         var chip = $("nextEventChip");
-        if (chip) {
-          if (liveHol) chip.innerHTML = "<b>" + liveHol.h.icon + " SPECIAL EVENT LIVE: " + escHtml(liveHol.h.event) + "</b> · +25% gift bonus · ends in <b>" + fmtCountdown(liveHol.end.getTime() - Date.now()) + "</b>";
-          else if (live) chip.innerHTML = "<b>" + live.ev.icon + " LIVE NOW: " + escHtml(live.ev.name) + "</b> · ends " + fmtClock(live.end);
-          else if (nx) chip.innerHTML = "Next party event: <b>" + nx.ev.icon + " " + escHtml(nx.ev.name) + "</b> · " + fmtDay(nx.start) + " " + fmtClock(nx.start) + " · starts in <b>" + fmtCountdown(nx.start.getTime() - Date.now()) + "</b>";
+        if (chip) { var _chipH308 = null; /* [RP-V7.308] rebuild only when the rendered string actually changes */
+          if (liveHol) _chipH308 = "<b>" + liveHol.h.icon + " SPECIAL EVENT LIVE: " + escHtml(liveHol.h.event) + "</b> · +25% gift bonus · ends in <b>" + fmtCountdown(liveHol.end.getTime() - Date.now()) + "</b>";
+          else if (live) _chipH308 = "<b>" + live.ev.icon + " LIVE NOW: " + escHtml(live.ev.name) + "</b> · ends " + fmtClock(live.end);
+          else if (nx) _chipH308 = "Next party event: <b>" + nx.ev.icon + " " + escHtml(nx.ev.name) + "</b> · " + fmtDay(nx.start) + " " + fmtClock(nx.start) + " · starts in <b>" + fmtCountdown(nx.start.getTime() - Date.now()) + "</b>";
+          if (_chipH308 !== null && chip.__ev308 !== _chipH308) { chip.__ev308 = _chipH308; chip.innerHTML = _chipH308; }
         }
         var box = $("nextEventBox");
-        if (box) {
-          if (liveHol) box.innerHTML = '<p style="margin:0; font-weight:700;">' + liveHol.h.icon + " <b>" + escHtml(liveHol.h.event) + '</b> is <span class="px-live-tag">LIVE</span> — hosts earn <b>+25%</b> on every gift, limited-time ' + escHtml(liveHol.h.name) + ' gifts are unlocked, and the top gift-getters win bonus charms when it ends · ends in <b>' + fmtCountdown(liveHol.end.getTime() - Date.now()) + "</b></p>";
-          else if (live) box.innerHTML = '<p style="margin:0; font-weight:700;">' + live.ev.icon + " <b>" + escHtml(live.ev.name) + '</b> is <span class="px-live-tag">LIVE</span> until ' + fmtClock(live.end) + ' — special effects are on in the live rooms!</p>';
-          else if (nx) box.innerHTML = '<p style="margin:0; font-weight:700;">' + nx.ev.icon + " <b>" + escHtml(nx.ev.name) + '</b><br/><span style="color:var(--ink-soft);">' + fmtDay(nx.start) + " at " + fmtClock(nx.start) + " · starts in <b>" + fmtCountdown(nx.start.getTime() - Date.now()) + '</b></span></p><p style="margin:6px 0 0; font-size:13px; color:var(--ink-soft); font-weight:600;">' + escHtml(nx.ev.desc) + "</p>";
+        if (box) { var _boxH308 = null; /* [RP-V7.308] */
+          if (liveHol) _boxH308 = '<p style="margin:0; font-weight:700;">' + liveHol.h.icon + " <b>" + escHtml(liveHol.h.event) + '</b> is <span class="px-live-tag">LIVE</span> — hosts earn <b>+25%</b> on every gift, limited-time ' + escHtml(liveHol.h.name) + ' gifts are unlocked, and the top gift-getters win bonus charms when it ends · ends in <b>' + fmtCountdown(liveHol.end.getTime() - Date.now()) + "</b></p>";
+          else if (live) _boxH308 = '<p style="margin:0; font-weight:700;">' + live.ev.icon + " <b>" + escHtml(live.ev.name) + '</b> is <span class="px-live-tag">LIVE</span> until ' + fmtClock(live.end) + ' — special effects are on in the live rooms!</p>';
+          else if (nx) _boxH308 = '<p style="margin:0; font-weight:700;">' + nx.ev.icon + " <b>" + escHtml(nx.ev.name) + '</b><br/><span style="color:var(--ink-soft);">' + fmtDay(nx.start) + " at " + fmtClock(nx.start) + " · starts in <b>" + fmtCountdown(nx.start.getTime() - Date.now()) + '</b></span></p><p style="margin:6px 0 0; font-size:13px; color:var(--ink-soft); font-weight:600;">' + escHtml(nx.ev.desc) + "</p>";
+          if (_boxH308 !== null && box.__ev308 !== _boxH308) { box.__ev308 = _boxH308; box.innerHTML = _boxH308; }
         }
         var chipEl = $("eventLiveChip"), scene = $("onlineScene");
         if (live) {
@@ -22641,8 +22655,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             }
           }
         } else {
-          if (chipEl) chipEl.classList.remove("show");
-          if (scene) scene.classList.remove("event-live");
+          if (chipEl && chipEl.classList.contains("show")) chipEl.classList.remove("show"); /* [RP-V7.308] guarded remove */
+          if (scene && scene.classList.contains("event-live")) scene.classList.remove("event-live"); /* [RP-V7.308] guarded remove */
           Party.liveEventKey = "";
         }
       }
@@ -28997,8 +29011,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
      it for the gift's emoji in place: never a broken-image glyph. Ids
      with no shipped art (holiday gifts, ad-hoc gifts) keep the drawn
      SVG art / orb they had. */
-  var GIFT_ART_IDS = { honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1, thankfulturkey: 1, harvestwreath: 1, pumpkinpie: 1 }; // [RP-V7.220] +3 Thanksgiving holiday art ids (name-resolved via HOL_ART_IDS; no films) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
-  var GIFT_ICONS = { honeybee: "🐝", bubblewand: "🫧", peacock: "🦚", carousel: "🎠", emeraldelephant: "🐘", worldtree: "🌳", rizzuniverse: "🌐", plazaape: "🦍", titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️", fattuesday: "🎭", thankfulturkey: "🦃", harvestwreath: "🌾", pumpkinpie: "🥧" }; // [RP-V7.220] +3 Thanksgiving fallback icons // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
+  var GIFT_ART_IDS = { fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1, thankfulturkey: 1, harvestwreath: 1, pumpkinpie: 1 }; // [RP-V7.220] +3 Thanksgiving holiday art ids (name-resolved via HOL_ART_IDS; no films) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
+  var GIFT_ICONS = { fireflyjar: "✨", seahorse: "🌊", skylanterns: "🏮", crystalfox: "🦊", celestialstag: "🦌", honeybee: "🐝", bubblewand: "🫧", peacock: "🦚", carousel: "🎠", emeraldelephant: "🐘", worldtree: "🌳", rizzuniverse: "🌐", plazaape: "🦍", titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️", fattuesday: "🎭", thankfulturkey: "🦃", harvestwreath: "🌾", pumpkinpie: "🥧" }; // [RP-V7.220] +3 Thanksgiving fallback icons // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
   window.rpGiftImgErr = function (img) {
     if (!img || !img.parentNode) return;
     var s = document.createElement("span");
@@ -29023,7 +29037,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1 }; // [RP-V7.221] +1 — giftfx-fattuesday.mp4 ships as a file drop into public/ (guided upload); until it lands, shows fall back to the animated art (never a still). // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
+  var GIFT_FILM_IDS = { fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1 }; // [RP-V7.221] +1 — giftfx-fattuesday.mp4 ships as a file drop into public/ (guided upload); until it lands, shows fall back to the animated art (never a still). // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
   window.rpGiftFilmIds = GIFT_FILM_IDS;
   window.rpGiftFilmUrl = function (id) { return window.rpResolveGiftFilm(id); };
   /* [RP-V7.81] EVENT-FILM RESOLVER + T-REX GRAND SHOW.
@@ -35373,7 +35387,7 @@ button.rp72-chip{ cursor:pointer; }
   function openConvMenu() {
     if (typeof window.openSheet !== "function") return;
     var ovMn = document.getElementById("overlay"); // [RP-V7.222] menu renders as a standard sheet
-    if (ovMn) ovMn.classList.remove("rpdm-full");
+    if (ovMn && ovMn.classList.contains("rpdm-full")) ovMn.classList.remove("rpdm-full"); /* [RP-V7.308] guarded remove */
     var html = '<h3 style="margin:4px 0">' + esc(conv.name) + "</h3>" +
       '<div class="btn-row" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:8px;">' +
       '<button type="button" class="btn-mini" id="rpDmViewProfile" style="padding:12px;">👤 View profile</button>' +
@@ -35424,7 +35438,7 @@ button.rp72-chip{ cursor:pointer; }
   function openDmReport() {
     if (typeof window.openSheet !== "function") return;
     var ovRp = document.getElementById("overlay"); // [RP-V7.222] report renders as a standard sheet
-    if (ovRp) ovRp.classList.remove("rpdm-full");
+    if (ovRp && ovRp.classList.contains("rpdm-full")) ovRp.classList.remove("rpdm-full"); /* [RP-V7.308] guarded remove */
     var html = '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
       '<div class="game-box" style="text-align:center;"><h3>Report ' + esc(conv.name) + "</h3>" +
       "<p>What's going on? Reports go straight to the Plaza team. You can also block this person from the conversation menu so messages stop right away.</p>" +
@@ -40226,7 +40240,7 @@ button.rp72-chip{ cursor:pointer; }
     var sc = $("screen-online");
     if (sc && sc.classList.contains("active") && sc.contains(e.target)) {
       idleAt = Date.now();
-      sc.classList.remove("rproom-idle");
+      if (sc.classList.contains("rproom-idle")) sc.classList.remove("rproom-idle"); /* [RP-V7.308] guarded remove */
     }
   }, true);
   setInterval(function () {
@@ -40236,7 +40250,7 @@ button.rp72-chip{ cursor:pointer; }
       var inp = $("rpRoomChatInput");
       var typing = !!(inp && document.activeElement === inp);
       if (overlay && !typing && Date.now() - idleAt >= 4000) sc.classList.add("rproom-idle");
-      else if (!overlay || typing) { sc.classList.remove("rproom-idle"); idleAt = Date.now(); }
+      else if (!overlay || typing) { if (sc.classList.contains("rproom-idle")) sc.classList.remove("rproom-idle"); /* [RP-V7.308] guarded: this 500 ms interval previously issued an absent-token remove on an element watched by four class observers */ idleAt = Date.now(); }
     } catch (e) { }
   }, 500);
 
@@ -41652,7 +41666,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     if (!postGateTap(function () { openPoster(); })) return;
     if (typeof window.openSheet !== "function") { toastS("Stories open from inside the Plaza app.", 3600); return; }
     var ov285 = document.getElementById("overlay"); // [RP-V7.285] the poster is a standard sheet: drop the full-screen DM mode the Inbox latches (same strip as the V7.222 conversation menu / report) — opened from the Inbox story row it otherwise renders jammed at the very top of the black full-screen sheet, its X up in the status bar
-    if (ov285) ov285.classList.remove("rpdm-full");
+    if (ov285 && ov285.classList.contains("rpdm-full")) ov285.classList.remove("rpdm-full"); /* [RP-V7.308] guarded remove */
     window.openSheet(
       '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
       '<div class="game-box" style="text-align:center;"><h3>🎬 Post to your story</h3>' +
@@ -47360,12 +47374,12 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
     var chips = $("rpBoostChips306");
     var show = !!(B.id && B.active && live() && live().active && document.body.classList.contains("live-fs"));
     if (!show) {
-      if (chips) chips.style.display = "none";
-      var tr0 = $("rpBoostTray306"); if (tr0) tr0.style.display = "none";
+      if (chips && chips.style.display !== "none") chips.style.display = "none"; // [RP-V7.308] guarded write (V7.226 law)
+      var tr0 = $("rpBoostTray306"); if (tr0 && tr0.style.display !== "none") tr0.style.display = "none"; // [RP-V7.308]
       return;
     }
     if (!chips) { chips = document.createElement("div"); chips.id = "rpBoostChips306"; document.body.appendChild(chips); }
-    chips.style.display = "flex";
+    if (chips.style.display !== "flex") chips.style.display = "flex"; // [RP-V7.308] guarded write
     var now = Date.now(), html = "";
     ["a", "b"].forEach(function (side) {
       var e = B.effects && B.effects[side]; if (!e) return;
@@ -47380,12 +47394,12 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
       if (B.mission.active) html += '<span class="bchip mission">🎁 Bonus Mission · First Gift ×3 <span class="cd">' + fmtCd(B.mission.endsAt - now) + "</span></span>";
       else if (B.mission.opensAt > now && B.mission.opensAt < B.endsAt) html += '<span class="bchip mission">🎁 Bonus Mission soon…</span>';
     }
-    chips.innerHTML = html;
+    if (chips.__sig308 !== html) { chips.__sig308 = html; chips.innerHTML = html; } // [RP-V7.308] signature guard: the 600ms battle tick rebuilt the chips every tick even when nothing changed
     // host tray
     var tray = $("rpBoostTray306");
     if (isHost()) {
       if (!tray) { tray = document.createElement("div"); tray.id = "rpBoostTray306"; document.body.appendChild(tray); }
-      tray.style.display = "block";
+      if (tray.style.display !== "block") tray.style.display = "block"; // [RP-V7.308] guarded write
       var st = B.stock || { mist: 0, gloves: 0, boost2: 0, boost3: 0, hammer: 0, timer: 0 };
       var e2 = B.effects && B.effects[B.youSide];
       var left = B.endsAt - now;
@@ -47412,11 +47426,11 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
           });
         });
       }
-    } else if (tray) { tray.style.display = "none"; }
+    } else if (tray && tray.style.display !== "none") { tray.style.display = "none"; } // [RP-V7.308] guarded write
     // bar honesty: masked score shows ??? — the true number was never sent here.
     var pa = $("bbPtA"), pb = $("bbPtB");
-    if (pa && B.aMasked) pa.textContent = "???";
-    if (pb && B.bMasked) pb.textContent = "???";
+    if (pa && B.aMasked && pa.textContent !== "???") pa.textContent = "???"; // [RP-V7.308] guarded write
+    if (pb && B.bMasked && pb.textContent !== "???") pb.textContent = "???"; // [RP-V7.308] guarded write
   }
 
   function onState(p) {
