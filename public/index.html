@@ -44233,9 +44233,10 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
   // [RP-V7.100] Notifications: 7 per-event switches x 3 per-channel
   // switches, all account-backed. SMS still only ever carries messages
   // + Daily Pot wins server-side; the "Text me" switch gates those.
-  var NOTIFY_KEYS = ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts", "liveinvites"]; // [RP-V7.129] // [RP-V7.138] + liveinvites
+  var NOTIFY_KEYS = ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts", "liveinvites", "signups"]; // [RP-V7.129] // [RP-V7.138] + liveinvites // [RP-V7.307] + signups (owner-only row below)
+  var rpOwnerVerdict307 = false, rpOwnerProbed307 = false; // [RP-V7.307] owner verdict for the signups row: probed once from an owner-gated route
   function defNotify() {
-    return { messages: true, follows: true, gifts: true, likes: true, comments: true, reposts: true, dailypot: true, liveinvites: true, channels: { inapp: true, email: true, sms: true } };
+    return { messages: true, follows: true, gifts: true, likes: true, comments: true, reposts: true, dailypot: true, liveinvites: true, signups: true, channels: { inapp: true, email: true, sms: true } };
   }
   var DEF = { letterStyle: "default", dmPrivacy: "everyone", notify: defNotify() };
   var cur = { letterStyle: DEF.letterStyle, dmPrivacy: DEF.dmPrivacy, notify: defNotify() };
@@ -44345,6 +44346,7 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
       togRow("comments", "✍️ Comments", cur.notify.comments) +
       togRow("reposts", "🔁 Reposts", cur.notify.reposts) +
       togRow("dailypot", "🪙 Daily Pot", cur.notify.dailypot) +
+      (rpOwnerVerdict307 ? togRow("signups", "🆕 New member signups", cur.notify.signups) : "") + // [RP-V7.307] owner-only: alerts when a new member joins
       '<p class="rp-set-sec">📣 Reach me by</p>' +
       chanRow("inapp", "🔔 In-app bell", cur.notify.channels.inapp, "") +
       chanRow("email", "📧 Email me", cur.notify.channels.email, "") +
@@ -44358,6 +44360,18 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
     window.openSheet(html);
     wireSettings(false);
     loadBlockedIntoSettings();
+    // [RP-V7.307] Probe the owner verdict once per page load so the
+    // signups row can appear for the owner (and never for anyone else).
+    if (!rpOwnerProbed307) {
+      rpOwnerProbed307 = true;
+      api("/api/owner/copyright", "GET").then(function (r) {
+        if (r.json && r.json.ok) {
+          rpOwnerVerdict307 = true;
+          var ov307 = document.getElementById("overlay");
+          if (ov307 && ov307.classList.contains("open") && document.querySelector("[data-notify]")) openSettings();
+        }
+      });
+    }
   }
   function wireSettings(teen) {
     var x = document.querySelector("#sheet [data-act=close]");
