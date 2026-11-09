@@ -21817,7 +21817,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         sheet.querySelectorAll("[data-hol]").forEach(function (b) {
           b.addEventListener("click", function () {
             var hg = live && live.h.gifts[parseInt(b.getAttribute("data-hol"), 10)];
-            if (hg) { if (selfPreview) { giftSelfNote(null); return; } var o219 = {}; for (var k in opts) o219[k] = opts[k]; o219.count = giftQty219; sendGift(targetId, targetName, { id: "hol", name: hg[0], icon: hg[1], cents: hg[2], tier: "big", fx: "burst" }, o219); }
+            if (hg) { if (selfPreview) { giftSelfNote(null); return; } var o219 = {}; for (var k in opts) o219[k] = opts[k]; o219.count = giftQty219; sendGift(targetId, targetName, { id: "hol", name: hg[0], icon: hg[1], cents: hg[2], tier: "big", fx: "burst", hol: (live && live.h && live.h.id) || "" }, o219); // [RP-V7.309] hol = the event this gift was picked from; the money layer derives the instance key from it + the gift name so the server can name the gift in the receiver's notice
+            }
           });
         });
         if (selfPreview) giftSelfNote(null); // [RP-V7.39] say it up front, before any tap
@@ -37922,7 +37923,17 @@ button.rp72-chip{ cursor:pointer; }
     // retry (a network retry of one tap still reuses its own key
     // while in flight and dedupes server-side by idem).
     var cnt219 = Math.max(1, Math.min(1000, ((opts && opts.count) | 0) || 1));
-    var sig = targetName + "|" + g.id + "|x" + cnt219 + ((opts && opts.__combo) ? "|t" + (++giftComboSeq) : "");
+    // [RP-V7.309] Holiday instance key: "<event>-<name slug>", derived
+    // from the sheet-stamped event (g.hol) and the gift's name — the
+    // server derives the identical key set from its own mirror of the
+    // HOLIDAYS gift lists and validates instance + price + live
+    // window before it will name the gift in the receiver's notice.
+    // The key also joins the attempt signature: every holiday gift
+    // shares the wire id "hol", so without it two DIFFERENT holiday
+    // gifts sent in quick succession would read as one attempt and
+    // the second would dedupe away instead of settling.
+    var holId309 = (g.id === "hol" && g.hol) ? (String(g.hol) + "-" + String(g.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) : null;
+    var sig = targetName + "|" + g.id + (holId309 ? "|" + holId309 : "") + "|x" + cnt219 + ((opts && opts.__combo) ? "|t" + (++giftComboSeq) : "");
     var idem = giftAttemptKey(sig);
     // [RP-V7.233] The send's SOURCE rides the ledger call so Earn
     // history can show where each gift came from. opts.src is tagged
@@ -37932,6 +37943,7 @@ button.rp72-chip{ cursor:pointer; }
     // untagged surface sends nothing and no source is recorded.
     var src233 = (opts && (opts.src === "picture" || opts.src === "video" || opts.src === "live")) ? opts.src : null;
     var body233 = { toName: targetName, giftId: g.id, charms: g.cents, count: cnt219, idem: idem };
+    if (holId309) body233.holId = holId309; // [RP-V7.309] named holiday send (absent = the pre-309 wire, which settles generic)
     try { var bid306 = (window.rpBattleId306 && window.rpBattleId306()) || null; if (bid306) body233.battleId = bid306; } catch (e) { } // [RP-V7.306] a gift sent during a server battle carries its id — the server scores settled gifts only
     if (src233) body233.src = src233;
     // [RP-V7.262] The post this gift was sent from rides along
