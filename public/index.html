@@ -9935,6 +9935,15 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption, fi241.postId); });
         var rb241 = sheet241.querySelector(".pp-repost"); if (rb241) rb241.addEventListener("click", function () { photoRepostToggle123(fi241, rb241); });
         var db243 = sheet241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/photo/" + encodeURIComponent(it.id)).then(function (ok) { if (ok) rpAfterDel243((post && post.kind === "text") ? "Post deleted" : "Photo deleted"); else /* [RP-V7.278] text-aware delete toast */ { try { toast("Couldn't delete that photo."); } catch (e) { } } }); }); });
+        // [RP-V7.301] This sheet IS a full view of the post — count
+        // it for the Creator Pool through the same ping the media
+        // lightbox uses (fire-and-forget, no counter lives here).
+        // Locked and text posts never fire; the server refuses both
+        // regardless.
+        try {
+          if (window.rpViewsPing && !it.locked && !(post && post.locked) && !(post && post.kind === "text"))
+            window.rpViewsPing("photopost", it.id, null, null);
+        } catch (e) { }
       }
       function rpProfOpen86(j, it, upd) {
         if (it.kind === "photopost") { rpOpenPhotoPost86(j, it); return; }
@@ -36817,10 +36826,21 @@ button.rp72-chip{ cursor:pointer; }
     wireSheetClose();
     rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
     var span = document.querySelector("[data-rpvcount]");
-    rpViewsPing("photo", it.id, it.owner, function (n) {
-      if (span) span.textContent = "👁 " + fmtViews(n);
-      if (upd) upd(n);
-    });
+    if (it.kind === "photopost") {
+      // [RP-V7.301] Photo posts ping their own kind — the server
+      // records the view (signed-in members, gates mirrored) for the
+      // Creator Pool. Text posts never ping (no photo to view). The
+      // lightbox's own 👁 span takes the server's number, exactly as
+      // it does for gallery photos; the grid tile's upd is NOT fed —
+      // profile tiles carry ❤ likes in that slot (RP-V7.86), never
+      // a view count, so no tile label changes.
+      if (!it.textPost) rpViewsPing("photopost", it.id, null, function (n) { if (span) span.textContent = "👁 " + fmtViews(n); });
+    } else {
+      rpViewsPing("photo", it.id, it.owner, function (n) {
+        if (span) span.textContent = "👁 " + fmtViews(n);
+        if (upd) upd(n);
+      });
+    }
   }
   window.rpViewsOpenPhoto = openPhoto;
   function openReel(it, upd) {
