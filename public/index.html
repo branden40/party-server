@@ -864,6 +864,17 @@
       .pd-back { position: absolute; top: 10px; left: 12px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: #26262e; color: #fff; font-size: 24px; line-height: 1; cursor: pointer; z-index: 3; }
       .rp-metaline156 { display: flex; gap: 12px; flex-wrap: wrap; margin: 2px 0 4px; font-size: 13px; font-weight: 700; color: #e8e8ee; }
       .rp-shout300 { color: #ffd75e; font-weight: 800; } /* [RP-V7.300] fulfilled-shoutout marker chip (rides postMetaLineHtml156 on every card surface) */
+      /* [RP-V7.303] Who watched: the author's 👁 count becomes a door (same text, same place — just tappable); the sheet's viewer rows. Sheet colours ride the theme vars, so both modes match. */
+      .rpwho-tap303 { cursor: pointer; }
+      .rpwho-list303 { display: flex; flex-direction: column; margin-top: 4px; }
+      .rpwho-row303 { display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-bottom: 1px solid rgba(127,127,127,.28); }
+      .rpwho-row303:last-child { border-bottom: none; }
+      .rpwho-av303 { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex: none; background: rgba(127,127,127,.25); }
+      .rpwho-init303 { width: 38px; height: 38px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 800; background: rgba(127,127,127,.25); color: var(--ink); }
+      .rpwho-meta303 { flex: 1; min-width: 0; text-align: left; }
+      .rpwho-meta303 b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .rpwho-meta303 span { display: block; font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .rpwho-when303 { font-size: 12px; color: var(--ink-soft); flex: none; }
       .rp-metaline156 a { text-decoration: none; }
       .hp-actions { position: absolute; right: 8px; bottom: 20px; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 17px; } /* [RP-V7.150] photo slides use .hp-actions — it never had positioning, so photo buttons piled at the top-left (Branden's circled screenshot, Oct 30); now they ride the same bottom rail as video posts */
       .hp-ava { position: relative; background: none; border: none; cursor: pointer; padding: 0; margin-bottom: 2px; }
@@ -10313,6 +10324,24 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             if (vspan) vspan.textContent = "👁 " + window.fmtViews(n);
             if (meta.onCount) meta.onCount(n);
           });
+        }
+        // [RP-V7.303] your own reel in the profile player: the 👁
+        // count opens Who watched (Feed posts never wire).
+        // Authorship is tested against the session record
+        // (rpAcct.v1) — fi241.mine compares meta.owner to
+        // Online.myId, which is the socket id and never an
+        // account id, so it cannot be the test here.
+        if (meta && meta.id && !meta.feedPost && meta.owner && window.rpWhoWatchedWire303) {
+          var pm303 = false;
+          try {
+            var pa303 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null");
+            var pid303 = pa303 && ((pa303.user && pa303.user.id) || pa303.userId || pa303.id);
+            pm303 = !!pid303 && String(meta.owner) === String(pid303);
+          } catch (e) { }
+          if (pm303) {
+            var wspan303 = $("sheet").querySelector("[data-rpvcount]");
+            if (wspan303) window.rpWhoWatchedWire303(wspan303, "reel", meta.id, null);
+          }
         }
       }
       function openOnlineReport(p) {
@@ -25453,6 +25482,21 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           videoHtml = '<video loop playsinline muted preload="metadata"></video>';
         }
         var canRemix = item.server ? (item.allowRemix !== false || item.mine) : true;
+        // [RP-V7.303] Who watched keys on AUTHORSHIP (the server
+        // payload's authorId vs my account id — the same test the
+        // lightbox uses), NOT on item.mine: in this feed "mine"
+        // means "posted from this device" (local meta serverIds),
+        // so an author on a fresh device would never see the door
+        // on their own reels. The account id is read from the
+        // session record (rpAcct.v1) like everywhere else in this
+        // module — window.rpMyId() is the SOCKET id, not the
+        // account id, and can never match an authorId.
+        var whoMine303 = false;
+        try {
+          var wa303 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null");
+          var myId303 = wa303 && ((wa303.user && wa303.user.id) || wa303.userId || wa303.id);
+          whoMine303 = !!(item.server && item.authorId && myId303 && String(item.authorId) === String(myId303));
+        } catch (e) { }
         card.innerHTML =
           videoHtml +
           '<button class="reel-mute" type="button" aria-label="Mute or unmute"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"m15.8 9.8 4.7 4.7M20.5 9.8l-4.7 4.7\"/></svg></button>' +
@@ -25474,7 +25518,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
             /* [RP-V7.106] Branden: "Move the icons" — the 👁 views moved
                from the bottom-left onto the rail. [RP-V7.107] the 😊
                reactions that rode along are removed everywhere. */
-            '<span class="reel-views" data-rpviews="' + escHtml(item.id) + '">👁 ' + (window.fmtViews ? window.fmtViews(item.views || 0) : (item.views || 0)) + "</span>" +
+            '<span class="reel-views" data-rpviews="' + escHtml(item.id) + '"' + (whoMine303 ? ' data-rpwho303="1"' : "") + '>👁 ' + (window.fmtViews ? window.fmtViews(item.views || 0) : (item.views || 0)) + "</span>" + /* [RP-V7.303] your own server reel carries the Who watched marker (wired below); everyone else's span is byte-identical */
           "</div>" +
           '<div class="reel-progress"><div class="reel-progress-track"><div class="reel-progress-fill"></div></div></div>';
         var vMine = card.querySelector('[data-rv="mine"]') || card.querySelector("video");
@@ -25783,6 +25827,8 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           var on = (typeof isFollowingName === "function") ? isFollowingName(item.author) : fb.classList.contains("on");
           fb.classList.toggle("on", on); fb.textContent = on ? "✓" : "＋";
         });
+        var wv303 = card.querySelector("[data-rpwho303]"); // [RP-V7.303] your own reel: the 👁 count opens Who watched
+        if (wv303 && window.rpWhoWatchedWire303) window.rpWhoWatchedWire303(wv303, "reel", item.id, null);
         card.querySelector(".reel-meta").addEventListener("click", function (e) {
           var t = e.target;
           if (t && t.classList && t.classList.contains("reel-tag")) {
@@ -36857,6 +36903,10 @@ button.rp72-chip{ cursor:pointer; }
     wireSheetClose();
     rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
     var span = document.querySelector("[data-rpvcount]");
+    // [RP-V7.303] your own photo / photo post: the 👁 count opens
+    // Who watched. Text posts never wire (no photo, no view list).
+    if (span && !it.textPost && window.rpWhoWatchedWire303 && lbMine241(it.owner || null, it.ownerName || ""))
+      window.rpWhoWatchedWire303(span, it.kind === "photopost" ? "photopost" : "photo", it.id, it.owner || null);
     if (it.kind === "photopost") {
       // [RP-V7.301] Photo posts ping their own kind — the server
       // records the view (signed-in members, gates mirrored) for the
@@ -36904,6 +36954,10 @@ button.rp72-chip{ cursor:pointer; }
     if (vid254 && it.crMuted) { vid254.muted = true; vid254.volume = 0; vid254.addEventListener("volumechange", function () { if (!vid254.muted) { vid254.muted = true; vid254.volume = 0; } }); } // [RP-V7.286] the native controls cannot unmute a copyright-muted video
     rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
     var span = document.querySelector("[data-rpvcount]");
+    // [RP-V7.303] your own reel: the 👁 count opens Who watched
+    // (Feed posts never wire — their views are not reel records).
+    if (span && !it.feedPost && window.rpWhoWatchedWire303 && lbMine241(it.owner || null, it.ownerName || ""))
+      window.rpWhoWatchedWire303(span, "reel", it.id, null);
     rpViewsPing("reel", it.id, null, function (n) {
       if (span) span.textContent = "👁 " + fmtViews(n);
       if (upd) upd(n);
@@ -38659,6 +38713,79 @@ button.rp72-chip{ cursor:pointer; }
       }
     } catch (e) { }
   })();
+
+  /* ---------- [RP-V7.303] Who watched: viewer lists for creators ---------- */
+  // Branden (Nov 8): "Show me who looked at my videos along with
+  // who gifted me." Gifters already ride the Earn sheet (RP-V7.232
+  // sender labels); this is the other half. The server has always
+  // recorded WHO viewed (the one-person-once seen stamps behind
+  // every 👁 count) but never listed them; GET /api/media/viewers
+  // serves the list to the item's AUTHOR only. The surfaces that
+  // show a 👁 count make it tappable on the author's own items —
+  // the Reels feed card, the media lightbox (photo posts, gallery
+  // photos, reels) and the profile reel player wire their count
+  // through rpWhoWatchedWire303 when the item is theirs. For
+  // everyone else the count renders exactly as before: display
+  // only, no handler, no visual change.
+  function rpWhoDay303(day) {
+    // View stamps are America/New_York calendar days
+    // ("YYYY-MM-DD") — day precision is all the record holds
+    // (RP-V7.162), so the label is day-shaped too.
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ""));
+    if (!m) return "";
+    var then = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var d = Math.round((today - then) / 86400000);
+    if (d <= 0) return "Today";
+    if (d === 1) return "Yesterday";
+    if (d < 7) return d + "d ago";
+    try { return then.toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch (e) { return String(day); }
+  }
+  window.rpWhoWatchedOpen303 = function (kind, id, owner) {
+    if (!id) return;
+    var html =
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">👁 Who watched</h3>' +
+      '<div id="rpWhoBody303"><p style="text-align:center; color:var(--ink);">Loading…</p></div></div>';
+    if (!sheetOpen(html)) return;
+    var q = "kind=" + encodeURIComponent(kind) + "&id=" + encodeURIComponent(id) + (owner ? "&owner=" + encodeURIComponent(owner) : "");
+    api("/api/media/viewers?" + q, "GET").then(function (r) {
+      var body = $("rpWhoBody303"); if (!body) return; // sheet moved on
+      var j = r.json;
+      if (!j || !j.ok) { body.innerHTML = '<p style="text-align:center; color:var(--ink);">That list isn\'t available right now.</p>'; return; }
+      var total = j.total || 0;
+      var viewers = j.viewers || [];
+      var out = '<p style="text-align:center; color:var(--ink);"><b>' + total.toLocaleString("en-US") + '</b> view' + (total === 1 ? "" : "s") + '</p>';
+      if (!viewers.length) {
+        out += '<p style="text-align:center; color:var(--ink);">' + (total > 0 ? "No member views to list yet." : "No views yet — share it and the first watchers will show up here.") + '</p>';
+      } else {
+        out += '<div class="rpwho-list303">' + viewers.map(function (v) {
+          return '<div class="rpwho-row303">' +
+            (v.photo ? '<img class="rpwho-av303" src="' + esc(v.photo) + '" alt=""/>' : '<span class="rpwho-init303">' + esc((v.name || "?").charAt(0).toUpperCase()) + '</span>') +
+            '<span class="rpwho-meta303"><b>' + esc(v.name || "Member") + '</b><span>' + (v.username ? "@" + esc(v.username) : "") + '</span></span>' +
+            '<span class="rpwho-when303">' + esc(rpWhoDay303(v.viewedDay)) + '</span></div>';
+        }).join("") + '</div>';
+        if (j.truncated) out += '<p style="text-align:center; color:var(--ink-soft); font-size:12.5px; margin-top:8px;">Showing the 200 most recent viewers.</p>';
+        else if (total > viewers.length) out += '<p style="text-align:center; color:var(--ink-soft); font-size:12.5px; margin-top:8px;">A few views came from signed-out viewers or accounts that have left the Plaza, so they aren\'t listed by name.</p>';
+      }
+      body.innerHTML = out;
+    });
+  };
+  // Decorate a 👁 count element as the author's door to the list.
+  // Callers wire it ONLY on the author's own items; the element's
+  // text and place never change.
+  window.rpWhoWatchedWire303 = function (el, kind, id, owner) {
+    if (!el || el.__rpwho303) return;
+    el.__rpwho303 = true;
+    el.classList.add("rpwho-tap303");
+    el.setAttribute("role", "button");
+    el.setAttribute("title", "Who watched");
+    el.addEventListener("click", function (e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      window.rpWhoWatchedOpen303(kind, id, owner);
+    });
+  };
 
   /* ---------- Earn sheet: server earnings for accounts ---------- */
   var origEarnings = (typeof window.openEarnings === "function") ? window.openEarnings : null;
