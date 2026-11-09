@@ -7018,6 +7018,9 @@ app.post("/api/photo/repost", (req, res) => {
 //   { items: { "<itemKey>": { count, seen: { "<viewerKey>": "YYYY-MM-DD" } } } }
 // Item keys: "reel:<reelId>" and "photo:<ownerAccountId>:<photoUrl>"
 // (URL-keyed, so reordering a gallery never moves a photo's count).
+// [RP-V7.301] Photo posts ride the same store as "photopost:<postId>"
+// (signed-in members only, payload gates mirrored at the endpoint) —
+// the record the Creator Pool tallies alongside reels and photos.
 // Dedupe: a viewer counts at most ONCE per item per America/New_York
 // calendar day (same Intl day key as the Daily Ranking tally). Viewer
 // identity: the account token when one rides along, else the client's
@@ -7100,8 +7103,8 @@ function viewDeviceKey(v) {
 app.post("/api/media/view", (req, res) => {
   const b = req.body || {};
   const kind = String(b.kind || "");
-  if (kind !== "reel" && kind !== "photo")
-    return res.status(400).json({ ok: false, error: "kind must be \"reel\" or \"photo\"" });
+  if (kind !== "reel" && kind !== "photo" && kind !== "photopost") // [RP-V7.301] photo posts join the view system (Creator Pool)
+    return res.status(400).json({ ok: false, error: "kind must be \"reel\", \"photo\" or \"photopost\"" });
   // Viewer identity: account token wins; else the device key.
   const adb = readAccounts();
   const viewer = accountForToken(adb, req);
@@ -7120,6 +7123,44 @@ app.post("/api/media/view", (req, res) => {
     const reel = listReels().find((r) => r.id === reelId);
     if (!reel) return res.status(404).json({ ok: false, error: "Reel not found" });
     itemKey = "reel:" + reelId;
+  } else if (kind === "photopost") {
+    // [RP-V7.301] Photo POSTS get the same honest view record reels
+    // and gallery photos have always had (the Creator Pool's missing
+    // surface). A view may only count when the member could actually
+    // SEE the photo, so the gates mirror the payload builders:
+    //  - signed-in members only — no device-key viewers (a pool view
+    //    is a member's view; guests never count here);
+    //  - the post must exist and be a photo post (text posts carry
+    //    no photo and are not a pool surface);
+    //  - subscriber-only / club-only posts count only for a viewer
+    //    the payload would unlock (the author included, via the same
+    //    access helpers) — a locked placeholder is never a view;
+    //  - audience onlyme / followers posts follow the same rule
+    //    GET /api/photo/posts applies.
+    // A gated viewer gets the dedupe-shaped answer (counted:false,
+    // locked:true) and nothing is written.
+    if (!viewer)
+      return res.status(401).json({ ok: false, error: "Sign in to count a view" });
+    const postId = reelCleanId(b.id);
+    if (!postId) return res.status(400).json({ ok: false, error: "Missing photo post id" });
+    const post = readPhotoPosts().posts.find((p) => p && p.id === postId);
+    if (!post) return res.status(404).json({ ok: false, error: "Photo post not found" });
+    if (post.kind === "text")
+      return res.status(400).json({ ok: false, error: "Not a photo post" });
+    let denied301 = false;
+    if (viewer.id !== post.owner) {
+      const aud301 = post.audience || "everyone";
+      if (aud301 === "onlyme") denied301 = true;
+      else if (aud301 === "followers" && !socialFollowingIds(readSocial(), viewer.id).includes(post.owner)) denied301 = true;
+      if (!denied301 && (post.subsOnly || post.clubOnly)) {
+        const mdb301 = readMoney();
+        if (post.subsOnly && !fanSubAccess296(mdb301, viewer.id, post.owner)) denied301 = true;
+        if (post.clubOnly && !fanClubAccess298(mdb301, viewer.id, post.owner)) denied301 = true;
+      }
+    }
+    if (denied301)
+      return res.json({ ok: true, views: mediaViewCount(readViews(), "photopost:" + postId), counted: false, locked: true });
+    itemKey = "photopost:" + postId;
   } else {
     const ownerId = String(b.owner || "").trim();
     const url = String(b.id || "").trim().slice(0, 600);
@@ -18427,8 +18468,12 @@ app.get("/api/owner/sales", (req, res) => {
 // reelAuthorKeyFor) and gallery PHOTOS (the owner id rides the
 // item key); lives from liveviewers.json (RP-V7.274): a host's
 // unique recorded viewers whose latest-watch stamp falls inside
-// the week. Stories and photo posts carry no deduped view record
-// anywhere in the platform, so they are not counted. A creator is
+// the week. Stories carry no deduped view record anywhere in the
+// platform, so they are not counted. [RP-V7.301] Photo posts DO
+// count now: POST /api/media/view kind "photopost" writes the same
+// views.json seen stamps ("photopost:<postId>", signed-in members
+// only, payload gates mirrored), and the tally below resolves the
+// author from the post record — no change to the split math. A creator is
 // payable when the account exists, is not teen-disabled
 // (RP-V7.263) and is not pending deletion; views on anyone else's
 // content are excluded from the split and reported as
@@ -18572,6 +18617,8 @@ function rpCpWeekViews(adb, daySet) {
   const vdb = readViews();
   const reelsById = new Map();
   for (const r of listReels() || []) if (r && r.id) reelsById.set(r.id, r);
+  const photoPostsById301 = new Map(); // [RP-V7.301]
+  for (const p of readPhotoPosts().posts || []) if (p && p.id) photoPostsById301.set(p.id, p);
   for (const key of Object.keys(vdb.items || {})) {
     const it = vdb.items[key];
     if (!it || !it.seen || typeof it.seen !== "object") continue;
@@ -18582,6 +18629,14 @@ function rpCpWeekViews(adb, daySet) {
         const k = reelAuthorKeyFor(adb, r);
         if (k && k.indexOf("name:") !== 0) owner = k;
       }
+    } else if (key.indexOf("photopost:") === 0) {
+      // [RP-V7.301] checked BEFORE "photo:" — every photopost key
+      // also starts with "photo". Owner rides the post record; a
+      // deleted post leaves its stamps unresolvable -> excluded,
+      // exactly like a deleted reel. Text posts never resolve (the
+      // endpoint refuses them, so any stamp here is not a view).
+      const pp301 = photoPostsById301.get(key.slice(10));
+      if (pp301 && pp301.owner && pp301.kind !== "text") owner = pp301.owner;
     } else if (key.indexOf("photo:") === 0) {
       const rest = key.slice(6);
       const ix = rest.indexOf(":");
