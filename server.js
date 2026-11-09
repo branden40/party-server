@@ -1314,6 +1314,7 @@ function settingsOf(u) {
       dailypot: n.dailypot !== false,
       posts: n.posts !== false, // [RP-V7.129] new-post alerts, default on
       liveinvites: n.liveinvites !== false, // [RP-V7.138] private-live invites, default ON
+      signups: n.signups !== false, // [RP-V7.307] owner-only kind: new-member signup alerts, default ON (only ever fires to the owner)
       // [RP-V7.100] Per-channel switches (Settings -> Notifications ->
       // "Reach me by"): the bell feed, email, and text messages. All
       // default ON; SMS still only ever carries messages + Daily Pot
@@ -1788,6 +1789,7 @@ app.post("/api/account/signup", (req, res) => {
     writeAccounts(fresh);
     sendAccountEmail(user, "welcome");
     sendAccountSms(user, "welcome"); // [RP-V7.55] email AND phone, per Branden's rule
+    notifyOwnerOfSignup307(user, fresh.users.length); // [RP-V7.307] the owner hears about every new member
     console.log("[accounts] signup", user.email || user.phone);
     res.status(201).json({ ok: true, token, user: publicAccount(user) });
   } finally {
@@ -2234,7 +2236,7 @@ app.post("/api/account/settings", (req, res) => {
   if (!ctx) return;
   const b = req.body || {};
   const cur = settingsOf(ctx.user);
-  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
   if ("letterStyle" in b) {
     if (LETTER_STYLE_IDS.indexOf(b.letterStyle) < 0)
       return res.status(400).json({ ok: false, error: "That letter style isn't one of the Plaza's choices" });
@@ -2246,7 +2248,7 @@ app.post("/api/account/settings", (req, res) => {
     nx.dmPrivacy = b.dmPrivacy;
   }
   if (b.notify && typeof b.notify === "object" && !Array.isArray(b.notify)) {
-    for (const k of ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts", "liveinvites"])
+    for (const k of ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts", "liveinvites", "signups"])
       if (typeof b.notify[k] === "boolean") nx.notify[k] = b.notify[k];
     if (b.notify.channels && typeof b.notify.channels === "object" && !Array.isArray(b.notify.channels)) {
       for (const ck of ["inapp", "email", "sms"])
@@ -12085,8 +12087,8 @@ app.get("/api/members", (req, res) => {
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
 const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
- like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites" }; // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
-const NOTIFY_SMS_KINDS = { dm: true, potwin: true };
+ like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups" }; // [RP-V7.307] owner signup alerts ride the "signups" switch // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
+const NOTIFY_SMS_KINDS = { dm: true, potwin: true, signup: true }; // [RP-V7.307] signup alerts text too — the kind only ever targets the owner, and only once Twilio is configured (notifySmsReady)
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 // [RP-V7.129] NEW-POST ALERTS: when a member posts, every follower gets
 // the standard activity notification (bell + email per their own
@@ -12275,6 +12277,36 @@ function notifyActivity(o) {
   } catch (e) {
     /* a notification must never break the action that caused it */
   }
+}
+// [RP-V7.307] OWNER SIGNUP ALERT (Branden, Nov 9: "I'm not getting
+// notifications to my phone number when someone signs up"). Fired from
+// the two brand-new-account creation points, beside the member's own
+// welcome email/SMS. Rides the standard notifyActivity pipeline to the
+// owner: bell immediately, email + SMS through the 60 s digest drain
+// per the owner's own switches (kind "signup" is in NOTIFY_SMS_KINDS,
+// so the text leg starts working the moment Twilio is configured —
+// until then the drain simply cannot attempt it and the bell + email
+// carry the alert). Never alerts about the owner's own new account,
+// and never throws: an owner alert must not break a signup.
+function notifyOwnerOfSignup307(newUser, totalMembers) {
+  try {
+    if (!newUser || !newUser.id) return;
+    const ownerId = rpOwnerUserId(readAccounts());
+    if (!ownerId || ownerId === newUser.id) return;
+    const un = newUser.username ? "@" + newUser.username : (newUser.name || "A new member");
+    const countNote = totalMembers ? " \u2014 " + totalMembers + " members now" : "";
+    const text = "\uD83C\uDD95 New member: " + un + " just joined Rizz Plaza" + countNote;
+    notifyActivity({
+      toId: ownerId,
+      kind: "signup",
+      actorId: newUser.id,
+      actorName: newUser.name || un,
+      text,
+      emailSubject: "\uD83C\uDD95 New member joined Rizz Plaza: " + un,
+      emailText: text + ".\n\nOpen the Plaza: https://rizzplaza.com\n\n\u2014 The Rizz Plaza team",
+      smsText: "Rizz Plaza \uD83C\uDD95 New member: " + un + " just joined" + countNote + " https://rizzplaza.com",
+    });
+  } catch (e) { /* an owner alert must never break a signup */ }
 }
 const NOTIFY_FILE =
   process.env.NOTIFY_FILE ||
@@ -13092,6 +13124,7 @@ app.post("/api/account/google/complete", (req, res) => {
   const token = newAccountToken(db, user.id);
   writeAccounts(db);
   sendAccountEmail(user, "welcome");
+  notifyOwnerOfSignup307(user, db.users.length); // [RP-V7.307] same owner alert for Google sign-ups
   console.log("[accounts] signup (google)", user.email);
   res.status(201).json({ ok: true, token, user: publicAccount(user) });
 });
