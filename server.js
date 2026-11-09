@@ -12243,6 +12243,8 @@ function notifyActivity(o) {
         if (o.go) existing.go = o.go;
         if (o.giftId) existing.giftId = o.giftId;
         if (o.giftSrc) existing.giftSrc = o.giftSrc;
+        if (o.holId) existing.holId = o.holId; // [RP-V7.309]
+        if (o.holName) existing.holName = o.holName; // [RP-V7.309]
         if (o.actorId) stampRemActor270(existing, o, adb);
       } else {
         const rem = {
@@ -12259,6 +12261,8 @@ function notifyActivity(o) {
         // fields; the rendered text is unaffected.
         if (o.giftId) rem.giftId = o.giftId;
         if (o.giftSrc) rem.giftSrc = o.giftSrc;
+        if (o.holId) rem.holId = o.holId; // [RP-V7.309] resolved holiday instance, when the send named one
+        if (o.holName) rem.holName = o.holName; // [RP-V7.309]
         if (o.coalesceKey) rem.ck = o.coalesceKey;
         if (o.go) rem.go = o.go;
         // [RP-V7.270] actor stamps (see stampRemActor270).
@@ -13710,6 +13714,103 @@ function giftAmountLabel250(unitCost, count, charmsOnly, giftId) {
 const MONEY_HOLIDAY_GIFT_PRICES = {
   15: 15, 20: 20, 25: 25, 30: 30, 35: 35, 40: 40, 45: 45, 50: 50, 60: 60,
 };
+// [RP-V7.309] HOLIDAY GIFT INSTANCES — the naming fix (Branden's go,
+// Nov 9, 2026; spec: rizz-holiday-gift-naming/SPEC.md). The price
+// table above can validate an AMOUNT but can never say WHICH gift
+// was sent (40 alone is six different gifts), so a named send is
+// validated against this per-instance mirror of the client HOLIDAYS
+// gift lists: one row per instance, [event, name, price] — all 57.
+// The wire key is derived, never stored: "<event>-<name slug>", the
+// exact function the client applies to the HOLIDAYS entry it picked
+// (holKey309 below is that function; the build's consistency probe
+// derives the key set from BOTH files and asserts they are equal).
+// Display names repeat across events ("Fireworks Show" is both a
+// New Year and a July 4 gift), so the event is part of the key.
+function holKey309(eventId, name) {
+  return (
+    String(eventId) +
+    "-" +
+    String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+  );
+}
+const MONEY_HOLIDAY_GIFTS_309 = [
+  ["newyear", "Fireworks Show", 60],
+  ["newyear", "Golden Toast", 30],
+  ["newyear", "Confetti Cannon", 20],
+  ["mlk", "Dove of Peace", 35],
+  ["mlk", "Unity Candle", 20],
+  ["mlk", "Dream Bell", 25],
+  ["valentines", "Bouquet of Roses", 40],
+  ["valentines", "Heart Balloon", 25],
+  ["valentines", "Love Letter", 15],
+  ["stpatricks", "Lucky Clover", 25],
+  ["stpatricks", "Rainbow's End", 40],
+  ["stpatricks", "Leprechaun Hat", 20],
+  ["easter", "Golden Easter Egg", 35],
+  ["easter", "Bunny Buddy", 30],
+  ["easter", "Spring Bouquet", 25],
+  ["cinco", "Piñata Party", 35],
+  ["cinco", "Fiesta Taco", 20],
+  ["cinco", "Mariachi Trumpet", 30],
+  ["mothers", "Bouquet for Mom", 40],
+  ["mothers", "Flower Crown", 30],
+  ["mothers", "Sweet Treat Box", 20],
+  ["memorial", "Poppy Wreath", 30],
+  ["memorial", "Candle of Remembrance", 20],
+  ["memorial", "Dove of Honor", 35],
+  ["juneteenth", "Freedom Bell", 30],
+  ["juneteenth", "Unity Drum", 25],
+  ["juneteenth", "Heritage Star", 35],
+  ["fathers", "Best Dad Trophy", 40],
+  ["fathers", "BBQ Platter", 25],
+  ["fathers", "Dad's Toolbox", 20],
+  ["july4", "Fireworks Show", 60],
+  ["july4", "Liberty Cake", 35],
+  ["july4", "Sparkler Wand", 20],
+  ["summer", "Surfboard", 35],
+  ["summer", "Beach Umbrella", 25],
+  ["summer", "Watermelon Slice", 15],
+  ["laborday", "Golden Wrench", 20],
+  ["laborday", "Picnic Basket", 30],
+  ["laborday", "Grill Master Platter", 25],
+  ["birthday", "Birthday Cake", 45],
+  ["birthday", "Party Popper", 20],
+  ["birthday", "Cupcake Tower", 30],
+  ["veterans", "Medal of Honor", 40],
+  ["veterans", "Salute Star", 25],
+  ["veterans", "Thank-You Wreath", 30],
+  ["thanksgiving", "Thankful Turkey", 40],
+  ["thanksgiving", "Harvest Wreath", 30],
+  ["thanksgiving", "Pumpkin Pie", 25],
+  ["blackfriday", "Price Tag", 15],
+  ["blackfriday", "Shopping Bag", 30],
+  ["blackfriday", "Golden Cart", 45],
+  ["cybermonday", "Deal Box", 25],
+  ["cybermonday", "Lightning Deal", 35],
+  ["cybermonday", "Saver Card", 20],
+  ["christmas", "Santa Visit", 60],
+  ["christmas", "Christmas Tree", 50],
+  ["christmas", "Snow Globe", 30],
+];
+const MONEY_HOLIDAY_BY_KEY_309 = {};
+for (const r309 of MONEY_HOLIDAY_GIFTS_309)
+  MONEY_HOLIDAY_BY_KEY_309[holKey309(r309[0], r309[1])] = { event: r309[0], name: r309[1], price: r309[2] };
+// Is eventId's window live right now (America/New_York calendar
+// days, the event day plus its pre days before and post days
+// after)? The same day math rpActiveEvent runs for /api/event-now,
+// asked about one specific event.
+function rpEventWindowActive309(eventId, nowMs) {
+  const h = RP_EVENT_CALENDAR.find((x) => x.id === eventId);
+  if (!h) return false;
+  const p = dpEtParts(nowMs == null ? Date.now() : nowMs);
+  if (!p) return false;
+  const today = rpEventDayNum(p.y, p.mo - 1, p.d);
+  for (const yy of [p.y - 1, p.y, p.y + 1]) {
+    const d = rpEventDateDayNum(h, yy);
+    if (today >= d - h.pre && today <= d + h.post) return true;
+  }
+  return false;
+}
 function emptyMoney() {
   return {
     balances: {},
@@ -15746,6 +15847,8 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   if (count > 1000)
     return res.status(400).json({ ok: false, error: "count-over-cap", cap: 1000 });
   const giftId = String(b.giftId || "");
+  let holInst309 = null; // [RP-V7.309] the validated holiday instance for this send (null = unnamed send)
+  let holKeyVal309 = null; // [RP-V7.309] its wire key, stamped on the activity record
   let cost = MONEY_GIFT_TABLE[giftId];
   if (!cost && giftId === "hol") {
     // [RP-V7.219] Holiday gift: every holiday gift rides this one
@@ -15758,7 +15861,32 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     // V7.219 batch total, spend-source checks, per-unit 70/30
     // settlement (large-gift hold included), ledger pair, pot
     // matches and the charmsOnly teen path all key off `cost`.
-    cost = MONEY_HOLIDAY_GIFT_PRICES[Math.floor(Number(b.charms) || 0)];
+    // [RP-V7.309] A send that NAMES its instance (b.holId — the
+    // "<event>-<name slug>" key the client derives from the
+    // HOLIDAYS entry it picked) is validated in full: the instance
+    // must exist in MONEY_HOLIDAY_BY_KEY_309, its listed price must
+    // equal the sent amount, and its event window must be live
+    // under the RP_EVENT_CALENDAR pre/post rules. Any mismatch
+    // rejects the send as an unknown gift BEFORE any charge —
+    // exactly as a non-catalog amount is rejected today. A send
+    // with NO holId (an older client) keeps the price-only
+    // validation above untouched and settles with a generic
+    // notice, exactly as before.
+    const holId309 = typeof b.holId === "string" ? b.holId.slice(0, 80) : "";
+    if (holId309) {
+      const inst309 = MONEY_HOLIDAY_BY_KEY_309[holId309];
+      if (
+        !inst309 ||
+        inst309.price !== Math.floor(Number(b.charms) || 0) ||
+        !rpEventWindowActive309(inst309.event, Date.now())
+      )
+        return res.status(400).json({ ok: false, error: "Unknown gift" });
+      holInst309 = inst309;
+      holKeyVal309 = holId309;
+      cost = inst309.price;
+    } else {
+      cost = MONEY_HOLIDAY_GIFT_PRICES[Math.floor(Number(b.charms) || 0)];
+    }
   }
   if (!cost)
     return res.status(400).json({ ok: false, error: "Unknown gift" });
@@ -16024,20 +16152,27 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // The "hol" holiday wire id carries no instance (see the handler
   // above), so a holiday gift has no name/class to state and keeps
   // the generic wording with the amount in parentheses, as before.
+  // [RP-V7.309] That now holds only for UNNAMED sends: a send whose
+  // holId validated in the handler resolved holInst309, and the
+  // composition below names that instance with the same grammar.
   const gInfo250 = MONEY_GIFT_INFO[giftId] || null;
+  // [RP-V7.309] The name the notice states: the catalog name for a
+  // regular gift, the resolved instance name for a named holiday
+  // send, null for an unnamed holiday send (generic wording).
+  const gName250 = gInfo250 ? gInfo250.name : holInst309 ? holInst309.name : null;
   const gAmt250 = giftAmountLabel250(cost, count, charmsOnly, giftId);
   // Article agreement for the single-send phrase: "an Ice Cream",
   // "The Crown Jewel" (the name carries its own article), else
   // "a Rose".
-  const gSingle250 = !gInfo250
+  const gSingle250 = !gName250
     ? null
-    : /^the /i.test(gInfo250.name)
-      ? gInfo250.name
-      : /^[aeiou]/i.test(gInfo250.name)
-        ? "an " + gInfo250.name
-        : "a " + gInfo250.name;
-  const gQty250 = gInfo250
-    ? (count > 1 ? count + " × " + gInfo250.name : gSingle250)
+    : /^the /i.test(gName250)
+      ? gName250
+      : /^[aeiou]/i.test(gName250)
+        ? "an " + gName250
+        : "a " + gName250;
+  const gQty250 = gName250
+    ? (count > 1 ? count + " × " + gName250 : gSingle250)
     : (count > 1 ? count + " gifts" : "a gift");
   let gCore250;
   if (giftSrc233 === "picture")
@@ -16048,6 +16183,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     gCore250 = ctx.user.name + " sent you " + gQty250 + " in your live";
   else gCore250 = ctx.user.name + " sent you " + gQty250;
   if (gInfo250) gCore250 += " · " + gInfo250.tier + " · " + gAmt250;
+  else if (gName250) gCore250 += " · " + gAmt250; // [RP-V7.309] a named holiday instance states name + amount (holiday instances carry no server tier, so no tier segment)
   else gCore250 += " (" + gAmt250 + ")";
   notifyActivity({
     toId: recipient.id,
@@ -16074,6 +16210,11 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     // retroactively.
     giftId,
     giftSrc: giftSrc233,
+    // [RP-V7.309] the resolved holiday instance rides the record
+    // the same way (null on every non-holiday / unnamed send, and
+    // notifyActivity stamps only truthy values).
+    holId: holKeyVal309,
+    holName: holInst309 ? holInst309.name : null,
   });
   res.json(giftResponse);
 }));
