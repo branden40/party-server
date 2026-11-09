@@ -25481,6 +25481,45 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var vSrc = card.querySelector('[data-rv="src"]');
         if (vSrc && item.sourceUrl) vSrc.src = item.sourceUrl;
         if (item.server && item.url) vMine.src = item.url;
+        else if (vMine) {
+          /* [RP-V7.302] On-device (pending) reels play from their
+             IndexedDB blob. V7.243's first-frame-paint restructure
+             accidentally moved this assignment into the paint block's
+             else — which only fires for duets/stitches/trims — so a
+             plain on-device reel NEVER received a src: black card,
+             big ▶, unplayable, pinned to the top of its owner's feed
+             ("Reels button froze up", Nov 8). Restored for every
+             non-server item (pre-V7.243 behaviour). The blob resolves
+             async, after the visibility observer has already fired
+             play() against an empty element, so when it lands while
+             this card is the on-screen one (>=60% in the feed, the
+             observer's own threshold) we start playback here. */
+          reelDbGet(item.id).then(function (blob) {
+            if (!blob) return;
+            var url = URL.createObjectURL(blob);
+            Reels.objUrls[item.key] = url;
+            vMine.src = url;
+            /* The blob can land before the feed has settled (screen
+               still showing, layout not final), so retry the nudge as
+               the video becomes ready and once shortly after — every
+               attempt re-checks that this card is still the on-screen
+               one and the video is still paused. */
+            var tryPlay302 = function () {
+              try {
+                if (!vMine.paused) return;
+                var feedEl = $("reelFeed");
+                var fr = feedEl ? feedEl.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+                var cr = card.getBoundingClientRect();
+                var vis = Math.max(0, Math.min(cr.bottom, fr.bottom) - Math.max(cr.top, fr.top));
+                if (cr.height > 0 && vis / cr.height >= 0.6 && card._rpPlay) card._rpPlay();
+              } catch (e) { }
+            };
+            tryPlay302();
+            vMine.addEventListener("loadedmetadata", tryPlay302);
+            vMine.addEventListener("canplay", tryPlay302);
+            setTimeout(tryPlay302, 600);
+          });
+        }
         /* [RP-V7.243] First-frame paint for the feed's main video —
            the same fix as the tile grids: a paused card must show a
            real frame, not a black card, on engines that don't paint
@@ -25508,14 +25547,6 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           vMine.addEventListener("loadeddata", paintMine243);
           if (vMine.readyState >= 1) paintMine243();
           }
-        }
-        else {
-          reelDbGet(item.id).then(function (blob) {
-            if (!blob) return;
-            var url = URL.createObjectURL(blob);
-            Reels.objUrls[item.key] = url;
-            vMine.src = url;
-          });
         }
         /* [RP-V7.169] Trim window: a trimmed reel plays only its cut,
            looping inside it. */
