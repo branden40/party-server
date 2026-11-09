@@ -19376,6 +19376,43 @@ const sfxLast186 = new Map();
 const RP_SFX_IDS_7186 = new Set(["wild", "applause", "laugh", "airhorn", "drumroll", "chaching", "trombone", "buzzer", "sting"]);
 
 io.on("connection", (socket) => {
+  // [RP-V7.305] One seat per account per room. The roster is keyed by
+  // socket.id and the V7.24 ghost eviction keys on the device key —
+  // but that key carries a per-tab suffix (V7.124), so a relaunched
+  // app or a new tab mints a NEW key, the device-key eviction misses,
+  // and the old socket's seat survives until its ping timeout —
+  // rendering the same member twice (Branden, Nov 8: his "RP" chip
+  // beside his "You · RP" chip). The token-verified account binding
+  // (acct-presence) is stable across all of that, so when an
+  // identified socket takes a seat, any OTHER seat in the same room
+  // carrying the same account id is a ghost: evict it exactly as if
+  // it had disconnected (auction/floor/match cleanup mirrors the
+  // disconnect handler), drop its socket.io room membership, and
+  // broadcast the departure so every client drops the ghost. Its
+  // later real disconnect then finds no player record and is a
+  // harmless no-op. A genuinely simultaneous second connection from
+  // the same account replaces the first seat — intended.
+  function evictAcctGhosts305(room, acctId, keepSocketId) {
+    if (!acctId) return;
+    for (const [sid, gp] of [...players]) {
+      if (sid === keepSocketId || !gp || gp.room !== room || gp.acctId !== acctId) continue;
+      const ga = auctions.get(room);
+      if (ga && ga.hostId === sid) endAuction(room, true);
+      releaseFloorsHeldBy(floorHolderId(sid), sid); // self-guards: no release while another live socket carries this device identity
+      for (const m of [...matches]) {
+        if (m.split(":").includes(sid)) matches.delete(m);
+      }
+      players.delete(sid);
+      chatTimes.delete(sid);
+      const gs = io.sockets.sockets.get(sid);
+      if (gs) {
+        try { gs.leave(room); } catch (e) { }
+        try { if (gs.data) gs.data.room = null; } catch (e) { }
+      }
+      io.to(room).emit("player-left", { id: sid });
+    }
+  }
+
   // Player enters the party
   socket.on("join", (data = {}) => {
     const room = cleanRoomName(data.room);
@@ -19437,8 +19474,16 @@ io.on("connection", (socket) => {
       dancing: false,
       // [RP-V7.50] the account's photo, when acct-presence landed first
       photoUrl: socket.data.acctPhoto || null,
+      // [RP-V7.305] the token-verified account, when acct-presence
+      // landed first — the identity the one-seat-per-account rule
+      // keys on (and the one the client's own-ghost render guard
+      // compares against). Null for guests.
+      acctId: socket.data.accountId || null,
     };
     players.set(socket.id, player);
+    // [RP-V7.305] evict my account's ghost seat in this room BEFORE
+    // my snapshot is built, so even my first room-state is clean.
+    evictAcctGhosts305(room, player.acctId, socket.id);
     socket.join(room);
     socket.emit("room-state", roomState(room)); // everyone already here
     socket.emit("lives-update", livesPayloadFor(socket)); // [RP-V7.28] current live registry, so a fresh client sees ongoing lives immediately ([RP-V7.40] in the recipient's own order)
@@ -19469,6 +19514,17 @@ io.on("connection", (socket) => {
     // record — it opens LIVE rooms only (see socketMayEnterRoom).
     socket.data.teenClass = ageFromDob(user.dob) < 18;
     acctSocketAdd(user.id, socket.id);
+    // [RP-V7.305] Announce-after-join: stamp the verified account id
+    // onto my seat and evict any ghost seat of the same account in
+    // this room (an older socket of mine whose device key no longer
+    // matches, so the V7.24 eviction could not see it).
+    try {
+      const p305 = players.get(socket.id);
+      if (p305) {
+        p305.acctId = user.id;
+        evictAcctGhosts305(p305.room, user.id, socket.id);
+      }
+    } catch (e) { }
     // [RP-V7.50] The account's photo rides the socket: stashed for the
     // join handler (announce-before-join), and seeded onto an
     // already-joined player that has none (announce-after-join), so a
@@ -19604,6 +19660,10 @@ io.on("connection", (socket) => {
     socket.to(p.room).emit("player-left", { id: p.id });
     p.room = room;
     p.dancing = false;
+    // [RP-V7.305] one seat per account per room on the switch path
+    // too: a ghost of mine already sitting in the target room goes
+    // before my room-state snapshot of it is built.
+    evictAcctGhosts305(room, p.acctId || socket.data.accountId, socket.id);
     socket.join(room);
     socket.emit("room-state", roomState(room));
     socket.emit("lives-update", livesPayloadFor(socket)); // [RP-V7.28] fresh snapshot on room change too ([RP-V7.40] personalized)
