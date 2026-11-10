@@ -2903,12 +2903,7 @@
   <script>/* [RP-V7.99] Letter style: the saved choice paints from the first frame (the account restore re-confirms it after login). */
   (function(){try{var a=JSON.parse(localStorage.getItem("rpAcct.v1")||"null");var s=a&&a.settings&&a.settings.letterStyle;var ok={roman:1,royal:1,slab:1,blackletter:1,vintage:1,elegant:1,script:1,calligraphy:1,handwritten:1,signature:1,brush:1,bubble:1,comic:1,retro:1,arcade:1,display:1,condensed:1,typewriter:1,mono:1,outline:1,neon:1,techno:1,rounded:1,chunky:1,pirate:1,deco:1,marker:1,chalk:1,stencil:1,school:1,luxury:1};if(s&&ok[s])document.documentElement.setAttribute("data-font",s);}catch(e){}})();
   </script>
-<script>/* [RP-V7.287] Appearance: paint the right theme from the first frame.
-   Saved choice (rpAppearance.v1: auto|white|black) + device clock;
-   auto = white 07:00-19:00 local. The controller (end of body) keeps
-   it live; this head copy only prevents a dark->white flash. */
-(function(){try{var m=localStorage.getItem("rpAppearance.v1")||"auto";if(m!=="white"&&m!=="black")m="auto";var h=new Date().getHours();var light=(m==="white")||(m==="auto"&&h>=7&&h<19);if(light)document.documentElement.classList.add("rp-light");}catch(e){}})();
-</script>
+<!-- [RP-V7.310] BLACK ONLY (Branden, Nov 9, 2026): the V7.287 appearance pre-paint is gone. The app always renders the dark theme; nothing adds a light class before first frame, and a stored rpAppearance.v1 is never read. -->
   <script>
     /* [RP-V7.134] Bio-link href normalizer: members type bare domains
        ("yourstore.com" — the settings placeholder invites it); stored raw,
@@ -2978,285 +2973,7 @@
       } catch (e) { return ""; }
     };
   </script>
-  <style id="rp287-style">
-/* ================= [RP-V7.287] WHITE BY DAY / BLACK BY NIGHT =================
-   Branden, Nov 7, 2026: white during the day, black at night, WITH a
-   switch (Settings > Appearance: Auto / White / Black). Supersedes the
-   Nov 1 day/night cancellation; the Nov 1 failure (dark-on-dark text,
-   white-lettered buttons vanishing on light pieces) is fenced off by
-   flipping every dark surface together with its text, below.
-   .rp-light is toggled on <html> (pre-paint, head script) and <body>
-   (controller) by window.RPAppearance287. */
-
-/* ---- palette swap: every var(--…) surface follows ---- */
-:root.rp-light, body.rp-light {
-  color-scheme: light;
-  --bg: #ffffff;
-  --panel: #ffffff;
-  --panel-2: #f0f2f5;
-  --ink: #111111;
-  --ink-soft: #65676b;
-  --line: #e4e6eb;
-  --chip: #f0f2f5;
-}
-html.rp-light, body.rp-light { background: #ffffff !important; }
-body.rp-light { color: #111111; }
-
-/* ---- scope-out: live, gift shows, camera, story viewer and the
-   media lightbox keep the DARK palette in both modes (their blacks
-   are load-bearing: gift films are built on pure black). ---- */
-body.rp-light #livePanel, body.rp-light .gfx, body.rp-light #camScreen,
-body.rp-light #storyViewer, body.rp-light .rpmedia-wrap {
-  color-scheme: dark;
-  --bg: #000000; --panel: #101016; --panel-2: #1c1c24;
-  --ink: #ffffff; --ink-soft: #a8a8a8;
-  --rose: #fe2c2c; --rose-deep: #fe2c2c; --coral: #fe2c2c;
-  --gold: #ffc53d; --teal: #a8a8a8;
-  --line: rgba(255,255,255,.13); --chip: rgba(255,255,255,.09);
-  --shadow: none;
-  color: #ffffff;
-}
-body.rp-light #livePanel { background: #05050c !important; }
-
-/* ---- chrome fixes: pieces that hard-code white text on the app
-   background itself (bottom bar, sheet furniture). NOTE: the Home
-   strip (#homeStrip: hs-tabs, GO LIVE, bell) is NOT here — it is
-   chrome over the full-bleed pager (a scope-out media surface) and
-   keeps its dark-mode styling (white text + scrim + rose glow) in
-   both modes, exactly like the live chrome. ---- */
-body.rp-light #momSearchBtn255 { color: #111111; }
-body.rp-light .tab-btn { color: #65676b; }
-body.rp-light .tab-btn.on, body.rp-light .tab-btn.active { color: #111111; }
-body.rp-light .tab-btn .ti { color: #65676b; }
-body.rp-light .tab-btn.active .ti, body.rp-light .tab-btn.on .ti { color: #111111; }
-body.rp-light .sheet::before { background: rgba(0,0,0,.18); }
-body.rp-light .rp-set-tog { background: #e4e6eb; }
-body.rp-light .rp-set-radio { border-color: rgba(0,0,0,.28); }
-body.rp-light .rp-set-radio.on { box-shadow: 0 0 10px rgba(254,44,44,.55), inset 0 0 0 3px #ffffff; }
-body.rp-light input::placeholder, body.rp-light textarea::placeholder { color: #8a8f98; opacity: 1; }
-
-/* ---- room scenes join the scope-out family (palette only): the
-   scene is a full-bleed media backdrop; its floating UI keeps the
-   dark palette exactly as in dark mode. ---- */
-body.rp-light .scene, body.rp-light .rpscene {
-  color-scheme: dark;
-  --bg: #000000; --panel: #101016; --panel-2: #1c1c24;
-  --ink: #ffffff; --ink-soft: #a8a8a8;
-  --rose: #fe2c2c; --rose-deep: #fe2c2c; --coral: #fe2c2c;
-  --gold: #ffc53d; --teal: #a8a8a8;
-  --line: rgba(255,255,255,.13); --chip: rgba(255,255,255,.09);
-  --shadow: none;
-  color: #ffffff;
-}
-
-/* ---- the pink glowing-outline button family (V7.235+ restyle:
-   translucent rose tint + rose border + glow, white text). On white
-   the tint goes pale, so the TEXT adapts to rose-deep; the tint,
-   border and glow are untouched. Inside the dark scope-out roots
-   the same buttons keep white text (counter-rule below). ---- */
-body.rp-light .btn-primary, body.rp-light .follow-btn, body.rp-light .feed-follow,
-body.rp-light .btn-mini, body.rp-light .scene-btn, body.rp-light .chip-btn,
-body.rp-light .action-btn, body.rp-light .btn-social, body.rp-light .feed-act.util,
-body.rp-light .wo-post-btn, body.rp-light .wo-alt-btn, body.rp-light .speed-btn,
-body.rp-light .city-pick-btn, body.rp-light .ptt-btn, body.rp-light .rp618-btn,
-body.rp-light .rp620-btn, body.rp-light .rp622-btn, body.rp-light .rp65-fanbtn,
-body.rp-light .rp65-chalbtn, body.rp-light .rp66-btn, body.rp-light .rp71-btn,
-body.rp-light .rp72-btn, body.rp-light .rpfd-door-btn { color: #d91f1f !important; }
-body.rp-light #livePanel .btn-primary, body.rp-light #livePanel .btn-mini,
-body.rp-light #livePanel .action-btn, body.rp-light #livePanel .chip-btn,
-body.rp-light #camScreen .btn-primary, body.rp-light #camScreen .btn-mini,
-body.rp-light #storyViewer .btn-primary, body.rp-light #storyViewer .btn-mini,
-body.rp-light .gfx .btn-primary, body.rp-light .gfx .btn-mini,
-body.rp-light .rpmedia-wrap .btn-primary, body.rp-light .rpmedia-wrap .btn-mini,
-body.rp-light .scene .scene-btn, body.rp-light .scene .ptt-btn,
-body.rp-light .scene .btn-mini, body.rp-light .scene .action-btn { color: #ffffff !important; }
-
-/* ---- Facebook-gray text family from the V7.235 restyle: headings,
-   names and primary text were set in #e4e6eb / #fff, secondary in
-   #b0b3b8 / #9a9aad — all invisible or faint on white. ---- */
-body.rp-light #overlay #sheet h3, body.rp-light #overlay #sheet h4 { color: #111111; }
-body.rp-light #overlay #sheet .earn-stat span { color: #65676b; }
-body.rp-light .rp-set-row { color: #111111; }
-body.rp-light .rp-set-sub { color: #65676b; }
-body.rp-light .rp-set-cur { color: #d91f1f; }
-body.rp-light .rpdm-name { color: #111111; }
-body.rp-light .rpdm-prev, body.rp-light .rpdm-time, body.rp-light .rpdm-actchev249,
-body.rp-light .rpdm-empty, body.rp-light .rp-rem-when { color: #65676b; }
-body.rp-light .rpdm-cmenu { color: #111111; }
-body.rp-light .mom-cap { color: #111111; }
-body.rp-light .fbhome243-word { color: #111111; }
-body.rp-light .story-cell .name271, body.rp-light .sc-name { color: #111111; }
-body.rp-light .profile-hero h2, body.rp-light .profile-hero h3 { color: #111111; }
-body.rp-light .profile-hero p { color: #65676b; }
-body.rp-light .spr-main { color: #65676b; }
-body.rp-light .field label { color: #111111 !important; }
-body.rp-light #livePanel .field label, body.rp-light #camScreen .field label,
-body.rp-light #storyViewer .field label, body.rp-light .gfx .field label,
-body.rp-light .rpmedia-wrap .field label { color: #ffffff !important; }
-/* ID-scoped members of the same family (their base rules carry an
-   #screen / #tray ID and outrank the generic fixes above) */
-body.rp-light #screen-profile .profile-hero h2 { color: #111111; }
-body.rp-light #screen-profile .profile-hero p { color: #65676b; }
-body.rp-light #screen-profile .story-profile-row .spr-main span { color: #65676b; }
-body.rp-light #screen-home243 .mom-cap { color: #111111; }
-body.rp-light #storyTrayFb243 .name271 { color: #111111; }
-body.rp-light .auc-rules li { color: #4b4f56; }
-body.rp-light .auc-rules li b, body.rp-light .auc-rules b { color: #111111; }
-body.rp-light .rp-sub, body.rp-light .earn-sec { color: #65676b; }
-body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
-
-/* ---- mirrored surface flips (generated from the app's own rules:
-   each dark, desaturated surface + its near-white text, re-based) ---- */
-  body.rp-light .auc-photo { background: #ffffff; }
-  body.rp-light .auc-clock { background: #ffffff; color: #111111; }
-  body.rp-light .auc-video { background: #ffffff; }
-  body.rp-light .auc-video video { background: #ffffff; }
-  body.rp-light .auc-photos .ph .cover { background: #ffffff; color: #111111; }
-  body.rp-light .auc-photos .ph .rm { background: #ffffff; color: #111111; }
-  body.rp-light #screen-plaza:not(.home-feedmode) #homeStrip { background: #ffffff; }
-  body.rp-light #hsProfile { background: #ffffff; color: #111111; }
-  body.rp-light .pd-desc { background: #ffffff; border: 1px solid #ccd0d5; color: #111111; }
-  body.rp-light .pd-thumb { background: #ffffff; }
-  body.rp-light .pd-chip { background: #ffffff; color: #111111; }
-  body.rp-light .pd-aud { background: #ffffff; color: #111111; }
-  body.rp-light .ctx-subs278 { background: #ffffff; color: #111111; }
-  body.rp-light .ctx-subs278.on { background: #fe2c2c; color: #ffffff; }
-  body.rp-light .pd-drafts { background: #ffffff; color: #111111; }
-  body.rp-light .pd-back { background: #ffffff; color: #111111; }
-  body.rp-light .mom-photo { background: #ffffff; }
-  body.rp-light .rp-show-img { background: #ffffff; }
-  body.rp-light .rp-tagreel video { background: #ffffff; }
-  body.rp-light .duet-half video { background: #ffffff; }
-  body.rp-light .support-card { background: #ffffff; }
-  body.rp-light .dpot-badge.watch { background: #f0f2f5; color: #111111; }
-  body.rp-light .lnr-av { background: #ffffff; }
-  body.rp-light .pprof-collcard img, body.rp-light .pprof-collcard video { background: #ffffff; }
-  body.rp-light .pprof-collpick img, body.rp-light .pprof-collpick video { background: #ffffff; }
-  body.rp-light .pprof-tile { background: #ffffff; }
-  body.rp-light .pprof-player video { background: #ffffff; }
-  body.rp-light .soc-tt { background: #ffffff; }
-  body.rp-light .pcar { background: #ffffff; }
-  body.rp-light .pcar-count, body.rp-light .pcar-main { background: #ffffff; color: #111111; }
-  body.rp-light .pf-tile-btns button { background: #ffffff; color: #111111; }
-  body.rp-light .face-sheet { background: #ffffff; }
-  body.rp-light .face-sheet-head { background: #ffffff; }
-  body.rp-light .shop-logo { background: #ffffff; }
-  body.rp-light .obby-sign { background: #ffffff; color: #111111; }
-  body.rp-light .obby-hub { background: #ffffff; }
-  body.rp-light .obby-eye { background: #ffffff; }
-  body.rp-light .obby-leg { background: #f0f2f5; }
-  body.rp-light .live-tile { background: #ffffff; }
-  body.rp-light .live-tile video { background: #ffffff; }
-  body.rp-light .px-strip { background: #ffffff; color: #111111; }
-  body.rp-light .px-face { background: #ffffff; }
-  body.rp-light .px-announce.leave { background: #ffffff; }
-  body.rp-light .sheet { background: #ffffff !important; }
-  body.rp-light #tabbar { background: #ffffff; border-top: 1px solid #ccd0d5; }
-  body.rp-light .btn-mini { background: #ffffff; }
-  body.rp-light .live-now-box { background: #ffffff; }
-  body.rp-light .chat-row input { background: #ffffff; }
-  body.rp-light #btnApple { background: #ffffff; color: #111111; }
-  body.rp-light .rp-banner { background: #ffffff; color: #111111; }
-  body.rp-light .wn-tab.on { background: #ffffff; color: #111111; }
-  body.rp-light .wn-act.dark { background: #ffffff; color: #111111; }
-  body.rp-light .rp65-tilepts { background: #ffffff; }
-  body.rp-light #rp65Series, body.rp-light #rp65How { color: #111111; background: #ffffff; }
-  body.rp-light .rp65-lose { background: #ffffff; }
-  body.rp-light #rp65SeriesWin .card { background: #ffffff; color: #111111; }
-  body.rp-light #rp66Box { background: #ffffff; color: #111111; }
-  body.rp-light #rp66Box .bx-open:disabled { background: #f0f2f5; }
-  body.rp-light #rp613Pill { background: #ffffff; color: #111111; }
-  body.rp-light #rp71Pill { background: #ffffff; color: #111111; }
-  body.rp-light #rp75Pill { background: #ffffff; color: #111111; }
-  body.rp-light .rp3-chip { background: #ffffff; }
-  body.rp-light #rpTopSheet .rp3-card { background: #ffffff; color: #111111; }
-  body.rp-light .rpdm-tab { background: #ffffff; color: #65676b; }
-  body.rp-light .rpdm-ava { background: #ffffff; color: #111111; }
-  body.rp-light .rpdm-bub.them { background: #ffffff; color: #111111; }
-  body.rp-light .rpdm-media { background: #ffffff; }
-  body.rp-light .rpdm-input { background: #ffffff; color: #111111; }
-  body.rp-light .rppl-find { background: #ffffff; color: #111111; }
-  body.rp-light .rppl-follow.on { background: #ffffff; color: #65676b; }
-  body.rp-light .overlay.rpdm-full { background: #ffffff !important; }
-  body.rp-light .overlay.rpdm-full .sheet { background: #ffffff !important; }
-  body.rp-light .rpdm-conv { background: #ffffff; }
-  body.rp-light .rpdm-chead { background: #ffffff; }
-  body.rp-light .rpdm-composer { background: #ffffff; }
-  body.rp-light .rpdm-field { background: #ffffff; }
-  body.rp-light .rpdm-field .rpdm-input:placeholder-shown ~ .rpdm-csend { background: #f0f2f5; }
-  body.rp-light .rpdm-rchip249 { background: #ffffff; color: #111111; }
-  body.rp-light .rpdm-rchip249:active { background: #ffffff; }
-  body.rp-light .rpfd-tab { background: #ffffff; color: #65676b; }
-  body.rp-light .rpfd-card { background: #ffffff; }
-  body.rp-light .rpfd-ava { background: #ffffff; color: #111111; }
-  body.rp-light .rpfd-pass { background: #ffffff; color: #111111; }
-  body.rp-light .rpfd-prog { background: #ffffff; }
-  body.rp-light .rpfd-opt { background: #ffffff; color: #111111; }
-  body.rp-light .rpfd-chip { background: #ffffff; color: #65676b; }
-  body.rp-light .rpfd-input, body.rp-light .rpfd-area { background: #ffffff; color: #111111; }
-  body.rp-light .rpfd-pill { background: #ffffff; color: #65676b; }
-  body.rp-light .rpfd-switch { background: #ffffff; }
-  body.rp-light .rpfd-mava { background: #ffffff; color: #111111; }
-  body.rp-light .rpmedia-tile { background: #ffffff; }
-  body.rp-light .rpmedia-x { background: #ffffff; color: #111111; }
-  body.rp-light #rp620Detail { background: #ffffff; }
-  body.rp-light .rpemoji-sheet { background: #ffffff; }
-  body.rp-light .room-workout { background: #ffffff; }
-  body.rp-light .wo-bar-row { background: #ffffff; }
-  body.rp-light .wo-banner { background: #ffffff; color: #111111; }
-  body.rp-light .wo-sheet-panel { background: #ffffff; color: #111111; }
-  body.rp-light .wo-player-wrap { background: #ffffff; }
-  body.rp-light #rpWoPlayer { background: #ffffff; }
-  body.rp-light .wo-card video { background: #ffffff; }
-  body.rp-light .wrap { background: #ffffff; }
-  body.rp-light .plaza-card, body.rp-light .online-card, body.rp-light .arc-card, body.rp-light .controls-card, body.rp-light .online-panel, body.rp-light .game-box, body.rp-light .voice-box, body.rp-light .creator-card, body.rp-light .controls-card, body.rp-light .stage-card, body.rp-light .chapel-panel, body.rp-light .wo-launch-card { background: #ffffff !important; }
-  body.rp-light .speed-btn { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light .chapel-panel { background: #ffffff !important; }
-  body.rp-light .room-suggest { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light .room-card { background: #ffffff !important; }
-  body.rp-light .field input, body.rp-light .field select, body.rp-light .field textarea { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light .chip-btn { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light .study-card { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light .bible-page { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light .bible-page .btn-mini { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light .toast { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light .hol-banner { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light .pcard-empty { background: #ffffff !important; }
-  body.rp-light .mom-photo .mom-nomedia { background: #ffffff; }
-  body.rp-light .agegate-card { background: #ffffff !important; }
-  body.rp-light .guide-step .n { background: #ffffff !important; color: #111111 !important; }
-  body.rp-light #storyTrayFb243 .story-card243 { background: #ffffff; }
-  body.rp-light #storyTrayFb243 .story-card243 .badge243 { background: #ffffff; }
-  body.rp-light #storyTrayFb243 .story-circ271 { background: #ffffff; }
-  body.rp-light .story-cell .sc-ava img, body.rp-light .story-cell .sc-ava .sc-init { background: #ffffff; color: #111111; }
-  body.rp-light .story-profile-row .sc-ava img, body.rp-light .story-profile-row .sc-ava .sc-init { background: #ffffff; color: #111111; }
-  body.rp-light .story-post-video { background: #ffffff; }
-  body.rp-light .story-post-photo { background: #ffffff; }
-  body.rp-light #ctxBoxBtn278[data-box="solid"] { background: #ffffff; }
-  body.rp-light .rp-ovl { background: #ffffff; }
-  body.rp-light .rp-panel { background: #ffffff; border-top: 1px solid #ccd0d5; color: #111111; }
-  body.rp-light #sndSearch { background: #ffffff; color: #111111; }
-  body.rp-light .rp-set-tog { background: #ffffff; }
-  body.rp-light #sfxChip186 { background: #ffffff; color: #111111; }
-  body.rp-light #btnMomPick, body.rp-light #btnMomUseOnline { background: #ffffff !important; }
-  body.rp-light #screen-moments, body.rp-light #screen-auctions, body.rp-light #screen-profile { background: #ffffff; color: #111111; }
-  body.rp-light #screen-moments .rpsearch-row { background: #f0f2f5; }
-  body.rp-light #screen-profile .field input, body.rp-light #screen-profile .field select, body.rp-light #screen-profile .field textarea { background: #f0f2f5 !important; }
-  body.rp-light #screen-profile .face-now { background: #f0f2f5; border: 1px solid #ccd0d5; }
-  body.rp-light #overlay:not(.rpdm-full) #sheet { background: #ffffff !important; border-top: 1px solid #ccd0d5; color: #111111; }
-  body.rp-light #overlay:not(.rpdm-full) #sheet input[type="text"], body.rp-light #overlay:not(.rpdm-full) #sheet input[type="number"], body.rp-light #overlay:not(.rpdm-full) #sheet input[type="url"], body.rp-light #overlay:not(.rpdm-full) #sheet input[type="tel"], body.rp-light #overlay:not(.rpdm-full) #sheet input[type="email"], body.rp-light #overlay:not(.rpdm-full) #sheet input[type="search"], body.rp-light #overlay:not(.rpdm-full) #sheet select, body.rp-light #overlay:not(.rpdm-full) #sheet textarea { background: #f0f2f5; border: 1px solid #ccd0d5; color: #111111; }
-  body.rp-light #overlay:not(.rpdm-full) #sheet .rpdm-row .rpdm-ava { background: #f0f2f5; }
-  body.rp-light .rp-panel #sndSearch { background: #f0f2f5; border: 1px solid #ccd0d5; color: #111111; }
-  body.rp-light #overlay:not(.rpdm-full) #sheet .pprof-tab.on { background: #f0f2f5; color: #111111; }
-  body.rp-light #datingSheet { background: #ffffff; }
-  body.rp-light #datingSheet .face-sheet-head { background: #ffffff; }
-  body.rp-light #datingSheet .field input, body.rp-light #datingSheet .field select, body.rp-light #datingSheet .field textarea { background: #f0f2f5; }
-  body.rp-light .rp-rail242-more { background: #ffffff; color: #111111; }
-  body.rp-light #screen-home243 { background: #ffffff; color: #111111; }
-  body.rp-light #btnMomAi245 { background: #ffffff !important; }
-  body.rp-light .ai245-face { background-color: #ffffff; }
-</style>
-</head>
+  </head>
   <body>
     
     <div class="wrap">
@@ -25144,6 +24861,62 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         var spc255 = feed.querySelectorAll(".reel-card");
         for (var spi255 = 0; spi255 < spc255.length; spi255++) { try { Reels.observer.observe(spc255[spi255]); } catch (e) { } }
       }
+      /* [RP-V7.310] WINDOWED REELS BUILD (Branden, Nov 9: "Reels are
+         slow to load" + the scale question). GET /api/reels is already
+         capped at 100 records server-side, but a full entry used to
+         build ALL 100 cards (about 11,700 DOM nodes) and attach 100
+         video srcs before the first frame could play — measured worst
+         task 487-530 ms and tap-to-playing 2.4-4.4 s at 4x CPU, the
+         same at a 108-reel and a 1,200-reel library. The build now
+         paints a first window of 8 cards and appends 8 more whenever
+         the member scrolls to within 4 viewports of the built end, so
+         entry cost stays flat no matter how large the feed grows. The
+         structure-signature guard above is untouched: a same-set fetch
+         return still takes the no-rebuild path, and refresh/reorder
+         already skip unpainted cards. Appended cards are observed by
+         reelCard itself, exactly like first-window cards. */
+      var RP_REEL_WIN310 = 8;
+      function rpReelWinAppend310(feed) {
+        var w = Reels._win310; if (!w) return 0;
+        var built = 0, occ310 = {};
+        for (var i = 0; i < w.items.length && built < RP_REEL_WIN310; i++) {
+          var item = w.items[i];
+          // The ranked feed can list the same reel twice (the server
+          // ranker's boost pass) and the pre-window client painted a
+          // card for every listing — so the painted key carries the
+          // occurrence ordinal, recomputed from the current list on
+          // every pass (stable across same-set reshuffles, which keep
+          // the same multiplicities).
+          var wk310 = item.key + "#" + (occ310[item.key] = (occ310[item.key] || 0) + 1);
+          if (w.painted[wk310]) continue;
+          w.painted[wk310] = true; // mark first: a throwing card can never loop the appender
+          feed.appendChild(item.photoPost ? rpPhotoCard123(item) : reelCard(item));
+          built++;
+        }
+        return built;
+      }
+      function rpReelWinMaybe310(feed) {
+        var w = Reels._win310; if (!w) return; // the window object is replaced on every full build and nulled on the empty state — identity is the invariant
+        // Chain within one event (max 4 chunks): a hard flick to the very
+        // bottom must still land on a full runway — after an append the
+        // runway is re-measured, so one scroll event tops the feed up to
+        // 4 viewports of unbuilt runway or the end of the list.
+        var guard310 = 0;
+        while (guard310++ < 4 && feed.scrollHeight - feed.scrollTop - feed.clientHeight < feed.clientHeight * 4) {
+          if (!rpReelWinAppend310(feed)) break;
+        }
+      }
+      function rpReelWinBuildTo310(key) {
+        var w = Reels._win310; if (!w) return;
+        var feed = $("reelFeed"); if (!feed) return;
+        var occ310 = {};
+        for (var i = 0; i < w.items.length; i++) {
+          var item = w.items[i];
+          var wk310 = item.key + "#" + (occ310[item.key] = (occ310[item.key] || 0) + 1);
+          if (!w.painted[wk310]) { w.painted[wk310] = true; feed.appendChild(item.photoPost ? rpPhotoCard123(item) : reelCard(item)); }
+          if (item.key === key) break;
+        }
+      }
       function renderReels() {
         var feed = $("reelFeed"); if (!feed) return;
         var items = reelFeedItems().filter(function (it) { return !it.photoPost; }); // [RP-V7.253] STRICT separation (Branden, Nov 5): the Reels pager shows REELS ONLY in every view — For You, Friends (already reels-only) and the tag-filtered view below all read this one list. The V7.123 pagerMerge123 interleave is retired on this screen; pagerMerge123 itself is untouched because the Home For You pager still calls it and keeps its mixed stream. reelFeedItems() builds only from reel records (server /api/reels + local reel meta), so the photoPost filter is a hard guarantee at the DOM boundary, not the mechanism.
@@ -25175,6 +24948,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
              nodes instead of rebuilding, then refresh the counts. */
           if (Reels._sig252 !== sig252) { rpReorderReelCards252(items); Reels._sig252 = sig252; }
           rpRefreshReelCounts252(items);
+          if (Reels._win310) { Reels._win310.items = items; Reels._win310.sig = sig252; } // [RP-V7.310] windowed build: the unpainted tail follows the freshest order after a reshuffle
           /* [RP-V7.255] AUTOPLAY RE-FOUNDING: a no-rebuild return must
              still re-found playback. The reorder above moved card
              NODES (a playing <video>'s subtree leaves the document
@@ -25207,6 +24981,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
               ? friendsEmptyHtml128()
               : '<div class="mom-empty">No Reels yet — be the first to post one! 🎬</div>' +
               (Reels.serverOk ? "" : '<div class="mom-empty" style="padding-top:0;">Reels go public on the live site — yours are saved on this device until then.</div>'));
+          Reels._win310 = null; // [RP-V7.310] empty feed retires the window so a stale scroll can never append into it
           reelClearTagWire();
           var ff128 = document.getElementById("btnFriendsFind128"); // [RP-V7.128]
           if (ff128) ff128.addEventListener("click", function () { if (window.rpFindFriends) window.rpFindFriends.open(); else if (window.rpDm && window.rpDm.openPeople) window.rpDm.openPeople(""); }); // [RP-V7.144] Find friends first, directory as fallback
@@ -25268,7 +25043,28 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
           };
           feed.addEventListener("pointerdown", rpFeedUnlock246);
         }
-        items.forEach(function (item) { feed.appendChild(item.photoPost ? rpPhotoCard123(item) : reelCard(item)); }); // [RP-V7.123]
+        /* [RP-V7.310] windowed build (was: items.forEach append-all, [RP-V7.123]) — first window now, the rest on approach. */
+        Reels._win310 = { items: items, painted: {}, sig: sig252 };
+        rpReelWinAppend310(feed);
+        if (!feed.__rpWin310) {
+          feed.__rpWin310 = true;
+          feed.addEventListener("scroll", function () { try { rpReelWinMaybe310(feed); } catch (e) { } }, { passive: true });
+          /* Runway keeper backstop (same pattern as the V7.255
+             scroll-settle kick): a programmatic or clamped scroll can
+             come to rest at the built end without a further scroll
+             event ever firing — the loader would starve with items
+             still unbuilt. While the Reels screen is active and a
+             window exists, re-check proximity on a slow tick; the
+             check is three layout reads when the runway is healthy. */
+          setInterval(function () {
+            try {
+              if (!Reels._win310) return;
+              var scr310 = document.getElementById("screen-moments");
+              if (scr310 && scr310.classList.contains("active")) rpReelWinMaybe310(feed);
+            } catch (e) { }
+          }, 300);
+        }
+        rpReelWinMaybe310(feed); // a feed restored mid-scroll tops itself up immediately
       }
       /* [RP-V7.252] Count-only refresh for the pager: a fetch that
          returns the same structure with different counters updates
@@ -27032,6 +26828,7 @@ body.rp-light .earn-badge { background: #ffc53d; color: #231a00; }
         if (!item.sourceId) { toast("The original reel isn't available."); return; }
         var feed = $("reelFeed");
         var card = feed && feed.querySelector('[data-rid="srv:' + item.sourceId + '"]');
+        if (!card) { try { rpReelWinBuildTo310("srv:" + item.sourceId); } catch (e) { } card = feed && feed.querySelector('[data-rid="srv:' + item.sourceId + '"]'); } // [RP-V7.310] the source may sit past the painted window — build through it before giving up
         if (!card) { toast("The original reel isn't in this feed right now."); return; }
         try { card.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { }
         card.classList.remove("reel-flash");
@@ -42169,7 +41966,6 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .rp-ob-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; }
 .rp-ob-count{ font-size:12px; opacity:.65; }
 .rp-ob-count.over{ color:#ff8080; opacity:1; font-weight:800; }
-body.rp-light .rp-ob-count.over{ color:#c81e1e; }
 .rp-owner-bcast button{ background:#f5c542; color:#141414; border:none; border-radius:10px; padding:9px 16px; font-size:14px; font-weight:800; cursor:pointer; }
 .rp-owner-bcast button:disabled{ opacity:.5; cursor:default; }
 .rp-owner-bcast button.armed{ background:#e02424; color:#fff; }
@@ -44334,10 +44130,6 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
   function togRow(key, label, on) {
     return '<button type="button" class="rp-set-row" data-notify="' + key + '"><span>' + label + '</span><span class="rp-set-tog' + (on ? " on" : "") + '"></span></button>';
   }
-  function appRow(val, label, sub) {
-    var curMode287 = (window.RPAppearance287 && window.RPAppearance287.getMode) ? window.RPAppearance287.getMode() : "auto";
-    return '<button type="button" class="rp-set-row" data-appearance="' + val + '"><span>' + label + (sub ? '<span class="rp-set-sub">' + sub + "</span>" : "") + '</span><span class="rp-set-radio' + (curMode287 === val ? " on" : "") + '"></span></button>';
-  }
   function privRow(val, label, sub) {
     return '<button type="button" class="rp-set-row" data-priv="' + val + '"><span>' + label + (sub ? '<span class="rp-set-sub">' + sub + "</span>" : "") + '</span><span class="rp-set-radio' + (cur.dmPrivacy === val ? " on" : "") + '"></span></button>';
   }
@@ -44353,10 +44145,6 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
       '<p class="rp-set-sec">🔤 Letter style</p>' +
       '<button type="button" class="rp-set-row" id="rpSetFontRow"><span>Letter style<span class="rp-set-sub">How the Plaza\'s letters look, just for you</span></span>' +
       '<span class="rp-set-cur" style="font-family:' + fontStack(cur.letterStyle) + '">' + esc(st.name) + " ›</span></button>" +
-      '<p class="rp-set-sec">🎨 Appearance</p>' +
-      appRow("auto", "Auto", "White by day, black by night") +
-      appRow("white", "White", "Always white") +
-      appRow("black", "Black", "Always black") +
       (
         '<p class="rp-set-sec"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"5\" y=\"10.5\" width=\"14\" height=\"9.5\" rx=\"2.5\"/><path d=\"M8 10.5V8a4 4 0 0 1 8 0v2.5\"/><circle cx=\"12\" cy=\"15.2\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg> Who can message me</p>' +
         privRow("everyone", "Everyone", "") +
@@ -44417,15 +44205,6 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
       nx.channels = { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms };
       return nx;
     }
-    document.querySelectorAll("[data-appearance]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var v = b.getAttribute("data-appearance");
-        if (!v || !window.RPAppearance287) return;
-        if (v === window.RPAppearance287.getMode()) return;
-        window.RPAppearance287.setMode(v); /* applies instantly + saves on this device */
-        openSettings(); /* re-render so the radio moves */
-      });
-    });
     document.querySelectorAll("[data-notify]").forEach(function (b) {
       b.addEventListener("click", function () {
         var k = b.getAttribute("data-notify");
@@ -47208,93 +46987,7 @@ html, body { overflow-x: clip; }
 })();
 </script>
 
-<script>
-/* ================= [RP-V7.287] Appearance controller =================
-   White by day / black by night + the Settings switch (Branden,
-   Nov 7, 2026). Mode lives on-device only: localStorage
-   rpAppearance.v1 = auto | white | black (default auto).
-   auto = white 07:00-19:00 device-local, black otherwise; re-checked
-   every 60s and whenever the app comes back to the foreground.
-   The head script paints the same decision before first frame. */
-(function () {
-  var KEY = "rpAppearance.v1";
-  function getMode() {
-    var m = "auto";
-    try { m = localStorage.getItem(KEY) || "auto"; } catch (e) { }
-    return (m === "white" || m === "black") ? m : "auto";
-  }
-  function isLight(mode) {
-    if (mode === "white") return true;
-    if (mode === "black") return false;
-    var h = new Date().getHours();
-    return h >= 7 && h < 19;
-  }
-  function apply() {
-    var light = isLight(getMode());
-    try {
-      document.documentElement.classList.toggle("rp-light", light);
-      if (document.body) document.body.classList.toggle("rp-light", light);
-    } catch (e) { }
-    return light;
-  }
-  function setMode(mode) {
-    if (mode !== "white" && mode !== "black") mode = "auto";
-    try { localStorage.setItem(KEY, mode); } catch (e) { }
-    apply();
-    return mode;
-  }
-  window.RPAppearance287 = { getMode: getMode, setMode: setMode, apply: apply, isLight: isLight };
-  apply();
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", apply);
-  setInterval(apply, 60000);
-  document.addEventListener("visibilitychange", function () { if (!document.hidden) apply(); });
-  window.addEventListener("focus", apply);
-})();
-</script>
-<style id="rp288-style">
-/* [RP-V7.288] White-mode text fix (Branden, Nov 8, 2026: "All the letters
-   need to be black"). The Plaza section-card family (and every surface
-   sharing its mechanisms) rendered WHITE text + pink glow on the white
-   light-mode background: .online-card/.plaza-card carry color:#fff in
-   their base rules while V7.287 flipped only their backgrounds; the
-   late rule at .live-now-head forces color:#fff !important; and the
-   global body/h1-h3 text-shadow glow (the dark-mode brand halo) sat
-   behind the letters. Light mode only — dark mode is byte-identical
-   in effect. Scope-out media surfaces (live panel, gift overlays,
-   camera, story viewer, room scenes) re-assert the dark glow below. */
-body.rp-light { text-shadow: none; }
-body.rp-light h1, body.rp-light h2, body.rp-light h3, body.rp-light .display { text-shadow: none; }
-body.rp-light #livePanel, body.rp-light .gfx, body.rp-light #camScreen, body.rp-light #storyViewer, body.rp-light .rpmedia-wrap, body.rp-light .scene { text-shadow: 0 0 6px rgba(254,44,44,.13), 0 0 2px rgba(255,255,255,.05); }
-body.rp-light #livePanel h1, body.rp-light #livePanel h2, body.rp-light #livePanel h3, body.rp-light #livePanel .display,
-body.rp-light .gfx h1, body.rp-light .gfx h2, body.rp-light .gfx h3, body.rp-light .gfx .display,
-body.rp-light #camScreen h1, body.rp-light #camScreen h2, body.rp-light #camScreen h3, body.rp-light #camScreen .display,
-body.rp-light #storyViewer h1, body.rp-light #storyViewer h2, body.rp-light #storyViewer h3, body.rp-light #storyViewer .display,
-body.rp-light .rpmedia-wrap h1, body.rp-light .rpmedia-wrap h2, body.rp-light .rpmedia-wrap h3, body.rp-light .rpmedia-wrap .display,
-body.rp-light .scene h1, body.rp-light .scene h2, body.rp-light .scene h3, body.rp-light .scene .display { text-shadow: 0 0 16px rgba(254,44,44,.38), 0 0 6px rgba(254,44,44,.26); }
-/* the card family: black headings, dark-gray copy, clean on white */
-body.rp-light .online-card { color: #111111; }
-body.rp-light .online-card p { color: #444444; }
-body.rp-light .plaza-card { color: #111111; }
-body.rp-light .plaza-card p { color: #444444; }
-body.rp-light .plaza-card h3 { text-shadow: none; }
-body.rp-light .support-head { color: #111111; }
-body.rp-light .support-sub { color: #444444; }
-body.rp-light .live-now-head { color: #111111 !important; }
-body.rp-light #lobbyTitle, body.rp-light #matchesSection h3, body.rp-light .state-rooms-head { color: #111111 !important; }
-/* holiday banner: its holiday-window rule outranks the V7.287 flip;
-   equal specificity + later position wins, letters go black */
-body.rp-light[data-holiday] .hol-banner, body.rp-light .hol-banner { background: #ffffff !important; color: #111111 !important; }
-body.rp-light .hol-banner b { color: #9c6600; }
-/* Daily Pot total: brand gold deepened until it reads on white */
-body.rp-light .dpot-total { color: #9c6600; }
-/* RP-V7.295: accent letters deepen to the app's deep red on white so the
-   red text keeps >=4.5:1 (the bright accent red measures ~3.7:1 on white) */
-body.rp-light .rp-tag258, body.rp-light .rp-mention258 { color: #d91f1f; }
-body.rp-light .bible-ref { color: #d91f1f; }
-body.rp-light .store-tile .soldout { color: #d91f1f; }
-body.rp-light #rpSetDel span { color: #d91f1f !important; }
-body.rp-light #rpAcctDel { color: #d91f1f !important; }
-</style>
+<!-- [RP-V7.310] BLACK ONLY: the V7.287 appearance controller (mode reads, 60s re-apply interval, focus/visibility re-apply) is removed. Dark is the only theme. -->
 <style>
 /* ================= RP-V7.306: battle boosters =================
    Chips row + host tray + centre callouts for the server-run battle.
