@@ -19645,6 +19645,16 @@ app.post("/api/money/connect/onboard", async (req, res) => {
   if (!stripeConfigured()) return stripeNotConfigured(res);
   try {
     let acctId = ctx.user.stripeAccountId || null;
+    const origin = siteOrigin(req);
+    // [RP-V7.312] Stripe due-diligence attestation: the platform passes a
+    // UNIQUE URL for each content creator to Stripe via the API. A
+    // creator's public profile URL is <origin>/?creator=<username> — the
+    // client resolves that deep link to the member's profile (see the
+    // creator boot param in public/index.html, RP-V7.312).
+    const creatorParam = ctx.user.username || ctx.user.id;
+    const creatorProfileUrl =
+      origin + "/?creator=" + encodeURIComponent(creatorParam);
+    const creatorProfileName = ctx.user.name || ctx.user.username || "";
     if (!acctId) {
       const acct = await stripeApi("POST", "/accounts", {
         type: "express",
@@ -19652,13 +19662,27 @@ app.post("/api/money/connect/onboard", async (req, res) => {
         email: ctx.user.email,
         business_type: "individual",
         capabilities: { transfers: { requested: true } },
+        business_profile: { name: creatorProfileName, url: creatorProfileUrl },
       });
       acctId = acct.id;
       ctx.user.stripeAccountId = acctId;
       writeAccounts(ctx.db);
       console.log("[money] connect account created for", ctx.user.email);
+    } else {
+      // [RP-V7.312] Existing Connect account: best-effort backfill of the
+      // creator profile (display name + unique URL). Guarded on its own —
+      // a failure here must NEVER fail onboarding; log and continue.
+      try {
+        await stripeApi("POST", "/accounts/" + acctId, {
+          business_profile: { name: creatorProfileName, url: creatorProfileUrl },
+        });
+      } catch (bpErr) {
+        console.error(
+          "[money] connect business_profile update failed (continuing)",
+          bpErr.message
+        );
+      }
     }
-    const origin = siteOrigin(req);
     const link = await stripeApi("POST", "/account_links", {
       account: acctId,
       refresh_url: origin + "/?connect=refresh",
@@ -19801,7 +19825,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, online: players.size })
+  res.json({ ok: true, version: "RP-V7.312", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -20872,7 +20896,7 @@ io.on("connection", (socket) => {
 });
 
 server.listen(PORT, () =>
-  console.log(`Party server listening on port ${PORT}`)
+  console.log(`Party server listening on port ${PORT} [RP-V7.312]`)
 );
 
 /* ---------- [RP-V7.94] Seed/demo content sweep (boot, idempotent) ----------
