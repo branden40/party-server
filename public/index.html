@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.312" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.314" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -3015,6 +3015,45 @@
       } catch (e) { return ""; }
     };
   </script>
+  <script>
+  /* ================= [RP-V7.314] SCREEN-GATED WATCHERS =================
+     The Nov 10 perf sweep counted ~39 interval fires a second while the
+     app sat idle on Home: battle, room, auction, sound-sync and paint
+     watchers all kept ticking on screens they don't serve, so the main
+     thread never got an idle window. rpGate314 owns those timers now:
+     a watcher's interval only EXISTS while its relevance check passes
+     (its screen is the active one, its state is live, the page is
+     visible). A slow supervisor (2.5 s), visibility changes, taps,
+     scrolls and the navigation wrapper at the end of body re-evaluate
+     the checks, so a watcher starts within a beat of becoming relevant
+     and is cleared when it stops being relevant. Watcher bodies are
+     unchanged — only their registration moved here. */
+  window.rpGate314 = (function () {
+    var list = [], lastSync = 0;
+    function activeId() { var s = document.querySelector(".screen.active"); return s ? s.id : ""; }
+    function syncNow() {
+      lastSync = Date.now();
+      var sid = activeId(), hid = !!document.hidden;
+      for (var i = 0; i < list.length; i++) {
+        var w = list[i], on = false;
+        if (!hid) { try { on = !!w.when(sid); } catch (e) { on = false; } }
+        if (on && w.id == null) { w.id = setInterval(w.fn, w.ms); }
+        else if (!on && w.id != null) { clearInterval(w.id); w.id = null; }
+      }
+    }
+    function sync() { var t = Date.now(); if (t - lastSync < 250) return; syncNow(); }
+    setInterval(syncNow, 2500);
+    document.addEventListener("visibilitychange", syncNow);
+    document.addEventListener("pointerdown", sync, true);
+    window.addEventListener("scroll", sync, { capture: true, passive: true });
+    return {
+      add: function (fn, ms, when) { var w = { fn: fn, ms: ms, when: when, id: null }; list.push(w); syncNow(); return w; },
+      remove: function (w) { var i = list.indexOf(w); if (i >= 0) list.splice(i, 1); if (w && w.id != null) { clearInterval(w.id); w.id = null; } },
+      sync: sync, syncNow: syncNow,
+      debug: function () { return list.map(function (w) { return { ms: w.ms, on: w.id != null }; }); }
+    };
+  })();
+  </script>
   </head>
   <body>
     
@@ -5917,9 +5956,24 @@
           try { p = au.play(); } catch (e) { }
           if (p && p.catch) p.catch(function () { /* autoplay rules or network: stay silent, no errors */ });
         }
+        /* [RP-V7.314] Deferred track fetch: loadTrack used to assign the
+           audio src the moment the boot show() -> setScreen -> refresh
+           chain picked the default track, so the ~4.9 MB file started
+           streaming ~1 s after cold open, before Music was ever opened.
+           Now loadTrack only RECORDS the track until arm314() runs —
+           which happens when the member opens the Music surface
+           (openPicker) or presses a music play control (toggleMusic,
+           stepTrack). Playback semantics after arming are unchanged. */
+        var armed314 = false;
+        function arm314() {
+          if (armed314) return;
+          armed314 = true;
+          if (curTrack) { var pending314 = curTrack; curTrack = null; loadTrack(pending314, true); }
+        }
         function loadTrack(id, autoplay) {
           var t = trackById(id);
           curTrack = id;
+          if (!armed314) { syncUI(); return; }
           var a = ensureAudio();
           var url = t.src || (AUDIO_BASE + t.file); // [RP-V7.227] src = R2-hosted expansion track
           if (a.getAttribute("src") !== url) { try { a.src = url; } catch (e) { } }
@@ -5938,6 +5992,7 @@
           syncUI();
         }
         function stepTrack(dir) {
+          arm314(); /* [RP-V7.314] Prev/Next is a play control: fetch now */
           var base = pick || trackNow(), idx = 0, i;
           for (i = 0; i < TRACKS.length; i++) if (TRACKS[i].id === base) idx = i;
           pick = TRACKS[(idx + dir + TRACKS.length) % TRACKS.length].id;
@@ -6056,6 +6111,7 @@
             saveMusicPref();
             if (wantPlay) {
               if (!unlocked) unlocked = true;
+              arm314(); /* [RP-V7.314] explicit play press: fetch the track now */
               loadTrack(trackNow(), true);
             } else if (au) { try { au.pause(); } catch (e) { } }
             syncUI();
@@ -6117,6 +6173,7 @@
 
           openPicker: function () {
             unlock();
+            arm314(); /* [RP-V7.314] the Music surface is open: the deferred track may fetch now */
             if (liveRoomSoft) {
               openSheet(
                 '<div class="game-box"><h3>Music</h3>' +
@@ -25164,6 +25221,34 @@
           if (item.key === key) break;
         }
       }
+      /* [RP-V7.314] Runway keeper lifecycle: this 300 ms interval used
+         to be created once per feed and NEVER cleared — it kept firing
+         on every later screen for the rest of the session (the sweep
+         counted it on Photos, the Live list and Home idle). It now
+         clears itself on the first tick that finds the Reels screen
+         inactive, and rpWinKeeperStart310 (re)starts exactly one
+         instance — guarded by feed.__rpWin310T — from renderReels and
+         from the feed's own scroll listener. While Reels is active its
+         tick behaviour is the original one. */
+      function rpWinKeeperStart310(feed) {
+        if (!feed || feed.__rpWin310T) return;
+        feed.__rpWin310T = setInterval(function () {
+          try {
+            var scr310 = document.getElementById("screen-moments");
+            if (!scr310 || !scr310.classList.contains("active")) { clearInterval(feed.__rpWin310T); feed.__rpWin310T = null; return; }
+            if (!Reels._win310) return;
+            rpReelWinMaybe310(feed);
+          } catch (e) { }
+        }, 300);
+      }
+      /* Every Reels entry funnels through show("screen-moments") —
+         the tab bar, the home Reels button, deep links — while
+         renderReels itself is not guaranteed to re-run on a re-entry
+         (the deferred render coalesces). The navigation wrapper at
+         the end of body calls this on every Reels entry so exactly
+         one keeper is armed whenever the member lands on Reels; the
+         keeper still clears itself when the screen is left. */
+      window.__rpReelsKeeper314 = function () { var f314 = document.getElementById("reelFeed"); if (f314) rpWinKeeperStart310(f314); };
       function renderReels() {
         var feed = $("reelFeed"); if (!feed) return;
         var items = reelFeedItems().filter(function (it) { return !it.photoPost; }); // [RP-V7.253] STRICT separation (Branden, Nov 5): the Reels pager shows REELS ONLY in every view — For You, Friends (already reels-only) and the tag-filtered view below all read this one list. The V7.123 pagerMerge123 interleave is retired on this screen; pagerMerge123 itself is untouched because the Home For You pager still calls it and keeps its mixed stream. reelFeedItems() builds only from reel records (server /api/reels + local reel meta), so the photoPost filter is a hard guarantee at the DOM boundary, not the mechanism.
@@ -25295,22 +25380,18 @@
         rpReelWinAppend310(feed);
         if (!feed.__rpWin310) {
           feed.__rpWin310 = true;
-          feed.addEventListener("scroll", function () { try { rpReelWinMaybe310(feed); } catch (e) { } }, { passive: true });
+          feed.addEventListener("scroll", function () { try { rpWinKeeperStart310(feed); rpReelWinMaybe310(feed); } catch (e) { } }, { passive: true });
           /* Runway keeper backstop (same pattern as the V7.255
              scroll-settle kick): a programmatic or clamped scroll can
              come to rest at the built end without a further scroll
              event ever firing — the loader would starve with items
              still unbuilt. While the Reels screen is active and a
              window exists, re-check proximity on a slow tick; the
-             check is three layout reads when the runway is healthy. */
-          setInterval(function () {
-            try {
-              if (!Reels._win310) return;
-              var scr310 = document.getElementById("screen-moments");
-              if (scr310 && scr310.classList.contains("active")) rpReelWinMaybe310(feed);
-            } catch (e) { }
-          }, 300);
+             check is three layout reads when the runway is healthy.
+             [RP-V7.314] the keeper interval itself now lives in
+             rpWinKeeperStart310 above, with a leave-Reels lifecycle. */
         }
+        rpWinKeeperStart310(feed);
         rpReelWinMaybe310(feed); // a feed restored mid-scroll tops itself up immediately
       }
       /* [RP-V7.252] Count-only refresh for the pager: a fetch that
@@ -30280,8 +30361,12 @@ function stageStreakBump(key, add) {
       }
     } catch (e) { }
   };
-  /* banners: stamp No. 1 pill for the current top gifter */
-  setInterval(function () {
+  /* banners: stamp No. 1 pill for the current top gifter.
+     [RP-V7.314] gated: the interval only exists while a live-room
+     screen is active or a gift banner is on the active screen —
+     rpGate314 clears it everywhere else, instead of it firing an
+     early-return ~100x a minute on unrelated screens. */
+  window.rpGate314.add(function () {
     if (!topName) return;
     document.querySelectorAll(".rp-banner:not([data-n1])").forEach(function (row) {
       row.setAttribute("data-n1", "1");
@@ -30293,7 +30378,11 @@ function stageStreakBump(key, add) {
         row.appendChild(pill);
       }
     });
-  }, 600);
+  }, 600, function (sid) {
+    if (!topName) return false;
+    if (sid === "screen-online" || sid === "screen-room") return true;
+    return !!document.querySelector(".screen.active .rp-banner");
+  });
   
 })();
 </script>
@@ -31335,12 +31424,15 @@ function stageStreakBump(key, add) {
       var s = document.querySelector(".screen.active");
       return !!s && (s.id === "screen-auctions" || s.id === "screen-online" || s.id === "screen-room");
     }
-    setInterval(function () {
+    /* [RP-V7.314] gated on the module's own relevance check: the
+       interval is cleared while no live is running and none of the
+       live/auction screens is active. */
+    window.rpGate314.add(function () {
       if (!wnTickLive257()) return;
       try { tickAuction(); } catch (e) { }
       try { tickBar(); } catch (e) { }
       try { tickRaid(); } catch (e) { }
-    }, 600);
+    }, 600, function () { return wnTickLive257(); });
     setInterval(function () {
       if (!wnTickLive257()) return;
       try { tickHost(); } catch (e) { }
@@ -31822,7 +31914,8 @@ function stageStreakBump(key, add) {
       (function (el) { setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 2500); })(s);
     }
   }
-  setInterval(function () {
+  /* [RP-V7.314] gated: the lap timer only ticks while a lap exists. */
+  window.rpGate314.add(function () {
     try {
       if (!S.lap) return;
       var L = live();
@@ -31832,7 +31925,7 @@ function stageStreakBump(key, add) {
       var tm = $("bbTime");
       if (tm && S.lap) tm.textContent = "🏁 " + lapLeftStr();
     } catch (e) { }
-  }, 500);
+  }, 500, function () { return !!S.lap; });
 
   /* ---------------- series + how-to lines under the battle bar ---------------- */
   function ensureBarExtras() {
@@ -37286,8 +37379,15 @@ button.rp72-chip{ cursor:pointer; }
     });
   }
   function rpPaintTrickle244() {
-    if (rpPaintTrickleT244) return;
-    rpPaintTrickleT244 = setInterval(function () {
+    if (rpPaintTrickleT244) { try { window.rpGate314.syncNow(); } catch (e) { } return; }
+    /* [RP-V7.314] gated: the trickle interval only exists while an
+       unpromoted tile sits on the visible screen (the body's own
+       promotion criterion) — previously it ticked forever over tiles
+       registered by hidden screens. rpPaintTrickleT244 now holds the
+       gate registration instead of a raw interval id; the body's
+       nothing-left-to-promote stop unregisters it, exactly like the
+       old clearInterval, and the next registered tile re-arms it. */
+    rpPaintTrickleT244 = window.rpGate314.add(function () {
       if (document.hidden) return;
       rpPaintSweep244(); // [RP-V7.251]
       var band = [], first = null, alive = [];
@@ -37311,8 +37411,15 @@ button.rp72-chip{ cursor:pointer; }
       rpPaintAll244 = alive;
       if (band.length) band.forEach(rpPaintPromote244);
       else if (first) rpPaintPromote244(first);
-      else if (!alive.some(function (x) { return !x.__rpPromoted244; })) { clearInterval(rpPaintTrickleT244); rpPaintTrickleT244 = null; }
-    }, 700);
+      else if (!alive.some(function (x) { return !x.__rpPromoted244; })) { window.rpGate314.remove(rpPaintTrickleT244); rpPaintTrickleT244 = null; }
+    }, 700, function () {
+      for (var gi314 = 0; gi314 < rpPaintAll244.length; gi314++) {
+        var gv314 = rpPaintAll244[gi314];
+        if (!gv314.isConnected || gv314.__rpPromoted244) continue;
+        try { if (gv314.getClientRects().length > 0) return true; } catch (e) { }
+      }
+      return false;
+    });
   }
   function rpPaintFrame243(v, opts244) {
     if (!v || v.__rpPaint243) return;
@@ -40299,7 +40406,9 @@ button.rp72-chip{ cursor:pointer; }
       if (sc.classList.contains("rproom-idle")) sc.classList.remove("rproom-idle"); /* [RP-V7.308] guarded remove */
     }
   }, true);
-  setInterval(function () {
+  /* [RP-V7.314] gated: the room-idle watcher only ticks while the
+     Live Stage / room screen is the active screen. */
+  window.rpGate314.add(function () {
     try {
       var sc = $("screen-online");
       if (!sc) return;
@@ -40308,7 +40417,7 @@ button.rp72-chip{ cursor:pointer; }
       if (overlay && !typing && Date.now() - idleAt >= 4000) sc.classList.add("rproom-idle");
       else if (!overlay || typing) { if (sc.classList.contains("rproom-idle")) sc.classList.remove("rproom-idle"); /* [RP-V7.308] guarded: this 500 ms interval previously issued an absent-token remove on an element watched by four class observers */ idleAt = Date.now(); }
     } catch (e) { }
-  }, 500);
+  }, 500, function (sid) { return sid === "screen-online"; });
 
   /* debug/test handle */
   window.rpRoomStage = {
@@ -43978,8 +44087,17 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         var a = sndEl();
         if (a && a.paused && (Snd.owner === "reel" || Snd.owner === "edit")) sndPlay();
       }, true);
-      /* sound sync loop */
-      setInterval(sndTick, 500);
+      /* sound sync loop — [RP-V7.314] gated: it only ticks while the
+         camera is open, a sound sheet is open, a sound owner is active,
+         or the on-screen reel carries a music track to sync. */
+      window.rpGate314.add(sndTick, 500, function () {
+        try {
+          if (Cam.open || Snd.owner) return true;
+          if (el("camEditSheet").classList.contains("open") || el("sndSheet").classList.contains("open")) return true;
+          var av314 = (typeof Reels !== "undefined") ? Reels.activeView : null;
+          return !!(av314 && av314.item && av314.item.musicTrackId);
+        } catch (e) { return false; }
+      });
       sndLoadState(function () { paintFavs(); });
     }
     window.rpCamState = function () {
@@ -44846,10 +44964,17 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
    on top, and tapping the avatar walks straight into their live. The
    + follow chip underneath is unchanged. */
 .reel-avwrap.is-live189 { cursor: pointer; }
-.reel-avwrap.is-live189 .reel-av { border-color: #fe2c2c; animation: reelLivePulse189 1.5s ease-in-out infinite; }
-@keyframes reelLivePulse189 {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(254,44,44,.55), 0 0 10px 2px rgba(254,44,44,.55); }
-  50% { box-shadow: 0 0 0 3px rgba(254,44,44,.9), 0 0 20px 7px rgba(254,44,44,.9); }
+/* [RP-V7.314] the same pulse, composited: the trough glow is a static
+   box-shadow on the avatar itself; the peak glow rides an
+   opacity-animated ::after on the wrap (the same 46px circle, the
+   same colors, the same 1.5s ease-in-out rhythm) — no animated
+   box-shadow remains, so a live author's ring no longer forces a
+   style recalc every frame. */
+.reel-avwrap.is-live189 .reel-av { border-color: #fe2c2c; box-shadow: 0 0 0 2px rgba(254,44,44,.55), 0 0 10px 2px rgba(254,44,44,.55); }
+.reel-avwrap.is-live189::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 3px rgba(254,44,44,.9), 0 0 20px 7px rgba(254,44,44,.9); opacity: 0; animation: reelLiveGlow189 1.5s ease-in-out infinite; pointer-events: none; }
+@keyframes reelLiveGlow189 {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 .reel-livebadge189 { position: absolute; top: -7px; left: 50%; transform: translateX(-50%); z-index: 3; background: linear-gradient(180deg, #ff2438, #d8001c); color: #fff; font-size: 8px; font-weight: 900; letter-spacing: .5px; line-height: 1; padding: 2.5px 5px 2px; border-radius: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.45); pointer-events: none; }
 </style>
@@ -47487,7 +47612,10 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
     render306();
   }
 
-  setInterval(function () {
+  /* [RP-V7.314] gated: the battle socket/render watcher only ticks
+     while a battle is live or a live-room screen is active (so the
+     socket bind is armed before a battle starts there). */
+  window.rpGate314.add(function () {
     var s = sock();
     if (s && B.boundSock !== s) {
       B.boundSock = s;
@@ -47495,7 +47623,21 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
       try { s.on("battle-boost-ack", function (r) { if (r && !r.ok) toast2(r.error === "no-stock" ? "No boosters of that kind left — earn them in battles!" : (r.error === "already-active" ? "That boost is already running!" : (r.error === "timer-used" ? "Timer already used this battle." : (r.error === "too-late" ? "Too late — the battle is almost over!" : "That booster didn't play."))), 2600); }); } catch (e) { }
     }
     if (B.id) render306();
-  }, 600);
+  }, 600, function (sid) { return !!B.id || sid === "screen-online" || sid === "screen-room"; });
+})();
+</script>
+<script>
+/* [RP-V7.314] navigation keeps the gated watchers in step: every
+   show() re-evaluates which watchers should exist right now. */
+(function () {
+  try {
+    if (typeof show === "function" && window.rpGate314 && !show.__rp314) {
+      var __rpShowOrig314 = show;
+      var __rpShowWrap314 = function () { var r = __rpShowOrig314.apply(this, arguments); try { window.rpGate314.syncNow(); } catch (e) { } try { if (arguments[0] === "screen-moments" && typeof window.__rpReelsKeeper314 === "function") window.__rpReelsKeeper314(); } catch (e) { } return r; };
+      __rpShowWrap314.__rp314 = true;
+      show = __rpShowWrap314;
+    }
+  } catch (e) { }
 })();
 </script>
 </body>
