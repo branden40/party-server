@@ -2562,6 +2562,32 @@
       .people-row.speaking b::after { content: " · 🎙 talking"; color: #1e9e52; font-size: 12px; }
       .move-chip.chaos { background: linear-gradient(120deg, #e84343, #f2a93b); color: #fff; border-color: transparent; font-size: 15px; padding: 12px 18px; width: 100%; }
       @media (prefers-reduced-motion: reduce) { .ptt-btn.mine, .speak-badge { animation: none !important; } }
+      /* [RP-V7.311] Zello-style giant talk screen — an expanded view of a
+         room's PTT bar (same floor control, same Voice state). Dark-only,
+         Plaza red accent. The big button is round: 62vw, capped at 300px. */
+      .pttalk { position: fixed; inset: 0; z-index: 60; background: #000; color: var(--ink);
+        display: flex; flex-direction: column; padding: calc(14px + env(safe-area-inset-top, 0px)) 18px calc(18px + env(safe-area-inset-bottom, 0px)); }
+      .pttalk[hidden] { display: none; }
+      .pttalk-head { display: flex; align-items: flex-start; gap: 12px; }
+      .pttalk-titles { flex: 1; min-width: 0; }
+      .pttalk-title { font-size: 21px; font-weight: 900; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .pttalk-conn { margin-top: 2px; font-size: 13.5px; font-weight: 700; color: var(--ink-soft); }
+      .pttalk-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+      .pttalk-btn { width: 62vw; max-width: 300px; height: 62vw; max-height: 300px; border-radius: 50%;
+        border: 4px solid var(--rose); background: #111116; color: #fff; cursor: pointer; font-family: inherit;
+        touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+        box-shadow: 0 0 0 6px rgba(254,44,44,.14), 0 18px 44px rgba(0,0,0,.6); }
+      .pttalk-btn .pttalk-ico { font-size: 54px; line-height: 1; }
+      .pttalk-btn .pttalk-label { font-size: 17px; font-weight: 900; letter-spacing: 1.2px; padding: 0 18px; text-align: center; }
+      .pttalk-btn.waiting { border-color: #4a7fb5; animation: pttTalkPulse .8s ease-in-out infinite alternate; box-shadow: 0 0 0 6px rgba(74,127,181,.18), 0 18px 44px rgba(0,0,0,.6); }
+      @keyframes pttTalkPulse { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+      .pttalk-btn.mine { background: var(--rose); border-color: var(--rose); box-shadow: 0 0 0 8px rgba(254,44,44,.28), 0 18px 44px rgba(0,0,0,.6); animation: pttLive .9s ease-in-out infinite alternate; }
+      .pttalk-btn.locked { border-color: #5d5d66; background: #1b1b21; color: var(--ink-soft); cursor: not-allowed; box-shadow: 0 18px 44px rgba(0,0,0,.6); }
+      .pttalk-status { min-height: 20px; font-size: 14.5px; font-weight: 700; color: var(--ink-soft); text-align: center; max-width: 92vw; }
+      .pttalk-meter { display: flex; align-items: flex-end; gap: 5px; height: 34px; }
+      .pttalk-meter i { display: block; width: 12px; height: 5px; border-radius: 3px; background: var(--rose); opacity: .28; transition: height .09s linear, opacity .09s linear; }
+      @media (prefers-reduced-motion: reduce) { .pttalk-btn.mine, .pttalk-btn.waiting { animation: none !important; } }
       @media (max-width: 640px) {
         .px-strip { top: 106px; }
         .px-announce { top: 158px; }
@@ -3461,14 +3487,40 @@
         </div>
         <div class="ptt-bar" id="chaosPttBar">
           <button class="ptt-btn" id="btnChaosPtt" type="button" data-label="🎙 HOLD TO TALK — CHAOS ROOM">🎙 HOLD TO TALK — CHAOS ROOM</button>
-          <div class="ptt-status" id="chaosPttStatus">Chaos Room voice — one talker at a time. Hold the button, wait for the chirp, then talk!</div>
+          <div class="ptt-status" id="chaosPttStatus">Chaos Room voice — one talker at a time. Hold the button and talk!</div>
+          <div class="btn-row" style="justify-content:center; margin-top:10px;">
+            <button class="btn-mini" id="btnChaosTalk" type="button">⛶ Talk screen</button>
+          </div>
         </div>
         <div class="ptt-bar faith" id="faithPttBar">
           <button class="ptt-btn" id="btnFaithPtt" type="button" data-label="🎙 HOLD TO TALK — FELLOWSHIP">🎙 HOLD TO TALK — FELLOWSHIP</button>
-          <div class="ptt-status" id="faithPttStatus">Fellowship voice — one talker at a time. Hold the button, wait for the chirp, then talk or pray aloud. The music stays soft while you talk.</div>
+          <div class="ptt-status" id="faithPttStatus">Fellowship voice — one talker at a time. Hold the button, then talk or pray aloud. The music stays soft while you talk.</div>
+          <div class="btn-row" style="justify-content:center; margin-top:10px;">
+            <button class="btn-mini" id="btnFaithTalk" type="button">⛶ Talk screen</button>
+          </div>
           <div class="btn-row" style="justify-content:center; align-items:center; margin-top:10px;">
             <button class="btn-mini" id="btnBibleStudyOnline" type="button">📖 Bible Study</button>
             <span style="font-size:12.5px; font-weight:700; color:var(--ink-soft);">📹 Video: tap a player's photo, then “Video chat” on their card.</span>
+          </div>
+        </div>
+        <!-- [RP-V7.311] Zello-style talk screen — an expanded view of the room
+             PTT bar above (Chaos Room / Fellowship). Driven by PttTalk in the
+             Voice module; the big button calls the same pttDown/pttUp. -->
+        <div class="pttalk" id="pttTalk" hidden role="dialog" aria-label="Push-to-talk screen">
+          <div class="pttalk-head">
+            <div class="pttalk-titles">
+              <div class="pttalk-title" id="pttTalkTitle">Chaos Room</div>
+              <div class="pttalk-conn" id="pttTalkConn">1 connected</div>
+            </div>
+            <button class="btn-mini" id="pttTalkClose" type="button">✕ Close</button>
+          </div>
+          <div class="pttalk-stage">
+            <button class="pttalk-btn" id="pttTalkBtn" type="button" aria-label="Hold to talk">
+              <span class="pttalk-ico" id="pttTalkIco">🎙</span>
+              <span class="pttalk-label" id="pttTalkLabel">HOLD TO TALK</span>
+            </button>
+            <div class="pttalk-status" id="pttTalkStatus"></div>
+            <div class="pttalk-meter" id="pttTalkMeter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
           </div>
         </div>
         <div class="online-lower">
@@ -10209,9 +10261,13 @@
          "room:chaos-room" (public — anyone in the Chaos Room, no match
          needed) or "dm:<id>:<id>" (mutual matches from the dating rooms
          only; the client emits match-made when a mutual like lands).
-         Press & HOLD to talk: a synthesized chirp opens the channel, a
-         roger-beep closes it, and while someone holds the floor every other
-         button on that channel locks and shows who is talking. */
+         Press & HOLD to talk: while someone holds the floor every other
+         button on that channel locks and shows who is talking.
+         [RP-V7.311] Sounds follow Zello (Branden, Nov 9): the SENDER is
+         silent — no chirp on press, no roger-beep on release. The pips
+         play on the RECEIVING side when a remote transmission starts
+         (chirp "rx" in onVoiceFloorGranted). Rooms also get a giant
+         Zello-style talk screen (PttTalk below). */
       var CHAOS_ROOM_ID = "chaos-room";
       var CHAOS_CHANNEL = "room:chaos-room";
       var FAITH_ROOM_ID = "faith";
@@ -10262,6 +10318,11 @@
         } else if (kind === "match") {
           chirpTone(1568, t, 0.07, 0.1);
           chirpTone(2093, t + 0.08, 0.12, 0.1);
+        } else if (kind === "rx") {     // [RP-V7.311] Zello incoming-transmission pips — RECEIVING side only: four flat ~2300 Hz pips in two pairs, measured from Branden's two Zello recordings (Nov 9): pips at +0 / +0.18 / +0.93 / +1.11 s, each ~0.10 s. Played when a remote talker's transmission starts; never for my own press.
+          chirpTone(2300, t, 0.1, 0.22);
+          chirpTone(2300, t + 0.18, 0.1, 0.22);
+          chirpTone(2300, t + 0.93, 0.1, 0.22);
+          chirpTone(2300, t + 1.11, 0.1, 0.22);
         }
       }
       /* ---------- floor control ---------- */
@@ -10288,7 +10349,7 @@
         if (ts.pressing || ts.live) return;
         ts.pressing = true; ts.micRetried = false; if (peerId) ts.peerId = peerId; // [RP-V7.48] fresh press — the one mic retry is re-armed
         AudioFX.holdMusic("voice"); // mic is going on: music stops completely, never louder
-        chirp("on");
+        // [RP-V7.311] Silent sender (Branden's Zello spec, Nov 9): NO chirp on my own press — the Zello pips belong to the RECEIVING side and play when a remote transmission starts (see onVoiceFloorGranted).
         Online.socket.emit("voice-request-floor", { channel: channel });
         // Ask for the mic on the press gesture itself, so the browser's
         // permission prompt is tied to the tap. The stream only goes live
@@ -10352,7 +10413,7 @@
         ts.pressing = false;
         if ((ts.granted || ts.live) && Online.socket) Online.socket.emit("voice-release-floor", { channel: channel });
         stopTalking(channel);
-        if (wasLive) chirp("off");
+        // [RP-V7.311] Silent sender: no roger-beep on release either.
         refreshPTT();
       }
       function stopTalking(channel) {
@@ -10374,10 +10435,30 @@
         if (Voice.matches[by]) return Voice.matches[by].name;
         return "Someone";
       }
+      // [RP-V7.311] Can I actually hear this channel right now? Mirrors the
+      // existing remote-audio gating exactly: a talker offers room audio to
+      // the players present in that room (so room:<id> is audible only while
+      // Online.room === <id>), and DM audio goes only to the matched peer
+      // named in the dm:<idA>:<idB> channel.
+      function pttRxAudible311(channel) {
+        if (!channel) return false;
+        if (channel.indexOf("room:") === 0) return Online.state === "on" && Online.room === channel.slice(5);
+        if (channel.indexOf("dm:") === 0) { var p = channel.split(":"); return !!Online.myId && (p[1] === Online.myId || p[2] === Online.myId); }
+        return false;
+      }
       function onVoiceFloorGranted(d) {
         if (!d || !d.channel) return;
         var self = !!d.self || d.by === Online.myId;
+        var prev311 = Voice.floors[d.channel]; // [RP-V7.311] floor holder BEFORE this grant lands — the rx-pip dedupe key
         Voice.floors[d.channel] = { by: d.by, byName: floorName(d.by, d.byName), self: self };
+        // [RP-V7.311] Zello pips on the RECEIVING side: a remote talker just
+        // STARTED a transmission I can hear — pip once. A re-stated grant
+        // for the SAME holder (reconnect re-sync, the silent RP-V7.48
+        // reclaim/transfer continuation) is the same transmission and must
+        // NOT re-pip: prev311.by === d.by (remote) suppresses it. A grant
+        // after a release (floors entry deleted) or for a different talker
+        // is a new transmission and pips again.
+        if (!self && d.by && !(prev311 && !prev311.self && prev311.by === d.by) && pttRxAudible311(d.channel)) chirp("rx");
         if (self) {
           var ts = talkState(d.channel);
           ts.granted = true;
@@ -10529,7 +10610,7 @@
           var tsc = Voice.talk[CHAOS_CHANNEL];
           st.textContent = (tsc && tsc.live) ? "You\u2019re on the air — the whole Chaos Room hears you. Release the button when you\u2019re done!"
             : (flc && !flc.self) ? flc.byName + " has the floor — one talker at a time in the Chaos Room."
-            : "Chaos Room voice — one talker at a time. Hold the button, wait for the chirp, then talk!";
+            : "Chaos Room voice — one talker at a time. Hold the button and talk!";
         }
         var fst = $("faithPttStatus");
         if (fst) {
@@ -10537,8 +10618,9 @@
           var tsf = Voice.talk[FAITH_CHANNEL];
           fst.textContent = (tsf && tsf.live) ? "You're on the air — the whole Fellowship hears you. Release the button when you're done!"
             : (flf && !flf.self) ? flf.byName + " has the floor — one talker at a time in the Fellowship."
-            : "Fellowship voice — one talker at a time. Hold the button, wait for the chirp, then talk or pray aloud. The music stays soft while you talk.";
+            : "Fellowship voice — one talker at a time. Hold the button, then talk or pray aloud. The music stays soft while you talk.";
         }
+        if (typeof PttTalk !== "undefined" && PttTalk) PttTalk.sync(); // [RP-V7.311] the talk screen reads the same floor state — keep it in step on every floor change
       }
       function bindPTT(btn, channel, peerId) {
         if (!btn) return;
@@ -10555,6 +10637,125 @@
         btn.addEventListener("keydown", function (e) { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); pttDown(channel, peerId); } });
         btn.addEventListener("keyup", function (e) { if (e.key === " " || e.key === "Enter") { e.preventDefault(); pttUp(channel); } });
       }
+      /* ---------- [RP-V7.311] Zello-style talk screen ----------
+         A full-screen EXPANDED view of a room's PTT bar (Chaos Room /
+         Fellowship) — NOT a second floor control. The big button calls
+         the very same pttDown/pttUp that bindPTT wires for the bar, and
+         it reads the same Voice.floors / Voice.talk state; refreshPTT()
+         re-syncs it on every floor change. One 100 ms tick exists ONLY
+         while the screen is open and drives the transmit timer, the mic
+         level meter and the "N connected" count; close() always clears
+         it. No MutationObservers. Floor lifecycle stays with the
+         existing paths (pttUp on release, stopChannelIfTalking on room
+         leave, voiceReset on disconnect) — close() never touches the
+         floor, it only cleans up UI, timer and analyser. */
+      var PttTalk = {
+        channel: null,
+        tick: null,
+        txSince: 0,
+        an: null, anSrc: null, anData: null,
+        isOpen: function () { return !!PttTalk.channel; },
+        open: function (channel) {
+          var el = $("pttTalk"); if (!el) return;
+          PttTalk.channel = channel;
+          var roomId = channel.indexOf("room:") === 0 ? channel.slice(5) : channel;
+          var title = $("pttTalkTitle"); if (title) title.textContent = onlineRoomMeta(roomId).title;
+          el.hidden = false;
+          PttTalk.sync();
+          if (PttTalk.tick) clearInterval(PttTalk.tick);
+          PttTalk.tick = setInterval(PttTalk._tick, 100);
+        },
+        close: function () {
+          var el = $("pttTalk"); if (el) el.hidden = true;
+          PttTalk.channel = null;
+          if (PttTalk.tick) { clearInterval(PttTalk.tick); PttTalk.tick = null; }
+          PttTalk.txSince = 0;
+          PttTalk._meterStop();
+        },
+        _tick: function () {
+          var el = $("pttTalk");
+          // Parent screen hidden (navigated away) or overlay gone: shut down cleanly.
+          if (!PttTalk.channel || !el || el.hidden || el.getClientRects().length === 0) { PttTalk.close(); return; }
+          PttTalk.sync();
+        },
+        _fmt: function (ms) {
+          var s = Math.max(0, ms) / 1000;
+          var m = Math.floor(s / 60), r = s - m * 60;
+          var ri = Math.floor(r), th = Math.floor((r - ri) * 10);
+          return (m < 10 ? "0" : "") + m + ":" + (ri < 10 ? "0" : "") + ri + "." + th;
+        },
+        _count: function () { // the room's own people count — same formula as updateOnlineBadge ("N people here")
+          return Object.keys(Online.players).length + ((Online.state === "on" || Online.state === "reconnecting") ? 1 : 0);
+        },
+        sync: function () {
+          if (!PttTalk.channel) return;
+          var ch = PttTalk.channel;
+          var btn = $("pttTalkBtn"); if (!btn) return;
+          var ico = $("pttTalkIco"), lab = $("pttTalkLabel"), st = $("pttTalkStatus"), cn = $("pttTalkConn");
+          var fl = Voice.floors[ch], ts = Voice.talk[ch];
+          var state, icon, label, status;
+          // Transmit bookkeeping FIRST so the timer label below is current:
+          // timer + mic meter live only while the floor is mine.
+          if (ts && ts.live) {
+            if (!PttTalk.txSince) PttTalk.txSince = Date.now();
+            PttTalk._meterStart(ts);
+            PttTalk._meterDraw();
+          } else {
+            PttTalk.txSince = 0;
+            PttTalk._meterStop();
+            PttTalk._meterDrawIdle();
+          }
+          if (ts && ts.live) { state = "mine"; icon = "🎙"; label = PttTalk._fmt(Date.now() - PttTalk.txSince); status = "You're on the air — the whole room hears you. Release to stop."; }
+          else if (fl && !fl.self) { state = "locked"; icon = "🔒"; label = fl.byName; status = fl.byName + " is talking — one voice at a time."; }
+          else if (ts && ts.pressing) { state = "waiting"; icon = "📻"; label = "Connecting…"; status = "Getting the floor…"; }
+          else { state = ""; icon = "🎙"; label = "HOLD TO TALK"; status = "Hold the big button and talk — one voice at a time."; }
+          var wantCls = "pttalk-btn" + (state ? " " + state : "");
+          if (btn.className !== wantCls) btn.className = wantCls;
+          if (lab && lab.textContent !== label) lab.textContent = label;
+          if (ico && ico.textContent !== icon) ico.textContent = icon;
+          if (st && st.textContent !== status) st.textContent = status;
+          if (cn) { var c = PttTalk._count() + " connected"; if (cn.textContent !== c) cn.textContent = c; }
+        },
+        _meterStart: function (ts) {
+          if (PttTalk.an || !ts || !ts.stream) return;
+          try {
+            var ctx = voiceCtx(); if (!ctx) return;
+            var src = ctx.createMediaStreamSource(ts.stream);
+            var an = ctx.createAnalyser(); an.fftSize = 256;
+            src.connect(an);
+            PttTalk.an = an; PttTalk.anSrc = src; PttTalk.anData = new Uint8Array(an.fftSize);
+          } catch (e) { PttTalk.an = null; PttTalk.anSrc = null; PttTalk.anData = null; }
+        },
+        _meterStop: function () {
+          if (PttTalk.anSrc) { try { PttTalk.anSrc.disconnect(); } catch (e) { } }
+          if (PttTalk.an) { try { PttTalk.an.disconnect(); } catch (e) { } }
+          PttTalk.an = null; PttTalk.anSrc = null; PttTalk.anData = null;
+        },
+        _meterDraw: function () {
+          var m = $("pttTalkMeter"); if (!m || !PttTalk.an || !PttTalk.anData) return;
+          try {
+            PttTalk.an.getByteTimeDomainData(PttTalk.anData);
+            var sum = 0;
+            for (var i = 0; i < PttTalk.anData.length; i++) { var v = (PttTalk.anData[i] - 128) / 128; sum += v * v; }
+            var rms = Math.sqrt(sum / PttTalk.anData.length);
+            var bars = m.children, n = bars.length;
+            for (var b = 0; b < n; b++) {
+              var hs = (4 + Math.round(Math.min(1, rms * 3.2) * 28 * (0.45 + 0.55 * ((b + 1) / n)))) + "px";
+              if (bars[b].style.height !== hs) bars[b].style.height = hs;
+              var op = rms > 0.02 + b * 0.09 ? "1" : ".28";
+              if (bars[b].style.opacity !== op) bars[b].style.opacity = op;
+            }
+          } catch (e) { }
+        },
+        _meterDrawIdle: function () {
+          var m = $("pttTalkMeter"); if (!m) return;
+          var bars = m.children;
+          for (var b = 0; b < bars.length; b++) {
+            if (bars[b].style.height !== "5px") bars[b].style.height = "5px";
+            if (bars[b].style.opacity !== ".28") bars[b].style.opacity = ".28";
+          }
+        }
+      };
       function stopChannelIfTalking(channel) {
         var ts = Voice.talk[channel];
         if (ts && (ts.live || ts.granted || ts.pressing)) { ts.pressing = false; stopTalking(channel); refreshPTT(); }
@@ -10571,6 +10772,13 @@
           var inFaith = Online.state === "on" && Online.room === FAITH_ROOM_ID;
           fbar.classList.toggle("show", inFaith);
           if (!inFaith) stopChannelIfTalking(FAITH_CHANNEL);
+        }
+        // [RP-V7.311] The talk screen belongs to the room I'm in: leaving the
+        // room (or dropping offline) closes it. The floor itself is stopped
+        // by stopChannelIfTalking above — close() is UI/timer cleanup only.
+        if (typeof PttTalk !== "undefined" && PttTalk && PttTalk.isOpen()) {
+          var want311 = Online.state === "on" ? "room:" + Online.room : "";
+          if (PttTalk.channel !== want311) PttTalk.close();
         }
       }
       function voiceReset() {
@@ -10804,6 +11012,29 @@
       }
       bindPTT($("btnChaosPtt"), CHAOS_CHANNEL, null);
       bindPTT($("btnFaithPtt"), FAITH_CHANNEL, null);
+      /* [RP-V7.311] Talk screen wiring: the big button mirrors bindPTT's
+         pointer handling exactly, but dispatches to whichever room channel
+         the screen is open for — same pttDown/pttUp floor path as the bar. */
+      (function wirePttTalk311() {
+        var btn = $("pttTalkBtn");
+        if (btn) {
+          btn.addEventListener("pointerdown", function (e) {
+            if (!PttTalk.channel) return;
+            e.preventDefault();
+            if (btn.setPointerCapture && e.pointerId != null) { try { btn.setPointerCapture(e.pointerId); } catch (err) { } }
+            pttDown(PttTalk.channel, null);
+          });
+          btn.addEventListener("pointerup", function (e) { e.preventDefault(); if (PttTalk.channel) pttUp(PttTalk.channel); });
+          btn.addEventListener("pointercancel", function () { if (PttTalk.channel) pttUp(PttTalk.channel); });
+          btn.addEventListener("lostpointercapture", function () { if (PttTalk.channel) pttUp(PttTalk.channel); });
+          btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+          btn.addEventListener("keydown", function (e) { if ((e.key === " " || e.key === "Enter") && !e.repeat && PttTalk.channel) { e.preventDefault(); pttDown(PttTalk.channel, null); } });
+          btn.addEventListener("keyup", function (e) { if ((e.key === " " || e.key === "Enter") && PttTalk.channel) { e.preventDefault(); pttUp(PttTalk.channel); } });
+        }
+        var bc = $("btnChaosTalk"); if (bc) bc.addEventListener("click", function () { PttTalk.open(CHAOS_CHANNEL); });
+        var bf = $("btnFaithTalk"); if (bf) bf.addEventListener("click", function () { PttTalk.open(FAITH_CHANNEL); });
+        var cl = $("pttTalkClose"); if (cl) cl.addEventListener("click", function () { PttTalk.close(); });
+      })();
       renderVoiceMatches();
 
       /* ================= 🔥 ENGAGEMENT SCORE — the live algorithm =================
