@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.83" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.312" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -2983,6 +2983,22 @@
           q.delete("reel"); q.delete("photo");
           var rest = q.toString();
           history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+        }
+        // [RP-V7.312] Creator deep link: /?creator=<username> — the URL
+        // the server passes to Stripe as each creator's Connect
+        // business_profile URL, so it has to land somewhere real. Same
+        // stash pattern as the share links above; the consumer module
+        // at the end of the body resolves the username to a member and
+        // opens their profile once sign-in state is known.
+        var cun = q.get("creator");
+        if (cun) {
+          var cu = String(cun).trim().slice(0, 80);
+          if (/^[A-Za-z0-9_]+$/.test(cu)) {
+            try { sessionStorage.setItem("rpCreatorLink.v1", JSON.stringify({ username: cu, at: Date.now() })); } catch (e) { }
+            q.delete("creator");
+            var rest2 = q.toString();
+            history.replaceState(null, "", location.pathname + (rest2 ? "?" + rest2 : "") + location.hash);
+          }
         }
       } catch (e) { }
     })();
@@ -46948,6 +46964,68 @@ html, body { overflow-x: clip; }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(run269, 900); });
   else setTimeout(run269, 900);
+})();
+</script>
+<script>
+/* =====================================================================
+   [RP-V7.312] Creator-link consumer. The head script stashed a
+   /?creator=<username> target (sessionStorage rpCreatorLink.v1) —
+   the same URL the server passes to Stripe as each creator's
+   Connect business_profile URL, so the landing has to be real:
+   that member's profile. Once sign-in state is known (a saved
+   session counts — its token sits in rpAcct.v1), resolve the
+   username through GET /api/members — the same directory search
+   Find People uses — and open the profile through the normal door
+   (window.rpDm.openProfile, the account-id member profile).
+   Signed-out visitors keep today's behavior exactly (the signup
+   wall); if they sign in while the stash is fresh it still opens.
+   An unknown username or a stale stash degrades silently to the
+   normal landing — a broken deep link never shows an error, same
+   as the V7.269 share-link consumer above. One attempt per landing.
+   ===================================================================== */
+(function () {
+  "use strict";
+  var KEY = "rpCreatorLink.v1";
+  function stash312() {
+    try {
+      var s = JSON.parse(sessionStorage.getItem(KEY) || "null");
+      return (s && typeof s === "object" && /^[A-Za-z0-9_]{1,80}$/.test(String(s.username || ""))) ? s : null;
+    } catch (e) { return null; }
+  }
+  function clear312() { try { sessionStorage.removeItem(KEY); } catch (e) { } }
+  function acctTok312() {
+    try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? String(a.token) : ""; } catch (e) { return ""; }
+  }
+  function run312() {
+    var s = stash312();
+    if (!s) return;
+    if (s.at && Date.now() - s.at > 10 * 60 * 1000) { clear312(); return; }
+    var uname = String(s.username).trim().toLowerCase();
+    var deadline = (s.at || Date.now()) + 10 * 60 * 1000;
+    (function poll() {
+      var tok = acctTok312();
+      if (tok && window.rpDm && typeof window.rpDm.openProfile === "function") {
+        clear312(); // one attempt per landing — a failed jump never nags twice
+        fetch("/api/members?q=" + encodeURIComponent(uname) + "&limit=30", { headers: { Authorization: "Bearer " + tok } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            var ms = (j && j.ok && j.members) || [];
+            for (var i = 0; i < ms.length; i++) {
+              if (String(ms[i].username || "").trim().toLowerCase() === uname) {
+                try { window.rpDm.openProfile(ms[i].accountId, ms[i].name || ""); } catch (e) { }
+                return;
+              }
+            }
+          })
+          .catch(function () { });
+        return;
+      }
+      if (Date.now() < deadline) setTimeout(poll, 1000);
+      else clear312();
+    })();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(run312, 900); });
+  else setTimeout(run312, 900);
 })();
 </script>
 <style>
