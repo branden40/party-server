@@ -3992,7 +3992,12 @@ app.get("/api/reels", (req, res) => {
   const clubAccess298r = fanClubAccessSet298(mdb262r, fyUser ? fyUser.id : null); // [RP-V7.298] club access set for the same map
   let adb296r = null;
   try { adb296r = readAccounts(); } catch (e) { adb296r = null; }
+  const nameOf313r = nameResolver313(adb296r); // [RP-V7.313] byline resolver over the accounts read above
   const list = all.slice(0, 100).map((r) => {
+    // [RP-V7.313] the byline is the author's CURRENT display name,
+    // resolved by author key; the stored snapshot is the fallback.
+    const aKey313r = adb296r ? reelAuthorKeyFor(adb296r, r) : (r.authorId || null);
+    const author313r = (aKey313r && nameOf313r(aKey313r)) || r.author;
     // [RP-V7.296] A subscriber-only reel a viewer cannot open
     // rides as a locked placeholder: id, author, lock state — no
     // playback URL, no caption, no source, no comments.
@@ -4002,7 +4007,7 @@ app.get("/api/reels", (req, res) => {
       if (!canSee296) {
         return {
           id: r.id,
-          author: r.author,
+          author: author313r, // [RP-V7.313]
           authorId: aKey296 || null,
           ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
           caption: "",
@@ -4042,8 +4047,8 @@ app.get("/api/reels", (req, res) => {
     const src = r.sourceId ? all.find((x) => x.id === r.sourceId) : null;
     return {
       id: r.id,
-      author: r.author,
-      authorId: (adb296r ? reelAuthorKeyFor(adb296r, r) : (r.authorId || null)), // [RP-V7.296] the subscribe route rides the payload (the client already reads r.authorId)
+      author: author313r, // [RP-V7.313]
+      authorId: aKey313r, // [RP-V7.296] the subscribe route rides the payload (the client already reads r.authorId) — [RP-V7.313] the same hoisted key that feeds the byline above
       ...(r.subsOnly ? { subsOnly: true } : {}), // [RP-V7.296]
       ...(r.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
       ...(r.shoutoutFor ? { shoutoutFor: r.shoutoutFor } : {}), // [RP-V7.300] fulfilled-shoutout marker (server record, never caption text)
@@ -4055,7 +4060,7 @@ app.get("/api/reels", (req, res) => {
       url: "/reel-files/" + r.file,
       kind: r.kind || null,
       sourceId: r.sourceId || null,
-      sourceAuthor: r.sourceAuthor || null,
+      sourceAuthor: src ? ((adb296r ? nameOf313r(reelAuthorKeyFor(adb296r, src)) : null) || src.author || r.sourceAuthor || null) : (r.sourceAuthor || null), // [RP-V7.313] the source author's CURRENT name when the source reel rides this page
       sourceUrl: src ? "/reel-files/" + src.file : null,
       stitchStart: typeof r.stitchStart === "number" ? r.stitchStart : null,
       stitchDur: typeof r.stitchDur === "number" ? r.stitchDur : null,
@@ -4081,7 +4086,7 @@ app.get("/api/reels", (req, res) => {
       giftCount: postGiftCountOf262(pg262, "reel", r.id),
       // [RP-V7.89] Reposts ride the payload like heart-likes do.
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
-      comments: reelPublicComments(r),
+      comments: reelPublicComments(r, nameOf313r), // [RP-V7.313]
       commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
       ...(fyUser
         ? {
@@ -4206,7 +4211,10 @@ app.get("/reel/:id", (req, res) => {
           : ext === "mov" ? "video/quicktime"
           : null;
         const cap = String(rec.caption || "").trim();
-        const author = String(rec.author || "").trim() || "Someone";
+        // [RP-V7.313] the share card carries the author's CURRENT name
+        let author313 = rec.author || "";
+        try { const adb313 = readAccounts(); author313 = byline313(adb313, reelAuthorKeyFor(adb313, rec), rec.author); } catch (e) {}
+        const author = String(author313 || "").trim() || "Someone";
         return rpSharePage269(res, {
           type: "video.other",
           title: cap ? author + ": " + cap.slice(0, 80) : author + "'s reel on Rizz Plaza",
@@ -4239,7 +4247,10 @@ app.get("/post/:id", (req, res) => {
           // (text posts live in the Home stream; the deep-link
           // stash only knows reel/photo targets).
           const tx278 = String(rec.text || "").trim();
-          const au278 = String(rec.name || "").trim() || "Someone";
+          // [RP-V7.313] current display name, snapshot fallback
+          let au313 = rec.name || "";
+          try { au313 = byline313(readAccounts(), rec.owner, rec.name); } catch (e) {}
+          const au278 = String(au313 || "").trim() || "Someone";
           return rpSharePage269(res, {
             type: "article",
             title: tx278 ? au278 + ": " + tx278.slice(0, 80) : au278 + "'s text post on Rizz Plaza",
@@ -4255,7 +4266,10 @@ app.get("/post/:id", (req, res) => {
           img = img.charAt(0) === "/" ? origin + img : origin + "/" + img;
         if (img) {
           const cap = String(rec.caption || "").trim();
-          const author = String(rec.name || "").trim() || "Someone";
+          // [RP-V7.313] current display name, snapshot fallback
+          let author313p = rec.name || "";
+          try { author313p = byline313(readAccounts(), rec.owner, rec.name); } catch (e) {}
+          const author = String(author313p || "").trim() || "Someone";
           return rpSharePage269(res, {
             type: "article",
             title: cap ? author + ": " + cap.slice(0, 80) : author + "'s photo on Rizz Plaza",
@@ -4291,11 +4305,15 @@ app.get("/api/tag/:tag", (req, res) => {
   const clubAccess298tag = fanClubAccessSet298(mdb262tag, uid); // [RP-V7.298]
   let adb296tag = null;
   try { adb296tag = readAccounts(); } catch (e) { adb296tag = null; }
+  const nameOf313tag = nameResolver313(adb296tag); // [RP-V7.313]
   const reels = listReels()
     .filter((r) => r && hasTag(r.caption))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
     .slice(0, 60)
     .map((r) => {
+      // [RP-V7.313] current-name byline for both returns below
+      const aKey313tag = adb296tag ? reelAuthorKeyFor(adb296tag, r) : (r.authorId || null);
+      const author313tag = (aKey313tag && nameOf313tag(aKey313tag)) || r.author;
       // [RP-V7.296] A subscriber-only reel surfaces in tag results
       // only as its locked placeholder (no URL, no caption) for a
       // viewer without access.
@@ -4303,7 +4321,7 @@ app.get("/api/tag/:tag", (req, res) => {
         const aKey296 = adb296tag ? reelAuthorKeyFor(adb296tag, r) : (r.authorId || null);
         if (!uid || !aKey296 || (aKey296 !== uid && ((r.subsOnly && !fanAccess296tag.has(aKey296)) || (r.clubOnly && !clubAccess298tag.has(aKey296))))) {
           return {
-            id: r.id, author: r.author, authorId: aKey296 || null,
+            id: r.id, author: author313tag, authorId: aKey296 || null,
             ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
             caption: "", createdAt: r.createdAt, url: null,
             views: 0,
@@ -4317,7 +4335,7 @@ app.get("/api/tag/:tag", (req, res) => {
       }
       return {
       id: r.id,
-      author: r.author,
+      author: author313tag, // [RP-V7.313]
       caption: r.caption,
       createdAt: r.createdAt,
       url: "/reel-files/" + r.file,
@@ -4335,7 +4353,7 @@ app.get("/api/tag/:tag", (req, res) => {
   const photos = readPhotoPosts()
     .posts.filter((x) => x && x.kind !== "text" && hasTag(x.caption)) // [RP-V7.278] tag views render photo tiles — text posts stay out (their hashtags still surface photos/reels)
     .slice(0, 60)
-    .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296tag, clubAccess298tag)); // [RP-V7.298] club set rides along
+    .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296tag, clubAccess298tag, nameOf313tag)); // [RP-V7.298] club set rides along // [RP-V7.313] byline resolver rides too
   res.json({ ok: true, tag, reels, photos });
 });
 
@@ -5461,6 +5479,46 @@ function reelAuthorKeyFor(accountsDb, reel) {
   if (matches.length === 1) return matches[0].id;
   return "name:" + String(reel.author || "").trim().toLowerCase();
 }
+// [RP-V7.313] Bylines resolve LIVE. Post / reel / photo records
+// snapshot the author's display name at creation (r.author on reels,
+// p.name on photo posts), so a member who renamed kept showing their
+// OLD name on everything they had already posted (verified live
+// Nov 10, 2026: @PlazaReview renamed to A1Thrills; their 5 earlier
+// posts still showed the old name in Home + Reels while the profile
+// header showed the new one). Read paths now resolve the author's
+// CURRENT name from the accounts store by account id and serve that;
+// the stored snapshot is only the fallback for a record whose author
+// account no longer exists (deleted accounts' own content is removed
+// or hidden by the existing deletion rules — unchanged). The name
+// map is cached per accounts-read (WeakMap on the db object, which
+// each request reads fresh), so a byline costs one Map lookup; what
+// is stored at creation does not change.
+const _namesById313 = new WeakMap();
+function memberNamesById313(accountsDb) {
+  if (!accountsDb || !Array.isArray(accountsDb.users)) return null;
+  let m = _namesById313.get(accountsDb);
+  if (!m) {
+    m = new Map();
+    for (const u of accountsDb.users) if (u && u.id) m.set(u.id, u.name || "");
+    _namesById313.set(accountsDb, m);
+  }
+  return m;
+}
+// (accountId) -> the member's CURRENT display name, or null when the
+// account is gone / unresolvable (callers fall back to the snapshot).
+function nameResolver313(accountsDb) {
+  const m = memberNamesById313(accountsDb);
+  return (id) => {
+    if (!m || !id) return null;
+    const n = m.get(id);
+    return n ? n : null;
+  };
+}
+// The byline for one stored record: current name when the author
+// account resolves, else the record's stored snapshot.
+function byline313(accountsDb, id, snapshot) {
+  return nameResolver313(accountsDb)(id) || snapshot || "";
+}
 // [RP-V7.276] GAP-7 — VIRAL gets a real ranker. Through V7.275
 // "viral" had no ranking of its own anywhere: the discovery surface
 // (media search, blank query) sorted by raw views, so the oldest
@@ -5775,13 +5833,24 @@ function writePhotoComments(db) {
 // The public shape of a stored comment: display name + text + time.
 // The author's account id stays server-side (moderation only) — the
 // same "never member lists" rule the reaction summaries follow.
-function reelPublicComments(r) {
+// [RP-V7.313] nameOf313 (optional) resolves a commenter's CURRENT
+// display name from their stored uid, so comment bylines follow a
+// rename exactly like post bylines; without a resolver — or when the
+// commenter is gone — the stored snapshot serves, as before.
+function reelPublicComments(r, nameOf313) {
   const list = r && Array.isArray(r.comments) ? r.comments : [];
-  return list.slice(-REEL_COMMENTS_RETURN).map((c) => ({
-    name: String((c && c.name) || "Someone").slice(0, 40),
-    text: String((c && c.text) || "").slice(0, REEL_COMMENT_MAX),
-    ts: (c && c.ts) || null,
-  }));
+  return list.slice(-REEL_COMMENTS_RETURN).map((c) => {
+    let nm = (c && c.name) || "";
+    if (nameOf313 && c && c.uid) {
+      const cur = nameOf313(c.uid);
+      if (cur) nm = cur;
+    }
+    return {
+      name: String(nm || "Someone").slice(0, 40),
+      text: String((c && c.text) || "").slice(0, REEL_COMMENT_MAX),
+      ts: (c && c.ts) || null,
+    };
+  });
 }
 function reelCleanCommentText(v) {
   return String(v == null ? "" : v)
@@ -6134,7 +6203,8 @@ function photoReshareSet(repostsDb, id) {
   const s2 = repostsDb && repostsDb.reshares ? repostsDb.reshares[id] : null;
   return Array.isArray(s2) ? s2 : [];
 }
-function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAccess296, clubAccess298) { // [RP-V7.298] clubAccess298 = the caller's fan-club access set (same pattern as fanAccess296)
+function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAccess296, clubAccess298, nameOf313) { // [RP-V7.298] clubAccess298 = the caller's fan-club access set (same pattern as fanAccess296) // [RP-V7.313] nameOf313 = optional current-name resolver (accountId -> name|null)
+  const author313p = (nameOf313 && p.owner) ? (nameOf313(p.owner) || p.name) : p.name; // [RP-V7.313] the author's CURRENT display name; the stored snapshot is the fallback
   const list = (commentsDb.photos && commentsDb.photos[p.id]) || [];
   const set = Array.isArray(likesDb.photos[p.id]) ? likesDb.photos[p.id] : [];
   const rset = photoRepostSet(repostsDb, p.id);
@@ -6152,7 +6222,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
       id: p.id,
       kind: p.kind === "text" ? "text" : "photo",
       ...(subsOnly296 ? { subsOnly: true } : {}), ...(clubOnly298 ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
-      author: p.name,
+      author: author313p, // [RP-V7.313]
       authorId: p.owner || null,
       photo: null,
       urls: [],
@@ -6185,7 +6255,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     authorId: p.owner || null, // [RP-V7.296] the subscribe route rides every post payload
     text: p.kind === "text" ? String(p.text || "") : "", // [RP-V7.278]
     tstyle: p.kind === "text" ? textStyle278(p.tstyle) : null, // [RP-V7.278]
-    author: p.name,
+    author: author313p, // [RP-V7.313]
     photo: p.photo,
     urls: photoUrlsOf123(p), // [RP-V7.123] the full set; photo above stays urls[0] for every older reader
     caption: p.caption || "",
@@ -6199,7 +6269,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     // [RP-V7.89] repost count + the caller's own state, like likes.
     reposts: rset.length,
     myReposted: !!uid && (rset.some((x) => x && x.u === uid) || photoReshareSet(repostsDb, p.id).some((x) => x && x.u === uid)), // [RP-V7.101] own reshare state; reposts count above stays public-only
-    comments: reelPublicComments({ comments: list }),
+    comments: reelPublicComments({ comments: list }, nameOf313), // [RP-V7.313]
     commentCount: list.length,
     // [RP-V7.262] gifts this post has received (units, server truth
     // from the money DB — the photo-post payload's gift count).
@@ -6769,8 +6839,10 @@ app.post("/api/ai/discard", (req, res) => {
 
 app.get("/api/photo/posts", (req, res) => {
   let uid = null;
+  let adb313pp = null; // [RP-V7.313] kept so the byline resolver rides this same accounts read
   try {
-    const u = accountForToken(readAccounts(), req);
+    adb313pp = readAccounts();
+    const u = accountForToken(adb313pp, req);
     if (u) uid = u.id;
   } catch (e) {}
   const likesDb = readPhotoLikes();
@@ -6839,7 +6911,7 @@ app.get("/api/photo/posts", (req, res) => {
   const clubAccess298pp = fanClubAccessSet298(mdb296pp, uid); // [RP-V7.298]
   const posts = rawPosts99
     .slice(0, PHOTO_POSTS_RETURN)
-    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296pp, clubAccess298pp));
+    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296pp, clubAccess298pp, nameResolver313(adb313pp))); // [RP-V7.313]
   res.json({ ok: true, posts, ...(ranked276 ? { ranked: true } : {}) });
 });
 // [RP-V7.85] Batch social state for posts that have no server post
@@ -6853,8 +6925,10 @@ app.get("/api/photo/extras", (req, res) => {
     .filter(Boolean)
     .slice(0, 50);
   let uid = null;
+  let adb313e = null; // [RP-V7.313] kept so the comment-byline resolver rides this same accounts read
   try {
-    const u = accountForToken(readAccounts(), req);
+    adb313e = readAccounts();
+    const u = accountForToken(adb313e, req);
     if (u) uid = u.id;
   } catch (e) {}
   const likesDb = readPhotoLikes();
@@ -6886,7 +6960,7 @@ app.get("/api/photo/extras", (req, res) => {
     const set = Array.isArray(likesDb.photos[id]) ? likesDb.photos[id] : [];
     const rset = photoRepostSet(repostsDbE, id);
     posts[id] = {
-      comments: reelPublicComments({ comments: list }),
+      comments: reelPublicComments({ comments: list }, nameResolver313(adb313e)), // [RP-V7.313]
       commentCount: list.length,
       likes: set.length,
       myLiked: !!uid && set.includes(uid),
@@ -7330,6 +7404,7 @@ app.get("/api/media/viewers", (req, res) => {
 // place /api/reels relies on it).
 // ---------------------------------------------------------------------------
 function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAccess298) { // [RP-V7.298] clubAccess298 mirrors fanAccess296
+  const nameOf313s = nameResolver313(adb); // [RP-V7.313] current-name resolver over the caller's accounts read
   // [RP-V7.296] Subscriber-only gating for search results: a
   // viewer without access gets the locked placeholder — no URL,
   // no caption, no source, no comments (the hit itself may ride:
@@ -7339,7 +7414,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAcc
     const realKey296 = aKey296 && aKey296.indexOf("name:") !== 0 ? aKey296 : (r.authorId || null);
     if (!uid || !realKey296 || (realKey296 !== uid && ((r.subsOnly && !(fanAccess296 && fanAccess296.has(realKey296))) || (r.clubOnly && !(clubAccess298 && clubAccess298.has(realKey296)))))) {
       return {
-        id: r.id, author: r.author, authorId: realKey296,
+        id: r.id, author: (realKey296 && nameOf313s(realKey296)) || r.author, authorId: realKey296, // [RP-V7.313]
         ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
         caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null,
         sourceId: null, sourceAuthor: null, sourceUrl: null,
@@ -7363,7 +7438,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAcc
   const aKey241 = adb ? reelAuthorKeyFor(adb, r) : null;
   return {
     id: r.id,
-    author: r.author,
+    author: (aKey241 && nameOf313s(aKey241)) || r.author, // [RP-V7.313]
     authorId: (aKey241 && aKey241.indexOf("name:") !== 0) ? aKey241 : (r.authorId || null),
     caption: r.caption,
     ...(r.subsOnly ? { subsOnly: true } : {}), // [RP-V7.296]
@@ -7372,7 +7447,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAcc
     url: "/reel-files/" + r.file,
     kind: r.kind || null,
     sourceId: r.sourceId || null,
-    sourceAuthor: r.sourceAuthor || null,
+    sourceAuthor: src ? ((adb ? nameOf313s(reelAuthorKeyFor(adb, src)) : null) || src.author || r.sourceAuthor || null) : (r.sourceAuthor || null), // [RP-V7.313] the source author's CURRENT name when the source reel is in the result set
     sourceUrl: src ? "/reel-files/" + src.file : null,
     stitchStart: typeof r.stitchStart === "number" ? r.stitchStart : null,
     stitchDur: typeof r.stitchDur === "number" ? r.stitchDur : null,
@@ -7386,7 +7461,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAcc
     heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
     giftCount: postGiftCountOf262(pg262, "reel", r.id), // [RP-V7.262]
     reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
-    comments: reelPublicComments(r),
+    comments: reelPublicComments(r, nameOf313s), // [RP-V7.313]
     commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
     ...(uid
       ? {
@@ -9804,6 +9879,10 @@ function livePhotoForAccount(u) {
 // or null when the post is gone. Shared by pins, collections and the
 // Liked tab so every profile surface renders the same tile shape.
 function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) {
+  // [RP-V7.313] one accounts read feeds the byline resolver for both branches
+  let adb313t = null;
+  try { adb313t = readAccounts(); } catch (e) { adb313t = null; }
+  const nameOf313t = nameResolver313(adb313t);
   if (kind === "reel") {
     const r = listReels().find((x) => x && x.id === id);
     if (!r || !r.file) return null;
@@ -9816,16 +9895,16 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
       const mdb296r = readMoney();
       if (!uid || (owner296 !== uid && ((r.subsOnly && !fanSubAccess296(mdb296r, uid, owner296)) || (r.clubOnly && !fanClubAccess298(mdb296r, uid, owner296)))))
         return { kind: "reel", id: r.id, src: null, views: 0, caption: "", likes: hl241, ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
-          owner: owner296, ownerName: r.author || "",
+          owner: owner296, ownerName: (owner296 && nameOf313t(owner296)) || r.author || "", // [RP-V7.313]
           heartLikes: hl241, giftCount: postGiftCountOf262(mdb296r.postGifts || {}, "reel", r.id),
           myHeart: false, comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, myReposted: false };
     }
     return { kind: "reel", id: r.id, src: "/reel-files/" + r.file, views: mediaViewCount(vdb, "reel:" + r.id), caption: r.caption || "", likes: hl241,
       // [RP-V7.241] author + social state for the lightbox rail
-      owner: r.authorId || null, ownerName: r.author || "",
+      owner: r.authorId || null, ownerName: (adb313t ? (nameOf313t(reelAuthorKeyFor(adb313t, r)) || r.author || "") : (r.author || "")), // [RP-V7.313]
       heartLikes: hl241, giftCount: postGiftCountOf262(readMoney().postGifts || {}, "reel", r.id), // [RP-V7.262]
       myHeart: !!uid && Array.isArray(r.heartLikes) && r.heartLikes.includes(uid),
-      comments: reelPublicComments(r), commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
+      comments: reelPublicComments(r, nameOf313t), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, // [RP-V7.313] comment bylines resolve live too
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
       myReposted: !!uid && ((Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === uid))) };
   }
@@ -9833,12 +9912,12 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
     const p = readPhotoPosts().posts.find((x) => x && x.id === id);
     if (!p || !p.photo) return null;
     const mdb296tile = readMoney();
-    const pub = photoPublicPost(p, uid || "", likesDb, commentsDb, repostsDb || { photos: {}, reshares: {} }, mdb296tile.postGifts || {}, fanSubAccessSet296(mdb296tile, uid || null), fanClubAccessSet298(mdb296tile, uid || null)); // [RP-V7.262] // [RP-V7.296] // [RP-V7.298]
+    const pub = photoPublicPost(p, uid || "", likesDb, commentsDb, repostsDb || { photos: {}, reshares: {} }, mdb296tile.postGifts || {}, fanSubAccessSet296(mdb296tile, uid || null), fanClubAccessSet298(mdb296tile, uid || null), nameOf313t); // [RP-V7.262] // [RP-V7.296] // [RP-V7.298] // [RP-V7.313]
     return { kind: "photopost", id: p.id, src: pub.photo, views: 0, caption: pub.caption || "", likes: pub.likes || 0, giftCount: pub.giftCount || 0, // [RP-V7.262] // [RP-V7.296] src/caption ride the GATED payload — a locked post tiles without its photo or words
       ...(pub.locked ? { ...(pub.subsOnly ? { subsOnly: true } : {}), ...(pub.clubOnly ? { clubOnly: true } : {}), locked: true } : {}), // [RP-V7.296] // [RP-V7.298]
       photoCount: (pub.urls || []).length || 1, // [RP-V7.123] set size for the grid's multi-photo badge
       // [RP-V7.241] author + social state for the lightbox rail
-      owner: p.owner || null, ownerName: p.name || "",
+      owner: p.owner || null, ownerName: (p.owner && nameOf313t(p.owner)) || p.name || "", // [RP-V7.313]
       myLiked: !!pub.myLiked, comments: pub.comments || [], commentCount: pub.commentCount || 0,
       reposts: pub.reposts || 0, myReposted: !!pub.myReposted, mine: !!pub.mine };
   }
@@ -9905,7 +9984,10 @@ app.get("/api/social/profile", (req, res) => {
       }
     }
   } catch (e) { }
-  // Their Reels (author is the display name in the reels store).
+  // Their Reels. [RP-V7.313] matched by the stable author key
+  // (reelAuthorKeyFor -> account id), NOT the creation-time display
+  // name snapshot (r.author): matching the snapshot made a renamed
+  // member's reels vanish from their own profile list.
   // [RP-V7.64] each reel carries its real view count; the playback URL
   // is resolved from the stored file when the entry has no url field
   // (the same construction GET /api/reels uses).
@@ -9919,7 +10001,7 @@ app.get("/api/social/profile", (req, res) => {
     const canSeeSubs296 = ctx.user.id === target.id || fanSubAccess296(mdb298prof, ctx.user.id, target.id);
     const canSeeClub298 = ctx.user.id === target.id || fanClubAccess298(mdb298prof, ctx.user.id, target.id); // [RP-V7.298]
     reels = listReels()
-      .filter((r) => r && r.author === target.name)
+      .filter((r) => r && reelAuthorKeyFor(ctx.db, r) === target.id) // [RP-V7.313] stable author key, survives renames
       .slice(0, 12)
       .map((r) => {
         if ((r.subsOnly && !canSeeSubs296) || (r.clubOnly && !canSeeClub298)) { // [RP-V7.298]
@@ -9943,7 +10025,7 @@ app.get("/api/social/profile", (req, res) => {
         heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
         giftCount: postGiftCountOf262(pg262, "reel", r.id), // [RP-V7.262]
         myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id),
-        comments: reelPublicComments(r),
+        comments: reelPublicComments(r, nameResolver313(ctx.db)), // [RP-V7.313]
         commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
         reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
         crMuted: r.crMuted || null, // [RP-V7.286]
@@ -9952,7 +10034,7 @@ app.get("/api/social/profile", (req, res) => {
   } catch (e) { }
   let reelsCount = reels.length;
   try {
-    reelsCount = listReels().filter((r) => r && r.author === target.name).length;
+    reelsCount = listReels().filter((r) => r && reelAuthorKeyFor(ctx.db, r) === target.id).length; // [RP-V7.313] same key match as the list above
   } catch (e) { }
   // Faith testimony line, when they've set up a faith profile.
   let testimony = "";
@@ -9978,7 +10060,7 @@ app.get("/api/social/profile", (req, res) => {
   try {
     const pg262 = readMoney().postGifts || {}; // [RP-V7.262]
     photoPosts = readPhotoPosts().posts.filter((p) => p && p.owner === target.id).slice(0, 30)
-      .map((p) => { const mdb298pp2 = readMoney(); return photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86, pg262, fanSubAccessSet296(mdb298pp2, ctx.user.id), fanClubAccessSet298(mdb298pp2, ctx.user.id)); }); // [RP-V7.296] // [RP-V7.298]
+      .map((p) => { const mdb298pp2 = readMoney(); return photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86, pg262, fanSubAccessSet296(mdb298pp2, ctx.user.id), fanClubAccessSet298(mdb298pp2, ctx.user.id), nameResolver313(ctx.db)); }); // [RP-V7.296] // [RP-V7.298] // [RP-V7.313]
     for (const p of photoPosts) likesTotal += p.likes || 0;
   } catch (e) { }
   try {
@@ -11016,7 +11098,7 @@ function feedPublic(ctx, p, following, fanAccess296, clubAccess298) { // [RP-V7.
     // [RP-V7.95] engagement counts ride the feed payload (public, like
     // the like count): comments in the public name/text shape, repost
     // count + the caller's own state, share and view counters.
-    comments: reelPublicComments({ comments: Array.isArray(p.comments) ? p.comments : [] }),
+    comments: reelPublicComments({ comments: Array.isArray(p.comments) ? p.comments : [] }, nameResolver313(ctx.db)), // [RP-V7.313] comment bylines resolve live too (the post's own byline above already rides socialBrief)
     commentCount: Array.isArray(p.comments) ? p.comments.length : 0,
     reposts: Array.isArray(p.reposts) ? p.reposts.length : 0,
     myReposted: (Array.isArray(p.reposts) && p.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(p.reshares) && p.reshares.some((x) => x && x.u === ctx.user.id)), // [RP-V7.101] own reshare shows as my repost state; the public count above stays reposts-only
@@ -11205,7 +11287,7 @@ app.get("/api/feed", (req, res) => {
         if (!rp || rp.u === ctx.user.id || !following.has(rp.u)) continue;
         if (hidden99.has(rp.u) || hidden99.has(pp.owner)) continue; // [RP-V7.99]
         const by = byId(rp.u); if (!by) continue;
-        scored.push({ pub: { kind: "repost", id: "rp:photopost:" + pp.id + ":" + rp.u, repostBy: { id: rp.u, name: by.name }, repostedAt: rp.at || null, createdAt: rp.at || null, post: { kind: "photopost", id: pp.id, author: { id: pp.owner, name: pp.name || "" }, url: pp.photo, caption: pp.caption || "" } }, _t: Date.parse(rp.at || "") || 0 });
+        scored.push({ pub: { kind: "repost", id: "rp:photopost:" + pp.id + ":" + rp.u, repostBy: { id: rp.u, name: by.name }, repostedAt: rp.at || null, createdAt: rp.at || null, post: { kind: "photopost", id: pp.id, author: { id: pp.owner, name: byline313(ctx.db, pp.owner, pp.name) }, url: pp.photo, caption: pp.caption || "" } }, _t: Date.parse(rp.at || "") || 0 });
       }
     }
   } catch (e) { /* repost surfacing must never break the feed */ }
@@ -11382,7 +11464,7 @@ app.post("/api/feed/comment", (req, res) => {
       emailText: ctx.user.name + " commented on your post on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nRead it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
       go: { screen: "ownprofile" },
     });
-  res.json({ ok: true, comment: { name: comment.name, text: comment.text, ts: comment.ts }, comments: reelPublicComments({ comments: p.comments }), commentCount: p.comments.length });
+  res.json({ ok: true, comment: { name: comment.name, text: comment.text, ts: comment.ts }, comments: reelPublicComments({ comments: p.comments }, nameResolver313(ctx.db)), commentCount: p.comments.length }); // [RP-V7.313] the returned list's bylines resolve live
 });
 app.post("/api/feed/repost", (req, res) => {
   const ctx = requireAccount(req, res);
@@ -17323,14 +17405,15 @@ app.get("/api/fanclub/club", (req, res) => {
   try {
     const vdb = readViews();
     reels = listReels()
+      // [RP-V7.313] the reel bylines below serve the recipient's CURRENT name (recipient.name), not the stored snapshot; comment bylines resolve live too
       .filter((r) => r && r.clubOnly && reelAuthorKeyFor(ctx.db, r) === recipient.id)
       .slice(0, 60)
       .map((r) => {
         const locked = (r.clubOnly && !canAccess) || (r.subsOnly && ctx.user.id !== recipient.id && !fanSet.has(recipient.id));
         if (locked) {
-          return { id: r.id, author: r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, locked: true, caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null, views: 0, heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: null };
+          return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, locked: true, caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null, views: 0, heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: null };
         }
-        return { id: r.id, author: r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, caption: r.caption || "", createdAt: r.createdAt, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || null, views: mediaViewCount(vdb, "reel:" + r.id), heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id), comments: reelPublicComments(r), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: r.crMuted || null, myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
+        return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, caption: r.caption || "", createdAt: r.createdAt, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || null, views: mediaViewCount(vdb, "reel:" + r.id), heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id), comments: reelPublicComments(r, nameResolver313(ctx.db)), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: r.crMuted || null, myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
       });
   } catch (e) { }
   let photoPosts = [];
@@ -17338,7 +17421,7 @@ app.get("/api/fanclub/club", (req, res) => {
     photoPosts = readPhotoPosts().posts
       .filter((x) => x && x.owner === recipient.id && x.clubOnly)
       .slice(0, 60)
-      .map((x) => photoPublicPost(x, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), pg298, fanSet, clubSet));
+      .map((x) => photoPublicPost(x, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), pg298, fanSet, clubSet, nameResolver313(ctx.db))); // [RP-V7.313]
   } catch (e) { }
   let feedPosts = [];
   try {
@@ -19825,7 +19908,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.312", online: players.size })
+  res.json({ ok: true, version: "RP-V7.313", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -20896,7 +20979,7 @@ io.on("connection", (socket) => {
 });
 
 server.listen(PORT, () =>
-  console.log(`Party server listening on port ${PORT} [RP-V7.312]`)
+  console.log(`Party server listening on port ${PORT} [RP-V7.313]`)
 );
 
 /* ---------- [RP-V7.94] Seed/demo content sweep (boot, idempotent) ----------
