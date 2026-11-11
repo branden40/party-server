@@ -125,6 +125,7 @@ function livesSnapshot() {
       ticketPrice: e.ticketPrice || 0, // [RP-V7.299] ticketed lives still SHOW in discovery — badge + price ride the snapshot
       ticketSold: liveTicketSold299(e.key, e.startedAt), // [RP-V7.299] gross tickets sold for this live instance
       pot: potSnapshotFrom(potsDb, e.key, e.startedAt), // [RP-V7.41] null unless a pot is open/drawn here; [RP-V7.49] terminal pots from a previous live are scoped out
+      poll: pollSnapshot319(e.key, e.startedAt), // [RP-V7.319] null unless a poll is open (or just ended) on this live
     };
   });
 }
@@ -265,7 +266,7 @@ setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [k, e] of [...liveRegistry]) {
-    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); ticketLiveEnded299(k); } // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
+    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); pollLiveEnded319(k); ticketLiveEnded299(k); } // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
   }
   for (const k of [...liveAccess138.keys()]) if (!liveRegistry.has(k) && changed) endLiveAccess138(k); // [RP-V7.138] access state dies with its live
   if (changed) broadcastLives();
@@ -5953,7 +5954,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.318", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.319", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -9082,6 +9083,334 @@ app.get("/api/pot/state", (req, res) => {
     if (entry && potStaleForLive(pot, entry.startedAt)) pot = null;
   }
   res.json({ ok: true, pot: potPublic(pot, viewerId) });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.319] LIVE POLLS — host-run polls inside a live, modelled on
+// Facebook's in-player poll (Branden's call, Nov 10, 2026, off the
+// Facebook feature watch: "Push it"). FREE voting only: no charms, no
+// entry, no prizes, nothing wager-like — a poll is not commerce, so it
+// is welcome in regular, battle, private and church/Fellowship lives
+// alike. The ONE exclusion is an auction show: polls join the battle /
+// add-people family (never in auction lives), enforced server-side off
+// the same signal the ticket door uses — an auction running in the
+// live's room (auctions.has(room)).
+// Authoritative state lives HERE, memory only (like the live registry
+// itself and the battle records — no money rides on a poll, so there
+// is nothing to settle after a crash). One record per live, keyed by
+// the live-registry (device) key:
+//   { id, key, room, hostAccountId, hostName, question,
+//     options: [text], votes: { [accountId]: optionIdx },
+//     status: "open"|"ended", createdAt, endedAt, winner }
+// Tallies are computed from the votes map on every read: one stored
+// vote per account, and a re-vote REPLACES it, so a tally can never
+// double-count. Sync rides the existing channels only — poll state is
+// carried on the lives-update snapshot (pollSnapshot319, wired into
+// livesSnapshot beside the pot) and pushed to the room as
+// "poll-update" on every change (the pot-update shape); NO new timers
+// are added anywhere. Chat gets exactly two system lines per poll:
+// one when it opens, one when it ends (pollShout319, the potShout
+// shape). Lifecycle: when a live ends with a poll still open, the poll
+// is ended on the spot with its final standings and the record is
+// dropped (pollLiveEnded319 runs at every registry-removal funnel
+// beside potLiveEnded) — poll state clears with the live.
+// ---------------------------------------------------------------------------
+const livePolls319 = new Map(); // liveKey -> poll record
+const POLL_ENDED_CARRY_MS319 = 60000; // an ended poll rides snapshot/state this long (the final card's data window)
+function pollCounts319(poll) {
+  const counts = (poll.options || []).map(() => 0);
+  let total = 0;
+  for (const idx of Object.values(poll.votes || {})) {
+    if (typeof idx === "number" && idx >= 0 && idx < counts.length) {
+      counts[idx]++;
+      total++;
+    }
+  }
+  return { counts, total };
+}
+function pollPublic319(poll, viewerId) {
+  if (!poll) return null;
+  const { counts, total } = pollCounts319(poll);
+  const pcts = counts.map((c) => (total > 0 ? Math.round((c / total) * 100) : 0));
+  return {
+    id: poll.id,
+    key: poll.key,
+    room: poll.room,
+    status: poll.status,
+    question: poll.question,
+    options: poll.options.slice(),
+    counts,
+    pcts,
+    totalVotes: total,
+    winner: poll.status === "ended" ? poll.winner : null,
+    winPct:
+      poll.status === "ended" && poll.winner != null ? pcts[poll.winner] : null,
+    createdAt: poll.createdAt || null,
+    endedAt: poll.endedAt || null,
+    isHost: viewerId ? poll.hostAccountId === viewerId : false,
+    myVote:
+      viewerId && poll.votes && typeof poll.votes[viewerId] === "number"
+        ? poll.votes[viewerId]
+        : null,
+  };
+}
+// The snapshot/state view of a live's poll, scoped to THIS live
+// instance exactly the way potSnapshotFrom scopes the pot: a record
+// left by a previous live on the same device key is history, and an
+// ended poll is carried only for its final-card window.
+function pollSnapshot319(key, liveStartedAt) {
+  const poll = livePolls319.get(key);
+  if (!poll) return null;
+  if (liveStartedAt && poll.createdAt && poll.createdAt < liveStartedAt)
+    return null;
+  if (
+    poll.status === "ended" &&
+    Date.now() - (poll.endedAt || 0) > POLL_ENDED_CARRY_MS319
+  )
+    return null;
+  return pollPublic319(poll, null);
+}
+function pollBroadcast319(poll) {
+  if (!poll) return;
+  try {
+    io.to(poll.room).emit("poll-update", {
+      key: poll.key,
+      room: poll.room,
+      poll: pollPublic319(poll, null),
+    });
+  } catch (e) {}
+  try {
+    broadcastLives();
+  } catch (e) {}
+}
+// A server-relayed system line in the live's chat (the potShout shape —
+// the client renders chat-message with sys:true as a system line).
+function pollShout319(poll, text) {
+  try {
+    io.to(poll.room).emit("chat-message", {
+      id: "",
+      name: "",
+      text,
+      sys: true,
+      at: Date.now(),
+    });
+  } catch (e) {}
+}
+// "Currently in that room" for an ACCOUNT: a seat (player record) in
+// the room stamped with the token-verified account id, or — covering
+// the announce-after-join race — any live socket bound to the account
+// whose seat is in the room. Guests hold no account and never pass.
+function pollAccountInRoom319(accountId, room) {
+  if (!accountId || !room) return false;
+  for (const p of players.values())
+    if (p.room === room && p.acctId === accountId) return true;
+  const sids = acctSockets.get(accountId);
+  if (sids)
+    for (const sid of sids) {
+      const sp = players.get(sid);
+      if (sp && sp.room === room) return true;
+    }
+  return false;
+}
+// The one end path: stamp the final standings, announce them, push
+// them. Winner = the highest count, earliest option on a tie; with
+// zero votes there is no winner and the line says so — percentages
+// only ever come from real votes.
+function pollFinish319(poll, reason) {
+  if (!poll || poll.status !== "open") return;
+  const { counts, total } = pollCounts319(poll);
+  poll.status = "ended";
+  poll.endedAt = Date.now();
+  poll.winner = null;
+  if (total > 0) {
+    let best = -1;
+    for (let i = 0; i < counts.length; i++)
+      if (counts[i] > best) {
+        best = counts[i];
+        poll.winner = i;
+      }
+  }
+  const pub = pollPublic319(poll, null);
+  pollShout319(
+    poll,
+    total > 0
+      ? "📊 Poll ended: " +
+          poll.question +
+          " — " +
+          poll.options[poll.winner] +
+          " wins with " +
+          pub.pcts[poll.winner] +
+          "%!"
+      : "📊 Poll ended: " + poll.question + " — no votes."
+  );
+  pollBroadcast319(poll);
+  console.log(
+    "[poll] ended",
+    poll.key,
+    "reason",
+    reason,
+    "votes",
+    total,
+    "winner",
+    poll.winner
+  );
+}
+// A live ended (or vanished): an open poll ends on the spot with its
+// final standings, and the record is dropped either way — poll state
+// clears with the live. Called from every registry-removal path,
+// beside potLiveEnded.
+function pollLiveEnded319(key) {
+  try {
+    const poll = livePolls319.get(key);
+    if (!poll) return;
+    if (poll.status === "open") pollFinish319(poll, "live-end");
+    livePolls319.delete(key);
+  } catch (e) {
+    console.log("[poll] live-end settle failed", key, e && e.message);
+  }
+}
+function pollCleanText319(s, max) {
+  return String(s || "")
+    .replace(/[<>&"']/g, "")
+    .trim()
+    .slice(0, max);
+}
+app.post("/api/poll/create", lockedHandler("poll-create", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  // Host gate: the pot's own resolver (audit-C4-safe — the host account
+  // comes only from the host socket's token-verified binding).
+  const entry = potLiveForHost(ctx.user, b.live);
+  if (!entry)
+    return res
+      .status(403)
+      .json({ ok: false, error: "Only the live's host can start a poll" });
+  // The auction exclusion, server-side: no polls while an auction is
+  // running in this live's room (the battle / add-people rule).
+  if (auctions.has(entry.room))
+    return res.status(403).json({
+      ok: false,
+      error: "Polls can't run in an auction live",
+    });
+  const existing = livePolls319.get(entry.key);
+  if (existing && existing.status === "open")
+    return res.status(409).json({
+      ok: false,
+      error: "A poll is already open in this live — end it first",
+    });
+  const question = pollCleanText319(b.question, 80);
+  if (!question)
+    return res.status(400).json({ ok: false, error: "Ask a question first" });
+  const rawOptions = Array.isArray(b.options) ? b.options : [];
+  const options = rawOptions
+    .map((o) => pollCleanText319(o, 30))
+    .filter((o) => o.length > 0);
+  if (options.length < 2 || options.length > 4)
+    return res.status(400).json({
+      ok: false,
+      error: "Give the poll 2 to 4 answer options",
+    });
+  const poll = {
+    id: "poll-" + crypto.randomBytes(6).toString("hex"),
+    key: entry.key,
+    room: entry.room,
+    hostAccountId: ctx.user.id,
+    hostName: ctx.user.name,
+    question,
+    options,
+    votes: {},
+    status: "open",
+    createdAt: Date.now(),
+    endedAt: null,
+    winner: null,
+  };
+  livePolls319.set(entry.key, poll);
+  pollBroadcast319(poll);
+  pollShout319(
+    poll,
+    "📊 " + poll.hostName + " started a poll: " + poll.question
+  );
+  console.log("[poll] opened", entry.key, "by", ctx.user.name, question);
+  res.json({ ok: true, poll: pollPublic319(poll, ctx.user.id) });
+}));
+app.post("/api/poll/vote", lockedHandler("poll-vote", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const liveKey = String(b.live || "");
+  const poll = livePolls319.get(liveKey);
+  if (!poll || poll.status !== "open" || !liveRegistry.has(liveKey))
+    return res
+      .status(404)
+      .json({ ok: false, error: "No poll is open in this live" });
+  // Room gate: votes are accepted only from accounts currently in the
+  // room — a signed-in account watching from elsewhere cannot vote.
+  if (!pollAccountInRoom319(ctx.user.id, poll.room))
+    return res.status(403).json({
+      ok: false,
+      error: "Join the live to vote in its poll",
+    });
+  const idx = Math.floor(Number(b.option));
+  if (!(idx >= 0 && idx < poll.options.length))
+    return res.status(400).json({ ok: false, error: "Pick one of the options" });
+  poll.votes[ctx.user.id] = idx; // one stored vote per account — a re-vote replaces it
+  pollBroadcast319(poll);
+  res.json({ ok: true, poll: pollPublic319(poll, ctx.user.id) });
+}));
+app.post("/api/poll/end", lockedHandler("poll-end", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const entry = potLiveForHost(ctx.user, b.live);
+  if (!entry)
+    return res
+      .status(403)
+      .json({ ok: false, error: "Only the live's host can end the poll" });
+  const poll = livePolls319.get(entry.key);
+  if (!poll || poll.status !== "open")
+    return res
+      .status(404)
+      .json({ ok: false, error: "No poll is open in this live" });
+  pollFinish319(poll, "host");
+  res.json({ ok: true, poll: pollPublic319(poll, ctx.user.id) });
+}));
+app.get("/api/poll/state", (req, res) => {
+  const liveKey = String(req.query.live || "");
+  let viewerId = null;
+  try {
+    const u = accountForToken(readAccounts(), req);
+    if (u) viewerId = u.id;
+  } catch (e) {}
+  const entry = liveRegistry.get(liveKey);
+  let poll = null;
+  if (entry) {
+    const snap = pollSnapshot319(liveKey, entry.startedAt);
+    if (snap) {
+      poll = snap;
+      // The snapshot shape is viewer-neutral; re-personalize for the
+      // caller (their own vote + host flag) from the live record.
+      const rec = livePolls319.get(liveKey);
+      if (rec && viewerId) {
+        poll.myVote =
+          typeof rec.votes[viewerId] === "number" ? rec.votes[viewerId] : null;
+        poll.isHost = rec.hostAccountId === viewerId;
+      }
+    }
+  }
+  res.json({ ok: true, poll });
 });
 
 // ---------------------------------------------------------------------------
@@ -20630,7 +20959,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.318", online: players.size })
+  res.json({ ok: true, version: "RP-V7.319", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -21013,7 +21342,7 @@ io.on("connection", (socket) => {
     const swKey = clientKeys.get(socket.id);
     if (swKey) {
       const reg = liveRegistry.get(swKey);
-      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); ticketLiveEnded299(swKey); } // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
+      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); pollLiveEnded319(swKey); ticketLiveEnded299(swKey); } // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
     }
     socket.to(room).emit("player-joined", p);
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
@@ -21124,7 +21453,7 @@ io.on("connection", (socket) => {
   socket.on("live-unregister", () => {
     const devKey = clientKeys.get(socket.id);
     if (!devKey) return;
-    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); ticketLiveEnded299(devKey); } // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
+    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); } // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
   });
 
   // [RP-V7.138] PRIVATE LIVE controls — invite / un-invite / link
@@ -21687,7 +22016,7 @@ io.on("connection", (socket) => {
         liveRegistry.delete(discKey);
         endLiveAccess138(discKey); // [RP-V7.138] access state ends with the live
         broadcastLives();
-        potLiveEnded(discKey);
+        potLiveEnded(discKey); pollLiveEnded319(discKey);
         ticketLiveEnded299(discKey); // [RP-V7.299] ticket refunds run too
       }
     }
