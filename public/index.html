@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.315" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.316" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -10194,9 +10194,15 @@
         var fi241 = null, railHtml241 = "";
         if (meta && meta.id && (meta.owner || meta.ownerName)) {
           fi241 = { server: true, id: meta.id, key: "lb241:" + meta.id, author: meta.ownerName || p.name || "", authorId: meta.owner || null, caption: meta.caption || "", mine: !!meta.owner && meta.owner === Online.myId, myHeart: !!meta.myHeart, heartLikes: meta.heartLikes || 0, giftCount: meta.giftCount || 0, /* [RP-V7.262] */ comments: Array.isArray(meta.comments) ? meta.comments : [], commentCount: meta.commentCount || 0, reposts: meta.reposts || 0, myReposted: !!meta.myReposted };
+          /* [RP-V7.316] Downloads switch on this surface too: the Save
+             action is rendered only when the post allows downloads —
+             or for the author (account-id test, the Delete button's
+             own pattern below). When off it is absent entirely. */
+          var dlOk316 = meta.allowDownloads !== false || !!(meta.owner && meta.owner === rpMyId243());
+          var dlBtn316 = dlOk316 ? '<button class="reel-act pp-dl316" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span>Save</span></button>' : "";
           if (meta.feedPost) {
             railHtml241 = (fi241.mine ? "" : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + "<span>Gift</span></button>") +
-              '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>";
+              '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" + dlBtn316;
           } else {
             var lk241 = reelLikeState(fi241);
             railHtml241 =
@@ -10206,7 +10212,7 @@
                 ? '<span class="reel-act gc262-static" aria-hidden="true"' + ((fi241.giftCount || 0) > 0 ? "" : ' style="display:none"') + ">" + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(fi241.id) + '" data-gc-host="1">' + ((fi241.giftCount || 0) > 0 ? fi241.giftCount : "") + "</span></span>" /* [RP-V7.262] your own reel: the count alone, above zero only */
                 : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(fi241.id) + '" data-gc-label="Gift">' + ((fi241.giftCount || 0) > 0 ? fi241.giftCount : "Gift") + "</span></button>") +
               '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" +
-              '<button class="reel-act repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>" +
+              '<button class="reel-act repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>" + dlBtn316 + /* [RP-V7.316] */
               ((meta.owner && meta.owner === rpMyId243()) ? '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>' : "");
           }
           railHtml241 = '<div class="reel-rail">' + railHtml241 + "</div>";
@@ -10232,6 +10238,7 @@
             var sb241 = wrap241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { reelShare(fi241); });
             var rb241 = wrap241.querySelector(".repost"); if (rb241) rb241.addEventListener("click", function () { reelToggleRepost(fi241, wrap241); });
             var db243 = wrap241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/reel/" + encodeURIComponent(meta.id)).then(function (ok) { if (ok) rpAfterDel243("Reel deleted"); else { try { toast("Couldn't delete that reel."); } catch (e) { } } }); }); });
+            var dlb316 = wrap241.querySelector(".pp-dl316"); if (dlb316) dlb316.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute316 = null; if (meta && meta.id && (String(url).indexOf("/reel-files/") >= 0 || String(url).indexOf("/photos/feed/") >= 0)) dlRoute316 = (meta.feedPost ? "/api/feed/" : "/api/reel/") + encodeURIComponent(meta.id) + "/download"; window.rpDownloadVideo316(dlRoute316, url); } }); // [RP-V7.316] rendered only when the post allows downloads; server files go through the stamped route
           }
         }
         $("sheet").querySelectorAll("[data-act]").forEach(function (b) {
@@ -24153,8 +24160,9 @@
          location + link, and the audience is enforced server-side. Back
          rule (Branden): the X exit lives only on the FIRST page; every
          later page gets a back arrow. */
-      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, subsOnly: false, clubOnly: false, shoutoutId: "", shoutoutBuyer: "" }; // [RP-V7.296] subsOnly: the Fan Subscriptions composer toggle // [RP-V7.298] clubOnly: the Fan Clubs composer toggle // [RP-V7.300] shoutoutId: an armed shoutout fulfill link (set from the Earn inbox; rides creation, settles the escrow server-side)
-      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, subsOnly: false, clubOnly: false, shoutoutId: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().id || "") : ""), shoutoutBuyer: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().buyerName || "") : "") }; } // [RP-V7.298] // [RP-V7.300] a reset re-arms from the pending fulfill link, so opening any composer keeps the link until a post settles it or the creator unlinks it
+      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, shoutoutId: "", shoutoutBuyer: "" }; // [RP-V7.296] subsOnly: the Fan Subscriptions composer toggle // [RP-V7.298] clubOnly: the Fan Clubs composer toggle // [RP-V7.300] shoutoutId: an armed shoutout fulfill link (set from the Earn inbox; rides creation, settles the escrow server-side) // [RP-V7.316] downloads: the TikTok-style downloads switch, starting from the account default
+      function postDlDefault156() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return !(a && a.settings && a.settings.dlDefault === false); } catch (e) { return true; } } // [RP-V7.316] the account default (Profile settings) pre-sets the composer toggle; absent = ON, TikTok's default
+      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, shoutoutId: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().id || "") : ""), shoutoutBuyer: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().buyerName || "") : "") }; } // [RP-V7.298] // [RP-V7.300] a reset re-arms from the pending fulfill link, so opening any composer keeps the link until a post settles it or the creator unlinks it // [RP-V7.316] downloads re-arms from the account default
       function postToken156() { try { var r = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (r && r.token) || ""; } catch (e) { return ""; } }
       function postAudText156() { return postMeta156.audience === "followers" ? "Followers can view this post" : postMeta156.audience === "onlyme" ? "Only you can view this post" : "Everyone can view this post"; }
       function postDetailsSync156(k) {
@@ -24175,7 +24183,7 @@
           '<div class="pd-sub" id="' + k + 'AudBox" hidden>' +
             [["everyone", "🌐 Everyone"], ["followers", "👥 Followers"], ["onlyme", "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"5\" y=\"10.5\" width=\"14\" height=\"9.5\" rx=\"2.5\"/><path d=\"M8 10.5V8a4 4 0 0 1 8 0v2.5\"/><circle cx=\"12\" cy=\"15.2\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg> Only me"]].map(function (a) { return '<button type="button" class="pd-aud' + (postMeta156.audience === a[0] ? " on" : "") + '" data-pdaud="' + a[0] + '">' + a[1] + '</button>'; }).join("") +
           '</div>' +
-          (opts.remix ? '<div class="pd-row" style="cursor:default;"><span class="pd-ic">⚙</span><span class="pd-lb">More options</span></div><div class="pd-sub"><span style="flex:1; font-weight:700;">Allow duet, stitch & remix</span><button type="button" class="pd-aud' + (postMeta156.remix ? " on" : "") + '" id="' + k + 'RemixBtn">' + (postMeta156.remix ? "On" : "Off") + '</button></div>' : "") +
+          (opts.remix ? '<div class="pd-row" style="cursor:default;"><span class="pd-ic">⚙</span><span class="pd-lb">More options</span></div><div class="pd-sub"><span style="flex:1; font-weight:700;">Allow duet, stitch & remix</span><button type="button" class="pd-aud' + (postMeta156.remix ? " on" : "") + '" id="' + k + 'RemixBtn">' + (postMeta156.remix ? "On" : "Off") + '</button></div><div class="pd-sub"><span style="flex:1; font-weight:700;">Allow downloads — members can save this video</span><button type="button" class="pd-aud' + (postMeta156.downloads ? " on" : "") + '" id="' + k + 'DlBtn316">' + (postMeta156.downloads ? "On" : "Off") + '</button></div>' : "") + /* [RP-V7.316] the Sharing area: both TikTok-style switches together under More options */
           '<div class="pd-sub"><span style="flex:1; font-weight:700;">🔒 Subscribers only — only your subscribers can watch this post</span><button type="button" class="pd-aud' + (postMeta156.subsOnly ? " on" : "") + '" id="' + k + 'SubsBtn296">' + (postMeta156.subsOnly ? "On" : "Off") + '</button></div>' + /* [RP-V7.296] the fan-subscriptions toggle: set at creation, the server gates every payload */
           '<div class="pd-sub"><span style="flex:1; font-weight:700;">🔒 Fan club — only your Fan Club members can watch this post</span><button type="button" class="pd-aud' + (postMeta156.clubOnly ? " on" : "") + '" id="' + k + 'ClubBtn298">' + (postMeta156.clubOnly ? "On" : "Off") + '</button></div>' + /* [RP-V7.298] the fan-clubs toggle: same pattern, the server gates every payload */
           (postMeta156.shoutoutId ? '<div class="pd-sub"><span style="flex:1; font-weight:700;">📣 Shoutout for ' + escHtml("@" + (postMeta156.shoutoutBuyer || "a member")) + ' — posting this fulfills their request and pays you</span><button type="button" class="pd-aud" id="' + k + 'ShoutUnlink300">Unlink</button></div>' : "") + /* [RP-V7.300] the armed fulfill link, set from the Earn inbox */
@@ -24191,6 +24199,7 @@
         var sheet = $("sheet");
         if (sheet) sheet.querySelectorAll("[data-pdaud]").forEach(function (b) { b.addEventListener("click", function () { postMeta156.audience = b.getAttribute("data-pdaud"); var v = $(k + "AudVal"); if (v) v.textContent = postAudText156(); sheet.querySelectorAll("[data-pdaud]").forEach(function (x) { x.classList.toggle("on", x === b); }); }); });
         var rx = $(k + "RemixBtn"); if (rx) rx.addEventListener("click", function () { postMeta156.remix = !postMeta156.remix; rx.textContent = postMeta156.remix ? "On" : "Off"; rx.classList.toggle("on", postMeta156.remix); });
+        var dl316 = $(k + "DlBtn316"); if (dl316) dl316.addEventListener("click", function () { postMeta156.downloads = !postMeta156.downloads; dl316.textContent = postMeta156.downloads ? "On" : "Off"; dl316.classList.toggle("on", postMeta156.downloads); }); // [RP-V7.316]
         var sb296 = $(k + "SubsBtn296"); if (sb296) sb296.addEventListener("click", function () { postMeta156.subsOnly = !postMeta156.subsOnly; sb296.textContent = postMeta156.subsOnly ? "On" : "Off"; sb296.classList.toggle("on", postMeta156.subsOnly); }); // [RP-V7.296]
         var cb298 = $(k + "ClubBtn298"); if (cb298) cb298.addEventListener("click", function () { postMeta156.clubOnly = !postMeta156.clubOnly; cb298.textContent = postMeta156.clubOnly ? "On" : "Off"; cb298.classList.toggle("on", postMeta156.clubOnly); }); // [RP-V7.298]
         var ub300 = $(k + "ShoutUnlink300"); if (ub300) ub300.addEventListener("click", function () { postMeta156.shoutoutId = ""; postMeta156.shoutoutBuyer = ""; if (window.rpShoutoutClear300) window.rpShoutoutClear300(); var row300 = ub300.parentElement; if (row300) row300.hidden = true; toast("Shoutout unlinked — this post won't fulfill the request."); }); // [RP-V7.300]
@@ -24254,7 +24263,7 @@
           var d = momDraftsLoad156().filter(function (x) { return x.id === b.getAttribute("data-mdresume"); })[0]; if (!d) return;
           Moments.pendingPhotos = (d.photos || []).slice(); momSyncPicks123(); momCapDraft123 = d.caption || "";
           Moments.resumedDraft156 = d.id;
-          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true, subsOnly: false, clubOnly: false }; // [RP-V7.298]
+          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false }; // [RP-V7.298] // [RP-V7.316]
           openMomComposer();
         }); });
         sheet.querySelectorAll("[data-mddel]").forEach(function (b) { b.addEventListener("click", function () {
@@ -25077,6 +25086,7 @@
           if (meta.kind === "stitch") { fd.append("stitchStart", String(meta.stitchStart || 0)); fd.append("stitchDur", String(meta.stitchDur || 5)); }
           if (typeof meta.trimStart === "number" && typeof meta.trimEnd === "number") { fd.append("trimStart", String(meta.trimStart)); fd.append("trimEnd", String(meta.trimEnd)); } // [RP-V7.169]
           fd.append("allowRemix", meta.allowRemix === false ? "false" : "true");
+          fd.append("allowDownloads", meta.allowDownloads === false ? "false" : "true"); // [RP-V7.316]
           if (meta.location) fd.append("location", meta.location); // [RP-V7.156]
           if (meta.subsOnly) fd.append("subsOnly", "1"); // [RP-V7.296]
           if (meta.clubOnly) fd.append("clubOnly", "1"); // [RP-V7.298]
@@ -25104,12 +25114,12 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.300] */ });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.300] */ });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
           if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
-          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, /* [RP-V7.198] own posted reel keeps its server link so the rail can repost it */ likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
+          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, /* [RP-V7.198] own posted reel keeps its server link so the rail can repost it */ likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, /* [RP-V7.316] */ musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
         });
         if (Reels.ranked) {
           // [RP-V7.40] the server already ordered its reels For You —
@@ -26683,6 +26693,7 @@
         var stage = Reels.stage || "pick";
         if (has && stage === "pick") stage = "preview";
         if (!has && stage !== "pick") stage = "pick";
+        if (stage === "pick") postMeta156.downloads = postDlDefault156(); // [RP-V7.316] a fresh post starts from the account default (the pick stage is a new post's first screen; drafts resume past it with their own saved value)
         Reels.stage = stage;
         var drafts = reelLoadMeta().filter(function (m) { return m.draft; });
         var mid = "";
@@ -26935,7 +26946,7 @@
         var meta = {
           id: "reel" + Date.now() + Math.floor(Math.random() * 100000),
           author: reelMyName(), caption: cap || "Fresh Reel from the Plaza 🎬",
-          createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: true
+          createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: true, allowDownloads: postMeta156.downloads !== false /* [RP-V7.316] the composer value; the publish flows below re-apply the full meta */
         };
         var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
         Reels.memBlobs[meta.id] = blob;
@@ -26994,7 +27005,7 @@
         var draftId = Reels.editingDraftId;
         var meta = reelPublishBlob(blob, cap);
         postDetailsSync156("reel"); // [RP-V7.156]
-        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, shoutoutId: postMeta156.shoutoutId || "" }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload
+        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, shoutoutId: postMeta156.shoutoutId || "" }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload // [RP-V7.316] allowDownloads rides too
         reelTrimMeta169(meta.id); // [RP-V7.169]
         if (Reels.pendingSound && Reels.pendingSound.trackId) {
           reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol });
@@ -27020,7 +27031,7 @@
         var cap = capEl ? (capEl.value || "").trim() : (Reels.pendingCaption || "");
         postDetailsSync156("reel"); // [RP-V7.156]
         if (Reels.editingDraftId) {
-          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298]
+          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316]
           if (Reels.remix) { reelUpdateMeta(Reels.editingDraftId, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
           reelTrimMeta169(Reels.editingDraftId); // [RP-V7.169]
           Reels.editingDraftId = null;
@@ -27029,7 +27040,7 @@
             id: "draft" + Date.now() + Math.floor(Math.random() * 100000),
             draft: true,
             author: reelMyName(), caption: cap,
-            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
+            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.316] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
           };
           var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
           if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }); }
@@ -27055,7 +27066,7 @@
           Reels.pendingSound = m.musicTrackId ? { trackId: m.musicTrackId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : null; /* [RP-V7.90] */
           Reels.trimStart = (typeof m.trimStart === "number") ? m.trimStart : null; Reels.trimEnd = (typeof m.trimEnd === "number") ? m.trimEnd : null; Reels.trimOpen = Reels.trimStart != null; Reels.mustTrim = false; /* [RP-V7.169] */
           Reels.pendingCaption = m.caption || "";
-          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, subsOnly: !!m.subsOnly, clubOnly: !!m.clubOnly }; // [RP-V7.156] // [RP-V7.296] // [RP-V7.298]
+          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, downloads: m.allowDownloads !== false, subsOnly: !!m.subsOnly, clubOnly: !!m.clubOnly }; // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316]
           Reels.remix = m.kind ? { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur } : null;
           Reels.editingDraftId = id;
           Reels.stage = "preview";
@@ -27074,7 +27085,7 @@
       }
       function reelPostDraftGo156(id, m, blob) {
           var meta = reelPublishBlob(blob, m.caption || "");
-          reelUpdateMeta(meta.id, { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", allowRemix: m.allowRemix !== false }); // [RP-V7.156]
+          reelUpdateMeta(meta.id, { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false }); // [RP-V7.156] // [RP-V7.316]
           if (m.kind) reelUpdateMeta(meta.id, { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur });
           if (typeof m.trimStart === "number" && typeof m.trimEnd === "number") reelUpdateMeta(meta.id, { trimStart: m.trimStart, trimEnd: m.trimEnd }); // [RP-V7.169]
           reelRemoveMeta(id); reelDbDel(id);
@@ -27097,6 +27108,7 @@
          same caps, same preview). Behavior for the picker is unchanged. */
       function reelAcceptVideoFile(f) {
         if (!f) return;
+        postMeta156.downloads = postDlDefault156(); // [RP-V7.316] a picked video starts a new post: re-arm the downloads switch from the account default (covers the camera upload-pick, which enters at preview and never sees the pick stage)
         var capEl = $("reelCapInput"); if (capEl) Reels.pendingCaption = (capEl.value || "").trim();
         if (!/^video\//.test(f.type || "") && !/\.(mp4|mov|webm|m4v)$/i.test(f.name || "")) { toast("That file is not a video — pick an MP4, MOV or WebM clip."); return; }
         if (f.size > REEL_MAX_BYTES) { toast("That video is " + Math.round(f.size / 1048576) + " MB — reels cap at 100 MB."); return; }
@@ -27173,9 +27185,56 @@
         if (!item.server) { var m = reelMetaById(item.id); return !m || m.allowRemix !== false; }
         return item.allowRemix !== false;
       }
+      /* [RP-V7.316] The one download affordance for member videos.
+         Whether a Download button is offered at all is the
+         enforcement of the downloads switch — it is rendered only
+         when the post's allowDownloads is on, or for the author.
+         Server posts download through the server's watermark route
+         (/api/reel/:id/download or /api/feed/:id/download): the
+         file that leaves the Plaza carries the Plaza mark + the
+         creator's @name burned in, TikTok-style — never the raw
+         file. The fetch carries the member's token so the server
+         can apply the same author/flag gate; a local on-device item
+         (no route) keeps the plain direct save of its own file. */
+      window.rpDownloadVideo316 = function (route, url) {
+        if (!route) {
+          if (!url) { toast("That video isn't on the Plaza yet — nothing to download."); return; }
+          try {
+            var a0 = document.createElement("a");
+            a0.href = url;
+            var base = String(url).split("/").pop().split("?")[0];
+            if (base) a0.download = base;
+            document.body.appendChild(a0); a0.click(); a0.remove();
+            toast("⬇ Downloading the video…");
+          } catch (e) { try { window.open(url, "_blank"); } catch (e2) { } }
+          return;
+        }
+        toast("⬇ Adding the Plaza watermark…");
+        var headers = {};
+        var tok = null; try { tok = reelToken(); } catch (e) { }
+        if (tok) headers["Authorization"] = "Bearer " + tok;
+        fetch(route, { headers: headers }).then(function (r) {
+          if (!r.ok) {
+            return r.json().catch(function () { return null; }).then(function (j) {
+              throw new Error((j && j.error) || "Couldn't download that video.");
+            });
+          }
+          return r.blob();
+        }).then(function (blob) {
+          var u = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = u;
+          var seg = String(route).split("/");
+          a.download = "rizzplaza-" + (seg[3] || "video") + ".mp4";
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) { } }, 4000);
+          toast("⬇ Downloading the video…");
+        }).catch(function (e) { toast((e && e.message) || "Couldn't download that video."); });
+      };
       function openReelRemix(item) {
         reelDuetCleanup();
         var allow = reelMyAllow(item);
+        var dl316 = item.allowDownloads !== false; // [RP-V7.316]
         var body = "";
         if (item.server) {
           if (allow || item.mine) {
@@ -27191,11 +27250,18 @@
         } else {
           body += '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">📱 This reel is still only on this device — Duet &amp; Stitch unlock as soon as it posts to the Plaza from the live site.</p>';
         }
+        if (item.server && (dl316 || item.mine)) { // [RP-V7.316] the Download action exists only when the switch is on — the author always sees it; when off it is absent entirely, never greyed
+          body +=
+            '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" id="btnReelDl316" type="button">⬇ Download video</button></div>';
+        }
         if (item.mine) {
           body +=
             '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" id="btnRemixToggle" type="button">' +
               (allow ? "✅ Duet &amp; Stitch: ON for my reel" : "🚫 Duet &amp; Stitch: OFF for my reel") + "</button></div>" +
-            '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Tap to ' + (allow ? "stop others from remixing this reel." : "let others duet &amp; stitch this reel.") + "</p>";
+            '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Tap to ' + (allow ? "stop others from remixing this reel." : "let others duet &amp; stitch this reel.") + "</p>" +
+            '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" id="btnDlToggle316" type="button">' +
+              (dl316 ? "✅ Downloads: ON for my reel" : "🚫 Downloads: OFF for my reel") + "</button></div>" +
+            '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Tap to ' + (dl316 ? "stop others from downloading this reel." : "let others download this reel.") + "</p>"; // [RP-V7.316]
         }
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
@@ -27207,6 +27273,37 @@
         var bd = $("btnRemixDuet"); if (bd) bd.addEventListener("click", function () { closeSheet(); openDuetStudio(item); });
         var bs = $("btnRemixStitch"); if (bs) bs.addEventListener("click", function () { closeSheet(); openStitchStudio(item); });
         var bt = $("btnRemixToggle"); if (bt) bt.addEventListener("click", function () { reelToggleRemix(item); });
+        var bdl = $("btnReelDl316"); if (bdl) bdl.addEventListener("click", function () { if (window.rpDownloadVideo316) window.rpDownloadVideo316("/api/reel/" + encodeURIComponent(item.id) + "/download"); }); // [RP-V7.316] stamped route, never the raw file
+        var bdt = $("btnDlToggle316"); if (bdt) bdt.addEventListener("click", function () { reelToggleDownloads(item); }); // [RP-V7.316]
+      }
+      /* [RP-V7.316] The downloads twin of reelToggleRemix: same trust
+         pattern, its own endpoint (/api/reel/downloads). */
+      function reelToggleDownloads(item) {
+        var next = item.allowDownloads === false;
+        if (!item.server) {
+          reelUpdateMeta(item.id, { allowDownloads: next });
+          toast(next ? "✅ Downloads ON — it carries to the Plaza when this reel posts." : "🚫 Downloads OFF for this reel.");
+          openReelRemix(item);
+          return;
+        }
+        var headers = { "Content-Type": "application/json" };
+        var tok = reelToken(); if (tok) headers["Authorization"] = "Bearer " + tok;
+        fetch("/api/reel/downloads", { method: "POST", headers: headers, body: JSON.stringify({ id: item.id, allow: next }) })
+          .then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { j: j }; }); })
+          .then(function (o) {
+            if (o.j && o.j.ok) {
+              Reels.server.forEach(function (r) { if (r.id === item.id) r.allowDownloads = next; });
+              item.allowDownloads = next;
+              var mine = reelLoadMeta().filter(function (m) { return m.serverId === item.id; })[0];
+              if (mine) reelUpdateMeta(mine.id, { allowDownloads: next });
+              toast(next ? "✅ Downloads are ON for this reel" : "🚫 Downloads are OFF for this reel");
+              if (Reels.mode === "reels") renderReels();
+              openReelRemix(item);
+            } else {
+              toast((o.j && o.j.error) ? o.j.error : "Couldn't change that — it only works for the reel's author, signed in.");
+            }
+          })
+          .catch(function () { toast("Couldn't reach the Plaza — try again from the live site."); });
       }
       function reelToggleRemix(item) {
         var next = !reelMyAllow(item);
@@ -37566,7 +37663,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.reels || []).forEach(function (r) {
       items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: r.views || 0,
         // [RP-V7.241] rail state rides along for the lightbox
-        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null /* [RP-V7.286] */ });
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ allowDownloads: r.allowDownloads !== false /* [RP-V7.316] */ });
     });
     return items;
   }
@@ -37580,7 +37677,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, locked: !!pp.locked, subsOnly: !!pp.subsOnly, clubOnly: !!pp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: pp.locked ? 1 : ((pp.urls || []).length || 1) /* [RP-V7.123] */,
       // [RP-V7.241] the full feed-item shape, for the lightbox rail
       caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: pp.commentCount || 0, reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine }); });
-    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, locked: !!fp.locked, subsOnly: !!fp.subsOnly, clubOnly: !!fp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
+    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, locked: !!fp.locked, subsOnly: !!fp.subsOnly, clubOnly: !!fp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ allowDownloads: fp.allowDownloads !== false, /* [RP-V7.316] */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
     var order = {}; (j.pins || []).forEach(function (pn, ix) { order[pn.kind + ":" + pn.id] = ix; });
     var pinned = [], rest = [];
     items.forEach(function (it) { (order[it.kind + ":" + it.id] !== undefined ? pinned : rest).push(it); });
@@ -37740,7 +37837,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.reels || []).forEach(function (r) {
       items.push({ kind: "reel", id: r.id, owner: r.authorId || null, ownerName: r.author || "", src: r.url || "", views: r.views || 0, createdAt: r.createdAt || "",
         // [RP-V7.241] rail state rides along for the lightbox
-        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null /* [RP-V7.286] */ });
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ allowDownloads: r.allowDownloads !== false /* [RP-V7.316] */ });
     });
     (j.photos || []).forEach(function (p) {
       items.push({ kind: "photo", id: p.url, owner: p.ownerId, ownerName: p.ownerName || "", src: p.url, views: p.views || 0, createdAt: "" });
@@ -44463,13 +44560,14 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
   function defNotify() {
     return { messages: true, follows: true, gifts: true, likes: true, comments: true, reposts: true, dailypot: true, liveinvites: true, signups: true, channels: { inapp: true, email: true, sms: true } };
   }
-  var DEF = { letterStyle: "default", dmPrivacy: "everyone", notify: defNotify() };
-  var cur = { letterStyle: DEF.letterStyle, dmPrivacy: DEF.dmPrivacy, notify: defNotify() };
+  var DEF = { letterStyle: "default", dmPrivacy: "everyone", dlDefault: true, notify: defNotify() }; // [RP-V7.316] dlDefault: the TikTok-style downloads default for new video posts (default ON)
+  var cur = { letterStyle: DEF.letterStyle, dmPrivacy: DEF.dmPrivacy, dlDefault: DEF.dlDefault, notify: defNotify() };
   function sanitize(s) {
-    var out = { letterStyle: DEF.letterStyle, dmPrivacy: DEF.dmPrivacy, notify: defNotify() };
+    var out = { letterStyle: DEF.letterStyle, dmPrivacy: DEF.dmPrivacy, dlDefault: DEF.dlDefault, notify: defNotify() };
     if (s && typeof s === "object") {
       if (STYLE_BY_ID[s.letterStyle]) out.letterStyle = s.letterStyle;
       if (s.dmPrivacy === "everyone" || s.dmPrivacy === "following" || s.dmPrivacy === "noone") out.dmPrivacy = s.dmPrivacy;
+      if (typeof s.dlDefault === "boolean") out.dlDefault = s.dlDefault; // [RP-V7.316]
       if (s.notify && typeof s.notify === "object") {
         for (var nk = 0; nk < NOTIFY_KEYS.length; nk++)
           if (typeof s.notify[NOTIFY_KEYS[nk]] === "boolean") out.notify[NOTIFY_KEYS[nk]] = s.notify[NOTIFY_KEYS[nk]];
@@ -44553,6 +44651,9 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
         privRow("everyone", "Everyone", "") +
         privRow("following", "People I follow", "") +
         privRow("noone", "No one", "New message threads are off")) +
+      /* [RP-V7.316] Account default for the composer's downloads switch */
+      '<p class="rp-set-sec">🎬 My videos</p>' +
+      '<button type="button" class="rp-set-row" data-dl316="1"><span>⬇ Allow downloads on new posts<span class="rp-set-sub">Members can save your new videos. You can change any post later from its Reel options.</span></span><span class="rp-set-tog' + (cur.dlDefault !== false ? " on" : "") + '"></span></button>' +
       '<p class="rp-set-sec">🔔 Notifications</p>' +
       togRow("messages", "💬 Messages", cur.notify.messages) +
       togRow("follows", "👋 Follows", cur.notify.follows) +
@@ -44615,6 +44716,11 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
         var nx = notifySnapshot();
         nx[k] = !nx[k];
         saveSettings({ notify: nx }, "Notification setting saved ✓").then(function (ok) { if (ok) openSettings(); });
+      });
+    });
+    document.querySelectorAll("[data-dl316]").forEach(function (b) { // [RP-V7.316]
+      b.addEventListener("click", function () {
+        saveSettings({ dlDefault: cur.dlDefault === false }, "Downloads default saved ✓").then(function (ok) { if (ok) openSettings(); });
       });
     });
     document.querySelectorAll("[data-chan]").forEach(function (b) {
