@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.327" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.328" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -3027,6 +3027,20 @@
             q.delete("creator");
             var rest2 = q.toString();
             history.replaceState(null, "", location.pathname + (rest2 ? "?" + rest2 : "") + location.hash);
+          }
+        }
+        // [RP-V7.328] DM deep link: /?dm=<accountId> — where a push
+        // notification for a new message lands. Same stash pattern;
+        // the consumer module at the end of the body opens that exact
+        // thread once sign-in state is known.
+        var dmu = q.get("dm");
+        if (dmu) {
+          var du = String(dmu).trim().slice(0, 80);
+          if (/^[A-Za-z0-9_-]+$/.test(du)) {
+            try { sessionStorage.setItem("rpDmLink.v1", JSON.stringify({ userId: du, at: Date.now() })); } catch (e) { }
+            q.delete("dm");
+            var rest3 = q.toString();
+            history.replaceState(null, "", location.pathname + (rest3 ? "?" + rest3 : "") + location.hash);
           }
         }
       } catch (e) { }
@@ -36375,7 +36389,7 @@ button.rp72-chip{ cursor:pointer; }
       }).observe(ov, { attributes: true, attributeFilter: ["class"] });
     } catch (e) { }
   })();
-  window.rpDm = { openInbox: openInbox, openPeople: openPeople, openWith: function (userId, name) { if (acctRec()) openConversation(userId, name); }, refreshBadge: refreshBadge, openProfile: function (userId, name) { if (acctRec()) openMemberProfile(userId, name || "", null); } };
+  window.rpDm = { openInbox: openInbox, openPeople: openPeople, openWith: function (userId, name) { if (acctRec()) openConversation(userId, name); }, refreshBadge: refreshBadge, openProfile: function (userId, name) { if (acctRec()) openMemberProfile(userId, name || "", null); }, dmThreadNow328: function () { try { return (conv && conv.userId && document.getElementById("rpDmMsgs")) ? conv.userId : null; } catch (e) { return null; } } }; // [RP-V7.328] read-only hook: which DM thread is on screen right now (the push focus check asks; null when no conversation is open)
 
   /* [RP-V7.67] The Home card's Find People button opens the same
      directory — no detour through Messages. */
@@ -44940,7 +44954,7 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
   var NOTIFY_KEYS = ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts", "liveinvites", "signups"]; // [RP-V7.129] // [RP-V7.138] + liveinvites // [RP-V7.307] + signups (owner-only row below)
   var rpOwnerVerdict307 = false, rpOwnerProbed307 = false; // [RP-V7.307] owner verdict for the signups row: probed once from an owner-gated route
   function defNotify() {
-    return { messages: true, follows: true, gifts: true, likes: true, comments: true, reposts: true, dailypot: true, liveinvites: true, signups: true, channels: { inapp: true, email: true, sms: true } };
+    return { messages: true, follows: true, gifts: true, likes: true, comments: true, reposts: true, dailypot: true, liveinvites: true, signups: true, channels: { inapp: true, email: true, sms: true, push: true } }; // [RP-V7.328] push channel
   }
   var DEF = { letterStyle: "default", dmPrivacy: "everyone", dlDefault: true, notify: defNotify() }; // [RP-V7.316] dlDefault: the TikTok-style downloads default for new video posts (default ON)
   var cur = { letterStyle: DEF.letterStyle, dmPrivacy: DEF.dmPrivacy, dlDefault: DEF.dlDefault, notify: defNotify() };
@@ -45088,7 +45102,7 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
     function notifySnapshot() {
       var nx = {};
       for (var ni = 0; ni < NOTIFY_KEYS.length; ni++) nx[NOTIFY_KEYS[ni]] = cur.notify[NOTIFY_KEYS[ni]];
-      nx.channels = { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms };
+      nx.channels = { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push !== false }; // [RP-V7.328] push rides every settings save, so the generic toggles never clobber it
       return nx;
     }
     document.querySelectorAll("[data-notify]").forEach(function (b) {
@@ -48320,6 +48334,311 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
       show = __rpShowWrap314;
     }
   } catch (e) { }
+})();
+</script>
+<script>
+/* =====================================================================
+   [RP-V7.328] WEB PUSH — TikTok-style phone notifications.
+   The settings sheet's "Reach me by" section gains a Push row (this
+   module injects it beside the In-app / Email / Text rows whenever
+   the settings sheet renders). Turning it on is the ONLY place
+   notification permission is ever requested — never on app load,
+   never on sign-in. The row always shows the REAL state of this
+   device (permission + stored subscription + the account's push
+   channel switch): a denied permission reads as blocked, never as
+   on. On iPhone, web push exists only for the Home-Screen-installed
+   app (Apple's rule), so an iOS browser tab shows that honest hint
+   instead of a dead toggle.
+   This module also answers the service worker's focus queries (a DM
+   push is suppressed while the member is actively viewing that same
+   thread) and consumes the /?dm=<accountId> deep link a DM push
+   lands on. The worker itself is the V7.120 shell worker + push
+   handlers (public/sw.js) — registration is unchanged.
+   ===================================================================== */
+(function () {
+  "use strict";
+  function toast2(m, t) { try { if (window.toast) window.toast(m, t || 3200); } catch (e) { } }
+  function acctRec328() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a : null; } catch (e) { return null; } }
+  function api328(path, method, body) {
+    return new Promise(function (resolve) {
+      var a = acctRec328();
+      if (!a) { resolve({ status: 0, json: null }); return; }
+      fetch(path, { method: method || "GET", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.token }, body: body ? JSON.stringify(body) : undefined })
+        .then(function (r) { return r.text().then(function (txt) { var j = null; try { j = JSON.parse(txt); } catch (e) { } resolve({ status: r.status, json: j }); }); })
+        .catch(function () { resolve({ status: 0, json: null }); });
+    });
+  }
+  function prefPushOn() {
+    var a = acctRec328();
+    var n = a && a.settings && a.settings.notify;
+    return !(n && n.channels && n.channels.push === false);
+  }
+  function savePref328(on) {
+    return api328("/api/account/settings", "POST", { notify: { channels: { push: on } } }).then(function (r) {
+      if (r.json && r.json.ok) {
+        // Keep the settings module's own state in step, so its next
+        // generic save carries the same push value (never clobbers).
+        try { if (r.json.settings && typeof window.rpApplyAccountSettings === "function") window.rpApplyAccountSettings(r.json.settings); } catch (e) { }
+        return true;
+      }
+      return false;
+    });
+  }
+  function supported328() {
+    return ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
+  }
+  function isIos328() {
+    var ua = navigator.userAgent || "";
+    return /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1);
+  }
+  function standalone328() {
+    try { if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true; } catch (e) { }
+    return navigator.standalone === true;
+  }
+  function keyBytes328(b64) {
+    var pad = "=".repeat((4 - (b64.length % 4)) % 4);
+    var raw = atob(b64.replace(/-/g, "+").replace(/_/g, "/") + pad);
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  function keyEq328(sub, b64) {
+    try {
+      var k = sub && sub.options && sub.options.applicationServerKey;
+      if (!k) return false;
+      var a = new Uint8Array(k), b = keyBytes328(b64);
+      if (a.length !== b.length) return false;
+      for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+      return true;
+    } catch (e) { return false; }
+  }
+  function reg328() {
+    return navigator.serviceWorker.ready;
+  }
+  /* The current state of push on THIS device, in words for the row. */
+  function state328() {
+    if (!supported328()) {
+      if (isIos328() && !standalone328())
+        return Promise.resolve({ mode: "ioshint", on: false, sub: "On iPhone, add Rizz Plaza to your Home Screen first, then turn notifications on." });
+      if (isIos328())
+        return Promise.resolve({ mode: "unsupported", on: false, sub: "This iPhone's iOS doesn't support web push — updating iOS turns it on." });
+      return Promise.resolve({ mode: "unsupported", on: false, sub: "This browser doesn't support push notifications." });
+    }
+    if (Notification.permission === "denied")
+      return Promise.resolve({ mode: "denied", on: false, sub: "Blocked — allow notifications for Rizz Plaza in your browser or device settings, then tap here." });
+    return reg328().then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        var pref = prefPushOn();
+        if (Notification.permission === "granted" && sub && pref)
+          return { mode: "on", on: true, sub: "On — messages and gifts reach this device, even with the app closed." };
+        return { mode: "off", on: false, sub: "Get messages and gifts on this phone the moment they land — TikTok-style." };
+      });
+    }).catch(function () {
+      return { mode: "off", on: false, sub: "Get messages and gifts on this phone the moment they land — TikTok-style." };
+    });
+  }
+  function enable328() {
+    // The ONLY permission request in the app lives behind this tap.
+    return Notification.requestPermission().then(function (perm) {
+      if (perm !== "granted") {
+        toast2(perm === "denied" ? "Notifications are blocked for Rizz Plaza — allow them in your browser or device settings first." : "No problem — push stays off until you turn it on.", 4200);
+        renderPushRow328(true);
+        return false;
+      }
+      return reg328().then(function (reg) {
+        return api328("/api/push/key", "GET").then(function (kr) {
+          var pub = kr.json && kr.json.publicKey;
+          if (!pub) { toast2("Push isn't answering right now — try again in a bit.", 3600); return false; }
+          return reg.pushManager.getSubscription().then(function (existing) {
+            var reuse = existing && keyEq328(existing, pub) ? existing : null;
+            var drop = existing && !reuse ? existing.unsubscribe().catch(function () { }) : Promise.resolve();
+            return drop.then(function () {
+              var subP = reuse ? Promise.resolve(reuse) : reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes328(pub) });
+              return subP.then(function (sub) {
+                return api328("/api/push/subscribe", "POST", sub.toJSON()).then(function (sr) {
+                  if (!(sr.json && sr.json.ok)) { toast2("Couldn't save this device for push — try again.", 3600); return false; }
+                  return savePref328(true).then(function () {
+                    toast2("Push notifications on 📲", 2600);
+                    renderPushRow328(true);
+                    return true;
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    }).catch(function () {
+      toast2("Couldn't turn push on — try again.", 3600);
+      renderPushRow328(true);
+      return false;
+    });
+  }
+  function disable328() {
+    return reg328().then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        var off = sub ? api328("/api/push/unsubscribe", "POST", { endpoint: sub.endpoint }).then(function () { return sub.unsubscribe().catch(function () { }); }) : Promise.resolve();
+        return off.then(function () {
+          return savePref328(false).then(function () {
+            toast2("Push notifications off", 2400);
+            renderPushRow328(true);
+            return true;
+          });
+        });
+      });
+    }).catch(function () {
+      return savePref328(false).then(function () { renderPushRow328(true); return false; });
+    });
+  }
+  /* ---------- the settings-sheet row ---------- */
+  var rowBusy328 = false;
+  function renderPushRow328(force) {
+    var smsRow = document.querySelector('[data-chan="sms"]');
+    if (!smsRow || !smsRow.parentNode) return;
+    var row = document.getElementById("rpPush328Row");
+    if (!row) {
+      row = document.createElement("button");
+      row.type = "button";
+      row.className = "rp-set-row";
+      row.id = "rpPush328Row";
+      row.innerHTML = '<span>📲 Push notifications<span class="rp-set-sub" id="rpPush328Sub">Checking this device…</span></span><span class="rp-set-tog" id="rpPush328Tog"></span>';
+      smsRow.parentNode.insertBefore(row, smsRow.nextSibling);
+      row.addEventListener("click", function () {
+        if (rowBusy328) return;
+        var mode = row.getAttribute("data-mode") || "off";
+        if (mode === "ioshint") { toast2("On iPhone: tap Share → Add to Home Screen, open Rizz Plaza from that icon, then turn push on here.", 5200); return; }
+        if (mode === "unsupported") { toast2("This browser can't do push notifications.", 3600); return; }
+        if (mode === "denied") { toast2("Notifications are blocked for Rizz Plaza — allow them in your browser or device settings, then tap again.", 4600); return; }
+        rowBusy328 = true;
+        var act = (mode === "on") ? disable328() : enable328();
+        act.then(function () { rowBusy328 = false; }, function () { rowBusy328 = false; });
+      });
+    }
+    state328().then(function (st) {
+      var key = st.mode + "|" + (st.on ? "1" : "0") + "|" + st.sub;
+      if (!force && row.getAttribute("data-state328") === key) return; // guarded write: only touch the DOM when the state actually changed
+      row.setAttribute("data-state328", key);
+      row.setAttribute("data-mode", st.mode);
+      var subEl = document.getElementById("rpPush328Sub");
+      if (subEl && subEl.textContent !== st.sub) subEl.textContent = st.sub;
+      var tog = document.getElementById("rpPush328Tog");
+      if (tog) {
+        var want = st.on ? "rp-set-tog on" : "rp-set-tog";
+        if (tog.className !== want) tog.className = want;
+      }
+    });
+  }
+  var sched328 = false;
+  function scheduleRow328() {
+    if (sched328) return;
+    sched328 = true;
+    setTimeout(function () { sched328 = false; try { renderPushRow328(false); } catch (e) { } }, 60);
+  }
+  (function watchSheet328() {
+    var sheet = document.getElementById("sheet");
+    if (!sheet || !window.MutationObserver) { setTimeout(watchSheet328, 1500); return; }
+    try {
+      new MutationObserver(function () {
+        // Only act when the settings sheet is what's on screen, and
+        // renderPushRow328 itself guards every DOM write by state.
+        if (document.querySelector('[data-chan="sms"]')) scheduleRow328();
+      }).observe(sheet, { childList: true, subtree: true });
+    } catch (e) { }
+  })();
+  /* ---------- boot reconcile: silent, never a prompt ----------
+     If this device already granted permission and the account's push
+     switch is on, make sure the stored subscription is fresh. If
+     permission was never granted, do nothing — the only ask lives
+     behind the settings toggle. */
+  setTimeout(function () {
+    try {
+      if (!acctRec328() || !supported328()) return;
+      if (Notification.permission !== "granted" || !prefPushOn()) return;
+      reg328().then(function (reg) {
+        reg.pushManager.getSubscription().then(function (sub) {
+          if (sub) { api328("/api/push/subscribe", "POST", sub.toJSON()); return; }
+          api328("/api/push/key", "GET").then(function (kr) {
+            var pub = kr.json && kr.json.publicKey;
+            if (!pub) return;
+            reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes328(pub) })
+              .then(function (s2) { api328("/api/push/subscribe", "POST", s2.toJSON()); })
+              .catch(function () { });
+          });
+        }).catch(function () { });
+      }).catch(function () { });
+    } catch (e) { }
+  }, 2600);
+  /* ---------- the worker's focus queries ----------
+     When a DM push lands, the worker asks focused windows whether
+     they are viewing that thread; the banner is suppressed only if
+     this window is focused AND that exact thread is on screen. */
+  if ("serviceWorker" in navigator) {
+    try {
+      navigator.serviceWorker.addEventListener("message", function (e) {
+        if (!e.data || e.data.type !== "rp328-focus-query") return;
+        var viewing = false;
+        try {
+          viewing = !!document.hasFocus() && !document.hidden &&
+            window.rpDm && typeof window.rpDm.dmThreadNow328 === "function" &&
+            window.rpDm.dmThreadNow328() === e.data.dmWith;
+        } catch (err) { viewing = false; }
+        try { if (e.ports && e.ports[0]) e.ports[0].postMessage({ viewingDm: viewing }); } catch (err) { }
+      });
+    } catch (e) { }
+  }
+  window.rpPush328 = { state: state328, renderRow: renderPushRow328, enable: enable328, disable: disable328 };
+})();
+
+/* =====================================================================
+   [RP-V7.328] DM-link consumer. The head script stashed a
+   /?dm=<accountId> target (sessionStorage rpDmLink.v1) — where a DM
+   push notification lands. Once sign-in state is known (a saved
+   session counts), resolve the sender's name from the thread route
+   and open that exact conversation through the normal door
+   (window.rpDm.openWith). Signed-out visitors keep the signup wall;
+   if they sign in while the stash is fresh it still opens. A stale
+   or broken link degrades silently — same discipline as the
+   V7.269/V7.312 consumers above. One attempt per landing.
+   ===================================================================== */
+(function () {
+  "use strict";
+  var KEY = "rpDmLink.v1";
+  function stash328() {
+    try {
+      var s = JSON.parse(sessionStorage.getItem(KEY) || "null");
+      return (s && typeof s === "object" && /^[A-Za-z0-9_-]{1,80}$/.test(String(s.userId || ""))) ? s : null;
+    } catch (e) { return null; }
+  }
+  function clear328() { try { sessionStorage.removeItem(KEY); } catch (e) { } }
+  function acctTok328() {
+    try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? String(a.token) : ""; } catch (e) { return ""; }
+  }
+  function run328() {
+    var s = stash328();
+    if (!s) return;
+    if (s.at && Date.now() - s.at > 10 * 60 * 1000) { clear328(); return; }
+    var deadline = (s.at || Date.now()) + 10 * 60 * 1000;
+    (function poll() {
+      var tok = acctTok328();
+      if (tok && window.rpDm && typeof window.rpDm.openWith === "function") {
+        clear328(); // one attempt per landing
+        fetch("/api/dm/thread/" + encodeURIComponent(s.userId), { headers: { Authorization: "Bearer " + tok } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            var nm = (j && j.user && j.user.name) || "";
+            try { window.rpDm.openWith(s.userId, nm); } catch (e) { }
+          })
+          .catch(function () {
+            try { window.rpDm.openWith(s.userId, ""); } catch (e) { }
+          });
+        return;
+      }
+      if (Date.now() < deadline) setTimeout(poll, 1000);
+      else clear328();
+    })();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(run328, 900); });
+  else setTimeout(run328, 900);
 })();
 </script>
 </body>
