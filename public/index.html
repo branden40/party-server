@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.326" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.325.1" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -9884,6 +9884,7 @@
           myReposted: postFull ? !!post.myReposted : !!it.myReposted,
           giftCount: postFull ? (post.giftCount || 0) : (it.giftCount || 0), // [RP-V7.262]
         };
+        if (window.rpGiftCount262 && window.rpGiftCount262.seed) fi241.giftCount = window.rpGiftCount262.seed("photo", fi241.postId, fi241.giftCount); // [RP-V7.325] this sheet viewer is rebuilt from the held profile payload after an in-viewer gift — seed its count from the registry
         fi241.mine = !!fi241.authorId && fi241.authorId === Online.myId;
         var rail241 =
           '<button class="reel-act like pp-heart' + (fi241.myLiked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + fi241.likes + "</span></button>" +
@@ -10241,6 +10242,7 @@
              action is rendered only when the post allows downloads —
              or for the author (account-id test, the Delete button's
              own pattern below). When off it is absent entirely. */
+          if (window.rpGiftCount262 && window.rpGiftCount262.seed) fi241.giftCount = window.rpGiftCount262.seed("reel", fi241.id, fi241.giftCount); // [RP-V7.325] the profile player is rebuilt from the held profile payload after an in-viewer gift — seed its count from the registry
           var dlOk316 = meta.allowDownloads !== false || !!(meta.owner && meta.owner === rpMyId243());
           var dlBtn316 = dlOk316 ? '<button class="reel-act pp-dl316" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span>Save</span></button>' : "";
           if (meta.feedPost) {
@@ -22016,6 +22018,7 @@
       ]; // [RP-V7.132] +3 gifts — the $1,000 tier (Branden, Oct 29, 2026: all three, 100000 charms each, prestige). Catalog now 36 gifts. [RP-V7.137] +3 gifts — Golden Eagle 20000 / Pegasus of Light 30000 / Aurora Crown 40000, prestige, inserted at price-ascending positions. Catalog now 39 gifts. [RP-V7.166] +1 gift — Golden Ascension 50000 ($500), prestige, after The Universe. Catalog now 40 gifts. [RP-V7.167] +1 gift — Nebula Dragon 10000 ($100), prestige, after Private Jet. Catalog now 41 gifts. [RP-V7.168] +1 gift — Titan Clash 5000 ($50), big, after Galaxy. Catalog now 42 gifts. [RP-V7.188] +1 gift — Rizz Plaza Universe 5000 ($50), big, after Titan Clash. Catalog now 43 gifts. [RP-V7.197] +1 gift — Plaza Ape 2500 ($25), big, after Golden Lion; the V7.188 client entries are RESTORED here (V7.189 had stacked on a pre-V7.188 index and dropped them; the server half never left). Catalog now 44 gifts.
       function giftById(id) { for (var i = 0; i < GIFT_SHOP.length; i++) if (GIFT_SHOP[i].id === id) return GIFT_SHOP[i]; return null; }
       function giftByName(nm) { for (var i = 0; i < GIFT_SHOP.length; i++) if (GIFT_SHOP[i].name === nm) return GIFT_SHOP[i]; return null; }
+      window.rpGiftCatalog325 = { byId: giftById, imgHTML: giftImgHTML, priceLabel: giftPriceLabel }; // [RP-V7.325] the gift-breakdown sheet (registry module) reads the LIVE catalog through this hook — art, name and charm price are never duplicated
       function giftPriceLabel(cents) {
         if (cents < 100) return cents + "¢";
         var d = cents / 100;
@@ -37466,8 +37469,8 @@ button.rp72-chip{ cursor:pointer; }
      gets a static entry — icon + count, above zero only, never a
      button. Gallery photos and Feed posts keep lbGiftBtn241
      exactly: the server records nothing against them. */
-  function lbGiftBtn262(kind, id, n) { return '<button class="reel-act gift pp-gift" type="button">' + lbIco241("gift") + '<span class="gc262" data-gc262="' + kind + ":" + esc(String(id == null ? "" : id)) + '" data-gc-label="Gift">' + ((n || 0) > 0 ? n : "Gift") + "</span></button>"; }
-  function lbGiftMine262(kind, id, n) { return '<span class="reel-act gc262-static" aria-hidden="true"' + ((n || 0) > 0 ? "" : ' style="display:none"') + ">" + lbIco241("gift") + '<span class="gc262" data-gc262="' + kind + ":" + esc(String(id == null ? "" : id)) + '" data-gc-host="1">' + ((n || 0) > 0 ? n : "") + "</span></span>"; }
+  function lbGiftBtn262(kind, id, n) { if (window.rpGiftCount262 && window.rpGiftCount262.seed) n = window.rpGiftCount262.seed(kind, id, n); return '<button class="reel-act gift pp-gift" type="button">' + lbIco241("gift") + '<span class="gc262" data-gc262="' + kind + ":" + esc(String(id == null ? "" : id)) + '" data-gc-label="Gift">' + ((n || 0) > 0 ? n : "Gift") + "</span></button>"; } // [RP-V7.325] seeded — a viewer rebuilt after an in-viewer gift shows the count
+  function lbGiftMine262(kind, id, n) { if (window.rpGiftCount262 && window.rpGiftCount262.seed) n = window.rpGiftCount262.seed(kind, id, n); return '<span class="reel-act gc262-static" aria-hidden="true"' + ((n || 0) > 0 ? "" : ' style="display:none"') + ">" + lbIco241("gift") + '<span class="gc262" data-gc262="' + kind + ":" + esc(String(id == null ? "" : id)) + '" data-gc-host="1">' + ((n || 0) > 0 ? n : "") + "</span></span>"; } // [RP-V7.325] seeded, same reason
   function lbShareBtn241() { return '<button class="reel-act share pp-share" type="button">' + lbIco241("share") + "<span>Share</span></button>"; }
   function lbMine241(ownerId, ownerName) {
     var myId = myAccountId();
@@ -47391,6 +47394,29 @@ html, body { overflow-x: clip; }
     last262[key] = Math.max(0, Math.floor(n));
     document.querySelectorAll('[data-gc262="' + key + '"]').forEach(function (sp) { paint262(sp, last262[key]); });
   }
+  /* [RP-V7.325] The registry's last known total for a post, and a
+     builder seed: max(the item's value, the registry's). Every
+     value that reaches last262 came from the server (a gift
+     response's postGiftCount, a fetch refresh) or a giftc262 proto
+     bump of the same kind this module already paints live — a
+     seed can never invent a count, it can only stop a STALE item
+     from hiding one. That stale case is real: the full-screen
+     viewers live in #sheet, the gift sheet replaces #sheet's DOM
+     when it opens, so a gift sent from inside a viewer has no
+     span left for set() to paint, and when the viewer is rebuilt
+     from the surface's held item its giftCount predates the gift
+     (Branden, Nov 11: gifted a post in the viewer, the count
+     never showed; the same post's Home card showed it at once,
+     its span lives in the screen DOM and was painted by set()). */
+  function peek262(key) { return (key && (key in last262)) ? last262[key] : undefined; }
+  function seed262(kind, id, n) {
+    var cur = (typeof n === "number" && isFinite(n) && n > 0) ? Math.floor(n) : 0;
+    if ((kind === "reel" || kind === "photo") && typeof id === "string" && id) {
+      var reg = last262[kind + ":" + id];
+      if (typeof reg === "number" && reg > cur) return reg;
+    }
+    return cur;
+  }
   function bump262(key, d) {
     if (!key) return;
     var cur = (key in last262) ? last262[key] : null;
@@ -47412,9 +47438,142 @@ html, body { overflow-x: clip; }
       bump262(kind + ":" + o.p.slice(1), Math.max(1, Math.min(1000, (o.c | 0) || 1)));
     } catch (e) { }
   }
-  window.rpGiftCount262 = { validPost: validPost, keyOf: keyOf, set: set262, bump: bump262, bumpFromProto: bumpFromProto };
+  window.rpGiftCount262 = { validPost: validPost, keyOf: keyOf, set: set262, bump: bump262, bumpFromProto: bumpFromProto, peek: peek262, seed: seed262 }; // [RP-V7.325] peek/seed
+})();
+
+/* ================= [RP-V7.325] GIFT BREAKDOWN ON A POST =================
+   Branden (Nov 11, 2026): "Can it show which gift was gifted as
+   well — with the price when you click on it." Tapping the count
+   NUMBER on any painted gc262 span (feed/Home cards, the rpmedia
+   lightbox, the profile surfaces — the author's own-post static
+   count included) opens this sheet: one row per gift the post
+   received (art + name, ×N, charm price each and per line), with
+   a footer total. The send flow is untouched: the gift BUTTON
+   still opens the gift sheet — the number is its own tap target
+   (one capture-phase delegated listener, so rebuilt viewers and
+   repainted spans need no rewiring; at zero a span shows its
+   "Gift" label or nothing, never a number, so zero posts keep
+   the button's behaviour exactly).
+
+   Data: GET /api/post-gifts (public, like giftCount itself). The
+   server's per-gift detail is recorded from RP-V7.325 onward, so
+   a post whose total predates it shows its recorded gifts plus
+   an honest "Earlier gifts" row for the rest — kinds are never
+   invented for gifts nobody recorded. Prices come from the live
+   catalog (window.rpGiftCatalog325); a recorded gift that has
+   left the catalog shows its recorded name with no price rather
+   than dropping the row. */
+(function () {
+  "use strict";
+  function esc325(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function fmt325(n) { return (typeof n === "number" && isFinite(n) ? n : 0).toLocaleString("en-US"); }
+  function charmWord325(n) { return n === 1 ? "charm" : "charms"; }
+  var CLOSEX325 = '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>';
+
+  function render325(j) {
+    var body = document.getElementById("rpGcbBody325");
+    if (!body) return; // the sheet moved on — paint nothing (guarded-write law)
+    if (!j || !j.ok) { body.innerHTML = '<p style="text-align:center;">That list isn\'t available right now.</p>'; return; }
+    var total = (typeof j.total === "number" && isFinite(j.total) && j.total > 0) ? Math.floor(j.total) : 0;
+    if (!total) { body.innerHTML = '<p style="text-align:center;">No gifts yet on this post.</p>'; return; }
+    var gifts = Array.isArray(j.gifts) ? j.gifts : [];
+    var detailed = gifts.reduce(function (s, g) { return s + ((g && typeof g.count === "number" && isFinite(g.count) && g.count > 0) ? Math.floor(g.count) : 0); }, 0);
+    var earlier = Math.max(0, total - detailed);
+    var cat = (window.rpGiftCatalog325 && typeof window.rpGiftCatalog325.byId === "function") ? window.rpGiftCatalog325 : null;
+    var totalCharms = 0, allPriced = earlier === 0;
+    var rows = gifts.map(function (g) {
+      var cg = cat ? cat.byId(g.id) : null;
+      var name = cg ? cg.name : (g.name || g.id || "Gift");
+      var art = cg ? cat.imgHTML(cg) : "🎁";
+      var price = cg && typeof cg.cents === "number" && isFinite(cg.cents) ? cg.cents : null;
+      var line = price != null ? price * g.count : null;
+      if (line == null) allPriced = false; else totalCharms += line;
+      return '<div class="gcb-row325">' +
+        '<span class="gcb-art325">' + art + '</span>' +
+        '<span class="gcb-meta325"><b>' + esc325(name) + '</b><span>' + (price != null ? fmt325(price) + ' ' + charmWord325(price) + ' each' : 'no longer in the gift catalog') + '</span></span>' +
+        '<span class="gcb-n325">×' + fmt325(g.count) + '</span>' +
+        '<span class="gcb-tot325">' + (line != null ? fmt325(line) + ' ' + charmWord325(line) : '') + '</span></div>';
+    }).join("");
+    if (earlier > 0) {
+      rows += '<div class="gcb-row325 gcb-old325">' +
+        '<span class="gcb-art325">🎁</span>' +
+        '<span class="gcb-meta325"><b>Earlier gifts</b><span>sent before gift-by-gift records began</span></span>' +
+        '<span class="gcb-n325">×' + fmt325(earlier) + '</span>' +
+        '<span class="gcb-tot325"></span></div>';
+    }
+    var foot = '<div class="gcb-foot325">🎁 ' + fmt325(total) + ' gift' + (total === 1 ? '' : 's') + ' total' +
+      (allPriced ? ' · ' + fmt325(totalCharms) + ' ' + charmWord325(totalCharms) : '') + '</div>';
+    if (earlier > 0) foot += '<p class="gcb-note325">The gift-by-gift list covers gifts sent since the latest update; the total counts every gift this post has received.</p>';
+    body.innerHTML = '<div class="gcb-list325">' + rows + '</div>' + foot;
+  }
+
+  function openBreakdown325(kind, id) {
+    if ((kind !== "reel" && kind !== "photo") || !id) return;
+    if (typeof window.openSheet !== "function") return;
+    window.openSheet(
+      CLOSEX325 +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">🎁 Gifts on this post</h3>' +
+      '<div id="rpGcbBody325"><p style="text-align:center;">Loading…</p></div></div>'
+    );
+    var sh = document.getElementById("sheet");
+    if (sh) {
+      var cx = sh.querySelector("[data-act=close]");
+      if (cx) cx.addEventListener("click", function () { try { window.closeSheet(); } catch (e) { } });
+    }
+    fetch("/api/post-gifts?kind=" + encodeURIComponent(kind) + "&id=" + encodeURIComponent(id), { method: "GET" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { render325(j); })
+      .catch(function () { render325(null); });
+  }
+
+  /* The count number is its own tap target on EVERY surface that
+     paints one — one delegated capture-phase listener, so it
+     fires before the gift button's own handler (stopPropagation
+     in capture keeps the send sheet closed) and survives every
+     rebuild/repaint without rewiring. Only a span actually
+     SHOWING a number is a target: at zero the span holds its
+     "Gift" label (rail buttons) or nothing (the author's hidden
+     static entry), and the tap belongs to the button as before. */
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    var sp = (t && typeof t.closest === "function") ? t.closest("[data-gc262]") : null;
+    if (!sp) return;
+    var txt = (sp.textContent || "").replace(/\s+/g, "");
+    if (!/^\d+$/.test(txt) || !(parseInt(txt, 10) > 0)) return;
+    var key = sp.getAttribute("data-gc262") || "";
+    var cut = key.indexOf(":");
+    if (cut < 1) return;
+    var kind = key.slice(0, cut), id = key.slice(cut + 1);
+    if ((kind !== "reel" && kind !== "photo") || !id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openBreakdown325(kind, id);
+  }, true);
+
+  window.rpGiftBreakdown325 = openBreakdown325;
 })();
 </script>
+
+<style id="rp7325gcbCss">
+/* ================= [RP-V7.325] GIFT BREAKDOWN SHEET =================
+   Rows ride the Who-watched list idiom (theme vars, hairline
+   separators); the count spans gain a pointer cursor — the number
+   is a tap target now (the breakdown module above). */
+.gc262 { cursor: pointer; }
+.gcb-list325 { display: flex; flex-direction: column; margin-top: 4px; }
+.gcb-row325 { display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-bottom: 1px solid rgba(127,127,127,.28); }
+.gcb-row325:last-child { border-bottom: none; }
+.gcb-art325 { width: 38px; height: 38px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 26px; line-height: 1; }
+.gcb-art325 img { width: 38px; height: 38px; object-fit: cover; border-radius: 10px; display: block; }
+.gcb-meta325 { flex: 1; min-width: 0; text-align: left; }
+.gcb-meta325 b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gcb-meta325 span { display: block; font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gcb-n325 { flex: none; font-weight: 800; }
+.gcb-tot325 { flex: none; min-width: 70px; text-align: right; font-weight: 800; color: var(--gold); }
+.gcb-old325 { opacity: .72; }
+.gcb-foot325 { text-align: center; font-weight: 800; margin-top: 10px; }
+.gcb-note325 { text-align: center; color: var(--ink-soft); font-size: 12.5px; margin-top: 6px; }
+</style>
 
 <style id="rp7264Css">
 /* ================= [RP-V7.264] GO LIVE STRIP BUTTON + EVERY LIVE DOT GLOWS =================
