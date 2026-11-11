@@ -5441,6 +5441,18 @@ app.post("/api/reel/downloads", (req, res) => {
 // independent of host core count; preset/CRF/artwork unchanged.
 // Failed jobs also unlink their .tmp- output now instead of
 // leaving orphans in the cache dir after every failed attempt.
+//
+// [RP-V7.318 DIAGNOSTIC + SELF-HEAL] V7.317 reached production
+// byte-exact and downloads still failed in ~0.5s. The watermark boot
+// probe DOES spawn `ffmpeg -version`; it does not merely test path
+// existence. Consequently a binary that was non-executable from boot
+// should make wmServe316 return 503, not the observed 500. EACCES is
+// therefore a lead—not a proven sole cause. V7.318 (1) re-checks and,
+// where the resolved target is a file, repairs the execute bit before
+// serving, including a fresh version check if the boot probe failed;
+// (2) tags stamp failures as probe/render/encode; and (3) adds the
+// owner-only /api/diag/wm316 endpoint so production can report the
+// binary, cache, font, render and encode steps independently.
 // ---------------------------------------------------------------------------
 const WM_STAMP_VER_316 = "wm3";
 const RP_WM_FONT_316 = "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";
@@ -5460,6 +5472,75 @@ try {
   wmAssetsOk316 = wmFontBuf316.length > 1000 && wmIconBuf316.length > 1000;
 } catch (e) { console.log("[watermark] asset setup failed:", e.message); }
 let wmFfmpegOk316 = false;
+// [RP-V7.318] Executability self-heal. ffmpeg-static resolves to a
+// file path in the normal deployment; a file can exist while its
+// execute bit has been lost. Verify X_OK and, only when it is absent,
+// attempt chmod 0755 and verify again. A bare PATH command (the local
+// fallback when the package cannot be required) has no file here to
+// chmod, so that mode is reported and the spawn probe remains the
+// authority. This function is called at boot (before the version
+// probe) and again before serving a stamp (so a boot-probe failure
+// caused by EACCES can recover rather than pin the route at 503).
+function wmEnsureFfmpegExecutable318(reason) {
+  const target = String(crFfmpeg286 || "");
+  const pathLike = target.includes("/") || target.includes("\\");
+  const out = {
+    target,
+    mode: pathLike ? "file" : "path-command",
+    pathLike,
+    exists: null,
+    executableBefore: null,
+    chmodAttempted: false,
+    chmodError: null,
+    executableAfter: null,
+    ok: null,
+  };
+  if (!pathLike) {
+    console.log("[watermark] ffmpeg self-heal (" + reason + "): PATH command '" + target + "' — no file to chmod; spawn probe decides");
+    return out;
+  }
+  try { out.exists = fs.existsSync(target); } catch (e) { out.exists = false; }
+  if (!out.exists) {
+    out.executableBefore = false;
+    out.executableAfter = false;
+    out.ok = false;
+    console.log("[watermark] ffmpeg self-heal (" + reason + "): MISSING " + target);
+    return out;
+  }
+  const check = () => {
+    try { fs.accessSync(target, fs.constants.X_OK); return true; } catch (e) { return false; }
+  };
+  out.executableBefore = check();
+  out.executableAfter = out.executableBefore;
+  if (!out.executableBefore) {
+    out.chmodAttempted = true;
+    try {
+      fs.chmodSync(target, 0o755);
+      console.log("[watermark] ffmpeg self-heal (" + reason + "): chmod 0755 attempted for " + target);
+    } catch (e) {
+      out.chmodError = e.message;
+      console.log("[watermark] ffmpeg self-heal (" + reason + "): chmod 0755 FAILED for " + target + " :: " + e.message);
+    }
+    out.executableAfter = check();
+  }
+  out.ok = !!out.executableAfter;
+  console.log(
+    "[watermark] ffmpeg self-heal (" + reason + "): " + target +
+    "; exists=" + out.exists +
+    "; executableBefore=" + out.executableBefore +
+    "; chmodAttempted=" + out.chmodAttempted +
+    "; executableAfter=" + out.executableAfter
+  );
+  return out;
+}
+function wmVersionCheck318() {
+  return new Promise((resolve) => {
+    try {
+      crExecFile286(crFfmpeg286, ["-version"], { timeout: 20000 }, (e) => resolve(!e));
+    } catch (e) { resolve(false); }
+  });
+}
+wmEnsureFfmpegExecutable318("boot");
 const wmFfmpegProbe316 = new Promise((resolve) => {
   try {
     crExecFile286(crFfmpeg286, ["-version"], (e) => {
@@ -5548,6 +5629,24 @@ function wmTextW316(txt, px) {
   if (wmFontMetrics316) return wmFontMetrics316.width(txt, px);
   return String(txt).length * px * 0.58; // rough Liberation Sans Bold average
 }
+// [RP-V7.318] Stamp-step tagging: every failure inside the stamp
+// pipeline carries the step that produced it (probe | render |
+// encode), so both wmServe316's log line and the diagnostic endpoint
+// can name the failing step instead of a bare "ffmpeg failed".
+function wmStepErr316(step, e) {
+  const err = e instanceof Error ? e : new Error(String(e == null ? "unknown error" : e));
+  err.wmStep316 = step;
+  return err;
+}
+function wmErrInfo318(e) {
+  if (!e) return { message: "unknown error" };
+  return {
+    step: e.wmStep316 || null,
+    code: typeof e.code === "number" || typeof e.code === "string" ? e.code : null,
+    signal: e.signal || null,
+    message: String(e.message || e).slice(-1000),
+  };
+}
 // The stamp image is Branden's logo lockup and renders once per
 // creator (cached): the neon RP-and-slash mark screen-keyed out of
 // the real icon-512 PNG — NO black chip (Branden: "Take the black
@@ -5599,8 +5698,8 @@ function wmStampFor316(handle) {
     // [RP-V7.317] bound the filter graph's threads too (see the
     // hotfix note at WM_STAMP_VER_316); a failed render unlinks tmp.
     try { await wmRun316(["-y", "-v", "error", "-filter_complex_threads", "2", "-i", WM_ICON_PATH_316, "-filter_complex", fc, "-frames:v", "1", tmp], 60000); }
-    catch (e) { try { fs.unlinkSync(tmp); } catch (e2) {} throw e; }
-    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 512) throw new Error("stamp render produced no file");
+    catch (e) { try { fs.unlinkSync(tmp); } catch (e2) {} throw wmStepErr316("render", e); }
+    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 512) throw wmStepErr316("render", new Error("stamp render produced no file"));
     fs.renameSync(tmp, out);
     return out;
   })();
@@ -5615,10 +5714,10 @@ function wmStampedFor316(cacheName, srcPath, handle) {
   if (wmInflight316.has(inflightKey)) return wmInflight316.get(inflightKey);
   const job = (async () => {
     const meta = await wmProbe316(srcPath);
-    if (!meta.w || !meta.h) throw new Error("could not read the video's dimensions");
+    if (!meta.w || !meta.h) throw wmStepErr316("probe", new Error("could not read the video's dimensions"));
     const stampPath = await wmStampFor316(handle);
     const smeta = await wmProbe316(stampPath);
-    if (!smeta.w || !smeta.h) throw new Error("could not read the watermark stamp");
+    if (!smeta.w || !smeta.h) throw wmStepErr316("probe", new Error("could not read the watermark stamp"));
     const tw = Math.max(240, Math.min(680, Math.round(meta.w * 0.42)));
     const th = Math.max(2, Math.round((tw * smeta.h) / smeta.w / 2) * 2);
     const mgn = Math.max(10, Math.round(meta.w * 0.032));
@@ -5632,8 +5731,8 @@ function wmStampedFor316(cacheName, srcPath, handle) {
     // encoder killed at init in production. Filter-graph threads
     // are capped alongside; a failed encode unlinks its tmp file.
     try { await wmRun316(["-y", "-v", "error", "-filter_complex_threads", "2", "-i", srcPath, "-i", stampPath, "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", "-threads", "2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", tmp], 15 * 60 * 1000); }
-    catch (e) { try { fs.unlinkSync(tmp); } catch (e2) {} throw e; }
-    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1024) throw new Error("watermark encode produced no file");
+    catch (e) { try { fs.unlinkSync(tmp); } catch (e2) {} throw wmStepErr316("encode", e); }
+    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1024) throw wmStepErr316("encode", new Error("watermark encode produced no file"));
     fs.renameSync(tmp, out);
     // A replaced source re-stamps under a new key; prune this post's
     // older stamped files (exact post prefix, never another post's).
@@ -5649,18 +5748,213 @@ function wmStampedFor316(cacheName, srcPath, handle) {
   job.catch(() => {}).finally(() => wmInflight316.delete(inflightKey));
   return job;
 }
+async function wmFfmpegReady318() {
+  const heal = wmEnsureFfmpegExecutable318("serve");
+  if (heal.pathLike && heal.exists && !heal.executableAfter) return false;
+  if (await wmFfmpegProbe316) return true;
+  // The boot probe may have raced a non-executable deployment. If the
+  // serve-time self-heal repaired the bit, prove the binary afresh
+  // instead of leaving the route pinned to the boot result.
+  if (heal.chmodAttempted && heal.executableAfter && (await wmVersionCheck318())) {
+    wmFfmpegOk316 = true;
+    console.log("[watermark] ffmpeg recovered after self-heal; stamped downloads enabled");
+    return true;
+  }
+  return false;
+}
 function wmServe316(res, cacheName, srcPath, handle, dlName) {
-  wmFfmpegProbe316.then((ok) => {
+  wmFfmpegReady318().then((ok) => {
     if (!ok || !wmAssetsOk316)
       return res.status(503).json({ ok: false, error: "Downloads are being set up — please try again shortly." });
     wmStampedFor316(cacheName, srcPath, handle)
       .then((p) => { if (!res.headersSent) res.download(p, dlName); })
       .catch((e) => {
-        console.log("[watermark] stamp failed for", cacheName, "::", e.message);
+        console.log("[watermark] stamp failed for", cacheName, ":: step=" + (e.wmStep316 || "unknown"), "::", e.message);
         if (!res.headersSent) res.status(500).json({ ok: false, error: "Couldn't prepare that download — please try again." });
       });
   });
 }
+function wmVersionDiag318() {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    try {
+      crExecFile286(crFfmpeg286, ["-version"], { timeout: 20000, maxBuffer: 1024 * 1024 }, (e, so, se) => {
+        const stdout = String(so || "");
+        const stderr = String(se || "");
+        resolve({
+          ok: !e,
+          durationMs: Date.now() - started,
+          exitCode: e && typeof e.code === "number" ? e.code : null,
+          errorCode: e && typeof e.code === "string" ? e.code : null,
+          signal: e && e.signal ? e.signal : null,
+          firstLine: (stdout || stderr).split(/\r?\n/).find(Boolean) || null,
+          stderrFirstLine: stderr.split(/\r?\n/).find(Boolean) || null,
+        });
+      });
+    } catch (e) {
+      resolve({ ok: false, durationMs: Date.now() - started, error: wmErrInfo318(e) });
+    }
+  });
+}
+// [RP-V7.318] OWNER-ONLY WATERMARK DIAGNOSTIC. Production reported a
+// fast, opaque 500 while the rig passed every suite; this endpoint
+// makes the deployed host state each step separately. The gate is
+// the same owner-session rule as GET /api/owner/creator-pool:
+// non-owners and guests receive 404. The response contains only
+// deployment facts and synthetic-test results — no member data.
+app.get("/api/diag/wm316", async (req, res) => {
+  const adb = readAccounts();
+  const user = accountForToken(adb, req);
+  const ownerId = rpOwnerUserId(adb);
+  if (!user || !ownerId || user.id !== ownerId) return res.status(404).json({ ok: false, error: "not-found" });
+
+  const checkedAt = new Date().toISOString();
+  const started = Date.now();
+  const steps = {};
+  let srcPath = null;
+  let stampPath = null;
+  let stampedPath = null;
+  let diagHandle = null;
+
+  const heal = wmEnsureFfmpegExecutable318("diag");
+  steps.ffmpegPath = {
+    ok: heal.pathLike ? heal.ok : null,
+    resolvedPath: heal.target,
+    mode: heal.mode,
+    exists: heal.exists,
+    executableBefore: heal.executableBefore,
+    chmodAttempted: heal.chmodAttempted,
+    chmodError: heal.chmodError,
+    executableAfter: heal.executableAfter,
+  };
+  steps.version = await wmVersionDiag318();
+
+  try {
+    fs.mkdirSync(WM_DIR_316, { recursive: true });
+    const probePath = path.join(WM_DIR_316, ".diag-write-" + process.pid + "-" + Date.now());
+    fs.writeFileSync(probePath, "ok");
+    fs.unlinkSync(probePath);
+    steps.cacheDir = { ok: true, path: WM_DIR_316, writable: true };
+  } catch (e) {
+    steps.cacheDir = { ok: false, path: WM_DIR_316, writable: false, error: wmErrInfo318(e) };
+  }
+
+  const assetStep = (label, file) => {
+    try {
+      const exists = fs.existsSync(file);
+      const size = exists ? fs.statSync(file).size : 0;
+      return { ok: exists && size > 1000, path: file, exists, size };
+    } catch (e) {
+      return { ok: false, path: file, error: wmErrInfo318(e) };
+    }
+  };
+  steps.fontAsset = assetStep("font", WM_FONT_PATH_316);
+  steps.iconAsset = assetStep("icon", WM_ICON_PATH_316);
+  steps.assets = { ok: !!wmAssetsOk316, fontOk: steps.fontAsset.ok, iconOk: steps.iconAsset.ok };
+
+  // A fresh, unique handle forces a real stamp render (no cache hit),
+  // and a unique cache name forces a real encode. The synthetic
+  // source itself uses MPEG-4 so creating it does not hide whether
+  // the production stamp encode's libx264 step works.
+  const uniq = Date.now().toString(36) + "-" + process.pid;
+  diagHandle = wmHandle316("wmdiag318-" + uniq);
+  srcPath = path.join(WM_DIR_316, ".diag-src-" + uniq + ".mp4");
+  const cacheName = "diag-wm318-" + uniq + ".mp4";
+  try {
+    const t = Date.now();
+    await wmRun316([
+      "-y", "-v", "error",
+      "-f", "lavfi", "-i", "testsrc2=duration=1:size=320x568:rate=15",
+      "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+      "-map", "0:v", "-map", "1:a", "-threads", "2",
+      "-c:v", "mpeg4", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", srcPath,
+    ], 60000);
+    const size = fs.statSync(srcPath).size;
+    steps.syntheticSource = { ok: size > 1024, size, durationMs: Date.now() - t, width: 320, height: 568, seconds: 1 };
+  } catch (e) {
+    steps.syntheticSource = { ok: false, error: wmErrInfo318(e) };
+  }
+
+  if (steps.syntheticSource.ok) {
+    try {
+      const meta = await wmProbe316(srcPath);
+      steps.sourceProbe = {
+        ok: meta.w === 320 && meta.h === 568,
+        width: meta.w,
+        height: meta.h,
+        durationSec: meta.dur,
+      };
+      if (!steps.sourceProbe.ok) throw wmStepErr316("probe", new Error("synthetic source dimensions were not readable"));
+    } catch (e) {
+      steps.sourceProbe = { ok: false, error: wmErrInfo318(e) };
+    }
+
+    try {
+      const t = Date.now();
+      stampPath = await wmStampFor316(diagHandle);
+      const size = fs.statSync(stampPath).size;
+      steps.stampRender = { ok: size >= 512, size, durationMs: Date.now() - t };
+    } catch (e) {
+      steps.stampRender = { ok: false, error: wmErrInfo318(e) };
+    }
+  } else {
+    steps.sourceProbe = { ok: false, skipped: "synthetic source failed" };
+    steps.stampRender = { ok: false, skipped: "synthetic source failed" };
+  }
+
+  if (stampPath) {
+    try {
+      const meta = await wmProbe316(stampPath);
+      steps.stampProbe = { ok: !!(meta.w && meta.h), width: meta.w, height: meta.h };
+      if (!steps.stampProbe.ok) throw wmStepErr316("probe", new Error("rendered stamp dimensions were not readable"));
+    } catch (e) {
+      steps.stampProbe = { ok: false, error: wmErrInfo318(e) };
+    }
+  } else {
+    steps.stampProbe = { ok: false, skipped: "stamp render failed" };
+  }
+
+  if (steps.syntheticSource.ok && stampPath && steps.stampProbe.ok) {
+    try {
+      const t = Date.now();
+      stampedPath = await wmStampedFor316(cacheName, srcPath, diagHandle);
+      const st = fs.statSync(stampedPath);
+      const meta = await wmProbe316(stampedPath);
+      steps.encode = {
+        ok: st.size > 1024 && meta.w === 320 && meta.h === 568,
+        outputPath: stampedPath,
+        outputSize: st.size,
+        durationMs: Date.now() - t,
+        width: meta.w,
+        height: meta.h,
+        mediaDurationSec: meta.dur,
+      };
+    } catch (e) {
+      steps.encode = { ok: false, error: wmErrInfo318(e) };
+    }
+  } else {
+    steps.encode = { ok: false, skipped: "an earlier synthetic step failed" };
+  }
+
+  // Unique diagnostic artifacts must not accumulate in the cache.
+  for (const p of [srcPath, stampPath, stampedPath]) {
+    if (p) { try { fs.unlinkSync(p); } catch (e) {} }
+  }
+
+  const ok = !!(
+    steps.version.ok &&
+    steps.cacheDir.ok &&
+    steps.fontAsset.ok &&
+    steps.iconAsset.ok &&
+    steps.syntheticSource.ok &&
+    steps.sourceProbe.ok &&
+    steps.stampRender.ok &&
+    steps.stampProbe.ok &&
+    steps.encode.ok &&
+    steps.ffmpegPath.ok !== false
+  );
+  res.json({ ok, version: "RP-V7.318", checkedAt, durationMs: Date.now() - started, steps });
+});
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
 app.get("/api/reel/:id/download", (req, res) => {
@@ -20336,7 +20630,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.317", online: players.size })
+  res.json({ ok: true, version: "RP-V7.318", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
