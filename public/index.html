@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.323" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.326" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -25535,6 +25535,20 @@
           items = items.filter(function (it) { return reelTagsOf(it.caption).indexOf(tf) >= 0; });
           barHtml = '<div class="reel-filterbar"><span>🎬 Reels tagged #' + escHtml(tf) + '</span><button type="button" id="btnReelClearTag"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg> Show all</button></div>';
         }
+        /* [RP-V7.326] Friends filter FIRST. Through V7.323 this filter
+           ran AFTER the structure signature, the empty-state check and
+           the build-window setup, immediately before painting — but
+           the unfiltered list always contains the member's own
+           on-device reels, so for a member whose friends list is empty
+           (follows nobody with reels, or the friends fetch came back
+           empty) the empty check never fired: the late filter emptied
+           the list and only the Friends bar painted over a bare blank
+           body (Branden's Nov 11 screenshot), and a no-rebuild return
+           could stash the unfiltered list in the build window for the
+           runway keeper to append the member's own device reel from.
+           Filtering here makes the signature, the empty state and the
+           window all see exactly the list that paints. */
+        if (Reels.friends) items = items.filter(function (it) { return it.server && !it.mine; }); // [RP-V7.112] only followed authors' server reels, never my own or device-only posts
         /* [RP-V7.252] Structure-only signature: V7.251's painted-state
            signature included views/like/comment/repost COUNTS, and on
            a live app some count moves on nearly every fetch (a view is
@@ -25596,8 +25610,7 @@
           if (ff128) ff128.addEventListener("click", function () { if (window.rpFindFriends) window.rpFindFriends.open(); else if (window.rpDm && window.rpDm.openPeople) window.rpDm.openPeople(""); }); // [RP-V7.144] Find friends first, directory as fallback
           return;
         }
-        if (Reels.friends) { // [RP-V7.112] Friends: only followed authors' server reels, never my own or device-only posts
-          items = items.filter(function (it) { return it.server && !it.mine; });
+        if (Reels.friends) { // [RP-V7.112] Friends bar (the filter itself runs at the top of this function since RP-V7.326)
           barHtml = '<div class="reel-filterbar reel-filterbar-friends283"><span>👥 Friends — latest reels from people you follow</span></div>';
         }
         if (barHtml) {
