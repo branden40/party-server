@@ -6139,7 +6139,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.328", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.331", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -11845,7 +11845,7 @@ const STORY_VIDEO_MAX = 50 * 1024 * 1024; // same cap as DM/reel video
 const STORY_PHOTO_MAX = 10 * 1024 * 1024;
 const STORY_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const STORY_IMAGE_EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-const STORY_MAX_ACTIVE_PER_AUTHOR = 10;
+const STORY_MAX_ACTIVE_PER_AUTHOR = 100; // [RP-V7.331] raised 10 → 100 — Snapchat-scale story chains (Branden, Nov 11, 2026); the cap 429 in /api/story/post interpolates this constant, so its message follows automatically
 const STORY_TRAY_MAX_AUTHORS = 50;
 const STORIES_FILE =
   process.env.STORIES_FILE || path.join(path.dirname(PHOTO_DIR), "stories.json");
@@ -21774,7 +21774,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.328", online: players.size })
+  res.json({ ok: true, version: "RP-V7.331", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
