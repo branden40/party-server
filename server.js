@@ -6138,7 +6138,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.323", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.326", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -21455,7 +21455,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.323", online: players.size })
+  res.json({ ok: true, version: "RP-V7.326", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
