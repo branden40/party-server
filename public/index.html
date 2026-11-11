@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.321" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.323" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -42885,6 +42885,30 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         st.storeCents == null ? "" : '<div class="rp-os-note" style="margin-top:2px">Store total as of ' + esc2(st.storeAsOf || "") + "</div>") +
       poolRows293 +
       "</div>";
+    // [RP-V7.323] Guardrail status — test-funds accounts (read-only;
+    // payload rides /api/owner/sales, owner-gated server-side).
+    var gr323 = d.guardrail || null;
+    if (gr323) {
+      var fl323 = (gr323.flaggedAccounts || []).map(function (a) { return esc2(a.name || "?") + (a.username ? " (@" + esc2(a.username) + ")" : ""); }).join(" · ") || "none";
+      function rowT323(label, text) { return '<div class="rp-os-row"><span>' + label + '</span><b>' + text + '</b></div>'; }
+      var bt323 = gr323.promoByType || {};
+      var btParts323 = [];
+      [["gift", "🎁 gifts"], ["tip", "💝 tips"], ["subscription", "⭐ fan subs"], ["club", "👑 fan clubs"], ["ticket", "🎟️ tickets"], ["shoutout", "📣 shoutouts"], ["auction", "🔨 auctions"]].forEach(function (p323) {
+        var b323 = bt323[p323[0]];
+        if (b323 && b323.count > 0) btParts323.push(p323[1] + " " + Number(b323.count).toLocaleString("en-US") + " (" + Number(b323.charms || 0).toLocaleString("en-US") + " charms)");
+      });
+      var gp323 = gr323.pool || {};
+      h += '<div class="rp-os-rows" style="margin-top:12px">' +
+        rowT323("🛡️ Guardrail — test-funds accounts", (gr323.flaggedAccounts || []).length + " flagged") +
+        '<div class="rp-os-note" style="margin-top:2px">' + fl323 + ' — their gifts, tips, subs, clubs, tickets, shoutouts and auction wins settle in charms, never cash-out earnings.</div>' +
+        rowT323("🛡️ Promo settlements — all time", Number(gr323.promoSettlements || 0).toLocaleString("en-US") + " · " + Number(gr323.promoCharms || 0).toLocaleString("en-US") + " charms") +
+        (btParts323.length ? '<div class="rp-os-note" style="margin-top:2px">' + btParts323.join(" · ") + '</div>' : "") +
+        rowT323("🛡️ Promo settlements — this week", Number(gr323.promoSettlementsThisWeek || 0).toLocaleString("en-US") + " · " + Number(gr323.promoCharmsThisWeek || 0).toLocaleString("en-US") + " charms") +
+        rowT323("👀 Creator Pool — test-funds views excluded this week", Number(gp323.flaggedExcludedViewsThisWeek || 0).toLocaleString("en-US") + " views") +
+        '<div class="rp-os-note" style="margin-top:2px">' + Number(gp323.excludedViewsThisWeek || 0).toLocaleString("en-US") + ' total views excluded from this week\'s split — test-funds, teen-disabled, pending-deletion and unresolvable accounts.</div>' +
+        rowT323("👀 Creator Pool — paid to test-funds accounts, last settled week", gp323.flaggedPaidLastSettledWeekCents == null ? "no settled week yet" : money(gp323.flaggedPaidLastSettledWeekCents)) +
+        "</div>";
+    }
     // [RP-V7.263] UNDERAGE — priority: open "Under 18" reports
     // + the one-tap suspend (a bare report never suspends anyone;
     // this tap is the act) and restore after ID proof.
