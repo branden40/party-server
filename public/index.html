@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.319" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.320" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -3324,20 +3324,26 @@
           <button class="speed-btn" id="btnMusicHome">Choose music</button>
           <button class="speed-btn" id="btnMuteHome">Music on/off</button>
         </div>
-        <div class="scene scene-plaza">
+        <!-- [RP-V7.320] The Plaza "Home" panel is now a compact working
+             door (Branden, Nov 10, 2026: the oversized panel — flavor
+             lines over a tall, empty avatar stage — "tapping it goes
+             nowhere"). The card matches its Plaza neighbours, the
+             whole card opens the Home screen (screen-home243, the
+             bottom-bar Home tab's screen), and the Rooms ↓ button
+             keeps its real job (scroll to the room list below). The
+             avatar stage is removed from THIS card only — the guest
+             chips themselves are the shared room component and stay;
+             renderPlaza still runs everything else it always ran
+             (Live Now, room states, music). Holiday decor rides
+             along exactly as it did on the panel. -->
+        <div class="plaza-card" id="plazaHomeDoor320" style="margin-top:16px; position:relative; overflow:hidden; cursor:pointer;" role="button" tabindex="0" aria-label="Open your Home page">
           <div class="hol-fall" aria-hidden="true"></div>
           <div class="hol-deco" aria-hidden="true"></div>
-          <div class="scene-top">
-            <h2>🏠 Home</h2>
-            <span class="meet-badge">Everything at the party — one page</span>
-            <div class="spacer"></div>
-            <button class="scene-btn pink" id="btnToRooms">Rooms ↓</button>
+          <div style="position:relative; z-index:2;">
+            <h3>🏠 Home</h3>
+            <p>Your home feed — posts, stories and reels from across the Plaza, all in one place.</p>
           </div>
-          <div class="plaza-stage">
-            <div style="font-weight:700; font-size:14px; max-width:420px;">Plaza beats are playing and the fountain's sparkling. Everything's right here on your home page — the Live Stage, every room, Reels, auctions and your earnings, one tap away.</div>
-          </div>
-          <div class="floor plaza-floor" id="plazaFloor"></div>
-          <div class="scene-note">Your home page — no wandering between hubs. Pick a room below and walk straight in, or tap ⭐ Live Stage and party with real people.</div>
+          <button class="scene-btn pink" id="btnToRooms" type="button">Rooms ↓</button>
         </div>
         <div class="hol-banner" id="holBanner" hidden></div>
         <!-- [RP-V7.67] Find People gets its own front door on Home —
@@ -7383,7 +7389,12 @@
       }
       function renderPlaza() {
         var floor = $("plazaFloor");
-        if (!floor) return;
+        // [RP-V7.320] The Plaza Home card no longer carries the
+        // avatar stage (compact door — see plazaHomeDoor320), so the
+        // floor is absent by design: skip ONLY the floor rendering
+        // and still run everything else this pass owns (Live Now,
+        // room states, music, adult-card reveal below).
+        if (floor) {
         if (!plazaGuests.length) plazaGuests = shuffled(allGuests()).slice(0, 8);
         floor.innerHTML = "";
         var spots = [ { l: 4, t: 16 }, { l: 24, t: 46 }, { l: 44, t: 10 }, { l: 62, t: 42 }, { l: 80, t: 14 }, { l: 14, t: 56 }, { l: 56, t: 58 }, { l: 84, t: 50 } ];
@@ -7401,12 +7412,18 @@
         you.style.left = "44%"; you.style.top = "34%"; you.style.pointerEvents = "none";
         you.innerHTML = youFaceHTML() + '<span class="gname you-tag">You · ' + me.name + '</span>';
         floor.appendChild(you);
+        }
         renderLiveNow();
         buildHomeStateRooms();
         syncHomeMusic();
         document.querySelectorAll("#screen-plaza [data-adult]").forEach(function (el) { el.style.display = ""; });
       }
       $("btnToRooms").addEventListener("click", function () { closeSheet(); var rl = $("roomList"); if (rl) rl.scrollIntoView({ behavior: "smooth" }); });
+      // [RP-V7.320] The compact Home door: the whole card opens the
+      // Home screen — except the Rooms ↓ button inside it, which
+      // keeps its own job above (scroll to the room list).
+      $("plazaHomeDoor320").addEventListener("click", function (e) { if (e.target && e.target.closest && e.target.closest("#btnToRooms")) return; show("screen-home243"); });
+      $("plazaHomeDoor320").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show("screen-home243"); } });
 
       /* ---------- Home page entries ---------- */
       $("btnOnlineHome").addEventListener("click", enterLiveStageCard);
@@ -37169,6 +37186,21 @@ button.rp72-chip{ cursor:pointer; }
    placement — lifted inside players so it clears the native
    video controls bar. */
 .rpmedia-player .reel-rail { bottom: 56px; }
+/* [RP-V7.320] Full-screen viewer bottom clearance (Branden's phone,
+   Nov 10, 2026 — he circled the 👁 count and the seek row riding
+   the screen's very bottom edge, over the home indicator): the
+   player now reserves bottom space — a fixed clearance plus the
+   safe-area inset, the pattern the live viewer's bottom bar
+   already uses — so the video box, and with it the native seek
+   bar, ends that much higher. The 👁 count and the action rail
+   rise by the same amount, as one unit: the count keeps its 10px
+   perch above the video's bottom edge, and the rail's lowest item
+   keeps its clearance above the raised bar. Only the full-screen
+   flag is touched — sheet players and the Reels feed render
+   exactly as before. */
+.overlay.rpvid-full254 .rpmedia-player { box-sizing: border-box; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.overlay.rpvid-full254 .rpmedia-player-count { bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
+.overlay.rpvid-full254 .rpmedia-player .reel-rail { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
 .pprof-x { position: absolute; top: -2px; right: 0; z-index: 10; float: none; }
 
 .reel-views { display: inline-block; margin-top: 6px; color: #fff; font-size: 13px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
@@ -39618,7 +39650,9 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
         else if (t.type === "bizads" || t.type === "bizads-renew") { label = "📣 Business Ads"; amt = fmt$(t.cents); } // [RP-V7.224]
         else if (t.type === "cashout") { label = "💸 Cash-out requested"; amt = fmt$(t.cents); }
-        else { label = esc(t.type || "Activity"); amt = t.cents ? fmt$(t.cents) : ""; }
+        else if (t.type === "dailypot-win" || t.type === "pot-win" || t.type === "pot-remainder" || t.type === "pot-refund" || t.type === "daily-claim" || t.type === "owner-grant") { label = esc(t.type); amt = t.charms ? "+" + Math.abs(Number(t.charms)).toLocaleString("en-US") + " charms" : ""; } // [RP-V7.320] FIX 4: charm-only CREDIT rows (Daily Pot / Plaza Pot wins, pot remainder + seed refund, daily claim, owner grant) — the ledger stores charms (cents always 0) and history already sends them; they used to fall through to the plain fallback and show NO amount (Branden, Nov 10: his 12,000-charm Daily Pot win read just "dailypot-win · Nov 10"). Label stays the stored type, exactly as it rendered before; a row with no stored charms renders plain — never an invented number.
+        else if (t.type === "pot-seed" || t.type === "pot-topup") { label = esc(t.type); amt = t.charms ? "-" + Math.abs(Number(t.charms)).toLocaleString("en-US") + " charms" : ""; } // [RP-V7.320] FIX 4: charm-only DEBIT rows — the host's pot escrow leaving their balance (seed / top-up), same stored-charms rule.
+        else { label = esc(t.type || "Activity"); amt = t.cents ? fmt$(t.cents) : ((t.charms && ((t.from && !t.to) || (!t.from && t.to))) ? (t.from ? "-" : "+") + Math.abs(Number(t.charms)).toLocaleString("en-US") + " charms" : ""); } // [RP-V7.320] FIX 4 safety net: any FUTURE charm-only label (cents 0, charms stored, exactly one side of the transfer empty — credit when it lands TO the viewer, debit when it leaves FROM them) shows its charms instead of silently dropping them; cash rows keep fmt$ untouched, and a record with no stored amount still renders plain.
         html += '<div class="rpM-hrow"><span>' + label + ' · ' + fmtDate(t.at) + '</span><span class="rpM-hamt">' + amt + '</span></div>';
       });
       html += '</div>';
