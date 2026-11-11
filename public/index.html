@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.330" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.331" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -42769,6 +42769,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   var pendingFile = null, pendingUrl = null;
   function openPoster() {
     if (!acctRec()) { toastS("Sign in to post a story 🎬", 3600); return; }
+    storyQ = null; // [RP-V7.331] a fresh poster abandons any half-finished multi-pick queue
     if (!postGateTap(function () { openPoster(); })) return;
     if (typeof window.openSheet !== "function") { toastS("Stories open from inside the Plaza app.", 3600); return; }
     var ov285 = document.getElementById("overlay"); // [RP-V7.285] the poster is a standard sheet: drop the full-screen DM mode the Inbox latches (same strip as the V7.222 conversation menu / report) — opened from the Inbox story row it otherwise renders jammed at the very top of the black full-screen sheet, its X up in the status bar
@@ -42782,7 +42783,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       '<button type="button" class="btn-mini" id="storyCamBtn">📷 Take photo</button>' +
       '<button type="button" class="btn-mini" id="storyUpBtn">📁 Upload photo</button>' +
       '<button type="button" class="btn-mini" id="storyVidBtn">🎬 Upload video</button></div>' +
-      '<p class="age-note">Photo or video · videos up to 50 MB · photos up to 10 MB · gone in 24 hours.</p></div>'
+      '<p class="age-note">Photo or video · videos up to 50 MB · photos up to 10 MB · gone in 24 hours. Uploads can pick several at once — they post in the order you picked them.</p></div>'
     );
     var sh = $("sheet");
     var cx = sh && sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { window.closeSheet(); });
@@ -42803,17 +42804,75 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       } else toastS("Camera isn't available here — use Upload instead.", 3600);
     });
   }
-  function onStoryFile(file) {
+  /* [RP-V7.331] The one per-file size gate — the same rules (and the same
+     words) story posts have always used, now shared by single posts and
+     the multi-pick queue below. Returns "" when the file may post. */
+  function storySizeProblem331(file) {
+    var isPhoto = /^image\//.test(file.type || "");
+    if (isPhoto && file.size > 10 * 1024 * 1024) return "That photo is too big — 10 MB max.";
+    if (!isPhoto && file.size > 50 * 1024 * 1024) return "That video is too big — 50 MB max.";
+    return "";
+  }
+  /* [RP-V7.331] Multi-pick queue (Branden, Nov 11, 2026 — the Snapchat
+     bulk-add): several files picked at once ride the SAME preview → post
+     path one at a time, strictly in pick order; the server still takes
+     exactly one file per POST /api/story/post, so ordering and every
+     server rule are unchanged. A file that can't post is reported in a
+     toast, counted, and named in the end-of-queue summary — never
+     silently dropped; a posted file is never posted twice.
+     storyQ = { files, i (index on preview), failed, failWhy }. */
+  var storyQ = null;
+  function onStoryPick(fileList) {
+    var files = fileList ? Array.prototype.slice.call(fileList) : [];
+    if (!files.length) return;
+    if (files.length === 1) { storyQ = null; onStoryFile(files[0]); return; }
+    storyQ = { files: files, i: -1, failed: 0, failWhy: "" };
+    storyQNext();
+  }
+  function storyQFail(why) {
+    if (!storyQ) return;
+    storyQ.failed++;
+    if (!storyQ.failWhy) storyQ.failWhy = why || "";
+  }
+  function storyQNext() {
+    if (!storyQ) return;
+    storyQ.i++;
+    while (storyQ.i < storyQ.files.length) {
+      var prob = storySizeProblem331(storyQ.files[storyQ.i]);
+      if (!prob) break;
+      toastS("Story " + (storyQ.i + 1) + " of " + storyQ.files.length + " skipped — " + prob, 4200);
+      storyQFail(prob);
+      storyQ.i++;
+    }
+    if (storyQ.i >= storyQ.files.length) { storyQFinish(); return; }
+    onStoryFile(storyQ.files[storyQ.i], true);
+  }
+  function storyQFinish() {
+    var q = storyQ; storyQ = null;
+    if (!q) return;
+    var posted = q.files.length - q.failed;
+    window.closeSheet();
+    loadTray();
+    if (!q.failed) toastS("All " + q.files.length + " stories are up 🎬 — friends can see them for 24 hours.", 4200);
+    else if (posted > 0) toastS("Posted " + posted + " of " + q.files.length + " stories — " + q.failed + " didn't post (" + q.failWhy + ").", 5200);
+    else toastS("None of those posted — " + q.failWhy + ".", 5200);
+  }
+  function onStoryFile(file, inQ331) {
     if (!file) return;
     var isPhoto = /^image\//.test(file.type || "");
-    if (isPhoto && file.size > 10 * 1024 * 1024) { toastS("That photo is too big — 10 MB max.", 3600); return; }
-    if (!isPhoto && file.size > 50 * 1024 * 1024) { toastS("That video is too big — 50 MB max.", 3600); return; }
+    var prob = storySizeProblem331(file);
+    if (prob) {
+      toastS(prob, 3600);
+      if (inQ331) { storyQFail(prob); storyQNext(); } // [RP-V7.331] defensive only — the queue pre-checks size in storyQNext, so this should never fire mid-queue
+      return;
+    }
     pendingFile = file;
     if (pendingUrl) URL.revokeObjectURL(pendingUrl);
     pendingUrl = URL.createObjectURL(file);
     window.openSheet(
       '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
       '<div class="game-box" style="text-align:center;"><h3>🎬 Your story</h3>' +
+      ((inQ331 && storyQ) ? '<p class="age-note" style="margin:4px 0 0;">Story ' + (storyQ.i + 1) + " of " + storyQ.files.length + " — they post in the order you picked them.</p>" : "") +
       (isPhoto
         ? '<img class="story-post-photo" src="' + pendingUrl + '" alt="Your story photo">'
         : '<video class="story-post-video" src="' + pendingUrl + '" controls autoplay muted playsinline loop></video>') +
@@ -42823,25 +42882,39 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       '<p class="age-note">It stays up for 24 hours, then disappears on its own.</p></div>'
     );
     var sh = $("sheet");
-    var cx = sh && sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { window.closeSheet(); });
-    $("storyPostBack").addEventListener("click", openPoster);
+    var cx = sh && sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { storyQ = null; window.closeSheet(); }); // [RP-V7.331] closing the preview abandons the queue
+    $("storyPostBack").addEventListener("click", function () { storyQ = null; openPoster(); }); // [RP-V7.331] Pick another abandons the queue too
     $("storyPostGo").addEventListener("click", function () {
-      var btn = this; btn.disabled = true; btn.textContent = "Posting…";
+      var btn = this; btn.disabled = true;
+      btn.textContent = (inQ331 && storyQ) ? "Posting " + (storyQ.i + 1) + " of " + storyQ.files.length + "…" : "Posting…"; // [RP-V7.331] honest queue progress
       var a = acctRec();
       var fd = new FormData(); fd.append("media", pendingFile);
       fetch("/api/story/post", { method: "POST", headers: { "Authorization": "Bearer " + (a ? a.token : "") }, body: fd })
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) {
+            if (inQ331 && storyQ) { storyQNext(); return; } // [RP-V7.331] posted — advance to the next picked file
             toastS("Your story is up 🎬 — friends can see it for 24 hours.", 3600);
             window.closeSheet();
             loadTray();
+          } else if (inQ331 && storyQ) { // [RP-V7.331] report it, count it, keep the queue moving
+            toastS("Story " + (storyQ.i + 1) + " of " + storyQ.files.length + " didn't post — " + ((j && j.error) || "try again."), 4200);
+            storyQFail((j && j.error) || "That didn't post — try again.");
+            storyQNext();
           } else {
             btn.disabled = false; btn.textContent = "Post to my story";
             toastS((j && j.error) || "That didn't post — try again.", 4000);
           }
         })
-        .catch(function () { btn.disabled = false; btn.textContent = "Post to my story"; toastS("That didn't post — check your connection.", 4000); });
+        .catch(function () {
+          if (inQ331 && storyQ) { // [RP-V7.331] same honesty on a network failure
+            toastS("Story " + (storyQ.i + 1) + " of " + storyQ.files.length + " didn't post — check your connection.", 4200);
+            storyQFail("That didn't post — check your connection.");
+            storyQNext();
+            return;
+          }
+          btn.disabled = false; btn.textContent = "Post to my story"; toastS("That didn't post — check your connection.", 4000);
+        });
     });
   }
 
@@ -43151,10 +43224,11 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     up.type = "file"; up.accept = "image/*"; up.hidden = true; up.id = "storyFileInput";
     var vid = document.createElement("input");
     vid.type = "file"; vid.accept = "video/*"; vid.hidden = true; vid.id = "storyVidInput";
+    up.multiple = true; vid.multiple = true; // [RP-V7.331] the two UPLOAD inputs multi-pick (queued in pick order by onStoryPick); Record stays a single capture
     document.body.appendChild(rec); document.body.appendChild(up); document.body.appendChild(vid);
     rec.addEventListener("change", function () { if (rec.files && rec.files[0]) onStoryFile(rec.files[0]); rec.value = ""; });
-    up.addEventListener("change", function () { if (up.files && up.files[0]) onStoryFile(up.files[0]); up.value = ""; });
-    vid.addEventListener("change", function () { if (vid.files && vid.files[0]) onStoryFile(vid.files[0]); vid.value = ""; });
+    up.addEventListener("change", function () { onStoryPick(up.files); up.value = ""; }); // [RP-V7.331]
+    vid.addEventListener("change", function () { onStoryPick(vid.files); vid.value = ""; }); // [RP-V7.331]
     setTimeout(loadTray, 900);
     setInterval(loadTray, 90000);
     document.addEventListener("visibilitychange", function () { if (!document.hidden) loadTray(); });
