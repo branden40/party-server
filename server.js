@@ -6138,7 +6138,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.321.1", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.323", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -20576,6 +20576,7 @@ app.get("/api/owner/sales", (req, res) => {
     // [RP-V7.263] UNDERAGE — priority: open "Under 18" reports for
     // the board's one-tap suspend, plus who is currently suspended.
     creatorPool: rpCpBoardSummary(mdb, adb), // [RP-V7.293] Creator Pool: this week's accrual + last settled week + rollover
+    guardrail: rpGuardrailBoard323(mdb, adb), // [RP-V7.323] test-funds guardrail status: flagged accounts, promo settlements, pool exclusion
     ageReports: rpAgeReportsOpen263(),
     ageSuspendedAccounts: rpAgeSuspendedList263(adb),
   });
@@ -20744,6 +20745,7 @@ function rpCpWeekSales(mdb, daySet) {
 function rpCpWeekViews(adb, daySet) {
   const per = new Map();
   let excluded = 0;
+  let excludedFlagged = 0; // [RP-V7.323] of the excluded views, how many belong to test-funds accounts (owner-board guardrail section only — never feeds the split math)
   const ownerId = rpOwnerUserId(adb);
   const byId = new Map();
   for (const u of (adb && adb.users) || []) if (u && u.id) byId.set(u.id, u);
@@ -20768,7 +20770,11 @@ function rpCpWeekViews(adb, daySet) {
   const add = (id, n) => {
     if (!n) return;
     if (id && payable(id)) per.set(id, (per.get(id) || 0) + n);
-    else excluded += n;
+    else {
+      excluded += n;
+      const fu = id ? byId.get(id) : null; // [RP-V7.323] attribution only
+      if (fu && testFunds321(fu)) excludedFlagged += n;
+    }
   };
   const vdb = readViews();
   const reelsById = new Map();
@@ -20815,7 +20821,7 @@ function rpCpWeekViews(adb, daySet) {
   }
   let total = 0;
   for (const v of per.values()) total += v;
-  return { perCreator: per, totalViews: total, excludedViews: excluded };
+  return { perCreator: per, totalViews: total, excludedViews: excluded, excludedFlaggedViews: excludedFlagged }; // [RP-V7.323] last field additive
 }
 
 // --- one week's full computation (preview AND settle share this) ---
@@ -20842,6 +20848,7 @@ function rpCpComputeWeek(mdb, adb, mondayKey, carryInCents) {
     salesCents: sales.salesCents, poolFromSalesCents: sales.poolCents,
     carryInCents: carryIn, poolCents,
     totalViews: tally.totalViews, excludedViews: tally.excludedViews,
+    excludedFlaggedViews: tally.excludedFlaggedViews || 0, // [RP-V7.323] read by the owner board's guardrail section; settlement records below never store it
     rows, distributedCents: distributed,
     remainderCents: poolCents - distributed,
   };
@@ -20935,6 +20942,91 @@ function rpCpBoardSummary(mdb, adb) {
       lastSettledWeekKey: lastKey,
       lastSettledPaidCents: last ? last.paidCents : null,
       settleSlot: CREATOR_POOL_SETTLE_SLOT,
+    };
+  } catch (e) { return null; }
+}
+// --- [RP-V7.323] Guardrail status for the owner board ---------------
+// Read-only visibility over the RP-V7.321 test-funds guardrail: which
+// accounts are flagged, how much has settled as promo charms, and the
+// Creator Pool exclusion's footprint this week. Every number is
+// computed here from the same records the guardrail itself writes;
+// the section rides the /api/owner/sales payload, so it inherits
+// that endpoint's owner-session gate (404 for everyone else). There
+// are deliberately NO controls here — the flag is not editable from
+// the board in this build.
+function rpGuardrailBoard323(mdb, adb) {
+  try {
+    const flagged = ((adb && adb.users) || [])
+      .filter((u) => u && testFunds321(u))
+      .map((u) => ({ id: u.id, name: u.name || "", username: u.username || "" }));
+    const flaggedIds = new Set(flagged.map((f) => f.id));
+    // A guarded settle writes a PAIR of ledger rows, both carrying
+    // promo: true — a sender-side row (gift-sent, tip-sent,
+    // fansub-sent, club-sent, ticket-sent, shoutout-sent,
+    // auction-paid) and the receiver-credit row keyed below, whose
+    // charms state the exact share that landed in the receiver's
+    // balance. A settlement is therefore counted ONCE, on its credit
+    // row; charms sum NET across credit rows, so a ticket refund's
+    // negative promo row (type live-ticket, ref "…:refund") backs
+    // its own settle back out. promoLedgerRows keeps the raw count
+    // of marker-carrying rows for the record.
+    const CREDIT_KIND_323 = {
+      "gift-received": "gift", "profile-tip": "tip",
+      "fan-subscription": "subscription", "fan-club": "club",
+      "live-ticket": "ticket", "shoutout": "shoutout", "auction": "auction",
+    };
+    // The board's own week convention: the current ET calendar week
+    // (Monday 00:00 ET), the same week rpCpBoardSummary reports.
+    const mondayKey = rpCpMondayKey(rpCpDayKey(Date.now()));
+    const daySet = new Set(rpCpWeekDays(mondayKey));
+    let promoLedgerRows = 0, promoSettlements = 0, promoCharms = 0;
+    let promoSettlementsThisWeek = 0, promoCharmsThisWeek = 0;
+    const byType = {};
+    for (const tx of (mdb && mdb.txlog) || []) {
+      if (!tx || tx.promo !== true) continue;
+      promoLedgerRows++;
+      const kind = CREDIT_KIND_323[tx.type];
+      if (!kind) continue;
+      const c = Math.round(Number(tx.charms) || 0);
+      promoCharms += c;
+      if (!byType[kind]) byType[kind] = { count: 0, charms: 0 };
+      byType[kind].charms += c;
+      if (c > 0) { promoSettlements++; byType[kind].count++; }
+      const t = Date.parse(tx.at || "");
+      if (isFinite(t) && daySet.has(rpCpDayKey(t))) {
+        promoCharmsThisWeek += c;
+        if (c > 0) promoSettlementsThisWeek++;
+      }
+    }
+    // Creator Pool: this week's compute (the SAME function settle
+    // and preview share) splits its excluded views into the
+    // test-funds share and everything else; the latest settled
+    // week's record is then checked for payouts to flagged
+    // accounts, so the $0 the board shows is read off the record,
+    // not assumed from the gate.
+    const state = rpCpReadState();
+    const comp = rpCpComputeWeek(mdb, adb, mondayKey, Math.round(Number(state.carryCents) || 0));
+    const settledKeys = Object.keys(state.weeks || {}).sort();
+    const lastKey = settledKeys.length ? settledKeys[settledKeys.length - 1] : null;
+    let flaggedPaidLast = null; // null = no settled week yet
+    if (lastKey) {
+      flaggedPaidLast = 0;
+      for (const p of (state.weeks[lastKey] && state.weeks[lastKey].payouts) || [])
+        if (p && flaggedIds.has(p.acctId)) flaggedPaidLast += Math.round(Number(p.cents) || 0);
+    }
+    return {
+      flaggedAccounts: flagged.map((f) => ({ name: f.name, username: f.username })),
+      promoLedgerRows,
+      promoSettlements, promoCharms,
+      promoSettlementsThisWeek, promoCharmsThisWeek,
+      promoByType: byType,
+      weekKey: mondayKey,
+      pool: {
+        flaggedExcludedViewsThisWeek: comp.excludedFlaggedViews || 0,
+        excludedViewsThisWeek: comp.excludedViews || 0,
+        lastSettledWeekKey: lastKey,
+        flaggedPaidLastSettledWeekCents: flaggedPaidLast,
+      },
     };
   } catch (e) { return null; }
 }
@@ -21363,7 +21455,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.321.1", online: players.size })
+  res.json({ ok: true, version: "RP-V7.323", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
