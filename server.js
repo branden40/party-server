@@ -1322,6 +1322,7 @@ function settingsOf(u) {
   return {
     letterStyle: LETTER_STYLE_IDS.indexOf(s.letterStyle) >= 0 ? s.letterStyle : "default",
     dmPrivacy: DM_PRIVACY_VALUES.indexOf(s.dmPrivacy) >= 0 ? s.dmPrivacy : "everyone",
+    dlDefault: s.dlDefault !== false, // [RP-V7.316] TikTok-style downloads switch: the account default for new video posts (default ON, like TikTok); each post carries its own allowDownloads flag
     notify: {
       messages: n.messages !== false,
       follows: n.follows !== false,
@@ -2254,7 +2255,8 @@ app.post("/api/account/settings", (req, res) => {
   if (!ctx) return;
   const b = req.body || {};
   const cur = settingsOf(ctx.user);
-  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
+  if ("dlDefault" in b && typeof b.dlDefault === "boolean") nx.dlDefault = b.dlDefault; // [RP-V7.316] downloads default for new video posts
   if ("letterStyle" in b) {
     if (LETTER_STYLE_IDS.indexOf(b.letterStyle) < 0)
       return res.status(400).json({ ok: false, error: "That letter style isn't one of the Plaza's choices" });
@@ -4025,6 +4027,7 @@ app.get("/api/reels", (req, res) => {
           trimStart: null,
           trimEnd: null,
           allowRemix: false,
+          allowDownloads: false, // [RP-V7.316] locked placeholder: no playback, no downloads
           musicTrackId: null,
           musicStart: null,
           musicVol: null,
@@ -4067,6 +4070,7 @@ app.get("/api/reels", (req, res) => {
       trimStart: typeof r.trimStart === "number" ? r.trimStart : null,
       trimEnd: typeof r.trimEnd === "number" ? r.trimEnd : null,
       allowRemix: r.allowRemix !== false,
+      allowDownloads: r.allowDownloads !== false, // [RP-V7.316]
       // [RP-V7.90] the reel's attached sound (reference + mix), if any.
       musicTrackId: r.musicTrackId || null,
       musicStart: typeof r.musicStart === "number" ? r.musicStart : null,
@@ -5072,6 +5076,29 @@ app.post("/api/reel", (req, res) => {
       rb.allowRemix === "0" ||
       rb.allowRemix === false
     );
+    // [RP-V7.316] TikTok-style downloads switch, parsed exactly like
+    // allowRemix: absent (every pre-V7.316 post) means ON.
+    const allowDownloads = !(
+      rb.allowDownloads === "false" ||
+      rb.allowDownloads === "0" ||
+      rb.allowDownloads === false
+    );
+    // [RP-V7.316] Duet & Stitch enforcement — until now allowRemix was
+    // client-deep only: the feed hid the Remix button, but this route
+    // accepted a duet/stitch against ANY source. Refuse server-side
+    // when the source reel's creator turned remixing off. The source's
+    // own author may always remix their own reel (the client's rule).
+    // A source that no longer resolves keeps the legacy behaviour.
+    if (kind && sourceId) {
+      const src316 = listReels().find((x) => x.id === sourceId);
+      if (src316 && src316.allowRemix === false) {
+        const mineSrc316 = !!authorUser && ((src316.authorId && src316.authorId === authorUser.id) || src316.author === authorUser.name);
+        if (!mineSrc316) {
+          try { fs.unlink(req.file.path, () => {}); } catch (e) { }
+          return res.status(403).json({ ok: false, error: "The creator turned off duets & stitches for this video" });
+        }
+      }
+    }
     // [RP-V7.90] Add Sound: an optional catalog track reference + the
     // poster's mix (start point, music volume, original volume). The
     // track FILE is never uploaded or re-encoded — the record carries
@@ -5098,6 +5125,7 @@ app.post("/api/reel", (req, res) => {
       ...(stitchDur !== null ? { stitchDur } : {}),
       ...(trimStart !== null ? { trimStart, trimEnd } : {}),
       allowRemix,
+      allowDownloads, // [RP-V7.316]
       ...(loc156 ? { location: loc156 } : {}),
       ...(link156 ? { link: link156 } : {}),
       ...(aud156 !== "everyone" && authorUser ? { audience: aud156 } : {}),
@@ -5321,6 +5349,320 @@ app.post("/api/reel/remix", (req, res) => {
   updateReelEntry(id, { allowRemix: allow });
   console.log("[reels] remix", allow ? "ON" : "OFF", "for", id, "by", user.name);
   res.json({ ok: true, id, allowRemix: allow });
+});
+
+// [RP-V7.316] TikTok-style downloads switch: only a reel's own author
+// may turn downloads on or off for it — the exact trust pattern of
+// /api/reel/remix above (valid account token whose name matches the
+// entry's author; guests get a 403). Enforcement is at the affordance
+// level: the client offers a Download action only when this flag is
+// on (the author always can); /reel-files stays a static route.
+app.post("/api/reel/downloads", (req, res) => {
+  const b = req.body || {};
+  const id = reelCleanId(b.id);
+  if (!id)
+    return res.status(400).json({ ok: false, error: "Missing reel id" });
+  const entry = listReels().find((r) => r.id === id);
+  if (!entry)
+    return res.status(404).json({ ok: false, error: "Reel not found" });
+  let user = null;
+  try {
+    user = accountForToken(readAccounts(), req);
+  } catch (e) {
+    user = null;
+  }
+  if (!user || user.name !== entry.author)
+    return res.status(403).json({
+      ok: false,
+      error: "Only the reel's author can change that setting",
+    });
+  const allow =
+    b.allow === true || b.allow === "true" || b.allow === 1 || b.allow === "1";
+  updateReelEntry(id, { allowDownloads: allow });
+  console.log("[reels] downloads", allow ? "ON" : "OFF", "for", id, "by", user.name);
+  res.json({ ok: true, id, allowDownloads: allow });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.316] WATERMARKED DOWNLOADS (Branden, Nov 10, 2026: "Add the
+// Plaza watermark to the build" — TikTok-style). The Download actions
+// added by this same build no longer fetch the raw static file: they
+// call GET /api/reel/:id/download (or /api/feed/:id/download), which
+// serves the video with the Plaza mark burned in. The stamp is
+// Branden's actual logo lockup (his verdict on the first stamp —
+// "I don't see the water mark / I thought it would be my logo" —
+// the original colorkeyed glyph read as a small generic "Rp" and
+// got lost on busy frames): the neon RP-and-slash mark lifted out
+// of the app icon (decoded from RP_ICONS_7127, the V7.297 pattern:
+// repo "binaries" are base64 text, so nothing is ever res.sendFile'd
+// from public/). His follow-up verdict on the full-icon stamp —
+// "Take the black square off it" — dropped the icon's black chip:
+// the mark is screen-keyed out of icon-512 in wmStampFor316 (alpha
+// = max channel, colours un-premultiplied, so the glow and slash
+// survive) and floats on the video with a transparent background —
+// beside the "RIZZ PLAZA" wordmark (white "RIZZ", red
+// "PLAZA", like his business card), with the creator's "@username"
+// under the wordmark in white. Slightly transparent, fixed
+// BOTTOM-RIGHT corner (TikTok's own mark hops corners; a clean
+// fixed corner was chosen). EVERY download is stamped, the author's
+// own included; in-app playback keeps using the raw file untouched.
+// Enforcement mirrors the UI affordance exactly: the author always
+// may; anyone else needs the post's allowDownloads on (absent = ON),
+// plus the same subscriber/club lock the read serializers apply.
+// Stamping runs on the ffmpeg-static binary the copyright module
+// already ships (crFfmpeg286 — Render receives it via package.json;
+// no system ffmpeg is ever assumed), and the handle text is drawn
+// with an embedded subset font (Liberation Sans Bold, printable
+// ASCII only, 8.9 KB TTF decoded below exactly like the icon
+// buffers) because drawtext needs a real font FILE and the deploy
+// image's fontconfig fonts cannot be relied on. Stamped files are
+// cached per post in WM_DIR_316 — a SIBLING of PHOTO_DIR,
+// deliberately NOT under any express.static mount (/photos,
+// /reel-files), so a stamped file is reachable ONLY through these
+// gated routes; the cache key carries the source's size + mtime,
+// so a replaced source file re-stamps automatically, AND a stamp-
+// artwork version tag (WM_STAMP_VER_316), so a new stamp design
+// never serves files stamped by an older one.
+// ---------------------------------------------------------------------------
+const WM_STAMP_VER_316 = "wm3";
+const RP_WM_FONT_316 = "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";
+const WM_DIR_316 = process.env.RP_STAMP_DIR || path.join(path.dirname(PHOTO_DIR), "stamped-downloads");
+const WM_FONT_PATH_316 = path.join(WM_DIR_316, ".wm-font.ttf");
+const WM_ICON_PATH_316 = path.join(WM_DIR_316, ".wm-icon-512.png");
+const wmInflight316 = new Map();
+let wmAssetsOk316 = false;
+try {
+  fs.mkdirSync(WM_DIR_316, { recursive: true });
+  const wmFontBuf316 = Buffer.from(RP_WM_FONT_316, "base64");
+  if (!fs.existsSync(WM_FONT_PATH_316) || fs.statSync(WM_FONT_PATH_316).size !== wmFontBuf316.length)
+    fs.writeFileSync(WM_FONT_PATH_316, wmFontBuf316);
+  const wmIconBuf316 = Buffer.from(RP_ICONS_7127["/icon-512.png"], "base64");
+  if (!fs.existsSync(WM_ICON_PATH_316) || fs.statSync(WM_ICON_PATH_316).size !== wmIconBuf316.length)
+    fs.writeFileSync(WM_ICON_PATH_316, wmIconBuf316);
+  wmAssetsOk316 = wmFontBuf316.length > 1000 && wmIconBuf316.length > 1000;
+} catch (e) { console.log("[watermark] asset setup failed:", e.message); }
+let wmFfmpegOk316 = false;
+const wmFfmpegProbe316 = new Promise((resolve) => {
+  try {
+    crExecFile286(crFfmpeg286, ["-version"], (e) => {
+      wmFfmpegOk316 = !e;
+      console.log("[watermark] ffmpeg: " + (e ? "MISSING (" + crFfmpeg286 + ") — stamped downloads will 503" : "ok (" + crFfmpeg286 + ")") + "; assets=" + (wmAssetsOk316 ? "ok" : "FAILED"));
+      resolve(wmFfmpegOk316);
+    });
+  } catch (e) { resolve(false); }
+});
+function wmHandle316(raw) {
+  const h = String(raw || "").replace(/[^A-Za-z0-9._-]/g, "").slice(0, 40);
+  return h || "rizzplaza";
+}
+function wmFilterText316(s) {
+  return String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/:/g, "\\:").replace(/%/g, "\\%");
+}
+function wmFilterPath316(p) {
+  return String(p).replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "\\'");
+}
+function wmProbe316(file) {
+  return new Promise((resolve) => {
+    crExecFile286(crFfmpeg286, ["-hide_banner", "-i", file], { timeout: 20000 }, (e, so, se) => {
+      const txt = String(se || "") + " " + String(so || "");
+      const d = /Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/.exec(txt);
+      const v = /Video:.*?[,\s](\d{2,5})x(\d{2,5})[\s,\[]/.exec(txt);
+      let w = v ? +v[1] : 0, h = v ? +v[2] : 0;
+      if (/rotation of -?(90|270)/.test(txt) && w && h) { const t = w; w = h; h = t; }
+      resolve({ dur: d ? (+d[1]) * 3600 + (+d[2]) * 60 + parseFloat(d[3]) : null, w, h });
+    });
+  });
+}
+function wmRun316(args, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    crExecFile286(crFfmpeg286, args, { timeout: timeoutMs || 120000, maxBuffer: 8 * 1024 * 1024 }, (e, so, se) => {
+      if (e) { e.message = (e.message || "ffmpeg failed") + " :: " + String(se || "").slice(-400); return reject(e); }
+      resolve(true);
+    });
+  });
+}
+// Advance-width metrics parsed out of the embedded subset font, so
+// the two-tone wordmark lines up exactly ("PLAZA" starts where
+// "RIZZ " ends). drawtext lays glyphs out by their hmtx advances
+// (the subset carries no kern table for FreeType to apply), so the
+// advance sum IS the rendered width. Any parse failure falls back
+// to a per-character estimate and the layout still renders.
+const wmFontMetrics316 = (() => {
+  try {
+    const b = Buffer.from(RP_WM_FONT_316, "base64");
+    const u16 = (o) => b.readUInt16BE(o), u32 = (o) => b.readUInt32BE(o);
+    const tabs = {};
+    for (let i = 0, n = u16(4); i < n; i++) { const o = 12 + i * 16; tabs[b.toString("ascii", o, o + 4)] = u32(o + 8); }
+    const upem = u16(tabs.head + 18), nH = u16(tabs.hhea + 34), nG = u16(tabs.maxp + 4);
+    const adv = new Array(nG).fill(0);
+    for (let g = 0; g < nG; g++) adv[g] = u16(tabs.hmtx + Math.min(g, nH - 1) * 4);
+    const co = tabs.cmap; let fo = 0, fmt = 0;
+    for (let i = 0, nv = u16(co + 2); i < nv; i++) { const o = u32(co + 8 + i * 8), f = u16(co + o); if (f === 4 || f === 12) { fo = co + o; fmt = f; if (f === 4) break; } }
+    const glyph = (cp) => {
+      if (fmt === 4) {
+        const segX2 = u16(fo + 6), seg = segX2 / 2, eO = fo + 14, sO = eO + segX2 + 2, dO = sO + segX2, rO = dO + segX2;
+        for (let i = 0; i < seg; i++) {
+          if (cp > u16(eO + i * 2)) continue;
+          const st = u16(sO + i * 2); if (cp < st) return 0;
+          const d = u16(dO + i * 2), r = u16(rO + i * 2);
+          if (!r) return (cp + d) & 0xffff;
+          const gi = u16(rO + i * 2 + r + (cp - st) * 2);
+          return gi ? (gi + d) & 0xffff : 0;
+        }
+        return 0;
+      }
+      if (fmt === 12) {
+        const n = u32(fo + 12);
+        let lo = 0, hi = n - 1;
+        while (lo <= hi) { const mid = (lo + hi) >> 1, o = fo + 16 + mid * 12, s = u32(o), e = u32(o + 4); if (cp < s) hi = mid - 1; else if (cp > e) lo = mid + 1; else return u32(o + 8) + (cp - s); }
+      }
+      return 0;
+    };
+    if (!upem || !adv[65]) throw new Error("font metrics incomplete");
+    return { width: (txt, px) => { let s = 0; for (const ch of String(txt)) s += adv[glyph(ch.codePointAt(0))] || 0; return (s * px) / upem; } };
+  } catch (e) { console.log("[watermark] font metrics unavailable, using estimates:", e.message); return null; }
+})();
+function wmTextW316(txt, px) {
+  if (wmFontMetrics316) return wmFontMetrics316.width(txt, px);
+  return String(txt).length * px * 0.58; // rough Liberation Sans Bold average
+}
+// The stamp image is Branden's logo lockup and renders once per
+// creator (cached): the neon RP-and-slash mark screen-keyed out of
+// the real icon-512 PNG — NO black chip (Branden: "Take the black
+// square off it"). A single geq does the lift: alpha takes the
+// pixel's max channel and each colour un-premultiplies against it
+// (colour * 255 / max), so the glow survives with no dark fringe
+// — deliberately NOT the old hard colorkey, which stripped the
+// glow and left a generic glyph. The floating mark sits beside
+// the "RIZZ PLAZA" wordmark (white "RIZZ" / red "PLAZA", his card
+// colours) with the creator's "@handle" under it in white; the
+// text carries a soft drop shadow so it stays legible on busy
+// frames now that no chip backs it.
+function wmStampFor316(handle) {
+  const key = "stamp-" + WM_STAMP_VER_316 + "-" + crypto.createHash("sha1").update(handle).digest("hex").slice(0, 16) + ".png";
+  const out = path.join(WM_DIR_316, key);
+  if (fs.existsSync(out)) return Promise.resolve(out);
+  const inflightKey = "file:" + key;
+  if (wmInflight316.has(inflightKey)) return wmInflight316.get(inflightKey);
+  const job = (async () => {
+    const label = "@" + handle;
+    const ICON = 168, PAD = 24, TEXTX = PAD + ICON + 26, WMFS = 70;
+    const fsPx = label.length <= 14 ? 46 : label.length <= 20 ? 40 : label.length <= 28 ? 34 : 29;
+    const wmW = wmTextW316("RIZZ PLAZA", WMFS);
+    const W = Math.ceil(TEXTX + Math.max(wmW, wmTextW316(label, fsPx))) + PAD;
+    const H = ICON + PAD * 2;
+    const plazaX = Math.round(TEXTX + wmTextW316("RIZZ ", WMFS));
+    const font = wmFilterPath316(WM_FONT_PATH_316);
+    const dt = (text, fs2, color, x, y) =>
+      "drawtext=fontfile='" + font + "':text='" + wmFilterText316(text) + "':fontsize=" + fs2 + ":fontcolor=" + color + ":shadowcolor=black@0.7:shadowx=2:shadowy=2:x=" + x + ":y=" + y;
+    // Screen-key lift of the neon mark (see the note above): ONE
+    // geq whose every plane inlines m = max(r,g,b) from the source
+    // — alpha takes m, each colour un-premultiplies as colour*255/m.
+    // (geq has no a() source accessor, so a two-pass version cannot
+    // read back the alpha the first pass wrote; inlining m is the
+    // honest single-pass form.)
+    const wmM316 = "max(max(r(X\\,Y)\\,g(X\\,Y))\\,b(X\\,Y))";
+    const wmUn316 = (c) => c + "='if(eq(" + wmM316 + "\\,0)\\,0\\," + c + "(X\\,Y)*255/" + wmM316 + ")'";
+    const lift316 =
+      "format=rgba," +
+      "geq=" + wmUn316("r") + ":" + wmUn316("g") + ":" + wmUn316("b") + ":a='" + wmM316 + "',";
+    const fc =
+      "[0:v]" + lift316 + "scale=" + ICON + ":" + ICON + ",format=rgba," +
+      "pad=w=" + W + ":h=" + H + ":x=" + PAD + ":y=" + PAD + ":color=black@0.0," +
+      dt("RIZZ", WMFS, "white", TEXTX, 28) + "," +
+      dt("PLAZA", WMFS, "0xFF2E4D", plazaX, 28) + "," +
+      dt(label, fsPx, "white", TEXTX, 122) + "," +
+      "format=rgba";
+    const tmp = out + ".tmp-" + process.pid + ".png";
+    await wmRun316(["-y", "-v", "error", "-i", WM_ICON_PATH_316, "-filter_complex", fc, "-frames:v", "1", tmp], 60000);
+    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 512) throw new Error("stamp render produced no file");
+    fs.renameSync(tmp, out);
+    return out;
+  })();
+  wmInflight316.set(inflightKey, job);
+  job.catch(() => {}).finally(() => wmInflight316.delete(inflightKey));
+  return job;
+}
+function wmStampedFor316(cacheName, srcPath, handle) {
+  const out = path.join(WM_DIR_316, cacheName);
+  if (fs.existsSync(out)) return Promise.resolve(out);
+  const inflightKey = "file:" + cacheName;
+  if (wmInflight316.has(inflightKey)) return wmInflight316.get(inflightKey);
+  const job = (async () => {
+    const meta = await wmProbe316(srcPath);
+    if (!meta.w || !meta.h) throw new Error("could not read the video's dimensions");
+    const stampPath = await wmStampFor316(handle);
+    const smeta = await wmProbe316(stampPath);
+    if (!smeta.w || !smeta.h) throw new Error("could not read the watermark stamp");
+    const tw = Math.max(240, Math.min(680, Math.round(meta.w * 0.42)));
+    const th = Math.max(2, Math.round((tw * smeta.h) / smeta.w / 2) * 2);
+    const mgn = Math.max(10, Math.round(meta.w * 0.032));
+    const fc =
+      "[1:v]scale=" + tw + ":" + th + ",format=rgba,colorchannelmixer=aa=0.90[wm];" +
+      "[0:v][wm]overlay=x=W-w-" + mgn + ":y=H-h-" + mgn + ",pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p[v]";
+    const tmp = out + ".tmp-" + process.pid + ".mp4";
+    await wmRun316(["-y", "-v", "error", "-i", srcPath, "-i", stampPath, "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", tmp], 15 * 60 * 1000);
+    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1024) throw new Error("watermark encode produced no file");
+    fs.renameSync(tmp, out);
+    // A replaced source re-stamps under a new key; prune this post's
+    // older stamped files (exact post prefix, never another post's).
+    try {
+      const prefix = cacheName.replace(/-\d+-\d+\.mp4$/, "") + "-";
+      for (const f of fs.readdirSync(WM_DIR_316)) {
+        if (f.startsWith(prefix) && f !== cacheName && !f.includes(".tmp-")) { try { fs.unlinkSync(path.join(WM_DIR_316, f)); } catch (e) {} }
+      }
+    } catch (e) {}
+    return out;
+  })();
+  wmInflight316.set(inflightKey, job);
+  job.catch(() => {}).finally(() => wmInflight316.delete(inflightKey));
+  return job;
+}
+function wmServe316(res, cacheName, srcPath, handle, dlName) {
+  wmFfmpegProbe316.then((ok) => {
+    if (!ok || !wmAssetsOk316)
+      return res.status(503).json({ ok: false, error: "Downloads are being set up — please try again shortly." });
+    wmStampedFor316(cacheName, srcPath, handle)
+      .then((p) => { if (!res.headersSent) res.download(p, dlName); })
+      .catch((e) => {
+        console.log("[watermark] stamp failed for", cacheName, "::", e.message);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: "Couldn't prepare that download — please try again." });
+      });
+  });
+}
+// [RP-V7.316] The stamped download itself. In-app playback never
+// touches this route — it exists only for the Download actions.
+app.get("/api/reel/:id/download", (req, res) => {
+  const id = reelCleanId(req.params.id);
+  if (!id) return res.status(400).json({ ok: false, error: "Missing reel id" });
+  const entry = listReels().find((r) => r.id === id);
+  if (!entry || !entry.file) return res.status(404).json({ ok: false, error: "Reel not found" });
+  let adb = null, user = null;
+  try { adb = readAccounts(); user = accountForToken(adb, req); } catch (e) { adb = null; user = null; }
+  const aKey = adb ? reelAuthorKeyFor(adb, entry) : (entry.authorId || null);
+  const isAuthor = !!(user && ((aKey && user.id === aKey) || user.name === entry.author));
+  if (!isAuthor) {
+    if (entry.allowDownloads === false)
+      return res.status(403).json({ ok: false, error: "The creator turned downloads off for this video" });
+    if (entry.audience === "onlyme")
+      return res.status(403).json({ ok: false, error: "That video isn't available for download" });
+    if (entry.subsOnly || entry.clubOnly) {
+      let canSee = false;
+      if (user && aKey) {
+        const mdb = readMoney();
+        canSee = (!entry.subsOnly || fanSubAccessSet296(mdb, user.id).has(aKey)) && (!entry.clubOnly || fanClubAccessSet298(mdb, user.id).has(aKey));
+      }
+      if (!canSee)
+        return res.status(403).json({ ok: false, error: "That video is only for the creator's subscribers or club members" });
+    }
+  }
+  const srcPath = path.join(REELS_DIR, path.basename(String(entry.file)));
+  if (!fs.existsSync(srcPath)) return res.status(404).json({ ok: false, error: "That video's file is gone" });
+  const acct = adb && aKey ? (adb.users || []).find((u) => u.id === aKey) : null;
+  const handle = wmHandle316((acct && (acct.username || acct.name)) || entry.author);
+  const st = fs.statSync(srcPath);
+  const cacheName = "reel-" + id + "-" + WM_STAMP_VER_316 + "-" + st.size + "-" + Math.round(st.mtimeMs) + ".mp4";
+  wmServe316(res, cacheName, srcPath, handle, "rizzplaza-" + id + ".mp4");
 });
 
 // ---------------------------------------------------------------------------
@@ -7419,7 +7761,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAcc
         caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null,
         sourceId: null, sourceAuthor: null, sourceUrl: null,
         stitchStart: null, stitchDur: null, trimStart: null, trimEnd: null,
-        allowRemix: false, views: 0,
+        allowRemix: false, allowDownloads: false, views: 0, // [RP-V7.316] locked placeholder
         heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
         giftCount: postGiftCountOf262(pg262, "reel", r.id),
         reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
@@ -7454,6 +7796,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAcc
     trimStart: typeof r.trimStart === "number" ? r.trimStart : null,
     trimEnd: typeof r.trimEnd === "number" ? r.trimEnd : null,
     allowRemix: r.allowRemix !== false,
+    allowDownloads: r.allowDownloads !== false, // [RP-V7.316]
     views: mediaViewCount(vdb, "reel:" + r.id),
     // [RP-V7.241] Social state for the lightbox rail — counts are
     // public; the caller's own state rides only with a valid token
@@ -10007,7 +10350,7 @@ app.get("/api/social/profile", (req, res) => {
         if ((r.subsOnly && !canSeeSubs296) || (r.clubOnly && !canSeeClub298)) { // [RP-V7.298]
           // Locked placeholder: no playback URL, no caption, no
           // comments — the profile grid renders the lock card.
-          return { id: r.id, url: null, kind: r.kind || "video", caption: "", createdAt: r.createdAt || null, views: 0,
+          return { id: r.id, url: null, kind: r.kind || "video", caption: "", createdAt: r.createdAt || null, views: 0, allowDownloads: false, // [RP-V7.316] locked placeholder
             ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
             authorId: target.id,
             heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
@@ -10019,7 +10362,7 @@ app.get("/api/social/profile", (req, res) => {
             crMuted: null,
             myReposted: false };
         }
-        return { id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id), ...(r.clubOnly ? { clubOnly: true } : {}), ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.shoutoutFor ? { shoutoutFor: r.shoutoutFor } : {}), // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker
+        return { id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id), allowDownloads: r.allowDownloads !== false, ...(r.clubOnly ? { clubOnly: true } : {}), ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.shoutoutFor ? { shoutoutFor: r.shoutoutFor } : {}), // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
         // [RP-V7.241] author + social state for the lightbox rail
         authorId: target.id,
         heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
@@ -10088,8 +10431,8 @@ app.get("/api/social/profile", (req, res) => {
     feedPosts = Object.values(fdb109.posts || {})
       .filter((fp) => fp && fp.authorId === target.id && fp.file)
       .map((fp) => ((fp.subsOnly && !canSeeSubsFeed296) || (fp.clubOnly && !canSeeClubFeed298))
-        ? { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: null, views: 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: null, ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.clubOnly ? { clubOnly: true } : {}), locked: true, authorId: target.id } // [RP-V7.296] locked feed tile: no media URL rides the payload // [RP-V7.298]
-        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}) }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker
+        ? { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: null, views: 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: null, allowDownloads: false, ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.clubOnly ? { clubOnly: true } : {}), locked: true, authorId: target.id } // [RP-V7.296] locked feed tile: no media URL rides the payload // [RP-V7.298] // [RP-V7.316] allowDownloads
+        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}) }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 60);
   } catch (e) { }
@@ -11081,6 +11424,7 @@ function feedPublic(ctx, p, following, fanAccess296, clubAccess298) { // [RP-V7.
       myReposted: false,
       shares: typeof p.shares === "number" ? p.shares : 0,
       views: 0,
+      allowDownloads: false, // [RP-V7.316] locked placeholder
       iFollow: following ? following.has(p.authorId) : false,
       isSelf: false,
       crMuted: null,
@@ -11104,6 +11448,7 @@ function feedPublic(ctx, p, following, fanAccess296, clubAccess298) { // [RP-V7.
     myReposted: (Array.isArray(p.reposts) && p.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(p.reshares) && p.reshares.some((x) => x && x.u === ctx.user.id)), // [RP-V7.101] own reshare shows as my repost state; the public count above stays reposts-only
     shares: typeof p.shares === "number" ? p.shares : 0,
     views: typeof p.views === "number" ? p.views : 0,
+    allowDownloads: p.allowDownloads !== false, // [RP-V7.316]
     iFollow: following ? following.has(p.authorId) : false,
     isSelf: p.authorId === ctx.user.id,
     ...(p.subsOnly ? { subsOnly: true } : {}), // [RP-V7.296]
@@ -11207,6 +11552,7 @@ app.post("/api/feed/post",
         viewSeen: {}, // [RP-V7.95] viewerId -> ET day of last counted view
         ...(((req.body || {}).subsOnly === true || (req.body || {}).subsOnly === "1" || (req.body || {}).subsOnly === "true") ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation
         ...(((req.body || {}).clubOnly === true || (req.body || {}).clubOnly === "1" || (req.body || {}).clubOnly === "true") ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation
+        ...(((req.body || {}).allowDownloads === false || (req.body || {}).allowDownloads === "0" || (req.body || {}).allowDownloads === "false") ? { allowDownloads: false } : {}), // [RP-V7.316] downloads switch: stamped only when OFF (absent = ON, TikTok's default)
       };
       db.posts[post.id] = post;
       writeFeed(db);
@@ -11561,6 +11907,57 @@ app.get("/api/feed/:id/insights", (req, res) => {
     rates,
     callout,
   });
+});
+
+// [RP-V7.316] TikTok-style downloads switch for Feed posts: only the
+// post's own author may flip it (same checks as the delete below).
+app.post("/api/feed/downloads", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const db = readFeed();
+  const p = db.posts[String(b.id || "")];
+  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  if (p.authorId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the post's author can change that setting" });
+  const allow =
+    b.allow === true || b.allow === "true" || b.allow === 1 || b.allow === "1";
+  if (allow) delete p.allowDownloads;
+  else p.allowDownloads = false;
+  writeFeed(db);
+  res.json({ ok: true, id: p.id, allowDownloads: allow });
+});
+// [RP-V7.316] Watermarked download for Feed-store video posts — the
+// twin of /api/reel/:id/download (same gate, same stamp, same cache).
+app.get("/api/feed/:id/download", (req, res) => {
+  const db = readFeed();
+  const p = db.posts[String(req.params.id || "")];
+  if (!p || !p.file || p.kind !== "video")
+    return res.status(404).json({ ok: false, error: "Video not found" });
+  let adb = null, user = null;
+  try { adb = readAccounts(); user = accountForToken(adb, req); } catch (e) { adb = null; user = null; }
+  const isAuthor = !!(user && p.authorId && user.id === p.authorId);
+  if (!isAuthor) {
+    if (p.allowDownloads === false)
+      return res.status(403).json({ ok: false, error: "The creator turned downloads off for this video" });
+    if (p.subsOnly || p.clubOnly) {
+      let canSee = false;
+      if (user && p.authorId) {
+        const mdb = readMoney();
+        canSee = (!p.subsOnly || fanSubAccessSet296(mdb, user.id).has(p.authorId)) && (!p.clubOnly || fanClubAccessSet298(mdb, user.id).has(p.authorId));
+      }
+      if (!canSee)
+        return res.status(403).json({ ok: false, error: "That video is only for the creator's subscribers or club members" });
+    }
+  }
+  const srcPath = path.join(FEED_DIR, path.basename(String(p.file)));
+  if (!fs.existsSync(srcPath)) return res.status(404).json({ ok: false, error: "That video's file is gone" });
+  const acct = adb && p.authorId ? (adb.users || []).find((u) => u.id === p.authorId) : null;
+  const handle = wmHandle316(acct ? (acct.username || acct.name) : "");
+  const st = fs.statSync(srcPath);
+  const safeId = String(p.id).replace(/[^A-Za-z0-9._-]/g, "").slice(0, 64) || "post";
+  const cacheName = "feed-" + safeId + "-" + WM_STAMP_VER_316 + "-" + st.size + "-" + Math.round(st.mtimeMs) + ".mp4";
+  wmServe316(res, cacheName, srcPath, handle, "rizzplaza-" + safeId + ".mp4");
 });
 
 // Delete one of my own Feed posts (and its media file).
@@ -19908,7 +20305,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.313", online: players.size })
+  res.json({ ok: true, version: "RP-V7.316", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
