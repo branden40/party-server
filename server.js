@@ -1343,6 +1343,7 @@ function settingsOf(u) {
         inapp: !(n.channels && n.channels.inapp === false),
         email: !(n.channels && n.channels.email === false),
         sms: !(n.channels && n.channels.sms === false),
+        push: !(n.channels && n.channels.push === false), // [RP-V7.328] web push (TikTok-style phone notifications); default ON like the other channels, and the device subscription itself is the real opt-in
       },
     },
   };
@@ -2256,7 +2257,7 @@ app.post("/api/account/settings", (req, res) => {
   if (!ctx) return;
   const b = req.body || {};
   const cur = settingsOf(ctx.user);
-  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms } } };
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push } } }; // [RP-V7.328] push channel rides the same settings record
   if ("dlDefault" in b && typeof b.dlDefault === "boolean") nx.dlDefault = b.dlDefault; // [RP-V7.316] downloads default for new video posts
   if ("letterStyle" in b) {
     if (LETTER_STYLE_IDS.indexOf(b.letterStyle) < 0)
@@ -2272,7 +2273,7 @@ app.post("/api/account/settings", (req, res) => {
     for (const k of ["messages", "follows", "gifts", "likes", "comments", "reposts", "dailypot", "posts", "liveinvites", "signups"])
       if (typeof b.notify[k] === "boolean") nx.notify[k] = b.notify[k];
     if (b.notify.channels && typeof b.notify.channels === "object" && !Array.isArray(b.notify.channels)) {
-      for (const ck of ["inapp", "email", "sms"])
+      for (const ck of ["inapp", "email", "sms", "push"]) // [RP-V7.328] push
         if (typeof b.notify.channels[ck] === "boolean") nx.notify.channels[ck] = b.notify.channels[ck];
     }
   }
@@ -6138,7 +6139,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.325.1", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.328", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -12975,6 +12976,20 @@ function dmDeliver(ctx, other, msg) {
     inAppOnly: true,
     coalesceKey: "dm:" + ctx.user.id,
   });
+  // [RP-V7.328] The phone hears about it too — TikTok-style push to
+  // the recipient's devices (title = the sender, body = the message
+  // preview; media messages already carry their "📷 Photo" /
+  // "🎥 Video" text). Same per-member message switch governs it
+  // (pushToUser328 checks notify.messages + the push channel), the
+  // tag keeps a burst from one sender as ONE phone notification, and
+  // the URL rides the app's ?dm= deep link to this exact thread.
+  pushToUser328(other.id, "dm", {
+    title: ctx.user.name,
+    body: String(msg.text || "").slice(0, 80),
+    url: "/?dm=" + ctx.user.id,
+    tag: "dm:" + ctx.user.id,
+    dmWith: ctx.user.id,
+  });
   return msg;
 }
 app.get("/api/dm/threads", (req, res) => {
@@ -13653,6 +13668,250 @@ function notifyOwnerOfSignup307(newUser, totalMembers) {
     });
   } catch (e) { /* an owner alert must never break a signup */ }
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.328] WEB PUSH — TikTok-style phone notifications (Branden,
+// Nov 11, 2026: "Add push notifications (TikTok-style)"). Members got
+// NO phone alert for a DM before this: email digests exist (V7.100)
+// and SMS stays parked with Twilio, so a message only surfaced when
+// the member opened the app. Push is the channel TikTok uses — the
+// alert comes from the app itself through Apple/Google's push
+// services; no phone number, no carrier, no per-message cost.
+//
+// PROTOCOL: Web Push (RFC 8291 payload encryption, RFC 8292 VAPID),
+// implemented on node builtins ONLY (crypto + fetch) — the same
+// no-new-dependencies discipline as the account store ("No new npm
+// dependencies", V7.50-era). The `web-push` package would work too,
+// but it would ride a package.json change + a Render install step
+// for three primitives node already ships (P-256 ECDH, HKDF, AES-GCM
+// and ES256 signing); the rig cross-checks this implementation's
+// wire format against the reference `web-push` package without
+// shipping it.
+//
+// KEYS: the VAPID keypair is generated ONCE on first use and kept in
+// this module's own store (push328.json beside accounts.json, same
+// hardened read/write as every other store). No Render env/dashboard
+// step. The public key is served to signed-in clients at
+// GET /api/push/key; the private key NEVER leaves the server — no
+// endpoint returns it (the store file is the only place it exists).
+//
+// SUBSCRIPTIONS: per account, multiple devices; idempotent per
+// endpoint (re-subscribing the same browser replaces its row). A
+// subscription the push service reports gone (404/410) is pruned on
+// the send that learns about it. Members manage ONLY their own rows
+// (every route is requireAccount-scoped to the token's account).
+//
+// DELIVERY: pushToUser328(userId, kind, {title, body, url, tag,
+// dmWith}) is fire-and-forget — it never throws into the request
+// path and never delays the action that triggered it. It reuses the
+// V7.99/V7.100 preference model exactly: the per-event switch
+// (notify.messages / notify.gifts) AND the new per-channel switch
+// (notify.channels.push) must both be on, the same switches the bell
+// and email already obey. Email/SMS digest behaviour is untouched.
+// Wired triggers in this build: (1) DM received, (2) gift received
+// (post or live). The helper takes a `kind`, so live-start / pot
+// events are one-line additions later — deliberately NOT wired here.
+// ---------------------------------------------------------------------------
+const PUSH328_FILE =
+  process.env.PUSH_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "push328.json");
+const PUSH328_KIND_KEY = { dm: "messages", gift: "gifts" };
+const PUSH328_SUBJECT = "mailto:support@rizzplaza.com";
+function emptyPush328() {
+  return { vapid: null, subs: {} };
+}
+function readPush328() {
+  return storeReadJson(
+    PUSH328_FILE,
+    (d) => !!(d && typeof d === "object" && d.subs && typeof d.subs === "object" && !Array.isArray(d.subs)),
+    emptyPush328(),
+    "push328"
+  );
+}
+function writePush328(db) {
+  storeWriteJson(PUSH328_FILE, db);
+}
+function push328Vapid(db) {
+  if (db.vapid && db.vapid.publicKey && db.vapid.privateJwk && db.vapid.privateJwk.d) return db.vapid;
+  const kp = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const pub = kp.publicKey.export({ format: "jwk" });
+  const priv = kp.privateKey.export({ format: "jwk" });
+  const raw = Buffer.concat([
+    Buffer.from([0x04]),
+    Buffer.from(pub.x, "base64url"),
+    Buffer.from(pub.y, "base64url"),
+  ]);
+  db.vapid = {
+    publicKey: raw.toString("base64url"),
+    privateJwk: { kty: priv.kty, crv: priv.crv, x: priv.x, y: priv.y, d: priv.d },
+    createdAt: new Date().toISOString(),
+  };
+  writePush328(db);
+  console.log("[push328] VAPID keypair generated and stored (first use)");
+  return db.vapid;
+}
+function push328Jwt(endpoint, vapid) {
+  const aud = new URL(endpoint).origin;
+  const enc = (s) => Buffer.from(s, "utf8").toString("base64url");
+  const header = enc(JSON.stringify({ typ: "JWT", alg: "ES256" }));
+  const payload = enc(
+    JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: PUSH328_SUBJECT })
+  );
+  const sig = crypto.sign("sha256", Buffer.from(header + "." + payload, "utf8"), {
+    key: crypto.createPrivateKey({ key: vapid.privateJwk, format: "jwk" }),
+    dsaEncoding: "ieee-p1363",
+  });
+  return header + "." + payload + "." + sig.toString("base64url");
+}
+// RFC 8291 §3.4 + RFC 8188 aes128gcm content coding, node builtins.
+function push328Encrypt(sub, payloadStr) {
+  const uaPublic = Buffer.from(sub.keys.p256dh, "base64url");
+  const authSecret = Buffer.from(sub.keys.auth, "base64url");
+  const eph = crypto.createECDH("prime256v1");
+  eph.generateKeys();
+  const asPublic = eph.getPublicKey(null, "uncompressed");
+  const ecdhSecret = eph.computeSecret(uaPublic);
+  const salt = crypto.randomBytes(16);
+  const ikm = Buffer.from(
+    crypto.hkdfSync(
+      "sha256",
+      ecdhSecret,
+      authSecret,
+      Buffer.concat([Buffer.from("WebPush: info\0", "utf8"), uaPublic, asPublic]),
+      32
+    )
+  );
+  const cek = Buffer.from(
+    crypto.hkdfSync("sha256", ikm, salt, Buffer.from("Content-Encoding: aes128gcm\0", "utf8"), 16)
+  );
+  const nonce = Buffer.from(
+    crypto.hkdfSync("sha256", ikm, salt, Buffer.from("Content-Encoding: nonce\0", "utf8"), 12)
+  );
+  const plain = Buffer.concat([Buffer.from(payloadStr, "utf8"), Buffer.from([0x02])]);
+  const cipher = crypto.createCipheriv("aes-128-gcm", cek, nonce);
+  const ct = Buffer.concat([cipher.update(plain), cipher.final(), cipher.getAuthTag()]);
+  const rs = Buffer.alloc(4);
+  rs.writeUInt32BE(4096, 0);
+  return Buffer.concat([salt, rs, Buffer.from([asPublic.length]), asPublic, ct]);
+}
+async function push328SendOne(vapid, sub, payloadStr) {
+  const body = push328Encrypt(sub, payloadStr);
+  const r = await fetch(sub.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "Content-Encoding": "aes128gcm",
+      Authorization: "vapid t=" + push328Jwt(sub.endpoint, vapid) + ", k=" + vapid.publicKey,
+      TTL: "86400",
+    },
+    body,
+  });
+  return r.status;
+}
+function push328Prune(userId, deadEndpoints) {
+  try {
+    if (!deadEndpoints.length) return;
+    const db = readPush328();
+    const arr = Array.isArray(db.subs[userId]) ? db.subs[userId] : [];
+    const kept = arr.filter((s) => !(s && deadEndpoints.indexOf(s.endpoint) >= 0));
+    if (kept.length !== arr.length) {
+      db.subs[userId] = kept;
+      writePush328(db);
+      console.log("[push328] pruned " + (arr.length - kept.length) + " dead subscription(s) for " + userId);
+    }
+  } catch (e) { /* pruning must never break anything */ }
+}
+// The one delivery door. kind: "dm" | "gift" (see PUSH328_KIND_KEY).
+function pushToUser328(userId, kind, opts) {
+  try {
+    if (!userId || !opts) return;
+    const settingKey = PUSH328_KIND_KEY[kind];
+    if (!settingKey) return;
+    const adb = readAccounts();
+    const u = adb.users.find((x) => x.id === userId);
+    if (!u || u.deletionAt) return;
+    const st = settingsOf(u);
+    if (st.notify[settingKey] === false) return; // per-event switch off
+    if (st.notify.channels.push === false) return; // push channel off
+    const pdb = readPush328();
+    const list = (Array.isArray(pdb.subs[userId]) ? pdb.subs[userId] : []).filter(
+      (s) => s && typeof s.endpoint === "string" && s.keys && s.keys.p256dh && s.keys.auth
+    );
+    if (!list.length) return;
+    const vapid = push328Vapid(pdb);
+    const payload = JSON.stringify({
+      title: String(opts.title || "Rizz Plaza").slice(0, 80),
+      body: String(opts.body || "").slice(0, 180),
+      url: String(opts.url || "/").slice(0, 300),
+      tag: opts.tag ? String(opts.tag).slice(0, 64) : undefined,
+      dmWith: opts.dmWith ? String(opts.dmWith).slice(0, 80) : undefined,
+    });
+    // Fire-and-forget: the send runs after the response is on its way
+    // and every failure stays inside this IIFE.
+    (async () => {
+      const dead = [];
+      for (const sub of list) {
+        try {
+          const status = await push328SendOne(vapid, sub, payload);
+          if (status === 404 || status === 410) dead.push(sub.endpoint);
+          else if (status < 200 || status >= 300)
+            console.log("[push328] send to " + new URL(sub.endpoint).host + " answered HTTP " + status);
+        } catch (e) {
+          console.log("[push328] send failed: " + (e && e.message ? e.message.slice(0, 120) : "unknown"));
+        }
+      }
+      if (dead.length) push328Prune(userId, dead);
+    })().catch(() => {});
+  } catch (e) { /* a notification must never break the action that caused it */ }
+}
+app.get("/api/push/key", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const pdb = readPush328();
+  const vapid = push328Vapid(pdb);
+  res.json({ ok: true, publicKey: vapid.publicKey });
+});
+app.post("/api/push/subscribe", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const endpoint = String(b.endpoint || "").slice(0, 1000);
+  const keys = (b.keys && typeof b.keys === "object" && !Array.isArray(b.keys)) ? b.keys : {};
+  const p256dh = String(keys.p256dh || "");
+  const auth = String(keys.auth || "");
+  let epOk = false;
+  try {
+    const eu = new URL(endpoint);
+    // Real push services are always public https. Plain http is
+    // accepted for loopback hosts only — a developer's own machine;
+    // a browser can never mint such a subscription in production.
+    epOk = eu.protocol === "https:" ||
+      (eu.protocol === "http:" && (eu.hostname === "127.0.0.1" || eu.hostname === "localhost" || eu.hostname === "::1"));
+  } catch (e) { epOk = false; }
+  if (!epOk || !/^[A-Za-z0-9_-]{20,200}$/.test(p256dh) || !/^[A-Za-z0-9_-]{8,100}$/.test(auth))
+    return res.status(400).json({ ok: false, error: "That subscription doesn't look right" });
+  const pdb = readPush328();
+  const me = ctx.user.id;
+  const arr = (Array.isArray(pdb.subs[me]) ? pdb.subs[me] : []).filter((s) => s && s.endpoint !== endpoint);
+  arr.push({ endpoint, keys: { p256dh, auth }, at: new Date().toISOString() });
+  while (arr.length > 10) arr.shift(); // a member's oldest device falls off past 10
+  pdb.subs[me] = arr;
+  writePush328(pdb);
+  res.json({ ok: true, devices: arr.length });
+});
+app.post("/api/push/unsubscribe", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const endpoint = String((req.body || {}).endpoint || "").slice(0, 1000);
+  const pdb = readPush328();
+  const me = ctx.user.id;
+  const arr = Array.isArray(pdb.subs[me]) ? pdb.subs[me] : [];
+  const kept = arr.filter((s) => !(s && s.endpoint === endpoint));
+  if (kept.length !== arr.length) {
+    pdb.subs[me] = kept;
+    writePush328(pdb);
+  }
+  res.json({ ok: true, devices: kept.length });
+});
 const NOTIFY_FILE =
   process.env.NOTIFY_FILE ||
   path.join(path.dirname(PHOTO_DIR), "notify-outbox.json");
@@ -17663,6 +17922,22 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     holId: holKeyVal309,
     holName: holInst309 ? holInst309.name : null,
   });
+  // [RP-V7.328] …and the recipient's phone: the same composed line
+  // the bell/email carry, pushed TikTok-style. Post gifts deep-link
+  // through the share-link params the app already consumes
+  // (/?reel= / /?photo=); live / gallery gifts land on the app,
+  // where the bell row has the detail. Gated by the same "gifts"
+  // switch + push channel inside pushToUser328.
+  pushToUser328(recipient.id, "gift", {
+    title: "🎁 You got a gift!",
+    body: gCore250 + "!",
+    url: postKey262 && postKey262.indexOf("reel:") === 0
+      ? "/?reel=" + postKey262.slice(5)
+      : postKey262 && postKey262.indexOf("photo:") === 0
+        ? "/?photo=" + postKey262.slice(6)
+        : "/",
+    tag: "gift:" + ctx.user.id,
+  });
   res.json(giftResponse);
 }));
 // ---------------------------------------------------------------------------
@@ -21499,7 +21774,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.327", online: players.size })
+  res.json({ ok: true, version: "RP-V7.328", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
