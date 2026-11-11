@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.318" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.319" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -2338,6 +2338,30 @@
         box-shadow: 0 12px 28px rgba(0,0,0,.5);
       }
       .lv-aucpin[hidden] { display: none !important; }
+      /* [RP-V7.319] The in-player live poll card — it takes the
+         auction pin's slot (bottom-left of the stage); the two never
+         share a live, since polls never run in an auction show. While
+         it is up, the comment column lifts above it (poll-on). */
+      .lv-pollcard {
+        position: absolute; left: 10px; right: 76px; bottom: 10px; z-index: 8;
+        background: rgba(10,10,18,.88); border: 1.5px solid rgba(255,46,77,.75); border-radius: 14px;
+        color: #fff; padding: 10px 12px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        box-shadow: 0 12px 28px rgba(0,0,0,.5); max-height: 46%; overflow: hidden;
+      }
+      .lv-pollcard[hidden] { display: none !important; }
+      #livePanel.live-fs .lv-pollcard { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+      #livePanel.poll-on .lv-comments { bottom: 224px; }
+      #livePanel.live-fs.poll-on .lv-comments { bottom: calc(268px + env(safe-area-inset-bottom, 0px)); }
+      .lv-pollhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; font-weight: 900; color: #ff8fa3; }
+      .lv-pollq { font-weight: 900; font-size: 15.5px; line-height: 1.25; margin: 3px 0 7px; }
+      .lv-pollopt { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; margin: 5px 0; padding: 8px 11px; border-radius: 10px; border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.05); color: #fff; font-weight: 800; font-size: 13.5px; overflow: hidden; cursor: pointer; text-align: left; }
+      .lv-pollopt .fill { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,46,77,.38); transition: width .35s ease; }
+      .lv-pollopt .lbl, .lv-pollopt .pct { position: relative; z-index: 1; }
+      .lv-pollopt .pct { font-weight: 900; }
+      .lv-pollopt.mine { border-color: #FF2E4D; box-shadow: inset 0 0 0 1px #FF2E4D; }
+      .lv-pollopt.win { border-color: #ffd166; box-shadow: inset 0 0 0 1px #ffd166; }
+      .lv-pollopt[disabled] { cursor: default; }
+      .lv-pollfoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11.5px; color: rgba(255,255,255,.75); font-weight: 700; margin-top: 6px; }
       #livePanel.live-fs .lv-aucpin { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
       #livePanel.pin-on .lv-comments { bottom: 128px; }
       #livePanel.live-fs.pin-on .lv-comments { bottom: calc(158px + env(safe-area-inset-bottom, 0px)); }
@@ -3516,6 +3540,7 @@
             <div class="lv-titleline" id="liveTitleLine"></div>
             <div class="lv-comments" id="liveComments" aria-live="polite"></div>
             <div class="lv-aucpin" id="liveAucPin" hidden></div>
+            <div class="lv-pollcard" id="livePollCard" hidden></div> <!-- [RP-V7.319] in-player live poll card -->
             <div class="lv-bottombar" id="liveBottomBar">
               <div class="lv-commentbar" id="liveCommentBar" hidden>
                 <input id="liveCommentInput" type="text" maxlength="200" placeholder="Say something nice…" autocomplete="off" />
@@ -8705,6 +8730,7 @@
           socket.on("room-state", onRoomState);
           socket.on("lives-update", onLivesUpdate); // [RP-V7.28] server live registry snapshots
           socket.on("pot-update", onPotUpdate); // [RP-V7.41] Plaza Pot state changes in a live
+          socket.on("poll-update", onPollUpdate319); // [RP-V7.319] Live poll state changes in a live
           socket.on("pot-drawn", onPotDrawn); // [RP-V7.41] Plaza Pot draw results (winner celebration)
           socket.on("dailypot-update", onDailyPotUpdate); // [RP-V7.42] Daily Pot state (whole-Plaza broadcast)
           socket.on("dailypot-burst", onDailyPotBurst); // [RP-V7.42] Daily Pot burst — secret moment 7–9 PM ET, the app-wide show
@@ -11500,7 +11526,8 @@
         regAt: 0,              // [RP-V7.28] when the last lives-update snapshot arrived
         regOrder: [],          // [RP-V7.40] room order inside the latest snapshot, when the server ranked it for my account
         regRanked: false,      // [RP-V7.40] the latest snapshot arrived personalized for my account (server-side For You)
-        pot: null,             // [RP-V7.41] Plaza Pot state for the live I'm in ({ status, total, entries, winners? }) — from snapshots / pot events
+        pot: null,             // [RP-V7.41] Plaza Pot state for the live I'm in
+        poll: null,            // [RP-V7.319] Live poll state for the live I'm in ({ status, question, options, counts, pcts, totalVotes, myVote }) — from snapshots / poll events ({ status, total, entries, winners? }) — from snapshots / pot events
         potFxAt: 0,            // [RP-V7.41] when the last pot-drawn celebration ran (dedupe)
         stayHostId: null, staySince: 0, // [RP-V7.40] live-stay signal: the host (socket id) I'm watching, and since when
         regBeat: null,         // [RP-V7.28] host registry heartbeat timer (20s)
@@ -11581,7 +11608,7 @@
         });
         var list = Object.keys(Live.directory).map(function (id) {
           var e = Live.directory[id];
-          var o = { hostId: id, room: e.room, name: e.name || "Host", title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0, regKey: e.regKey || "", hostAccountId: e.hostAccountId || null, priv: !!e.priv, pot: e.pot || null, startedAt: e.startedAt || 0, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0 }; // [RP-V7.299] registry fields ride the render object — the ticket badge/door (and the priv/pot lines liveRowHTML already draws) read them from here
+          var o = { hostId: id, room: e.room, name: e.name || "Host", title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0, regKey: e.regKey || "", hostAccountId: e.hostAccountId || null, priv: !!e.priv, pot: e.pot || null, poll: e.poll || null, startedAt: e.startedAt || 0, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0 }; // [RP-V7.299] registry fields ride the render object — the ticket badge/door (and the priv/pot lines liveRowHTML already draws) read them from here
           // the host's own announced home + interests win over any
           // fallback location guessed from the room they announced in
           var hm = Live.hostMeta[id];
@@ -11670,6 +11697,7 @@
             if (lv.hostAccountId) e.hostAccountId = lv.hostAccountId; // [RP-V7.40]
             if (lv.priv != null) e.priv = !!lv.priv; // [RP-V7.138] private lives are badged for the people allowed to see them
             e.pot = lv.pot || null; // [RP-V7.41] Plaza Pot state rides the snapshot
+            e.poll = lv.poll || null; // [RP-V7.319] Live Poll state rides the snapshot
             if (typeof lv.watchers === "number") e.watchers = lv.watchers; // [RP-V7.63] carried for the signup invite's busiest-live pick
             if (lv.startedAt) e.startedAt = lv.startedAt; // [RP-V7.63] …and its earliest-started tie-break
             if (typeof lv.ticketPrice === "number") e.ticketPrice = lv.ticketPrice; // [RP-V7.299] door price refreshes on existing entries too
@@ -11677,7 +11705,7 @@
             e.seen = now; e.reg = true; e.regKey = lv.key || e.regKey || "";
             if (foundId !== key && lv.hostId) { Live.directory[key] = e; delete Live.directory[foundId]; }
           } else {
-            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, pot: lv.pot || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0 }; // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
+            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, pot: lv.pot || null, poll: lv.poll || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0 }; // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
           }
         });
         Live.regRooms = rooms;
@@ -11687,6 +11715,7 @@
           if (e2 && e2.reg && !rooms[e2.room] && id !== Online.myId) delete Live.directory[id];
         });
         if (typeof syncLivePot === "function") syncLivePot(); // [RP-V7.41] refresh the pot chip for the live I'm in
+        if (typeof syncLivePoll319 === "function") syncLivePoll319(); // [RP-V7.319] refresh the poll card for the live I'm in
         if (typeof renderLiveNow === "function") renderLiveNow();
         if (typeof renderLiveDir === "function") renderLiveDir();
         try { rpInviteLinkOnSync(); } catch (e) { } // [RP-V7.65] a share-link invite routes on this same first sync — and outranks the generic invite below
@@ -17114,6 +17143,7 @@
         if (host && !liveChurchCtx() && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>'; // [RP-V7.89] no Sell row in a church live
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreSetup"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z\"/><path d=\"M14.5 6.5l3 3\"/></svg> Edit title &amp; topic</button>'; // [RP-V7.63] the setup sheet's new home: an optional editor, no longer a mandatory pre-live gate
         if (host) html += '<button type="button" class="btn-mini" id="lvMorePot">🪙 Plaza Pot' + (Live.pot && Live.pot.status === "open" ? " · " + (Live.pot.total || 0) + " charms · " + (Live.pot.entries || 0) + " in" : (liveAcctToken() ? "" : " · sign in to open")) + "</button>"; // [RP-V7.41] host opens/manages the pot from the ••• tray // [RP-V7.48] guest hosts see the sign-in requirement on the row itself
+        if (host && !aucCtx) html += '<button type="button" class="btn-mini" id="lvMorePoll319">📊 Poll' + (Live.poll && Live.poll.status === "open" ? " · live now — tap to manage" : "") + "</button>"; // [RP-V7.319] host runs polls from the ••• tray — never on an auction show
         if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreBattle">⚔️ Battle</button>'; // [RP-V7.83] Battle's home is this sheet now (was a floating button) — regular lives only, never an auction show
         if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreAddPeople">＋ Add people</button>'; // [RP-V7.83] Add people moved with Battle
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreEnd">⏹ End Live</button>';
@@ -17140,6 +17170,7 @@
         wire("lvMoreBattle", function () { closeSheet(); if (window.rpBattleOpen) window.rpBattleOpen(); }); // [RP-V7.83]
         wire("lvMoreAddPeople", function () { closeSheet(); if (window.rpAddPeopleOpen) window.rpAddPeopleOpen(); }); // [RP-V7.83]
         wire("lvMorePot", function () { closeSheet(); openPotSheet(); }); // [RP-V7.41]
+        wire("lvMorePoll319", function () { closeSheet(); openPollSheet319(); }); // [RP-V7.319]
         wire("lvMoreSetup", function () { closeSheet(); openLiveSetup(); }); // [RP-V7.63]
         wire("lvMoreEnd", function () { closeSheet(); liveEndMine(); });
         wire("lvMoreLeave", function () { closeSheet(); liveLeaveStage(); });
@@ -17183,6 +17214,7 @@
           if (chip) chip.hidden = true;
           var potChipOff = $("livePotChip"); if (potChipOff) potChipOff.hidden = true; // [RP-V7.41]
           var potVisOff = $("livePotVisual"); if (potVisOff) potVisOff.hidden = true; // [RP-V7.53]
+          var pollCardOff = $("livePollCard"); if (pollCardOff) { pollCardOff.hidden = true; } var pollPanelOff = $("livePanel"); if (pollPanelOff) pollPanelOff.classList.remove("poll-on"); // [RP-V7.319]
           if (rail) rail.hidden = true;
           if (bar) bar.hidden = true;
           if (mbtn) mbtn.hidden = true;
@@ -17217,6 +17249,7 @@
         if (bar) bar.hidden = false;
         if (mbtn) mbtn.hidden = false;
         if (typeof syncLivePot === "function") syncLivePot(); // [RP-V7.41] keep the pot chip in step with the live
+        if (typeof syncLivePoll319 === "function") syncLivePoll319(); // [RP-V7.319] keep the poll card in step with the live
         syncRailJoinBtn(); // [RP-V7.28]
       }
       function openLiveHostTools() {
@@ -19000,6 +19033,218 @@
           });
         });
       }
+      /* ---------- [RP-V7.319] Live polls ----------
+         Host-run polls inside a live, modelled on Facebook's
+         in-player poll (Branden's call, Nov 10, 2026). FREE voting
+         only — no charms, no entry, no prizes. All truth lives
+         server-side (the /api/poll/* routes + the poll carried on
+         the lives snapshot); this module only renders the state the
+         server hands it (snapshot `poll`, `poll-update`) and calls
+         the routes with the account token, exactly like the Plaza
+         Pot module above. NO new timers: tallies arrive on the
+         existing live sync, and the only timeout in this module is
+         the one-shot that retires the final-results card ~10s after
+         a poll ends. The card stays visible (and tappable) through
+         the full-screen idle fade — it is live interactive content,
+         like the video itself, not chrome. */
+      function pollCall319(path, body) {
+        var tok = liveAcctToken();
+        var headers = { "Content-Type": "application/json" };
+        if (tok) headers["Authorization"] = "Bearer " + tok;
+        return fetch(path, { method: "POST", headers: headers, body: JSON.stringify(body || {}) })
+          .then(function (r) { return r.text().then(function (t) { var j = null; try { j = JSON.parse(t); } catch (e) { } return { status: r.status, json: j }; }); })
+          .catch(function () { return { status: 0, json: null }; });
+      }
+      function pollStateFetch319(key) {
+        var tok = liveAcctToken();
+        var headers = {};
+        if (tok) headers["Authorization"] = "Bearer " + tok;
+        return fetch("/api/poll/state?live=" + encodeURIComponent(key || ""), { headers: headers })
+          .then(function (r) { return r.json(); })
+          .catch(function () { return null; });
+      }
+      var pollFinalSeen319 = null; // { id, hideAt } — the final card's 10 seconds
+      var pollFinalTimer319 = null;
+      function adoptLivePoll319(p) {
+        // Shared payloads (snapshot / poll-update) are viewer-neutral:
+        // carry MY vote across them when the poll is the same one, so
+        // the card never un-marks the option I picked.
+        if (p && Live.poll && p.id === Live.poll.id && typeof p.myVote !== "number" && typeof Live.poll.myVote === "number")
+          p.myVote = Live.poll.myVote;
+        Live.poll = p || null;
+        renderLivePollCard319();
+      }
+      function syncLivePoll319() {
+        // Never DOWNGRADE a known poll (the V7.48 pot rule): only an
+        // entry that explicitly knows — a poll object, or null filed
+        // by a server snapshot — may set Live.poll.
+        var e = livePotEntry();
+        if (e && typeof e.poll !== "undefined") adoptLivePoll319(e.poll || null);
+        else renderLivePollCard319();
+      }
+      function onPollUpdate319(data) {
+        if (!data || data.room !== livePotRoom()) return;
+        var e = livePotEntry();
+        if (e) e.poll = data.poll || null;
+        adoptLivePoll319(data.poll || null);
+        if (pollSheetShowing319()) renderPollSheet319();
+      }
+      function pollSheetShowing319() { return !!$("pollSheetBody319"); }
+      function renderLivePollCard319() {
+        var card = $("livePollCard"); if (!card) return;
+        var panel = $("livePanel");
+        var p = Live.poll;
+        function hide() {
+          card.hidden = true; card.innerHTML = "";
+          if (panel) panel.classList.remove("poll-on");
+        }
+        if (!Live.active || !p) {
+          pollFinalSeen319 = null;
+          if (pollFinalTimer319) { clearTimeout(pollFinalTimer319); pollFinalTimer319 = null; }
+          hide();
+          return;
+        }
+        if (p.status === "ended") {
+          if (!pollFinalSeen319 || pollFinalSeen319.id !== p.id) {
+            pollFinalSeen319 = { id: p.id, hideAt: Date.now() + 10000 };
+            if (pollFinalTimer319) clearTimeout(pollFinalTimer319);
+            pollFinalTimer319 = setTimeout(function () { pollFinalTimer319 = null; renderLivePollCard319(); }, 10050);
+          }
+          if (Date.now() >= pollFinalSeen319.hideAt) { hide(); return; }
+        } else if (pollFinalSeen319) {
+          pollFinalSeen319 = null;
+          if (pollFinalTimer319) { clearTimeout(pollFinalTimer319); pollFinalTimer319 = null; }
+        }
+        var total = p.totalVotes || 0;
+        var html = '<div class="lv-pollhead"><span>' + (p.status === "ended" ? "📊 Final results" : "📊 Poll") + "</span><span>" +
+          (total > 0 ? total + (total === 1 ? " vote" : " votes") : "No votes yet") + "</span></div>" +
+          '<div class="lv-pollq">' + escHtml(p.question) + "</div>";
+        (p.options || []).forEach(function (opt, i) {
+          var pct = (p.pcts && typeof p.pcts[i] === "number") ? p.pcts[i] : 0;
+          var cls = "lv-pollopt" + (p.myVote === i ? " mine" : "") + (p.status === "ended" && p.winner === i ? " win" : "");
+          html += '<button type="button" class="' + cls + '" data-pollvote319="' + i + '"' + (p.status === "ended" ? " disabled" : "") + '><span class="fill" style="width:' + pct + '%"></span><span class="lbl">' + escHtml(opt) + (p.myVote === i ? " ✓" : "") + '</span><span class="pct">' + pct + "%</span></button>";
+        });
+        if (p.status === "open") {
+          html += '<div class="lv-pollfoot"><span>' + (liveAcctToken() ? "Tap an option to vote — change it anytime." : "Sign in to vote.") + "</span>" +
+            (iAmHost() ? '<button type="button" class="btn-mini" data-pollend319="1">⏹ End poll</button>' : "") + "</div>";
+        } else {
+          html += '<div class="lv-pollfoot"><span>' + (p.winner != null && p.options && p.options[p.winner] != null
+            ? "🏆 " + escHtml(p.options[p.winner]) + " wins with " + (p.winPct != null ? p.winPct : 0) + "%"
+            : "No votes — no winner.") + "</span></div>";
+        }
+        card.innerHTML = html;
+        card.hidden = false;
+        if (panel) panel.classList.add("poll-on");
+        card.querySelectorAll("[data-pollvote319]").forEach(function (b) {
+          b.addEventListener("click", function () { pollVote319(Number(b.getAttribute("data-pollvote319"))); });
+        });
+        var endBtn = card.querySelector("[data-pollend319]");
+        if (endBtn) endBtn.addEventListener("click", function () { pollEnd319(); });
+      }
+      function pollVote319(idx) {
+        if (!liveAcctToken()) { toast("Sign in to vote in the poll."); return; }
+        var key = livePotKey();
+        if (!key) { toast("Couldn't find this live — try again in a moment."); return; }
+        pollCall319("/api/poll/vote", { live: key, option: idx }).then(function (rr) {
+          if (rr.json && rr.json.ok) adoptLivePoll319(rr.json.poll);
+          else toast((rr.json && rr.json.error) || "Couldn't vote — try again.");
+        });
+      }
+      function pollEnd319() {
+        var key = livePotKey();
+        if (!key) return;
+        pollCall319("/api/poll/end", { live: key }).then(function (rr) {
+          if (rr.json && rr.json.ok) {
+            adoptLivePoll319(rr.json.poll);
+            if (pollSheetShowing319()) renderPollSheet319();
+          } else toast((rr.json && rr.json.error) || "Couldn't end the poll.");
+        });
+      }
+      function pollForm319() {
+        var h = '<div class="field"><label for="pollQ319">Your question (up to 80 characters)</label>' +
+          '<input class="online-input-full" id="pollQ319" type="text" maxlength="80" placeholder="e.g. Best food in the Plaza?"/></div>';
+        for (var i = 0; i < 4; i++) {
+          h += '<div class="field"><label for="pollO' + i + '319">Option ' + (i + 1) + (i >= 2 ? " (optional)" : "") + '</label>' +
+            '<input class="online-input-full" id="pollO' + i + '319" type="text" maxlength="30" placeholder="Up to 30 characters"/></div>';
+        }
+        h += '<p class="age-note">Voting is free — no charms, no prizes, just the room\'s voice. One vote each, and voters can change their pick while the poll is open.</p>' +
+          '<button type="button" class="btn-primary" id="pollStartBtn319" style="width:100%; padding:13px;">📊 Start the poll</button>';
+        return h;
+      }
+      function openPollSheet319() {
+        if (!Live.active) { toast("Nobody is live right now."); return; }
+        openSheet('<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button><div class="game-box" id="pollSheetBody319"><h3>📊 Live poll</h3><p class="pot-sub">Loading the poll…</p></div>');
+        wireLiveSheetClose();
+        renderPollSheet319();
+      }
+      function renderPollSheet319() {
+        var body0 = $("pollSheetBody319");
+        if (!body0) return;
+        var key = livePotKey();
+        pollStateFetch319(key).then(function (r) {
+          var body = $("pollSheetBody319");
+          if (!body) return; // sheet moved on
+          var st = (r && r.ok) ? r.poll : null;
+          if (st) adoptLivePoll319(st);
+          var host = iAmHost();
+          var signedIn = !!liveAcctToken();
+          var html = "<h3>📊 Live poll</h3>";
+          function standings(s) {
+            return (s.options || []).map(function (o, i) {
+              return '<div class="pot-winrow"><span>' + escHtml(o) + (s.winner === i ? " 🏆" : "") + '</span><span>' + ((s.pcts && s.pcts[i]) || 0) + "% · " + ((s.counts && s.counts[i]) || 0) + "</span></div>";
+            }).join("");
+          }
+          if (st && st.status === "open") {
+            html += '<p class="pot-sub">This poll is live on the player right now:</p>' +
+              '<div class="pot-total" style="font-size:19px;">' + escHtml(st.question) + "</div>" +
+              standings(st) +
+              '<p class="pot-sub">' + (st.totalVotes || 0) + " votes so far</p>";
+            if (host) html += '<button type="button" class="btn-primary" id="pollEndBtn319" style="width:100%; padding:12px;">⏹ End poll &amp; show final results</button>';
+            else html += '<p class="age-note">Tap an option on the poll card to vote — you can change your vote while the poll is open.</p>';
+          } else if (st && st.status === "ended") {
+            html += '<p class="pot-sub">Final results:</p>' +
+              '<div class="pot-total" style="font-size:19px;">' + escHtml(st.question) + "</div>" +
+              standings(st) +
+              '<p class="pot-sub">' + (st.totalVotes || 0) + " votes · " + (st.winner != null ? escHtml(st.options[st.winner] || "") + " wins with " + (st.winPct || 0) + "%" : "no votes — no winner") + "</p>";
+            if (host) html += signedIn ? '<p class="age-note">Run another one:</p>' + pollForm319() : '<p class="pot-sub">🔐 Sign in to run a poll.</p>';
+          } else {
+            html += '<p class="pot-sub">No poll is open in this live.</p>';
+            if (host && !signedIn) html += '<p class="pot-sub">🔐 Sign in to run a poll — polls are tied to your account, so only you can start and end them.</p>';
+            else if (host) html += pollForm319();
+            else html += '<p class="age-note">When the host starts a poll it appears right on the player — tap an option to vote. Voting is always free.</p>';
+          }
+          html += '<p class="pot-err" id="pollErr319"></p>' +
+            '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" data-act="close2">Done</button></div>';
+          body.innerHTML = html;
+          wireLiveSheetClose();
+          function err(msg) { var e2 = $("pollErr319"); if (e2) e2.textContent = msg || ""; }
+          var startBtn = $("pollStartBtn319");
+          if (startBtn) startBtn.addEventListener("click", function () {
+            var q = (($("pollQ319") || {}).value || "").trim();
+            var opts = [];
+            for (var i = 0; i < 4; i++) {
+              var v = (($("pollO" + i + "319") || {}).value || "").trim();
+              if (v) opts.push(v);
+            }
+            if (!q) { err("Ask a question first."); return; }
+            if (opts.length < 2) { err("Give the poll at least 2 answer options."); return; }
+            startBtn.disabled = true; startBtn.style.opacity = ".55";
+            pollCall319("/api/poll/create", { live: livePotKey(), question: q, options: opts }).then(function (rr) {
+              startBtn.disabled = false; startBtn.style.opacity = "";
+              if (rr.json && rr.json.ok) {
+                adoptLivePoll319(rr.json.poll);
+                closeSheet();
+                toast("📊 Poll is live — the room can vote now!");
+              } else err((rr.json && rr.json.error) || "Couldn't start the poll.");
+            });
+          });
+          var endBtn = $("pollEndBtn319");
+          if (endBtn) endBtn.addEventListener("click", function () {
+            endBtn.disabled = true; endBtn.style.opacity = ".55";
+            pollEnd319();
+          });
+        });
+      }
       function maybeSendWatch() {
         if (!Live.active || iAmOnStage()) return;
         var key = Live.hostId + ":" + Live.stage.join(",");
@@ -19043,7 +19288,7 @@
         if (topic) Live.topic = topic;
         Live.stage = newStage;
         var prevDir = Live.directory[host];
-        Live.directory[host] = { room: Online.room, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: (Online.players[host] && Online.players[host].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), er: (typeof er === "number" ? er : (prevDir && prevDir.er) || 0), erAt: (typeof er === "number" ? Date.now() : (prevDir && prevDir.erAt) || 0), hostAccountId: (prevDir && prevDir.hostAccountId) || null, reg: !!(prevDir && prevDir.reg), regKey: (prevDir && prevDir.regKey) || "", pot: (prevDir && prevDir.pot) || null }; // [RP-V7.48] pot rides through the 8s heartbeat rebuild — dropping it here is what hid the chip from viewers
+        Live.directory[host] = { room: Online.room, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: (Online.players[host] && Online.players[host].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), er: (typeof er === "number" ? er : (prevDir && prevDir.er) || 0), erAt: (typeof er === "number" ? Date.now() : (prevDir && prevDir.erAt) || 0), hostAccountId: (prevDir && prevDir.hostAccountId) || null, reg: !!(prevDir && prevDir.reg), regKey: (prevDir && prevDir.regKey) || "", pot: (prevDir && prevDir.pot) || null, poll: (prevDir && prevDir.poll) || null }; // [RP-V7.48] pot rides through the 8s heartbeat rebuild — dropping it here is what hid the chip from viewers
         pruneDirRoom(Online.room, host); // [RP-V7.24]
         clearTimeout(Live.staleTimer); clearTimeout(Live.hostGraceTimer); Live.hostGraceTimer = null; // [RP-V7.24] host is demonstrably back
         oldStage.forEach(function (id) { if (id !== Online.myId && newStage.indexOf(id) < 0) closeLivePeer(id); });
@@ -19075,7 +19320,7 @@
               // a personal live starting in another room: file it in the
               // directory so 🔴 Live Now (and the lobby list) can show it
               // [RP-V7.75] teens file these too (lives are all-ages now)
-              Live.directory[fromId] = { room: o.room, name: fromName || liveName(fromId), title: o.title || "", topic: o.topic || "Chatting", photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, reg: !!(Live.directory[fromId] && Live.directory[fromId].reg), regKey: (Live.directory[fromId] && Live.directory[fromId].regKey) || "", pot: (Live.directory[fromId] && Live.directory[fromId].pot) || null }; // [RP-V7.48] pot carried
+              Live.directory[fromId] = { room: o.room, name: fromName || liveName(fromId), title: o.title || "", topic: o.topic || "Chatting", photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, reg: !!(Live.directory[fromId] && Live.directory[fromId].reg), regKey: (Live.directory[fromId] && Live.directory[fromId].regKey) || "", pot: (Live.directory[fromId] && Live.directory[fromId].pot) || null, poll: (Live.directory[fromId] && Live.directory[fromId].poll) || null }; // [RP-V7.48] pot carried
               pruneDirRoom(o.room, fromId); // [RP-V7.24]
               // fallback location: they announced from the room I'm in —
               // if that's a state/city room, they were just partying near
@@ -19095,7 +19340,7 @@
             Live.title = o.title || ""; Live.topic = o.topic || "Chatting";
             Live.stage = [fromId]; Live.hearts = 0;
             EngLog[fromId] = []; // fresh broadcast: clean engagement log
-            Live.directory[fromId] = { room: Online.room, name: Live.hostName, title: Live.title, topic: Live.topic, photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, pot: (Live.directory[fromId] && Live.directory[fromId].pot) || null }; // [RP-V7.48] pot carried
+            Live.directory[fromId] = { room: Online.room, name: Live.hostName, title: Live.title, topic: Live.topic, photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, pot: (Live.directory[fromId] && Live.directory[fromId].pot) || null, poll: (Live.directory[fromId] && Live.directory[fromId].poll) || null }; // [RP-V7.48] pot carried // [RP-V7.319] poll carried
             addChatSystem("🔴 " + Live.hostName + " just went LIVE!");
             renderLivePanel();
             maybeSendWatch();
