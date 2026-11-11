@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.325.1" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.327" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -23362,11 +23362,31 @@
         var s = giftArtImg(g, heroPx);
         if (!s) { s = document.createElement("span"); s.textContent = g.icon || "🎁"; s.style.fontSize = "110px"; }
         s.classList.add("gfx-p");
-        s.style.left = "50%";
-        s.style.bottom = holFit220 ? "14.5%" : "17%"; /* [RP-V7.218] small-gift appear seats in the band zone with the stage shows (box top ~58% on a 440x880 screen) -- [RP-V7.220 fix] the smaller holiday hero seats lower so its whole square sits inside the band (top edge ~50.5%) */
-        s.style.animation = "gfxAppear217 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
+        /* [RP-V7.327] A FILM hero off the live screen fills the
+           screen (see the fs327 CSS note): the band seat below makes
+           the hero box the film's own 16:9 frame, so a film whose
+           subject bursts past its frame is cut at the box's straight
+           edges — the rectangle Branden filmed on a photo post
+           (Nov 11, 2026). The band stays for the live screen
+           (body.live-fs — it protects the host's picture, his Nov 3
+           ruling) and for art heroes (keyed subjects floating on
+           alpha have no frame to be cut by). Full-screen, the keyer
+           cover-crops the film into the viewport (RpKeyUpgrade
+           cover + keepBox); without WebGL the element's own
+           object-fit: cover does the same job. */
+        var fs327 = (s.tagName === "VIDEO") && !holFit220 && !(document.body && document.body.classList.contains("live-fs"));
+        if (fs327) {
+          ov.classList.add("fs327");
+          s.style.left = "0px"; s.style.top = "0px"; s.style.bottom = "auto";
+          s.style.width = "100vw"; s.style.height = "100dvh";
+          s.style.animation = "gfxFsIn327 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
+        } else {
+          s.style.left = "50%";
+          s.style.bottom = holFit220 ? "14.5%" : "17%"; /* [RP-V7.218] small-gift appear seats in the band zone with the stage shows (box top ~58% on a 440x880 screen) -- [RP-V7.220 fix] the smaller holiday hero seats lower so its whole square sits inside the band (top edge ~50.5%) */
+          s.style.animation = "gfxAppear217 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
+        }
         stage.appendChild(s);
-        if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g); }
+        if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g, fs327 ? { cover: true, keepBox: true } : undefined); }
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
         ov.appendChild(cap);
@@ -23376,9 +23396,20 @@
         var ov = giftFxOverlay("medium"); fxTag219(ov, g, fromName); // [RP-V7.219]
         var stage = ov.querySelector(".gfx-stage");
         var hero = fxHero(g, Math.round(window.innerWidth || 400)); // [RP-V7.218 section 8] band-fill: the burst hero takes the full bottom-band width (was 240/200 at [RP-V7.27])
-        hero.style.animation = "gfxPop 4200ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.219] x2 burst hero
+        /* [RP-V7.327] same rule as the float: a FILM burst hero off
+           the live screen fills the screen (cover-keyed); in a live,
+           and for art heroes, the band burst below is unchanged. */
+        var fs327 = (hero.tagName === "VIDEO") && !(document.body && document.body.classList.contains("live-fs"));
+        if (fs327) {
+          ov.classList.add("fs327");
+          hero.style.left = "0px"; hero.style.top = "0px";
+          hero.style.width = "100vw"; hero.style.height = "100dvh";
+          hero.style.animation = "gfxFsIn327 4200ms cubic-bezier(.2,.7,.3,1) both";
+        } else {
+          hero.style.animation = "gfxPop 4200ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.219] x2 burst hero
+        }
         stage.appendChild(hero);
-        if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g); // [RP-V7.217] hero keyed live — no box
+        if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, fs327 ? { cover: true, keepBox: true } : undefined); // [RP-V7.217] hero keyed live — no box
         var parts = g.fx === "burst" ? ["✨", "🎇", "💥", g.icon] : [g.icon, "✨", "⭐"];
         var n = giftFxReduced() ? 5 : 18;
         for (var i = 0; i < n; i++) {
@@ -29470,6 +29501,25 @@ body:not(.live-fs) #rp65LapBtns,
 body:not(.live-fs) #rp65Series,
 body:not(.live-fs) #rp66Box,
 body:not(.live-fs) #rp65How { display:none !important; }
+/* [RP-V7.327] OFF-LIVE GIFT FILMS FILL THE SCREEN (Branden, Nov 11,
+   2026: a Heart sent to a photo post played trapped in a horizontal
+   band — "the gift didn't blend in with the screen — it showed most
+   of the gift, the rest of it was blocked out at the edges from the
+   rectangular shape"). The V7.218 bottom band exists for the LIVE
+   screen (his Nov 3 ruling: shows live in the bottom half, see-
+   through, so they don't block the host). Off the live screen there
+   is no host to protect, and a film whose subject bursts past its
+   own frame (the films are built that way — the Heart's subject
+   fills 100% of its frame at peak) is amputated at the band's
+   straight edges. So: while body has no .live-fs, film shows
+   present FULL-SCREEN — float/burst heroes get the viewport box
+   inline (giftFxFloat / giftFxBurst) with this entrance, and the
+   stage gets .fs327 so its film box fills the screen too. Live
+   shows (body.live-fs) keep the band exactly as approved. */
+@keyframes gfxFsIn327 { 0% { opacity: 0; transform: scale(1.07); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } }
+#rpStage.fs327 .rp-stage-art.film { width: 100vw; height: 100dvh; aspect-ratio: auto; }
+#rpStage.fs327.bandblend218, #rpStage.fs327.ghost218 { mix-blend-mode: normal; }
+#rpStage.fs327 .rp-stage-art.bandblend218 video.rp-gift-film { mix-blend-mode: normal !important; -webkit-mask-image: none !important; mask-image: none !important; }
 </style>
 <script>
 /* ================= RP-V5: gift visuals, live battle, social sign-in ================= */
@@ -30071,12 +30121,18 @@ window.RpKey = RpKey;
    a keyed canvas in place: the canvas inherits the element's classes
    and inline style (size, position, CSS animation); the original
    element stays in the DOM as the hidden texture feeder. */
-window.RpKeyUpgrade = function (el, g) {
+window.RpKeyUpgrade = function (el, g, opts327) {
   try {
     if (!el || (el.tagName !== "VIDEO" && el.tagName !== "IMG") || !RpKey.supported()) return null;
     var parent = el.parentNode;
     if (!parent) return null;
-    var h = RpKey.attach(el, {});
+    /* [RP-V7.327] opts327.cover: the keyer samples a cover-crop
+       window of the film (see RpKey.attach), so a hero boxed at the
+       full viewport shows the film cropped to the screen instead of
+       stretched; opts327.keepBox: fixAspect below must not shrink
+       the canvas back to the film's 16:9 raster box. Default (no
+       opts) is byte-for-byte the pre-327 behaviour. */
+    var h = RpKey.attach(el, (opts327 && opts327.cover) ? { cover: true } : {});
     if (!h) return null;
     var cv = h.canvas;
     cv.className = (el.className || "") + " rp-key-canvas";
@@ -30086,6 +30142,7 @@ window.RpKeyUpgrade = function (el, g) {
        would stretch 16:9 films. Height follows the film's raster. */
     if (el.tagName === "VIDEO") {
       var fixAspect = function () {
+        if (opts327 && opts327.keepBox) return; // [RP-V7.327] full-screen hero: the viewport box stands
         try { if (el.videoWidth && el.videoHeight && cv.clientWidth) cv.style.height = Math.round(cv.clientWidth * el.videoHeight / el.videoWidth) + "px"; } catch (e) { }
       };
       el.addEventListener("loadedmetadata", fixAspect);
@@ -30334,6 +30391,10 @@ function stageStreakBump(key, add) {
     var RP_BAND_PORTRAIT = { ascension: 1, nebuladragon: 1 };
     ov.setAttribute("data-gid", sgid);
     ov.setAttribute("data-icon", g.icon || GIFT_ICONS[said] || "🎁");
+    /* [RP-V7.327] off the live screen, the stage's film box fills
+       the screen (the .fs327 CSS); in a live (body.live-fs) the
+       V7.218 band stays exactly as approved. */
+    if (!document.body.classList.contains("live-fs")) ov.classList.add("fs327");
     ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + sparks;
     ov.querySelector(".rp-stage-bg").style.animationDuration = dur + "ms";
     var artDiv = document.createElement("div");
