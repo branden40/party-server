@@ -6128,7 +6128,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.320", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.321", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -15279,6 +15279,60 @@ function moneyTx(db, entry) {
   );
   while (db.txlog.length > 5000) db.txlog.shift();
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.321] TEST-FUNDS GUARDRAIL (Branden, Nov 10, 2026). The owner
+// account RP holds ~880K charms, ~98% of them test charms self-gifted
+// from his other account @Popstar during gift-catalog testing — zero
+// verifiably purchase-backed. The Plaza settles gifts at 70% into the
+// receiver's cash-out-able $ earnings, so a gift sent from a test
+// balance would silently mint a real Stripe payout obligation funded
+// by nothing. The guardrail: accounts flagged TEST FUNDS settle every
+// charm-denominated payment in CHARMS — the receiver is credited the
+// same nominal share (70% gifts/tips/subs/clubs/tickets/shoutouts,
+// 90% auctions) into their spendable charm balance instead of their
+// earnings. The gift show, counts, leaderboards and the sender-side
+// experience are untouched; only the settlement bucket changes. The
+// ledger rows of a guarded settle record cents: 0 / cut: 0 and carry
+// promo: true, so Earn history renders them as "+N charms · promo
+// charms" and no money figure anywhere moves (the RP-V7.217 pattern).
+// No holds apply — holds guard cash-outs, and charms never cash out.
+// The flag itself lives on the account record (testFunds: true) and
+// is seeded at boot for exactly two accounts: the owner (resolved by
+// rpOwnerUserId — the same identity /api/owner/sales and the owner
+// charm grant use) and @Popstar (resolved by its unique username,
+// the identity key RP-V7.263 already uses). Unflagged senders settle
+// byte-identically to before this build.
+const TEST_FUNDS_USERNAME_KEYS_321 = ["popstar"];
+function testFunds321(user) {
+  if (!user) return false;
+  if (user.testFunds === true) return true;
+  return TEST_FUNDS_USERNAME_KEYS_321.indexOf(usernameKey(user.username)) >= 0;
+}
+// The nominal share of a charm-denominated payment, expressed back
+// in charms: shareCents / CHARM_CENT_VALUE (1 charm = 1 cent today,
+// so a 1,000-charm gift yields exactly 700 charms at the 70% split).
+function promoShareCharms321(charms, pct) {
+  const valueCents = Math.floor(Number(charms) || 0) * CHARM_CENT_VALUE;
+  return Math.floor(Math.floor((valueCents * pct) / 100) / CHARM_CENT_VALUE);
+}
+// Boot seed (guarded backfill): stamp testFunds onto the two seeded
+// accounts if the flag is not already there. Idempotent; writes the
+// accounts db only when something changed.
+function testFundsSeed321() {
+  const adb = readAccounts();
+  if (!adb || !Array.isArray(adb.users)) return;
+  const ownerId = rpOwnerUserId(adb);
+  let changed = false;
+  for (const u of adb.users) {
+    if (!u || u.testFunds === true) continue;
+    if ((ownerId && u.id === ownerId) || usernameKey(u.username) === "popstar") {
+      u.testFunds = true;
+      changed = true;
+      console.log("[testfunds321] flagged test-funds account:", u.username || u.id);
+    }
+  }
+  if (changed) writeAccounts(adb);
+}
 // [RP-V7.52] One shared serialization for every money mutation
 // (audit C1/C6/C7/H7): the gift POST, pot open/topup/draw/cancel/
 // join, cash-out and the Daily Pot settlement all run strictly
@@ -17272,6 +17326,9 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // exactly as before, even when the recipient is a teen.
   const senderTeen = ageFromDob(ctx.user.dob) < 18;
   const charmsOnly = senderTeen || ageFromDob(recipient.dob) < 18;
+  // [RP-V7.321] Test funds: an adult sender on a flagged account
+  // settles in charms at the same 70% share (see the loop below).
+  const promo321 = !charmsOnly && testFunds321(ctx.user);
   let giftBal = (db.giftBals && db.giftBals[ctx.user.id]) || 0;
   if (senderTeen) {
     if (giftBal < totalCost)
@@ -17311,6 +17368,12 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     let uValue = 0, uShare = 0, uCut = 0;
     if (charmsOnly) {
       db.balances[recipient.id] = (db.balances[recipient.id] || 0) + cost;
+    } else if (promo321) {
+      // [RP-V7.321] Test funds: the recipient is credited the same
+      // nominal 70% share — as CHARMS in their spendable balance,
+      // never as earnings. uValue/uShare/uCut stay 0, so the ledger
+      // pair records cents: 0 / cut: 0 and no money figure moves.
+      db.balances[recipient.id] = (db.balances[recipient.id] || 0) + promoShareCharms321(cost, GIFT_HOST_PCT);
     } else {
       uValue = cost * CHARM_CENT_VALUE;
       uShare = Math.floor((uValue * GIFT_HOST_PCT) / 100);
@@ -17339,6 +17402,9 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
       charms: cost,
       ref: giftId,
     };
+    // [RP-V7.321] The promo marker rides BOTH rows of the pair, so
+    // the sender's and the recipient's Earn history both stay honest.
+    if (promo321) txBase.promo = true;
     // [RP-V7.233] the validated source (when the client sent one)
     // rides BOTH rows of the pair — the sender's "Gift sent" and
     // the recipient's "Gift received" both show where it came from.
@@ -17346,14 +17412,20 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     moneyTx(db, Object.assign({}, txBase, {
       type: "gift-sent", cents: uValue, cut: uCut,
     }));
-    moneyTx(db, Object.assign({}, txBase, {
+    const giftRecvTx321 = Object.assign({}, txBase, {
       // [RP-V7.217] Honesty Fix: the stored activity record carries the
       // charms-only flag, so the receiver's Earn history can label the
       // entry "charms-only" and never render it as a $ figure (this
       // record's cents are already 0 for charms-only gifts by
       // construction above; no money figure moves for them anywhere).
       type: "gift-received", cents: uShare, cut: uCut, charmsOnly,
-    }));
+    });
+    // [RP-V7.321] A promo (test-funds) gift credits the recipient
+    // the 70% share IN CHARMS — the received row's charms state
+    // exactly what landed in their balance, so Earn history shows
+    // "+700 charms · promo charms", never the full sent amount.
+    if (promo321) giftRecvTx321.charms = promoShareCharms321(cost, GIFT_HOST_PCT);
+    moneyTx(db, giftRecvTx321);
   }
   const giftResponse = {
     ok: true,
@@ -17368,7 +17440,12 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     // post-gift earned/won gift balance (teen spend source — for an
     // adult sender it simply reports their stored value, unused).
     charmsOnly,
-    recipientCharms: charmsOnly ? totalCost : 0,
+    // [RP-V7.321] A promo (test-funds) send reports the charm share
+    // the recipient was actually credited; hostShareCents above
+    // stays 0 for it — no earnings exist. charmsOnly stays false,
+    // so the gift show plays exactly as for any adult gift.
+    promoFunds: promo321,
+    recipientCharms: charmsOnly ? totalCost : promo321 ? promoShareCharms321(cost, GIFT_HOST_PCT) * count : 0,
     giftBal,
     // [RP-V7.219] batch size (1 for a classic single send). charged
     // above stays the per-unit cost; hostShareCents is the batch
@@ -17442,7 +17519,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   console.log(
     "[money] gift", giftId, cost, count > 1 ? "x" + count : "", "charms:", ctx.user.name, "->", recipient.name,
     "| host", hostShare, "c", held ? "(held)" : "", "| cut", platformCut, "c",
-    charmsOnly ? "| CHARMS-ONLY (teen involved)" : ""
+    charmsOnly ? "| CHARMS-ONLY (teen involved)" : promo321 ? "| PROMO (test funds — settled in charms)" : ""
   );
   // [RP-V7.100] The recipient hears about the gift — bell + email.
   // (Idempotent retries return earlier and never reach this line, so a
@@ -17467,7 +17544,10 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // regular gift, the resolved instance name for a named holiday
   // send, null for an unnamed holiday send (generic wording).
   const gName250 = gInfo250 ? gInfo250.name : holInst309 ? holInst309.name : null;
-  const gAmt250 = giftAmountLabel250(cost, count, charmsOnly, giftId);
+  // [RP-V7.321] A promo (test-funds) gift states its charm amount
+  // to the receiver, never a $ figure (the V7.217 honesty rule) —
+  // the charmsOnly argument is what keeps the dollar ladder out.
+  const gAmt250 = giftAmountLabel250(cost, count, charmsOnly || promo321, giftId);
   // Article agreement for the single-send phrase: "an Ice Cream",
   // "The Crown Jewel" (the name carries its own article), else
   // "a Rose".
@@ -17621,6 +17701,8 @@ app.post("/api/money/tip", lockedHandler("tip", (req, res) => {
   const balance = db.balances[ctx.user.id] || 0;
   const senderTeen = ageFromDob(ctx.user.dob) < 18;
   const charmsOnly = senderTeen || ageFromDob(recipient.dob) < 18;
+  // [RP-V7.321] Test funds: settles in charms at the same 70% share.
+  const promo321 = !charmsOnly && testFunds321(ctx.user);
   let giftBal = (db.giftBals && db.giftBals[ctx.user.id]) || 0;
   if (senderTeen) {
     if (giftBal < charms)
@@ -17649,6 +17731,11 @@ app.post("/api/money/tip", lockedHandler("tip", (req, res) => {
   let tipValueCents = 0, tipShare = 0, tipCut = 0, tipHeld = false;
   if (charmsOnly) {
     db.balances[recipient.id] = (db.balances[recipient.id] || 0) + charms;
+  } else if (promo321) {
+    // [RP-V7.321] Test funds: the 70% share lands as CHARMS in the
+    // recipient's spendable balance; tipShare/tipCut stay 0 and no
+    // earnings exist.
+    db.balances[recipient.id] = (db.balances[recipient.id] || 0) + promoShareCharms321(charms, GIFT_HOST_PCT);
   } else {
     tipValueCents = charms * CHARM_CENT_VALUE;
     tipShare = Math.floor((tipValueCents * GIFT_HOST_PCT) / 100);
@@ -17669,15 +17756,20 @@ app.post("/api/money/tip", lockedHandler("tip", (req, res) => {
     earn.totalEarnedCents += tipShare;
   }
   const tipTxBase = { from: ctx.user.id, to: recipient.id, charms, ref: "tip" };
+  if (promo321) tipTxBase.promo = true; // [RP-V7.321] both rows of the pair carry the marker
   moneyTx(db, Object.assign({}, tipTxBase, {
     type: "tip-sent", cents: tipValueCents, cut: tipCut,
   }));
-  moneyTx(db, Object.assign({}, tipTxBase, {
+  const tipRecvTx321 = Object.assign({}, tipTxBase, {
     // The recipient's wallet row — kind "profile-tip"; the stored
     // charmsOnly flag (RP-V7.217 pattern) keeps a charms-only tip
     // from ever rendering as a $ figure in Earn history.
     type: "profile-tip", cents: tipShare, cut: tipCut, charmsOnly,
-  }));
+  });
+  // [RP-V7.321] Promo tip: the row's charms state the 70% share the
+  // recipient was actually credited in charms.
+  if (promo321) tipRecvTx321.charms = promoShareCharms321(charms, GIFT_HOST_PCT);
+  moneyTx(db, tipRecvTx321);
   const tipResponse = {
     ok: true,
     balance: db.balances[ctx.user.id],
@@ -17686,7 +17778,8 @@ app.post("/api/money/tip", lockedHandler("tip", (req, res) => {
     hostShareCents: tipShare,
     held: tipHeld,
     charmsOnly,
-    recipientCharms: charmsOnly ? charms : 0,
+    promoFunds: promo321, // [RP-V7.321]
+    recipientCharms: charmsOnly ? charms : promo321 ? promoShareCharms321(charms, GIFT_HOST_PCT) : 0,
     giftBal,
   };
   // The idempotency record lands in the SAME write as the debit
@@ -17709,7 +17802,7 @@ app.post("/api/money/tip", lockedHandler("tip", (req, res) => {
   console.log(
     "[money] tip", charms, "charms:", ctx.user.name, "->", recipient.name,
     "| host", tipShare, "c", tipHeld ? "(held)" : "", "| cut", tipCut, "c",
-    charmsOnly ? "| CHARMS-ONLY (teen involved)" : ""
+    charmsOnly ? "| CHARMS-ONLY (teen involved)" : promo321 ? "| PROMO (test funds — settled in charms)" : ""
   );
   // The recipient hears about the tip — bell + email, through the
   // same notifyActivity plumbing as gifts (kind "tip" rides the
@@ -17829,6 +17922,9 @@ function fanSubSettle296(db, fan, creator, priceCharms, ref296) {
   const balance = db.balances[fan.id] || 0;
   const fanTeen = ageFromDob(fan.dob) < 18;
   const charmsOnly = fanTeen || ageFromDob(creator.dob) < 18;
+  // [RP-V7.321] Test funds: settles in charms at the same 70% share
+  // (renewals included — this settle is the sweep's charge path too).
+  const promo321 = !charmsOnly && testFunds321(fan);
   let giftBal = (db.giftBals && db.giftBals[fan.id]) || 0;
   if (fanTeen) {
     if (giftBal < priceCharms)
@@ -17845,6 +17941,10 @@ function fanSubSettle296(db, fan, creator, priceCharms, ref296) {
   let valueCents = 0, share = 0, cut = 0, held = false;
   if (charmsOnly) {
     db.balances[creator.id] = (db.balances[creator.id] || 0) + priceCharms;
+  } else if (promo321) {
+    // [RP-V7.321] Test funds: the 70% share lands as CHARMS in the
+    // creator's spendable balance; share/cut stay 0, no earnings.
+    db.balances[creator.id] = (db.balances[creator.id] || 0) + promoShareCharms321(priceCharms, GIFT_HOST_PCT);
   } else {
     valueCents = priceCharms * CHARM_CENT_VALUE;
     share = Math.floor((valueCents * GIFT_HOST_PCT) / 100);
@@ -17863,9 +17963,13 @@ function fanSubSettle296(db, fan, creator, priceCharms, ref296) {
     earn.totalEarnedCents += share;
   }
   const txBase = { from: fan.id, to: creator.id, charms: priceCharms, ref: ref296 || "fansub" };
+  if (promo321) txBase.promo = true; // [RP-V7.321] both rows carry the marker
   moneyTx(db, Object.assign({}, txBase, { type: "fansub-sent", cents: valueCents, cut }));
-  moneyTx(db, Object.assign({}, txBase, { type: "fan-subscription", cents: share, cut, charmsOnly }));
-  return { ok: true, valueCents, share, cut, held, charmsOnly, balance: db.balances[fan.id], giftBal };
+  const fanSubRecvTx321 = Object.assign({}, txBase, { type: "fan-subscription", cents: share, cut, charmsOnly });
+  // [RP-V7.321] Promo: the row's charms state the share credited.
+  if (promo321) fanSubRecvTx321.charms = promoShareCharms321(priceCharms, GIFT_HOST_PCT);
+  moneyTx(db, fanSubRecvTx321);
+  return { ok: true, valueCents, share, cut, held, charmsOnly, promoFunds: promo321, promoCharms: promo321 ? promoShareCharms321(priceCharms, GIFT_HOST_PCT) : 0, balance: db.balances[fan.id], giftBal };
 }
 // Creator resolution — the tip rule verbatim: an id match must
 // agree with the name when both ride; otherwise an exact unique
@@ -17967,6 +18071,7 @@ app.post("/api/fansub/subscribe", lockedHandler("fansub-subscribe", (req, res) =
     recipient: { id: recipient.id, name: recipient.name },
     priceCharms: price, periodEnd,
     hostShareCents: settled.share, held: settled.held, charmsOnly: settled.charmsOnly,
+    promoFunds: !!settled.promoFunds, // [RP-V7.321]
     giftBal: settled.giftBal,
     subscription: fanSubPublicRecord296(record),
   };
@@ -17983,7 +18088,7 @@ app.post("/api/fansub/subscribe", lockedHandler("fansub-subscribe", (req, res) =
   writeMoney(db);
   console.log("[money] fansub", price, "charms/mo:", ctx.user.name, "->", recipient.name,
     "| host", settled.share, "c", settled.held ? "(held)" : "", "| cut", settled.cut, "c",
-    settled.charmsOnly ? "| CHARMS-ONLY (teen involved)" : "");
+    settled.charmsOnly ? "| CHARMS-ONLY (teen involved)" : settled.promoFunds ? "| PROMO (test funds — settled in charms)" : "");
   notifyActivity({
     toId: recipient.id,
     kind: "fansub",
@@ -18332,6 +18437,8 @@ function fanClubSettle298(db, member, creator, priceCharms, ref298) {
   const balance = db.balances[member.id] || 0;
   const memberTeen = ageFromDob(member.dob) < 18;
   const charmsOnly = memberTeen || ageFromDob(creator.dob) < 18;
+  // [RP-V7.321] Test funds: settles in charms at the same 70% share.
+  const promo321 = !charmsOnly && testFunds321(member);
   let giftBal = (db.giftBals && db.giftBals[member.id]) || 0;
   if (memberTeen) {
     if (giftBal < priceCharms)
@@ -18348,6 +18455,10 @@ function fanClubSettle298(db, member, creator, priceCharms, ref298) {
   let valueCents = 0, share = 0, cut = 0, held = false;
   if (charmsOnly) {
     db.balances[creator.id] = (db.balances[creator.id] || 0) + priceCharms;
+  } else if (promo321) {
+    // [RP-V7.321] Test funds: the 70% share lands as CHARMS in the
+    // creator's spendable balance; share/cut stay 0, no earnings.
+    db.balances[creator.id] = (db.balances[creator.id] || 0) + promoShareCharms321(priceCharms, GIFT_HOST_PCT);
   } else {
     valueCents = priceCharms * CHARM_CENT_VALUE;
     share = Math.floor((valueCents * GIFT_HOST_PCT) / 100);
@@ -18366,9 +18477,13 @@ function fanClubSettle298(db, member, creator, priceCharms, ref298) {
     earn.totalEarnedCents += share;
   }
   const txBase = { from: member.id, to: creator.id, charms: priceCharms, ref: ref298 || "fanclub" };
+  if (promo321) txBase.promo = true; // [RP-V7.321] both rows carry the marker
   moneyTx(db, Object.assign({}, txBase, { type: "club-sent", cents: valueCents, cut }));
-  moneyTx(db, Object.assign({}, txBase, { type: "fan-club", cents: share, cut, charmsOnly }));
-  return { ok: true, valueCents, share, cut, held, charmsOnly, balance: db.balances[member.id], giftBal };
+  const fanClubRecvTx321 = Object.assign({}, txBase, { type: "fan-club", cents: share, cut, charmsOnly });
+  // [RP-V7.321] Promo: the row's charms state the share credited.
+  if (promo321) fanClubRecvTx321.charms = promoShareCharms321(priceCharms, GIFT_HOST_PCT);
+  moneyTx(db, fanClubRecvTx321);
+  return { ok: true, valueCents, share, cut, held, charmsOnly, promoFunds: promo321, promoCharms: promo321 ? promoShareCharms321(priceCharms, GIFT_HOST_PCT) : 0, balance: db.balances[member.id], giftBal };
 }
 // Creator resolution — the tip/fan-sub rule verbatim.
 function fanClubResolveCreator298(ctx, b) {
@@ -18506,6 +18621,7 @@ app.post("/api/fanclub/join", lockedHandler("fanclub-join", (req, res) => {
     club: fanClubPublic298(db, recipient.id),
     priceCharms: price, periodEnd,
     hostShareCents: settled.share, held: settled.held, charmsOnly: settled.charmsOnly,
+    promoFunds: !!settled.promoFunds, // [RP-V7.321]
     giftBal: settled.giftBal,
     membership: fanClubPublicRecord298(record),
   };
@@ -18520,7 +18636,7 @@ app.post("/api/fanclub/join", lockedHandler("fanclub-join", (req, res) => {
   writeMoney(db);
   console.log("[money] fanclub", price, "charms/mo:", ctx.user.name, "->", recipient.name,
     "| host", settled.share, "c", settled.held ? "(held)" : "", "| cut", settled.cut, "c",
-    settled.charmsOnly ? "| CHARMS-ONLY (teen involved)" : "");
+    settled.charmsOnly ? "| CHARMS-ONLY (teen involved)" : settled.promoFunds ? "| PROMO (test funds — settled in charms)" : "");
   notifyActivity({
     toId: recipient.id,
     kind: "fanclub",
@@ -18902,6 +19018,7 @@ function ticketPublic299(t) {
     priceCharms: t.priceCharms, status: t.status,
     boughtAt: t.boughtAt, startedAt: t.startedAt,
     refundedAt: t.refundedAt || null, charmsOnly: !!t.charmsOnly,
+    promoFunds: !!t.promoFunds, // [RP-V7.321]
   };
 }
 // One charge + settlement — the fanClubSettle298 body with ticket
@@ -18911,6 +19028,8 @@ function ticketSettle299(db, buyer, host, priceCharms, ref299) {
   const balance = db.balances[buyer.id] || 0;
   const buyerTeen = ageFromDob(buyer.dob) < 18;
   const charmsOnly = buyerTeen || ageFromDob(host.dob) < 18;
+  // [RP-V7.321] Test funds: settles in charms at the same 70% share.
+  const promo321 = !charmsOnly && testFunds321(buyer);
   let giftBal = (db.giftBals && db.giftBals[buyer.id]) || 0;
   if (buyerTeen) {
     if (giftBal < priceCharms)
@@ -18927,6 +19046,10 @@ function ticketSettle299(db, buyer, host, priceCharms, ref299) {
   let valueCents = 0, share = 0, cut = 0, held = false;
   if (charmsOnly) {
     db.balances[host.id] = (db.balances[host.id] || 0) + priceCharms;
+  } else if (promo321) {
+    // [RP-V7.321] Test funds: the 70% share lands as CHARMS in the
+    // host's spendable balance; share/cut stay 0, no earnings.
+    db.balances[host.id] = (db.balances[host.id] || 0) + promoShareCharms321(priceCharms, GIFT_HOST_PCT);
   } else {
     valueCents = priceCharms * CHARM_CENT_VALUE;
     share = Math.floor((valueCents * GIFT_HOST_PCT) / 100);
@@ -18945,9 +19068,13 @@ function ticketSettle299(db, buyer, host, priceCharms, ref299) {
     earn.totalEarnedCents += share;
   }
   const txBase = { from: buyer.id, to: host.id, charms: priceCharms, ref: ref299 || "liveticket" };
+  if (promo321) txBase.promo = true; // [RP-V7.321] both rows carry the marker
   moneyTx(db, Object.assign({}, txBase, { type: "ticket-sent", cents: valueCents, cut }));
-  moneyTx(db, Object.assign({}, txBase, { type: "live-ticket", cents: share, cut, charmsOnly }));
-  return { ok: true, valueCents, share, cut, held, charmsOnly, balance: db.balances[buyer.id], giftBal };
+  const ticketRecvTx321 = Object.assign({}, txBase, { type: "live-ticket", cents: share, cut, charmsOnly });
+  // [RP-V7.321] Promo: the row's charms state the share credited.
+  if (promo321) ticketRecvTx321.charms = promoShareCharms321(priceCharms, GIFT_HOST_PCT);
+  moneyTx(db, ticketRecvTx321);
+  return { ok: true, valueCents, share, cut, held, charmsOnly, promoFunds: promo321, promoCharms: promo321 ? promoShareCharms321(priceCharms, GIFT_HOST_PCT) : 0, balance: db.balances[buyer.id], giftBal };
 }
 // Resolve a live registry entry from a request's identifiers —
 // exactly one of key / room / hostId may narrow the search; the
@@ -19006,6 +19133,7 @@ app.post("/api/liveticket/buy", lockedHandler("liveticket-buy", (req, res) => {
     buyerId: ctx.user.id, hostId: host.id, liveKey: entry.key, liveId,
     priceCharms: price, shareCents: settled.share, cutCents: settled.cut,
     valueCents: settled.valueCents, charmsOnly: settled.charmsOnly,
+    promoFunds: !!settled.promoFunds, promoCharms: settled.promoCharms || 0, // [RP-V7.321] the refund leg reads promoCharms back off the record
     status: "active", boughtAt: new Date().toISOString(),
     startedAt: entry.startedAt, ref: liveId,
   };
@@ -19018,6 +19146,7 @@ app.post("/api/liveticket/buy", lockedHandler("liveticket-buy", (req, res) => {
     giftBal: settled.giftBal,
     recipient: { id: host.id, name: host.name },
     hostShareCents: settled.share, held: settled.held, charmsOnly: settled.charmsOnly,
+    promoFunds: !!settled.promoFunds, // [RP-V7.321]
     liveId,
     ticket: ticketPublic299(record),
   };
@@ -19032,7 +19161,7 @@ app.post("/api/liveticket/buy", lockedHandler("liveticket-buy", (req, res) => {
   writeMoney(db);
   console.log("[money] liveticket", price, "charms:", ctx.user.name, "->", host.name,
     "| host", settled.share, "c", settled.held ? "(held)" : "", "| cut", settled.cut, "c",
-    settled.charmsOnly ? "| CHARMS-ONLY (teen involved)" : "");
+    settled.charmsOnly ? "| CHARMS-ONLY (teen involved)" : settled.promoFunds ? "| PROMO (test funds — settled in charms)" : "");
   notifyActivity({
     toId: host.id,
     kind: "ticket",
@@ -19040,7 +19169,7 @@ app.post("/api/liveticket/buy", lockedHandler("liveticket-buy", (req, res) => {
     actorName: ctx.user.name,
     text: "\uD83C\uDF9F\uFE0F " + ctx.user.name + " bought a ticket to your live \u2014 " + price.toLocaleString("en-US") + " charms!",
     emailSubject: "A ticket to your live just sold on Rizz Plaza \uD83C\uDF9F\uFE0F",
-    emailText: ctx.user.name + " bought a ticket to your live on Rizz Plaza for " + price.toLocaleString("en-US") + " charms. Your 70% share is in your Earn wallet.\n\nOpen the Plaza: https://rizzplaza.com\n\n\u2014 The Rizz Plaza team",
+    emailText: ctx.user.name + " bought a ticket to your live on Rizz Plaza for " + price.toLocaleString("en-US") + " charms. " + (settled.promoFunds ? "The buyer paid with promo charms, so your 70% share landed in your charm balance — promo charms carry no money." : "Your 70% share is in your Earn wallet.") + "\n\nOpen the Plaza: https://rizzplaza.com\n\n\u2014 The Rizz Plaza team",
     go: { screen: "live", room: entry.room },
   });
   res.json(buyResponse);
@@ -19125,7 +19254,16 @@ function rpLiveTicketActiveCount299(db) {
 function ticketRefundOne299(db, adb, t, endedAt) {
   const buyer = adb.users.find((u) => u && u.id === t.buyerId) || null;
   const host = adb.users.find((u) => u && u.id === t.hostId) || null;
-  if (t.charmsOnly) {
+  if (t.promoFunds) {
+    // [RP-V7.321] Promo (test funds): the buyer paid from their main
+    // balance and the host was credited CHARMS — both legs reverse
+    // in charms: full price back to the buyer, the host's promo
+    // share back out of their charm balance (clamped like the
+    // charms-only leg — a host who already spent them is not
+    // driven negative). No earnings were ever created.
+    if (buyer) db.balances[buyer.id] = (db.balances[buyer.id] || 0) + t.priceCharms;
+    if (host) db.balances[host.id] = Math.max(0, (db.balances[host.id] || 0) - (t.promoCharms || 0));
+  } else if (t.charmsOnly) {
     // Charms-only (teen corner): the buyer spent gift balance, the
     // host was credited charms — both legs reverse in charms.
     if (buyer) {
@@ -19156,7 +19294,11 @@ function ticketRefundOne299(db, adb, t, endedAt) {
   }
   const txBase = { from: t.hostId, to: t.buyerId, charms: -t.priceCharms, ref: (t.ref || t.liveId) + ":refund" };
   moneyTx(db, Object.assign({}, txBase, { type: "ticket-sent", cents: -(t.valueCents || 0), cut: -(t.cutCents || 0) }));
-  moneyTx(db, Object.assign({}, txBase, { type: "live-ticket", cents: -(t.shareCents || 0), cut: -(t.cutCents || 0), charmsOnly: !!t.charmsOnly }));
+  const ticketRefundTx321 = Object.assign({}, txBase, { type: "live-ticket", cents: -(t.shareCents || 0), cut: -(t.cutCents || 0), charmsOnly: !!t.charmsOnly });
+  // [RP-V7.321] Promo refund row: the host's charm share rides
+  // negative, so Earn history shows the charms leaving, never a $.
+  if (t.promoFunds) { ticketRefundTx321.charms = -(t.promoCharms || 0); ticketRefundTx321.promo = true; }
+  moneyTx(db, ticketRefundTx321);
   t.status = "refunded";
   t.refundedAt = new Date(endedAt).toISOString();
   if (!buyer) return null;
@@ -19353,9 +19495,11 @@ function shoutoutRefundOne300(db, rec, reason) {
   } else {
     db.balances[rec.buyerId] = (db.balances[rec.buyerId] || 0) + rec.priceCharms;
   }
-  const valueCents = rec.charmsOnly ? 0 : rec.priceCharms * CHARM_CENT_VALUE;
-  const cut = rec.charmsOnly ? 0 : valueCents - Math.floor((valueCents * GIFT_HOST_PCT) / 100);
-  moneyTx(db, { type: "shoutout-sent", from: rec.creatorId, to: rec.buyerId, charms: -rec.priceCharms, cents: -valueCents, cut: -cut, ref: rec.id + ":refund" });
+  const valueCents = (rec.charmsOnly || rec.promoFunds) ? 0 : rec.priceCharms * CHARM_CENT_VALUE;
+  const cut = (rec.charmsOnly || rec.promoFunds) ? 0 : valueCents - Math.floor((valueCents * GIFT_HOST_PCT) / 100);
+  const shoutoutRefundTx321 = { type: "shoutout-sent", from: rec.creatorId, to: rec.buyerId, charms: -rec.priceCharms, cents: -valueCents, cut: -cut, ref: rec.id + ":refund" };
+  if (rec.promoFunds) shoutoutRefundTx321.promo = true; // [RP-V7.321]
+  moneyTx(db, shoutoutRefundTx321);
   rec.status = reason === "declined" ? "declined" : "expired";
   rec.refundedAt = new Date().toISOString();
   return { buyerId: rec.buyerId, priceCharms: rec.priceCharms, status: rec.status };
@@ -19379,6 +19523,12 @@ function shoutoutTryFulfill300(db, adb, rec, post) {
     // Charms-only (teen corner): the creator is credited charms,
     // never earnings — exactly like a charms-only gift settle.
     db.balances[rec.creatorId] = (db.balances[rec.creatorId] || 0) + rec.priceCharms;
+  } else if (rec.promoFunds) {
+    // [RP-V7.321] Test funds: the creator is credited the same 70%
+    // share as CHARMS in their spendable balance; share/cut stay 0
+    // and no earnings exist (rec.shareCents below stays 0, so the
+    // creator's earned-cents summary never counts promo work).
+    db.balances[rec.creatorId] = (db.balances[rec.creatorId] || 0) + promoShareCharms321(rec.priceCharms, GIFT_HOST_PCT);
   } else {
     const valueCents = rec.priceCharms * CHARM_CENT_VALUE;
     share = Math.floor((valueCents * GIFT_HOST_PCT) / 100);
@@ -19396,14 +19546,17 @@ function shoutoutTryFulfill300(db, adb, rec, post) {
     }
     earn.totalEarnedCents += share;
   }
-  moneyTx(db, { type: "shoutout", from: rec.buyerId, to: rec.creatorId, charms: rec.priceCharms, cents: share, cut, charmsOnly: !!rec.charmsOnly, ref: rec.id });
+  const shoutoutSettleTx321 = { type: "shoutout", from: rec.buyerId, to: rec.creatorId, charms: rec.priceCharms, cents: share, cut, charmsOnly: !!rec.charmsOnly, ref: rec.id };
+  // [RP-V7.321] Promo: the row's charms state the share credited.
+  if (rec.promoFunds) { shoutoutSettleTx321.charms = promoShareCharms321(rec.priceCharms, GIFT_HOST_PCT); shoutoutSettleTx321.promo = true; }
+  moneyTx(db, shoutoutSettleTx321);
   rec.status = "fulfilled";
   rec.settledAt = new Date().toISOString();
   rec.postId = post.id;
   rec.postKind = post.kind;
   rec.shareCents = share;
   rec.cutCents = cut;
-  return { ok: true, requestId: rec.id, shareCents: share, cutCents: cut, held, charmsOnly: !!rec.charmsOnly, priceCharms: rec.priceCharms, buyerId: rec.buyerId, buyerName: rec.buyerName || "" };
+  return { ok: true, requestId: rec.id, shareCents: share, cutCents: cut, held, charmsOnly: !!rec.charmsOnly, promoFunds: !!rec.promoFunds, promoCharms: rec.promoFunds ? promoShareCharms321(rec.priceCharms, GIFT_HOST_PCT) : 0, priceCharms: rec.priceCharms, buyerId: rec.buyerId, buyerName: rec.buyerName || "" };
 }
 // Post-creation hook: a post created with a shoutoutId settles its
 // escrow here. Owns its own money lock (the post handlers are not
@@ -19434,7 +19587,7 @@ function shoutoutFulfillForPost300(ctx, post, shoutoutId) {
           go,
         });
       } catch (e) { }
-      console.log("[shoutout] fulfilled", result.requestId, result.priceCharms, "charms | share", result.shareCents, "c", result.charmsOnly ? "| CHARMS-ONLY (teen involved)" : "");
+      console.log("[shoutout] fulfilled", result.requestId, result.priceCharms, "charms | share", result.shareCents, "c", result.charmsOnly ? "| CHARMS-ONLY (teen involved)" : result.promoFunds ? "| PROMO (test funds — settled in charms)" : "");
     } else if (result && result.refunded) {
       try {
         notifyActivity({
@@ -19506,6 +19659,9 @@ app.post("/api/shoutout/request", lockedHandler("shoutout-request", (req, res) =
   const price = offer.priceCharms;
   const buyerTeen = ageFromDob(ctx.user.dob) < 18;
   const charmsOnly = buyerTeen || ageFromDob(recipient.dob) < 18;
+  // [RP-V7.321] Test funds: the escrow is stamped now and settles in
+  // charms at fulfill time (see shoutoutTryFulfill300).
+  const promo321 = !charmsOnly && testFunds321(ctx.user);
   const balance = db.balances[ctx.user.id] || 0;
   let giftBal = (db.giftBals && db.giftBals[ctx.user.id]) || 0;
   if (buyerTeen) {
@@ -19527,14 +19683,16 @@ app.post("/api/shoutout/request", lockedHandler("shoutout-request", (req, res) =
   }
   const now = Date.now();
   const id = "so" + now.toString(36) + crypto.randomBytes(3).toString("hex");
-  const valueCents = charmsOnly ? 0 : price * CHARM_CENT_VALUE;
-  const cut = charmsOnly ? 0 : valueCents - Math.floor((valueCents * GIFT_HOST_PCT) / 100);
-  moneyTx(db, { type: "shoutout-sent", from: ctx.user.id, to: recipient.id, charms: price, cents: valueCents, cut, ref: id });
+  const valueCents = (charmsOnly || promo321) ? 0 : price * CHARM_CENT_VALUE;
+  const cut = (charmsOnly || promo321) ? 0 : valueCents - Math.floor((valueCents * GIFT_HOST_PCT) / 100);
+  const shoutoutSentTx321 = { type: "shoutout-sent", from: ctx.user.id, to: recipient.id, charms: price, cents: valueCents, cut, ref: id };
+  if (promo321) shoutoutSentTx321.promo = true; // [RP-V7.321]
+  moneyTx(db, shoutoutSentTx321);
   const rec = {
     id, buyerId: ctx.user.id, buyerName: ctx.user.name,
     creatorId: recipient.id, creatorName: recipient.name,
     priceCharms: price, note, status: "requested",
-    paidFrom, charmsOnly,
+    paidFrom, charmsOnly, promoFunds: promo321, // [RP-V7.321] test-funds escrow — settles in charms at fulfill
     createdAt: new Date(now).toISOString(),
     expiresAt: new Date(now + SHOUTOUT_EXPIRY_MS_300).toISOString(),
     postId: null, postKind: null, settledAt: null, refundedAt: null,
@@ -19546,6 +19704,7 @@ app.post("/api/shoutout/request", lockedHandler("shoutout-request", (req, res) =
     balance: db.balances[ctx.user.id] || 0, giftBal,
     recipient: { id: recipient.id, name: recipient.name },
     priceCharms: price, expiresAt: rec.expiresAt, charmsOnly,
+    promoFunds: promo321, // [RP-V7.321]
     request: shoutoutPublicRecord300(rec),
   };
   // The idempotency record lands in the SAME write as the debit
@@ -19559,7 +19718,7 @@ app.post("/api/shoutout/request", lockedHandler("shoutout-request", (req, res) =
     }
   }
   writeMoney(db);
-  console.log("[shoutout] requested", id, price, "charms escrowed:", ctx.user.name, "->", recipient.name, charmsOnly ? "| CHARMS-ONLY (teen involved)" : "");
+  console.log("[shoutout] requested", id, price, "charms escrowed:", ctx.user.name, "->", recipient.name, charmsOnly ? "| CHARMS-ONLY (teen involved)" : promo321 ? "| PROMO (test funds — settles in charms)" : "");
   notifyActivity({
     toId: recipient.id,
     kind: "shoutout",
@@ -19868,6 +20027,10 @@ function settleAuctionMoney(adb, mdb, opts) {
   if (winnerId === hostId) return record({ ok: false, error: "self-win" });
   if (ageFromDob(winner.dob) < 18 || ageFromDob(host.dob) < 18)
     return record({ ok: false, error: "teen-party" });
+  // [RP-V7.321] Test funds: a flagged WINNER still pays the full bid
+  // from their charm balance (the debit below stands) — but the
+  // host's 90% share settles in CHARMS, never as earnings.
+  const promo321 = testFunds321(winner);
   if (!(bidCharms > 0)) return record({ ok: false, error: "bad-amount" });
   const balance = mdb.balances[winnerId] || 0;
   if (balance < bidCharms)
@@ -19878,6 +20041,37 @@ function settleAuctionMoney(adb, mdb, opts) {
       needed: bidCharms,
     });
   mdb.balances[winnerId] = balance - bidCharms;
+  if (promo321) {
+    // [RP-V7.321] Promo settle: the host's 90% lands in their charm
+    // balance; both ledger rows record cents: 0 and carry the promo
+    // marker, so Earn history shows "+N charms · promo charms" and
+    // no money figure moves. The platform's 10% simply never mints
+    // (the same shape as a charms-only gift's vanished cut).
+    const hostShareCharms321 = promoShareCharms321(bidCharms, AUCTION_HOST_PCT);
+    mdb.balances[hostId] = (mdb.balances[hostId] || 0) + hostShareCharms321;
+    moneyTx(mdb, {
+      type: "auction", from: winnerId, to: hostId, charms: hostShareCharms321,
+      cents: 0, cut: 0, promo: true, ref: auctionId,
+    });
+    moneyTx(mdb, {
+      type: "auction-paid",
+      from: winnerId,
+      to: hostId,
+      charms: bidCharms,
+      cents: 0,
+      cut: 0,
+      promo: true,
+      ref: auctionId,
+    });
+    return record({
+      ok: true,
+      hostShareCents: 0,
+      cutCents: 0,
+      promoFunds: true,
+      hostShareCharms: hostShareCharms321,
+      winnerBalance: mdb.balances[winnerId],
+    });
+  }
   const { hostShare, cut } = recordAuctionEarning(mdb, hostId, bidCharms, auctionId);
   moneyTx(mdb, {
     type: "auction-paid",
@@ -20406,6 +20600,15 @@ app.get("/api/owner/sales", (req, res) => {
 // excludedViews so the owner can see them. The platform owner is
 // treated like any other creator — the published terms name no
 // carve-out (CREATOR_POOL_EXCLUDE_OWNER flips that on his word).
+// [RP-V7.321] One exclusion DOES apply, on Branden's Nov 10 word
+// ("Exclude them — finish V7.321 with it"): test-funds accounts
+// (testFunds321 — owner RP + @Popstar) are never payable AND their
+// views are removed from the split's total before shares are
+// computed, so house/test views can neither earn from the pool nor
+// dilute real creators. CREATOR_POOL_EXCLUDE_OWNER stays as-is
+// (owner-id only, still off): RP is excluded via its test-funds
+// flag, and any future flagged account inherits the exclusion
+// automatically — the flag, not the owner constant, is the gate.
 //
 // WEEKS — an ET calendar week runs Monday 00:00 -> Sunday 23:59 ET
 // and settles the following Monday at 03:00 ET. Settlement is
@@ -20532,6 +20735,17 @@ function rpCpWeekViews(adb, daySet) {
     const u = id ? byId.get(id) : null;
     if (!u) return false;
     if (teenAccountDisabled(u) || isPendingDeletion(u)) return false;
+    // [RP-V7.321] Test-funds accounts (testFunds321 — the owner RP
+    // and @Popstar, flagged by testFundsSeed321) are NOT payable and
+    // their views leave the split entirely: a house/test account can
+    // neither draw real pool money nor dilute real creators' shares.
+    // The exclusion happens HERE, at compute/settle time, so the
+    // recorded view history is untouched; the excluded views land in
+    // excludedViews like any other non-payable views, and the share
+    // they would have taken redistributes pro-rata to payable
+    // creators through the unchanged floor(pool x views / total)
+    // math in rpCpComputeWeek.
+    if (testFunds321(u)) return false;
     if (CREATOR_POOL_EXCLUDE_OWNER && ownerId && id === ownerId) return false;
     return true;
   };
@@ -21133,7 +21347,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.320", online: players.size })
+  res.json({ ok: true, version: "RP-V7.321", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -22484,6 +22698,10 @@ if (fanClubTimer298.unref) fanClubTimer298.unref();
 // boot belongs to a live that no longer exists — refund them all
 // in full, once, at boot.
 try { ticketBootSweep299(); } catch (e) {}
+
+// [RP-V7.321] Test-funds guardrail: seed the account flags (owner +
+// @Popstar) once at boot — see testFundsSeed321 above.
+try { testFundsSeed321(); } catch (e) {}
 
 // [RP-V7.300] Paid shoutouts: the expiry sweep — once on boot,
 // then every 60s (the fan-sub / fan-club pattern). Escrow records
