@@ -21499,7 +21499,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.325.1", online: players.size })
+  res.json({ ok: true, version: "RP-V7.327", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
