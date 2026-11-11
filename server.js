@@ -6138,7 +6138,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.326", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.325.1", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -15158,6 +15158,7 @@ function emptyMoney() {
     shoutoutIdem: {}, // [RP-V7.300] shoutout-request idempotency keys -> original responses
     giftBals: {}, // [RP-V7.74] under-18 earned/won gift balance (charms) — see giftBalMirrorWin
     postGifts: {}, // [RP-V7.262] gift counts per post ("reel:<id>" / "photo:<id>") -> gift UNITS received; written only by the gift handler, in the same write as the settlement it counts
+    postGiftDetail: {}, // [RP-V7.325] per-gift breakdown per post ("reel:<id>" / "photo:<id>") -> { <giftId>: { n: units, name } }; written by the gift handler in the SAME write as postGifts, from this build onward — posts gifted before it have totals only, never an invented breakdown
     auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — recorded outcomes are final; [RP-V7.89] insufficient-charms failures are never recorded (FAIL-1)
   };
 }
@@ -15210,6 +15211,8 @@ function readMoney() {
     d.giftBals = {};
   if (!d.postGifts || typeof d.postGifts !== "object" || Array.isArray(d.postGifts))
     d.postGifts = {}; // [RP-V7.262] gift counts per post — see emptyMoney
+  if (!d.postGiftDetail || typeof d.postGiftDetail !== "object" || Array.isArray(d.postGiftDetail))
+    d.postGiftDetail = {}; // [RP-V7.325] per-gift breakdown per post — see emptyMoney
   if (!d.auctionSettlements || typeof d.auctionSettlements !== "object" || Array.isArray(d.auctionSettlements))
     d.auctionSettlements = {};
   if (!d.bizads || typeof d.bizads !== "object" || Array.isArray(d.bizads))
@@ -17171,6 +17174,34 @@ function handleStripeEvent(event) {
 // credited (70% split). If EITHER side is under 18 the gift is
 // CHARMS-ONLY (RP-V7.74, see the branch below): the recipient's charm
 // balance is credited instead and no earnings exist.
+// [RP-V7.325] GIFT BREAKDOWN ON A POST (Branden, Nov 11, 2026:
+// "Can it show which gift was gifted as well — with the price when
+// you click on it"). Read-only and public, exactly like the
+// giftCount every post serializer already exposes: the post's
+// all-time unit total (postGifts) plus the per-gift detail
+// (postGiftDetail — recorded from RP-V7.325 onward, in the same
+// settle write as the total). `detailed` says how many of the
+// total's units the breakdown covers; a client shows the rest as
+// earlier gifts rather than inventing kinds for them. Prices are
+// NOT served here — the client prices rows from its live catalog.
+app.get("/api/post-gifts", (req, res) => {
+  const kind = String(req.query.kind || "");
+  const id = String(req.query.id || "");
+  if ((kind !== "reel" && kind !== "photo") || !id || id.length > 128)
+    return res.json({ ok: false, error: "bad-post" });
+  const mdb = readMoney();
+  const total = postGiftCountOf262(mdb.postGifts || {}, kind, id);
+  const detAll = mdb.postGiftDetail && typeof mdb.postGiftDetail === "object" && !Array.isArray(mdb.postGiftDetail) ? mdb.postGiftDetail : {};
+  const det = detAll[kind + ":" + id] && typeof detAll[kind + ":" + id] === "object" && !Array.isArray(detAll[kind + ":" + id]) ? detAll[kind + ":" + id] : {};
+  const gifts = Object.keys(det).map((gid) => {
+    const e = det[gid] && typeof det[gid] === "object" ? det[gid] : {};
+    const n = typeof e.n === "number" && isFinite(e.n) && e.n > 0 ? Math.floor(e.n) : 0;
+    return { id: gid, name: (typeof e.name === "string" && e.name) || (MONEY_GIFT_INFO[gid] && MONEY_GIFT_INFO[gid].name) || gid, count: n };
+  }).filter((g) => g.count > 0).sort((a, b2) => (b2.count - a.count) || a.name.localeCompare(b2.name));
+  const detailed = gifts.reduce((s, g) => s + g.count, 0);
+  res.json({ ok: true, kind, id, total, detailed, gifts });
+});
+
 app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -17477,6 +17508,19 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     const prev262 = typeof db.postGifts[postKey262] === "number" && isFinite(db.postGifts[postKey262]) ? db.postGifts[postKey262] : 0;
     db.postGifts[postKey262] = prev262 + count;
     giftResponse.postGiftCount = db.postGifts[postKey262];
+    // [RP-V7.325] The per-gift breakdown rides the SAME write:
+    // units of THIS gift id accumulate under the post, with the
+    // catalog name recorded at settle time (so a gift that later
+    // leaves the catalog still shows its name). This block runs
+    // for every settled post gift — normal, charms-only and
+    // test-funds promo alike — exactly like the total above.
+    if (!db.postGiftDetail || typeof db.postGiftDetail !== "object" || Array.isArray(db.postGiftDetail)) db.postGiftDetail = {};
+    let det325 = db.postGiftDetail[postKey262];
+    if (!det325 || typeof det325 !== "object" || Array.isArray(det325)) det325 = db.postGiftDetail[postKey262] = {};
+    let ge325 = det325[giftId];
+    if (!ge325 || typeof ge325 !== "object" || Array.isArray(ge325)) ge325 = det325[giftId] = { n: 0, name: "" };
+    ge325.n = (typeof ge325.n === "number" && isFinite(ge325.n) && ge325.n > 0 ? Math.floor(ge325.n) : 0) + count;
+    if (typeof ge325.name !== "string" || !ge325.name) ge325.name = (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId;
   }
   // [RP-V7.52] The idempotency record lands in the SAME write as
   // the debit itself, so a retry can never slip between the charge
@@ -21455,7 +21499,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.326", online: players.size })
+  res.json({ ok: true, version: "RP-V7.325.1", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
