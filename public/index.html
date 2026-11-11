@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.328" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.330" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -10288,6 +10288,16 @@
            content changes. */
         var ov254 = document.getElementById("overlay");
         if (ov254 && !ov254.classList.contains("rpvid-full254")) ov254.classList.add("rpvid-full254");
+        /* [RP-V7.330] Sound: this player relied on the <video
+           autoplay> attribute alone, which iOS blocks for an
+           unmuted, unblessed element — a profile-grid reel opened
+           silent, if it started at all. Mirror the rpmedia
+           lightbox: an explicit play() here, synchronously inside
+           the tile tap that opened the player. The element is
+           never created muted; after this, the native controls
+           govern the member's own mute choice. */
+        var pv330 = document.querySelector("#sheet .pprof-player video");
+        if (pv330) { var pp330 = null; try { pp330 = pv330.play(); } catch (e) { } if (pp330 && pp330.catch) pp330.catch(function () { }); }
         if (fi241) { // [RP-V7.241] wire the rail to the feed handlers
           var wrap241 = $("sheet").querySelector(".rpmedia-wrap");
           if (wrap241) {
@@ -12489,6 +12499,16 @@
         { id: "gradcap", name: "Grad Cap", group: "Fun", fun: true, icon: "🎓" },
         { id: "firehelmet", name: "Fire Helmet", group: "Fun", fun: true, icon: "🚒" },
         { id: "fuzzyglasses", name: "Fuzzy Shades", group: "Fun", fun: true, icon: "💫" }
+        ,{ id: "facezoom", name: "Face Zoom", group: "Warp", fun: true, warp: "facezoom", icon: "🔍" },
+        { id: "bigeyes", name: "Big Eyes", group: "Warp", fun: true, warp: "bigeyes", icon: "👀" },
+        { id: "tinyface", name: "Tiny Face", group: "Warp", fun: true, warp: "tinyface", icon: "🤏" },
+        { id: "wobble", name: "Wobble Face", group: "Warp", fun: true, warp: "wobble", icon: "🫨" },
+        { id: "tigerpaint", name: "Tiger Paint", group: "Fun", fun: true, icon: "🐯" },
+        { id: "unicorn", name: "Unicorn", group: "Fun", fun: true, icon: "🦄" },
+        { id: "bearface", name: "Bear Cub", group: "Fun", fun: true, icon: "🐻" },
+        { id: "leopardpaint", name: "Leopard Paint", group: "Fun", fun: true, icon: "🐆" },
+        { id: "skigoggles", name: "Ski Goggles", group: "Fun", fun: true, icon: "🎿" },
+        { id: "tophat", name: "Top Hat", group: "Fun", fun: true, icon: "🎩" }
       ];
       function fxRecipe(id) {
         for (var i = 0; i < LIVE_FILTERS.length; i++) if (LIVE_FILTERS[i].id === id) return LIVE_FILTERS[i];
@@ -16253,6 +16273,339 @@
             ctx.fillStyle = dots[(i + 1) % dots.length]; ctx.fill();
           });
           fxSparkle(ctx, -d / 2 - 0.17 * w, -0.13 * h, 0.03 * w, 0.85);
+        },
+        /* [RP-V7.329] Unicorn — spiral gold horn with shaded bands, cream
+           ears with pink inners, a pink/lavender mane tuft and sparkles.
+           Original art (Snapchat's November top-lens unicorn category). */
+        unicorn: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          [-1, 1].forEach(function (sd) {
+            fxContact(ctx, sd * 0.335 * w, 0.06 * h, 0.11 * w, 0.035 * h, 0.20);
+            function earU() {
+              ctx.beginPath();
+              ctx.moveTo(sd * 0.245 * w, 0.05 * h);
+              ctx.quadraticCurveTo(sd * 0.315 * w, -0.16 * h, sd * 0.375 * w, -0.335 * h);
+              ctx.quadraticCurveTo(sd * 0.415 * w, -0.14 * h, sd * 0.425 * w, 0.05 * h);
+              ctx.closePath();
+            }
+            ctx.save();
+            ctx.shadowColor = "rgba(40,16,30,.32)"; ctx.shadowBlur = Math.min(12, 0.035 * w); ctx.shadowOffsetY = 0.018 * h;
+            earU();
+            var eg = ctx.createLinearGradient(sd * 0.24 * w, 0.05 * h, sd * 0.4 * w, -0.33 * h);
+            eg.addColorStop(0, "#e9ddcb"); eg.addColorStop(0.6, "#f7efdd"); eg.addColorStop(1, "#fffaf0");
+            ctx.fillStyle = eg; ctx.fill();
+            ctx.restore();
+            ctx.beginPath();
+            ctx.moveTo(sd * 0.305 * w, 0.02 * h);
+            ctx.quadraticCurveTo(sd * 0.335 * w, -0.13 * h, sd * 0.368 * w, -0.26 * h);
+            ctx.quadraticCurveTo(sd * 0.385 * w, -0.12 * h, sd * 0.39 * w, 0.02 * h);
+            ctx.closePath();
+            var ig = ctx.createLinearGradient(0, -0.26 * h, 0, 0.02 * h);
+            ig.addColorStop(0, "#ffc7d9"); ig.addColorStop(1, "#f28bb0");
+            ctx.fillStyle = ig; ctx.fill();
+            earU(); ctx.strokeStyle = "rgba(150,120,80,.4)"; ctx.lineWidth = 0.007 * w; ctx.stroke();
+          });
+          /* mane tuft: layered pink/lavender locks left of the horn */
+          ctx.save();
+          ctx.shadowColor = "rgba(50,10,40,.25)"; ctx.shadowBlur = Math.min(10, 0.03 * w); ctx.shadowOffsetY = 0.014 * h;
+          [[-0.145, -0.16, 0.075, "#f78fb8"], [-0.115, -0.27, 0.062, "#c9a7eb"], [-0.165, -0.05, 0.058, "#ffafd0"]].forEach(function (lk) {
+            ctx.beginPath(); ctx.ellipse(lk[0] * w, lk[1] * h, lk[2] * w, lk[2] * 1.5 * w, 0.35, 0, Math.PI * 2);
+            ctx.fillStyle = lk[3]; ctx.fill();
+          });
+          ctx.restore();
+          fxStrands(ctx, -0.21 * w, -0.06 * w, -0.34 * h, 0.02 * h, 12, 0.07 * h, "rgba(140,40,90,.28)", "rgba(255,230,245,.4)", 0.006 * w);
+          /* horn */
+          fxContact(ctx, 0, 0.075 * h, 0.10 * w, 0.032 * h, 0.26);
+          function horn() {
+            ctx.beginPath();
+            ctx.moveTo(-0.068 * w, 0.055 * h);
+            ctx.quadraticCurveTo(-0.028 * w, -0.22 * h, 0.004 * w, -0.52 * h);
+            ctx.quadraticCurveTo(0.036 * w, -0.22 * h, 0.072 * w, 0.055 * h);
+            ctx.closePath();
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(60,35,5,.35)"; ctx.shadowBlur = Math.min(12, 0.035 * w); ctx.shadowOffsetY = 0.016 * h;
+          horn();
+          var hg = ctx.createLinearGradient(-0.07 * w, 0, 0.07 * w, 0);
+          hg.addColorStop(0, "#c9922e"); hg.addColorStop(0.35, "#ffd977"); hg.addColorStop(0.62, "#f4bc45"); hg.addColorStop(1, "#a8741c");
+          ctx.fillStyle = hg; ctx.fill();
+          ctx.restore();
+          ctx.save(); horn(); ctx.clip();
+          ctx.fillStyle = "rgba(146,94,16,.55)";
+          for (var bi = 0; bi < 5; bi++) {
+            var by = -0.44 * h + bi * 0.105 * h;
+            ctx.beginPath();
+            ctx.moveTo(-0.075 * w, by); ctx.lineTo(0.075 * w, by - 0.05 * h);
+            ctx.lineTo(0.075 * w, by - 0.028 * h); ctx.lineTo(-0.075 * w, by + 0.022 * h);
+            ctx.closePath(); ctx.fill();
+          }
+          ctx.fillStyle = "rgba(255,255,255,.35)";
+          ctx.beginPath();
+          ctx.moveTo(-0.038 * w, 0.03 * h); ctx.quadraticCurveTo(-0.014 * w, -0.22 * h, 0.0, -0.48 * h);
+          ctx.lineTo(0.012 * w, -0.48 * h); ctx.quadraticCurveTo(0.004 * w, -0.22 * h, 0.014 * w, 0.03 * h);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+          horn(); ctx.strokeStyle = "rgba(120,74,10,.5)"; ctx.lineWidth = 0.007 * w; ctx.stroke();
+          /* horn base ring */
+          ctx.beginPath(); ctx.ellipse(0, 0.058 * h, 0.082 * w, 0.026 * h, 0, 0, Math.PI * 2);
+          var rg = ctx.createLinearGradient(-0.08 * w, 0, 0.08 * w, 0);
+          rg.addColorStop(0, "#e56b9c"); rg.addColorStop(0.5, "#ffb3cd"); rg.addColorStop(1, "#d14e85");
+          ctx.fillStyle = rg; ctx.fill();
+          ctx.strokeStyle = "rgba(140,30,80,.45)"; ctx.lineWidth = 0.006 * w; ctx.stroke();
+          fxSparkle(ctx, 0.02 * w, -0.55 * h, 0.032 * w, 0.95);
+          fxSparkle(ctx, -0.30 * w, -0.30 * h, 0.022 * w, 0.75);
+          fxSparkle(ctx, 0.33 * w, -0.22 * h, 0.019 * w, 0.7);
+          ctx.restore();
+        },
+        /* [RP-V7.329] Bear Cub — round fur ears with tan inners, a soft
+           tan muzzle, glossy brown nose and a stitched mouth line.
+           Original art (evergreen animal-lens category). */
+        bearface: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          [-1, 1].forEach(function (sd) {
+            fxContact(ctx, sd * 0.40 * w, 0.085 * h, 0.13 * w, 0.04 * h, 0.22);
+            function earB() { ctx.beginPath(); ctx.arc(sd * 0.40 * w, -0.03 * h, 0.132 * w, 0, Math.PI * 2); }
+            ctx.save();
+            ctx.shadowColor = "rgba(30,16,4,.35)"; ctx.shadowBlur = Math.min(13, 0.038 * w); ctx.shadowOffsetY = 0.02 * h;
+            earB();
+            var bg2 = ctx.createRadialGradient(sd * 0.37 * w, -0.09 * h, 0.03 * w, sd * 0.40 * w, -0.03 * h, 0.14 * w);
+            bg2.addColorStop(0, "#c99a5f"); bg2.addColorStop(0.6, "#9c6b34"); bg2.addColorStop(1, "#6e4520");
+            ctx.fillStyle = bg2; ctx.fill();
+            ctx.restore();
+            ctx.save(); earB(); ctx.clip();
+            fxStrands(ctx, sd * 0.40 * w - 0.12 * w, sd * 0.40 * w + 0.12 * w, -0.15 * h, 0.08 * h, 12, 0.07 * h, "rgba(52,30,8,.3)", "rgba(240,200,140,.3)", 0.007 * w);
+            ctx.restore();
+            ctx.beginPath(); ctx.arc(sd * 0.40 * w, -0.03 * h, 0.07 * w, 0, Math.PI * 2);
+            var ig2 = ctx.createRadialGradient(sd * 0.385 * w, -0.055 * h, 0.012 * w, sd * 0.40 * w, -0.03 * h, 0.075 * w);
+            ig2.addColorStop(0, "#f7e3bd"); ig2.addColorStop(1, "#dbb47e");
+            ctx.fillStyle = ig2; ctx.fill();
+            ctx.strokeStyle = "rgba(90,55,20,.4)"; ctx.lineWidth = 0.006 * w; ctx.stroke();
+            earB(); ctx.strokeStyle = "rgba(70,42,14,.45)"; ctx.lineWidth = 0.008 * w; ctx.stroke();
+          });
+          ctx.restore();
+          var mx = G.nose.x, my = (G.nose.y + G.lipTop.y) / 2 + 0.022 * h;
+          ctx.save();
+          ctx.shadowColor = "rgba(40,24,6,.28)"; ctx.shadowBlur = Math.min(11, 0.03 * w); ctx.shadowOffsetY = 0.012 * h;
+          ctx.beginPath(); ctx.ellipse(mx, my, 0.20 * w, 0.115 * h, 0, 0, Math.PI * 2);
+          var mg = ctx.createRadialGradient(mx - 0.04 * w, my - 0.03 * h, 0.03 * w, mx, my, 0.21 * w);
+          mg.addColorStop(0, "#f9ead0"); mg.addColorStop(0.6, "#eed3a4"); mg.addColorStop(1, "#cfa96e");
+          ctx.fillStyle = mg; ctx.fill();
+          ctx.restore();
+          ctx.save();
+          ctx.shadowColor = "rgba(30,16,4,.4)"; ctx.shadowBlur = Math.min(9, 0.024 * w); ctx.shadowOffsetY = 0.008 * h;
+          ctx.beginPath(); ctx.ellipse(mx, G.nose.y + 0.002 * h, 0.058 * w, 0.040 * h, 0, 0, Math.PI * 2);
+          var ng = ctx.createRadialGradient(mx - 0.016 * w, G.nose.y - 0.012 * h, 0.008 * w, mx, G.nose.y, 0.06 * w);
+          ng.addColorStop(0, "#8a5a34"); ng.addColorStop(0.55, "#54331a"); ng.addColorStop(1, "#2a1708");
+          ctx.fillStyle = ng; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.arc(mx - 0.018 * w, G.nose.y - 0.012 * h, 0.010 * w, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,.6)"; ctx.fill();
+          ctx.strokeStyle = "rgba(84,50,20,.75)"; ctx.lineWidth = Math.max(1, 0.008 * w); ctx.lineCap = "round";
+          ctx.beginPath(); ctx.moveTo(mx, G.noseBot.y + 0.004 * h); ctx.lineTo(mx, G.lipTop.y - 0.006 * h); ctx.stroke();
+          ctx.beginPath(); ctx.arc(mx - 0.028 * w, G.lipTop.y - 0.004 * h, 0.028 * w, 0.15 * Math.PI, 0.55 * Math.PI); ctx.stroke();
+          ctx.beginPath(); ctx.arc(mx + 0.028 * w, G.lipTop.y - 0.004 * h, 0.028 * w, 0.45 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+        },
+        /* [RP-V7.329] Leopard Paint — golden spotted ears plus hand-placed
+           rosette spots across the forehead and cheeks, and a soft
+           pink-brown nose. Skin stays visible; spots only. Original art. */
+        leopardpaint: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          [-1, 1].forEach(function (sd) {
+            fxContact(ctx, sd * 0.40 * w, 0.08 * h, 0.12 * w, 0.038 * h, 0.22);
+            function earL() { ctx.beginPath(); ctx.arc(sd * 0.40 * w, -0.025 * h, 0.122 * w, 0, Math.PI * 2); }
+            ctx.save();
+            ctx.shadowColor = "rgba(35,18,2,.33)"; ctx.shadowBlur = Math.min(12, 0.035 * w); ctx.shadowOffsetY = 0.018 * h;
+            earL();
+            var eg2 = ctx.createRadialGradient(sd * 0.375 * w, -0.08 * h, 0.025 * w, sd * 0.40 * w, -0.025 * h, 0.13 * w);
+            eg2.addColorStop(0, "#f2c169"); eg2.addColorStop(0.6, "#dd9c33"); eg2.addColorStop(1, "#b37416");
+            ctx.fillStyle = eg2; ctx.fill();
+            ctx.restore();
+            ctx.save(); earL(); ctx.clip();
+            ctx.fillStyle = "rgba(70,40,8,.85)";
+            [[-0.05, -0.06, 0.026], [0.045, -0.015, 0.032], [-0.01, 0.045, 0.024]].forEach(function (sp) {
+              ctx.beginPath(); ctx.ellipse(sd * 0.40 * w + sp[0] * w, -0.025 * h + sp[1] * h, sp[2] * w, sp[2] * 0.75 * w, 0.4, 0, Math.PI * 2); ctx.fill();
+            });
+            ctx.restore();
+            ctx.beginPath(); ctx.arc(sd * 0.40 * w, -0.025 * h, 0.062 * w, 0, Math.PI * 2);
+            ctx.fillStyle = "#f6ddab"; ctx.fill();
+            earL(); ctx.strokeStyle = "rgba(110,64,10,.5)"; ctx.lineWidth = 0.008 * w; ctx.stroke();
+          });
+          function rosette(x, y, r) {
+            ctx.save();
+            ctx.strokeStyle = "rgba(74,42,8,.9)"; ctx.lineWidth = Math.max(1, 0.16 * r); ctx.lineCap = "round";
+            for (var k = 0; k < 5; k++) {
+              var a0 = k * (Math.PI * 2 / 5) + 0.5;
+              ctx.beginPath(); ctx.arc(x, y, r, a0, a0 + 0.85); ctx.stroke();
+            }
+            ctx.beginPath(); ctx.arc(x, y, r * 0.30, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(146,92,26,.85)"; ctx.fill();
+            ctx.restore();
+          }
+          rosette(-0.315 * w, 0.135 * h, 0.030 * w);
+          rosette(-0.155 * w, 0.095 * h, 0.036 * w);
+          rosette(0.005 * w, 0.165 * h, 0.028 * w);
+          rosette(0.165 * w, 0.095 * h, 0.036 * w);
+          rosette(0.325 * w, 0.135 * h, 0.030 * w);
+          rosette(-0.435 * w, 0.47 * h, 0.032 * w);
+          rosette(-0.395 * w, 0.615 * h, 0.026 * w);
+          rosette(0.435 * w, 0.47 * h, 0.032 * w);
+          rosette(0.395 * w, 0.615 * h, 0.026 * w);
+          rosette(-0.225 * w, 0.875 * h, 0.024 * w);
+          rosette(0.225 * w, 0.875 * h, 0.024 * w);
+          /* soft nose tint */
+          ctx.save();
+          ctx.shadowColor = "rgba(60,20,10,.25)"; ctx.shadowBlur = Math.min(8, 0.02 * w);
+          ctx.beginPath(); ctx.ellipse(0, 0.545 * h, 0.046 * w, 0.030 * h, 0, 0, Math.PI * 2);
+          var ng3 = ctx.createRadialGradient(-0.012 * w, 0.533 * h, 0.006 * w, 0, 0.545 * h, 0.05 * w);
+          ng3.addColorStop(0, "#d98a76"); ng3.addColorStop(0.6, "#b05a44"); ng3.addColorStop(1, "#7e3524");
+          ctx.fillStyle = ng3; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.arc(-0.014 * w, 0.534 * h, 0.008 * w, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.fill();
+          ctx.restore();
+        },
+        /* [RP-V7.329] Ski Goggles — wide strap, dark shaped frame, amber
+           mirrored lens with gloss streaks and frame vents. Winter-season
+           prop (Snapchat style-row eyewear). Original art. */
+        skigoggles: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.eyeMid, G.ang);
+          var sg = ctx.createLinearGradient(0, -0.075 * w, 0, 0.075 * w);
+          sg.addColorStop(0, "#274b57"); sg.addColorStop(0.5, "#173039"); sg.addColorStop(1, "#0d1e24");
+          ctx.fillStyle = sg; ctx.fillRect(-0.58 * w, -0.072 * w, 1.16 * w, 0.144 * w);
+          ctx.fillStyle = "rgba(120,220,235,.5)"; ctx.fillRect(-0.58 * w, -0.020 * w, 1.16 * w, 0.014 * w);
+          ctx.fillStyle = "rgba(255,255,255,.16)"; ctx.fillRect(-0.58 * w, 0.030 * w, 1.16 * w, 0.010 * w);
+          fxContact(ctx, 0, 0.185 * w, 0.40 * w, 0.05 * w, 0.20);
+          function lens() {
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(-0.465 * w, -0.175 * w, 0.93 * w, 0.35 * w, 0.14 * w);
+            else ctx.rect(-0.465 * w, -0.175 * w, 0.93 * w, 0.35 * w);
+          }
+          function frame() {
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(-0.50 * w, -0.205 * w, 1.0 * w, 0.41 * w, 0.155 * w);
+            else ctx.rect(-0.50 * w, -0.205 * w, 1.0 * w, 0.41 * w);
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(6,12,16,.5)"; ctx.shadowBlur = Math.min(15, 0.042 * w); ctx.shadowOffsetY = 0.022 * w;
+          frame();
+          var fg2 = ctx.createLinearGradient(0, -0.205 * w, 0, 0.205 * w);
+          fg2.addColorStop(0, "#454e58"); fg2.addColorStop(0.45, "#23282f"); fg2.addColorStop(1, "#0c0e12");
+          ctx.fillStyle = fg2; ctx.fill();
+          ctx.restore();
+          ctx.save(); lens();
+          var lg = ctx.createRadialGradient(-0.18 * w, -0.13 * w, 0.05 * w, 0, 0, 0.62 * w);
+          lg.addColorStop(0, "#ffe3a1"); lg.addColorStop(0.38, "#ffb340"); lg.addColorStop(0.72, "#e07b16"); lg.addColorStop(1, "#9c4d08");
+          ctx.fillStyle = lg; ctx.fill();
+          ctx.restore();
+          ctx.save(); lens(); ctx.clip();
+          fxGloss(ctx, -0.10 * w, 0, 0.55 * w, 0.34 * w, 0.34);
+          ctx.fillStyle = "rgba(120,200,255,.20)";
+          ctx.beginPath();
+          ctx.moveTo(0.16 * w, -0.175 * w); ctx.lineTo(0.47 * w, -0.175 * w); ctx.lineTo(0.30 * w, 0.175 * w); ctx.lineTo(0.10 * w, 0.175 * w);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+          lens(); ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.lineWidth = 0.012 * w; ctx.stroke();
+          frame(); ctx.strokeStyle = "rgba(190,205,220,.28)"; ctx.lineWidth = 0.006 * w; ctx.stroke();
+          /* nose bridge dip + vents */
+          ctx.fillStyle = "#0c0e12";
+          ctx.beginPath(); ctx.ellipse(0, 0.205 * w, 0.055 * w, 0.020 * w, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "rgba(160,190,205,.55)";
+          [-0.30, -0.15, 0.15, 0.30].forEach(function (vx) {
+            ctx.beginPath(); ctx.arc(vx * w, 0.168 * w, 0.011 * w, 0, Math.PI * 2); ctx.fill();
+          });
+          ctx.restore();
+        },
+        /* [RP-V7.329] Top Hat — tall shaded crown, deep-red band with a
+           gold buckle, wide brim, plus a gold-rim monocle on a bead chain
+           over the right eye. Original art (classic prop combo). */
+        tophat: function (ctx, G) {
+          var w = G.fw, h = G.fh, d = G.eyeDist;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          fxContact(ctx, 0, 0.075 * h, 0.44 * w, 0.075 * h, 0.28);
+          function crown() {
+            ctx.beginPath();
+            ctx.moveTo(-0.295 * w, 0.045 * h);
+            ctx.lineTo(-0.265 * w, -0.415 * h);
+            ctx.quadraticCurveTo(0, -0.465 * h, 0.265 * w, -0.415 * h);
+            ctx.lineTo(0.295 * w, 0.045 * h);
+            ctx.quadraticCurveTo(0, 0.095 * h, -0.295 * w, 0.045 * h);
+            ctx.closePath();
+          }
+          ctx.save();
+          ctx.shadowColor = "rgba(4,4,8,.55)"; ctx.shadowBlur = Math.min(16, 0.045 * w); ctx.shadowOffsetY = 0.026 * h;
+          crown();
+          var cg2 = ctx.createLinearGradient(-0.30 * w, 0, 0.30 * w, 0);
+          cg2.addColorStop(0, "#101116"); cg2.addColorStop(0.30, "#3d414c"); cg2.addColorStop(0.55, "#23252d"); cg2.addColorStop(1, "#08090c");
+          ctx.fillStyle = cg2; ctx.fill();
+          ctx.restore();
+          ctx.save(); crown(); ctx.clip();
+          ctx.fillStyle = "rgba(255,255,255,.13)";
+          ctx.beginPath();
+          ctx.moveTo(-0.24 * w, 0.05 * h); ctx.lineTo(-0.13 * w, -0.43 * h); ctx.lineTo(-0.05 * w, -0.43 * h); ctx.lineTo(-0.10 * w, 0.05 * h);
+          ctx.closePath(); ctx.fill();
+          /* band */
+          var bgd = ctx.createLinearGradient(-0.30 * w, 0, 0.30 * w, 0);
+          bgd.addColorStop(0, "#4d0811"); bgd.addColorStop(0.4, "#a01624"); bgd.addColorStop(0.65, "#7c0e1a"); bgd.addColorStop(1, "#38040a");
+          ctx.fillStyle = bgd; ctx.fillRect(-0.31 * w, -0.105 * h, 0.62 * w, 0.155 * h);
+          ctx.fillStyle = "rgba(255,255,255,.14)"; ctx.fillRect(-0.31 * w, -0.105 * h, 0.62 * w, 0.02 * h);
+          ctx.restore();
+          /* buckle */
+          ctx.save();
+          ctx.shadowColor = "rgba(0,0,0,.4)"; ctx.shadowBlur = Math.min(6, 0.016 * w);
+          ctx.beginPath(); ctx.rect(-0.038 * w, -0.082 * h, 0.076 * w, 0.104 * h);
+          var bk = ctx.createLinearGradient(-0.038 * w, -0.082 * h, 0.038 * w, 0.022 * h);
+          bk.addColorStop(0, "#b98a24"); bk.addColorStop(0.5, "#ffd977"); bk.addColorStop(1, "#96690f");
+          ctx.fillStyle = bk; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.rect(-0.020 * w, -0.058 * h, 0.040 * w, 0.056 * h);
+          ctx.fillStyle = "#5d0a13"; ctx.fill();
+          /* top ellipse */
+          ctx.beginPath(); ctx.ellipse(0, -0.415 * h, 0.265 * w, 0.052 * h, 0, 0, Math.PI * 2);
+          var tg = ctx.createRadialGradient(-0.07 * w, -0.435 * h, 0.03 * w, 0, -0.415 * h, 0.28 * w);
+          tg.addColorStop(0, "#565b66"); tg.addColorStop(0.7, "#2b2e36"); tg.addColorStop(1, "#131419");
+          ctx.fillStyle = tg; ctx.fill();
+          ctx.strokeStyle = "rgba(0,0,0,.5)"; ctx.lineWidth = 0.007 * w; ctx.stroke();
+          /* brim */
+          ctx.save();
+          ctx.shadowColor = "rgba(4,4,8,.5)"; ctx.shadowBlur = Math.min(13, 0.036 * w); ctx.shadowOffsetY = 0.02 * h;
+          ctx.beginPath(); ctx.ellipse(0, 0.045 * h, 0.47 * w, 0.082 * h, 0, 0, Math.PI * 2);
+          var brg = ctx.createRadialGradient(-0.12 * w, 0.01 * h, 0.05 * w, 0, 0.045 * h, 0.48 * w);
+          brg.addColorStop(0, "#3a3e47"); brg.addColorStop(0.65, "#1d1f26"); brg.addColorStop(1, "#07080a");
+          ctx.fillStyle = brg; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.ellipse(0, 0.038 * h, 0.47 * w, 0.082 * h, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(200,210,225,.20)"; ctx.lineWidth = 0.006 * w; ctx.stroke();
+          ctx.restore();
+          /* monocle over the face's right eye (viewer-left anchor math
+             matches pandapaint: eR = eyeMid + ang-rotated +d/2) */
+          var ca = Math.cos(G.ang), sa = Math.sin(G.ang);
+          var ex = G.eyeMid.x + ca * d / 2, ey = G.eyeMid.y + sa * d / 2;
+          ctx.save();
+          ctx.beginPath(); ctx.arc(ex, ey, 0.108 * w, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(170,215,245,.13)"; ctx.fill();
+          ctx.beginPath(); ctx.arc(ex, ey, 0.108 * w, 0, Math.PI * 2);
+          ctx.strokeStyle = "#c9973f"; ctx.lineWidth = 0.016 * w; ctx.stroke();
+          ctx.beginPath(); ctx.arc(ex, ey, 0.117 * w, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(110,74,14,.8)"; ctx.lineWidth = 0.005 * w; ctx.stroke();
+          ctx.strokeStyle = "rgba(255,255,255,.5)"; ctx.lineWidth = 0.010 * w;
+          ctx.beginPath(); ctx.moveTo(ex - 0.062 * w, ey + 0.055 * h); ctx.lineTo(ex - 0.020 * w, ey - 0.062 * h); ctx.stroke();
+          ctx.fillStyle = "#d9a441";
+          for (var ci = 0; ci < 6; ci++) {
+            var ct = ci / 5;
+            var cxp = ex + 0.10 * w + 0.13 * w * ct + Math.sin(ct * 2.4) * 0.012 * w;
+            var cyp = ey + 0.075 * h + 0.30 * h * ct * ct;
+            ctx.beginPath(); ctx.arc(cxp, cyp, 0.0075 * w, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.restore();
         }
       };
       /* Landmarks that get smoothed: the face anchors + the beard outline.
@@ -25694,11 +26047,21 @@
         }
         if (!feed.__rpUnlock246) {
           feed.__rpUnlock246 = true;
+          /* [RP-V7.330] The unlock is PERSISTENT — it used to remove
+             itself after its first firing, so a first touch that
+             found no playing video (or landed while the first reel
+             was still loading) spent the member's only unlock and
+             every later card stayed silent for the whole session.
+             It now runs on every feed pointerdown: unmute the card
+             playing right now, in this gesture, and warm the
+             neighbouring built cards in the same gesture, so the
+             cards the member swipes to next are already blessed and
+             cardPlay's own unmute sticks when they appear. */
           var rpFeedUnlock246 = function (e) {
             if (e && e.target && e.target.closest && e.target.closest(".reel-mute")) return;
-            feed.removeEventListener("pointerdown", rpFeedUnlock246);
             try {
               var cards246 = feed.querySelectorAll(".reel-card");
+              var playIdx246 = -1;
               for (var ci246 = 0; ci246 < cards246.length; ci246++) {
                 var cvs246 = cards246[ci246].querySelectorAll("video");
                 var playing246 = null;
@@ -25707,11 +26070,33 @@
                 if (typeof cards246[ci246]._rpGestureUnmute246 === "function") cards246[ci246]._rpGestureUnmute246();
                 else if (!playing246.__userMuted244 && playing246.muted) playing246.muted = false;
                 var pp246 = playing246.play(); if (pp246 && pp246.catch) pp246.catch(function () { });
+                playIdx246 = ci246;
                 break;
+              }
+              if (playIdx246 >= 0) {
+                var warmIdx330 = [playIdx246 - 2, playIdx246 - 1, playIdx246 + 1, playIdx246 + 2];
+                for (var wi330 = 0; wi330 < warmIdx330.length; wi330++) {
+                  var wc330 = cards246[warmIdx330[wi330]];
+                  if (wc330 && typeof wc330._rpWarmSnd330 === "function") { try { wc330._rpWarmSnd330(); } catch (we330) { } }
+                }
               }
             } catch (err) { }
           };
           feed.addEventListener("pointerdown", rpFeedUnlock246);
+          /* [RP-V7.330] A hard flick can carry the member two cards
+             in a single touch — past the neighbour the pointerdown
+             just warmed. While the finger is still down (the same
+             gesture, so iOS still honors it), re-run the unlock on
+             a light throttle: whichever card is playing mid-drag
+             gets unmuted and its neighbours warmed. */
+          var rpFeedMoveT330 = 0;
+          feed.addEventListener("pointermove", function (e) {
+            if (e && e.buttons === 0) return;
+            var now330 = Date.now();
+            if (now330 - rpFeedMoveT330 < 150) return;
+            rpFeedMoveT330 = now330;
+            rpFeedUnlock246(e);
+          }, { passive: true });
         }
         /* [RP-V7.310] windowed build (was: items.forEach append-all, [RP-V7.123]) — first window now, the rest on approach. */
         Reels._win310 = { items: items, painted: {}, sig: sig252 };
@@ -26222,6 +26607,31 @@
           } catch (e) { }
         }
         card._rpGestureUnmute246 = rpGestureUnmute246;
+        /* [RP-V7.330] Neighbour warming — called ONLY from inside
+           real pointer/tap handlers (the feed unlock), never from
+           observers or timers. iOS blesses an element whose unmuted
+           playback begins inside a gesture; a card blessed while it
+           sits next to the playing one keeps that blessing, so when
+           the member swipes to it, cardPlay's unmuted play is
+           honored instead of rejected and re-latched muted. The
+           warm is a muted start + in-gesture unmute flip + pause:
+           no view is counted (cardPlay / _rpPlay are not touched)
+           and nothing is heard. The member's own speaker mute and
+           the copyright lock win, exactly as in rpGestureUnmute246,
+           and duet/stitch cards keep their own sequencing. */
+        function rpWarmSnd330() {
+          if (!vMine || isDuet || isStitch) return;
+          if (vMine.__userMuted244 || (item && item.crMuted)) return;
+          if (!vMine.paused && !vMine.ended) return; // already playing — the unlock's own unmute covers it
+          try {
+            vMine.muted = true;
+            var wp330 = vMine.play();
+            if (wp330 && wp330.catch) wp330.catch(function () { });
+            vMine.muted = false;
+            vMine.pause();
+          } catch (e) { }
+        }
+        card._rpWarmSnd330 = rpWarmSnd330;
         function cardPlay() {
           /* [RP-V7.244] SOUND (Branden, Nov 5: "The reels don't have
              any sound"): the feed video is created with a muted
@@ -26894,23 +27304,62 @@
            that is currently playing — synchronously inside the pointer
            handler, the only place iOS honors it — and re-asserts
            play() in that same gesture, mirroring the feed unlock.
-           One-time: the listener removes itself after firing. */
+           [RP-V7.330] PERSISTENT, like the feed's: the one-time
+           version could be spent by a touch that found no playing
+           slide, leaving every slide silent for the session. It now
+           runs on every pager pointerdown and also warms the
+           neighbouring slides in the same gesture (muted start +
+           in-gesture unmute flip + pause, honouring the member's
+           own mute and the copyright lock), so a slide the member
+           swipes to is already blessed and hpPlay's start is
+           honored with sound. */
         if (!pager.__rpUnlock246) {
           pager.__rpUnlock246 = true;
           var rpPagerUnlock246 = function () {
-            pager.removeEventListener("pointerdown", rpPagerUnlock246);
             try {
-              var vids246 = pager.querySelectorAll(".hp-slide video");
-              for (var vi246 = 0; vi246 < vids246.length; vi246++) {
-                if (!vids246[vi246].paused && !vids246[vi246].ended) {
-                  hpGestureUnmute246(vids246[vi246]);
-                  var vp246 = vids246[vi246].play(); if (vp246 && vp246.catch) vp246.catch(function () { });
+              var slides246 = pager.querySelectorAll(".hp-slide");
+              var playIdx246 = -1;
+              for (var si246 = 0; si246 < slides246.length; si246++) {
+                var sv246 = slides246[si246].querySelector("video");
+                if (sv246 && !sv246.paused && !sv246.ended) {
+                  hpGestureUnmute246(sv246);
+                  var vp246 = sv246.play(); if (vp246 && vp246.catch) vp246.catch(function () { });
+                  playIdx246 = si246;
                   break;
+                }
+              }
+              if (playIdx246 >= 0) {
+                var warmSl330 = [playIdx246 - 2, playIdx246 - 1, playIdx246 + 1, playIdx246 + 2];
+                for (var wi330 = 0; wi330 < warmSl330.length; wi330++) {
+                  var sl330 = slides246[warmSl330[wi330]];
+                  if (!sl330 || (sl330._item && sl330._item.photoPost)) continue; // photo slides stay muted previews by design
+                  var wv330 = sl330.querySelector("video");
+                  if (!wv330 || (!wv330.paused && !wv330.ended)) continue;
+                  if (wv330.__userMuted244 || (sl330._item && sl330._item.crMuted)) continue;
+                  try {
+                    wv330.muted = true;
+                    var wpp330 = wv330.play(); if (wpp330 && wpp330.catch) wpp330.catch(function () { });
+                    hpGestureUnmute246(wv330);
+                    wv330.pause();
+                  } catch (we330) { }
                 }
               }
             } catch (err) { }
           };
           pager.addEventListener("pointerdown", rpPagerUnlock246);
+          /* [RP-V7.330] Same mid-drag re-run as the feed's: a hard
+             flick can land two slides over in one touch, past the
+             warmed neighbour — while the finger is still down the
+             gesture is live, so the slide playing mid-drag can
+             still be blessed. */
+          var rpPagerMoveT330 = 0;
+          pager.addEventListener("pointermove", function (e) {
+            if (e && e.buttons === 0) return;
+            var now330 = Date.now();
+            if (now330 - rpPagerMoveT330 < 150) return;
+            rpPagerMoveT330 = now330;
+            rpPagerUnlock246();
+          }, { passive: true });
         }
         if ("IntersectionObserver" in window) {
           HomeFeed.observer = new IntersectionObserver(function (entries) {
@@ -43826,7 +44275,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
          runs at the highest bitrates offered (12 Mbps video / 256 kbps
          audio), photos are full-frame (ImageCapture / native-size
          canvas, JPEG 0.92) — nothing is downscaled anywhere.
-       - Lenses are the Plaza's OWN 50 fun face effects (LIVE_FILTERS):
+       - Lenses are the Plaza's OWN 60 fun face effects (LIVE_FILTERS):
          the carousel + the full lens sheet render the engine's own
          swatches and a pick goes through setLiveFilter, so the preview
          and the recording run the engine's own fx pipeline.
