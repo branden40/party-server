@@ -3990,6 +3990,7 @@ app.get("/api/reels", (req, res) => {
   } catch (e) { /* audience filtering must never break reels */ }
   const vdb64 = readViews(); // [RP-V7.64] public tile counts ride along
   const mdb262r = readMoney(); const pg262 = mdb262r.postGifts || {}; // [RP-V7.262] one money read per request feeds every reel's gift count
+  const reg335r = readOrigSounds335(); // [RP-V7.335] one registry read per request feeds every reel's sound credit
   // [RP-V7.296] Subscriber-only gating for the map below: the
   // caller's access set + one accounts read for author keys.
   const fanAccess296r = fanSubAccessSet296(mdb262r, fyUser ? fyUser.id : null);
@@ -4034,6 +4035,7 @@ app.get("/api/reels", (req, res) => {
           musicStart: null,
           musicVol: null,
           origVol: null,
+          origSoundId: null, soundId: null, soundName: null, soundOwnerId: null, soundOwnerName: null, soundUses: null, // [RP-V7.335] locked placeholder: no sound credit rides
           crMuted: null,
           views: 0,
           reactions: {},
@@ -4078,6 +4080,7 @@ app.get("/api/reels", (req, res) => {
       musicStart: typeof r.musicStart === "number" ? r.musicStart : null,
       musicVol: typeof r.musicVol === "number" ? r.musicVol : null,
       origVol: typeof r.origVol === "number" ? r.origVol : null,
+      ...origCredit335("reel", r, reg335r), // [RP-V7.335] member-sound credit (used sound, else this reel's own minted sound)
       crMuted: r.crMuted || null, // [RP-V7.286] copyright mute flag — players force the reel's own audio silent and show the chip; an attached catalog track keeps playing
       // [RP-V7.64] Real server-owned view count (the tile number).
       views: mediaViewCount(vdb64, "reel:" + r.id),
@@ -4953,6 +4956,207 @@ function soundTouchUse(uid, trackId) {
   soundBumpFamily(uid, trackId, 4); // a use is a like-tier (+4) style signal
   soundTrendBump(trackId, 10); // a post is the heaviest trending signal
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.335] ORIGINAL SOUNDS — TikTok's member-sound mechanic (Branden,
+// Nov 11, 2026: "He made a song and it went viral and everybody's using
+// it — can I have the same thing on rizzplaza"). The audio of a member's
+// own video becomes a sound other members can use: posts credit the
+// sound, the sound has a page collecting every post that used it, and
+// "Use this sound" drops a member into the composer with it attached.
+// Registry truth lives in origsounds.json (the sounds.json store style):
+// one record per minted sound, its source post, and the posts that used
+// it. Credits resolve through the registry at serialize time, so an
+// owner rename updates every credit at once — nothing copies the name.
+// A sound is USABLE (offered for new uses) only while its source post
+// still exists, the source creator's allowRemix is on (the V7.316
+// switch, server-enforced exactly like duet/stitch), and the source
+// audio is not copyright-muted (crMuted). Existing uses are never
+// touched — their own audio state governs them, as always. No media is
+// extracted or duplicated: a sound streams its SOURCE post's media,
+// the same reference-not-copy rule as catalog tracks (RP-V7.90).
+// ---------------------------------------------------------------------------
+const ORIG_SOUNDS_FILE335 =
+  process.env.ORIG_SOUNDS_FILE || path.join(path.dirname(PHOTO_DIR), "origsounds.json");
+function readOrigSounds335() {
+  return storeReadJson(
+    ORIG_SOUNDS_FILE335,
+    (d) => !!(d && d.sounds && typeof d.sounds === "object"),
+    { sounds: {} },
+    "origsounds"
+  );
+}
+function writeOrigSounds335(d) {
+  storeWriteJson(ORIG_SOUNDS_FILE335, d);
+}
+function origCleanId335(v) {
+  const s = String(v || "");
+  return /^os_[a-z0-9]+$/.test(s) ? s : null;
+}
+function origSoundById335(d, id) {
+  return (d && d.sounds && d.sounds[id]) || null;
+}
+function origSourcePost335(snd) {
+  // The live source post record, or null when it is gone.
+  try {
+    if (snd.sourceKind === "reel") {
+      const r = listReels().find((x) => x.id === snd.sourceId);
+      return r ? { entry: r, kind: "reel" } : null;
+    }
+    if (snd.sourceKind === "feed") {
+      const p = readFeed().posts[snd.sourceId];
+      return p ? { entry: p, kind: "feed" } : null;
+    }
+  } catch (e) { }
+  return null;
+}
+function origSoundUsable335(snd) {
+  if (!snd) return false;
+  const src = origSourcePost335(snd);
+  if (!src) return false; // source deleted — stops being offered
+  if (src.entry.allowRemix === false) return false; // creator's reuse switch (records without the switch read as on)
+  if (src.entry.crMuted) return false; // flagged audio stops spreading; an owner-board restore revives it
+  return true;
+}
+function origSoundUrl335(snd) {
+  if (!snd || !snd.sourceFile) return null;
+  return snd.sourceKind === "feed" ? "/photos/feed/" + snd.sourceFile : "/reel-files/" + snd.sourceFile;
+}
+function origName335(adb, id, fallback) {
+  try {
+    const u = (adb && Array.isArray(adb.users)) ? adb.users.find((x) => x && x.id === id) : null;
+    if (u && u.name) return u.name;
+  } catch (e) { }
+  return fallback || "Someone";
+}
+function origLivePosts335(snd, adb) {
+  // The registry's posts[] resolved against live records — deleted
+  // posts drop out of the list AND the count (the count is the
+  // registry's live truth, never the sounds.json usage counter).
+  const out = [];
+  try {
+    const reelMap = {};
+    for (const r of listReels()) reelMap[r.id] = r;
+    const feedPosts = readFeed().posts || {};
+    const photoMap = {};
+    for (const p of (readPhotoPosts().posts || [])) photoMap[p.id] = p;
+    const vdb = readViews();
+    for (const u of (Array.isArray(snd.posts) ? snd.posts : [])) {
+      if (!u) continue;
+      if (u.kind === "reel") {
+        const r = reelMap[u.id]; if (!r || !r.file) continue;
+        out.push({ kind: "reel", id: r.id, url: "/reel-files/" + r.file, caption: r.caption || "", author: origName335(adb, r.authorId, r.author), authorId: r.authorId || null, views: mediaViewCount(vdb, "reel:" + r.id), createdAt: r.createdAt || null });
+      } else if (u.kind === "feed") {
+        const p = feedPosts[u.id]; if (!p || !p.file) continue;
+        out.push({ kind: "feed", id: p.id, url: "/photos/feed/" + p.file, caption: p.text || "", author: origName335(adb, p.authorId, p.authorName), authorId: p.authorId || null, views: typeof p.views === "number" ? p.views : 0, createdAt: p.createdAt || null });
+      } else if (u.kind === "photo") {
+        const p = photoMap[u.id]; if (!p) continue;
+        out.push({ kind: "photo", id: p.id, url: p.photo || (Array.isArray(p.urls) ? p.urls[0] : null), caption: p.caption || "", author: origName335(adb, p.owner, p.name), authorId: p.owner || null, views: 0, createdAt: p.ts || null });
+      }
+    }
+  } catch (e) { }
+  return out;
+}
+function origStateRow335(snd, adb) {
+  const posts = origLivePosts335(snd, adb);
+  return {
+    id: snd.id,
+    name: snd.name,
+    ownerId: snd.ownerId,
+    ownerName: origName335(adb, snd.ownerId, snd.ownerName),
+    uses: posts.length,
+    usable: origSoundUsable335(snd),
+    url: origSoundUrl335(snd),
+    dur: typeof snd.dur === "number" ? snd.dur : null,
+    createdAt: snd.createdAt || null,
+  };
+}
+function origCredit335(kind, entry, regDb) {
+  // The member-sound credit for one post: the sound it USED, else its
+  // OWN minted sound. Flat serializer fields; all null when the post
+  // carries no member sound. (origSoundId itself is the raw record
+  // field the players overlay — the credit fields are display truth.)
+  const none = { origSoundId: (entry && entry.origSoundId) || null, soundId: null, soundName: null, soundOwnerId: null, soundOwnerName: null, soundUses: null };
+  try {
+    const d = regDb || readOrigSounds335();
+    let snd = null;
+    if (entry.origSoundId) snd = origSoundById335(d, entry.origSoundId);
+    if (!snd) {
+      for (const id of Object.keys(d.sounds || {})) {
+        const x = d.sounds[id];
+        if (x && x.sourceKind === kind && x.sourceId === entry.id) { snd = x; break; }
+      }
+    }
+    if (!snd) return none;
+    return { origSoundId: entry.origSoundId || null, soundId: snd.id, soundName: snd.name, soundOwnerId: snd.ownerId, soundOwnerName: snd.ownerName, soundUses: Array.isArray(snd.posts) ? snd.posts.length : 0 };
+  } catch (e) { return none; }
+}
+function origValidateUse335(rawId, user) {
+  // Server-side gate for a NEW use, mirroring the V7.316 duet rule:
+  // the source creator's reuse switch binds everyone but the owner.
+  const oid = origCleanId335(rawId);
+  if (!oid) return { error: "That sound can't be used" };
+  const snd = origSoundById335(readOrigSounds335(), oid);
+  if (!snd) return { error: "That sound is no longer available" };
+  const mine = !!user && snd.ownerId === user.id;
+  if (!mine && !origSoundUsable335(snd)) {
+    const src = origSourcePost335(snd);
+    if (src && src.entry.allowRemix === false) return { error: "The creator turned off reuse for that sound" };
+    return { error: "That sound is no longer available" };
+  }
+  return { snd };
+}
+function origRecordUse335(soundId, use) {
+  const d = readOrigSounds335();
+  const snd = origSoundById335(d, soundId);
+  if (!snd) return false;
+  if (!Array.isArray(snd.posts)) snd.posts = [];
+  if (!snd.posts.some((p) => p && p.kind === use.kind && p.id === use.id)) {
+    snd.posts.push({ kind: use.kind, id: use.id, by: use.by || null, at: new Date().toISOString() });
+    writeOrigSounds335(d);
+  }
+  soundTrendBump(soundId, 10); // a post is the heaviest trending signal — the catalog's own weight
+  return true;
+}
+// Minting probe: fire-and-forget beside the copyright enqueue (the
+// RP-V7.286 pattern — posting never waits on it). The bundled ffmpeg
+// binary reports the streams; a file with NO audio track mints NO
+// sound, silently — a silent video has no sound to reuse, and faking
+// one would break the no-fake-content rule.
+function origProbeAndMint335(job) {
+  try {
+    if (!job || !job.ownerId || !job.filePath) return;
+    crExecFile286(crFfmpeg286, ["-i", job.filePath], { timeout: 20000 }, (err, stdout, stderr) => {
+      try {
+        const s = String(stderr || "") + String(stdout || "");
+        const hasAudio = s.split("\n").some((l) => l.indexOf("Stream #") >= 0 && l.indexOf("Audio:") >= 0);
+        if (!hasAudio) return;
+        const dm = s.match(/Duration: (\d+):(\d+):([\d.]+)/);
+        const dur = dm ? Math.round((Number(dm[1]) * 3600 + Number(dm[2]) * 60 + Number(dm[3])) * 10) / 10 : null;
+        const d = readOrigSounds335();
+        for (const id of Object.keys(d.sounds || {})) {
+          const x = d.sounds[id];
+          if (x && x.sourceKind === job.kind && x.sourceId === job.postId) return; // one sound per source post — idempotent
+        }
+        const id = "os_" + crypto.randomBytes(8).toString("hex");
+        d.sounds[id] = {
+          id,
+          ownerId: job.ownerId,
+          ownerName: job.ownerName || "Someone",
+          name: "original sound",
+          sourceKind: job.kind,
+          sourceId: job.postId,
+          sourceFile: path.basename(job.filePath),
+          dur,
+          createdAt: new Date().toISOString(),
+          posts: [{ kind: job.kind, id: job.postId, by: job.ownerId, at: new Date().toISOString() }],
+        };
+        writeOrigSounds335(d);
+        console.log("[origsounds] minted", id, "from", job.kind, job.postId);
+      } catch (e) { console.log("[origsounds] mint error:", e.message); }
+    });
+  } catch (e) { }
+}
+
 app.get("/api/sounds/state", (req, res) => {
   const d = readSounds();
   let user = null;
@@ -4961,6 +5165,41 @@ app.get("/api/sounds/state", (req, res) => {
   const tr = soundTrending(d);
   out.trending = tr.ids;
   out.trendScores = tr.scores;
+  // [RP-V7.335] Original sounds ride the same payload: the picker
+  // resolves their names/owners/stream URLs from `orig`, their use
+  // counts merge into `usage`, and USABLE ones join Trending on the
+  // catalog's exact terms (same decayed score store, same weights —
+  // soundTrendBump is keyed by id, not by catalog membership). Ties
+  // fall to real use counts, then catalog-before-original, then the
+  // existing order / mint order. Nobody hand-picks any of it.
+  try {
+    const adb335 = readAccounts();
+    const od335 = readOrigSounds335();
+    const rows335 = Object.keys(od335.sounds || {}).map((id) => origStateRow335(od335.sounds[id], adb335));
+    out.orig = rows335;
+    const now335 = Date.now();
+    const usage335 = Object.assign({}, out.usage);
+    const scores335 = Object.assign({}, out.trendScores);
+    for (const row of rows335) {
+      usage335[row.id] = row.uses;
+      scores335[row.id] = Math.round(fyDecayed(d.trend[row.id], now335) * 1000) / 1000;
+    }
+    out.usage = usage335;
+    out.trendScores = scores335;
+    const ord335 = {};
+    tr.ids.forEach((id, i) => { ord335[id] = i; });
+    const merged335 = tr.ids.map((id) => ({ id, cat: 0, ord: ord335[id] }))
+      .concat(rows335.filter((r) => r.usable).map((r) => ({ id: r.id, cat: 1, ord: Date.parse(r.createdAt || "") || 0 })));
+    merged335.sort((a, b) => {
+      const sa = scores335[a.id] || 0, sb = scores335[b.id] || 0;
+      if (sb !== sa) return sb - sa;
+      const ua = usage335[a.id] || 0, ub = usage335[b.id] || 0;
+      if (ub !== ua) return ub - ua;
+      if (a.cat !== b.cat) return a.cat - b.cat;
+      return a.ord - b.ord;
+    });
+    out.trending = merged335.map((x) => x.id);
+  } catch (e) { }
   // [RP-V7.90] No featured/hand-picked list exists — the owner
   // retracted handpicks: Trending is the algorithm's alone.
   if (user) {
@@ -5004,10 +5243,57 @@ app.post("/api/sounds/favorite", (req, res) => {
 app.post("/api/sounds/use-tap", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return; // guests write no signals — the standing rule
-  const tid = soundCleanId((req.body || {}).trackId);
-  if (!tid) return res.status(400).json({ ok: false, error: "Unknown track" });
-  soundTrendBump(tid, 3); // "use this sound" tap from a watched reel
+  const rawTap = (req.body || {}).trackId;
+  const tid = soundCleanId(rawTap);
+  const oid = tid ? null : origCleanId335(rawTap); // [RP-V7.335] original sounds take the same +3 tap signal
+  if (!tid && !oid) return res.status(400).json({ ok: false, error: "Unknown track" });
+  soundTrendBump(tid || oid, 3); // "use this sound" tap from a watched reel
   res.json({ ok: true });
+});
+
+// [RP-V7.335] One original sound: name, owner, live use count, and
+// every post that used it (the source post first — it is use #1).
+app.get("/api/sounds/orig/:id", (req, res) => {
+  const oid = origCleanId335(req.params.id);
+  const snd = oid ? origSoundById335(readOrigSounds335(), oid) : null;
+  if (!snd) return res.status(404).json({ ok: false, error: "Sound not found" });
+  let me = null;
+  try { me = accountForToken(readAccounts(), req); } catch (e) { me = null; }
+  const adb = readAccounts();
+  const posts = origLivePosts335(snd, adb);
+  res.json({
+    ok: true,
+    sound: {
+      id: snd.id,
+      name: snd.name,
+      ownerId: snd.ownerId,
+      ownerName: origName335(adb, snd.ownerId, snd.ownerName),
+      uses: posts.length,
+      createdAt: snd.createdAt || null,
+      usable: origSoundUsable335(snd),
+      mine: !!me && me.id === snd.ownerId,
+      url: origSoundUrl335(snd),
+      dur: typeof snd.dur === "number" ? snd.dur : null,
+    },
+    posts,
+  });
+});
+// [RP-V7.335] The owner names their sound. Credits resolve through
+// the registry, so the new name shows on every post at once.
+app.post("/api/sounds/orig/:id/rename", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const oid = origCleanId335(req.params.id);
+  const d = readOrigSounds335();
+  const snd = oid ? origSoundById335(d, oid) : null;
+  if (!snd) return res.status(404).json({ ok: false, error: "Sound not found" });
+  if (snd.ownerId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the sound's creator can rename it" });
+  const name = String((req.body || {}).name || "").replace(/[<>&"']/g, "").trim().slice(0, 60);
+  if (!name) return res.status(400).json({ ok: false, error: "Give the sound a name" });
+  snd.name = name;
+  writeOrigSounds335(d);
+  res.json({ ok: true, id: snd.id, name: snd.name });
 });
 
 app.post("/api/reel", (req, res) => {
@@ -5106,9 +5392,23 @@ app.post("/api/reel", (req, res) => {
     // track FILE is never uploaded or re-encoded — the record carries
     // the reference and players stream the full-quality source.
     const musicTrackId = soundCleanId(rb.musicTrackId);
-    const musicStart = musicTrackId ? (reelNum(rb.musicStart, 0, 3600) || 0) : null;
-    const musicVol = musicTrackId ? (reelNum(rb.musicVol, 0, 1) ?? 0.8) : null;
-    const origVol = musicTrackId ? (reelNum(rb.origVol, 0, 1) ?? 1) : null;
+    // [RP-V7.335] Original sounds: a member sound may ride instead of a
+    // catalog track (one sound per post — the catalog field wins a tie,
+    // the legacy behaviour). The registry validates the use server-side:
+    // the source creator's allowRemix gates it exactly like duet/stitch
+    // above (their own sound is always usable by them).
+    let origSoundId335 = musicTrackId ? null : origCleanId335(rb.origSoundId);
+    if (origSoundId335) {
+      const v335 = origValidateUse335(origSoundId335, authorUser);
+      if (!v335.snd) {
+        try { fs.unlink(req.file.path, () => {}); } catch (e) { }
+        return res.status(403).json({ ok: false, error: v335.error });
+      }
+    }
+    const anySnd335 = !!(musicTrackId || origSoundId335);
+    const musicStart = anySnd335 ? (reelNum(rb.musicStart, 0, 3600) || 0) : null;
+    const musicVol = anySnd335 ? (reelNum(rb.musicVol, 0, 1) ?? 0.8) : null;
+    const origVol = anySnd335 ? (reelNum(rb.origVol, 0, 1) ?? 1) : null;
     const entry = saveReel({
       id: path.basename(req.file.filename, path.extname(req.file.filename)),
       author,
@@ -5134,8 +5434,14 @@ app.post("/api/reel", (req, res) => {
       ...((rb156.subsOnly === "1" || rb156.subsOnly === "true" || rb156.subsOnly === true) && authorUser ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation — needs an account author (the gate keys on the account id)
       ...((rb156.clubOnly === "1" || rb156.clubOnly === "true" || rb156.clubOnly === true) && authorUser ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation — same rule
       ...(musicTrackId ? { musicTrackId, musicStart, musicVol, origVol } : {}),
+      ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart, musicVol, origVol } : {}), // [RP-V7.335]
     });
     if (musicTrackId) soundTouchUse(authorUser ? authorUser.id : null, musicTrackId);
+    // [RP-V7.335] A used member sound records its use on the registry;
+    // a fresh member video with no attached sound mints its own
+    // (the probe decides — no audio track, no sound).
+    if (origSoundId335) origRecordUse335(origSoundId335, { kind: "reel", id: entry.id, by: authorUser ? authorUser.id : null });
+    if (!musicTrackId && !origSoundId335 && authorUser) origProbeAndMint335({ kind: "reel", postId: entry.id, ownerId: authorUser.id, ownerName: author, filePath: req.file.path });
     crEnqueue286({ surface: "reel", mediaId: entry.id, authorId: authorUser ? authorUser.id : null, filePath: req.file.path, trimStart: trimStart, musicTrackId: musicTrackId, origVol: origVol }); // [RP-V7.286] copyright scan — every reel, guests included
     console.log("[reels] new reel", entry.id, "by", author, entry.size, "bytes");
     if (authorUser) notifyFollowersOfPost129(authorUser, "reel", entry.id); // [RP-V7.129] [RP-V7.270] route the bell row to this reel
@@ -6139,7 +6445,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.334", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.335", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -6623,7 +6929,7 @@ app.post("/api/reels/signal", (req, res) => {
     if (skippedFast) agg.fastSkips += 1;
     if (notSelf) {
       const sKeys = styleKeysForCaption(reel.caption);
-      if (completed) { fyBump(urec, key, 3, now); fyBumpStyleKeys(urec, sKeys, 3, now); if (reel.musicTrackId && SOUND_TRACKS[reel.musicTrackId]) fyBumpStyleKeys(urec, { tags: [], families: [SOUND_TRACKS[reel.musicTrackId].family] }, 3, now); soundTrendBump(reel.musicTrackId, 2); }
+      if (completed) { fyBump(urec, key, 3, now); fyBumpStyleKeys(urec, sKeys, 3, now); if (reel.musicTrackId && SOUND_TRACKS[reel.musicTrackId]) fyBumpStyleKeys(urec, { tags: [], families: [SOUND_TRACKS[reel.musicTrackId].family] }, 3, now); soundTrendBump(reel.musicTrackId, 2); const oc335w = origCredit335("reel", reel); if (oc335w.soundId) soundTrendBump(oc335w.soundId, 2); } // [RP-V7.335] a completed watch feeds an original sound's trend at the same +2 as a catalog track
       else if (frac > 0.6) { fyBump(urec, key, 2, now); fyBumpStyleKeys(urec, sKeys, 2, now); }
       if (skippedFast) { fyBump(urec, key, -1, now); fyBumpStyleKeys(urec, sKeys, -1, now); }
     }
@@ -7100,6 +7406,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
       musicTrackId: null,
       musicStart: null,
       musicVol: null,
+      origSoundId: null, soundId: null, soundName: null, soundOwnerId: null, soundOwnerName: null, soundUses: null, // [RP-V7.335]
     };
   }
   return {
@@ -7134,6 +7441,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     musicTrackId: p.musicTrackId || null,
     musicStart: typeof p.musicStart === "number" ? p.musicStart : null,
     musicVol: typeof p.musicVol === "number" ? p.musicVol : null,
+    ...origCredit335("photo", p), // [RP-V7.335] member-sound credit, resolved through the registry
   };
 }
 app.post("/api/photo/post", photoUploadSet(async (req, res) => {
@@ -7229,6 +7537,16 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       } else urls.push(it.url);
     }
     const musicTrackId = soundCleanId(b.musicTrackId);
+    // [RP-V7.335] A member sound may ride a photo post instead of a
+    // catalog track — same registry gate as reels.
+    let origSoundId335 = musicTrackId ? null : origCleanId335(b.origSoundId);
+    if (origSoundId335) {
+      const v335 = origValidateUse335(origSoundId335, ctx.user);
+      if (!v335.snd) {
+        unlinkPhotoFiles123(req);
+        return res.status(403).json({ ok: false, error: v335.error });
+      }
+    }
     const post = {
       id: "ph" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex"),
       owner: ctx.user.id,
@@ -7244,8 +7562,10 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       clientKey: clientKey || null,
       ts: new Date().toISOString(),
       ...(musicTrackId ? { musicTrackId, musicStart: reelNum(b.musicStart, 0, 3600) || 0, musicVol: reelNum(b.musicVol, 0, 1) ?? 0.8 } : {}),
+      ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart: reelNum(b.musicStart, 0, 3600) || 0, musicVol: reelNum(b.musicVol, 0, 1) ?? 0.8 } : {}), // [RP-V7.335]
     };
     if (musicTrackId) soundTouchUse(ctx.user.id, musicTrackId);
+    if (origSoundId335) origRecordUse335(origSoundId335, { kind: "photo", id: post.id, by: ctx.user.id }); // [RP-V7.335]
     db.posts.unshift(post);
     db.posts = db.posts.slice(0, PHOTO_POSTS_KEEP);
     writePhotoPosts(db);
@@ -12297,6 +12617,12 @@ function feedPublic(ctx, p, following, fanAccess296, clubAccess298) { // [RP-V7.
     ...(p.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
     ...(p.shoutoutFor ? { shoutoutFor: p.shoutoutFor } : {}), // [RP-V7.300] fulfilled-shoutout marker (server record, never caption text)
     crMuted: p.crMuted || null, // [RP-V7.286]
+    // [RP-V7.335] attached member sound's mix + the resolved registry
+    // credit, same field shape as reels and photo posts.
+    musicStart: typeof p.musicStart === "number" ? p.musicStart : null,
+    musicVol: typeof p.musicVol === "number" ? p.musicVol : null,
+    origVol: typeof p.origVol === "number" ? p.origVol : null,
+    ...origCredit335("feed", p),
   };
 }
 const FEED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -12377,6 +12703,18 @@ app.post("/api/feed/post",
         }
         kind = isVideo ? "video" : "photo";
       }
+      // [RP-V7.335] Original sound attach — feed VIDEOS only (a feed
+      // photo or text post carries no sound), registry-gated exactly
+      // like reels: the source creator's reuse switch binds everyone
+      // but the sound's owner.
+      let origSoundId335 = null;
+      if (kind === "video") {
+        origSoundId335 = origCleanId335((req.body || {}).origSoundId);
+        if (origSoundId335) {
+          const v335 = origValidateUse335(origSoundId335, ctx.user);
+          if (!v335.snd) return fail(403, v335.error);
+        }
+      }
       const db = readFeed();
       const post = {
         id: crypto.randomBytes(8).toString("hex"),
@@ -12395,10 +12733,16 @@ app.post("/api/feed/post",
         ...(((req.body || {}).subsOnly === true || (req.body || {}).subsOnly === "1" || (req.body || {}).subsOnly === "true") ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation
         ...(((req.body || {}).clubOnly === true || (req.body || {}).clubOnly === "1" || (req.body || {}).clubOnly === "true") ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation
         ...(((req.body || {}).allowDownloads === false || (req.body || {}).allowDownloads === "0" || (req.body || {}).allowDownloads === "false") ? { allowDownloads: false } : {}), // [RP-V7.316] downloads switch: stamped only when OFF (absent = ON, TikTok's default)
+        ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart: reelNum((req.body || {}).musicStart, 0, 3600) || 0, musicVol: reelNum((req.body || {}).musicVol, 0, 1) ?? 0.8, origVol: reelNum((req.body || {}).origVol, 0, 1) ?? 1 } : {}), // [RP-V7.335]
       };
       db.posts[post.id] = post;
       writeFeed(db);
       if (kind === "video") crEnqueue286({ surface: "feed", mediaId: post.id, authorId: ctx.user.id, filePath: req.file.path }); // [RP-V7.286]
+      // [RP-V7.335] Record a used sound's use; a fresh feed video with
+      // no sound attached mints its own (probe decides — no audio
+      // track, no sound).
+      if (origSoundId335) origRecordUse335(origSoundId335, { kind: "feed", id: post.id, by: ctx.user.id });
+      if (kind === "video" && !origSoundId335) origProbeAndMint335({ kind: "feed", postId: post.id, ownerId: ctx.user.id, ownerName: ctx.user.name, filePath: req.file.path });
       // [RP-V7.300] A feed post created with a shoutoutId fulfills
       // that shoutout (escrow settles, marker stamped on the record).
       const so300f = await shoutoutFulfillForPost300(ctx, { id: post.id, kind: "feed", authorId: ctx.user.id }, (req.body || {}).shoutoutId);
@@ -21774,7 +22118,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.334", online: players.size })
+  res.json({ ok: true, version: "RP-V7.335", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
