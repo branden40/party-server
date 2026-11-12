@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.335" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.336" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -48967,7 +48967,7 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
   var B = { id: null, active: false, aId: "", bId: "", aName: "", bName: "", endsAt: 0, aPts: 0, bPts: 0, aMasked: false, bMasked: false, youSide: null, effects: null, mission: null, stock: null, ended: null, lastShare: 50, boundSock: null, callTimer: 0 };
   window.__rpBat306Managed = function () { return !!(B.id && B.active); };
   window.__rpBat306Masked = function () { return { a: !!B.aMasked, b: !!B.bMasked }; };
-  window.rpBattleId306 = function () { return (B.id && B.active) ? B.id : null; };
+  window.rpBattleId306 = function () { if (B.id && B.active) return B.id; try { if (window.__rpTeamBattleId336) return window.__rpTeamBattleId336(); } catch (e) { } return null; }; // [RP-V7.336] team battles score through the same hook
   // [RP-V7.306] fed by the V5 battle handler when a start/accept lands.
   window.rpBat306Begin = function (battleId, aId, bId, endsAt) {
     if (!battleId) return;
@@ -49130,6 +49130,594 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
       show = __rpShowWrap314;
     }
   } catch (e) { }
+})();
+</script>
+<style>
+/* ================= RP-V7.336: team battles =================
+   Lobby chip, team score bar (2v2 tug / FFA ranked rows), effect
+   chips + host booster tray (mirroring the V7.306 placement), and
+   the extra live-grid tiles for 3-4 host battles. Black UI, red
+   accents (V7.295/V7.310), same idiom as #rpBatBar. */
+#rpTeamBar336{ position:fixed; top:64px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; background:rgba(8,8,14,.82); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px 12px; color:#fff; }
+#rpTeamBar336 .tb-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:5px; }
+#rpTeamBar336 .tb-title{ font-weight:900; font-size:12.5px; letter-spacing:.04em; }
+#rpTeamBar336 .tb-time{ background:#17171f; border:1px solid rgba(255,255,255,.3); padding:2px 11px; border-radius:99px; font-size:11.5px; white-space:nowrap; font-weight:800; }
+#rpTeamBar336 .tb-time::before{ content:"◆ "; color:#fe2c2c; }
+#rpTeamBar336 .tb-time.hot{ border-color:#fe2c2c; color:#ffb3b3; }
+#rpTeamBar336 .tb-end{ background:rgba(254,44,44,.16); border:1px solid rgba(254,44,44,.6); color:#ffb3b3; border-radius:99px; font-size:11px; font-weight:900; padding:3px 10px; cursor:pointer; font-family:inherit; }
+#rpTeamBar336 .tb-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:1.5px 0; }
+#rpTeamBar336 .tb-nm{ font-weight:800; font-size:13.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#rpTeamBar336 .tb-nm small{ color:#9a9aad; font-weight:700; font-size:11px; }
+#rpTeamBar336 .tb-nm.lead{ color:#ffd23c; }
+#rpTeamBar336 .tb-pts{ font-weight:900; font-size:15px; font-variant-numeric:tabular-nums; }
+#rpTeamBar336 .tb-tug{ display:flex; height:7px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.12); margin:3px 0; }
+#rpTeamBar336 .tb-fill.a{ background:#fe2c2c; height:100%; transition:width .45s ease; }
+#rpTeamBar336 .tb-fill.b{ background:#f5b93f; height:100%; transition:width .45s ease; }
+#rpBoostChips336{ position:fixed; top:118px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; display:flex; gap:6px; flex-wrap:wrap; justify-content:center; pointer-events:none; }
+#rpBoostChips336 .bchip{ display:inline-flex; align-items:center; gap:5px; background:rgba(8,8,14,.85); border:1px solid rgba(255,255,255,.22); color:#fff; border-radius:99px; padding:3px 10px; font-size:11.5px; font-weight:800; backdrop-filter:blur(10px); }
+#rpBoostChips336 .bchip .cd{ color:#ffb3b3; font-variant-numeric:tabular-nums; }
+#rpBoostChips336 .bchip.mine{ border-color:#fe2c2c; box-shadow:0 0 10px rgba(254,44,44,.45); }
+#rpBoostChips336 .bchip.mission{ border-color:#ffd23c; color:#ffe9a8; }
+#rpBoostChips336 .bchip.frozen{ border-color:#7ac2ff; color:#cfe8ff; }
+#rpBoostTray336{ position:fixed; left:50%; transform:translateX(-50%); bottom:118px; width:min(620px,96vw); z-index:44; background:rgba(8,8,14,.88); border:1px solid rgba(254,44,44,.55); border-radius:14px; padding:8px 10px; color:#fff; backdrop-filter:blur(12px); }
+#rpBoostTray336 .bt-head{ font-size:11px; font-weight:900; letter-spacing:.06em; color:#ffb3b3; margin:0 2px 6px; }
+#rpBoostTray336 .bt-row{ display:flex; gap:6px; flex-wrap:wrap; }
+#rpBoostTray336 .bt-btn{ flex:1 1 30%; min-width:86px; border:1.5px solid rgba(255,255,255,.25); background:rgba(255,255,255,.07); color:#fff; border-radius:11px; padding:7px 4px; font-family:inherit; font-weight:800; font-size:12px; cursor:pointer; }
+#rpBoostTray336 .bt-btn .n{ display:block; font-size:10.5px; color:#ffb3b3; font-weight:900; margin-top:1px; }
+#rpBoostTray336 .bt-btn:disabled{ opacity:.38; cursor:default; }
+#rpBoostTray336 .bt-btn:not(:disabled):active{ background:rgba(254,44,44,.35); }
+#rpBoostCall336{ position:fixed; inset:0; z-index:46; display:none; align-items:center; justify-content:center; pointer-events:none; }
+#rpBoostCall336.on{ display:flex; }
+#rpBoostCall336 .bc-card{ background:rgba(8,8,14,.88); border:2px solid #fe2c2c; color:#fff; border-radius:18px; padding:16px 26px; text-align:center; font-weight:900; font-size:19px; box-shadow:0 18px 50px rgba(0,0,0,.6), 0 0 24px rgba(254,44,44,.4); animation:bcPop306 .3s ease; max-width:86vw; }
+#rpBoostCall336 .bc-card small{ display:block; font-size:12.5px; font-weight:700; color:#ffb3b3; margin-top:3px; }
+#rpTeamLobbyChip336{ position:fixed; left:50%; transform:translateX(-50%); bottom:118px; z-index:45; display:none; align-items:center; gap:8px; background:rgba(8,8,14,.9); border:1px solid rgba(254,44,44,.55); color:#fff; border-radius:99px; padding:8px 8px 8px 14px; font-size:12.5px; font-weight:800; backdrop-filter:blur(12px); box-shadow:0 10px 30px rgba(0,0,0,.5); }
+#rpTeamLobbyChip336 button{ border-radius:99px; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.08); color:#fff; font-family:inherit; font-weight:900; font-size:12px; padding:6px 12px; cursor:pointer; }
+#rpTeamLobbyChip336 button.go{ background:#fe2c2c; border-color:#fe2c2c; }
+.tb-lobrow{ padding:7px 2px; border-bottom:1px solid rgba(255,255,255,.08); font-size:14px; }
+.tb-teams{ background:rgba(254,44,44,.08); border:1px solid rgba(254,44,44,.35); border-radius:12px; padding:8px 12px; margin:10px 0; }
+.tb-teams p{ margin:3px 0; }
+#liveGrid.rp-split2, #liveGrid.rp-split3, #liveGrid.rp-split4{ display:grid !important; grid-template-columns:1fr 1fr !important; gap:3px; }
+#liveGrid.rp-split3 .live-tile, #liveGrid.rp-split4 .live-tile{ min-height:30vh; }
+.rp-team-tile336{ position:relative; background:#101014; border-radius:10px; overflow:hidden; min-height:30vh; }
+.rp-team-tile336 video{ width:100%; height:100%; object-fit:cover; display:block; }
+.rp-team-tile336 .rp-bat-name{ position:absolute; left:6px; bottom:6px; background:rgba(0,0,0,.55); color:#fff; font-size:11px; font-weight:800; padding:2px 7px; border-radius:999px; z-index:2; }
+.rp-team-tile336 .rp-bat-wait{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#bbb; font-size:12px; font-weight:700; text-align:center; padding:8px; }
+body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(.live-fs) #rpBoostTray336{ display:none !important; }
+</style>
+<script>
+/* ================= RP-V7.336: TEAM BATTLES (client) =================
+   The server runs team battles (see server [RP-V7.336]): formation
+   happens in a lobby on the existing "battle" channel (the host
+   picks 2v2 / 3-way / 4-way, invites live hosts, the lobby must
+   FILL, teams are shown, the host starts), scoring/effects/mission
+   are the V7.306 rules generalized per side, and state arrives on
+   the "battle336" event tailored per audience side (a Mist side's
+   score is null in other sides' copies — never sent, never leaked).
+   This layer:
+   - adds the Team Battle section to the existing battle sheet and
+     renders the lobby (members, invites, 2v2 team preview, start),
+   - renders the team score bar (2v2 tug / FFA ranked rows), the
+     effect chips and the host booster tray (plays ride the same
+     "battle-boost" message; stock arrives in host payload copies),
+   - feeds the shared gift hook: window.__rpTeamBattleId336 is what
+     rpBattleId306 falls back to, so gifts sent during a team battle
+     carry its id and score server-side,
+   - runs the extra video tiles: battlers mesh with each other
+     (lower socket id offers, as V7.174), viewers open receive-only
+     feeds from every other host; signaling rides the same battle
+     rtc relay. V7.174 stays in charge of 1v1 tiles and stands down
+     here (it keys off the V5 Bat state, which team battles never
+     activate, and the legacy tallies stay down because the V5 layer
+     never begins).
+   Boosters move battle points only — gift money is untouched. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function myId() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function sock() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function live() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function toast2(m, t) { try { if (window.toast) window.toast(m, t || 3200); } catch (e) { } }
+  function closeSheet() { try { if (window.closeSheet) window.closeSheet(); } catch (e) { } }
+  function fmtCd(ms) { var s = Math.max(0, Math.ceil(ms / 1000)); return "0:" + String(s).padStart(2, "0"); }
+
+  var T = { id: null, active: false, ended: null, format: "", parts: [], sides: [], endsAt: 0, stock: null, mission: null, lobby: null, lobbyView: false, pendingInvite: null, boundSock: null, callTimer: 0, rowEls: {}, rowsSig: "", createWait: 0 };
+  window.__rpTeamBattleId336 = function () { return (T.id && T.active) ? T.id : null; };
+
+  function myPart() { var me = myId(); for (var i = 0; i < T.parts.length; i++) if (T.parts[i].id === me) return T.parts[i]; return null; }
+  function isPart() { return !!myPart(); }
+  function mySide() { var p = myPart(); return p ? p.side : null; }
+  function sideOf(key) { for (var i = 0; i < T.sides.length; i++) if (T.sides[i].side === key) return T.sides[i]; return null; }
+  function partName(sockId) { for (var i = 0; i < T.parts.length; i++) if (T.parts[i].id === sockId) return T.parts[i].name; return "Host"; }
+  function sideLabel(key) {
+    if (T.format === "2v2") return key === "a" ? "Team A" : "Team B";
+    var s = sideOf(key);
+    return s && s.members && s.members[0] ? s.members[0] : "Host";
+  }
+  function sideNames(key) { var s = sideOf(key); return s && s.members ? s.members.join(" & ") : ""; }
+  function onLiveScreen() { return !!(live() && live().active && document.body.classList.contains("live-fs")); }
+
+  function callout(main, sub) {
+    var ov = $("rpBoostCall336");
+    if (!ov) { ov = document.createElement("div"); ov.id = "rpBoostCall336"; document.body.appendChild(ov); }
+    ov.innerHTML = '<div class="bc-card">' + esc(main) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</div>";
+    if (!ov.classList.contains("on")) ov.classList.add("on");
+    clearTimeout(T.callTimer);
+    T.callTimer = setTimeout(function () { ov.classList.remove("on"); }, 2400);
+  }
+  function feedLine(text) {
+    try {
+      var log = $("onlineChatLog"); if (!log) return;
+      var row = document.createElement("div");
+      row.className = "chat-row sys";
+      row.innerHTML = "<span>" + esc(text) + "</span>";
+      log.appendChild(row);
+      while (log.children.length > 60) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    } catch (e) { }
+  }
+
+  /* ---------------- score bar ---------------- */
+  function ensureBar() {
+    var bar = $("rpTeamBar336");
+    if (bar) return bar;
+    bar = document.createElement("div");
+    bar.id = "rpTeamBar336";
+    bar.innerHTML = '<div class="tb-head"><span class="tb-title" id="tbTitle336"></span><span class="tb-time" id="tbTime336">⚔️ 0:00</span><button type="button" class="tb-end" id="tbEnd336" style="display:none">End</button></div><div id="tbRows336"></div>';
+    document.body.appendChild(bar);
+    $("tbEnd336").addEventListener("click", function () {
+      var s = sock(); if (!s || !T.id) return;
+      var other = null;
+      for (var i = 0; i < T.parts.length; i++) if (T.parts[i].id !== myId()) { other = T.parts[i].id; break; }
+      if (other) s.emit("battle", { t: "end", to: other });
+    });
+    return bar;
+  }
+  function renderBar() {
+    var bar = $("rpTeamBar336");
+    var show = !!(T.id && T.active && onLiveScreen());
+    if (!show) { if (bar && bar.style.display !== "none") bar.style.display = "none"; return; }
+    bar = ensureBar();
+    if (bar.style.display !== "block") bar.style.display = "block";
+    var title = T.format === "2v2" ? "⚔️ 2v2 TEAM BATTLE" : (T.format === "3way" ? "⚔️ 3-WAY BATTLE" : "⚔️ 4-WAY BATTLE");
+    var tt = $("tbTitle336"); if (tt && tt.textContent !== title) tt.textContent = title;
+    var endBtn = $("tbEnd336");
+    if (endBtn) { var want = isPart() ? "" : "none"; if (endBtn.style.display !== want) endBtn.style.display = want; }
+    var left = Math.max(0, Math.round((T.endsAt - Date.now()) / 1000));
+    var clock = "⚔️ " + Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+    var tm = $("tbTime336");
+    if (tm && tm.textContent !== clock) tm.textContent = clock;
+    if (tm) { var hc = "tb-time" + (left <= 30 ? " hot" : ""); if (tm.className !== hc) tm.className = hc; }
+    // rows
+    var wrap = $("tbRows336"); if (!wrap) return;
+    var order, sig;
+    if (T.format === "2v2") { order = ["a", "b"]; }
+    else {
+      var sorted = T.sides.slice().sort(function (x, y) { return ((y.pts == null ? -1 : y.pts) - (x.pts == null ? -1 : x.pts)); });
+      order = sorted.map(function (s) { return s.side; });
+    }
+    sig = T.format + "|" + order.join(",") + "|" + T.sides.map(function (s) { return s.side + ":" + (s.members || []).join("&"); }).join("|");
+    if (T.rowsSig !== sig) {
+      T.rowsSig = sig; T.rowEls = {};
+      wrap.innerHTML = "";
+      order.forEach(function (key, idx) {
+        if (T.format === "2v2" && idx === 1) {
+          var tug = document.createElement("div");
+          tug.className = "tb-tug";
+          tug.innerHTML = '<div class="tb-fill a" id="tbFillA336"></div><div class="tb-fill b" id="tbFillB336"></div>';
+          wrap.appendChild(tug);
+        }
+        var row = document.createElement("div");
+        row.className = "tb-row";
+        row.innerHTML = '<span class="tb-nm"></span><span class="tb-pts">0</span>';
+        wrap.appendChild(row);
+        T.rowEls[key] = row;
+      });
+    }
+    order.forEach(function (key) {
+      var row = T.rowEls[key]; if (!row) return;
+      var s = sideOf(key); if (!s) return;
+      var nm = row.querySelector(".tb-nm"), pts = row.querySelector(".tb-pts");
+      var lead = false;
+      if (T.format === "2v2") { var other = sideOf(key === "a" ? "b" : "a"); lead = !!(other && s.pts != null && other.pts != null && s.pts > other.pts); }
+      else { lead = !!(s.pts != null && s.pts > 0 && T.sides.every(function (o) { return o.side === key || o.pts == null || o.pts <= s.pts; }) && T.sides.some(function (o) { return o.side !== key && o.pts != null && o.pts < s.pts; })); }
+      var nameHtml = (lead ? "👑 " : "") + esc(sideLabel(key)) + (T.format === "2v2" ? " <small>" + esc(sideNames(key)) + "</small>" : "");
+      if (nm && nm.__h !== nameHtml) { nm.__h = nameHtml; nm.innerHTML = nameHtml; }
+      if (nm) { var nc = "tb-nm" + (lead ? " lead" : ""); if (nm.className !== nc) nm.className = nc; }
+      var ptxt = s.masked ? "???" : Number(s.pts || 0).toLocaleString();
+      if (pts && pts.textContent !== ptxt) pts.textContent = ptxt;
+    });
+    if (T.format === "2v2") {
+      var fa = $("tbFillA336"), fb = $("tbFillB336");
+      var sa = sideOf("a"), sb = sideOf("b");
+      var share = 50;
+      if (sa && sb && sa.pts != null && sb.pts != null && (sa.pts + sb.pts) > 0) share = Math.max(6, Math.min(94, (sa.pts / (sa.pts + sb.pts)) * 100));
+      if (fa && fa.style.width !== share + "%") fa.style.width = share + "%";
+      if (fb && fb.style.width !== (100 - share) + "%") fb.style.width = (100 - share) + "%";
+    }
+  }
+
+  /* ---------------- chips + tray ---------------- */
+  function renderChips() {
+    var chips = $("rpBoostChips336");
+    var show = !!(T.id && T.active && onLiveScreen());
+    if (!show) { if (chips && chips.style.display !== "none") chips.style.display = "none"; return; }
+    if (!chips) { chips = document.createElement("div"); chips.id = "rpBoostChips336"; document.body.appendChild(chips); }
+    if (chips.style.display !== "flex") chips.style.display = "flex";
+    var now = Date.now(), html = "", ms = mySide();
+    T.sides.forEach(function (s) {
+      var e = s.effects; if (!e) return;
+      var nm = esc(sideLabel(s.side));
+      var mine = ms === s.side;
+      if (e.mist > 0) html += '<span class="bchip' + (mine ? " mine" : "") + '">🌫️ ' + nm + ' · Mist <span class="cd">' + fmtCd(e.mist) + "</span></span>";
+      if (e.gloves > 0) html += '<span class="bchip' + (mine ? " mine" : "") + '">🥊 ' + nm + ' · Gloves <span class="cd">' + fmtCd(e.gloves) + "</span></span>";
+      if (e.booster > 0) html += '<span class="bchip' + (mine ? " mine" : "") + '">⚡ ' + nm + ' · ×' + (e.boosterMult || 2) + ' <span class="cd">' + fmtCd(e.booster) + "</span></span>";
+      if (e.freeze > 0) html += '<span class="bchip frozen">🔨 ' + nm + ' · Frozen <span class="cd">' + fmtCd(e.freeze) + "</span></span>";
+    });
+    if (T.mission) {
+      if (T.mission.active) html += '<span class="bchip mission">🎁 Bonus Mission · First Gift ×3 <span class="cd">' + fmtCd(T.mission.endsAt - now) + "</span></span>";
+      else if (T.mission.opensAt > now && T.mission.opensAt < T.endsAt) html += '<span class="bchip mission">🎁 Bonus Mission soon…</span>';
+    }
+    if (chips.__sig !== html) { chips.__sig = html; chips.innerHTML = html; }
+  }
+  function renderTray() {
+    var tray = $("rpBoostTray336");
+    var show = !!(T.id && T.active && isPart() && onLiveScreen());
+    if (!show) { if (tray && tray.style.display !== "none") tray.style.display = "none"; return; }
+    if (!tray) { tray = document.createElement("div"); tray.id = "rpBoostTray336"; document.body.appendChild(tray); }
+    if (tray.style.display !== "block") tray.style.display = "block";
+    var st = T.stock || { mist: 0, gloves: 0, boost2: 0, boost3: 0, hammer: 0, timer: 0 };
+    var myS = sideOf(mySide());
+    var e2 = myS ? myS.effects : null;
+    var left = T.endsAt - Date.now();
+    function dis(item) {
+      if (!st[item]) return true;
+      if (left <= 5000 && item !== "timer") return true;
+      if (!e2) return false;
+      if (item === "mist" && e2.mist > 0) return true;
+      if (item === "gloves" && e2.gloves > 0) return true;
+      if ((item === "boost2" || item === "boost3") && e2.booster > 0) return true;
+      if (item === "timer" && myS && myS.timerUsed) return true;
+      return false;
+    }
+    var btn = function (item, label) { return '<button type="button" class="bt-btn" data-boost336="' + item + '"' + (dis(item) ? " disabled" : "") + ">" + label + '<span class="n">× ' + (st[item] || 0) + "</span></button>"; };
+    var sig = JSON.stringify(st) + "|" + Math.floor(left / 1000) + "|" + (e2 ? [e2.mist > 0, e2.gloves > 0, e2.booster > 0, myS && myS.timerUsed].join(",") : "");
+    if (tray.__sig !== sig) {
+      tray.__sig = sig;
+      tray.innerHTML = '<p class="bt-head">⚔️ YOUR BOOSTERS — EARNED, NEVER SOLD</p><div class="bt-row">' +
+        btn("mist", "🌫️ Mist") + btn("gloves", "🥊 Gloves") + btn("boost2", "⚡ ×2") + btn("boost3", "⚡ ×3") + btn("hammer", "🔨 Hammer") + btn("timer", "⏱️ +30s") + "</div>";
+      tray.querySelectorAll("[data-boost336]").forEach(function (bEl) {
+        bEl.addEventListener("click", function () {
+          var s = sock(); if (!s || !T.id) return;
+          s.emit("battle-boost", { battleId: T.id, item: bEl.getAttribute("data-boost336") });
+        });
+      });
+    }
+  }
+
+
+  /* ---------------- video tiles (battler mesh + viewer feeds) ---------------- */
+  var pcs336 = {};
+  var tileStreams336 = {};
+  function liveHostId336() { try { if (typeof Live !== "undefined" && Live.hostId) return Live.hostId; } catch (e) { } return null; }
+  function myOut336() { try { if (typeof liveOutStream === "function") { var s = liveOutStream(); if (s) return s; } } catch (e) { } try { return (typeof Live !== "undefined" && Live.myStream) || null; } catch (e) { } return null; }
+  function neededPeers336() {
+    if (!T.active) return [];
+    var hostId = liveHostId336(), me = myId();
+    return T.parts.map(function (p) { return p.id; }).filter(function (id) { return id !== hostId && id !== me; });
+  }
+  function sendRtc336(id, kind, sdp, view) { var s = sock(); if (s) s.emit("battle", { t: "rtc", to: id, kind: kind, sdp: sdp || null, view: view ? 1 : 0 }); }
+  function closePc336(id) { var r = pcs336[id]; delete tileStreams336[id]; if (!r) return; delete pcs336[id]; try { r.pc.close(); } catch (e) { } }
+  function mkPc336(id) {
+    var pc; try { pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }); } catch (e) { return null; }
+    var rec = pcs336[id] = { pc: pc, ice: [], remoteSet: false };
+    pc.onicecandidate = function (ev) { var s = sock(); if (ev.candidate && s) s.emit("battle", { t: "rtc", to: id, kind: "ice", ice: ev.candidate }); };
+    pc.ontrack = function (ev) { if (ev.streams && ev.streams[0]) { tileStreams336[id] = ev.streams[0]; renderTiles(); } };
+    pc.onconnectionstatechange = function () { if (pc.connectionState === "failed" || pc.connectionState === "closed") closePc336(id); };
+    return rec;
+  }
+  function flushIce336(rec) { var q = rec.ice.splice(0); q.forEach(function (c) { rec.pc.addIceCandidate(c).catch(function () { }); }); }
+  function addMine336(rec) { var out = myOut336(); if (!out) return; out.getTracks().forEach(function (tr) { try { rec.pc.addTrack(tr, out); } catch (e) { } }); }
+  function offer336(id, viewOnly) {
+    var rec = pcs336[id] || mkPc336(id); if (!rec) return;
+    if (viewOnly) { try { rec.pc.addTransceiver("video", { direction: "recvonly" }); rec.pc.addTransceiver("audio", { direction: "recvonly" }); } catch (e) { } }
+    else addMine336(rec);
+    rec.pc.createOffer().then(function (o) { return rec.pc.setLocalDescription(o); }).then(function () { sendRtc336(id, "offer", rec.pc.localDescription, viewOnly); }).catch(function () { });
+  }
+  function managePcs336(peers) {
+    var me = myId(), iAmPart = isPart();
+    peers.forEach(function (id) {
+      if (pcs336[id]) return;
+      if (iAmPart) { if (String(me) < String(id)) offer336(id, false); }
+      else offer336(id, true);
+    });
+    Object.keys(pcs336).forEach(function (id) { if (peers.indexOf(id) < 0) closePc336(id); });
+  }
+  function onRtc336(m) {
+    if (!m || m.t !== "rtc" || !m.from || !T.active) return;
+    var id = m.from;
+    var fromPart = T.parts.some(function (p) { return p.id === id; });
+    if (m.kind === "offer") {
+      if (!fromPart && !isPart()) return;
+      if (Object.keys(pcs336).length >= 14 && !pcs336[id]) return;
+      var rec = pcs336[id] || mkPc336(id); if (!rec) return;
+      rec.pc.setRemoteDescription(m.sdp).then(function () { rec.remoteSet = true; flushIce336(rec); addMine336(rec); return rec.pc.createAnswer(); }).then(function (a) { return rec.pc.setLocalDescription(a); }).then(function () { sendRtc336(id, "answer", rec.pc.localDescription, 0); }).catch(function () { });
+    } else if (m.kind === "answer") {
+      var r2 = pcs336[id]; if (!r2) return;
+      r2.pc.setRemoteDescription(m.sdp).then(function () { r2.remoteSet = true; flushIce336(r2); }).catch(function () { });
+    } else if (m.kind === "ice" && m.ice) {
+      var r3 = pcs336[id]; if (!r3) return;
+      if (r3.remoteSet) r3.pc.addIceCandidate(m.ice).catch(function () { }); else r3.ice.push(m.ice);
+    }
+  }
+  function renderTiles() {
+    var grid = $("liveGrid");
+    if (!grid) return;
+    var peers = onLiveScreen() ? neededPeers336() : [];
+    var want = {}; peers.forEach(function (id) { want[id] = 1; });
+    grid.querySelectorAll(".rp-team-tile336").forEach(function (el) { if (!want[el.getAttribute("data-peer")]) el.remove(); });
+    peers.forEach(function (id) {
+      var t = grid.querySelector('.rp-team-tile336[data-peer="' + id + '"]');
+      if (!t) {
+        t = document.createElement("div");
+        t.className = "rp-team-tile336"; t.setAttribute("data-peer", id);
+        t.innerHTML = '<div class="rp-bat-wait">⚔️ Connecting to the host…</div><div class="rp-bat-name"></div>';
+        grid.appendChild(t);
+      }
+      var nm = t.querySelector(".rp-bat-name");
+      var label = "⚔️ " + partName(id);
+      if (nm && nm.textContent !== label) nm.textContent = label;
+      var st = tileStreams336[id];
+      if (st) {
+        var v = t.querySelector("video");
+        if (!v) { v = document.createElement("video"); v.autoplay = true; v.setAttribute("playsinline", ""); t.insertBefore(v, t.firstChild); }
+        if (v.srcObject !== st) v.srcObject = st;
+        var w = t.querySelector(".rp-bat-wait"); if (w) w.remove();
+      }
+    });
+    var total = peers.length + 1;
+    var cls = total >= 4 ? "rp-split4" : (total === 3 ? "rp-split3" : (total === 2 ? "rp-split2" : ""));
+    ["rp-split2", "rp-split3", "rp-split4"].forEach(function (c) { if (c !== cls && grid.classList.contains(c)) grid.classList.remove(c); });
+    if (cls && !grid.classList.contains(cls)) grid.classList.add(cls);
+    if (T.active) managePcs336(peers);
+  }
+  function teardownTiles() {
+    Object.keys(pcs336).forEach(closePc336);
+    var grid = $("liveGrid");
+    if (grid) {
+      grid.querySelectorAll(".rp-team-tile336").forEach(function (el) { el.remove(); });
+      ["rp-split2", "rp-split3", "rp-split4"].forEach(function (c) { if (grid.classList.contains(c)) grid.classList.remove(c); });
+    }
+  }
+
+  /* ---------------- result overlay ---------------- */
+  function showResult336(p) {
+    var old = $("rpBatResult"); if (old) old.remove();
+    var e = p.ended; if (!e) return;
+    var title;
+    if (e.draw) title = "IT'S A DRAW!";
+    else if (T.format === "2v2") title = (e.winnerSides && e.winnerSides[0] === "a" ? "TEAM A" : "TEAM B") + " WINS THE BATTLE!";
+    else title = ((e.winnerNames && e.winnerNames[0]) || "Host") + " WINS THE BATTLE!";
+    var lines = (e.standings || []).map(function (s) {
+      var nm = T.format === "2v2" ? (s.side === "a" ? "Team A" : "Team B") + " (" + (s.names || []).join(" & ") + ")" : (s.names || []).join(" & ");
+      return '<div class="score">' + esc(nm) + " — " + Number(s.pts || 0).toLocaleString() + "</div>";
+    }).join("");
+    var ov = document.createElement("div");
+    ov.id = "rpBatResult";
+    ov.innerHTML = '<div class="card"><div class="crown">' + (e.draw ? "🤝" : "👑") + "</div><h3>" + esc(title) + "</h3>" + lines + '<div><button class="btn-mini" id="rpTeamClose336" style="padding:11px 18px">Close</button></div></div>';
+    document.body.appendChild(ov);
+    $("rpTeamClose336").addEventListener("click", function () { ov.remove(); });
+    setTimeout(function () { if (ov.parentNode) ov.remove(); }, 12000);
+  }
+
+  /* ---------------- battle336 state ---------------- */
+  function onState336(p) {
+    if (!p || !p.battleId) return;
+    if (T.id && p.battleId !== T.id && !T.ended) return;
+    if (!T.id || (T.ended && p.battleId !== T.id)) { T.id = p.battleId; T.active = true; T.ended = null; T.stock = null; }
+    T.format = p.format || T.format;
+    T.parts = p.parts || T.parts;
+    T.sides = p.sides || T.sides;
+    T.endsAt = p.endsAt || T.endsAt;
+    T.mission = p.mission || null;
+    if (p.stock) T.stock = p.stock;
+    var ev = p.ev;
+    if (ev && ev.kind === "gift") {
+      var multTxt = (ev.mults || []).indexOf("gloves5") >= 0 ? " · 🥊 GLOVES ×5!" : ((ev.mults || []).indexOf("firstgift3") >= 0 ? " · 🎁 First Gift ×3" : ((ev.mults || []).indexOf("boost3") >= 0 ? " · ⚡ ×3" : ((ev.mults || []).indexOf("boost2") >= 0 ? " · ⚡ ×2" : "")));
+      if ((ev.mults || []).indexOf("frozen") >= 0) feedLine("🔨 " + sideLabel(ev.side) + "'s gift landed but the freeze kept it at 0 points.");
+      else if (ev.pts > 0) feedLine("⚔️ " + (ev.fromName || "A fan") + "'s " + (ev.giftName || "gift") + " scored " + Number(ev.pts).toLocaleString() + " for " + (T.format === "2v2" ? sideLabel(ev.side) : partName(ev.partSock)) + multTxt);
+      if ((ev.mults || []).indexOf("gloves5") >= 0) callout("🥊 GLOVES ×5!", sideLabel(ev.side) + "'s gift just scored five times");
+      if (ev.dropItem && ev.partSock === myId() && isPart()) toast2("🎁 A gift in your battle dropped a booster for you — check your tray!", 3600);
+    } else if (ev && ev.kind === "mist") { callout("🌫️ MIST!", sideLabel(ev.side) + "'s score is hidden for 30s"); feedLine("🌫️ " + sideLabel(ev.side) + " raised the Mist — their score is hidden."); }
+    else if (ev && ev.kind === "gloves") { callout("🥊 GLOVES ON!", sideLabel(ev.side) + " — gifts can land ×5 for 30s"); }
+    else if (ev && ev.kind === "booster") { callout("⚡ BOOSTER ×" + (ev.mult || 2) + "!", sideLabel(ev.side) + "'s gifts count ×" + (ev.mult || 2) + " for 30s"); }
+    else if (ev && ev.kind === "hammer") { callout("🔨 HAMMER HIT!", sideLabel(ev.oppSide) + " loses " + Number(ev.cut || 0).toLocaleString() + " points and is frozen 10s"); feedLine("🔨 " + sideLabel(ev.side) + "'s Hammer smashed " + Number(ev.cut || 0).toLocaleString() + " points off " + sideLabel(ev.oppSide) + " — frozen for 10s!"); }
+    else if (ev && ev.kind === "timer") { callout("⏱️ +30 SECONDS!", sideLabel(ev.side) + " extended the battle"); }
+    else if (ev && ev.kind === "mission-start") { callout("🎁 BONUS MISSION!", "First gift from each fan counts ×3 — 30 seconds!"); feedLine("🎁 BONUS MISSION is open — every fan's first gift counts ×3 for 30 seconds!"); }
+    else if (ev && ev.kind === "mission-end") { feedLine("🎁 Bonus Mission closed."); }
+    if (p.ended) {
+      T.ended = p.ended; T.active = false;
+      if (ev && ev.kind === "end" && ev.awards && isPart() && ev.awards[myId()]) toast2("🏆 You won a booster for winning the battle — it's in your tray stock!", 4200);
+      showResult336(p);
+      teardownTiles();
+    }
+    renderBar(); renderChips(); renderTray(); renderTiles();
+  }
+
+  /* ---------------- lobby ---------------- */
+  function fmtName(f) { return f === "2v2" ? "2v2" : (f === "3way" ? "3-way" : "4-way"); }
+  function createLobby336(format) {
+    var s = sock(); if (!s) return;
+    T.lobbyView = true; T.createWait = Date.now();
+    var sheet = $("sheet");
+    if (sheet) { sheet.__lobSig336 = ""; sheet.innerHTML = '<h3 style="margin:4px 0">👥 Team Battle — ' + fmtName(format) + '</h3><p class="age-note">Creating your lobby…</p>'; }
+    s.emit("battle", { t: "tcreate", format: format, mins: 5 });
+    setTimeout(function () { if (T.lobbyView && !T.lobby && Date.now() - T.createWait >= 3900) toast2("Couldn't create the lobby — battles need you live, and not already in one.", 3600); }, 4000);
+  }
+  function renderLobby336() {
+    var sheet = $("sheet"); if (!sheet || !T.lobby || !T.lobbyView) return;
+    var L = T.lobby, me = myId(), iAmHost = L.host === me;
+    var slots = "";
+    for (var i = 0; i < L.need; i++) {
+      var m = L.members[i];
+      slots += '<div class="tb-lobrow">' + (m ? "✅ <b>" + esc(m.name) + "</b>" + (m.id === L.host ? " · host" : "") : '<span style="color:#9a9aad">◌ waiting for a host…</span>') + "</div>";
+    }
+    var teamsHtml = "";
+    if (L.full && L.format === "2v2" && L.teams) teamsHtml = '<div class="tb-teams"><p><b>Team A:</b> ' + esc((L.teams.a || []).join(" & ")) + '</p><p><b>Team B:</b> ' + esc((L.teams.b || []).join(" & ")) + "</p></div>";
+    else if (L.full) teamsHtml = '<p class="age-note">Lobby full — free-for-all: every host for themselves.</p>';
+    var mid = "";
+    if (iAmHost && !L.full) mid = '<div id="rpTeamWho336"><p class="age-note">Load the live hosts, then tap to invite. The lobby must fill before you can start.</p></div><button class="btn-mini" id="rpTeamLoad336" style="width:100%;padding:11px">Load live hosts</button>';
+    else if (iAmHost) mid = '<p class="age-note">Lobby full and teams are set — start when ready.</p>';
+    else mid = '<p class="age-note">' + (L.full ? "Lobby full — waiting for " + esc(L.hostName || "the host") + " to start." : "Waiting for more hosts to accept… if anyone leaves, the lobby starts over.") + "</p>";
+    var html = '<h3 style="margin:4px 0">👥 Team Battle — ' + fmtName(L.format) + "</h3>" + slots + teamsHtml + mid +
+      (iAmHost && L.full ? '<button class="btn-primary" id="rpTeamStart336" style="width:100%;padding:13px;margin-top:8px">⚔️ Start battle</button>' : "") +
+      '<button class="btn-mini" id="rpTeamLeave336" style="width:100%;padding:11px;margin-top:8px">' + (iAmHost ? "Cancel lobby" : "Leave lobby") + "</button>";
+    if (sheet.__lobSig336 !== html) {
+      sheet.__lobSig336 = html;
+      sheet.innerHTML = html;
+      var load = $("rpTeamLoad336");
+      if (load) load.addEventListener("click", function () { var s = sock(); if (s) s.emit("battle", { t: "who" }); var w = $("rpTeamWho336"); if (w) w.innerHTML = '<p class="age-note">Finding live hosts…</p>'; });
+      var st = $("rpTeamStart336");
+      if (st) st.addEventListener("click", function () { var s = sock(); if (s && T.lobby) s.emit("battle", { t: "tstart", lobby: T.lobby.lobbyId }); });
+      var lv = $("rpTeamLeave336");
+      if (lv) lv.addEventListener("click", function () { var s = sock(); if (s && T.lobby) s.emit("battle", { t: "tleave", lobby: T.lobby.lobbyId }); });
+    }
+  }
+  function renderChip336() {
+    var chip = $("rpTeamLobbyChip336");
+    var ov = $("overlay");
+    var sheetOpen = !!(ov && ov.classList.contains("open"));
+    var show = !!(T.lobby && !sheetOpen);
+    if (!show) { if (chip && chip.style.display !== "none") chip.style.display = "none"; return; }
+    if (!chip) { chip = document.createElement("div"); chip.id = "rpTeamLobbyChip336"; document.body.appendChild(chip); }
+    if (chip.style.display !== "flex") chip.style.display = "flex";
+    var L = T.lobby, iAmHost = L.host === myId();
+    var html = "<span>👥 " + fmtName(L.format) + " lobby " + L.members.length + "/" + L.need + (L.full ? " — full!" : " — waiting…") + "</span>" +
+      (iAmHost && L.full ? '<button type="button" class="go" id="rpChipStart336">⚔️ Start</button>' : "") +
+      '<button type="button" id="rpChipOpen336">Open</button>' +
+      '<button type="button" id="rpChipLeave336">' + (iAmHost ? "Cancel" : "Leave") + "</button>";
+    if (chip.__sig !== html) {
+      chip.__sig = html; chip.innerHTML = html;
+      var st = $("rpChipStart336"); if (st) st.addEventListener("click", function () { var s = sock(); if (s && T.lobby) s.emit("battle", { t: "tstart", lobby: T.lobby.lobbyId }); });
+      var op = $("rpChipOpen336"); if (op) op.addEventListener("click", function () { T.lobbyView = true; if (typeof window.openSheet === "function") { window.openSheet(""); renderLobby336(); } });
+      var lv = $("rpChipLeave336"); if (lv) lv.addEventListener("click", function () { var s = sock(); if (s && T.lobby) s.emit("battle", { t: "tleave", lobby: T.lobby.lobbyId }); });
+    }
+  }
+  function clearLobby336() {
+    T.lobby = null; T.lobbyView = false;
+    var chip = $("rpTeamLobbyChip336"); if (chip && chip.style.display !== "none") chip.style.display = "none";
+  }
+  function onBattle336(m) {
+    if (!m || !m.t) return;
+    if (m.t === "rtc") { onRtc336(m); return; }
+    if (m.t === "who-list") {
+      var w = $("rpTeamWho336");
+      if (!w || !T.lobby || T.lobby.host !== myId()) return;
+      var taken = {};
+      T.lobby.members.forEach(function (x) { taken[x.id] = 1; });
+      (T.lobby.invited || []).forEach(function (x) { taken[x.id] = 1; });
+      var list = (m.list || []).filter(function (h) { return !taken[h.id] && h.id !== myId(); });
+      if (!list.length) { w.innerHTML = '<p class="age-note">No other hosts are live right now.</p>'; return; }
+      w.innerHTML = list.map(function (h) { return '<button class="btn-mini" data-tinv336="' + esc(h.id) + '" style="display:block;width:100%;margin:6px 0;padding:12px;text-align:left">👥 Invite <b>' + esc(h.name || "Host") + "</b></button>"; }).join("");
+      w.querySelectorAll("[data-tinv336]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var s = sock(); if (!s || !T.lobby) return;
+          s.emit("battle", { t: "tinvite", lobby: T.lobby.lobbyId, to: b.getAttribute("data-tinv336") });
+          b.disabled = true; b.textContent = "Invite sent…";
+        });
+      });
+      return;
+    }
+    if (m.t === "tinvite") {
+      if (T.id && T.active) { var sd = sock(); if (sd) sd.emit("battle", { t: "tdecline", lobby: m.lobby }); return; }
+      T.pendingInvite = m;
+      try {
+        window.openSheet('<h3 style="margin:4px 0">👥 Team Battle invite!</h3><p><b>' + esc(m.fromName || "A host") + "</b> is forming a <b>" + fmtName(m.format) + "</b> team battle — " + (m.mins || 5) + " minutes. In so far: " + esc((m.members || []).join(", ") || "just them") + '.</p><button class="btn-primary" id="rpTeamAccept336" style="width:100%;padding:13px">👥 Join the lobby</button><button class="btn-mini" id="rpTeamDecline336" style="width:100%;padding:11px;margin-top:8px">Not now</button>');
+        $("rpTeamAccept336").addEventListener("click", function () { var s = sock(); if (s && T.pendingInvite) { s.emit("battle", { t: "taccept", lobby: T.pendingInvite.lobby }); T.lobbyView = true; var sheet = $("sheet"); if (sheet) { sheet.__lobSig336 = ""; sheet.innerHTML = '<h3 style="margin:4px 0">👥 Team Battle</h3><p class="age-note">Joining the lobby…</p>'; } } });
+        $("rpTeamDecline336").addEventListener("click", function () { var s = sock(); if (s && T.pendingInvite) s.emit("battle", { t: "tdecline", lobby: T.pendingInvite.lobby }); closeSheet(); });
+      } catch (e) { }
+      return;
+    }
+    if (m.t === "tdeclined") { toast2((m.fromName || "That host") + " declined the team battle.", 2600); return; }
+    if (m.t === "tlobby") {
+      var wasMine = !!T.lobby;
+      T.lobby = m;
+      if (!wasMine && !T.lobbyView) { /* adopted state (e.g. after accept) */ }
+      renderLobby336(); renderChip336();
+      return;
+    }
+    if (m.t === "tlobby-reset") {
+      toast2((m.who || "A host") + " left — the team lobby went back to invites.", 3600);
+      if (T.lobby && T.lobby.host !== myId()) { var lv = T.lobbyView; clearLobby336(); if (lv) closeSheet(); }
+      return;
+    }
+    if (m.t === "tlobby-gone") {
+      toast2("The team lobby closed.", 3000);
+      var lv2 = T.lobbyView; clearLobby336(); if (lv2) closeSheet();
+      return;
+    }
+    if (m.t === "tstart336") {
+      T.id = m.battleId; T.active = true; T.ended = null; T.format = m.format || T.format; T.endsAt = m.endsAt || 0; T.stock = null; T.parts = []; T.sides = [];
+      clearLobby336();
+      closeSheet();
+      toast2("⚔️ TEAM BATTLE STARTED — most gift points wins!", 3600);
+      return;
+    }
+  }
+
+  /* ---------------- battle sheet: Team section ---------------- */
+  function injectTeamSection336() {
+    var sheet = $("sheet");
+    if (!sheet || !$("rpBatList") || $("rpTeamSec336")) return;
+    var sec = document.createElement("div");
+    sec.id = "rpTeamSec336";
+    sec.style.cssText = "margin-top:14px;border-top:1px solid rgba(255,255,255,.14);padding-top:12px";
+    if (T.lobby) {
+      sec.innerHTML = '<h3 style="margin:4px 0">👥 Team Battle</h3><p class="age-note">You have a ' + fmtName(T.lobby.format) + " lobby going (" + T.lobby.members.length + "/" + T.lobby.need + " hosts).</p>" +
+        '<button class="btn-primary" id="rpTeamOpenLobby336" style="width:100%;padding:12px">👥 Open my lobby</button>';
+      sheet.appendChild(sec);
+      $("rpTeamOpenLobby336").addEventListener("click", function () { T.lobbyView = true; renderLobby336(); });
+      return;
+    }
+    sec.innerHTML = '<h3 style="margin:4px 0">👥 Team Battle</h3><p class="age-note">2v2 is two teams of two hosts. 3-way and 4-way are free-for-all — every host for themselves. The lobby must fill before anyone can start.</p>' +
+      '<button class="btn-primary" data-team336="2v2" style="width:100%;padding:12px;margin-top:6px">👥 2v2 — Team battle (4 hosts)</button>' +
+      '<button class="btn-primary" data-team336="3way" style="width:100%;padding:12px;margin-top:6px">👥 3-way — Free-for-all (3 hosts)</button>' +
+      '<button class="btn-primary" data-team336="4way" style="width:100%;padding:12px;margin-top:6px">👥 4-way — Free-for-all (4 hosts)</button>';
+    sheet.appendChild(sec);
+    sec.querySelectorAll("[data-team336]").forEach(function (b) {
+      b.addEventListener("click", function () { createLobby336(b.getAttribute("data-team336")); });
+    });
+  }
+  try {
+    var origOpen336 = window.rpBattleOpen;
+    if (typeof origOpen336 === "function" && !origOpen336.__rp336) {
+      var wrappedOpen336 = function () {
+        var r = origOpen336.apply(this, arguments);
+        try { injectTeamSection336(); } catch (e) { }
+        return r;
+      };
+      wrappedOpen336.__rp336 = true;
+      window.rpBattleOpen = wrappedOpen336;
+    }
+  } catch (e) { }
+
+  /* ---------------- tick (gated watcher — no new page timers) ---------------- */
+  function tick336() {
+    var s = sock();
+    if (s && T.boundSock !== s) {
+      T.boundSock = s;
+      try { s.on("battle", onBattle336); } catch (e) { }
+      try { s.on("battle336", onState336); } catch (e) { }
+    }
+    var ov = $("overlay");
+    if (T.lobbyView && ov && !ov.classList.contains("open")) T.lobbyView = false;
+    if (T.lobbyView) renderLobby336();
+    renderChip336();
+    if (T.id) { renderBar(); renderChips(); renderTray(); renderTiles(); }
+  }
+  if (window.rpGate314 && window.rpGate314.add) {
+    window.rpGate314.add(tick336, 600, function (sid) { return !!T.id || !!T.lobby || sid === "screen-online" || sid === "screen-room"; });
+  }
 })();
 </script>
 <script>
