@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.337" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.338" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -564,6 +564,44 @@
       .earn-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--gold), var(--coral)); }
       .stripe-box { border: 1.5px solid var(--line); border-radius: 16px; padding: 14px; background: rgba(255,255,255,.04); }
       .stripe-brand { font-weight: 900; font-size: 13px; letter-spacing: .02em; color: #a5b4fc; }
+      /* ---------- [RP-V7.338] gifter badge, card, banner, gift locks ---------- */
+      .gb338 { display: inline-flex; align-items: center; gap: 3px; vertical-align: -2px; margin: 0 2px; font-size: 10px; font-weight: 800; letter-spacing: .2px; color: #ffd94d; white-space: nowrap; }
+      .gb338-gem { display: inline-block; width: 11px; height: 11px; clip-path: polygon(50% 0, 100% 38%, 50% 100%, 0 38%); background: linear-gradient(135deg, #ff6a5e, #c81e1e); box-shadow: 0 0 4px rgba(255,90,77,.55); position: relative; }
+      .gb338.t2 .gb338-gem { background: linear-gradient(135deg, #ff7a9c, #d6336c); box-shadow: 0 0 4px rgba(255,122,156,.55); }
+      .gb338.t3 .gb338-gem { background: linear-gradient(135deg, #ffb340, #f08c00); box-shadow: 0 0 5px rgba(255,179,64,.6); }
+      .gb338.t4 .gb338-gem { background: linear-gradient(135deg, #ffd94d, #e6a817); box-shadow: 0 0 5px rgba(255,217,77,.65); }
+      .gb338.t5 .gb338-gem { background: linear-gradient(135deg, #ffe97a, #f5b921); box-shadow: 0 0 7px rgba(255,220,90,.85); }
+      .gb338.t6 .gb338-gem { background: linear-gradient(135deg, #fff6c8, #ffd23e 55%, #ff9d2e); box-shadow: 0 0 9px rgba(255,226,120,.95); }
+      .gb338.c5 .gb338-gem { width: 12px; height: 12px; }
+      .gb338.c10 .gb338-gem { width: 13px; height: 13px; }
+      .gb338.c20 .gb338-gem { width: 14px; height: 14px; }
+      .gb338.c30 .gb338-gem { width: 15px; height: 15px; }
+      .gb338.c50 .gb338-gem { width: 16px; height: 16px; }
+      .gb338.big { font-size: 15px; gap: 6px; }
+      .gb338.big .gb338-gem { width: 22px; height: 22px; }
+      .gb338.big.c5 .gb338-gem { width: 24px; height: 24px; }
+      .gb338.big.c10 .gb338-gem { width: 26px; height: 26px; }
+      .gb338.big.c20 .gb338-gem { width: 28px; height: 28px; }
+      .gb338.big.c30 .gb338-gem { width: 30px; height: 30px; }
+      .gb338.big.c50 .gb338-gem { width: 32px; height: 32px; }
+      .pprof-gifter338 { text-align: center; margin: 2px 0 0; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+      .pprof-gifter338 .gb338 { font-size: 12px; }
+      .gift-cell { position: relative; }
+      .gift-cell.glock338 { opacity: .62; }
+      .gift-cell .glock-tag338 { position: absolute; top: 4px; right: 5px; font-size: 10px; font-weight: 800; color: #ffd94d; background: rgba(0,0,0,.55); border: 1px solid rgba(255,217,77,.5); border-radius: 999px; padding: 1px 6px; }
+      #gifterBanner338 { position: fixed; left: 50%; top: 14px; transform: translate(-50%, -18px); z-index: 9990; background: rgba(18,14,8,.94); border: 1px solid rgba(255,217,77,.65); color: #ffe97a; font-weight: 800; font-size: 14px; border-radius: 999px; padding: 8px 16px; opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+      #gifterBanner338.show { opacity: 1; transform: translate(-50%, 0); }
+      #gifterBanner338.levelup { font-size: 16.5px; padding: 12px 22px; border-color: #ffd23e; color: #fff3b0; box-shadow: 0 0 22px rgba(255,210,62,.55), 0 8px 28px rgba(0,0,0,.55); }
+      .gcard338 .gbar { height: 10px; border-radius: 999px; background: rgba(127,127,140,.3); overflow: hidden; margin: 8px 0 4px; }
+      .gcard338 .gbar i { display: block; height: 100%; background: linear-gradient(90deg, #ff5a4d, #ffd23e); border-radius: 999px; }
+      .gcard338 .gtiers { display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0; }
+      .gcard338 .gtier { flex: 1 1 30%; border: 1px solid rgba(127,127,140,.35); border-radius: 10px; padding: 6px 4px; text-align: center; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); }
+      .gcard338 .gtier.on { border-color: #ffd23e; color: #ffd94d; background: rgba(255,210,62,.08); }
+      .gcard338 .gmile { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13.5px; font-weight: 700; }
+      .gcard338 .gmile.locked { opacity: .45; }
+      .gcard338 .gpersona { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+      .gcard338 .gpersona button { flex: 1 1 45%; }
+      .gcard338 .gpersona button.on { border-color: #ffd23e; color: #ffd94d; }
       /* ---------- live gift feed ---------- */
       .live-gifttotals { margin-top: 10px; font-size: 13px; font-weight: 800; color: var(--gold); text-align: center; }
       .live-giftfeed { margin-top: 6px; max-height: 132px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
@@ -9408,14 +9446,14 @@
         var goBtn = $("btnRoomGoLive");
         if (goBtn) goBtn.hidden = !(eligible && (rpAdultOk())); // [RP-V7.75] a signed-in teen sees Go LIVE too — their live runs charms-only
       }
-      function addChatLine(name, text, mine, mid, fromId) {
+      function addChatLine(name, text, mine, mid, fromId, glv338) { // [RP-V7.338] glv338 = sender's gifter level (0/absent = no badge)
         // [RP-V7.24] chat also lives in the LIVE overlay stream (and
         // the Teen Hangout's bubble stream) — feed those FIRST.
         // [RP-V7.47] the meet rooms' floating stream is fed the same
         // way, through the room stage module's hook (it renders only
         // while its room layout is up). Sender id rides along so a
         // report/mute can purge the sender's bubbles on screen.
-        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, ""); } catch (e) { }
+        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, "", glv338); } catch (e) { } // [RP-V7.338] the badge rides into the live stream too
         try { if (window.rpRoomBubble) window.rpRoomBubble(name, text, false, fromId || (mid ? String(mid).split(":")[0] : "")); } catch (e) { }
         var log = $("onlineChatLog"); if (!log) return;
         var isQ = chatIsQuestion(text);
@@ -9426,6 +9464,7 @@
         var who = document.createElement("span");
         who.className = "who"; who.textContent = name;
         row.appendChild(who);
+        if (glv338 > 0) { var gb338 = document.createElement("span"); gb338.innerHTML = rpGifterBadge338(glv338); if (gb338.firstChild) row.appendChild(gb338.firstChild); } // [RP-V7.338] gifter badge beside the name
         if (isQ) { var qt = document.createElement("span"); qt.className = "q-text"; qt.textContent = text; row.appendChild(qt); }
         else row.appendChild(document.createTextNode(text));
         if (mid) {
@@ -9478,7 +9517,7 @@
         if (fromId) statBump("chat", fromId, name);
         // 🔥 a real comment in a live room counts toward that live's engagement score
         try { if (fromId && typeof Live !== "undefined" && Live.active && Live.hostId && typeof inLiveRoom === "function" && inLiveRoom()) engRecord(Live.hostId, fromId, "comment", 1); } catch (e) { }
-        addChatLine(name, text, fromId === Online.myId, mid, fromId);
+        addChatLine(name, text, fromId === Online.myId, mid, fromId, (d && d.glv) || 0); // [RP-V7.338]
       }
       function onChatBlocked(d) {
         // If the spam cap caught a live-room signal (not a typed message),
@@ -10060,6 +10099,7 @@
           '<h3 class="pprof-name">' + escHtml(p.name) + '</h3>' +
           '<p class="pprof-username" id="pprofUser" hidden></p>' +
           '<p class="pprof-type" id="pprofType" hidden></p>' +
+          '<p class="pprof-gifter338" id="pprofGifter338"></p>' + // [RP-V7.338] gifter badge + persona line (painted by RpGifter338.paintProfile)
           '<div class="pprof-stats">' +
           '<div class="pprof-stat"><b id="pprofFollowing">–</b><small>Following</small></div>' +
           '<div class="pprof-stat"><b id="pprofFollowers">–</b><small>Followers</small></div>' +
@@ -10068,6 +10108,7 @@
           '<a class="pprof-link" id="pprofLink" href="#" target="_blank" rel="noopener" hidden></a>' +
           (isSelf
             ? '<div class="pprof-actions"><button type="button" class="follow-btn big" data-act="editprof"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z\"/><path d=\"M14.5 6.5l3 3\"/></svg> Edit profile</button>' +
+              '<button type="button" class="follow-btn big" data-act="gifter338">🏆 Gifter</button>' +
               '<button type="button" class="follow-btn big" id="pprofShare"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg> Share</button></div>'
             : '<div class="pprof-actions">' + followBtnHTML(p.name, "big") +
               '<button type="button" class="follow-btn big" data-dm="' + escHtml(p.name) + '" data-act="msg">💬 Message</button>' +
@@ -10109,12 +10150,14 @@
             else if (act === "fansub") { if (window.rpOpenFanSubSheet296) window.rpOpenFanSubSheet296(p.id, p.name); } // [RP-V7.296]
             else if (act === "fanclub") { if (window.rpOpenFanClubSheet298) window.rpOpenFanClubSheet298(p.id, p.name); } // [RP-V7.298]
             else if (act === "shoutout") { if (window.rpOpenShoutoutSheet300) window.rpOpenShoutoutSheet300(p.id, p.name); } // [RP-V7.300]
+            else if (act === "gifter338") { if (window.RpGifter338) RpGifter338.openCard(); } // [RP-V7.338]
             else if (act === "editprof") { closeSheet(); showScreen("profile"); }
             else if (act === "more") { var m = $("pprofMenu"); if (m) m.hidden = !m.hidden; }
             else if (act === "report") openOnlineReport(p);
             else if (act === "mute") { closeSheet(); blockOnlinePlayer(p); }
           });
         });
+        try { if (window.RpGifter338) RpGifter338.paintProfile(p, isSelf); } catch (e) { } // [RP-V7.338]
         if (isSelf) { // [RP-V7.89b] your own face opens the rack — tap it, pick, done (other members' faces keep the story tap)
           var hav89 = document.querySelector("#sheet .pprof-avatar");
           if (hav89) {
@@ -17663,7 +17706,7 @@
         if (Online.room !== LIVE_ROOM_ID) switchOnlineRoom(LIVE_ROOM_ID);
       }
       /* ---------- TikTok-style live overlay: host chip, viewer row, comments, rail, host tools ---------- */
-      function pushLiveComment(name, text, kind) {
+      function pushLiveComment(name, text, kind, glv338) { // [RP-V7.338]
         var box = $("liveComments"); if (!box || !Live.active) return;
         var row = document.createElement("div");
         row.className = "lv-comment" + (kind ? " " + kind : "");
@@ -17673,7 +17716,7 @@
           var cp2 = (typeof playerForName === "function") ? playerForName(name) : null;
           var cav = cp2 ? faceHTML(cp2, false) : personFace({ name: name || "Guest" });
           row.classList.add("chat");
-          row.innerHTML = '<span class="lv-cav">' + cav + '</span><span class="lv-cbody"><b>' + escHtml(name) + "</b> " + escHtml(text) + "</span>";
+          row.innerHTML = '<span class="lv-cav">' + cav + '</span><span class="lv-cbody"><b>' + escHtml(name) + "</b>" + (glv338 ? rpGifterBadge338(glv338) : "") + " " + escHtml(text) + "</span>";
           if (cp2) row.addEventListener("click", function () { openOnlinePlayerCard(cp2); });
         }
         box.appendChild(row);
@@ -22519,7 +22562,8 @@
         var live = activeHoliday();
         function cell(g) {
           var cant = giftSpend < g.cents ? " cant" : "";
-          return '<button class="gift-cell ' + g.tier + cant + '" data-gid="' + g.id + '"><span class="gi">' + giftImgHTML(g) + '</span><b>' + escHtml(g.name) + '</b><span>' + giftPriceLabel(g.cents) + '</span><small>' + g.cents.toLocaleString("en-US") + ' charms</small></button>';
+          var lk338 = (g.gifterLv && window.RpGifter338 && RpGifter338.myLevel() < g.gifterLv) ? " glock338" : ""; // [RP-V7.338] a level-gated gift shows locked until the sender's gifter level reaches it (no gift in the current catalog is gated)
+          return '<button class="gift-cell ' + g.tier + cant + lk338 + '" data-gid="' + g.id + '"><span class="gi">' + giftImgHTML(g) + '</span><b>' + escHtml(g.name) + '</b><span>' + giftPriceLabel(g.cents) + '</span><small>' + g.cents.toLocaleString("en-US") + ' charms</small>' + (lk338 ? '<span class="glock-tag338">🔒 Lv.' + g.gifterLv + '</span>' : "") + '</button>';
         }
         var html = '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
           '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">🎁 Send a gift to ' + escHtml(targetName || "them") + '</h3>' +
@@ -22537,7 +22581,7 @@
           return '<div class="gift-tier"><b>' + t.label + '</b> · ' + t.sub + '</div><div class="gift-grid">' +
             GIFT_SHOP.filter(function (g) { return g.tier === t.id; }).map(cell).join("") + '</div>';
         }).join("");
-        html += '<button class="btn-mini btn-big" id="giftGetCharms" type="button">⭐ Get charms</button><div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" id="giftMyEarnings">💰 My earnings &amp; cash out</button></div></div>'; // [RP-V7.63] Get charms goes BIG (btn-big)
+        html += '<button class="btn-mini btn-big" id="giftGetCharms" type="button">⭐ Get charms</button><div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" id="giftMyEarnings">💰 My earnings &amp; cash out</button><button class="btn-mini" id="giftMyGifter338" type="button">🏆 My gifter level</button></div></div>'; // [RP-V7.63] Get charms goes BIG (btn-big)
         openSheet(html);
         var sheet = $("sheet");
         sheet.querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
@@ -22578,6 +22622,7 @@
         if (selfPreview) giftSelfNote(null); // [RP-V7.39] say it up front, before any tap
         var gc = $("giftGetCharms"); if (gc) gc.addEventListener("click", function () { openCharmShop(); });
         var ge = $("giftMyEarnings"); if (ge) ge.addEventListener("click", function () { openEarnings(); });
+        var gg338 = $("giftMyGifter338"); if (gg338) gg338.addEventListener("click", function () { if (window.RpGifter338) RpGifter338.openCard(); }); // [RP-V7.338]
       }
       // [RP-V7.26.1] Branden's rule: tapping a gift you can't afford keeps you
       // ON the gift list — shake the tapped cell and show an inline notice.
@@ -22788,7 +22833,7 @@
           var bonus = Math.round(cost * giftBonusNow()) * cnt219;
           var map = giftEarnedMap(); map[targetId] = (map[targetId] || 0) + total219 + bonus;
           if (targetName) Party.names[targetId] = targetName;
-          if (typeof inLiveRoom === "function" && inLiveRoom()) liveGiftFeedShow("You", targetName || "them", cnt219 > 1 ? Object.assign({}, g, { __cnt: cnt219 }) : g, total219);
+          if (typeof inLiveRoom === "function" && inLiveRoom()) liveGiftFeedShow("You", targetName || "them", cnt219 > 1 ? Object.assign({}, g, { __cnt: cnt219 }) : g, total219, (window.RpGifter338 ? RpGifter338.myLevel() : 0)); // [RP-V7.338] own sends carry my level
           toast("🎁 You sent " + (cnt219 > 1 ? "×" + cnt219 + " " : "the ") + g.name + " (" + giftPriceLabel(total219) + ") to " + (targetName || "them") + "!" + (bonus ? " The event adds +" + bonus + " bonus charms for them." : ""), 3600);
         } else {
           charms += total219; saveWallet(); updateHUD(); // [RP-V7.25] persist the offline-send refund
@@ -22798,7 +22843,7 @@
         // batches land their full count; pill taps add one each).
         if (sent) { try { rpComboBump(targetId, targetName, g, cnt219); } catch (e) { } }
       }
-      function giftObserved(o, fromId, fromName) {
+      function giftObserved(o, fromId, fromName, glv338) { // [RP-V7.338]
         // [RP-V7.219] a batch rides ONE proto (v = unit value, c =
         // count). Value counters downstream (No.1 gifter totals,
         // guest tile counters, battle score) credit the batch TOTAL,
@@ -22845,7 +22890,7 @@
           var gg0 = giftByName(o.g || "") || { id: "gift", name: o.g || "Gift", icon: o.ic || "🎁", cents: o.v, tier: o.v >= 2000 ? "big" : (o.v >= 200 ? "medium" : "small"), fx: o.v >= 2000 ? "burst" : "float" };
           var gg = (o.co || cnt219 > 1) ? Object.assign({}, gg0, o.co ? { __co: 1 } : null, cnt219 > 1 ? { __cnt: cnt219 } : null) : gg0; // [RP-V7.217] the charms-only marker rides a copy — the shared catalog entry is never mutated — [RP-V7.219] the batch count (__cnt) rides the same copy into the show layer
           var toNm = o.to === Online.myId ? (Online.name || "You") : (o.tn || liveName(o.to));
-          liveGiftFeedShow(fromName, toNm, gg, o.v * cnt219);
+          liveGiftFeedShow(fromName, toNm, gg, o.v * cnt219, glv338); // [RP-V7.338]
           if (o.to === Live.hostId || o.to === Online.myId) playGiftFx(gg, fromName, toNm);
         }
       }
@@ -23091,7 +23136,7 @@
         else if (o.k === "matched") {
           if (o.to === Online.myId && fromId && fromId !== Online.myId) declareMatch(fromId, fromName);
         }
-        else if (o.k === "gift") giftObserved(o, fromId, fromName);
+        else if (o.k === "gift") giftObserved(o, fromId, fromName, (d && d.glv) || 0); // [RP-V7.338] sender's gifter level rides the chat envelope
         else if (o.k === "giftc262") { try { if (window.rpGiftCount262) window.rpGiftCount262.bumpFromProto(o, fromId); } catch (e) { } } // [RP-V7.262] post gift counts update in place
         else if (o.k === "bat" || o.k === "bat-end") { try { if (window.rpBatProto) window.rpBatProto(o); } catch (e) { } }
         else if (typeof o.k === "string" && o.k.indexOf("live-") === 0) liveProto(o, fromId, fromName);
@@ -24114,7 +24159,7 @@
       }
       /* ---------- live gift feed & session totals ---------- */
       var LiveGifts = { total: 0, count: 0, bySender: {} };
-      function liveGiftFeedShow(fromName, toName, g, v) {
+      function liveGiftFeedShow(fromName, toName, g, v, glv338) { // [RP-V7.338]
         LiveGifts.total += v; LiveGifts.count++;
         var key = fromName || "Someone";
         LiveGifts.bySender[key] = (LiveGifts.bySender[key] || 0) + v;
@@ -24124,7 +24169,7 @@
           var row = document.createElement("div");
           row.className = "lgf-row";
           var gv217 = (g && g.__co) ? (v || 0).toLocaleString("en-US") + " charms · charms-only" : giftPriceLabel(v); // [RP-V7.217] the feed line reads charms for a charms-only gift
-          row.innerHTML = '<span class="gi">' + (g.icon || "🎁") + '</span><span><b>' + escHtml(fromName || "Someone") + '</b> sent <b>' + escHtml(toName || "the host") + '</b> a ' + escHtml(g.name || "gift") + '</span><span class="gv">' + gv217 + '</span>';
+          row.innerHTML = '<span class="gi">' + (g.icon || "🎁") + '</span><span><b>' + escHtml(fromName || "Someone") + '</b>' + (glv338 ? rpGifterBadge338(glv338) : "") + ' sent <b>' + escHtml(toName || "the host") + '</b> a ' + escHtml(g.name || "gift") + '</span><span class="gv">' + gv217 + '</span>'; // [RP-V7.338] gifter badge beside the sender
           feed.insertBefore(row, feed.firstChild);
           while (feed.children.length > 30) feed.removeChild(feed.lastChild);
           try { pushLiveComment("", "🎁 " + (fromName || "Someone") + " sent " + (toName || "the host") + " a " + (g.icon || "🎁") + " " + (g.name || "gift") + " · " + gv217, "gift"); } catch (e) { }
@@ -24956,7 +25001,7 @@
         var p = momPostById(id); if (!p) return;
         Moments.openCommentsFor = id;
         var list = p.comments.length
-          ? p.comments.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + '</b><span>' + rpLinkifyRaw259(c.text, "photos") + '</span></div>'; }).join("") // [RP-V7.259] Moments photo comments linkify on the RAW text (photos context)
+          ? p.comments.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + '</b>' + (c.glv ? rpGifterBadge338(c.glv) : "") + '<span>' + rpLinkifyRaw259(c.text, "photos") + '</span></div>'; }).join("") // [RP-V7.259] Moments photo comments linkify on the RAW text (photos context)
           : '<p style="color:var(--ink-soft); font-weight:700;">No comments yet — say something nice!</p>';
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
@@ -27120,7 +27165,7 @@
         var srv = !!(item.server && reelToken());
         var list = srv ? (item.comments || []) : (reelLoadComments()[item.id] || []);
         var html = list.length
-          ? list.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + "</b><span>" + rpLinkifyRaw259(c.text, "reels") + "</span></div>"; }).join("") // [RP-V7.259] reel comments linkify on the RAW text (reels context)
+          ? list.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + "</b>" + (c.glv ? rpGifterBadge338(c.glv) : "") + "<span>" + rpLinkifyRaw259(c.text, "reels") + "</span></div>"; }).join("") // [RP-V7.259] reel comments linkify on the RAW text (reels context)
           : '<p style="color:var(--ink-soft); font-weight:700;">No comments yet — say something nice!</p>';
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
@@ -39305,6 +39350,10 @@ button.rp72-chip{ cursor:pointer; }
     return key;
   }
   function serverGift(targetId, targetName, g, opts) {
+    // [RP-V7.338] Level gate (client half): a gated gift refuses
+    // here with the reason shown; the server refuses it too — the
+    // panel lock is the display, these two checks are the teeth.
+    if (g && g.gifterLv && window.RpGifter338 && RpGifter338.gateBlocked(g)) return;
     // [RP-V7.219] the batch size rides the request; the attempt
     // signature carries it too, so a x10 and a x1 are DIFFERENT
     // attempts, and a combo-pill tap (opts.__combo) always mints a
@@ -39347,6 +39396,7 @@ button.rp72-chip{ cursor:pointer; }
         // [RP-V7.52] This attempt already landed (double-tap /
         // retry) — the ledger was charged once; just re-sync.
         if (typeof r.json.balance === "number") setLocalCharms(r.json.balance);
+        try { if (window.RpGifter338) RpGifter338.onAward(r.json.gifter, true); } catch (e) { } // [RP-V7.338] silent level sync — a replayed attempt never re-banners
         if (post262 && typeof r.json.postGiftCount === "number" && window.rpGiftCount262) window.rpGiftCount262.set(post262.kind + ":" + post262.id, r.json.postGiftCount); // [RP-V7.262] the stored response carries the same post total
         setTimeout(function () { refreshMoney(); }, 300);
         return;
@@ -39355,6 +39405,7 @@ button.rp72-chip{ cursor:pointer; }
         // [RP-V7.74] Keep the teen gift balance fresh from the
         // server's own post-gift figure.
         if (typeof r.json.giftBal === "number" && M.me) M.me.giftBal = r.json.giftBal;
+        try { if (window.RpGifter338) RpGifter338.onAward(r.json.gifter, false); } catch (e) { } // [RP-V7.338] +XP banner / level-up callout
         // [RP-V7.262] The post's new gift total, from the server's
         // own response — repainted in place everywhere it shows.
         if (post262 && typeof r.json.postGiftCount === "number" && window.rpGiftCount262) window.rpGiftCount262.set(post262.kind + ":" + post262.id, r.json.postGiftCount);
@@ -39429,6 +39480,7 @@ button.rp72-chip{ cursor:pointer; }
           busy294 = false;
           if (r.json && r.json.ok) {
             if (typeof r.json.balance === "number") setLocalCharms(r.json.balance);
+            try { if (window.RpGifter338) RpGifter338.onAward(r.json.gifter, false); } catch (e) { } // [RP-V7.338] +XP banner / level-up callout
             // [RP-V7.232] the gift SEND sound rule: a send made while
             // NOT in a live room plays ONE SMALL BEEP — a profile tip
             // is never sent from inside a live room, so it beeps,
@@ -50237,6 +50289,124 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(run328, 900); });
   else setTimeout(run328, 900);
 })();
+</script>
+<script>
+/* [RP-V7.338] GIFTER POINTS, LEVELS & REWARDS — client module.
+   The server owns the ledger and the level curve (the settle
+   responses and /api/gifter/* carry levels; chat/comment/gift
+   payloads carry a stamped glv). This module only RENDERS: the
+   gem badge beside names (live chat, live gift rows, comments,
+   profiles), the +XP / level-up banners on send, the gift-panel
+   level locks, and the gifter card. Personas are cosmetic flair —
+   no discount or perk exists anywhere in this system. */
+function rpGifterTier338(level) { level = Math.floor(Number(level) || 0); return level >= 50 ? 6 : level >= 40 ? 5 : level >= 30 ? 4 : level >= 20 ? 3 : level >= 10 ? 2 : 1; }
+function rpGifterCut338(level) { level = Math.floor(Number(level) || 0); return level >= 50 ? 50 : level >= 30 ? 30 : level >= 20 ? 20 : level >= 10 ? 10 : level >= 5 ? 5 : 1; }
+var RP_GIFTER_ROMAN_338 = ["", "I", "II", "III", "IV", "V", "VI"];
+function rpGifterBadge338(level, big) {
+  level = Math.floor(Number(level) || 0);
+  if (level < 1) return "";
+  var t = rpGifterTier338(level), c = rpGifterCut338(level);
+  return '<span class="gb338 t' + t + ' c' + c + (big ? " big" : "") + '" title="Gifter Lv.' + level + ' · Tier ' + RP_GIFTER_ROMAN_338[t] + '"><span class="gb338-gem"></span><span class="gb338-txt">Lv ' + level + '</span></span>';
+}
+var RpGifter338 = (function () {
+  var state = null; // { xp, level, tier, persona } — server truth, cached
+  try { var saved = JSON.parse(localStorage.getItem("rpGifter338") || "null"); if (saved && typeof saved.level === "number") state = saved; } catch (e) { }
+  function tok338() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) || ""; } catch (e) { return ""; } }
+  function api338(path, method, body) {
+    return fetch(path, { method: method || "GET", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok338() }, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
+  }
+  function esc338(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function save338() { try { if (state) localStorage.setItem("rpGifter338", JSON.stringify({ xp: state.xp, level: state.level, tier: state.tier, persona: state.persona || null })); } catch (e) { } }
+  function setState338(j) { if (j && typeof j.level === "number") { state = { xp: j.xp || 0, level: j.level, tier: j.tier || rpGifterTier338(j.level), persona: j.persona || null }; save338(); } }
+  function refresh338() { if (!tok338()) return Promise.resolve(null); return api338("/api/gifter/me").then(function (j) { if (j && j.ok) setState338(j); return j; }); }
+  function myLevel338() { return state ? state.level : 0; }
+  var bannerTimer338 = null;
+  function banner338(html, levelup) {
+    var el = document.getElementById("gifterBanner338");
+    if (!el) { el = document.createElement("div"); el.id = "gifterBanner338"; document.body.appendChild(el); }
+    el.innerHTML = html;
+    el.className = levelup ? "show levelup" : "show";
+    if (bannerTimer338) clearTimeout(bannerTimer338);
+    bannerTimer338 = setTimeout(function () { el.className = ""; }, levelup ? 4200 : 2400);
+  }
+  // The settle paths hand their response's gifter block here:
+  // awarded XP updates the cached level; a real award banners; a
+  // level-up gets its own callout. Deduped replays and promo
+  // (test-funds) settles award 0 and never banner.
+  function onAward338(g, silent) {
+    if (!g || typeof g.level !== "number") return;
+    setState338(g);
+    if (silent || !(g.awarded > 0)) return;
+    if (g.leveledUp) banner338("🏆 Gifter Level Up! You reached " + rpGifterBadge338(g.level, true) + " Tier " + RP_GIFTER_ROMAN_338[g.tier || rpGifterTier338(g.level)], true);
+    else banner338("+" + Number(g.awarded).toLocaleString("en-US") + " XP " + rpGifterBadge338(g.level), false);
+  }
+  function gateBlocked338(g) {
+    if (!g || !g.gifterLv) return false;
+    if (myLevel338() >= g.gifterLv) return false;
+    var msg = "🔒 " + (g.name || "That gift") + " unlocks at Gifter Lv." + g.gifterLv + " — you are Lv." + myLevel338() + ". Every charm you gift earns 1 XP toward it!";
+    try { if (window.toast) window.toast(msg, 3600); else banner338(msg, false); } catch (e) { banner338(msg, false); }
+    refresh338();
+    return true;
+  }
+  function paintProfile338(p, isSelf) {
+    var el = document.getElementById("pprofGifter338");
+    if (!el || !p) return;
+    function paint338(j) {
+      if (!j || !(j.xp > 0)) { el.innerHTML = ""; return; }
+      var personaName = "";
+      if (j.persona) { personaName = String(j.persona).replace(/[-_]/g, " "); }
+      el.innerHTML = rpGifterBadge338(j.level) + (personaName ? ' <span class="pprof-persona338">· ' + esc338(personaName) + "</span>" : "") + (isSelf ? ' <span style="text-decoration:underline;">My gifter card</span>' : "");
+      if (isSelf) { el.style.cursor = "pointer"; el.onclick = function () { openCard338(); }; }
+    }
+    if (isSelf) { refresh338().then(function (j) { paint338(j || state); }); }
+    else if (p.acctId || p.id) { api338("/api/gifter/level?id=" + encodeURIComponent(p.acctId || p.id)).then(paint338); } // player cards carry the account id in acctId; account-shaped objects in id
+  }
+  function openCard338() {
+    refresh338().then(function (j) {
+      if (!j || !j.ok) { try { if (window.toast) window.toast("Your gifter card could not load — check your connection.", 3000); } catch (e) { } return; }
+      var pr = j.progress || { into: 0, span: 1, remaining: 0, pct: 0 };
+      var tiers = (j.tiers || []).map(function (t) {
+        return '<div class="gtier' + (t.active ? " on" : "") + '"><b>Tier ' + t.roman + "</b><br>Lv." + t.from + (t.to ? "–" + t.to : "+") + "</div>";
+      }).join("");
+      var miles = (j.milestones || []).map(function (m) {
+        return '<div class="gmile' + (m.unlocked ? "" : " locked") + '">' + rpGifterBadge338(Math.max(1, m.level), false) + "<span>Gifter badge — Lv." + m.level + (m.unlocked ? " · unlocked ✓" : " · locked") + "</span></div>";
+      }).join("");
+      var personas = (j.personas || []).map(function (pp) {
+        return '<button type="button" class="btn-mini' + (j.persona === pp.id ? " on" : "") + '" data-persona338="' + pp.id + '"><b>' + esc338(pp.name) + "</b><br><small>" + esc338(pp.blurb) + "</small></button>";
+      }).join("");
+      var html =
+        '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+        '<div class="game-box gcard338" style="text-align:left;"><h3 style="text-align:center;">🏆 My Gifter Card</h3>' +
+        '<p style="text-align:center; font-size:16px;">' + rpGifterBadge338(j.level, true) + ' · <b>' + (j.xp || 0).toLocaleString("en-US") + ' XP</b> · Tier ' + j.tierRoman + "</p>" +
+        '<div class="gbar"><i style="width:' + (pr.pct || 0) + '%;"></i></div>' +
+        '<p style="text-align:center; margin:0;">' + (pr.remaining > 0 ? "<b>" + pr.remaining.toLocaleString("en-US") + " more points</b> to level up — Lv." + (j.level + 1) + " at " + (pr.nextAt || 0).toLocaleString("en-US") + " XP" : "Top of the curve — every level from here is pure legend.") + "</p>" +
+        '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Every charm you gift — in lives, on posts, in tips — earns <b>1 XP</b>. XP is pure status: it is never charms and never cash.</p>' +
+        '<h4 style="margin:12px 0 2px;">Badge tiers</h4><div class="gtiers">' + tiers + "</div>" +
+        '<h4 style="margin:12px 0 2px;">Badge rewards</h4>' + miles +
+        '<h4 style="margin:12px 0 2px;">🎭 Persona <small style="color:var(--ink-soft);">(pure flair — no discounts, no perks)</small></h4>' +
+        '<div class="gpersona">' + personas + "</div>" +
+        '<p style="text-align:center; margin-top:10px;"><button type="button" class="btn-mini" data-persona338="">Clear persona</button></p>' +
+        "</div>";
+      if (typeof window.openSheet === "function") window.openSheet(html);
+      else { try { if (window.toast) window.toast("Gifter Lv." + j.level + " · " + (j.xp || 0) + " XP", 3200); } catch (e) { } return; }
+      var sh = document.getElementById("sheet");
+      if (sh) {
+        var cx = sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { try { if (window.closeSheet) window.closeSheet(); } catch (e) { } });
+        sh.querySelectorAll("[data-persona338]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            api338("/api/gifter/persona", "POST", { persona: b.getAttribute("data-persona338") || "" }).then(function (r) {
+              if (r && r.ok) { if (state) { state.persona = r.persona; save338(); } openCard338(); }
+            });
+          });
+        });
+      }
+    });
+  }
+  if (tok338()) setTimeout(refresh338, 1200);
+  return { refresh: refresh338, myLevel: myLevel338, onAward: onAward338, gateBlocked: gateBlocked338, paintProfile: paintProfile338, openCard: openCard338, badge: rpGifterBadge338 };
+})();
+window.RpGifter338 = RpGifter338;
 </script>
 </body>
 </html>
