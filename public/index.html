@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.336" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.340" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -2168,6 +2168,13 @@
       .live-tile .lt-btns button:hover { border-color: #ff8f8f; color: #ffb9b9; }
       .live-hearts { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 4; }
       .live-heart-float { position: absolute; bottom: 6px; pointer-events: none; will-change: transform, opacity; }
+      /* [RP-V7.340] Heart-tap feedback: fingertip hearts live in their own
+         layer over the whole stage wrap (the rail sits below #liveHearts'
+         strip cut, so tap points map here, never clipped), and the like
+         count becomes an inline-block so its pop can transform. */
+      .lv-tapfx340 { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 12; }
+      .lv-tapheart340 { position: absolute; pointer-events: none; will-change: transform, opacity; line-height: 1; }
+      #lvLikeCount { display: inline-block; }
       .live-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
       .live-controls .btn-primary, .live-controls .btn-mini { width: auto; }
       .live-toggle.off { opacity: .55; }
@@ -17357,10 +17364,91 @@
         var n = heartPending; heartPending = 0;
         if (protoSend({ k: "live-heart", n: n }) && !iAmHost() && Live.hostName) affinityBump(Live.hostName, "c"); // ✨ For You memory: I complimented this host
       }
-      function sendLiveHeart() {
+      /* [RP-V7.340] Heart-tap feedback (Branden, Nov 11: tapping for
+         hearts on live had "no vibration no pulse like TikTok has").
+         Every REGISTERED like tap — the rail heart and the More sheet's
+         Send hearts row, the only two callers of sendLiveHeart — now
+         answers at the fingertip: a heart pops at the exact tap point
+         and floats up with a sway, the rail heart and its count pop,
+         and the phone ticks once. The tick is a single 10 ms vibration
+         (Branden: "Very short pulse"), throttled to at most one tick
+         per 90 ms so a burst of taps can't buzz nonstop; where the
+         Vibration API doesn't exist (iOS web) it silently no-ops and
+         the hearts + pop carry the feedback — never faked with sound.
+         Pure local cosmetics: no extra proto traffic, and the count /
+         batching semantics of sendLiveHeart are exactly as before. */
+      var lvTapBuzzAt340 = 0, lvTapHearts340 = 0;
+      function liveTapLayer340() {
+        var anchor = $("liveHearts"); if (!anchor || !anchor.parentNode) return null;
+        var wrap = anchor.parentNode;
+        var fx = wrap.querySelector(".lv-tapfx340");
+        if (!fx) {
+          fx = document.createElement("div");
+          fx.className = "lv-tapfx340"; fx.setAttribute("aria-hidden", "true");
+          wrap.appendChild(fx);
+        }
+        return fx;
+      }
+      function liveTapFeedback340(ev) {
+        try {
+          if (navigator.vibrate && Date.now() - lvTapBuzzAt340 >= 90) {
+            lvTapBuzzAt340 = Date.now();
+            navigator.vibrate(10); // [RP-V7.340] the whole tick: one 10 ms pulse
+          }
+        } catch (e) { /* no Vibration API (iOS web): silent no-op by design */ }
+        var btn = $("lvRailLike");
+        if (btn && btn.animate) {
+          try { btn.animate([{ transform: "scale(1)" }, { transform: "scale(1.22)", offset: 0.35 }, { transform: "scale(1)" }], { duration: 180, easing: "ease-out" }); } catch (e) { }
+        }
+        var lc = $("lvLikeCount");
+        if (lc && lc.animate) {
+          try { lc.animate([{ transform: "scale(1)" }, { transform: "scale(1.35)", offset: 0.5 }, { transform: "scale(1)" }], { duration: 160, easing: "ease-out" }); } catch (e) { }
+        }
+        var fx = liveTapLayer340(); if (!fx) return;
+        if (lvTapHearts340 >= 12) return; // perf cap — the like still counted, popped and ticked
+        var r = fx.getBoundingClientRect(); if (!r.width || !r.height) return;
+        var x = null, y = null;
+        if (ev && isFinite(ev.clientX) && isFinite(ev.clientY) && ev.clientX > 0 && ev.clientY > 0) { x = ev.clientX - r.left; y = ev.clientY - r.top; }
+        if (x === null || x < 0 || y < 0 || x > r.width || y > r.height) {
+          // No usable tap point (keyboard click, or the More sheet's row
+          // tapped from outside the stage): anchor on the rail heart.
+          if (btn) { var br = btn.getBoundingClientRect(); x = br.left + br.width / 2 - r.left; y = br.top + br.height / 2 - r.top; }
+          else { x = r.width - 40; y = r.height - 30; }
+          x = Math.max(16, Math.min(r.width - 16, x)); y = Math.max(16, Math.min(r.height - 16, y));
+        }
+        var reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+        var s = document.createElement("span");
+        s.className = "lv-tapheart340"; s.textContent = "❤️";
+        s.style.left = x + "px"; s.style.top = y + "px";
+        s.style.fontSize = (26 + Math.random() * 8) + "px";
+        fx.appendChild(s);
+        lvTapHearts340++;
+        var done = false;
+        var finish = function () { if (done) return; done = true; lvTapHearts340 = Math.max(0, lvTapHearts340 - 1); if (s.parentNode) s.parentNode.removeChild(s); };
+        if (s.animate) {
+          var sway = Math.round((Math.random() - 0.5) * 36);
+          var frames = reduced ? [
+            { transform: "translate(-50%, -50%) scale(.5)", opacity: 0 },
+            { transform: "translate(-50%, -50%) scale(1.1)", opacity: 1, offset: 0.3 },
+            { transform: "translate(-50%, -50%) scale(1)", opacity: 0 }
+          ] : [
+            { transform: "translate(-50%, -50%) scale(.45)", opacity: 0 },
+            { transform: "translate(-50%, -62%) scale(1.18)", opacity: 1, offset: 0.18 },
+            { transform: "translate(calc(-50% + " + Math.round(sway * 0.5) + "px), calc(-50% - 62px)) scale(1.02)", opacity: 1, offset: 0.55 },
+            { transform: "translate(calc(-50% + " + sway + "px), calc(-50% - 128px)) scale(.98)", opacity: 0 }
+          ];
+          var an = s.animate(frames, { duration: reduced ? 300 : 950, easing: "ease-out" });
+          an.onfinish = finish;
+          if (an.finished && an.finished.catch) an.finished.catch(finish);
+        } else {
+          setTimeout(finish, 850);
+        }
+      }
+      function sendLiveHeart(ev) {
         if (!Live.active) return;
         floatLiveHearts(3);
         Live.hearts++; updateLiveCounts();
+        liveTapFeedback340(ev); // [RP-V7.340] fingertip heart + pop + 10 ms tick
         if (Live.hostId) engRecord(Live.hostId, Online.myId, "heart", 1); // 🔥 my tap counts toward the score here too (the echo back is ignored); a host's own taps are excluded inside engRecord
         heartPending++;
         if (!heartFlushTimer) heartFlushTimer = setTimeout(flushLiveHearts, 650);
@@ -17561,7 +17649,7 @@
         wire("lvMoreSetup", function () { closeSheet(); openLiveSetup(); }); // [RP-V7.63]
         wire("lvMoreEnd", function () { closeSheet(); liveEndMine(); });
         wire("lvMoreLeave", function () { closeSheet(); liveLeaveStage(); });
-        wire("lvMoreLike", function () { closeSheet(); sendLiveHeart(); });
+        wire("lvMoreLike", function (e) { closeSheet(); sendLiveHeart(e); }); // [RP-V7.340] the sheet row feeds back too
         wire("lvMoreShare", function () { closeSheet(); shareLive(); });
         wire("lvMoreClose", function () { closeSheet(); liveFsCloseTap(); });
       }
