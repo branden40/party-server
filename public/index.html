@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.332" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.334" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -23694,9 +23694,11 @@
           GiftFx.queue.push({ g: g, fromName: fromName, toName: toName });
           giftFxPump();
         } else if (tier === "medium" || tier === "big" || tier === "prestige") {
-          if (!fxBusy219(g, fromName)) giftFxBurst(g, fromName, toName); // [RP-V7.219] one live overlay per (sender, gift)
+          if (!fxKeyBusy334(g, fromName)) giftFxBurst(g, fromName, toName); // [RP-V7.219] one live overlay per (sender, gift)
+          else fxQueueOrSkip334("burst", g, fromName, toName); // [RP-V7.334] off-live: queue the show, never drop the gift (see fxQueueOrSkip334)
         } else {
-          if (!fxBusy219(g, fromName)) giftFxFloat(g, fromName, toName);
+          if (!fxKeyBusy334(g, fromName)) giftFxFloat(g, fromName, toName);
+          else fxQueueOrSkip334("float", g, fromName, toName); // [RP-V7.334] off-live: queue the show, never drop the gift
         }
       }
       // [RP-V7.219] small/medium show sanity at high counts: while a
@@ -23706,10 +23708,43 @@
       // moment the overlay clears: the §2.4 chain, bounded by the
       // overlay's own life instead of an unbounded stack of shows.
       function fxBusy219(g, fromName) {
+        if (fxKeyBusy334(g, fromName)) { window.__rp219FxSkips = (window.__rp219FxSkips || 0) + 1; return true; }
+        return false;
+      }
+      /* [RP-V7.334] the busy test without the counter — the queue
+         pump below re-tests with this. */
+      function fxKeyBusy334(g, fromName) {
         var key = (fromName || "") + "|" + (g.id || g.name || "");
         var live = document.querySelectorAll(".gfx[data-fxkey]");
-        for (var i = 0; i < live.length; i++) if (live[i].getAttribute("data-fxkey") === key) { window.__rp219FxSkips = (window.__rp219FxSkips || 0) + 1; return true; }
+        for (var i = 0; i < live.length; i++) if (live[i].getAttribute("data-fxkey") === key) return true;
         return false;
+      }
+      /* [RP-V7.334] exactly ONE presentation per gift event
+         (Branden, Nov 11, 2026 — rapid sends were silently eating
+         gifts): a settled send whose (sender, gift) overlay was
+         still up used to be DROPPED by the busy skip. It now
+         QUEUES and plays the moment the current overlay clears —
+         pumped from the float/burst removal timers, no new
+         timers, and dedupe is by event (each send queues its own
+         show), never by gift type or a blanket lockout. The queue
+         is capped at 20 pending shows (a human cannot out-tap it;
+         batches ride one show with a count banner instead).
+         [LIVE EXTENSION, same evening] the queue covers live
+         rooms too — one gift event = one presentation in the live
+         room, serialized exactly like the stage queue; this
+         supersedes the V7.219 in-live skip for float/burst
+         overlays. */
+      var fxQueue334 = [];
+      function fxQueueOrSkip334(kind, g, fromName, toName) {
+        if (fxQueue334.length >= 20) { window.__rp219FxSkips = (window.__rp219FxSkips || 0) + 1; return; }
+        fxQueue334.push({ kind: kind, g: g, fromName: fromName, toName: toName });
+      }
+      function fxPump334() {
+        if (!fxQueue334.length) return;
+        var job = fxQueue334[0];
+        if (fxKeyBusy334(job.g, job.fromName)) return; // its overlay is still up — that overlay's own removal pumps again
+        fxQueue334.shift();
+        if (job.kind === "burst") giftFxBurst(job.g, job.fromName, job.toName); else giftFxFloat(job.g, job.fromName, job.toName);
       }
       function fxTag219(ov, g, fromName) { try { ov.setAttribute("data-fxkey", (fromName || "") + "|" + (g.id || g.name || "")); } catch (e) { } }
       function giftFxFloat(g, fromName, toName) {
@@ -23741,24 +23776,47 @@
            alpha have no frame to be cut by). Full-screen, the keyer
            cover-crops the film into the viewport (RpKeyUpgrade
            cover + keepBox); without WebGL the element's own
-           object-fit: cover does the same job. */
-        var fs327 = (s.tagName === "VIDEO") && !holFit220 && !(document.body && document.body.classList.contains("live-fs"));
+           object-fit: cover does the same job.
+           [RP-V7.334] GEOMETRY SUPERSEDED (Branden, Nov 11, 2026 —
+           "The gifting in pictures and videos are too big — need to
+           be the bottom half screen"): the full-viewport seat
+           overshot on posts — the film flooded the whole screen and
+           its glow washed over the entire post. Off-live film heroes
+           now seat at the BOTTOM of the screen at full width, the
+           keyer runs its identity window (no cover, no keepBox) and
+           fixAspect sizes the canvas to the film's own raster — the
+           whole frame shows, nothing cropped, and the show lives
+           entirely in the bottom half of the screen with the post
+           above it untouched. The max-height/object-fit guards only
+           bind for a film taller than the half (the portrait films
+           are stage-tier and never route here). Live band and art
+           heroes unchanged.
+           [RP-V7.334 LIVE EXTENSION] (Branden, Nov 11, 2026 ~19:52
+           ET — "Live room should be the same"): the bottom-half
+           seat now applies in live rooms too — the fs327 test no
+           longer excludes body.live-fs, so a FILM hero takes this
+           seat everywhere; the V7.218 live band seat survives only
+           for ART heroes (keyed stickers are not films and were
+           never cropped). The film also plays once in lives (the
+           loop-off below is unconditional now). */
+        var fs327 = (s.tagName === "VIDEO") && !holFit220;
         if (fs327) {
           ov.classList.add("fs327");
-          s.style.left = "0px"; s.style.top = "0px"; s.style.bottom = "auto";
-          s.style.width = "100vw"; s.style.height = "100dvh";
-          s.style.animation = "gfxFsIn327 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
+          s.loop = false; // [RP-V7.334] the film plays ONCE — giftArtImg loops it, and a show window longer than the film restarted it mid-show (Branden, Nov 11, 2026: "some of the gifts show up two times should only show once"); it now plays once and holds its end frame, the Golden Ascension treatment (V7.219) generalised to every film show, live rooms included (his live extension, same evening).
+          s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = "0px";
+          s.style.width = "100vw"; s.style.height = "auto"; s.style.maxHeight = "50dvh"; s.style.objectFit = "contain";
+          s.style.animation = "gfxHalfIn334 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
         } else {
           s.style.left = "50%";
           s.style.bottom = holFit220 ? "14.5%" : "17%"; /* [RP-V7.218] small-gift appear seats in the band zone with the stage shows (box top ~58% on a 440x880 screen) -- [RP-V7.220 fix] the smaller holiday hero seats lower so its whole square sits inside the band (top edge ~50.5%) */
           s.style.animation = "gfxAppear217 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
         }
         stage.appendChild(s);
-        if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g, fs327 ? { cover: true, keepBox: true } : undefined); }
+        if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g, undefined); } /* [RP-V7.334] no cover/keepBox on either path now — identity window + fixAspect (the band path always keyed this way) */
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
         ov.appendChild(cap);
-        setTimeout(function () { if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); }, dur217); // [RP-V7.217] overlay life = the appear animation's life
+        setTimeout(function () { if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); try { fxPump334(); } catch (e) { } }, dur217); // [RP-V7.217] overlay life = the appear animation's life — [RP-V7.334] + pump the off-live show queue as this overlay clears
       }
       function giftFxBurst(g, fromName, toName) {
         var ov = giftFxOverlay("medium"); fxTag219(ov, g, fromName); // [RP-V7.219]
@@ -23766,18 +23824,25 @@
         var hero = fxHero(g, Math.round(window.innerWidth || 400)); // [RP-V7.218 section 8] band-fill: the burst hero takes the full bottom-band width (was 240/200 at [RP-V7.27])
         /* [RP-V7.327] same rule as the float: a FILM burst hero off
            the live screen fills the screen (cover-keyed); in a live,
-           and for art heroes, the band burst below is unchanged. */
-        var fs327 = (hero.tagName === "VIDEO") && !(document.body && document.body.classList.contains("live-fs"));
+           and for art heroes, the band burst below is unchanged.
+           [RP-V7.334] same supersession as the float: the burst hero
+           seats at the bottom of the screen at full width, keyed
+           with the identity window, its box following the film's own
+           raster — the whole show inside the bottom half.
+           [RP-V7.334 LIVE EXTENSION] same evening: the seat applies
+           in live rooms too (see the giftFxFloat note). */
+        var fs327 = (hero.tagName === "VIDEO");
         if (fs327) {
           ov.classList.add("fs327");
-          hero.style.left = "0px"; hero.style.top = "0px";
-          hero.style.width = "100vw"; hero.style.height = "100dvh";
-          hero.style.animation = "gfxFsIn327 4200ms cubic-bezier(.2,.7,.3,1) both";
+          hero.loop = false; // [RP-V7.334] film plays ONCE, then holds its end frame (see the giftFxFloat note) — the 8000 ms burst window restarted the ~5.6 s films mid-show; lives included (live extension)
+          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px";
+          hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = "50dvh"; hero.style.objectFit = "contain";
+          hero.style.animation = "gfxHalfIn334 4200ms cubic-bezier(.2,.7,.3,1) both";
         } else {
           hero.style.animation = "gfxPop 4200ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.219] x2 burst hero
         }
         stage.appendChild(hero);
-        if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, fs327 ? { cover: true, keepBox: true } : undefined); // [RP-V7.217] hero keyed live — no box
+        if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined); // [RP-V7.217] hero keyed live — no box — [RP-V7.334] identity window + fixAspect on both paths (see the giftFxFloat note)
         var parts = g.fx === "burst" ? ["✨", "🎇", "💥", g.icon] : [g.icon, "✨", "⭐"];
         var n = giftFxReduced() ? 5 : 18;
         for (var i = 0; i < n; i++) {
@@ -23802,7 +23867,7 @@
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
         ov.appendChild(cap);
         try { Juice.shake(2); } catch (e) { }
-        setTimeout(function () { if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); }, (window.RpShowDur ? window.RpShowDur(g) : 8000)); // [RP-V7.217] burst lives for the gift's duration
+        setTimeout(function () { if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); try { fxPump334(); } catch (e) { } }, (window.RpShowDur ? window.RpShowDur(g) : 8000)); // [RP-V7.217] burst lives for the gift's duration — [RP-V7.334] + pump the off-live show queue as this overlay clears
       }
       function giftFxPump() {
         if (GiftFx.playing || !GiftFx.queue.length) return;
@@ -29979,9 +30044,25 @@ body:not(.live-fs) #rp65How { display:none !important; }
    present FULL-SCREEN — float/burst heroes get the viewport box
    inline (giftFxFloat / giftFxBurst) with this entrance, and the
    stage gets .fs327 so its film box fills the screen too. Live
-   shows (body.live-fs) keep the band exactly as approved. */
+   shows (body.live-fs) keep the band exactly as approved.
+   [RP-V7.334] GEOMETRY SUPERSEDED (Branden, Nov 11, 2026 — "The
+   gifting in pictures and videos are too big — need to be the
+   bottom half screen"): full-screen overshot on posts. While body
+   has no .live-fs, film shows now present in the BOTTOM HALF of the
+   screen: float/burst heroes seat at the bottom at full width with
+   the film's whole frame showing (see giftFxFloat/giftFxBurst),
+   and the stage film box below is the film's own 16:9 frame, which
+   the stage's flex seat (align-items:flex-end, padding-bottom:
+   13vh) places with its top edge at ~61% of the screen — inside
+   the bottom half, the post above untouched. Portrait stage films
+   keep their band cap (top edge ~51%, still the bottom half). The
+   .fs327 class itself stays (pumpStage still adds it off-live) and
+   the scene-film neutralizers under it are unchanged; the live
+   band (body.live-fs) is byte-for-byte the approved presentation. */
 @keyframes gfxFsIn327 { 0% { opacity: 0; transform: scale(1.07); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } }
-#rpStage.fs327 .rp-stage-art.film { width: 100vw; height: 100dvh; aspect-ratio: auto; }
+@keyframes gfxHalfIn334 { 0% { opacity: 0; transform: scale(1.045); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } }
+#rpStage.fs327 .rp-stage-art.film { width: 100vw; height: auto; aspect-ratio: 16/9; }
+#rpStage.fs327 .rp-stage-art.film.portrait { width: auto; height: min(36vh, 150vw); aspect-ratio: 720/1280; }
 #rpStage.fs327.bandblend218, #rpStage.fs327.ghost218 { mix-blend-mode: normal; }
 #rpStage.fs327 .rp-stage-art.bandblend218 video.rp-gift-film { mix-blend-mode: normal !important; -webkit-mask-image: none !important; mask-image: none !important; }
 </style>
@@ -30764,6 +30845,7 @@ function rpStageMedia(div, gid, icon) {
     v.setAttribute("data-gid", aid);
     v.setAttribute("data-icon", icon || GIFT_ICONS[aid] || "🎁");
     v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true; v.preload = "auto";
+    v.loop = false; // [RP-V7.334] the film plays ONCE and holds its end frame for the rest of the slot — stage windows run 9200–14600 ms against ~5.6 s films, and the V7.219 loop filled the window by restarting the film mid-show (Branden, Nov 11, 2026: gifts "show up two times"). The Golden Ascension exception below already proved this treatment. Originally gated to off-live; Branden's live extension the same evening ("Live room should be the same") made it unconditional — live stage and battle-live films play once too. (Room SCENE films are a separate element and still loop as ambience; they are not gift shows.)
     var stepped = false;
     if (RpKey.supported()) {
       var h = RpKey.attach(v, { cover: true }); // [RP-V7.218 section 8] band heroes cover-crop into the band box
@@ -30855,9 +30937,16 @@ function stageStreakBump(key, add) {
     var RP_BAND_PORTRAIT = { ascension: 1, nebuladragon: 1 };
     ov.setAttribute("data-gid", sgid);
     ov.setAttribute("data-icon", g.icon || GIFT_ICONS[said] || "🎁");
-    /* [RP-V7.327] off the live screen, the stage's film box fills
-       the screen (the .fs327 CSS); in a live (body.live-fs) the
-       V7.218 band stays exactly as approved. */
+    /* [RP-V7.327] off the live screen, the stage carries .fs327
+       (the .fs327 CSS); in a live (body.live-fs) the V7.218 band
+       stays exactly as approved. [RP-V7.334] the .fs327 stage film
+       box is now the bottom-half geometry — see the CSS note.
+       [LIVE EXTENSION] in a live, the stage film box comes from
+       the same base film rule — the identical 16:9 whole-frame
+       box on the same flex seat — so no separate live stage
+       geometry remains; the live stage change in this build is
+       the film playing once (filmMode loop) plus the shared
+       show-once queue. */
     if (!document.body.classList.contains("live-fs")) ov.classList.add("fs327");
     ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + sparks;
     ov.querySelector(".rp-stage-bg").style.animationDuration = dur + "ms";
@@ -38992,7 +39081,7 @@ button.rp72-chip{ cursor:pointer; }
     var now = Date.now();
     for (var k in giftAttempts) { if (now - giftAttempts[k].at > 60000) delete giftAttempts[k]; }
     var cur = giftAttempts[sig];
-    if (cur && (!cur.done || now - cur.at < 1500)) return cur.key; // [RP-V7.219] done-window 6000 -> 1500ms: deliberate repeat sends (the combo flow) mint fresh attempts at human pace; an IN-FLIGHT attempt still always reuses its key, and the server dedupes a true retry by the stored key
+    if (cur && !cur.done) return cur.key; // [RP-V7.334] an IN-FLIGHT attempt still always reuses its key, and the server dedupes a true retry by the stored key — that is the whole double-charge guard, and it is untouched. The V7.219 done-window (1500 ms) is REMOVED: it conflated a fresh deliberate send with a retry and silently ate rapid repeat gifts (rig-measured Nov 11, 2026: 3 rapid sends -> 2 settled). Dedupe is by EVENT (one in-flight attempt = one event); every completed send frees the next deliberate send to mint its own key and settle as its own gift. (Combo taps already minted per-tap keys via __combo; sheet sends now get the same per-event treatment by construction.)
     var key = "g" + now.toString(36) + Math.random().toString(36).slice(2, 10);
     giftAttempts[sig] = { key: key, at: now, done: false };
     return key;
