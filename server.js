@@ -954,6 +954,22 @@ Object.keys(RP_GIFT_ART_7308).forEach((gid) => {
   });
 });
 console.log("[RP-V7.308] weekly gift art:", Object.keys(RP_GIFT_ART_7308).join(", "));
+// [RP-V7.341] UFO Beam (Branden, Nov 11, 2026) — ANIMATED ART for
+// the new UFO Beam gift, embedded base64 WebP (320x320, 40 frames,
+// infinite loop) in the sibling module giftart7341.js, served at
+// /img/gifts/ufobeam.webp ahead of express.static (same recipe as
+// RP-V7.308). The film itself rides the standard gift-film route:
+// public/giftfx-ufobeam.mp4 (rpStdFilmUrl), no new serving code.
+const RP_GIFT_ART_7341 = require("./giftart7341.js");
+Object.keys(RP_GIFT_ART_7341).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7341[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+console.log("[RP-V7.341] new gift art:", Object.keys(RP_GIFT_ART_7341).join(", "));
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -6445,7 +6461,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.338", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.341", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -15694,7 +15710,7 @@ const MONEY_GIFT_TABLE = {
   heartburst: 60, thunderbolt: 75, fingerheart: 99, kiss: 100,
   fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500, worldtree: 500, // [RP-V7.199] +World Tree 500 ($5, Branden Nov 1, 2026) — catalog now 45 gifts
   loveballoon: 600, guardianpalm: 700, airplane: 800, moneygun: 999,
-  castle: 1000, volcano: 2000, lion: 2500, plazaape: 2500, fattuesday: 2500, dragon: 3000, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts // [RP-V7.221] +Fat Tuesday Frenzy 2500 ($25, Branden Nov 3, 2026) — catalog now 51 gifts
+  castle: 1000, ufobeam: 1000, volcano: 2000, lion: 2500, plazaape: 2500, fattuesday: 2500, dragon: 3000, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts // [RP-V7.221] +Fat Tuesday Frenzy 2500 ($25, Branden Nov 3, 2026) — catalog now 51 gifts
   whale: 4500, galaxy: 5000, titanclash: 5000, rizzuniverse: 5000, starsurge: 5500, diamonds: 6000,
   rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10000, yacht: 15000,
   phoenix: 25000, universe: 50000,
@@ -15728,6 +15744,10 @@ const MONEY_GIFT_TABLE = {
   // [RP-V7.167] +1 gift (Branden, Oct 31, 2026): Nebula Dragon
   // $100 — id + price mirror the client's GIFT_SHOP exactly
   // (in the tier line above, after jet); catalog now 41 gifts.
+  // [RP-V7.341] +1 gift (Branden, Nov 11, 2026): UFO Beam — $10
+  // (1000 charms, tier medium, the Castle rung) with a stage-class
+  // 10 s film show — id + price mirror the client's GIFT_SHOP
+  // exactly (in the tier line above, after castle); catalog now 57 gifts.
 };
 // [RP-V7.250] Gift DISPLAY info — mirror of the client GIFT_SHOP's
 // name + tier (the catalog's size class: penny / small / medium / big
@@ -15760,6 +15780,7 @@ const MONEY_GIFT_INFO = {
   airplane: { name: "Airplane", tier: "medium" },
   moneygun: { name: "Money Gun", tier: "medium" },
   castle: { name: "Castle", tier: "medium" },
+  ufobeam: { name: "UFO Beam", tier: "medium" }, // [RP-V7.341] new gift (Branden, Nov 11, 2026)
   volcano: { name: "Volcano", tier: "big" },
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
@@ -22576,7 +22597,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.338", online: players.size })
+  res.json({ ok: true, version: "RP-V7.341", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
