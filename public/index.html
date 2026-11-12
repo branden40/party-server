@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.346" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.347" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -23799,9 +23799,12 @@
             if (window.rpFilmStepDown && window.rpFilmStepDown(vid)) return;
             if (!vid.parentNode) return;
             var im2 = document.createElement("img");
-            // [RP-V7.207] the art fallback inherits the failed film's className + full inline style, so caller-set float/burst positioning and animation survive the swap.
-            im2.className = vid.className; im2.src = art; im2.alt = "";
-            im2.style.cssText = vid.style.cssText;
+            // [DIAG-FIX] if RpKeyUpgrade already claimed the video, the hero's classes/styles live on the keyed CANVAS (the video itself was wiped + tagged rp-key-src, the never-visible feeder class) — inherit from the canvas instead, and never carry rp-key-src onto the art, or the fallback renders as an invisible 8px speck.
+            var cvFix = (vid.parentNode && vid.parentNode.querySelector) ? vid.parentNode.querySelector("canvas.rp-key-canvas") : null;
+            if (cvFix) { im2.className = cvFix.className.replace(/\brp-key-canvas\b/g, "").trim(); im2.style.cssText = cvFix.style.cssText; }
+            else { im2.className = vid.className; im2.style.cssText = vid.style.cssText; }
+            if (im2.classList) im2.classList.remove("rp-key-src");
+            im2.src = art; im2.alt = "";
             im2.onerror = function () {
               if (!im2.parentNode) return;
               var s2 = document.createElement("span");
@@ -23954,12 +23957,13 @@
            for ART heroes (keyed stickers are not films and were
            never cropped). The film also plays once in lives (the
            loop-off below is unconditional now). */
+        var bigSeat347 = (g.tier === "big" || g.tier === "prestige"); // [RP-V7.347] TikTok-size ruling (Branden, Nov 12, 2026 — "Big gifts only — lives and posts"): a BIG gift's show may rise higher so the whole gift shows bigger; small/medium keep the bottom-half seat exactly as now
         var fs327 = (s.tagName === "VIDEO") && !holFit220;
         if (fs327) {
           ov.classList.add("fs327");
           s.loop = false; // [RP-V7.334] the film plays ONCE — giftArtImg loops it, and a show window longer than the film restarted it mid-show (Branden, Nov 11, 2026: "some of the gifts show up two times should only show once"); it now plays once and holds its end frame, the Golden Ascension treatment (V7.219) generalised to every film show, live rooms included (his live extension, same evening).
           s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = "0px";
-          s.style.width = "100vw"; s.style.height = "auto"; s.style.maxHeight = "50dvh"; s.style.objectFit = "contain";
+          s.style.width = "100vw"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; s.style.objectFit = "contain";
           s.style.animation = "gfxHalfIn334 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
         } else {
           s.style.left = "50%";
@@ -23970,7 +23974,7 @@
         if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g, undefined); } /* [RP-V7.334] no cover/keepBox on either path now — identity window + fixAspect (the band path always keyed this way) */
         if (s.classList && s.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the band seat centres their square at 72% and pokes it above the midline */
           s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = "0px"; s.style.transform = "none";
-          s.style.width = "100vw"; s.style.height = "auto"; s.style.maxHeight = "50dvh"; s.style.objectFit = "contain";
+          s.style.width = "100vw"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; s.style.objectFit = "contain";
           s.style.animation = "gfxFade337 600ms ease-out both"; }
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
@@ -23990,12 +23994,13 @@
            raster — the whole show inside the bottom half.
            [RP-V7.334 LIVE EXTENSION] same evening: the seat applies
            in live rooms too (see the giftFxFloat note). */
+        var bigSeat347 = (g.tier === "big" || g.tier === "prestige"); // [RP-V7.347] TikTok-size ruling — see giftFxFloat
         var fs327 = (hero.tagName === "VIDEO");
         if (fs327) {
           ov.classList.add("fs327");
           hero.loop = false; // [RP-V7.334] film plays ONCE, then holds its end frame (see the giftFxFloat note) — the 8000 ms burst window restarted the ~5.6 s films mid-show; lives included (live extension)
           hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px";
-          hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = "50dvh"; hero.style.objectFit = "contain";
+          hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
           hero.style.animation = "gfxHalfIn334 " + (window.RpShowDur ? window.RpShowDur(g) : 8000) + "ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.346] burst FILM hero spans the gift's whole show window — the hardcoded 4200ms was a pre-V7.219 leftover (V7.219 doubled burst windows 4000->8000; the float hero follows RpShowDur, this literal never moved), so every burst film faded out at 4.2s and its final ~1.4s never displayed (Gold Gloves — Branden, Nov 12, 2026)
         } else {
           fxHeroSize(hero, Math.round((window.innerWidth || 400) * 0.76)); // [RP-V7.337b] an art burst hero is a full-width square; gfxPop peaks at 1.25x with a 3deg tilt, which swept the full-width box past both screen edges — at 76vw the whole pop, tilt included, stays on screen
@@ -24005,7 +24010,7 @@
         if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined); // [RP-V7.217] hero keyed live — no box — [RP-V7.334] identity window + fixAspect on both paths (see the giftFxFloat note)
         if (hero.classList && hero.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the burst's centred seat pokes their square above the midline */
           hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.transform = "none";
-          hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = "50dvh"; hero.style.objectFit = "contain";
+          hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
           hero.style.animation = "gfxFade337 600ms ease-out both"; }
         var parts = g.fx === "burst" ? ["✨", "🎇", "💥", g.icon] : [g.icon, "✨", "⭐"];
         var n = giftFxReduced() ? 5 : 18;
@@ -24156,16 +24161,21 @@
            dropped whenever a hero is keyed, so the show blends
            into the room on any backdrop. The per-fx particles and
            stars stay as they were. */
+        var bigSeat347 = (g.tier === "big" || g.tier === "prestige"); // [RP-V7.347] TikTok-size ruling — see giftFxFloat
         if (hero.tagName === "VIDEO" && hero.style.display !== "none") {
           ov.classList.add("fs327");
           hero.loop = false;
           hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px";
-          hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = "50dvh"; hero.style.objectFit = "contain";
+          hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
           hero.style.animation = "gfxHalfIn334 " + dur + "ms cubic-bezier(.2,.7,.3,1) both";
           var bg337 = ov.querySelector(".gfx-bg"); if (bg337) { bg337.style.background = "transparent"; bg337.style.animation = "none"; bg337.style.opacity = "0"; }
           if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined);
         } else if (hero.tagName === "IMG") {
-          hero.style.top = "72%";
+          if (bigSeat347) { /* [RP-V7.347] a big gift whose film has not landed yet presents its animated art in the same raised film seat (bottom-anchored, own aspect, whole from the first frame) instead of the small centred seat */
+            hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.transform = "none";
+            hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = "85dvh"; hero.style.objectFit = "contain";
+            hero.style.animation = "gfxHalfIn334 " + dur + "ms cubic-bezier(.2,.7,.3,1) both";
+          } else hero.style.top = "72%";
           if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined);
           var bg337b = ov.querySelector(".gfx-bg"); if (bg337b) { bg337b.style.background = "transparent"; bg337b.style.animation = "none"; bg337b.style.opacity = "0"; }
         } else if (hero.style.display !== "none") {
@@ -30221,7 +30231,7 @@ canvas.rp-key-canvas{ display:block; }
    with the identity window. The cover-crop sampled only the middle
    ~32% of the frame in live rooms (titanclash / plazaape /
    nebuladragon / ascension). */
-#rpStage .rp-stage-art.film.portrait{ width:auto; height:min(36vh,150vw); aspect-ratio:720/1280; }
+#rpStage .rp-stage-art.film.portrait{ width:auto; height:min(72vh,150vw); aspect-ratio:720/1280; } /* [RP-V7.347] TikTok-size ruling (big gifts only — the stage serves nothing else): the portrait seat rises from the band's 87% line to ~15% of the screen; the stage's standing 13vh bottom pad is unchanged, so the box stays clear of the top furniture and the battle bar */
 /* medium burst heroes/particles seat in the band zone (hero box at
    ~72% of height; the burst spray itself is transient particles). */
 .gfx.medium .gfx-hero{ top:72%; }
@@ -30307,9 +30317,11 @@ body:not(.live-fs) #rp65How { display:none !important; }
 @keyframes gfxFsIn327 { 0% { opacity: 0; transform: scale(.97); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } } /* [RP-V7.337b] grow-in, never overshoot (see gfxHalfIn334 note) */
 @keyframes gfxHalfIn334 { 0% { opacity: 0; transform: scale(.955); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } } /* [RP-V7.337b] grow-IN: the 1.045 overshoot kept every film hero wider than the screen (and past the bottom edge) for the whole show, worst at the first frame — Branden, Nov 11, 2026: the gift must be WHOLE from the beginning. The hero now starts a touch small and settles INTO its seat, never past it. */
 #rpStage.fs327 .rp-stage-art.film { width: 100vw; height: auto; aspect-ratio: 16/9; }
-#rpStage.fs327 .rp-stage-art.film.portrait { width: auto; height: min(36vh, 150vw); aspect-ratio: 720/1280; }
+#rpStage.fs327 .rp-stage-art.film.portrait { width: auto; height: min(72vh, 150vw); aspect-ratio: 720/1280; } /* [RP-V7.347] raised big-gift portrait seat — see the live rule */
 #rpStage.fs327.bandblend218, #rpStage.fs327.ghost218 { mix-blend-mode: normal; }
 #rpStage.fs327 .rp-stage-art.bandblend218 video.rp-gift-film { mix-blend-mode: normal !important; -webkit-mask-image: none !important; mask-image: none !important; }
+/* [RP-V7.347] BIG-GIFT STAGE ART SEAT (TikTok-size ruling, big gifts only — lives + posts): the stage serves only big/prestige gifts, so its art heroes (pending-film gifts presenting animated art) rise out of the 16:9 band box into the tall seat — the box grows to min(85dvh, 100vw) tall and the square art (object-fit: contain on the raw img; identity-window keyed canvas) renders at full screen width instead of band height. The three Thanksgiving fits keep their V7.220 whole-in-band box (owner's holiday rule outranks the size ruling for those three). */
+#rpStage:not([data-gid="thankfulturkey"]):not([data-gid="harvestwreath"]):not([data-gid="pumpkinpie"]) .rp-stage-art:not(.film):has(> img.rp-gift-img){ height:min(85dvh,100vw) !important; }
 </style>
 <script>
 /* ================= RP-V5: gift visuals, live battle, social sign-in ================= */
@@ -30965,8 +30977,11 @@ window.RpKeyUpgrade = function (el, g, opts327) {
                  the show area reaching UP from the bottom, per Branden's rule (Nov 11,
                  2026: whole from the beginning, never clip to fit the seat). UFO Beam
                  (1440x2160) is the first such film. */
-              var ph337b = Math.round(window.innerHeight * 0.5);
+              /* [RP-V7.347] TikTok-size ruling: for BIG gifts the portrait seat rises to 85% of the screen height so the whole portrait film shows bigger (small/medium keep the half). The width guard keeps a wide portrait raster (e.g. Fox Shot's 1440x2160) inside the screen at the raised seat — it shrinks to full width instead of clipping sideways. */
+              var bigSeat347k = (g && (g.tier === "big" || g.tier === "prestige"));
+              var ph337b = Math.round(window.innerHeight * (bigSeat347k ? 0.85 : 0.5));
               var pw337b = Math.round(ph337b * el.videoWidth / el.videoHeight);
+              if (bigSeat347k && pw337b > window.innerWidth) { pw337b = window.innerWidth; ph337b = Math.round(pw337b * el.videoHeight / el.videoWidth); }
               cv.classList.add("rp-portrait337b");
               cv.style.width = pw337b + "px"; cv.style.height = ph337b + "px";
               cv.style.left = Math.round((window.innerWidth - pw337b) / 2) + "px";
