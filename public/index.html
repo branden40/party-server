@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.334" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.335" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -24359,7 +24359,7 @@
           likeBase: 0, srvLikes: sp.likes || 0, liked: !!sp.myLiked, srvReposts: sp.reposts || 0, reposted: !!sp.myReposted, /* [RP-V7.89] */ gifts: 0, giftCount: sp.giftCount || 0, /* [RP-V7.262] gifts RECEIVED (units) — not the charms sum in gifts */
           comments: Array.isArray(sp.comments) ? sp.comments : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
-          musicTrackId: sp.musicTrackId || null, musicStart: sp.musicStart, musicVol: sp.musicVol, /* [RP-V7.90] */
+          musicTrackId: sp.musicTrackId || null, origSoundId: sp.origSoundId || null, soundId: sp.soundId || null, soundName: sp.soundName || null, soundOwnerName: sp.soundOwnerName || null, musicStart: sp.musicStart, musicVol: sp.musicVol, /* [RP-V7.90] */ /* [RP-V7.335] */
           cmtBase: 0
         };
       }
@@ -24492,7 +24492,7 @@
           id: "mine" + Date.now(), mine: true, name: Online.name || me.name || "You",
           photo: picks123[0] || Moments.pendingPhoto, urls: picks123, caption: cap || "Fresh from the Plaza 📸", location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", when: "now",
           likeBase: 0, srvLikes: 0, likes: 0, liked: false, gifts: 0, comments: [],
-          musicTrackId: (Moments.pendingSound ? Moments.pendingSound.trackId : null), musicStart: (Moments.pendingSound ? (Moments.pendingSound.start || 0) : null), musicVol: (Moments.pendingSound ? Moments.pendingSound.musicVol : null) /* [RP-V7.90] */
+          musicTrackId: (Moments.pendingSound && !(window.rpSndAttachField335 && window.rpSndAttachField335(Moments.pendingSound.trackId) === "origSoundId") ? Moments.pendingSound.trackId : null), origSoundId: (Moments.pendingSound && window.rpSndAttachField335 && window.rpSndAttachField335(Moments.pendingSound.trackId) === "origSoundId" ? Moments.pendingSound.trackId : null), soundName: (Moments.pendingSound && window.rpTrackName ? window.rpTrackName(Moments.pendingSound.trackId) : null), /* [RP-V7.335] */ musicStart: (Moments.pendingSound ? (Moments.pendingSound.start || 0) : null), musicVol: (Moments.pendingSound ? Moments.pendingSound.musicVol : null) /* [RP-V7.90] */
         });
         Moments.pendingPhoto = null;
         Moments.pendingPhotos = []; /* [RP-V7.123] */
@@ -24534,7 +24534,7 @@
           if (postMeta156.subsOnly) fd.append("subsOnly", "1"); // [RP-V7.296]
           if (postMeta156.clubOnly) fd.append("clubOnly", "1"); // [RP-V7.298]
           if (postMeta156.shoutoutId) fd.append("shoutoutId", postMeta156.shoutoutId); // [RP-V7.300] an armed fulfill link rides creation; the server settles the escrow
-          if (snd) { fd.append("musicTrackId", snd.trackId); fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
+          if (snd) { fd.append(window.rpSndAttachField335 ? window.rpSndAttachField335(snd.trackId) : "musicTrackId", snd.trackId); /* [RP-V7.335] */ fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
           return fd;
         }).catch(function () { return null; });
       }
@@ -24592,7 +24592,7 @@
           fetch("/api/photo/post", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
-            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : {}, (postMeta156.location || postMeta156.link || postMeta156.subsOnly || postMeta156.clubOnly || postMeta156.shoutoutId || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience, subsOnly: postMeta156.subsOnly ? true : undefined, clubOnly: postMeta156.clubOnly ? true : undefined, shoutoutId: postMeta156.shoutoutId || undefined } : {})) /* [RP-V7.296] subsOnly rides the same meta object */ /* [RP-V7.298] clubOnly too */ /* [RP-V7.300] shoutoutId too */
+            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? (window.rpSndAttachField335 && window.rpSndAttachField335(snd.trackId) === "origSoundId" ? { origSoundId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) }) : {} /* [RP-V7.335] */, (postMeta156.location || postMeta156.link || postMeta156.subsOnly || postMeta156.clubOnly || postMeta156.shoutoutId || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience, subsOnly: postMeta156.subsOnly ? true : undefined, clubOnly: postMeta156.clubOnly ? true : undefined, shoutoutId: postMeta156.shoutoutId || undefined } : {})) /* [RP-V7.296] subsOnly rides the same meta object */ /* [RP-V7.298] clubOnly too */ /* [RP-V7.300] shoutoutId too */
           }).then(function (r) { return r.json().catch(function () { return null; }); })
             .then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
             .catch(function () { momPublishLocal(cap); });
@@ -24665,7 +24665,7 @@
             (p.gifts > 0 ? '<span class="mom-gifted">🎁 ' + p.gifts.toLocaleString("en-US") + ' charms gifted</span>' : '<span class="mom-gifted" hidden></span>') + '</div>' +
             '<div class="mom-photo">' + photo + '</div>' +
             '<p class="mom-cap"><b>' + escHtml(p.name) + '</b>' + momCaptionHtml(p.caption || "") + '</p>' + postMetaLineHtml156(p) + /* [RP-V7.89] hashtags tappable */
-            (p.musicTrackId ? '<button type="button" class="mom-snd rp-snd" data-tid="' + escHtml(p.musicTrackId) + '">♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(p.musicTrackId) : "Plaza sound") + ' · tap to play</button>' : "") + /* [RP-V7.90] */
+            ((p.musicTrackId || p.origSoundId) ? '<button type="button" class="mom-snd rp-snd" data-tid="' + escHtml(p.musicTrackId || p.origSoundId) + '">♪ ' + escHtml(p.soundName || (window.rpTrackName ? window.rpTrackName(p.musicTrackId || p.origSoundId) : "Plaza sound")) + ' · tap to play</button>' : "") + /* [RP-V7.90] */ /* [RP-V7.335] member sounds preview through the same chip; the name is the registry's */
             '<div class="mom-acts">' +
               '<button class="mom-act like' + (p.liked ? " liked" : "") + '" type="button">' + RPICO.heart + ' <span class="lc">' + momLikeCount(p) + '</span></button>' +
               '<button class="mom-act cmt" type="button">' + RPICO.comment + ' <span class="cc">' + momCommentTotal(p) + '</span></button>' +
@@ -25286,7 +25286,7 @@
           likes: sp.likes || 0, myLiked: !!sp.myLiked, reposts: sp.reposts || 0, myReposted: !!sp.myReposted,
           comments: Array.isArray(sp.comments) ? sp.comments.slice() : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
-          music: sp.music || null,
+          music: sp.music || (sp.soundId ? { origId: sp.soundId, name: sp.soundName || "original sound", ownerName: sp.soundOwnerName || "" } : null), // [RP-V7.335] member sound carried into the pager item
           giftCount: sp.giftCount || 0 // [RP-V7.262]
         };
       }
@@ -25429,6 +25429,9 @@
         if (item.music && item.music.trackId) {
           return '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.music.trackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(item.music.name || (window.rpTrackName ? window.rpTrackName(item.music.trackId) : "Plaza sound")) + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.music.trackId) + '" aria-label="Favorite this sound">☆</button></div>';
         }
+        if (item.music && item.music.origId) { // [RP-V7.335]
+          return '<div class="reel-sound rp-osnd" data-sid="' + escHtml(item.music.origId) + '" role="button" title="Open sound page"><span>♪ ' + escHtml(item.music.name || "original sound") + ' · ' + escHtml(item.music.ownerName || "") + '</span></div>';
+        }
         return '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>";
       }
       /* Reels-pager photo card: mirrors reelCard's chrome, with the
@@ -25505,7 +25508,7 @@
           (item.mine ? "" : '<button type="button" class="hp-follow reel-followbtn' + (isFollowingName(item.author) ? " on" : "") + '">' + (isFollowingName(item.author) ? "Following" : "Follow") + "</button>") + "</div>" +
           (item.caption ? '<p class="hp-cap">' + reelCaptionHtml(item.caption, "photos") + "</p>" : "") + postMetaLineHtml156(item) + // [RP-V7.258] Home photo slide: photos context
           '<p class="hp-when">' + escHtml(reelWhen(item.createdAt)) + (item.urls.length > 1 ? " · <svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> " + item.urls.length + " photos" : " · 📸 Photo") + "</p>" +
-          (item.music ? '<span class="hp-snd rp-snd" data-tid="' + escHtml(item.music.trackId || "") + '" role="button">♪ ' + escHtml(item.music.name || "Plaza sound") + "</span>" : "");
+          (item.music ? (item.music.origId ? '<span class="hp-snd rp-osnd" data-sid="' + escHtml(item.music.origId) + '" role="button">♪ ' + escHtml(item.music.name || "original sound") + " · " + escHtml(item.music.ownerName || "") + "</span>" : '<span class="hp-snd rp-snd" data-tid="' + escHtml(item.music.trackId || "") + '" role="button">♪ ' + escHtml(item.music.name || "Plaza sound") + "</span>") : ""); /* [RP-V7.335] */
         slide.appendChild(meta);
         var acts = document.createElement("div"); acts.className = "hp-actions";
         acts.innerHTML =
@@ -25823,6 +25826,7 @@
           if (meta.link) fd.append("link", meta.link);
           if (meta.audience && meta.audience !== "everyone") fd.append("audience", meta.audience);
           if (meta.musicTrackId) { fd.append("musicTrackId", meta.musicTrackId); fd.append("musicStart", String(meta.musicStart || 0)); fd.append("musicVol", String(meta.musicVol != null ? meta.musicVol : 0.8)); fd.append("origVol", String(meta.origVol != null ? meta.origVol : 1)); } /* [RP-V7.90] */
+          if (meta.origSoundId) { fd.append("origSoundId", meta.origSoundId); fd.append("musicStart", String(meta.musicStart || 0)); fd.append("musicVol", String(meta.musicVol != null ? meta.musicVol : 0.8)); fd.append("origVol", String(meta.origVol != null ? meta.origVol : 1)); } /* [RP-V7.335] */
           var headers = {};
           var tok = reelToken(); if (tok) headers["Authorization"] = "Bearer " + tok;
           return fetch("/api/reel", { method: "POST", headers: headers, body: fd })
@@ -25843,12 +25847,12 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.300] */ });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ /* [RP-V7.335] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.300] */ });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
           if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
-          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, /* [RP-V7.198] own posted reel keeps its server link so the rail can repost it */ likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, /* [RP-V7.316] */ musicTrackId: m.musicTrackId || null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ });
+          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, /* [RP-V7.198] own posted reel keeps its server link so the rail can repost it */ likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, /* [RP-V7.316] */ musicTrackId: m.musicTrackId || null, origSoundId: m.origSoundId || null, soundId: null, soundName: null, soundOwnerName: null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ /* [RP-V7.335] a local pending item resolves its credit from the server copy after posting */ });
         });
         if (Reels.ranked) {
           // [RP-V7.40] the server already ordered its reels For You —
@@ -26524,7 +26528,7 @@
           '<div class="reel-play">▶</div>' +
           '<div class="reel-meta"><span class="reel-author"' + rpProfAttrs259(item) + '>' + escHtml(item.author) + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" +
           (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption, "reels") + "</p>" : "") + postMetaLineHtml156(item) + chip + provHtml + // [RP-V7.258] pager reel card: reels context
-          (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : "Plaza sound") + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound">☆</button></div>' : '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>") + crChip286 + // [RP-V7.286]
+          (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : "Plaza sound") + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound">☆</button></div>' : (item.soundId ? '<div class="reel-sound rp-osnd" data-sid="' + escHtml(item.soundId) + '" role="button" title="Open sound page"><span>♪ ' + escHtml(item.soundName || "original sound") + ' · ' + escHtml(item.soundOwnerName || "") + '</span></div>' : '<div class="reel-sound"><span>♪ Original sound · ' + escHtml(item.author) + "</span></div>")) /* [RP-V7.335] a registered member sound gets its real credit + page */ + crChip286 + // [RP-V7.286]
           "</div>" +
           '<div class="reel-rail">' + avHtml +
             '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + lk.count + "</span></button>" +
@@ -27846,7 +27850,7 @@
         reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, shoutoutId: postMeta156.shoutoutId || "" }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload // [RP-V7.316] allowDownloads rides too
         reelTrimMeta169(meta.id); // [RP-V7.169]
         if (Reels.pendingSound && Reels.pendingSound.trackId) {
-          reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol });
+          reelUpdateMeta(meta.id, window.rpSndMeta335 ? window.rpSndMeta335(Reels.pendingSound) : { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }) /* [RP-V7.335] */;
         }
         if (Reels.remix) {
           reelUpdateMeta(meta.id, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur });
@@ -27881,7 +27885,7 @@
             createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.316] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
           };
           var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
-          if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }); }
+          if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, window.rpSndMeta335 ? window.rpSndMeta335(Reels.pendingSound) : { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }) /* [RP-V7.335] */; }
           if (Reels.remix) { reelUpdateMeta(meta.id, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
           reelTrimMeta169(meta.id); // [RP-V7.169]
           Reels.memBlobs[meta.id] = Reels.pendingBlob;
@@ -27901,7 +27905,7 @@
           Reels.pendingBlob = blob;
           Reels.pendingUrl = URL.createObjectURL(blob);
           Reels.pendingSecs = 0;
-          Reels.pendingSound = m.musicTrackId ? { trackId: m.musicTrackId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : null; /* [RP-V7.90] */
+          Reels.pendingSound = m.musicTrackId ? { trackId: m.musicTrackId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : (m.origSoundId ? { trackId: m.origSoundId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : null); /* [RP-V7.90] */ /* [RP-V7.335] */
           Reels.trimStart = (typeof m.trimStart === "number") ? m.trimStart : null; Reels.trimEnd = (typeof m.trimEnd === "number") ? m.trimEnd : null; Reels.trimOpen = Reels.trimStart != null; Reels.mustTrim = false; /* [RP-V7.169] */
           Reels.pendingCaption = m.caption || "";
           postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, downloads: m.allowDownloads !== false, subsOnly: !!m.subsOnly, clubOnly: !!m.clubOnly }; // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316]
@@ -44219,6 +44223,39 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       border: 1px solid var(--line); border-radius: 999px; background: var(--panel2, rgba(127,127,160,.12));
       color: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
     }
+    /* ---- [RP-V7.335] original (member) sounds ---- */
+    .reel-sound.rp-osnd, .hp-snd.rp-osnd { cursor: pointer; pointer-events: auto; }
+    .snd-row.snd-orow .snd-nm span { text-transform: none; }
+    #sndPage335 .spg-head { display: flex; align-items: center; gap: 12px; margin: 2px 0 4px; }
+    #sndPage335 .spg-play {
+      flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer;
+      background: #fe2c2c; color: #fff; font-size: 20px; display: flex; align-items: center; justify-content: center;
+    }
+    #sndPage335 .spg-title { flex: 1 1 auto; min-width: 0; }
+    #sndPage335 .spg-title h3 { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #sndPage335 .spg-by { color: rgba(255,255,255,.6); font-size: 12.5px; margin-top: 2px; }
+    #sndPage335 .spg-use {
+      width: 100%; margin: 12px 0 4px; padding: 13px; border: none; border-radius: 14px; cursor: pointer;
+      background: #fe2c2c; color: #fff; font-size: 15px; font-weight: 800;
+    }
+    #sndPage335 .spg-use[hidden] { display: none; }
+    #sndPage335 .spg-rename { display: flex; gap: 8px; margin-top: 10px; }
+    #sndPage335 .spg-rename input {
+      flex: 1 1 auto; min-width: 0; box-sizing: border-box; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.16); background: #1d1d29; color: #fff; font-size: 14px;
+    }
+    #sndPage335 .spg-rename button {
+      flex: 0 0 auto; padding: 10px 14px; border: none; border-radius: 12px; cursor: pointer;
+      background: rgba(255,255,255,.12); color: #fff; font-size: 13.5px; font-weight: 700;
+    }
+    #sndPage335 .spg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+    #sndPage335 .spg-tile { position: relative; border-radius: 10px; overflow: hidden; background: #000; aspect-ratio: 3/4; cursor: pointer; border: none; padding: 0; }
+    #sndPage335 .spg-tile video, #sndPage335 .spg-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #sndPage335 .spg-tile .spg-cap {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 7px 6px; text-align: left;
+      background: linear-gradient(transparent, rgba(0,0,0,.78)); color: #fff; font-size: 10.5px; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     /* ---- [RP-V7.90] How-you-get-paid card (top of Home) + sheet ---- */
     #earnCard {
       display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box;
@@ -44374,6 +44411,15 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     </div>
   </div>
 
+  <!-- [RP-V7.335] Original sound page: the member sound, its creator,
+       its use count, and every post that used it. -->
+  <div class="rp-ovl" id="sndPage335" aria-hidden="true">
+    <div class="rp-panel">
+      <button type="button" class="rp-x" id="sndPageClose335" aria-label="Close sound page"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div id="sndPageBody335"><p class="rp-sub">Loading sound…</p></div>
+    </div>
+  </div>
+
   <div class="rp-ovl" id="camEditSheet" aria-hidden="true">
     <div class="rp-panel">
       <h3>🎬 Sound check</h3>
@@ -44478,20 +44524,37 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       return null;
     }
     function fmtDur(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
-    window.rpTrackName = function (id) { var t = trackById(id); return t ? t.name : "Plaza sound"; };
+    window.rpTrackName = function (id) { var t = trackById(id); if (t) return t.name; var o335 = (typeof Snd !== "undefined" && Snd.orig) ? Snd.orig[id] : null; return o335 ? o335.name : "Plaza sound"; }; // [RP-V7.335] member sounds resolve through the registry too
 
     /* ---------- sound state ---------- */
     var Snd = {
       attached: null,        // { trackId, start, musicVol, origVol }
       favs: {}, recents: [], usage: {}, style: {}, signedIn: false, loaded: false,
-      pickId: null, pickStart: 0, owner: null, photoTid: null, trending: [], trendScores: {}
+      pickId: null, pickStart: 0, owner: null, photoTid: null, trending: [], trendScores: {}, orig: {}, origList: [] // [RP-V7.335] original (member) sounds, from /api/sounds/state
     };
     function sndToken() { try { return typeof reelToken === "function" ? reelToken() : null; } catch (e) { return null; } }
     function sndEl() { return el("rpSndEl"); }
     function sndPlay() { var a = sndEl(); if (!a) return; var p = null; try { p = a.play(); } catch (e) { } if (p && p.catch) p.catch(function () { }); }
+    function sndAnyById(id) { // [RP-V7.335] one resolver for catalog tracks and member sounds alike
+      var t = trackById(id);
+      if (t) return { id: id, name: t.name, url: t.src || ("/audio/" + t.file) }; // [RP-V7.227] src = R2-hosted expansion track
+      var o = Snd.orig[id];
+      if (o && o.url) return { id: id, name: o.name, url: o.url, orig: o };
+      return null;
+    }
+    function sndDurOf335(id) { return SND_DUR[id] || (Snd.orig[id] && Snd.orig[id].dur) || 60; }
+    // [RP-V7.335] composer flows carry ONE trackId; the post routes split
+    // it into the catalog field or the member-sound field by its shape.
+    window.rpSndAttachField335 = function (trackId) { return /^os_[a-z0-9]+$/.test(String(trackId || "")) ? "origSoundId" : "musicTrackId"; };
+    window.rpSndMeta335 = function (ps) {
+      if (!ps || !ps.trackId) return {};
+      var m = { musicStart: ps.start || 0, musicVol: ps.musicVol, origVol: ps.origVol };
+      if (window.rpSndAttachField335(ps.trackId) === "origSoundId") m.origSoundId = ps.trackId; else m.musicTrackId = ps.trackId;
+      return m;
+    };
     function sndSetTrack(id) {
-      var a = sndEl(), t = trackById(id); if (!a || !t) return;
-      var url = t.src || ("/audio/" + t.file); // [RP-V7.227] src = R2-hosted expansion track
+      var a = sndEl(), t = sndAnyById(id); if (!a || !t) return;
+      var url = t.url;
       if (a.getAttribute("src") !== url) { try { a.src = url; } catch (e) { } }
     }
     function sndStop(owner) {
@@ -44508,6 +44571,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         .then(function (j) {
           if (j && j.ok) {
             Snd.usage = j.usage || {};
+            Snd.orig = {}; Snd.origList = Array.isArray(j.orig) ? j.orig : []; // [RP-V7.335]
+            Snd.origList.forEach(function (o) { if (o && o.id) Snd.orig[o.id] = o; });
             Snd.trending = Array.isArray(j.trending) ? j.trending : [];
             Snd.trendScores = j.trendScores || {};
             if (Array.isArray(j.favorites)) {
@@ -44580,25 +44645,38 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         '<span class="snd-dur">' + fmtDur(SND_DUR[id] || 0) + '</span>' +
         '<button type="button" class="snd-fav rp-sndfav' + (Snd.favs[id] ? " on" : "") + '" data-tid="' + id + '" aria-label="Favorite ' + escHtml(t.name) + '">' + (Snd.favs[id] ? "★" : "☆") + '</button></div>';
     }
+    function sndOrigRowHtml335(id) { // [RP-V7.335] a member sound's picker row: name, creator, live use count
+      var o = Snd.orig[id]; if (!o) return "";
+      var playing = Snd.pickId === id && Snd.owner === "pick";
+      return '<div class="snd-row snd-orow' + (playing ? " playing" : "") + '" data-tid="' + id + '" role="button" tabindex="0">' +
+        '<span class="snd-ic">' + (playing ? "⏸" : "🎤") + '</span>' +
+        '<span class="snd-nm"><b>' + escHtml(o.name) + '</b><span>Original sound · ' + escHtml(o.ownerName || "") + ' · ' + (o.uses || 0) + (o.uses === 1 ? " video" : " videos") + '</span></span>' +
+        '<span class="snd-dur">' + (o.dur ? fmtDur(o.dur) : "") + '</span></div>';
+    }
     function renderPicker() {
       var list = el("sndList"); if (!list) return;
       var q = (el("sndSearch").value || "").trim().toLowerCase();
       var html = "";
       function sect(name, label, ids) {
         if (!ids.length) return "";
-        return '<div class="snd-sect" data-sect="' + name + '"><div class="snd-sec">' + label + '</div>' + ids.map(sndRowHtml).join("") + "</div>";
+        return '<div class="snd-sect" data-sect="' + name + '"><div class="snd-sec">' + label + '</div>' + ids.map(function (id) { return trackById(id) ? sndRowHtml(id) : sndOrigRowHtml335(id); }).join("") + "</div>"; // [RP-V7.335] rows dispatch by kind
       }
       if (q) {
         var hits = TRACKS.filter(function (t) { return t.name.toLowerCase().indexOf(q) >= 0 || t.id.indexOf(q) >= 0; });
-        html = '<div class="snd-sect" data-sect="results"><div class="snd-sec">Results</div>' + (hits.length ? hits.map(function (t) { return sndRowHtml(t.id); }).join("") : '<p class="rp-sub">No Plaza sound matches that yet.</p>') + "</div>";
+        var ohits335 = Snd.origList.filter(function (o) { return o.name.toLowerCase().indexOf(q) >= 0 || (o.ownerName || "").toLowerCase().indexOf(q) >= 0; }); // [RP-V7.335]
+        html = '<div class="snd-sect" data-sect="results"><div class="snd-sec">Results</div>' + ((hits.length || ohits335.length) ? hits.map(function (t) { return sndRowHtml(t.id); }).join("") + ohits335.map(function (o) { return sndOrigRowHtml335(o.id); }).join("") : '<p class="rp-sub">No Plaza sound matches that yet.</p>') + "</div>";
       } else {
         // Trending: computed Plaza-wide from real usage, recency-
         // weighted on the server. Nobody hand-picks it (owner's rule).
-        html += sect("trending", "🔥 Trending", (Snd.trending || []).filter(function (id) { return !!trackById(id); }));
+        html += sect("trending", "🔥 Trending", (Snd.trending || []).filter(function (id) { return !!trackById(id) || !!Snd.orig[id]; })); // [RP-V7.335] member sounds trend on the same list, same scores
         var favIds = Object.keys(Snd.favs).filter(function (id) { return !!trackById(id); });
         html += sect("favs", "★ Favorites" + (Snd.signedIn ? "" : " (this device)"), favIds);
-        var recIds = (Snd.recents || []).filter(function (id) { return !!trackById(id); });
+        var recIds = (Snd.recents || []).filter(function (id) { return !!trackById(id) || !!Snd.orig[id]; });
         html += sect("recent", "🕘 Recent", recIds);
+        // [RP-V7.335] Member-made sounds, most-used first. Only usable
+        // ones are offered — the server enforces the same gate at post.
+        var origIds335 = Snd.origList.filter(function (o) { return o.usable; }).sort(function (a, b) { return (b.uses - a.uses) || ((Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0)); }).map(function (o) { return o.id; });
+        html += sect("orig", "🎤 Original sounds", origIds335);
         // [RP-V7.227] The shelf browses by genre: trackOrder() (the
         // member's style weights + Plaza usage — unchanged math)
         // grouped under the 25 genre headers.
@@ -44610,7 +44688,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       var tb = el("sndTrimBox");
       if (Snd.pickId) {
         tb.hidden = false;
-        var sl = el("sndTrim"); sl.max = Math.max(1, (SND_DUR[Snd.pickId] || 60) - 1); sl.value = Snd.pickStart;
+        var sl = el("sndTrim"); sl.max = Math.max(1, sndDurOf335(Snd.pickId) - 1); sl.value = Snd.pickStart; // [RP-V7.335]
         el("sndTrimVal").textContent = fmtDur(Snd.pickStart);
       } else tb.hidden = true;
     }
@@ -44639,7 +44717,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     window.rpSndOpen = openPicker;
     function updatePill() {
       var p = el("camSoundPill"); if (!p) return;
-      if (Snd.attached) { var t = trackById(Snd.attached.trackId); p.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9.5 18.3V6.2l10-2v11.3\"/><circle cx=\"6.8\" cy=\"18.3\" r=\"2.7\"/><circle cx=\"16.8\" cy=\"15.5\" r=\"2.7\"/></svg>"; p.appendChild(document.createTextNode(" " + (t ? t.name : "Sound attached"))); p.classList.add("has"); }
+      if (Snd.attached) { var t = trackById(Snd.attached.trackId); if (!t && Snd.orig[Snd.attached.trackId]) t = { name: Snd.orig[Snd.attached.trackId].name }; /* [RP-V7.335] */ p.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9.5 18.3V6.2l10-2v11.3\"/><circle cx=\"6.8\" cy=\"18.3\" r=\"2.7\"/><circle cx=\"16.8\" cy=\"15.5\" r=\"2.7\"/></svg>"; p.appendChild(document.createTextNode(" " + (t ? t.name : "Sound attached"))); p.classList.add("has"); }
       else { p.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9.5 18.3V6.2l10-2v11.3\"/><circle cx=\"6.8\" cy=\"18.3\" r=\"2.7\"/><circle cx=\"16.8\" cy=\"15.5\" r=\"2.7\"/></svg> Add sound"; p.classList.remove("has"); }
     }
 
@@ -45012,7 +45090,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       var v = el("camEditVideo");
       v.src = Reels.pendingUrl || "";
       var has = !!Snd.attached;
-      el("camEditTrackName").textContent = has ? (trackById(Snd.attached.trackId) || {}).name : "No sound attached";
+      el("camEditTrackName").textContent = has ? ((trackById(Snd.attached.trackId) || Snd.orig[Snd.attached.trackId] || {}).name || "Sound attached") : "No sound attached"; // [RP-V7.335]
       el("camEditChange").textContent = has ? "Change" : "Add";
       el("camEditRemove").hidden = !has;
       el("camEditMusicVol").value = Math.round((has ? Snd.attached.musicVol : 0.8) * 100);
@@ -45073,7 +45151,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     function sndTick() {
       paintFavs();
       var a = sndEl(); if (!a) return;
-      var camBusy = Cam.open || el("camEditSheet").classList.contains("open") || el("sndSheet").classList.contains("open");
+      var camBusy = Cam.open || el("camEditSheet").classList.contains("open") || el("sndSheet").classList.contains("open") || el("sndPage335").classList.contains("open"); // [RP-V7.335]
       if (Snd.owner === "edit") {
         var ev = el("camEditVideo");
         if (ev && Snd.attached) { syncPair(ev, Snd.attached.start || 0); if (ev.paused && !a.paused) a.pause(); else if (!ev.paused && a.paused) sndPlay(); }
@@ -45082,10 +45160,11 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       if (camBusy || Snd.owner === "pick" || Snd.owner === "record") return;
       var av = (typeof Reels !== "undefined") ? Reels.activeView : null;
       var item = av && av.item;
-      if (item && item.musicTrackId && av.video) {
+      var itemSnd335 = item ? (item.musicTrackId || item.origSoundId) : null; // [RP-V7.335] a used member sound overlays exactly like a catalog track
+      if (item && itemSnd335 && av.video) {
         if (typeof AudioFX !== "undefined" && !AudioFX.musicOn()) { if (Snd.owner === "reel") { sndStop("reel"); try { AudioFX.releaseMusic("reelsnd"); } catch (e) { } } return; }
         if (Snd.owner !== "reel") { Snd.owner = "reel"; try { AudioFX.holdMusic("reelsnd"); } catch (e) { } }
-        sndSetTrack(item.musicTrackId);
+        sndSetTrack(itemSnd335);
         a.loop = true; a.volume = num(item.musicVol, 0.8);
         try { if (item.crMuted) { av.video.muted = true; av.video.volume = 0; } else { av.video.volume = num(item.origVol, 1); if (num(item.origVol, 1) === 0) av.video.muted = true; } } catch (e) { } // [RP-V7.286] copyright-muted: own audio silent, the catalog track keeps playing
         syncPair(av.video, item.musicStart || 0);
@@ -45119,7 +45198,9 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       sndPlay();
     }
     function useThisSound(id) {
-      if (!trackById(id)) return;
+      var o335 = Snd.orig[id]; // [RP-V7.335] member sounds attach the same way; an unusable one stops here (the server refuses too)
+      if (!trackById(id) && !o335) return;
+      if (o335 && !o335.usable) { camToast("That sound can't be used right now"); return; }
       var tk = sndToken();
       if (tk) fetch("/api/sounds/use-tap", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tk }, body: JSON.stringify({ trackId: id }) }).catch(function () { });
       Snd.attached = { trackId: id, start: 0, musicVol: 0.8, origVol: 1 };
@@ -45128,10 +45209,108 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       openCamera();
     }
 
+    /* ---------- [RP-V7.335] the original sound page ---------- */
+    var SndPage = { id: null, data: null, playing: false };
+    function openSoundPage335(id) {
+      if (!id) return;
+      SndPage.id = id; SndPage.data = null; SndPage.playing = false;
+      var body = el("sndPageBody335"); if (!body) return;
+      body.innerHTML = '<p class="rp-sub">Loading sound…</p>';
+      el("sndPage335").classList.add("open"); el("sndPage335").setAttribute("aria-hidden", "false");
+      var h = { "Accept": "application/json" }; var t = sndToken(); if (t) h["Authorization"] = "Bearer " + t;
+      fetch("/api/sounds/orig/" + encodeURIComponent(id), { headers: h })
+        .then(function (r) { return r.json().catch(function () { return null; }); })
+        .then(function (j) {
+          if (SndPage.id !== id) return;
+          if (!j || !j.ok) { body.innerHTML = '<p class="rp-sub">That sound is no longer available.</p>'; return; }
+          SndPage.data = j;
+          if (j.sound) Snd.orig[j.sound.id] = { id: j.sound.id, name: j.sound.name, ownerId: j.sound.ownerId, ownerName: j.sound.ownerName, uses: j.sound.uses, usable: j.sound.usable, url: j.sound.url, dur: j.sound.dur, createdAt: j.sound.createdAt };
+          renderSoundPage335();
+        })
+        .catch(function () { if (SndPage.id === id) body.innerHTML = '<p class="rp-sub">That sound could not be loaded.</p>'; });
+    }
+    function closeSoundPage335() {
+      el("sndPage335").classList.remove("open"); el("sndPage335").setAttribute("aria-hidden", "true");
+      if (Snd.owner === "page") { sndStop("page"); try { AudioFX.releaseMusic("sndpage335"); } catch (e) { } }
+      SndPage.playing = false;
+    }
+    function renderSoundPage335() {
+      var j = SndPage.data; if (!j) return;
+      var s = j.sound, body = el("sndPageBody335"); if (!body) return;
+      var tiles = (j.posts || []).map(function (p) {
+        var media = p.kind === "photo"
+          ? '<img src="' + escHtml(p.url || "") + '" alt=""/>'
+          : '<video src="' + escHtml(p.url || "") + '" preload="metadata" muted playsinline></video>';
+        return '<button type="button" class="spg-tile" data-kind="' + escHtml(p.kind) + '" data-pid="' + escHtml(p.id) + '">' + media + '<span class="spg-cap">' + escHtml(p.caption || ("@" + (p.author || ""))) + '</span></button>';
+      }).join("");
+      body.innerHTML =
+        '<div class="spg-head"><button type="button" class="spg-play" id="spgPlay335" aria-label="Preview this sound">' + (SndPage.playing ? "⏸" : "▶") + '</button>' +
+        '<div class="spg-title"><h3>♪ ' + escHtml(s.name) + '</h3><div class="spg-by">Original sound · ' + escHtml(s.ownerName) + ' · ' + s.uses + (s.uses === 1 ? " video" : " videos") + '</div></div></div>' +
+        (s.mine ? '<div class="spg-rename"><input id="spgName335" type="text" maxlength="60" value="' + escHtml(s.name) + '" aria-label="Sound name"/><button type="button" id="spgRename335">Rename</button></div>' : "") +
+        '<button type="button" class="spg-use" id="spgUse335"' + (s.usable ? "" : " hidden") + '>✓ Use this sound</button>' +
+        (s.usable ? "" : '<p class="rp-sub">This sound is not available for new videos right now.</p>') +
+        (tiles ? '<div class="spg-grid">' + tiles + '</div>' : '<p class="rp-sub">No videos with this sound yet.</p>');
+      var pb = el("spgPlay335"); if (pb) pb.addEventListener("click", toggleSoundPagePreview335);
+      var ub = el("spgUse335"); if (ub) ub.addEventListener("click", function () { var id = SndPage.id; closeSoundPage335(); useThisSound(id); });
+      var rn = el("spgRename335"); if (rn) rn.addEventListener("click", renameSound335);
+      body.querySelectorAll(".spg-tile").forEach(function (tl) {
+        tl.addEventListener("click", function () { openSoundPost335(tl.getAttribute("data-kind"), tl.getAttribute("data-pid"), tl); });
+      });
+    }
+    function toggleSoundPagePreview335() {
+      var id = SndPage.id; if (!id) return;
+      var a = sndEl(); if (!a) return;
+      if (Snd.owner === "page" && !a.paused) {
+        sndStop("page"); try { AudioFX.releaseMusic("sndpage335"); } catch (e) { }
+        SndPage.playing = false;
+      } else {
+        Snd.owner = "page"; sndSetTrack(id);
+        a.loop = true; a.volume = 0.9;
+        try { a.currentTime = 0; } catch (e) { }
+        try { AudioFX.holdMusic("sndpage335"); } catch (e) { }
+        sndPlay(); SndPage.playing = true;
+      }
+      var pb = el("spgPlay335"); if (pb) pb.textContent = SndPage.playing ? "⏸" : "▶";
+    }
+    function renameSound335() {
+      var inp = el("spgName335"); if (!inp || !SndPage.id) return;
+      var name = (inp.value || "").trim();
+      if (!name) { camToast("Give the sound a name first"); return; }
+      var t = sndToken(); if (!t) { camToast("Sign in to rename your sound"); return; }
+      fetch("/api/sounds/orig/" + encodeURIComponent(SndPage.id) + "/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
+        body: JSON.stringify({ name: name })
+      }).then(function (r) { return r.json().catch(function () { return null; }); })
+        .then(function (j) {
+          if (j && j.ok) {
+            if (SndPage.data && SndPage.data.sound) SndPage.data.sound.name = j.name;
+            if (Snd.orig[SndPage.id]) Snd.orig[SndPage.id].name = j.name;
+            camToast("Sound renamed");
+            renderSoundPage335();
+          } else camToast((j && j.error) || "Rename failed");
+        }).catch(function () { camToast("Rename failed"); });
+    }
+    function openSoundPost335(kind, pid, tile) {
+      if (!pid) return;
+      // Reels and photo posts have the app's deep-link routes; feed
+      // videos have none today, so their tile is its own player.
+      if (kind === "reel") { location.assign("/?reel=" + encodeURIComponent(pid)); return; }
+      if (kind === "photo") { location.assign("/?photo=" + encodeURIComponent(pid)); return; }
+      var v = tile ? tile.querySelector("video") : null;
+      if (v) {
+        if (v.paused) { v.muted = false; v.setAttribute("controls", ""); var pr = v.play(); if (pr && pr.catch) pr.catch(function () { }); }
+        else v.pause();
+      }
+    }
+    window.rpOpenSound335 = openSoundPage335;
+
     /* ---------- global click delegation for credits/favorites ---------- */
     document.addEventListener("click", function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
+      var osnd335 = t.closest(".rp-osnd"); // [RP-V7.335] a member-sound credit opens its sound page
+      if (osnd335) { e.preventDefault(); e.stopPropagation(); openSoundPage335(osnd335.getAttribute("data-sid")); return; }
       var fav = t.closest(".rp-sndfav");
       if (fav && !t.closest("#sndList")) { e.preventDefault(); e.stopPropagation(); sndToggleFav(fav.getAttribute("data-tid")); return; }
       var credit = t.closest(".reel-sound.rp-snd");
@@ -45175,6 +45354,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       });
       /* picker */
       el("sndClose").addEventListener("click", closePicker);
+      el("sndPageClose335").addEventListener("click", closeSoundPage335); // [RP-V7.335]
       el("sndSearch").addEventListener("input", renderPicker);
       el("sndList").addEventListener("click", function (e) {
         var fav = e.target.closest && e.target.closest(".snd-fav");
@@ -45242,7 +45422,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
           if (Cam.open || Snd.owner) return true;
           if (el("camEditSheet").classList.contains("open") || el("sndSheet").classList.contains("open")) return true;
           var av314 = (typeof Reels !== "undefined") ? Reels.activeView : null;
-          return !!(av314 && av314.item && av314.item.musicTrackId);
+          return !!(av314 && av314.item && (av314.item.musicTrackId || av314.item.origSoundId)); // [RP-V7.335]
         } catch (e) { return false; }
       });
       sndLoadState(function () { paintFavs(); });
