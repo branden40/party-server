@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.343" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.344" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -48666,18 +48666,35 @@ html, body { overflow-x: clip; }
     body.innerHTML = '<div class="gcb-list325">' + rows + '</div>' + foot;
   }
 
-  function openBreakdown325(kind, id) {
+  function openBreakdown325(kind, id, sendBtn344) {
     if ((kind !== "reel" && kind !== "photo") || !id) return;
     if (typeof window.openSheet !== "function") return;
+    /* [RP-V7.344] When the breakdown was opened by tapping the gift
+       COUNT on a real gift button, carry a "Send a gift" entry: the
+       breakdown alone was a dead end (no send path), so a member
+       looking at an already-gifted video could not gift it — the
+       number swallowed the button's tap and the sheet had no way
+       forward. The entry re-clicks the originating button, running
+       that surface's own gift-sheet wiring unchanged. Own-post
+       static counts pass no button, so no self-gift entry appears. */
+    var sendHtml344 = (sendBtn344 && sendBtn344.tagName === "BUTTON")
+      ? '<button class="btn" id="rpGcbSend325" type="button" style="width:100%; margin-top:12px;">🎁 Send a gift</button>'
+      : '';
     window.openSheet(
       CLOSEX325 +
       '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">🎁 Gifts on this post</h3>' +
-      '<div id="rpGcbBody325"><p style="text-align:center;">Loading…</p></div></div>'
+      '<div id="rpGcbBody325"><p style="text-align:center;">Loading…</p></div></div>' +
+      sendHtml344
     );
     var sh = document.getElementById("sheet");
     if (sh) {
       var cx = sh.querySelector("[data-act=close]");
       if (cx) cx.addEventListener("click", function () { try { window.closeSheet(); } catch (e) { } });
+      var sb344 = sh.querySelector("#rpGcbSend325");
+      if (sb344) sb344.addEventListener("click", function () {
+        try { window.closeSheet(); } catch (e) { }
+        setTimeout(function () { try { sendBtn344.click(); } catch (e) { } }, 60);
+      });
     }
     fetch("/api/post-gifts?kind=" + encodeURIComponent(kind) + "&id=" + encodeURIComponent(id), { method: "GET" })
       .then(function (r) { return r.json(); })
@@ -48706,7 +48723,7 @@ html, body { overflow-x: clip; }
     if ((kind !== "reel" && kind !== "photo") || !id) return;
     e.preventDefault();
     e.stopPropagation();
-    openBreakdown325(kind, id);
+    openBreakdown325(kind, id, (sp.closest ? sp.closest("button") : null)); // [RP-V7.344] the gift button this count lives on, when it is one
   }, true);
 
   window.rpGiftBreakdown325 = openBreakdown325;
