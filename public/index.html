@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.347" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.351" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -50065,9 +50065,10 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
    [RP-V7.328] WEB PUSH — TikTok-style phone notifications.
    The settings sheet's "Reach me by" section gains a Push row (this
    module injects it beside the In-app / Email / Text rows whenever
-   the settings sheet renders). Turning it on is the ONLY place
-   notification permission is ever requested — never on app load,
-   never on sign-in. The row always shows the REAL state of this
+   the settings sheet renders). The permission request lives in
+   enable328() and fires only behind a member's tap — this row,
+   or the one-time ask sheet RP-V7.351 shows at signup / first
+   sign-in. The row always shows the REAL state of this
    device (permission + stored subscription + the account's push
    channel switch): a denied permission reads as blocked, never as
    on. On iPhone, web push exists only for the Home-Screen-installed
@@ -50272,8 +50273,8 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
   /* ---------- boot reconcile: silent, never a prompt ----------
      If this device already granted permission and the account's push
      switch is on, make sure the stored subscription is fresh. If
-     permission was never granted, do nothing — the only ask lives
-     behind the settings toggle. */
+     permission was never granted, do nothing — the asks live
+     behind taps (the settings toggle, or the RP-V7.351 sheet). */
   setTimeout(function () {
     try {
       if (!acctRec328() || !supported328()) return;
@@ -50312,6 +50313,208 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
   }
   window.rpPush328 = { state: state328, renderRow: renderPushRow328, enable: enable328, disable: disable328 };
 })();
+
+/* =====================================================================
+   [RP-V7.351] PUSH ASK — the one-time notification ask at signup.
+   Branden (Nov 12, 2026): "Make the push notifications automatically
+   on when someone signs up." Browsers forbid silent enablement — the
+   system Allow prompt needs the member's own tap, and iOS web push
+   exists only for the Home-Screen-installed app — so "automatically
+   on" here means the app ASKS, once, at the right moment, instead of
+   members having to hunt the Settings toggle (the V7.328 door):
+   right after a signup lands the new member on Home, and as a
+   one-time catch-up for existing accounts with no recorded decision.
+   The decision is an ACCOUNT fact (settings.pushAsk, server-side):
+   "" = never asked · "granted" · "declined" · "pending-install"
+   (told in an iOS browser tab; the first launch from the Home Screen
+   icon asks again with the real permission flow). After any decision
+   the auto-ask never fires again — dismissing the sheet without a
+   button counts as answered too — and Settings stays the manual
+   door. The permission request itself is V7.328's enable(); this
+   module adds the asking, never a second subscribe path. The sheet
+   waits until Home is on screen and no other sheet is up, so it
+   never collides with the first-run profile pass or any other
+   surface; if the moment never comes, the next sign-in asks again.
+   ===================================================================== */
+(function () {
+  "use strict";
+  var evaluated351 = {};   // userId -> true once this page load has settled the question
+  var fetchTried351 = {};  // userId -> true once /api/account/me has been consulted this load
+  var sheetUid351 = null;  // the account whose ask sheet is up right now (null = none)
+  var sheetMode351 = null; // "real" | "install"
+  var decided351 = false;  // a button on the live sheet already recorded the decision
+  var waitTimer351 = null; // a gated retry is already pending
+
+  function acctRec351() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a : null; } catch (e) { return null; } }
+  function api351(path, method, body) {
+    return new Promise(function (resolve) {
+      var a = acctRec351();
+      if (!a) { resolve({ status: 0, json: null }); return; }
+      fetch(path, { method: method || "GET", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.token }, body: body ? JSON.stringify(body) : undefined })
+        .then(function (r) { return r.text().then(function (txt) { var j = null; try { j = JSON.parse(txt); } catch (e) { } resolve({ status: r.status, json: j }); }); })
+        .catch(function () { resolve({ status: 0, json: null }); });
+    });
+  }
+  function supported351() { return ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window); }
+  function isIos351() { var ua = navigator.userAgent || ""; return /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1); }
+  function standalone351() {
+    try { if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true; } catch (e) { }
+    return navigator.standalone === true;
+  }
+  function askOf351(a) {
+    var s = a && a.settings;
+    return (s && typeof s.pushAsk === "string") ? s.pushAsk : null; // null = this device hasn't heard the account's answer yet
+  }
+  function pushChannelOff351(a) {
+    var n = a && a.settings && a.settings.notify;
+    return !!(n && n.channels && n.channels.push === false);
+  }
+  function record351(state) {
+    return api351("/api/account/settings", "POST", { pushAsk: state }).then(function (r) {
+      if (r.json && r.json.ok) {
+        try { if (r.json.user && window.rpAcctSyncUser) window.rpAcctSyncUser(r.json.user); } catch (e) { }
+        // Stamp the local copy too, so a racing read in this page can
+        // never re-ask before the account sync lands.
+        try { var a = acctRec351(); if (a) { a.settings = (a.settings && typeof a.settings === "object") ? a.settings : {}; a.settings.pushAsk = state; localStorage.setItem("rpAcct.v1", JSON.stringify(a)); } } catch (e) { }
+        return true;
+      }
+      return false;
+    });
+  }
+  function sheetBusy351() {
+    /* A sheet counts as up only while the overlay carries .open —
+       that is the whole open/close contract (openSheet sets it,
+       closeSheet removes it). The sheet's innerHTML is NOT cleared
+       on close, so leftover DOM in #sheet proves nothing. */
+    var ov = document.getElementById("overlay");
+    return !!(ov && ov.classList.contains("open"));
+  }
+  function homeActive351() {
+    var h = document.getElementById("screen-home243");
+    return !!(h && h.classList.contains("active"));
+  }
+  function closeSheet351() { try { if (window.closeSheet) window.closeSheet(); } catch (e) { } }
+
+  function showSheet351(uid, mode) {
+    if (typeof window.openSheet !== "function") return;
+    sheetUid351 = uid; sheetMode351 = mode; decided351 = false;
+    if (mode === "install") {
+      window.openSheet(
+        '<h3 style="margin:4px 0">🔔 Turn on notifications</h3>' +
+        '<p class="age-note">Get pinged the moment you get a DM or a gift. On iPhone, notifications need Rizz Plaza on your Home Screen first:</p>' +
+        '<p class="age-note">Tap <b>Share</b> → <b>Add to Home Screen</b>, then open Rizz Plaza from the new icon — we\'ll finish turning them on there with one tap.</p>' +
+        '<button class="btn-primary" id="rpPushAsk351Ok" style="width:100%;padding:13px">Got it</button>'
+      );
+      var ok = document.getElementById("rpPushAsk351Ok");
+      if (ok) ok.addEventListener("click", function () {
+        decided351 = true; sheetUid351 = null;
+        closeSheet351();
+        record351("pending-install");
+      });
+      return;
+    }
+    window.openSheet(
+      '<h3 style="margin:4px 0">🔔 Turn on notifications</h3>' +
+      '<p class="age-note">Get pinged the moment you get a DM or a gift — even with the app closed.</p>' +
+      '<button class="btn-primary" id="rpPushAsk351On" style="width:100%;padding:13px">Turn on</button>' +
+      '<button class="btn-mini" id="rpPushAsk351No" style="width:100%;padding:11px;margin-top:8px">Not now</button>'
+    );
+    var on = document.getElementById("rpPushAsk351On");
+    if (on) on.addEventListener("click", function () {
+      decided351 = true; sheetUid351 = null;
+      closeSheet351();
+      var en = (window.rpPush328 && typeof window.rpPush328.enable === "function") ? window.rpPush328.enable() : Promise.resolve(false);
+      en.then(function (ok2) {
+        // Whatever the system prompt's outcome, the ask has happened:
+        // a grant records "granted"; a dismissal or a block records
+        // the decline, so the auto-ask never nags again.
+        record351(ok2 ? "granted" : "declined");
+      }, function () { record351("declined"); });
+    });
+    var no = document.getElementById("rpPushAsk351No");
+    if (no) no.addEventListener("click", function () {
+      decided351 = true; sheetUid351 = null;
+      closeSheet351();
+      record351("declined");
+    });
+  }
+
+  function maybeShow351(uid, mode, tries) {
+    if (sheetUid351) return;
+    if (homeActive351() && !sheetBusy351() && typeof window.openSheet === "function") { showSheet351(uid, mode); return; }
+    if (tries >= 40 || waitTimer351) return; // ~100s of patience; the next sign-in / page load asks again
+    waitTimer351 = setTimeout(function () { waitTimer351 = null; maybeShow351(uid, mode, tries + 1); }, 2500);
+  }
+
+  function evaluate351() {
+    // A sheet dismissed without a button (backdrop tap, swipe-down)
+    // counts as answered — record it and never nag.
+    if (sheetUid351 && !decided351) {
+      var ov0 = document.getElementById("overlay");
+      if (!ov0 || !ov0.classList.contains("open")) {
+        var m0 = sheetMode351; sheetUid351 = null;
+        record351(m0 === "install" ? "pending-install" : "declined");
+      }
+    }
+    var a = acctRec351();
+    if (!a) return;
+    var uid = a.userId || a.email || "acct";
+    if (evaluated351[uid] || sheetUid351) return;
+    var ask = askOf351(a);
+    if (ask === null) {
+      // Fresh signups land with a session record that may not carry
+      // settings yet — ask the account itself, once per page load.
+      if (!fetchTried351[uid]) {
+        fetchTried351[uid] = true;
+        api351("/api/account/me", "GET").then(function (r) {
+          if (r.json && r.json.user) { try { if (window.rpAcctSyncUser) window.rpAcctSyncUser(r.json.user); } catch (e) { } }
+          evaluate351();
+        });
+      }
+      return;
+    }
+    if (ask === "granted" || ask === "declined") { evaluated351[uid] = true; return; }
+    if (pushChannelOff351(a)) {
+      // The member already switched push off in Settings — that was
+      // a decision; remember it durably and never auto-ask.
+      evaluated351[uid] = true;
+      record351("declined");
+      return;
+    }
+    if (supported351()) {
+      if (Notification.permission === "denied") { evaluated351[uid] = true; return; } // blocked in the browser: the sheet can't help; the Settings row explains how to unblock
+      if (Notification.permission === "granted") {
+        evaluated351[uid] = true;
+        try {
+          navigator.serviceWorker.ready.then(function (reg) {
+            reg.pushManager.getSubscription().then(function (sub) {
+              if (sub) record351("granted"); // already on — remember it for the account, silently
+              else maybeShow351(uid, "real", 0);
+            }).catch(function () { maybeShow351(uid, "real", 0); });
+          }).catch(function () { });
+        } catch (e) { }
+        return;
+      }
+      evaluated351[uid] = true;
+      maybeShow351(uid, "real", 0);
+      return;
+    }
+    if (isIos351() && !standalone351()) {
+      if (ask === "pending-install") { evaluated351[uid] = true; return; } // already told in a tab; the Home-Screen launch asks for real
+      evaluated351[uid] = true;
+      maybeShow351(uid, "install", 0);
+      return;
+    }
+    evaluated351[uid] = true; // a browser with no web push at all: nothing to ask
+  }
+
+  function tick351() { if (document.hidden) return; try { evaluate351(); } catch (e) { } }
+  setTimeout(tick351, 3000);
+  setInterval(tick351, 2500);
+  try { document.addEventListener("visibilitychange", function () { if (!document.hidden) tick351(); }); } catch (e) { }
+  window.rpPushAsk351 = { evaluate: evaluate351, record: record351 };
+})();
+
 
 /* =====================================================================
    [RP-V7.328] DM-link consumer. The head script stashed a
