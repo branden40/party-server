@@ -1365,6 +1365,7 @@ function datingOf(u) {
 // value is ever invented server-side.
 const LETTER_STYLE_IDS = ["default", "roman", "royal", "slab", "blackletter", "vintage", "elegant", "script", "calligraphy", "handwritten", "signature", "brush", "bubble", "comic", "retro", "arcade", "display", "condensed", "typewriter", "mono", "outline", "neon", "techno", "rounded", "chunky", "pirate", "deco", "marker", "chalk", "stencil", "school", "luxury"];
 const DM_PRIVACY_VALUES = ["everyone", "following", "noone"];
+const PUSH_ASK351_VALUES = ["", "granted", "declined", "pending-install"]; // [RP-V7.351] the one-time push-prompt decision (see settingsOf)
 function settingsOf(u) {
   const s = (u && u.settings && typeof u.settings === "object" && !Array.isArray(u.settings)) ? u.settings : {};
   const n = (s.notify && typeof s.notify === "object" && !Array.isArray(s.notify)) ? s.notify : {};
@@ -1372,6 +1373,7 @@ function settingsOf(u) {
     letterStyle: LETTER_STYLE_IDS.indexOf(s.letterStyle) >= 0 ? s.letterStyle : "default",
     dmPrivacy: DM_PRIVACY_VALUES.indexOf(s.dmPrivacy) >= 0 ? s.dmPrivacy : "everyone",
     dlDefault: s.dlDefault !== false, // [RP-V7.316] TikTok-style downloads switch: the account default for new video posts (default ON, like TikTok); each post carries its own allowDownloads flag
+    pushAsk: PUSH_ASK351_VALUES.indexOf(s.pushAsk) >= 0 ? s.pushAsk : "", // [RP-V7.351] the one-time push ask's recorded answer: "" = never asked, "granted", "declined", or "pending-install" (told in an iOS browser tab; the first Home-Screen launch asks for real). An account fact, so it follows the member across devices
     notify: {
       messages: n.messages !== false,
       follows: n.follows !== false,
@@ -2305,8 +2307,13 @@ app.post("/api/account/settings", (req, res) => {
   if (!ctx) return;
   const b = req.body || {};
   const cur = settingsOf(ctx.user);
-  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push } } }; // [RP-V7.328] push channel rides the same settings record
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, pushAsk: cur.pushAsk, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push } } }; // [RP-V7.328] push channel rides the same settings record
   if ("dlDefault" in b && typeof b.dlDefault === "boolean") nx.dlDefault = b.dlDefault; // [RP-V7.316] downloads default for new video posts
+  if ("pushAsk" in b) { // [RP-V7.351] the one-time push-prompt decision rides the same record
+    if (PUSH_ASK351_VALUES.indexOf(b.pushAsk) < 0)
+      return res.status(400).json({ ok: false, error: "That notification answer isn't one of the Plaza's choices" });
+    nx.pushAsk = b.pushAsk;
+  }
   if ("letterStyle" in b) {
     if (LETTER_STYLE_IDS.indexOf(b.letterStyle) < 0)
       return res.status(400).json({ ok: false, error: "That letter style isn't one of the Plaza's choices" });
@@ -6504,7 +6511,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.348", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.351", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -22681,7 +22688,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.348", online: players.size })
+  res.json({ ok: true, version: "RP-V7.351", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
