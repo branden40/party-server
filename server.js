@@ -6445,7 +6445,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.335", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.336", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -15233,17 +15233,52 @@ function boosterDropChance306(totalCharms) {
   if (totalCharms >= 100) return 0.125;
   return 0.06;
 }
-// battleId -> battle record. Sides are "a" (the host who was invited /
-// accepted) and "b" (the challenger who sent the invite) — matching
-// the client's rpBatBegin convention (accept => a = acceptor).
+// battleId -> battle record.
+// [RP-V7.336] TEAM BATTLES (Branden, Nov 11, 2026: "Build team battles
+// (2v2 / 4-way)" + "Or 3 way"): the record is now a PARTICIPANTS
+// model. parts[] = [{ sock, acct, name, room, side, pts }] — pts is
+// that host's personal tally (points produced by gifts TO him). The
+// SCORE lives per SIDE in sidePts: sides are "a"/"b" for 1v1 (the
+// acceptor is "a", the challenger "b" — the client's rpBatBegin
+// convention) and for 2v2 (two hosts share a side; the team score is
+// the side total); 3-way / 4-way free-for-all deals each host his own
+// side "s0".."s3" (side total == his score). Effects and the Timer
+// allowance live per SIDE: in 2v2 a boost played by either teammate
+// runs for the whole team and a freeze stops the whole team's
+// scoring; in FFA they are per host, exactly as 1v1. 1v1 is the
+// two-part special case of this model and its wire payload (event
+// "battle306", a/b fields) is byte-for-byte the shape it always was.
 const battles306 = new Map();
 const battleBySocket306 = new Map(); // host socket id -> battleId
+function battle306PartOf(b, socketId) {
+  for (const pt of b.parts) if (pt.sock === socketId) return pt;
+  return null;
+}
 function battle306SideOf(b, socketId) {
-  if (b.aSock === socketId) return "a";
-  if (b.bSock === socketId) return "b";
+  const pt = battle306PartOf(b, socketId);
+  return pt ? pt.side : null;
+}
+function battle306PartByAcct(b, acctId) {
+  if (!acctId) return null;
+  for (const pt of b.parts) if (pt.acct === acctId) return pt;
   return null;
 }
 function battle306Other(side) { return side === "a" ? "b" : "a"; }
+function battle336Sides(b) { return Object.keys(b.sidePts); }
+// [RP-V7.336] Hammer target: team formats smash the opposing team;
+// free-for-all smashes the highest-scoring OPPONENT — never the
+// player's own side, so a leader smashes #2. A tie for highest goes
+// to the earliest-joined of the tied sides (parts order).
+function battle336HammerTarget(b, mySide) {
+  if (b.format === "1v1" || b.format === "2v2") return battle306Other(mySide);
+  let best = null, bestPts = -1;
+  for (const pt of b.parts) {
+    if (pt.side === mySide || pt.side === best) continue;
+    const v = b.sidePts[pt.side] || 0;
+    if (v > bestPts) { bestPts = v; best = pt.side; }
+  }
+  return best;
+}
 function battle306EffectsView(b, side, now) {
   const e = b.effects[side];
   return {
@@ -15263,11 +15298,12 @@ function battle306Payload(b, forSide, forHostAcct, ev) {
   const now = Date.now();
   const opp = battle306Other(forSide);
   const oppMisted = (b.effects[opp].mistUntil || 0) > now;
-  const mine = forSide === "a" ? b.aPts : b.bPts;
-  const theirs = opp === "a" ? b.aPts : b.bPts;
+  const pa = b.parts[0], pb = b.parts[1]; // 1v1: parts[0] is side "a"
+  const mine = b.sidePts[forSide];
+  const theirs = b.sidePts[opp];
   const p = {
     battleId: b.id,
-    aId: b.aSock, bId: b.bSock, aName: b.aName, bName: b.bName,
+    aId: pa.sock, bId: pb.sock, aName: pa.name, bName: pb.name,
     endsAt: b.endsAt,
     aPts: forSide === "a" ? mine : (oppMisted ? null : theirs),
     bPts: forSide === "b" ? mine : (oppMisted ? null : theirs),
@@ -15280,16 +15316,71 @@ function battle306Payload(b, forSide, forHostAcct, ev) {
     const db = readBoosters306();
     p.stock = Object.assign({}, boosterStockOf306(db, forHostAcct));
   }
-  if (b.ended) { p.ended = { winnerSide: b.winnerSide || null, aPts: b.aPts, bPts: b.bPts }; }
+  if (b.ended) { p.ended = { winnerSide: b.winnerSide || null, aPts: b.sidePts.a || 0, bPts: b.sidePts.b || 0 }; }
   return p;
 }
 function battle306Emit(b, ev) {
   // Both rooms (each gets its own mist-tailored copy) + both hosts
   // directly (their copy also carries their stock).
-  try { io.to(b.aRoom).emit("battle306", battle306Payload(b, "a", null, ev)); } catch (e) { }
-  try { io.to(b.bRoom).emit("battle306", battle306Payload(b, "b", null, ev)); } catch (e) { }
-  try { io.to(b.aSock).emit("battle306", battle306Payload(b, "a", b.aAcct, ev)); } catch (e) { }
-  try { io.to(b.bSock).emit("battle306", battle306Payload(b, "b", b.bAcct, ev)); } catch (e) { }
+  const pa = b.parts[0], pb = b.parts[1];
+  try { io.to(pa.room).emit("battle306", battle306Payload(b, "a", null, ev)); } catch (e) { }
+  try { io.to(pb.room).emit("battle306", battle306Payload(b, "b", null, ev)); } catch (e) { }
+  try { io.to(pa.sock).emit("battle306", battle306Payload(b, "a", pa.acct, ev)); } catch (e) { }
+  try { io.to(pb.sock).emit("battle306", battle306Payload(b, "b", pb.acct, ev)); } catch (e) { }
+}
+// [RP-V7.336] Team payload (event "battle336"): the whole roster with
+// per-side totals. Masking is per audience side exactly as 1v1 — a
+// side under Mist shows pts null (side total AND its members'
+// personal tallies) to every OTHER side; its own side always sees
+// the truth. Ended payloads carry the full true standings.
+function battle336Payload(b, forSide, forHostAcct, ev) {
+  const now = Date.now();
+  const maskedFor = (side) => side !== forSide && (b.effects[side].mistUntil || 0) > now;
+  const parts = b.parts.map((pt) => {
+    const masked = maskedFor(pt.side);
+    return { id: pt.sock, name: pt.name, side: pt.side, pts: masked ? null : pt.pts, masked };
+  });
+  const sides = battle336Sides(b).map((side) => {
+    const masked = maskedFor(side);
+    return {
+      side, pts: masked ? null : (b.sidePts[side] || 0), masked,
+      effects: battle306EffectsView(b, side, now), timerUsed: !!b.timerUsed[side],
+      members: b.parts.filter((pt) => pt.side === side).map((pt) => pt.name),
+    };
+  });
+  const p = {
+    battleId: b.id, format: b.format, endsAt: b.endsAt, youSide: forSide,
+    parts, sides,
+    mission: b.mission ? { active: now >= b.mission.startsAt && now < b.mission.endsAt, opensAt: b.mission.startsAt, endsAt: b.mission.endsAt } : null,
+    ev: ev || null,
+  };
+  if (forHostAcct) {
+    const db = readBoosters306();
+    p.stock = Object.assign({}, boosterStockOf306(db, forHostAcct));
+  }
+  if (b.ended) {
+    const winnerNames = [];
+    for (const s of (b.winnerSides || [])) for (const pt of b.parts) if (pt.side === s) winnerNames.push(pt.name);
+    p.ended = {
+      winnerSides: b.winnerSides || [],
+      draw: !(b.winnerSides && b.winnerSides.length),
+      winnerNames,
+      standings: battle336Sides(b).map((side) => ({ side, pts: b.sidePts[side] || 0, names: b.parts.filter((pt) => pt.side === side).map((pt) => pt.name) })).sort((x, y) => y.pts - x.pts),
+    };
+  }
+  return p;
+}
+function battle336Emit(b, ev) {
+  // Every participant room (copy tailored to that room host's side,
+  // no stock) + every host directly (tailored to their side, WITH
+  // their stock) — the 1v1 emit pattern, generalized.
+  for (const pt of b.parts) {
+    try { io.to(pt.room).emit("battle336", battle336Payload(b, pt.side, null, ev)); } catch (e) { }
+    try { io.to(pt.sock).emit("battle336", battle336Payload(b, pt.side, pt.acct, ev)); } catch (e) { }
+  }
+}
+function battleEmit336(b, ev) {
+  if (b.format === "1v1") battle306Emit(b, ev); else battle336Emit(b, ev);
 }
 function battle306Award(acctId, why) {
   if (!acctId) return null;
@@ -15301,7 +15392,9 @@ function battle306Award(acctId, why) {
   console.log("[battle306] booster award", why, item, "->", acctId, "stock", s[item]);
   return item;
 }
-function battle306Create306(aSock, aPlayer, bSock, bPlayer, endsAt) {
+// [RP-V7.336] Shared battle constructor for every format. The Bonus
+// Mission placement math is the V7.306 math, unchanged.
+function battleBuild336(format, parts, endsAt) {
   const id = "bat" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const now = Date.now();
   const dur = Math.max(30000, endsAt - now);
@@ -15314,35 +15407,60 @@ function battle306Create306(aSock, aPlayer, bSock, bPlayer, endsAt) {
   if (mStart > mLatest) mStart = mLatest;
   // A battle too short to fit the window legally gets no mission.
   const mSkip = mLatest <= now + 1000;
+  const sidePts = {}, effects = {}, timerUsed = {};
+  for (const pt of parts) {
+    pt.pts = 0;
+    if (!(pt.side in sidePts)) {
+      sidePts[pt.side] = 0;
+      effects[pt.side] = { mistUntil: 0, glovesUntil: 0, boosterUntil: 0, boosterMult: 0, freezeUntil: 0 };
+      timerUsed[pt.side] = false;
+    }
+  }
   const b = {
-    id, aSock, bSock,
-    aAcct: (aPlayer && (aPlayer.acctId || null)) || null,
-    bAcct: (bPlayer && (bPlayer.acctId || null)) || null,
-    aName: (aPlayer && aPlayer.name) || "Host",
-    bName: (bPlayer && bPlayer.name) || "Host",
-    aRoom: (aPlayer && aPlayer.room) || "",
-    bRoom: (bPlayer && bPlayer.room) || "",
-    aPts: 0, bPts: 0, endsAt, startedAt: now, ended: false, winnerSide: null,
-    effects: { a: { mistUntil: 0, glovesUntil: 0, boosterUntil: 0, boosterMult: 0, freezeUntil: 0 }, b: { mistUntil: 0, glovesUntil: 0, boosterUntil: 0, boosterMult: 0, freezeUntil: 0 } },
-    timerUsed: { a: false, b: false },
+    id, format, parts, sidePts, effects, timerUsed,
+    endsAt, startedAt: now, ended: false, winnerSide: null, winnerSides: null,
     mission: { startsAt: mSkip ? endsAt + 1 : mStart, endsAt: mStart + 30000, announced: false, closed: mSkip, usedBy: {} },
   };
   battles306.set(id, b);
-  battleBySocket306.set(aSock, id);
-  battleBySocket306.set(bSock, id);
+  for (const pt of parts) battleBySocket306.set(pt.sock, id);
   return b;
+}
+function battle306Create306(aSock, aPlayer, bSock, bPlayer, endsAt) {
+  return battleBuild336("1v1", [
+    { sock: aSock, acct: (aPlayer && (aPlayer.acctId || null)) || null, name: (aPlayer && aPlayer.name) || "Host", room: (aPlayer && aPlayer.room) || "", side: "a" },
+    { sock: bSock, acct: (bPlayer && (bPlayer.acctId || null)) || null, name: (bPlayer && bPlayer.name) || "Host", room: (bPlayer && bPlayer.room) || "", side: "b" },
+  ], endsAt);
 }
 function battle306End(b, reason) {
   if (!b || b.ended) return;
   b.ended = true;
-  b.winnerSide = b.aPts > b.bPts ? "a" : (b.bPts > b.aPts ? "b" : null);
-  const winAcct = b.winnerSide === "a" ? b.aAcct : (b.winnerSide === "b" ? b.bAcct : null);
-  const award = winAcct ? battle306Award(winAcct, "battle-win") : null;
-  battle306Emit(b, { kind: "end", reason: reason || "time", winnerSide: b.winnerSide, awardItem: award, awardSide: b.winnerSide });
+  // [RP-V7.336] Winner = the unique top side. A tie at the top is a
+  // draw — no winner and no award (the 1v1 rule, extended plainly).
+  let top = -1;
+  for (const s of battle336Sides(b)) top = Math.max(top, b.sidePts[s] || 0);
+  const tops = battle336Sides(b).filter((s) => (b.sidePts[s] || 0) === top);
+  b.winnerSides = tops.length === 1 ? tops : [];
+  b.winnerSide = b.winnerSides[0] || null;
+  // Win award: EVERY host on the winning side earns one (2v2 pays
+  // both teammates; FFA pays the single winner; 1v1 is unchanged).
+  const awards = {};
+  if (b.winnerSides.length) {
+    for (const pt of b.parts) {
+      if (b.winnerSides.includes(pt.side) && pt.acct) {
+        const it = battle306Award(pt.acct, "battle-win");
+        if (it) awards[pt.sock] = it;
+      }
+    }
+  }
+  if (b.format === "1v1") {
+    const wp = b.winnerSide ? b.parts.find((pt) => pt.side === b.winnerSide) : null;
+    battle306Emit(b, { kind: "end", reason: reason || "time", winnerSide: b.winnerSide, awardItem: wp ? (awards[wp.sock] || null) : null, awardSide: b.winnerSide });
+  } else {
+    battle336Emit(b, { kind: "end", reason: reason || "time", winnerSides: b.winnerSides, awards });
+  }
   battles306.delete(b.id);
-  if (battleBySocket306.get(b.aSock) === b.id) battleBySocket306.delete(b.aSock);
-  if (battleBySocket306.get(b.bSock) === b.id) battleBySocket306.delete(b.bSock);
-  console.log("[battle306] end", b.id, "a", b.aPts, "b", b.bPts, "winner", b.winnerSide || "draw", reason || "time");
+  for (const pt of b.parts) if (battleBySocket306.get(pt.sock) === b.id) battleBySocket306.delete(pt.sock);
+  console.log("[battle306] end", b.id, b.format, JSON.stringify(b.sidePts), "winner", (b.winnerSides || []).join("+") || "draw", reason || "time");
 }
 // The gift hook: called from /api/money/gift AFTER settlement with the
 // settled batch total. Returns the points scored (0 when no battle /
@@ -15358,10 +15476,9 @@ function battle306OnGift(info) {
     const recipientId = info.recipient && info.recipient.id;
     const senderId = info.sender && info.sender.id;
     if (!recipientId || recipientId === senderId) return 0;
-    let side = null;
-    if (recipientId === b.aAcct) side = "a";
-    else if (recipientId === b.bAcct) side = "b";
-    else return 0;
+    const rPart = battle306PartByAcct(b, recipientId);
+    if (!rPart) return 0;
+    const side = rPart.side;
     const total = Math.max(0, Math.floor(Number(info.totalCharms) || 0));
     if (total <= 0) return 0;
     // Booster drop for the receiving host (the sender's team host) —
@@ -15383,9 +15500,10 @@ function battle306OnGift(info) {
       if ((e.boosterUntil || 0) > now && e.boosterMult) { pts *= e.boosterMult; mults.push("boost" + e.boosterMult); }
       if ((e.glovesUntil || 0) > now && Math.random() < 0.30) { pts *= 5; mults.push("gloves5"); }
     }
-    if (side === "a") b.aPts += pts; else b.bPts += pts;
-    const ev = { kind: "gift", side, pts, base: total, mults, fromName: (info.sender && info.sender.name) || "A fan", giftName: info.giftName || "gift", dropItem, dropSide: dropItem ? side : null };
-    battle306Emit(b, ev);
+    b.sidePts[side] = (b.sidePts[side] || 0) + pts;
+    rPart.pts += pts;
+    const ev = { kind: "gift", side, partSock: rPart.sock, pts, base: total, mults, fromName: (info.sender && info.sender.name) || "A fan", giftName: info.giftName || "gift", dropItem, dropSide: dropItem ? side : null };
+    battleEmit336(b, ev);
     return pts;
   } catch (e) { return 0; }
 }
@@ -15397,7 +15515,8 @@ function battle306Play(socketId, battleId, item) {
   const side = battle306SideOf(b, socketId);
   if (!side) return { ok: false, error: "not-a-host" };
   if (!BOOSTER_ITEMS306.includes(item)) return { ok: false, error: "bad-item" };
-  const acct = side === "a" ? b.aAcct : b.bAcct;
+  const playPart = battle306PartOf(b, socketId);
+  const acct = playPart ? playPart.acct : null;
   if (!acct) return { ok: false, error: "no-account" };
   const now = Date.now();
   if (now >= b.endsAt) return { ok: false, error: "battle-over" };
@@ -15418,14 +15537,16 @@ function battle306Play(socketId, battleId, item) {
   else if (item === "boost2" || item === "boost3") { e.boosterUntil = now + 30000; e.boosterMult = item === "boost3" ? 3 : 2; ev = { kind: "booster", side, mult: e.boosterMult }; }
   else if (item === "timer") { b.endsAt += 30000; b.timerUsed[side] = true; ev = { kind: "timer", side }; }
   else if (item === "hammer") {
-    const opp = battle306Other(side);
-    const before = opp === "a" ? b.aPts : b.bPts;
+    // [RP-V7.336] target: the opposing team, or in FFA the
+    // highest-scoring opponent (see battle336HammerTarget).
+    const opp = battle336HammerTarget(b, side);
+    const before = b.sidePts[opp] || 0;
     const cut = Math.floor(before * 0.10);
-    if (opp === "a") b.aPts = Math.max(0, b.aPts - cut); else b.bPts = Math.max(0, b.bPts - cut);
+    b.sidePts[opp] = Math.max(0, before - cut);
     b.effects[opp].freezeUntil = now + 10000;
     ev = { kind: "hammer", side, cut, oppSide: opp };
   }
-  battle306Emit(b, ev);
+  battleEmit336(b, ev);
   console.log("[battle306] play", b.id, side, item);
   return { ok: true, item, side };
 }
@@ -15437,16 +15558,94 @@ setInterval(() => {
       if (b.ended) continue;
       if (b.mission && !b.mission.announced && now >= b.mission.startsAt && now < b.mission.endsAt) {
         b.mission.announced = true;
-        battle306Emit(b, { kind: "mission-start" });
+        battleEmit336(b, { kind: "mission-start" });
       }
       if (b.mission && b.mission.announced && !b.mission.closed && now >= b.mission.endsAt) {
         b.mission.closed = true;
-        battle306Emit(b, { kind: "mission-end" });
+        battleEmit336(b, { kind: "mission-end" });
       }
       if (now >= b.endsAt) battle306End(b, "time");
     }
   } catch (e) { }
 }, 500);
+
+// ---------------------------------------------------------------------------
+// [RP-V7.336] TEAM BATTLE LOBBIES. Formation rides the existing
+// "battle" socket channel with new message types (tcreate / tinvite /
+// taccept / tdecline / tleave / tstart, state on "tlobby") so the 1v1
+// message set is untouched. Settled formation rules:
+//  - the host picks the format: 2v2 needs 4 hosts, 3-way 3, 4-way 4;
+//  - a battle starts ONLY from a full lobby, on the host's explicit
+//    start — never short-handed, never auto-started;
+//  - 2v2 teams are dealt the moment the lobby fills: HOST + FIRST
+//    ACCEPTER are Team A, the other two are Team B; the lobby state
+//    broadcast shows the teams to everyone before the start;
+//  - a member leaving or disconnecting before the start COLLAPSES
+//    the lobby back to the host alone and clears every pending
+//    invite — the host starts inviting again (the start-over is the
+//    guarantee that nobody is surprised by a short-handed start);
+//  - the host leaving or disconnecting DESTROYS the lobby outright.
+// Mid-battle disconnect keeps the long-standing rule, extended: any
+// participant's socket dying ends the battle on the spot at the
+// current score (the existing disconnect hook ends the sender's
+// battle via battle306End "host-gone", which now resolves through
+// the participants model for every format).
+// ---------------------------------------------------------------------------
+const lobbies336 = new Map();      // lobbyId -> lobby record
+const lobbyMember336 = new Map();  // socketId -> lobbyId (host + accepted)
+const lobbyInvited336 = new Map(); // socketId -> lobbyId (pending invite)
+const TEAM_NEED336 = { "2v2": 4, "3way": 3, "4way": 4 };
+function lobby336State(l) {
+  const st = {
+    lobbyId: l.id, format: l.format, need: l.need, mins: l.mins,
+    host: l.hostSock, hostName: l.hostName,
+    full: l.members.length >= l.need,
+    members: l.members.map((m) => ({ id: m.sock, name: m.name })),
+    invited: [...l.invited].map((sid) => { const pl = players.get(sid); return { id: sid, name: pl ? pl.name : "Host" }; }),
+  };
+  if (l.format === "2v2" && st.full) {
+    st.teams = { a: [l.members[0].name, l.members[1].name], b: [l.members[2].name, l.members[3].name] };
+  }
+  return st;
+}
+function lobby336Send(l) {
+  const st = lobby336State(l);
+  for (const m of l.members) { try { io.to(m.sock).emit("battle", Object.assign({ t: "tlobby" }, st)); } catch (e) { } }
+}
+function lobby336Forget(l) {
+  for (const m of l.members) if (lobbyMember336.get(m.sock) === l.id) lobbyMember336.delete(m.sock);
+  for (const sid of l.invited) if (lobbyInvited336.get(sid) === l.id) lobbyInvited336.delete(sid);
+  lobbies336.delete(l.id);
+}
+function lobby336Destroy(l, reason) {
+  const note = { t: "tlobby-gone", lobby: l.id, reason: reason || "closed" };
+  for (const m of l.members) { try { io.to(m.sock).emit("battle", note); } catch (e) { } }
+  for (const sid of l.invited) { try { io.to(sid).emit("battle", note); } catch (e) { } }
+  lobby336Forget(l);
+}
+function lobby336Collapse(l, whoName) {
+  const dropped = l.members.filter((m) => m.sock !== l.hostSock);
+  const inv = [...l.invited];
+  for (const m of dropped) if (lobbyMember336.get(m.sock) === l.id) lobbyMember336.delete(m.sock);
+  for (const sid of inv) if (lobbyInvited336.get(sid) === l.id) lobbyInvited336.delete(sid);
+  l.members = l.members.filter((m) => m.sock === l.hostSock);
+  l.invited.clear();
+  const note = { t: "tlobby-reset", lobby: l.id, who: whoName || "A host" };
+  for (const m of dropped) { try { io.to(m.sock).emit("battle", note); } catch (e) { } }
+  for (const sid of inv) { try { io.to(sid).emit("battle", note); } catch (e) { } }
+  lobby336Send(l);
+}
+// Drop a socket's whole lobby footprint (1v1 battle starting for
+// them, tleaves, disconnects route through here).
+function battle336LobbyEvict(socketId, why) {
+  const lid = lobbyMember336.get(socketId) || lobbyInvited336.get(socketId);
+  if (!lid) return;
+  const l = lobbies336.get(lid);
+  if (!l) { lobbyMember336.delete(socketId); lobbyInvited336.delete(socketId); return; }
+  if (l.hostSock === socketId) lobby336Destroy(l, why || "host-left");
+  else if (l.members.some((m) => m.sock === socketId)) { const pl = players.get(socketId); lobby336Collapse(l, pl ? pl.name : "A host"); }
+  else { l.invited.delete(socketId); lobbyInvited336.delete(socketId); lobby336Send(l); }
+}
 
 const CHARM_CENT_VALUE = 1; // 1 charm of gift value = 1 cent (the Plaza's
 // charm packs price charms at roughly 1c each in the base pack, and the
@@ -22118,7 +22317,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.335", online: players.size })
+  res.json({ ok: true, version: "RP-V7.336", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -22777,11 +22976,88 @@ io.on("connection", (socket) => {
     if (!p) return;
     const t = String(data.t || "");
     if (t === "reg") { p.live = data.on ? { name: p.name, at: Date.now() } : null; return; }
-    if ((t === "invite" || t === "accept") && ticketCfgForRoom299(p.room)) return; // [RP-V7.299] no battles on ticketed lives
+    if ((t === "invite" || t === "accept" || t === "tcreate" || t === "tinvite" || t === "taccept" || t === "tstart") && ticketCfgForRoom299(p.room)) return; // [RP-V7.299] no battles on ticketed lives
     if (t === "who") {
       const list = [];
       players.forEach((pl) => { if (pl.live && pl.id !== socket.id) list.push({ id: pl.id, name: pl.live.name }); });
       socket.emit("battle", { t: "who-list", list });
+      return;
+    }
+    // [RP-V7.336] TEAM BATTLE LOBBY messages — formation only; the
+    // battle itself is created by battleBuild336 on tstart.
+    if (t === "tcreate" || t === "tinvite" || t === "taccept" || t === "tdecline" || t === "tleave" || t === "tstart") {
+      if (t === "tcreate") {
+        const format = String(data.format || "");
+        const need = TEAM_NEED336[format];
+        if (!need || !p.live) return;
+        if (battleBySocket306.has(socket.id) || lobbyMember336.has(socket.id)) return;
+        battle336LobbyEvict(socket.id); // clear any stale invite footprint
+        const id = "lob" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const l = { id, format, need, mins: Math.min(10, Math.max(1, parseInt(data.mins, 10) || 5)), hostSock: socket.id, hostName: p.name, members: [{ sock: socket.id, acct: p.acctId || null, name: p.name, room: p.room }], invited: new Set() };
+        lobbies336.set(id, l);
+        lobbyMember336.set(socket.id, id);
+        lobby336Send(l);
+        return;
+      }
+      const l = lobbies336.get(String(data.lobby || ""));
+      if (t === "tinvite") {
+        if (!l || l.hostSock !== socket.id) return;
+        const target = players.get(String(data.to || ""));
+        if (!target || !target.live || target.id === socket.id) return;
+        if (battleBySocket306.has(target.id) || lobbyMember336.has(target.id)) return;
+        if (l.members.some((m) => m.sock === target.id)) return;
+        if (!l.invited.has(target.id) && l.members.length + l.invited.size >= l.need) return; // never over-invite past a full house
+        l.invited.add(target.id);
+        lobbyInvited336.set(target.id, l.id);
+        io.to(target.id).emit("battle", { t: "tinvite", lobby: l.id, from: socket.id, fromName: p.name, format: l.format, mins: l.mins, members: l.members.map((m) => m.name) });
+        lobby336Send(l);
+        return;
+      }
+      if (!l) return;
+      if (t === "taccept") {
+        if (!l.invited.has(socket.id) || !p.live) return;
+        if (battleBySocket306.has(socket.id) || lobbyMember336.has(socket.id)) return;
+        if (l.members.length >= l.need) return;
+        l.invited.delete(socket.id); lobbyInvited336.delete(socket.id);
+        l.members.push({ sock: socket.id, acct: p.acctId || null, name: p.name, room: p.room });
+        lobbyMember336.set(socket.id, l.id);
+        lobby336Send(l);
+        return;
+      }
+      if (t === "tdecline") {
+        if (l.invited.has(socket.id)) {
+          l.invited.delete(socket.id); lobbyInvited336.delete(socket.id);
+          io.to(l.hostSock).emit("battle", { t: "tdeclined", lobby: l.id, from: socket.id, fromName: p.name });
+          lobby336Send(l);
+        }
+        return;
+      }
+      if (t === "tleave") {
+        if (l.hostSock === socket.id) lobby336Destroy(l, "host-left");
+        else if (l.members.some((m) => m.sock === socket.id)) lobby336Collapse(l, p.name);
+        else if (l.invited.has(socket.id)) { l.invited.delete(socket.id); lobbyInvited336.delete(socket.id); lobby336Send(l); }
+        return;
+      }
+      if (t === "tstart") {
+        if (l.hostSock !== socket.id || l.members.length < l.need) return;
+        // Every member must still be present and battle-free, or the
+        // lobby collapses back to invites — no short-handed starts.
+        for (const m of l.members) {
+          const pl = players.get(m.sock);
+          if (!pl || battleBySocket306.has(m.sock)) { lobby336Collapse(l, "A host"); return; }
+          m.name = pl.name; m.room = pl.room; m.acct = pl.acctId || null;
+        }
+        const parts = l.format === "2v2"
+          ? l.members.map((m, i) => ({ sock: m.sock, acct: m.acct, name: m.name, room: m.room, side: i < 2 ? "a" : "b" }))
+          : l.members.map((m, i) => ({ sock: m.sock, acct: m.acct, name: m.name, room: m.room, side: "s" + i }));
+        const endsAt = Date.now() + l.mins * 60000;
+        const b336 = battleBuild336(l.format, parts, endsAt);
+        const note = { t: "tstart336", battleId: b336.id, format: l.format, endsAt, from: l.hostSock, fromName: l.hostName };
+        for (const m of l.members) { try { io.to(m.sock).emit("battle", note); } catch (e) { } }
+        lobby336Forget(l);
+        battle336Emit(b336, { kind: "start" });
+        return;
+      }
       return;
     }
     const other = players.get(String(data.to || ""));
@@ -22809,6 +23085,7 @@ io.on("connection", (socket) => {
       // [RP-V7.306] the server opens the battle record: side "a" is
       // the acceptor (this socket), side "b" the challenger — the
       // client's rpBatBegin convention.
+      battle336LobbyEvict(socket.id); battle336LobbyEvict(other.id); // [RP-V7.336] a 1v1 start clears both hosts' lobby footprints
       const b306 = battle306Create306(socket.id, p, other.id, other, endsAt);
       io.to(other.id).emit("battle", { t: "accept", from: socket.id, fromName: p.name, endsAt, battleId: b306.id });
       socket.emit("battle", { t: "start", from: other.id, fromName: other.name, endsAt, battleId: b306.id });
@@ -23156,6 +23433,10 @@ io.on("connection", (socket) => {
       const discB306 = discBid306 ? battles306.get(discBid306) : null;
       if (discB306) battle306End(discB306, "host-gone");
     } catch (e) { }
+    // [RP-V7.336] the lobby footprint dies with the socket too: a
+    // host disconnect destroys the lobby, a member disconnect
+    // collapses it back to the host alone.
+    try { battle336LobbyEvict(socket.id, "host-gone"); } catch (e) { }
     // [RP-V7.52] Host disconnect teardown (audit H13): a host whose
     // socket dies (tab close, crash, deploy) deregisters their live
     // NOW — settle its pot by the lifecycle rule and broadcast the
