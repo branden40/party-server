@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.344" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.345" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -756,11 +756,11 @@
       .gfx-cap b { color: var(--gold); }
       .gfx-name-stars { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); width: 94vw; text-align: center; font-size: clamp(26px, 6.5vw, 54px); font-weight: 900; letter-spacing: .14em; color: #fff; text-shadow: 0 0 6px #fff, 0 0 18px #9fd8ff, 0 0 42px #5f7cff, 0 0 80px #5f7cff; animation: gfxNameIn 1.2s cubic-bezier(.2,.7,.3,1) both; }
       @keyframes gfxNameIn { from { opacity: 0; transform: translateX(-50%) scale(.8); filter: blur(6px); } to { opacity: 1; transform: translateX(-50%) scale(1); filter: none; } }
-      @keyframes gfxRise { 0% { transform: translate(-50%, 46vh) scale(.5); opacity: 0; } 18% { opacity: 1; } 55% { transform: translate(-50%, -52%) scale(1.12); } 75% { transform: translate(-50%, -50%) scale(1); } 100% { transform: translate(-50%, -58%) scale(1.04); opacity: 0; } }
-      @keyframes gfxAcross { 0% { transform: translate(-70vw, -50%) scale(.8); opacity: 0; } 10% { opacity: 1; } 50% { transform: translate(-50%, -56%) scale(1.15); } 90% { opacity: 1; } 100% { transform: translate(70vw, -50%) scale(.85); opacity: 0; } }
+      @keyframes gfxRise { 0% { transform: translate(-50%, -38%) scale(.85); opacity: 0; } 18% { opacity: 1; } 55% { transform: translate(-50%, -52%) scale(1); } 75% { transform: translate(-50%, -50%) scale(1); } 100% { transform: translate(-50%, -58%) scale(1); opacity: 0; } } /* [RP-V7.337b] whole from the first frame: the rise now starts with the hero fully on screen, a touch low and small, and rises into its seat (was: 46vh below the screen, arriving in pieces; overshoots 1.12/1.04 removed) */
+      @keyframes gfxAcross { 0% { transform: translate(calc(4px - 50vw), -50%) scale(.9); opacity: 0; } 10% { opacity: 1; } 50% { transform: translate(-50%, -56%) scale(1.15); } 90% { opacity: 1; } 100% { transform: translate(calc(50vw - 284px), -50%) scale(.9); opacity: 0; } } /* [RP-V7.337b] the crossing now runs edge-to-edge INSIDE the screen: it enters whole at the left edge and leaves whole at the right (was: from -70vw to +70vw — off-screen at both ends, arriving/leaving in pieces) */
       @keyframes gfxPop { 0% { transform: translate(-50%, -50%) scale(.2) rotate(-8deg); opacity: 0; } 35% { transform: translate(-50%, -50%) scale(1.25) rotate(3deg); opacity: 1; } 55% { transform: translate(-50%, -50%) scale(1); } 80% { transform: translate(-50%, -54%) scale(1.05); opacity: 1; } 100% { transform: translate(-50%, -62%) scale(1.02); opacity: 0; } }
-      @keyframes gfxZoom { 0% { transform: translate(-50%, -50%) scale(.4); opacity: 0; } 30% { opacity: 1; transform: translate(-50%, -50%) scale(1.3) rotate(360deg); } 70% { transform: translate(-50%, -50%) scale(1.05) rotate(680deg); opacity: 1; } 100% { transform: translate(-50%, -56%) scale(1.5) rotate(720deg); opacity: 0; } }
-      @keyframes gfxLaunch { 0% { transform: translate(-50%, 44vh) rotate(-38deg) scale(.8); opacity: 0; } 12% { opacity: 1; } 100% { transform: translate(-28%, -58vh) rotate(-38deg) scale(1.05); opacity: .9; } }
+      @keyframes gfxZoom { 0% { transform: translate(-50%, -50%) scale(.4); opacity: 0; } 30% { opacity: 1; transform: translate(-50%, -50%) scale(.78) rotate(360deg); } 70% { transform: translate(-50%, -50%) scale(.92) rotate(680deg); opacity: 1; } 100% { transform: translate(-50%, -56%) scale(1) rotate(720deg); opacity: 0; } } /* [RP-V7.337b] the spin grows to full size only as the rotation settles to zero — at 1.3-1.5x mid-spin the rotating hero swept past every edge */
+      @keyframes gfxLaunch { 0% { transform: translate(-50%, -30%) rotate(-38deg) scale(.9); opacity: 0; } 12% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(-38%, -190%) rotate(-38deg) scale(1); opacity: 0; } } /* [RP-V7.337b] liftoff happens on screen: the hero starts whole at its seat, climbs inside the screen and fades at altitude (was: from 44vh under the screen out through the top — in pieces at both ends) */
       @keyframes gfxFloatUp { 0% { transform: translateY(12vh) scale(.7); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-52vh) scale(1.08); opacity: 0; } }
       @keyframes gfxFall { 0% { transform: translateY(-8vh) rotate(0deg); opacity: 0; } 8% { opacity: 1; } 100% { transform: translateY(104vh) rotate(300deg); opacity: .85; } }
       @keyframes gfxStreak { 0% { transform: translate(24vw, -12vh) rotate(38deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translate(-64vw, 66vh) rotate(38deg); opacity: 0; } }
@@ -23998,6 +23998,7 @@
           hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = "50dvh"; hero.style.objectFit = "contain";
           hero.style.animation = "gfxHalfIn334 4200ms cubic-bezier(.2,.7,.3,1) both";
         } else {
+          fxHeroSize(hero, Math.round((window.innerWidth || 400) * 0.76)); // [RP-V7.337b] an art burst hero is a full-width square; gfxPop peaks at 1.25x with a 3deg tilt, which swept the full-width box past both screen edges — at 76vw the whole pop, tilt included, stays on screen
           hero.style.animation = "gfxPop 4200ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.219] x2 burst hero
         }
         stage.appendChild(hero);
@@ -30082,7 +30083,7 @@ canvas.rp-key-canvas{ display:block; }
 /* [RP-V7.217] small-gift APPEAR: scale-in pop in place (~0.42 s
    entrance beat at the 2.6 s float life), hold, gentle fade — no
    travel path up the screen (owner correction, Nov 3 2026). */
-@keyframes gfxAppear217 { 0% { transform:translateX(-50%) scale(.55); opacity:0; } 16% { transform:translateX(-50%) scale(1.05); opacity:1; } 24% { transform:translateX(-50%) scale(1); } 84% { transform:translateX(-50%) scale(1); opacity:1; } 100% { transform:translateX(-50%) scale(1.02); opacity:0; } }
+@keyframes gfxAppear217 { 0% { transform:translateX(-50%) scale(.55); opacity:0; } 16% { transform:translateX(-50%) scale(1); opacity:1; } 24% { transform:translateX(-50%) scale(1); } 84% { transform:translateX(-50%) scale(1); opacity:1; } 100% { transform:translateX(-50%) scale(1); opacity:0; } } /* [RP-V7.337b] no overshoot: the appear hero is a full-width square, so scale 1.05/1.02 pushed it ~11px past each screen edge mid-entrance and again on exit */
 /* [RP-V7.218] THE SUPERNOVA STANDARD (owner, Nov 3 2026, from his own
    phone test of V7.217: "I love the supernova — it's perfect the way it
    shows. The bottom half of the screen should show all gifts that way,
@@ -30231,9 +30232,9 @@ canvas.rp-key-canvas{ display:block; }
 .rp-stage-art.pop{ animation:rpStagePop 3.5s cubic-bezier(.2,.7,.3,1) forwards; }
 .rp-stage-art.rise{ animation:rpStageRise 3.5s cubic-bezier(.2,.7,.3,1) forwards; }
 .rp-stage-art.spin{ animation:rpStageSpin 3.5s cubic-bezier(.2,.7,.3,1) forwards; }
-@keyframes rpStagePop{ 0%{ transform:scale(.2); opacity:0;} 12%{ transform:scale(1.12); opacity:1;} 20%{ transform:scale(1);} 82%{ transform:scale(1.04); opacity:1;} 100%{ transform:scale(1.15) translateY(-16px); opacity:0;} }
-@keyframes rpStageRise{ 0%{ transform:translateY(46vh) scale(.7); opacity:0;} 16%{ transform:translateY(0) scale(1.05); opacity:1;} 24%{ transform:scale(1);} 82%{ transform:scale(1.03); opacity:1;} 100%{ transform:translateY(-20px) scale(1.1); opacity:0;} }
-@keyframes rpStageSpin{ 0%{ transform:scale(.2) rotate(-160deg); opacity:0;} 14%{ transform:scale(1.1) rotate(6deg); opacity:1;} 22%{ transform:scale(1) rotate(0);} 82%{ transform:scale(1.04); opacity:1;} 100%{ transform:scale(1.14) translateY(-16px); opacity:0;} }
+@keyframes rpStagePop{ 0%{ transform:scale(.2); opacity:0;} 12%{ transform:scale(1); opacity:1;} 20%{ transform:scale(1);} 82%{ transform:scale(1); opacity:1;} 100%{ transform:scale(1) translateY(-16px); opacity:0;} } /* [RP-V7.337b] the pop grows INTO the seat and never past it: the stage hero is 100vw wide, so the old 1.12/1.04/1.15 swells clipped it on both sides at entrance, hold and exit */
+@keyframes rpStageRise{ 0%{ transform:translateY(3.5vh) scale(.96); opacity:0;} 16%{ transform:translateY(0) scale(1); opacity:1;} 24%{ transform:scale(1);} 82%{ transform:translateY(-2vh) scale(1); opacity:1;} 100%{ transform:translateY(-3.5vh) scale(1); opacity:0;} } /* [RP-V7.337b] whole from the first frame: the old rise started 46vh under the seat, so only the top of the gift showed while it travelled up (Branden, Nov 11, 2026). It now starts whole just under its seat and rises IN place, fading at altitude — the seat reaches up, the gift is never cut. */
+@keyframes rpStageSpin{ 0%{ transform:scale(.2) rotate(-160deg); opacity:0;} 14%{ transform:scale(.93) rotate(0deg); opacity:1;} 22%{ transform:scale(1) rotate(0);} 82%{ transform:scale(1); opacity:1;} 100%{ transform:scale(1) translateY(-16px); opacity:0;} } /* [RP-V7.337b] the spin completes while the hero is still small (its swept corners stay on screen), then it settles at exactly seat size — the old 1.1-with-rotation and 1.04/1.14 swells clipped the 100vw hero on both sides */
 @keyframes rpFade{ 0%{ opacity:0;} 10%{ opacity:1;} 84%{ opacity:1;} 100%{ opacity:0;} }
 .rp-spark{ position:absolute; width:7px; height:7px; border-radius:50%; background:radial-gradient(circle,#ffe9a8,#f5b93f 60%,transparent 70%); animation:rpSpark 1.5s ease-out forwards; }
 @keyframes rpSpark{ from{ transform:translate(0,0) scale(1); opacity:1;} to{ transform:translate(var(--dx),var(--dy)) scale(.2); opacity:0;} }
@@ -30303,8 +30304,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
    .fs327 class itself stays (pumpStage still adds it off-live) and
    the scene-film neutralizers under it are unchanged; the live
    band (body.live-fs) is byte-for-byte the approved presentation. */
-@keyframes gfxFsIn327 { 0% { opacity: 0; transform: scale(1.07); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } }
-@keyframes gfxHalfIn334 { 0% { opacity: 0; transform: scale(1.045); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } }
+@keyframes gfxFsIn327 { 0% { opacity: 0; transform: scale(.97); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } } /* [RP-V7.337b] grow-in, never overshoot (see gfxHalfIn334 note) */
+@keyframes gfxHalfIn334 { 0% { opacity: 0; transform: scale(.955); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } } /* [RP-V7.337b] grow-IN: the 1.045 overshoot kept every film hero wider than the screen (and past the bottom edge) for the whole show, worst at the first frame — Branden, Nov 11, 2026: the gift must be WHOLE from the beginning. The hero now starts a touch small and settles INTO its seat, never past it. */
 #rpStage.fs327 .rp-stage-art.film { width: 100vw; height: auto; aspect-ratio: 16/9; }
 #rpStage.fs327 .rp-stage-art.film.portrait { width: auto; height: min(36vh, 150vw); aspect-ratio: 720/1280; }
 #rpStage.fs327.bandblend218, #rpStage.fs327.ghost218 { mix-blend-mode: normal; }
@@ -30954,7 +30955,26 @@ window.RpKeyUpgrade = function (el, g, opts327) {
     if (el.tagName === "VIDEO") {
       var fixAspect = function () {
         if (opts327 && opts327.keepBox) return; // [RP-V7.327] full-screen hero: the viewport box stands
-        try { if (el.videoWidth && el.videoHeight && cv.clientWidth) cv.style.height = Math.round(cv.clientWidth * el.videoHeight / el.videoWidth) + "px"; } catch (e) { }
+        try {
+          if (el.videoWidth && el.videoHeight && cv.clientWidth) {
+            if (el.videoHeight > el.videoWidth && (cv.classList.contains("rp-portrait337b") || /100vw/.test(cv.style.width || ""))) {
+              /* [RP-V7.337b] a PORTRAIT film on a bottom-half seat (float/burst/cinematic):
+                 the landscape seat caps its height at 50dvh and the identity draw would
+                 squash the frame into that box. The hero instead takes the portrait seat —
+                 the whole frame at its own aspect, the full bottom half tall, centred —
+                 the show area reaching UP from the bottom, per Branden's rule (Nov 11,
+                 2026: whole from the beginning, never clip to fit the seat). UFO Beam
+                 (1440x2160) is the first such film. */
+              var ph337b = Math.round(window.innerHeight * 0.5);
+              var pw337b = Math.round(ph337b * el.videoWidth / el.videoHeight);
+              cv.classList.add("rp-portrait337b");
+              cv.style.width = pw337b + "px"; cv.style.height = ph337b + "px";
+              cv.style.left = Math.round((window.innerWidth - pw337b) / 2) + "px";
+            } else {
+              cv.style.height = Math.round(cv.clientWidth * el.videoHeight / el.videoWidth) + "px";
+            }
+          }
+        } catch (e) { }
       };
       el.addEventListener("loadedmetadata", fixAspect);
       fixAspect();
