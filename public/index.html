@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.340" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.337" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -23901,6 +23901,10 @@
         }
         stage.appendChild(s);
         if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g, undefined); } /* [RP-V7.334] no cover/keepBox on either path now — identity window + fixAspect (the band path always keyed this way) */
+        if (s.classList && s.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the band seat centres their square at 72% and pokes it above the midline */
+          s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = "0px"; s.style.transform = "none";
+          s.style.width = "100vw"; s.style.height = "auto"; s.style.maxHeight = "50dvh"; s.style.objectFit = "contain";
+          s.style.animation = "gfxFade337 600ms ease-out both"; }
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
         ov.appendChild(cap);
@@ -23931,6 +23935,10 @@
         }
         stage.appendChild(hero);
         if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined); // [RP-V7.217] hero keyed live — no box — [RP-V7.334] identity window + fixAspect on both paths (see the giftFxFloat note)
+        if (hero.classList && hero.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the burst's centred seat pokes their square above the midline */
+          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.transform = "none";
+          hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = "50dvh"; hero.style.objectFit = "contain";
+          hero.style.animation = "gfxFade337 600ms ease-out both"; }
         var parts = g.fx === "burst" ? ["✨", "🎇", "💥", g.icon] : [g.icon, "✨", "⭐"];
         var n = giftFxReduced() ? 5 : 18;
         for (var i = 0; i < n; i++) {
@@ -24011,7 +24019,7 @@
           stars(70);
           for (i = 0; i < 15; i++) {
             if (i % 3 === 0) {
-              p = giftArtImg(g, 52); // [RP-V7.27] the streaking meteors are the gift's art
+              p = (window.RpKeySticker && window.RpKeySticker(g, 52)) || null; // [RP-V7.337] the streaking meteors are the pixel-keyed art sticker (was giftArtImg — a raw 52px cover-cropped VIDEO square: a tiny opaque rectangle streaking across the show)
               if (p) { p.classList.add("gfx-p"); p.style.animation = "gfxStreak " + Math.round(900 + Math.random() * 700) + "ms ease-out " + (i * 240) + "ms both"; stage.appendChild(p); }
               else p = particle("☄️", 34, "gfxStreak", 900 + Math.random() * 700, i * 240);
             } else p = particle("✦", 20, "gfxStreak", 900 + Math.random() * 700, i * 240);
@@ -24028,7 +24036,7 @@
             if (i % 4 === 0) {
               p = particle("✨", 20 + Math.random() * 20, "gfxFall", 1600 + Math.random() * 1200, i * 130);
             } else {
-              p = giftArtImg(g, Math.round(44 + Math.random() * 20)); // [RP-V7.27] the falling diamonds are the gift's art
+              p = (window.RpKeySticker && window.RpKeySticker(g, Math.round(44 + Math.random() * 20))) || null; // [RP-V7.337] the falling diamonds are the pixel-keyed art sticker (was giftArtImg — a raw cover-cropped VIDEO square falling through the show)
               if (p) { p.classList.add("gfx-p"); p.style.animation = "gfxFall " + Math.round(1600 + Math.random() * 1200) + "ms ease-out " + (i * 130) + "ms both"; stage.appendChild(p); }
               else p = particle("💎", 20 + Math.random() * 20, "gfxFall", 1600 + Math.random() * 1200, i * 130);
             }
@@ -24065,11 +24073,41 @@
             p.style.left = (12 + Math.random() * 74) + "%"; p.style.bottom = "20%";
           }
         }
+        /* [RP-V7.337] The cinematic queue was the one presentation
+           path V7.334 never reached: it showed the film as a RAW
+           video element (opaque black frame), sized SQUARE with
+           object-fit: cover (the film's sides cut off), seated at
+           the vertical CENTRE, LOOPING, over a full-screen dark
+           veil — over a bright room scene that is exactly the
+           visible mid-screen rectangle Branden filmed (Nov 11,
+           2026). It now meets the same standard as every other
+           path: a film hero takes the fs327 bottom-half seat (its
+           own whole frame, contain, keyed with the identity
+           window, plays ONCE, end frame holds), an art hero keys
+           too and seats in the bottom zone, and the dark veil is
+           dropped whenever a hero is keyed, so the show blends
+           into the room on any backdrop. The per-fx particles and
+           stars stay as they were. */
+        if (hero.tagName === "VIDEO" && hero.style.display !== "none") {
+          ov.classList.add("fs327");
+          hero.loop = false;
+          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px";
+          hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = "50dvh"; hero.style.objectFit = "contain";
+          hero.style.animation = "gfxHalfIn334 " + dur + "ms cubic-bezier(.2,.7,.3,1) both";
+          var bg337 = ov.querySelector(".gfx-bg"); if (bg337) { bg337.style.background = "transparent"; bg337.style.animation = "none"; bg337.style.opacity = "0"; }
+          if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined);
+        } else if (hero.tagName === "IMG") {
+          hero.style.top = "72%";
+          if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined);
+          var bg337b = ov.querySelector(".gfx-bg"); if (bg337b) { bg337b.style.background = "transparent"; bg337b.style.animation = "none"; bg337b.style.opacity = "0"; }
+        } else if (hero.style.display !== "none") {
+          hero.style.top = "72%";
+        }
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g) + " · tap to close";
         ov.appendChild(cap);
         var closed = false;
-        function close() { if (closed) return; closed = true; if (ov.parentNode) ov.parentNode.removeChild(ov); done(); }
+        function close() { if (closed) return; closed = true; if (window.RpKeyRelease) window.RpKeyRelease(ov); if (ov.parentNode) ov.parentNode.removeChild(ov); done(); }
         ov.addEventListener("click", close);
         setTimeout(close, dur);
         try { AudioFX.win(); } catch (e) { }
@@ -30059,6 +30097,43 @@ canvas.rp-key-canvas{ display:block; }
   mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
   mask-composite: intersect;
 }
+/* [RP-V7.337] THE MELT, EVERYWHERE: the same crossed-gradient feather
+   the stage bands have carried since V7.218, now on EVERY gift-film
+   hero on EVERY path — the .gfx float/burst/cinematic heroes and all
+   stage film media, keyed canvas, blend video and art img alike.
+   Why: films whose masters are FULL-BLEED scenes (Heart's red nebula,
+   Clap's fire burst — their climaxes are wall-to-wall colour, so the
+   luma keyer faithfully returns alpha 1 across the whole frame) read
+   as a hard rectangle on any backdrop even when keyed and seated
+   correctly (Branden, Nov 11, 2026, on the live V7.335 build: "The
+   gifting is still showing inside a rectangle box"). The feather
+   fades the film's outer rim to transparent on all four borders, so
+   the frame melts into the screen behind it — nothing is cropped
+   (the rim blends, it is not cut) and no border line survives on a
+   bright photo, a bright room scene or the dark UI. Subject-on-black
+   films are unaffected (their rims are already transparent). */
+.gfx canvas.gfx-hero, .gfx video.gfx-hero, .gfx img.gfx-hero,
+.gfx canvas.rp-key-canvas, .gfx video.gfx-film, .gfx img.gfx-film,
+#rpStage .rp-stage-art canvas.rp-key-canvas,
+#rpStage .rp-stage-art video.rp-gift-film:not(.rp-key-src),
+#rpStage .rp-stage-art img.rp-gift-img:not(.rp-key-src){
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
+  mask-composite: intersect;
+}
+/* [RP-V7.337] dim-master films (RP_SCREEN_FILMS337) present
+   screen-blended instead of keyed — the hero-level blend covers the
+   paths whose overlay composites normally (cinematic, stage).
+   Their heroes also take a fade entrance (gfxFade337), not the
+   film seat's scale entrance: a square art hero is exactly 50dvh
+   tall, and the scale entrance's 1.045 would inflate it past the
+   midline it is supposed to sit under. */
+@keyframes gfxFade337 { from { opacity: 0; } to { opacity: 1; } }
+.gfx video.gfx-hero.rp-screen337{ mix-blend-mode: screen; }
+.gfx img.gfx-hero.rp-screen337{ mix-blend-mode: screen; }
+#rpStage .rp-stage-art video.rp-gift-film.rp-screen337{ mix-blend-mode: screen !important; filter: none !important; }
+#rpStage .rp-stage-art img.rp-gift-img.rp-screen337{ mix-blend-mode: screen !important; }
 /* [RP-V7.218 section 8] portrait films COVER the full-width band
    (owner: "make sure all gifts take up whole bottom screen space"):
    the pillar window is gone -- a portrait scene film plays in the
@@ -30069,6 +30144,16 @@ canvas.rp-key-canvas{ display:block; }
    it also lifts the one keyed portrait film (titanclash, via its
    .portrait class) into the same band box. */
 .rp-stage-art.film.portrait{ width:100vw; height:auto; aspect-ratio:16/9; }
+/* [RP-V7.337] SUPERSEDES the section-8 cover rule above for portrait
+   FILMS (Branden, Nov 11, 2026: "make sure the gift shows the whole
+   scene not half or part of it" + "Live room should be the same"):
+   a portrait film takes the same portrait box the off-live fs327
+   stage already uses — its whole 720x1280 frame inside the bottom
+   half (bottom edge on the band's 87% line, top edge ~51%), keyed
+   with the identity window. The cover-crop sampled only the middle
+   ~32% of the frame in live rooms (titanclash / plazaape /
+   nebuladragon / ascension). */
+#rpStage .rp-stage-art.film.portrait{ width:auto; height:min(36vh,150vw); aspect-ratio:720/1280; }
 /* medium burst heroes/particles seat in the band zone (hero box at
    ~72% of height; the burst spray itself is transient particles). */
 .gfx.medium .gfx-hero{ top:72%; }
@@ -30230,7 +30315,20 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1 }; // [RP-V7.221] +1 — giftfx-fattuesday.mp4 ships as a file drop into public/ (guided upload); until it lands, shows fall back to the animated art (never a still). // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
+  var GIFT_FILM_IDS = { fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1 };
+  /* [RP-V7.337] DIM-MASTER gifts: measured against the keyer's own
+     alpha curve (V7.337 audit), these gifts' ART keys to almost
+     nothing (subject coverage at alpha>=0.5: fireflyjar 0.14,
+     bubblewand 0.08, crystalfox 0.07, honeybee 0.05, seahorse 0.05)
+     — keyed, their shows are ghosts or outright invisible (Branden,
+     Nov 11, 2026: the Firefly Jar send showed only the toast + chip).
+     All five also have NO live film file (their film URLs 404 — see
+     the V7.337 report's missing-film list), so the art IS their show.
+     They present SCREEN-BLENDED instead of keyed: the art's black
+     ground dissolves on any backdrop and the dim subject adds at
+     full strength. If a brighter film master is ever dropped for
+     one of these, revisit its entry here. */
+  window.RP_SCREEN_FILMS337 = { fireflyjar: 1, bubblewand: 1, crystalfox: 1, honeybee: 1, seahorse: 1 }; // [RP-V7.221] +1 — giftfx-fattuesday.mp4 ships as a file drop into public/ (guided upload); until it lands, shows fall back to the animated art (never a still). // [RP-V7.82] +5 gifts — their giftfx-<id>.mp4 films ship as file drops; [RP-V7.166] +1 — giftfx-ascension.mp4 joins the same pending file-drop walk; until then shows fall back to the animated art. [RP-V7.132] +3 ($1,000 tier) — same pattern: giftfx-supernova/crownjewel/plazadiamond.mp4 ship as a file drop into public/; until then their shows fall back to the animated art (never a still). [RP-V7.137] +3 — same pattern: giftfx-goldeneagle/pegasus/auroracrown.mp4 join the pending file-drop walk; until they land, shows fall back to the animated art
   window.rpGiftFilmIds = GIFT_FILM_IDS;
   window.rpGiftFilmUrl = function (id) { return window.rpResolveGiftFilm(id); };
   /* [RP-V7.81] EVENT-FILM RESOLVER + T-REX GRAND SHOW.
@@ -30302,7 +30400,9 @@ body:not(.live-fs) #rp65How { display:none !important; }
     var aid = id === "diamond" ? "diamonds" : id;
     if (aid && GIFT_FILM_IDS[aid]) {
       var st = sizePx === "full" ? "width:100%;height:100%;" : ("width:" + sizePx + "px;height:" + sizePx + "px;");
-      return '<video class="rp-gift-film" src="' + window.rpGiftFilmUrl(aid) + '" data-gid="' + aid + '" data-icon="' + esc(icon || GIFT_ICONS[aid] || "🎁") + '" autoplay muted loop playsinline preload="auto" style="' + st + 'object-fit:cover;mix-blend-mode:screen;" onerror="rpGiftVidErr(this)"></video>';
+      var lp337 = sizePx === "full" ? "" : " loop"; /* [RP-V7.337] a full-stage film plays ONCE and shows its WHOLE frame (the mini chat-row thumbnail keeps its loop + cover) */
+      var fit337 = sizePx === "full" ? "contain" : "cover";
+      return '<video class="rp-gift-film" src="' + window.rpGiftFilmUrl(aid) + '" data-gid="' + aid + '" data-icon="' + esc(icon || GIFT_ICONS[aid] || "🎁") + '" autoplay muted' + lp337 + ' playsinline preload="auto" style="' + st + 'object-fit:' + fit337 + ';mix-blend-mode:screen;" onerror="rpGiftVidErr(this)"></video>';
     }
     return rpArt(id, icon);
   }
@@ -30760,6 +30860,12 @@ window.RpKey = RpKey;
    element stays in the DOM as the hidden texture feeder. */
 window.RpKeyUpgrade = function (el, g, opts327) {
   try {
+    /* [RP-V7.337] dim-master gifts present screen-blended, never keyed
+       (the keyer erases them — see RP_SCREEN_FILMS337). Tagging the
+       element and returning null leaves the raw media in place with
+       the blend class on it; every caller treats null as "no upgrade"
+       and keeps the element, which is exactly the intent. */
+    if (el && g && window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[g.id] && (el.tagName === "VIDEO" || el.tagName === "IMG")) { el.classList.add("rp-screen337"); return null; }
     if (!el || (el.tagName !== "VIDEO" && el.tagName !== "IMG") || !RpKey.supported()) return null;
     var parent = el.parentNode;
     if (!parent) return null;
@@ -30913,10 +31019,19 @@ function rpStageMedia(div, gid, icon) {
     var img = document.createElement("img");
     img.className = "rp-gift-img";
     img.alt = "";
-    img.style.width = "100%"; img.style.height = "100%"; img.style.objectFit = holFit220 ? "contain" : "cover";
+    img.style.width = "100%"; img.style.height = "100%"; img.style.objectFit = "contain"; // [RP-V7.337] contain for EVERY art hero (was cover for main-catalog gifts — the top and bottom of the square art were cropped into the band)
     img.onerror = function () { emojiFallback(); };
+    if (window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[aid]) {
+      /* [RP-V7.337] dim-master art presents screen-blended, never keyed
+         (the keyer erases it — see RP_SCREEN_FILMS337) */
+      img.classList.add("rp-screen337");
+      img.style.mixBlendMode = "screen";
+      div.appendChild(img);
+      img.src = "img/gifts/" + aid + ".webp";
+      return;
+    }
     if (RpKey.supported()) {
-      var h = RpKey.attach(img, holFit220 ? {} : { cover: true }); // [RP-V7.218 section 8] cover-crop into the band box -- [RP-V7.220 fix] holiday arts attach with NO crop: the whole square texture keys into the square fit box above
+      var h = RpKey.attach(img, {}); // [RP-V7.337] identity window for every art hero (was { cover: true } for main-catalog gifts per V7.218 section 8 — the shader cover-cropped the square art into the band box); the keyer dissolves the black ground, so the whole art now shows inside the band with nothing cropped and no box. The V7.220 holiday fit already keyed this way.
       if (h) {
         ctl.h = h;
         h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
@@ -30939,8 +31054,18 @@ function rpStageMedia(div, gid, icon) {
     v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true; v.preload = "auto";
     v.loop = false; // [RP-V7.334] the film plays ONCE and holds its end frame for the rest of the slot — stage windows run 9200–14600 ms against ~5.6 s films, and the V7.219 loop filled the window by restarting the film mid-show (Branden, Nov 11, 2026: gifts "show up two times"). The Golden Ascension exception below already proved this treatment. Originally gated to off-live; Branden's live extension the same evening ("Live room should be the same") made it unconditional — live stage and battle-live films play once too. (Room SCENE films are a separate element and still loop as ambience; they are not gift shows.)
     var stepped = false;
+    if (window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[aid]) {
+      /* [RP-V7.337] dim-master gifts present screen-blended, never keyed
+         (see RP_SCREEN_FILMS337); the whole frame still shows (contain) */
+      v.style.cssText = "width:100%;height:100%;object-fit:contain;mix-blend-mode:screen;";
+      v.classList.add("rp-screen337");
+      v.onerror = function () { if (window.rpGiftVidErr) window.rpGiftVidErr(v); };
+      div.appendChild(v);
+      v.src = window.rpGiftFilmUrl(aid);
+      return;
+    }
     if (RpKey.supported()) {
-      var h = RpKey.attach(v, { cover: true }); // [RP-V7.218 section 8] band heroes cover-crop into the band box
+      var h = RpKey.attach(v, {}); // [RP-V7.337] identity window — the WHOLE film frame keys (the V7.218 cover window cropped any film whose raster differs from the band box: portrait films lost their top and bottom in live rooms — Branden, Nov 11, 2026: "you can see part of the sides not showing because it's boxed in"); the art box now matches the film's own aspect (see the .film.portrait rule), so identity = whole scene, nothing cut
       if (h) {
         ctl.h = h;
         h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
@@ -30964,8 +31089,8 @@ function rpStageMedia(div, gid, icon) {
         return;
       }
     }
-    /* no WebGL: today's blend path, untouched */
-    v.style.cssText = "width:100%;height:100%;object-fit:cover;mix-blend-mode:screen;";
+    /* no WebGL: the blend path, with the whole frame kept */
+    v.style.cssText = "width:100%;height:100%;object-fit:contain;mix-blend-mode:screen;"; // [RP-V7.337] contain, never cover — the fallback shows the whole film too (the screen blend still dissolves its black ground)
     v.onerror = function () { if (window.rpGiftVidErr) window.rpGiftVidErr(v); };
     div.appendChild(v);
     v.src = window.rpGiftFilmUrl(aid);
@@ -31046,20 +31171,21 @@ function stageStreakBump(key, add) {
     if (isScene) {
       artDiv.className = "rp-stage-art film";
       if (RP_PORTRAIT_FILMS[said] || RP_BAND_PORTRAIT[said]) artDiv.classList.add("portrait");
-      if (RP_BAND_KEYED[said]) {
-        ov.classList.add("bandkeyed218");
-        stageCtl = rpStageMedia(artDiv, sgid, g.icon || GIFT_ICONS[said]);
-      } else {
-        ov.classList.add(RP_BAND_GHOST[said] ? "ghost218" : "bandblend218");
-        artDiv.innerHTML = rpShowArtHtml(sgid, g.icon, "full");
-        /* [RP-V7.219] Golden Ascension exception to the x2 scale:
-           its film is already 12 s, so it does NOT loop to a
-           mechanical 24 s — the film plays once in full and the
-           ended video holds its final frame (its end phase) for
-           the rest of the 16000 ms show window. If the film steps
-           down to the animated art, the art loops as usual. */
-        if (said === "ascension") { var av219 = artDiv.querySelector("video.rp-gift-film"); if (av219) av219.loop = false; }
-      }
+      /* [RP-V7.337] EVERY scene film now renders through rpStageMedia
+         (the luma-key player) — the ghost/blend branch that used to
+         sit here played ascension + whale as a RAW video element at
+         0.88 opacity / screen blend: over a bright room scene that
+         raw frame is a plainly visible dark RECTANGLE whose edges
+         cut the film (Branden, Nov 11, 2026, live-room recording),
+         and the whale film still LOOPED inside its show window.
+         Keyed, the black ground dissolves on any backdrop; the film
+         plays once (filmMode); a portrait scene film (ascension)
+         takes the portrait box instead of a cover-crop into the
+         band. RP_BAND_GHOST / RP_BAND_BLEND / RP_BAND_KEYED stay
+         defined above for the record; the ghost/blend classes are
+         no longer applied to any show. */
+      ov.classList.add("bandkeyed218");
+      stageCtl = rpStageMedia(artDiv, sgid, g.icon || GIFT_ICONS[said]);
     } else {
       artDiv.className = "rp-stage-art " + motion + (sFilm ? " film" : "");
       if (RP_PORTRAIT_FILMS[said]) artDiv.classList.add("portrait");
@@ -44764,7 +44890,6 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         // [RP-V7.335] Member-made sounds, most-used first. Only usable
         // ones are offered — the server enforces the same gate at post.
         var origIds335 = Snd.origList.filter(function (o) { return o.usable; }).sort(function (a, b) { return (b.uses - a.uses) || ((Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0)); }).map(function (o) { return o.id; });
-        html += sect("orig", "🎤 Original sounds", origIds335);
         // [RP-V7.227] The shelf browses by genre: trackOrder() (the
         // member's style weights + Plaza usage — unchanged math)
         // grouped under the 25 genre headers.
