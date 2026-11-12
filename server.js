@@ -970,6 +970,22 @@ Object.keys(RP_GIFT_ART_7341).forEach((gid) => {
   });
 });
 console.log("[RP-V7.341] new gift art:", Object.keys(RP_GIFT_ART_7341).join(", "));
+// [RP-V7.339] Gift expansion (Branden, Nov 11, 2026) — ANIMATED ART
+// for the 20 new gifts, embedded base64 WebP (320x320, 40 frames,
+// infinite loop) in the sibling module giftart7339.js, served at
+// /img/gifts/<id>.webp ahead of express.static (same recipe as
+// RP-V7.308). The films ride the standard gift-film route:
+// public/giftfx-<id>.mp4 (rpStdFilmUrl), no new serving code.
+const RP_GIFT_ART_7339 = require("./giftart7339.js");
+Object.keys(RP_GIFT_ART_7339).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7339[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+console.log("[RP-V7.339] gift expansion art:", Object.keys(RP_GIFT_ART_7339).join(", "));
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -6461,7 +6477,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.341", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.339", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -15738,6 +15754,18 @@ const MONEY_GIFT_TABLE = {
   // peacock 450 + carousel 700 (medium), emeraldelephant 6000 (big) — ids + prices mirror
   // the client's GIFT_SHOP exactly; the catalog is now 50 gifts.
   honeybee: 60, bubblewand: 99, peacock: 450, carousel: 700, emeraldelephant: 6000,
+  // [RP-V7.339] +20 gifts (Nov 11, 2026) — gift expansion from Branden's
+  // TikTok recording (instruments / animals / crowns / food / vehicles /
+  // fantasy / space, all Plaza-original): 6 small (25-100), 7 medium
+  // (200-500), 4 in the 800-2500 band, 3 spectacle (3500-5000) — ids +
+  // prices mirror the client's GIFT_SHOP exactly; catalog now 77 gifts
+  // on this base (76 gift-expansion slate + UFO Beam from RP-V7.341).
+  // Four carry a gifterLv gate flag in MONEY_GIFT_INFO (enforced by
+  // the RP-V7.338 gifter-levels build, already live).
+  musicnote: 25, guitarpick: 50, maraca: 60, cloverpop: 75, foamfinger: 99, confettipop: 100,
+  micdrop: 200, saxsolo: 300, parrotdj: 350, keycascade: 400, tacofiesta: 450, drumroll: 500, laurelcrown: 500,
+  kraken: 800, lowrider: 1500, astropup: 2000, moonunicorn: 2500,
+  starcruiser: 3500, cometcrown: 4000, dragonthrone: 5000,
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
@@ -15813,6 +15841,26 @@ const MONEY_GIFT_INFO = {
   skylanterns: { name: "Sky Lanterns", tier: "medium" },
   crystalfox: { name: "Crystal Fox", tier: "medium" },
   celestialstag: { name: "Celestial Stag", tier: "big" },
+  musicnote: { name: "Music Note", tier: "small" },
+  guitarpick: { name: "Guitar Pick", tier: "small" },
+  maraca: { name: "Maracas", tier: "small" },
+  cloverpop: { name: "Clover Pop", tier: "small" },
+  foamfinger: { name: "Foam Finger", tier: "small" },
+  confettipop: { name: "Confetti Pop", tier: "small" },
+  micdrop: { name: "Mic Drop", tier: "medium" },
+  saxsolo: { name: "Sax Solo", tier: "medium" },
+  parrotdj: { name: "Parrot DJ", tier: "medium" },
+  keycascade: { name: "Key Cascade", tier: "medium" },
+  tacofiesta: { name: "Taco Fiesta", tier: "medium" },
+  drumroll: { name: "Drumroll", tier: "medium" },
+  laurelcrown: { name: "Golden Laurel", tier: "medium", gifterLv: 10 }, // [RP-V7.339] gifterLv 10 gate flag (data only; RP-V7.338 enforces)
+  kraken: { name: "Kraken", tier: "medium" },
+  lowrider: { name: "Lowrider", tier: "big" },
+  astropup: { name: "Astro Pup", tier: "big", gifterLv: 20 }, // [RP-V7.339] gifterLv 20 gate flag (data only; RP-V7.338 enforces)
+  moonunicorn: { name: "Moon Unicorn", tier: "big" },
+  starcruiser: { name: "Star Cruiser", tier: "big" },
+  cometcrown: { name: "Comet Crown", tier: "big", gifterLv: 30 }, // [RP-V7.339] gifterLv 30 gate flag (data only; RP-V7.338 enforces)
+  dragonthrone: { name: "Dragon Throne", tier: "big", gifterLv: 40 }, // [RP-V7.339] gifterLv 40 gate flag (data only; RP-V7.338 enforces)
 };
 // [RP-V7.250] The dollar-priced top ladder: the gifts the catalog
 // itself headlines by a dollar price (Rizz Supernova $750 · The Crown
@@ -22597,7 +22645,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.341", online: players.size })
+  res.json({ ok: true, version: "RP-V7.339", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
