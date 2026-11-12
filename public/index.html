@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.331" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.332" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -3700,6 +3700,7 @@
                #momSearchBtn255 magnifier at the top. -->
           <div id="rpSearchBar" style="display:none;">
             <div class="rpsearch-row">
+              <button type="button" id="rpSearchBack" aria-label="Back to the feed"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5 8 12l6.5 7"/></svg></button> <!-- [RP-V7.332] the search surface's back: house chevron, wired to the surface's own exit (onClear) -->
               <span class="rpsearch-ico" aria-hidden="true"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></span>
               <input id="rpSearchInput" type="text" placeholder="Search videos and pictures…" autocomplete="off" />
               <button type="button" id="rpSearchClear" aria-label="Clear search" style="display:none;"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
@@ -38612,6 +38613,8 @@ button.rp72-chip{ cursor:pointer; }
 #rpSearchInput { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: var(--ink); font: inherit; font-size: 15px; font-weight: 700; }
 #rpSearchInput::placeholder { color: var(--ink-soft); }
 #rpSearchClear { border: 0; background: rgba(255,255,255,.14); color: #fff; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 900; cursor: pointer; flex: none; line-height: 1; }
+#rpSearchBack { border: 0; background: rgba(255,255,255,.14); color: #fff; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; flex: none; display: flex; align-items: center; justify-content: center; padding: 0; } /* [RP-V7.332] same chip idiom as #rpSearchClear, sized as a real tap target */
+#rpSearchBack svg { width: 18px; height: 18px; } /* [RP-V7.332] */
 #rpSearchWrap { margin-bottom: 14px; }
 .rpsearch-label { margin: 0 2px 10px; font-size: 13.5px; font-weight: 900; color: var(--ink-soft); }
 .rpsearch-empty { margin: 10px 2px; color: var(--ink-soft); font-weight: 700; font-size: 14px; }
@@ -38631,7 +38634,7 @@ button.rp72-chip{ cursor:pointer; }
    untouched — For You order and all. */
 (function () {
   "use strict";
-  var bar = null, input = null, clearBtn = null, wrap = null,
+  var bar = null, input = null, clearBtn = null, backBtn = null, wrap = null, /* [RP-V7.332] backBtn */
       label = null, grid = null, emptyEl = null, feed = null;
   var engaged = false, seq = 0, timer = null, inited = false;
   function $(id) { return document.getElementById(id); }
@@ -38767,7 +38770,7 @@ button.rp72-chip{ cursor:pointer; }
   }
   function init() {
     if (inited) return;
-    bar = $("rpSearchBar"); input = $("rpSearchInput"); clearBtn = $("rpSearchClear");
+    bar = $("rpSearchBar"); input = $("rpSearchInput"); clearBtn = $("rpSearchClear"); backBtn = $("rpSearchBack"); /* [RP-V7.332] */
     wrap = $("rpSearchWrap"); label = $("rpSearchLabel"); grid = $("rpSearchGrid");
     emptyEl = $("rpSearchEmpty"); feed = $("reelFeed");
     if (!bar || !input || !grid) return;
@@ -38775,6 +38778,7 @@ button.rp72-chip{ cursor:pointer; }
     input.addEventListener("focus", engage);
     input.addEventListener("input", onInput);
     if (clearBtn) clearBtn.addEventListener("click", onClear);
+    if (backBtn) backBtn.addEventListener("click", onClear); /* [RP-V7.332] back takes the surface's existing exit: clear the query + disengage, handing back whatever feed the surface covers (Photos grid, For You / Following / Friends pager) */
     var tp = $("btnMomModePhotos"), tr = $("btnMomModeReels");
     /* [RP-V7.255] switching modes folds any open search away first
        (setMomMode owns the feeds; disengage(false) only closes the
