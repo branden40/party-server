@@ -1374,7 +1374,7 @@ function publicAccount(u) {
   // [RP-V7.88] face rides along too: photo stays the EFFECTIVE face
   // (every surface already reads it); facePhoto is the member's own
   // uploaded photo, kept apart so switching back never loses it.
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u), settings: settingsOf(u), socials: socialsOf(u), dating: datingOf(u), datingSavedAt: (typeof u.datingSavedAt === "number" ? u.datingSavedAt : null) }; // [RP-V7.144] linked handles on other apps (Find friends) // [RP-V7.276] dating profile + its sync stamp ride the owner's payloads
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u), settings: settingsOf(u), socials: socialsOf(u), dating: datingOf(u), datingSavedAt: (typeof u.datingSavedAt === "number" ? u.datingSavedAt : null), gifter: gifterPublic338(u) }; // [RP-V7.338] gifter summary (xp/level/tier/persona) rides the owner payloads // [RP-V7.144] linked handles on other apps (Find friends) // [RP-V7.276] dating profile + its sync stamp ride the owner's payloads
 }
 // [RP-V7.62] The gallery as the rest of the app sees it: the stored
 // array when the record has one. A legacy account that only ever set
@@ -6445,7 +6445,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.336", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.338", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The stamped download itself. In-app playback never
 // touches this route — it exists only for the Download actions.
@@ -7007,10 +7007,12 @@ function reelPublicComments(r, nameOf313) {
       const cur = nameOf313(c.uid);
       if (cur) nm = cur;
     }
+    const glv338c = c && c.uid ? gifterLevelOf338(c.uid) : 0; // [RP-V7.338] commenter's gifter level (0/absent = no badge)
     return {
       name: String(nm || "Someone").slice(0, 40),
       text: String((c && c.text) || "").slice(0, REEL_COMMENT_MAX),
       ts: (c && c.ts) || null,
+      ...(glv338c ? { glv: glv338c } : {}),
     };
   });
 }
@@ -15961,6 +15963,7 @@ function emptyMoney() {
     giftBals: {}, // [RP-V7.74] under-18 earned/won gift balance (charms) — see giftBalMirrorWin
     postGifts: {}, // [RP-V7.262] gift counts per post ("reel:<id>" / "photo:<id>") -> gift UNITS received; written only by the gift handler, in the same write as the settlement it counts
     postGiftDetail: {}, // [RP-V7.325] per-gift breakdown per post ("reel:<id>" / "photo:<id>") -> { <giftId>: { n: units, name } }; written by the gift handler in the SAME write as postGifts, from this build onward — posts gifted before it have totals only, never an invented breakdown
+    gifter338: {}, // [RP-V7.338] gifter XP ledger: accountId -> { xp, seen: {idemStoreKey: at}, persona } — a parallel status ledger; never charms, never cents (see the RP-V7.338 block by the gift route)
     auctionSettlements: {}, // [RP-V7.80] auction settlement records by auctionId (full-scan F2) — recorded outcomes are final; [RP-V7.89] insufficient-charms failures are never recorded (FAIL-1)
   };
 }
@@ -16015,6 +16018,8 @@ function readMoney() {
     d.postGifts = {}; // [RP-V7.262] gift counts per post — see emptyMoney
   if (!d.postGiftDetail || typeof d.postGiftDetail !== "object" || Array.isArray(d.postGiftDetail))
     d.postGiftDetail = {}; // [RP-V7.325] per-gift breakdown per post — see emptyMoney
+  if (!d.gifter338 || typeof d.gifter338 !== "object" || Array.isArray(d.gifter338))
+    d.gifter338 = {}; // [RP-V7.338] gifter XP ledger — see emptyMoney
   if (!d.auctionSettlements || typeof d.auctionSettlements !== "object" || Array.isArray(d.auctionSettlements))
     d.auctionSettlements = {};
   if (!d.bizads || typeof d.bizads !== "object" || Array.isArray(d.bizads))
@@ -18004,6 +18009,206 @@ app.get("/api/post-gifts", (req, res) => {
   res.json({ ok: true, kind, id, total, detailed, gifts });
 });
 
+// ---------------------------------------------------------------------------
+// [RP-V7.338] GIFTER POINTS, LEVELS & REWARDS — TikTok's gifter
+// system copied 1:1 in mechanics, Plaza-original in art and names
+// (Branden, Nov 11, 2026 — from his TikTok screen recording: a
+// 249-coin gift granted "+249 experience points"; the gifter card
+// read "382/530 — 148 more experience points to level up — Lv.10";
+// six badge tiers I = Lv.1–9, II = 10–19, III = 20–29, IV = 30–39,
+// V = 40–49, VI = 50+; badge rewards at Lv.1/5/10/20/30/50; gifter
+// personas; level-gated "Gifter Level Up" gifts).
+//
+// THE RULES, as built:
+//   * XP: 1 charm gifted = 1 XP, earned ONLY on the three real
+//     gift rails — live gifts (incl. battle gifts), post gifts and
+//     profile tips — credited inside the settle paths of
+//     /api/money/gift and /api/money/tip, in the SAME writeMoney as
+//     the settlement itself, keyed on the settle's own idempotency
+//     key (a replayed attempt returns the stored response at the
+//     top of the handler and never reaches the award; the award's
+//     own seen-set keys on the same attempt key regardless).
+//   * GUARDRAIL: promo / test-funds settles earn ZERO XP — the
+//     award refuses any sender testFunds321 flags, so test charms
+//     can never mint progression. Subscriptions, store sales,
+//     auctions and charm purchases call no award and earn NONE.
+//   * XP is a parallel ledger (money db key "gifter338"): never
+//     charms, never cents — it touches neither balances, Earn, nor
+//     the Creator Pool, and it is never spendable.
+//   * LEVELS: level from cumulative XP on the curve below. The
+//     curve's ONE hard anchor is the recording's: Lv.10 completes
+//     at 530 cumulative XP (a member at 382 XP is Lv.10 with 148
+//     to go). The remaining increments are the Plaza curve in the
+//     same escalating shape, documented here in full:
+//     increments (XP to advance FROM level n): L1 5, L2 10, L3 20,
+//     L4 30, L5 40, L6 50, L7 60, L8 75, L9 90, L10 150, L11 200,
+//     L12 260, L13 330, L14 410, L15 500, L16 600, L17 710, L18 830,
+//     L19 960, L20 1100, L21 1260, L22 1440, L23 1640, L24 1860,
+//     L25 2100, L26 2360, L27 2640, L28 2940, L29 3260, L30 3600,
+//     L31 3960, L32 4340, L33 4740, L34 5160, L35 5600, L36 6060,
+//     L37 6540, L38 7040, L39 7560, L40 8100, L41 8660, L42 9240,
+//     L43 9840, L44 10460, L45 11100, L46 11760, L47 12440,
+//     L48 13140, L49 13860; from L50 on: 14600 + 620 × (level − 50).
+//     Cumulative thresholds that fall out: Lv.10 at 380, Lv.11 at
+//     530 (the anchor), Lv.20 at 5,330, Lv.30 at 25,930, Lv.40 at
+//     80,530, Lv.50 at 189,130.
+//   * TIERS: I = Lv.1–9, II = 10–19, III = 20–29, IV = 30–39,
+//     V = 40–49, VI = 50+ — the recording's bands, exactly.
+//   * PERSONAS are COSMETIC ONLY: a flair label the member picks,
+//     shown on their gifter card and profile. No discount, no
+//     payout change, no perk of any kind — TikTok's "Save 50%"
+//     persona is deliberately NOT copied (it would take money out
+//     of creators' payouts).
+//   * LEVEL GATES: a gift MAY carry a required gifter level
+//     (MONEY_GIFT_INFO[].gifterLv server-side, GIFT_SHOP[].gifterLv
+//     client-side). NONE of the current 56 gifts carries one — the
+//     mechanism ships ahead of the gated gifts; the gift handler
+//     refuses a gated send below the level before any charge.
+// ---------------------------------------------------------------------------
+const GIFTER_INC_338 = [5, 10, 20, 30, 40, 50, 60, 75, 90, 150, 200, 260, 330, 410, 500, 600, 710, 830, 960, 1100, 1260, 1440, 1640, 1860, 2100, 2360, 2640, 2940, 3260, 3600, 3960, 4340, 4740, 5160, 5600, 6060, 6540, 7040, 7560, 8100, 8660, 9240, 9840, 10460, 11100, 11760, 12440, 13140, 13860];
+const GIFTER_THRESH_338 = [null, 0];
+for (let gi338 = 0; gi338 < GIFTER_INC_338.length; gi338++)
+  GIFTER_THRESH_338.push(GIFTER_THRESH_338[gi338 + 1] + GIFTER_INC_338[gi338]);
+function gifterIncForLevel338(level) {
+  if (level >= 1 && level <= GIFTER_INC_338.length) return GIFTER_INC_338[level - 1];
+  return 14600 + 620 * Math.max(0, level - 50); // the L50+ tail rule
+}
+function gifterThresh338(level) {
+  if (level <= 1) return 0;
+  if (level < GIFTER_THRESH_338.length) return GIFTER_THRESH_338[level];
+  // Beyond the table (Lv.51+): the last table threshold (Lv.50)
+  // plus the tail increments of every level from 50 up to level-1.
+  let acc = GIFTER_THRESH_338[GIFTER_THRESH_338.length - 1];
+  for (let l = GIFTER_THRESH_338.length - 1; l < level; l++) acc += gifterIncForLevel338(l);
+  return acc;
+}
+function gifterLevel338(xp) {
+  xp = Math.max(0, Math.floor(Number(xp) || 0));
+  let lvl = 1;
+  while (xp >= gifterThresh338(lvl + 1)) lvl++;
+  return lvl;
+}
+const GIFTER_TIER_ROMAN_338 = ["", "I", "II", "III", "IV", "V", "VI"];
+function gifterTier338(level) {
+  return level >= 50 ? 6 : level >= 40 ? 5 : level >= 30 ? 4 : level >= 20 ? 3 : level >= 10 ? 2 : 1;
+}
+const GIFTER_MILESTONES_338 = [1, 5, 10, 20, 30, 50];
+const GIFTER_PERSONAS_338 = [
+  { id: "showstopper", name: "Showstopper", blurb: "Big entrances, bigger gifts." },
+  { id: "nightowl", name: "Night Owl", blurb: "Gifts after dark." },
+  { id: "sentinel", name: "Sentinel", blurb: "Steady supporter, always watching." },
+  { id: "plazaroyal", name: "Plaza Royal", blurb: "Top-tier taste, front row." },
+];
+// The gifter338 store lives in the money db, beside the balances it
+// parallels but never touches: { [accountId]: { xp, seen, persona } }
+// — seen maps settle idempotency keys (uid-scoped store keys) to
+// award times, the award's own replay guard.
+function gifterStore338(db) {
+  if (!db.gifter338 || typeof db.gifter338 !== "object" || Array.isArray(db.gifter338)) db.gifter338 = {};
+  return db.gifter338;
+}
+function gifterRec338(db, uid) {
+  const s = gifterStore338(db);
+  let r = s[uid];
+  if (!r || typeof r !== "object" || Array.isArray(r)) r = s[uid] = { xp: 0, seen: {}, persona: null };
+  if (typeof r.xp !== "number" || !isFinite(r.xp) || r.xp < 0) r.xp = 0;
+  if (!r.seen || typeof r.seen !== "object" || Array.isArray(r.seen)) r.seen = {};
+  if (typeof r.persona !== "string") r.persona = null;
+  return r;
+}
+// Serializer-side reads (chat stamps, comment bylines, profile
+// payloads) go through a process cache: settles are the only
+// writers, they all flow through awardGifterXp338 in this same
+// process, and the cache hydrates once from the money db — so a
+// stamp is a Map lookup, never a file read per message.
+const gifterXpCache338 = new Map();
+let gifterCacheHot338 = false;
+function gifterXpOf338(uid) {
+  if (!uid) return 0;
+  if (!gifterCacheHot338) {
+    try {
+      const d = readMoney();
+      const s = (d && d.gifter338) || {};
+      for (const k of Object.keys(s)) {
+        const r = s[k];
+        if (r && typeof r.xp === "number" && isFinite(r.xp)) gifterXpCache338.set(k, Math.floor(r.xp));
+      }
+    } catch (e) { /* a cold cache reads as 0 — a badge is never invented */ }
+    gifterCacheHot338 = true;
+  }
+  return gifterXpCache338.get(uid) || 0;
+}
+// The level a surface may SHOW for an account: 0 (no badge) until
+// the member has actually gifted — a member at 0 XP is Lv.1 on the
+// curve but wears no badge yet, exactly as a non-gifter shows none.
+function gifterLevelOf338(uid) {
+  const xp = gifterXpOf338(uid);
+  return xp > 0 ? gifterLevel338(xp) : 0;
+}
+function gifterPersonaOf338(uid) {
+  try {
+    const d = readMoney();
+    const r = (d.gifter338 || {})[uid];
+    return r && typeof r.persona === "string" ? r.persona : null;
+  } catch (e) { return null; }
+}
+function gifterPublic338(u) {
+  const xp = gifterXpOf338(u.id);
+  const level = gifterLevel338(xp);
+  return { xp, level, tier: gifterTier338(level), tierRoman: GIFTER_TIER_ROMAN_338[gifterTier338(level)], persona: gifterPersonaOf338(u.id) };
+}
+// THE AWARD — the only writer of gifter XP. Called by the gift and
+// tip settle paths with the settle's db (pre-writeMoney), the
+// sender, the settled charm total, and the settle's idempotency
+// store key. Returns the block the settle response carries.
+function awardGifterXp338(db, user, charms, idemStoreKey) {
+  if (!user || !user.id) return null;
+  gifterXpOf338(user.id); // hydrate the cache before it is updated below
+  const rec = gifterRec338(db, user.id);
+  const base = { xp: Math.floor(rec.xp), level: gifterLevel338(rec.xp), tier: gifterTier338(gifterLevel338(rec.xp)) };
+  if (!(charms > 0)) return Object.assign({ awarded: 0 }, base);
+  // GUARDRAIL (RP-V7.321's rule, extended to progression): a promo /
+  // test-funds settle earns ZERO XP — test charms mint no levels.
+  if (testFunds321(user)) return Object.assign({ awarded: 0, promo: true }, base);
+  // Replay guard: the settle handlers already return stored
+  // responses for replayed attempts before reaching here; this
+  // seen-set — keyed on the very same attempt key, pruned like
+  // giftIdem — keeps the award once-only even if that record is
+  // ever pruned first.
+  if (idemStoreKey && rec.seen[idemStoreKey]) return Object.assign({ awarded: 0, deduped: true }, base);
+  const before = gifterLevel338(rec.xp);
+  rec.xp = Math.floor(rec.xp) + Math.floor(charms);
+  if (idemStoreKey) {
+    rec.seen[idemStoreKey] = Date.now();
+    const ks = Object.keys(rec.seen);
+    if (ks.length > 300) {
+      ks.sort((a, b2) => (rec.seen[a] || 0) - (rec.seen[b2] || 0));
+      for (let i = 0; i < ks.length - 300; i++) delete rec.seen[ks[i]];
+    }
+  }
+  gifterXpCache338.set(user.id, rec.xp);
+  const after = gifterLevel338(rec.xp);
+  return { awarded: Math.floor(charms), xp: rec.xp, level: after, tier: gifterTier338(after), leveledUp: after > before };
+}
+// The gifter card payload (own view): level + badge state, the
+// progress bar to the next level, the I–VI tier track, the badge
+// reward milestones, and the cosmetic persona slot.
+function gifterCard338(user) {
+  const db = readMoney();
+  const rec = gifterRec338(db, user.id);
+  const xp = Math.floor(rec.xp);
+  const level = gifterLevel338(xp);
+  const tier = gifterTier338(level);
+  const cur = gifterThresh338(level);
+  const next = gifterThresh338(level + 1);
+  return {
+    ok: true, xp, level, tier, tierRoman: GIFTER_TIER_ROMAN_338[tier], persona: rec.persona || null,
+    progress: { into: xp - cur, span: next - cur, nextAt: next, remaining: next - xp, pct: Math.max(0, Math.min(100, Math.floor(((xp - cur) / Math.max(1, next - cur)) * 100))) },
+    tiers: [1, 2, 3, 4, 5, 6].map((t) => ({ tier: t, roman: GIFTER_TIER_ROMAN_338[t], from: [1, 10, 20, 30, 40, 50][t - 1], to: [9, 19, 29, 39, 49, null][t - 1], active: t === tier })),
+    milestones: GIFTER_MILESTONES_338.map((m) => ({ level: m, unlocked: level >= m })),
+    personas: GIFTER_PERSONAS_338,
+  };
+}
 app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -18100,6 +18305,15 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   }
   if (!cost)
     return res.status(400).json({ ok: false, error: "Unknown gift" });
+  // [RP-V7.338] LEVEL GATE: a gift MAY carry a required gifter
+  // level (MONEY_GIFT_INFO[].gifterLv). None of the current catalog
+  // carries one — this is the mechanism, refusing BEFORE any charge.
+  const gateLv338 = (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].gifterLv) || 0;
+  if (gateLv338 > 0) {
+    const myGifterLv338 = gifterLevel338(gifterXpOf338(ctx.user.id));
+    if (myGifterLv338 < gateLv338)
+      return res.status(403).json({ ok: false, error: "gifter-level-required", need: gateLv338, level: myGifterLv338 });
+  }
   const totalCost = cost * count; // [RP-V7.219] the batch's full price
   const sentCharms = Math.floor(Number(b.charms) || 0);
   if (sentCharms <= 0)
@@ -18324,6 +18538,13 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     ge325.n = (typeof ge325.n === "number" && isFinite(ge325.n) && ge325.n > 0 ? Math.floor(ge325.n) : 0) + count;
     if (typeof ge325.name !== "string" || !ge325.name) ge325.name = (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId;
   }
+  // [RP-V7.338] Gifter XP: 1 charm gifted = 1 XP on this rail
+  // (live gifts, battle gifts and post gifts all settle here),
+  // credited into db.gifter338 in the SAME writeMoney as this
+  // settlement — an idempotent replay returned at the top of the
+  // handler and never reaches this line. Promo / test-funds
+  // settles earn ZERO (the award enforces the guardrail).
+  giftResponse.gifter = awardGifterXp338(db, ctx.user, totalCost, idemStoreKey);
   // [RP-V7.52] The idempotency record lands in the SAME write as
   // the debit itself, so a retry can never slip between the charge
   // and its record (audit C6).
@@ -18660,6 +18881,9 @@ app.post("/api/money/tip", lockedHandler("tip", (req, res) => {
     recipientCharms: charmsOnly ? charms : promo321 ? promoShareCharms321(charms, GIFT_HOST_PCT) : 0,
     giftBal,
   };
+  // [RP-V7.338] Gifter XP on the tip rail — same rule as gifts:
+  // 1 charm = 1 XP, same write, promo/test-funds earns zero.
+  tipResponse.gifter = awardGifterXp338(db, ctx.user, charms, idemStoreKey);
   // The idempotency record lands in the SAME write as the debit
   // (audit C6 pattern), so a retry can never slip between them.
   if (idemStoreKey) {
@@ -18698,6 +18922,41 @@ app.post("/api/money/tip", lockedHandler("tip", (req, res) => {
   });
   res.json(tipResponse);
 }));
+// ---------------------------------------------------------------------------
+// [RP-V7.338] GIFTER endpoints — the card (own view), the cosmetic
+// persona pick, and the public level lookup the profile page paints
+// a member's badge from. XP itself is written ONLY by the settle
+// awards in the gift/tip handlers above; nothing here moves XP.
+// ---------------------------------------------------------------------------
+app.get("/api/gifter/me", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  res.json(gifterCard338(ctx.user));
+});
+app.post("/api/gifter/persona", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  // Cosmetic ONLY: the persona is a flair label. It changes no
+  // price, no split, no payout — there is no perk to grant.
+  const want = String((req.body || {}).persona || "").slice(0, 40);
+  if (want !== "" && !GIFTER_PERSONAS_338.some((p) => p.id === want))
+    return res.status(400).json({ ok: false, error: "unknown-persona" });
+  const db = readMoney();
+  const rec = gifterRec338(db, ctx.user.id);
+  rec.persona = want || null;
+  writeMoney(db);
+  res.json({ ok: true, persona: rec.persona });
+});
+app.get("/api/gifter/level", (req, res) => {
+  // Public, like a follower count: a member's gifter level + tier +
+  // persona flair for profile/badge painting. No XP is writable
+  // through any read path.
+  const id = String((req.query || {}).id || "").slice(0, 64);
+  if (!id) return res.status(400).json({ ok: false, error: "missing-id" });
+  const xp = gifterXpOf338(id);
+  const level = gifterLevel338(xp);
+  res.json({ ok: true, id, xp, level, tier: gifterTier338(level), tierRoman: GIFTER_TIER_ROMAN_338[gifterTier338(level)], persona: gifterPersonaOf338(id) });
+});
 // ---------------------------------------------------------------------------
 // [RP-V7.296] FAN SUBSCRIPTIONS — earn stream #3 (Branden's approved
 // queue, Nov 8, 2026; #1 Creator Pool V7.293, #2 Profile Tips
@@ -22317,7 +22576,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.336", online: players.size })
+  res.json({ ok: true, version: "RP-V7.338", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -22662,6 +22921,7 @@ io.on("connection", (socket) => {
       name: p.name,
       text,
       at: now,
+      glv: gifterLevelOf338(p.acctId || (socket.data && socket.data.accountId)), // [RP-V7.338] sender's gifter level rides the relay (0 = no badge)
     });
   });
 
