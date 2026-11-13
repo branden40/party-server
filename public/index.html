@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.351" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.349" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -2997,7 +2997,8 @@
     share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.3 4.3 20 10.6l-6.7 6.3v-3.9c-4.9 0-7.9 1.5-9.8 4.4.2-6 3.3-10.1 9.8-10.6z"/></svg>',
     repost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3.8 20.2 7 17 10.2"/><path d="M4.5 12.8v-1.6a3.7 3.7 0 0 1 3.7-3.7h11.5"/><path d="M7 20.2 3.8 17 7 13.8"/><path d="M19.5 11.2v1.6a3.7 3.7 0 0 1-3.7 3.7H4.3"/></svg>',
     gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10.2" width="16" height="9.3" rx="1"/><path d="M3.8 6.9h16.4v3.3H3.8z"/><path d="M12 6.9v12.6"/><path d="M12 6.9c-2.3 0-3.8-1.1-3.8-2.6 0-1 .8-1.9 1.9-1.9 1.4 0 1.9 1.7 1.9 4.5zm0 0c2.3 0 3.8-1.1 3.8-2.6 0-1-.8-1.9-1.9-1.9-1.4 0-1.9 1.7-1.9 4.5z"/></svg>',
-    remix: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="12" height="11" rx="2.5"/><path d="M8.2 8V6.8A2.8 2.8 0 0 1 11 4h7.2A2.8 2.8 0 0 1 21 6.8v7.4a2.8 2.8 0 0 1-2.8 2.8H16"/><path d="M7.4 10.9l3.8 2.6-3.8 2.6z" fill="currentColor" stroke="none"/></svg>'
+    remix: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="12" height="11" rx="2.5"/><path d="M8.2 8V6.8A2.8 2.8 0 0 1 11 4h7.2A2.8 2.8 0 0 1 21 6.8v7.4a2.8 2.8 0 0 1-2.8 2.8H16"/><path d="M7.4 10.9l3.8 2.6-3.8 2.6z" fill="currentColor" stroke="none"/></svg>',
+    bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="bf" d="M6.5 4h11v16L12 15.9 6.5 20z"/></svg>'
   };
   </script>
   <script>/* [RP-V7.99] Letter style: the saved choice paints from the first frame (the account restore re-confirms it after login). */
@@ -9955,6 +9956,7 @@
             : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + '<span class="gc262" data-gc262="photo:' + escHtml(fi241.postId) + '" data-gc-label="Gift">' + ((fi241.giftCount || 0) > 0 ? fi241.giftCount : "Gift") + "</span></button>") +
           '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" +
           '<button class="reel-act repost pp-repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>" +
+          '<button class="reel-act rp-save349" type="button" data-save349="photo:' + escHtml(fi241.postId) + '">' + RPICO.bookmark + '<span class="sv-lb349">Save</span></button>' + /* [RP-V7.349] */
           (((postFull && j.id && j.id === rpMyId243()) || (it.owner && it.owner === rpMyId243())) ? '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>' : "");
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
@@ -10127,6 +10129,7 @@
           '<button class="pprof-tab on" id="pprofTabPosts" type="button">Posts</button>' +
           '<button class="pprof-tab" id="pprofTabLiked" type="button">Liked</button>' +
           '<button class="pprof-tab" id="pprofTabReposts" type="button">Reposts</button>' + /* [RP-V7.89] */
+          (isSelf ? '<button class="pprof-tab" id="pprofTabSaved349" type="button">Saved</button>' : '') + /* [RP-V7.349] Saved tab — your own profile only; it is not rendered for anyone else */
           '</div>' +
           '<div id="pprofPanePosts">' +
           '<div id="pprofColls"></div>' +
@@ -10139,6 +10142,7 @@
           '<div id="pprofPaneReposts" hidden>' + /* [RP-V7.89] */
           '<div id="pprofRepostsBody"><p class="age-note" style="text-align:center; padding:14px 6px;">Loading…</p></div>' +
           '</div>' +
+          (isSelf ? '<div id="pprofPaneSaved349" hidden><div id="pprofSavedBody349"><p class="age-note" style="text-align:center; padding:14px 6px;">Loading…</p></div></div>' : '') + /* [RP-V7.349] */
           '</div>'
         );
         $("sheet").querySelectorAll("[data-act]").forEach(function (b) {
@@ -10173,14 +10177,31 @@
         }
         $("pprofShare").addEventListener("click", function () { rpShareProfile86(p.name); });
         var tabP = $("pprofTabPosts"), tabL = $("pprofTabLiked"), tabR = $("pprofTabReposts");
-        function showTab(which) { // [RP-V7.89] three tabs now: posts | liked | reposts
+        var tabS349 = $("pprofTabSaved349"); // [RP-V7.349] rendered only on your own profile
+        var savedJ349 = null; // [RP-V7.349] this profile's payload, kept for the Saved grid's openers
+        function rpSavedShow349() { // [RP-V7.349] the Saved pane re-reads the server list on every open, so a save or unsave made anywhere shows here at once
+          var body = $("pprofSavedBody349"); if (!body) return;
+          if (!window.RpSave349 || !window.rpViewsFillGrid) { body.innerHTML = '<p class="age-note" style="text-align:center; padding:14px 6px;">Posts you save will live here</p>'; return; }
+          window.RpSave349.list().then(function (items) {
+            var b2 = $("pprofSavedBody349"); if (!b2) return; // sheet moved on
+            if (!items || !items.length) { b2.innerHTML = '<p class="age-note" style="text-align:center; padding:14px 6px;">Posts you save will live here</p>'; return; }
+            b2.innerHTML = '<div class="rpmedia-grid bleed" id="pprofSavedGrid349"></div>';
+            var g2 = $("pprofSavedGrid349"); if (!g2) return;
+            window.rpViewsFillGrid(g2, items, savedJ349 ? { onReel: rpReelOpen86(p), onPhoto: function (it, upd) { rpProfOpen86(savedJ349, it, upd); } } : {});
+          });
+        }
+        function showTab(which) { // [RP-V7.89] three tabs now: posts | liked | reposts // [RP-V7.349] + saved on your own profile
           tabP.classList.toggle("on", which === "posts"); tabL.classList.toggle("on", which === "liked"); if (tabR) tabR.classList.toggle("on", which === "reposts");
+          if (tabS349) tabS349.classList.toggle("on", which === "saved");
           $("pprofPanePosts").hidden = which !== "posts"; $("pprofPaneLiked").hidden = which !== "liked";
           var pr = $("pprofPaneReposts"); if (pr) pr.hidden = which !== "reposts";
+          var ps = $("pprofPaneSaved349"); if (ps) ps.hidden = which !== "saved";
+          if (which === "saved") rpSavedShow349();
         }
         tabP.addEventListener("click", function () { showTab("posts"); });
         tabL.addEventListener("click", function () { showTab("liked"); });
         if (tabR) tabR.addEventListener("click", function () { showTab("reposts"); });
+        if (tabS349) tabS349.addEventListener("click", function () { showTab("saved"); });
         rpFetchProfile(p.name).then(function (j) {
           var grid = $("pprofGrid"); if (!grid) return; // sheet moved on
           if (!j) { grid.innerHTML = '<p class="age-note">' + escHtml(p.name) + ' doesn’t have a Rizz Plaza account yet — profiles, follows and messages need an account.</p>'; return; }
@@ -10243,6 +10264,7 @@
           }
           var lkEl = $("pprofLink"); if (lkEl) { var lh134 = window.rpLinkHref134 ? window.rpLinkHref134(j.link) : ""; if (lh134) { lkEl.hidden = false; lkEl.href = lh134; lkEl.textContent = "🔗 " + String(j.link).replace(/^https?:\/\//, ""); } else { lkEl.hidden = true; } }
           rpRenderColls86(p, j, isSelf);
+          if (isSelf) savedJ349 = j; // [RP-V7.349]
           var items86 = (window.rpProfItems ? window.rpProfItems(j) : []);
           if (!window.rpViewsFillGrid) { grid.innerHTML = '<p class="age-note" style="grid-column:1/-1;">No photos or reels yet.</p>'; }
           else {
@@ -10312,7 +10334,8 @@
           var dlBtn316 = dlOk316 ? '<button class="reel-act pp-dl316" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span>Save</span></button>' : "";
           if (meta.feedPost) {
             railHtml241 = (fi241.mine ? "" : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + "<span>Gift</span></button>") +
-              '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" + dlBtn316;
+              '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" +
+              '<button class="reel-act rp-save349" type="button" data-save349="reel:' + escHtml(meta.id) + '">' + RPICO.bookmark + '<span class="sv-lb349">Save</span></button>' + dlBtn316; // [RP-V7.349] a Feed-post video saves under kind "reel" (the server resolves the Feed store)
           } else {
             var lk241 = reelLikeState(fi241);
             railHtml241 =
@@ -10322,7 +10345,8 @@
                 ? '<span class="reel-act gc262-static" aria-hidden="true"' + ((fi241.giftCount || 0) > 0 ? "" : ' style="display:none"') + ">" + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(fi241.id) + '" data-gc-host="1">' + ((fi241.giftCount || 0) > 0 ? fi241.giftCount : "") + "</span></span>" /* [RP-V7.262] your own reel: the count alone, above zero only */
                 : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(fi241.id) + '" data-gc-label="Gift">' + ((fi241.giftCount || 0) > 0 ? fi241.giftCount : "Gift") + "</span></button>") +
               '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span>Share</span></button>" +
-              '<button class="reel-act repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>" + dlBtn316 + /* [RP-V7.316] */
+              '<button class="reel-act repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>" +
+              '<button class="reel-act rp-save349" type="button" data-save349="reel:' + escHtml(fi241.id) + '">' + RPICO.bookmark + '<span class="sv-lb349">Save</span></button>' + dlBtn316 + /* [RP-V7.316] */ /* [RP-V7.349] bookmark rides beside the download Save — ⬇ saves the file to the device, the bookmark saves the post to your profile */
               ((meta.owner && meta.owner === rpMyId243()) ? '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>' : "");
           }
           railHtml241 = '<div class="reel-rail">' + railHtml241 + "</div>";
@@ -25674,6 +25698,7 @@
             '<button class="reel-act like pp-heart' + (item.myLiked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + (item.likes || 0) + "</span></button>" +
             '<button class="reel-act cmt pp-cmt" type="button">' + RPICO.comment + '<span class="cc">' + (item.commentCount || 0) + "</span></button>" +
             '<button class="reel-act share pp-share" type="button">' + RPICO.share + '<span>Share</span></button>' +
+            '<button class="reel-act rp-save349" type="button" data-save349="photo:' + escHtml(item.postId) + '">' + RPICO.bookmark + '<span class="sv-lb349">Save</span></button>' + /* [RP-V7.349] */
             '<button class="reel-act repost pp-repost' + (item.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + (item.reposts || 0) + "</span></button>" +
             (item.mine
             ? '<span class="reel-act gc262-static" aria-hidden="true"' + ((item.giftCount || 0) > 0 ? "" : ' style="display:none"') + ">" + RPICO.gift + '<span class="gc262" data-gc262="photo:' + escHtml(item.postId) + '" data-gc-host="1">' + ((item.giftCount || 0) > 0 ? item.giftCount : "") + "</span></span>" /* [RP-V7.262] your own photo post: the count alone, above zero only */
@@ -25722,6 +25747,7 @@
           ? '<span class="hp-act gc262-static" aria-hidden="true"' + ((item.giftCount || 0) > 0 ? "" : ' style="display:none"') + '><span class="hp-ico">' + RPICO.gift + '</span><span class="gc262" data-gc262="photo:' + escHtml(item.postId) + '" data-gc-host="1">' + ((item.giftCount || 0) > 0 ? item.giftCount : "") + "</span></span>" /* [RP-V7.262] your own slide: the count alone, above zero only */
           : '<button type="button" class="hp-act pp-gift"><span class="hp-ico">' + RPICO.gift + '</span><span class="hp-n gc262" data-gc262="photo:' + escHtml(item.postId) + '" data-gc-label="Gift">' + ((item.giftCount || 0) > 0 ? item.giftCount : "Gift") + "</span></button>") +
           '<button type="button" class="hp-act pp-share"><span class="hp-ico">' + RPICO.share + '</span><span class="hp-n">Share</span></button>' +
+          '<button type="button" class="hp-act rp-save349" data-save349="photo:' + escHtml(item.postId) + '"><span class="hp-ico">' + RPICO.bookmark + '</span><span class="hp-n sv-lb349">Save</span></button>' + /* [RP-V7.349] */
           '<button type="button" class="hp-act pp-repost' + (item.myReposted ? " reposted" : "") + '"><span class="hp-ico">' + RPICO.repost + '</span><span class="hp-n">' + (item.reposts || 0) + "</span></button>";
         slide.appendChild(acts);
         rpPhotoActsWire123(item, slide);
@@ -26739,6 +26765,7 @@
             '<button class="reel-act cmt" type="button">' + RPICO.comment + '<span class="cc">' + cmtCount + "</span></button>" +
             '<button class="reel-act share" type="button">' + RPICO.share + '<span>Share</span></button>' +
             ((item.server || item.serverId) ? '<button class="reel-act repost' /* [RP-V7.198] local copies of your own posted reels too — Branden: "I need to add a repost button here" (his own reel in the Reels tab rendered as the on-device copy, which had no button) */ /* [RP-V7.101] own reels too — reshare */ + (item.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + (item.reposts || 0) + "</span></button>" : "") + /* [RP-V7.89] */
+            (item.server ? '<button class="reel-act rp-save349" type="button" data-save349="reel:' + escHtml(item.id) + '">' + RPICO.bookmark + '<span class="sv-lb349">Save</span></button>' : "") + /* [RP-V7.349] Save (bookmark) — server posts only; a device-only reel has no server post to reference */
             (item.mine
               ? (item.server ? '<span class="reel-act gc262-static" aria-hidden="true"' + ((item.giftCount || 0) > 0 ? "" : ' style="display:none"') + ">" + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(item.id) + '" data-gc-host="1">' + ((item.giftCount || 0) > 0 ? item.giftCount : "") + "</span></span>" : "") /* [RP-V7.262] your own reel: no gift button (never gift yourself) — the count alone, shown only when it is above zero */
               : '<button class="reel-act gift" type="button">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(item.id) + '" data-gc-label="Gift">' + ((item.giftCount || 0) > 0 ? item.giftCount : "Gift") + "</span></button>") +
@@ -27506,6 +27533,7 @@
           ? '<span class="hp-act gc262-static" aria-hidden="true"' + ((item.giftCount || 0) > 0 ? "" : ' style="display:none"') + '><span class="hp-ico">' + RPICO.gift + '</span><span class="gc262" data-gc262="reel:' + escHtml(item.id) + '" data-gc-host="1">' + ((item.giftCount || 0) > 0 ? item.giftCount : "") + "</span></span>" /* [RP-V7.262] your own slide: the count alone, above zero only */
           : '<button type="button" class="hp-act hp-gift"><span class="hp-ico">' + RPICO.gift + '</span><span class="gc262" data-gc262="reel:' + escHtml(item.id) + '" data-gc-label="Gift">' + ((item.giftCount || 0) > 0 ? item.giftCount : "Gift") + "</span></button>") +
           '<button type="button" class="hp-act hp-share"><span class="hp-ico">' + RPICO.share + '</span><span>Share</span></button>' +
+          (item.server ? '<button type="button" class="hp-act rp-save349" data-save349="reel:' + escHtml(item.id) + '"><span class="hp-ico">' + RPICO.bookmark + '</span><span class="hp-n sv-lb349">Save</span></button>' : "") + /* [RP-V7.349] */
           '<span class="hp-views">👁 ' + (item.views || 0) + "</span>" +
           "</div>";
         var v = slide.querySelector("video"), trk = slide._trk;
@@ -37175,6 +37203,15 @@ button.rp72-chip{ cursor:pointer; }
         if (typeof window.closeSheet === "function") window.closeSheet();
         if (typeof window.showScreen === "function") window.showScreen("profile");
       });
+      // [RP-V7.349] Saved lives one tap from your own directory
+      // profile too — this branch runs ONLY for self, so the
+      // button (and the saves behind it) can never appear on
+      // another member's sheet.
+      var sv349 = document.createElement("button");
+      sv349.type = "button"; sv349.className = "follow-btn big"; sv349.id = "rpMpSaved349"; sv349.textContent = "🔖 Saved";
+      sv349.style.display = "block"; sv349.style.width = "100%"; sv349.style.marginTop = "8px";
+      box.appendChild(sv349);
+      sv349.addEventListener("click", function () { if (window.rpOpenSavedSheet349) window.rpOpenSavedSheet349(); });
       return;
     }
     var following = j ? !!j.iFollow : false;
@@ -38453,6 +38490,7 @@ button.rp72-chip{ cursor:pointer; }
     if ((ownerId || ownerName) && !mine) html += isPost ? lbGiftBtn262("photo", it.id, it.giftCount || 0) : lbGiftBtn241(); // [RP-V7.262] real posts carry their count; gallery photos never do
     if (isPost && mine) html += lbGiftMine262("photo", it.id, it.giftCount || 0); // [RP-V7.262] your own post: the count alone
     html += lbShareBtn241();
+    if (isPost || it.feedPost) html += '<button class="reel-act rp-save349" type="button" data-save349="photo:' + esc(String(it.id)) + '">' + lbIco241("bookmark") + '<span class="sv-lb349">Save</span></button>'; // [RP-V7.349] real posts only — gallery photos (their id is a URL) never get one
     if (isPost) html += '<button class="reel-act repost pp-repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + fi.reposts + "</span></button>";
     if (isPost && mine) html += '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>'; // [RP-V7.243] your photo post — delete it right here
     if (isPost && mine && !it.textPost) html += '<button class="reel-act pp-ai245" type="button"><span style="font-size:19px;line-height:1;">✨</span><span>AI Filter</span></button>'; // [RP-V7.245] restyle your photo with AI — [RP-V7.278] not on text posts (there is no photo to restyle)
@@ -38487,6 +38525,7 @@ button.rp72-chip{ cursor:pointer; }
       var fhtml = "";
       if ((ownerId || ownerName) && !mine) fhtml += lbGiftBtn241();
       fhtml += lbShareBtn241();
+      fhtml += '<button class="reel-act rp-save349" type="button" data-save349="reel:' + esc(String(it.id)) + '">' + lbIco241("bookmark") + '<span class="sv-lb349">Save</span></button>'; // [RP-V7.349]
       return {
         html: fhtml ? '<div class="reel-rail">' + fhtml + "</div>" : "",
         wire: function (root) {
@@ -38506,6 +38545,7 @@ button.rp72-chip{ cursor:pointer; }
     if ((ownerId || ownerName) && !mine) html += lbGiftBtn262("reel", it.id, it.giftCount || 0); // [RP-V7.262] server reels carry their count
     if (mine) html += lbGiftMine262("reel", it.id, it.giftCount || 0); // [RP-V7.262] your own reel: the count alone
     html += lbShareBtn241();
+    html += '<button class="reel-act rp-save349" type="button" data-save349="reel:' + esc(String(it.id)) + '">' + lbIco241("bookmark") + '<span class="sv-lb349">Save</span></button>'; // [RP-V7.349]
     html += '<button class="reel-act repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + fi.reposts + "</span></button>";
     if (mine) html += '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>'; // [RP-V7.243] your reel — delete it right here
     return {
@@ -46720,7 +46760,8 @@ window.RPICO = {
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.3 4.3 20 10.6l-6.7 6.3v-3.9c-4.9 0-7.9 1.5-9.8 4.4.2-6 3.3-10.1 9.8-10.6z"/></svg>',
   repost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3.8 20.2 7 17 10.2"/><path d="M4.5 12.8v-1.6a3.7 3.7 0 0 1 3.7-3.7h11.5"/><path d="M7 20.2 3.8 17 7 13.8"/><path d="M19.5 11.2v1.6a3.7 3.7 0 0 1-3.7 3.7H4.3"/></svg>',
   gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10.2" width="16" height="9.3" rx="1"/><path d="M3.8 6.9h16.4v3.3H3.8z"/><path d="M12 6.9v12.6"/><path d="M12 6.9c-2.3 0-3.8-1.1-3.8-2.6 0-1 .8-1.9 1.9-1.9 1.4 0 1.9 1.7 1.9 4.5zm0 0c2.3 0 3.8-1.1 3.8-2.6 0-1-.8-1.9-1.9-1.9-1.4 0-1.9 1.7-1.9 4.5z"/></svg>',
-  remix: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="12" height="11" rx="2.5"/><path d="M8.2 8V6.8A2.8 2.8 0 0 1 11 4h7.2A2.8 2.8 0 0 1 21 6.8v7.4a2.8 2.8 0 0 1-2.8 2.8H16"/><path d="M7.4 10.9l3.8 2.6-3.8 2.6z" fill="currentColor" stroke="none"/></svg>'
+  remix: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="12" height="11" rx="2.5"/><path d="M8.2 8V6.8A2.8 2.8 0 0 1 11 4h7.2A2.8 2.8 0 0 1 21 6.8v7.4a2.8 2.8 0 0 1-2.8 2.8H16"/><path d="M7.4 10.9l3.8 2.6-3.8 2.6z" fill="currentColor" stroke="none"/></svg>',
+  bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="bf" d="M6.5 4h11v16L12 15.9 6.5 20z"/></svg>'
 };
 </script>
 <style>
@@ -50685,6 +50726,146 @@ var RpGifter338 = (function () {
   return { refresh: refresh338, myLevel: myLevel338, onAward: onAward338, gateBlocked: gateBlocked338, paintProfile: paintProfile338, openCard: openCard338, badge: rpGifterBadge338 };
 })();
 window.RpGifter338 = RpGifter338;
+</script>
+<style>
+/* [RP-V7.349] Save (bookmark) buttons: the saved state fills the
+   bookmark with the app's true-red accent (the liked-heart family).
+   The buttons render through .reel-act / .hp-act, whose icon
+   sizing already applies, so only the state colours live here. */
+.rp-save349.saved { color: #fe2c2c; }
+.rp-save349.saved svg .bf { fill: #fe2c2c; stroke: #fe2c2c; }
+.hp-act.rp-save349.saved .hp-ico > svg .bf { fill: #fe2c2c; stroke: #fe2c2c; }
+</style>
+<script>
+/* [RP-V7.349] SAVE (bookmark) posts — every bookmark button on the
+   post rails (class .rp-save349, data-save349="kind:id") is painted
+   and toggled from HERE, against the server: fill state comes from
+   GET /api/saved/state (the signed-in member's own saved keys) and
+   each toggle POSTs /api/save or /api/unsave. NO state is kept in
+   localStorage — a save made on one device paints on every device.
+   A save is a reference only; the Saved tab on your own profile
+   resolves the posts themselves through GET /api/saved. One
+   delegated capture-phase click handler serves every surface, so
+   the rails only render the button — they never wire it. */
+window.RpSave349 = (function () {
+  var keys = null; // Set of "kind:id" once loaded
+  var loading = null;
+  var lastFail = 0;
+  function tok349() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) || ""; } catch (e) { return ""; } }
+  function api349(path, method, body) {
+    return fetch(path, { method: method || "GET", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok349() }, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { status: r.status, j: j }; }); })
+      .catch(function () { return { status: 0, j: null }; });
+  }
+  function toast349(m) { try { if (window.toast) window.toast(m, 2400); } catch (e) { } }
+  function paintBtn(b) {
+    if (!b) return;
+    var k = b.getAttribute("data-save349"); if (!k) return;
+    var on = !!(keys && keys.has(k));
+    var has = b.classList.contains("saved");
+    if (has !== on) { if (on) b.classList.add("saved"); else b.classList.remove("saved"); } // guarded write (the RP-V7.226 rule)
+    var lb = b.querySelector(".sv-lb349");
+    if (lb) { var t = on ? "Saved" : "Save"; if (lb.textContent !== t) lb.textContent = t; }
+    var ap = on ? "true" : "false";
+    if (b.getAttribute("aria-pressed") !== ap) b.setAttribute("aria-pressed", ap);
+  }
+  function paintAll(root) { (root || document).querySelectorAll(".rp-save349").forEach(paintBtn); }
+  function ensure() {
+    if (keys) return Promise.resolve(keys);
+    if (!tok349()) return Promise.resolve(null);
+    if (loading) return loading;
+    if (lastFail && Date.now() - lastFail < 15000) return Promise.resolve(null);
+    loading = api349("/api/saved/state").then(function (r) {
+      loading = null;
+      if (r.j && r.j.ok && Array.isArray(r.j.ids)) { keys = new Set(r.j.ids); paintAll(); }
+      else lastFail = Date.now();
+      return keys;
+    });
+    return loading;
+  }
+  function toggle(btn) {
+    var k = btn.getAttribute("data-save349") || "";
+    var ix = k.indexOf(":"); if (ix < 1) return;
+    var kind = k.slice(0, ix), id = k.slice(ix + 1);
+    if (!tok349()) { toast349("Sign in to save posts 🔖"); return; }
+    ensure().then(function () {
+      if (!keys) keys = new Set();
+      var on = keys.has(k);
+      if (on) keys.delete(k); else keys.add(k); // optimistic paint; the server confirms
+      paintAll();
+      api349(on ? "/api/unsave" : "/api/save", "POST", { kind: kind, id: id }).then(function (r) {
+        if (!r.j || !r.j.ok) {
+          if (on) keys.add(k); else keys.delete(k);
+          paintAll();
+          toast349((r.j && r.j.error) || "Couldn't save that — try again.");
+          return;
+        }
+        toast349(on ? "Removed from Saved" : "Saved to your profile 🔖");
+      });
+    });
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    var b = t && t.closest ? t.closest(".rp-save349") : null;
+    if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    toggle(b);
+  }, true);
+  /* Paint buttons as surfaces render them. Guarded writes only —
+     the observer never writes unchanged state (RP-V7.226 rule),
+     and it only reads the nodes a mutation actually added. */
+  if (window.MutationObserver && document.body) {
+    try {
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          var added = muts[i].addedNodes;
+          for (var n = 0; n < added.length; n++) {
+            var el = added[n];
+            if (!el || el.nodeType !== 1) continue;
+            if (el.classList && el.classList.contains("rp-save349")) paintBtn(el);
+            if (el.querySelectorAll) el.querySelectorAll(".rp-save349").forEach(paintBtn);
+          }
+        }
+        if (!keys && tok349()) ensure();
+      }).observe(document.body, { childList: true, subtree: true });
+    } catch (e) { }
+  }
+  if (tok349()) setTimeout(ensure, 1500);
+  return {
+    isSaved: function (kind, id) { return !!(keys && keys.has(kind + ":" + id)); },
+    reload: function () { keys = null; lastFail = 0; return ensure(); },
+    list: function () {
+      return api349("/api/saved").then(function (r) { return (r.j && r.j.ok && Array.isArray(r.j.items)) ? r.j.items : []; });
+    },
+    paintAll: paintAll
+  };
+})();
+/* [RP-V7.349] The Saved grid as a standalone sheet. The tabbed
+   profile page carries the Saved TAB on your own page; this sheet
+   is the second door to the same grid, opened only from the
+   directory view of your OWN profile — renderMemberActions adds
+   its "🔖 Saved" button solely when the sheet's account is the
+   signed-in member (self), so no other member's profile ever
+   shows a way in, and the grid is always the CALLER's own saves
+   (GET /api/saved is own-rows-only server-side). Tiles open with
+   the media module's default openers — the same ones the
+   own-profile grid uses. */
+window.rpOpenSavedSheet349 = function () {
+  if (typeof window.openSheet !== "function" || !window.RpSave349) return;
+  window.openSheet(
+    '<button class="close-x" data-savedclose349="1" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+    '<h3 style="text-align:center; margin:4px 0 10px;">🔖 Saved</h3>' +
+    '<div class="rpmedia-grid bleed" id="rpSavedSheetGrid349"><p class="age-note" style="grid-column:1/-1; text-align:center; padding:14px 6px;">Loading your saved posts…</p></div>'
+  );
+  var cx349 = document.querySelector("[data-savedclose349]");
+  if (cx349) cx349.addEventListener("click", function () { if (typeof window.closeSheet === "function") window.closeSheet(); });
+  window.RpSave349.list().then(function (items) {
+    var g = document.getElementById("rpSavedSheetGrid349"); if (!g) return;
+    if (!items.length) { g.innerHTML = '<p class="empty-note" style="grid-column:1/-1; text-align:center; padding:18px 8px;">Posts you save will live here</p>'; return; }
+    if (window.rpViewsFillGrid) window.rpViewsFillGrid(g, items, {});
+    else g.innerHTML = '<p class="empty-note" style="grid-column:1/-1; text-align:center;">Could not load the grid.</p>';
+  });
+};
 </script>
 </body>
 </html>
