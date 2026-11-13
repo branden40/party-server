@@ -1037,6 +1037,24 @@ Object.keys(RP_GIFT_ART_7342).forEach((gid) => {
   });
 });
 console.log("[RP-V7.342] new gift art:", Object.keys(RP_GIFT_ART_7342).join(", "));
+// [RP-V7.362] Sky Stepper (Branden: name + $35 set Nov 12, 2026) —
+// ANIMATED ART for the new Sky Stepper gift, embedded base64 WebP
+// (320x320, 40 frames, infinite loop) in the sibling module
+// giftart7344.js, served at /img/gifts/skystepper.webp ahead of
+// express.static (same recipe as RP-V7.308). Art derived from the
+// approved Deluxe 3 film itself (hero stomp frame, t=4.04 s). The
+// film itself rides the standard gift-film route:
+// public/giftfx-skystepper.mp4 (rpStdFilmUrl), no new serving code.
+const RP_GIFT_ART_7344 = require("./giftart7344.js");
+Object.keys(RP_GIFT_ART_7344).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7344[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+console.log("[RP-V7.362] new gift art:", Object.keys(RP_GIFT_ART_7344).join(", "));
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -6546,7 +6564,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.361", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.362", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -15818,7 +15836,7 @@ const MONEY_GIFT_TABLE = {
   loveballoon: 600, guardianpalm: 700, airplane: 800, moneygun: 999,
   castle: 1000, ufobeam: 1000, volcano: 2000, foxshot: 2300, lion: 2500, plazaape: 2500, fattuesday: 2500, dragon: 3000, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts // [RP-V7.221] +Fat Tuesday Frenzy 2500 ($25, Branden Nov 3, 2026) — catalog now 51 gifts
   whale: 4500, galaxy: 5000, titanclash: 5000, rizzuniverse: 5000, starsurge: 5500, diamonds: 6000,
-  rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10000, trex: 3000, yacht: 15000,
+  rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10000, trex: 3000, skystepper: 3500, yacht: 15000,
   phoenix: 25000, universe: 50000,
   // [RP-V7.82] +5 gifts (heartburst/thunderbolt small, goldgloves/
   // guardianpalm medium, starsurge big) — ids + prices mirror the
@@ -15876,6 +15894,11 @@ const MONEY_GIFT_TABLE = {
   // as a sendable gift on its own full-screen stage with the V3
   // roar -> fog -> claws film — ids + prices mirror the client's
   // GIFT_SHOP exactly; catalog now 80 gifts.
+  // [RP-V7.362] +1 gift (Branden, Nov 12, 2026): Sky Stepper — $35
+  // (3500 charms, tier prestige, one rung above the T-Rex) with its
+  // Deluxe 3 full-scene portrait film show — the film carries its
+  // own music, Branden's per-gift exception — id + price mirror
+  // the client's GIFT_SHOP exactly; catalog now 80 gifts.
 };
 // [RP-V7.250] Gift DISPLAY info — mirror of the client GIFT_SHOP's
 // name + tier (the catalog's size class: penny / small / medium / big
@@ -15927,6 +15950,7 @@ const MONEY_GIFT_INFO = {
   ferriswheel: { name: "Ferris Wheel", tier: "big" },
   jet: { name: "Private Jet", tier: "prestige" },
   nebuladragon: { name: "Nebula Dragon", tier: "prestige" },
+  skystepper: { name: "Sky Stepper", tier: "prestige" }, // [RP-V7.362] new gift (Branden: name + $35 set Nov 12, 2026)
   trex: { name: "T-Rex", tier: "prestige" }, // [RP-V7.353] restored sendable gift (Branden, approved Nov 12, 2026)
   yacht: { name: "Golden Yacht", tier: "prestige" },
   goldeneagle: { name: "Golden Eagle", tier: "prestige" },
@@ -23050,7 +23074,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.361", online: players.size })
+  res.json({ ok: true, version: "RP-V7.362", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
