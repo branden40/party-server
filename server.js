@@ -6546,7 +6546,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.359", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.360", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -15843,7 +15843,7 @@ const MONEY_GIFT_TABLE = {
   // [RP-V7.208] +5 weekly gifts (Nov 2, 2026): honeybee 60 + bubblewand 99 (small),
   // peacock 450 + carousel 700 (medium), emeraldelephant 6000 (big) — ids + prices mirror
   // the client's GIFT_SHOP exactly; the catalog is now 50 gifts.
-  honeybee: 60, bubblewand: 99, peacock: 450, carousel: 700, emeraldelephant: 6000,
+  honeybee: 60, bubblewand: 99, carousel: 700, emeraldelephant: 6000, // [RP-V7.360] peacock (Peacock Fan, 450) REMOVED by Branden's order (Nov 12, 2026): no settle entry — sends fail cleanly as an unknown gift. Its MONEY_GIFT_INFO entry below STAYS so past sends keep their name in notices/history.
   // [RP-V7.339] +20 gifts (Nov 11, 2026) — gift expansion from Branden's
   // TikTok recording (instruments / animals / crowns / food / vehicles /
   // fantasy / space, all Plaza-original): 6 small (25-100), 7 medium
@@ -23050,7 +23050,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.359", online: players.size })
+  res.json({ ok: true, version: "RP-V7.360", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
