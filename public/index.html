@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.361" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.362" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -22552,6 +22552,7 @@
         { id: "jet", art: "img/gifts/jet.webp", name: "Private Jet", icon: "🛩️", cents: 10000, tier: "prestige", fx: "across" },
         { id: "nebuladragon", art: "nebuladragon", name: "Nebula Dragon", icon: "🌌", cents: 10000, tier: "prestige", fx: "nebuladragon" },
         { id: "trex", art: "img/gifts/trex.webp", name: "T-Rex", icon: "🦖", cents: 3000, tier: "prestige", fx: "trex" }, // [RP-V7.353] T-Rex restored as a SENDABLE gift (Branden: $30 price set Nov 11, 2026; V3 film approved Nov 12, 2026); its roar -> fog -> claws film plays on the full-screen .trex stage (see pumpStage), never the bottom-half band
+        { id: "skystepper", art: "img/gifts/skystepper.webp", name: "Sky Stepper", icon: "👟", cents: 3500, tier: "prestige", fx: "sky" }, // [RP-V7.362] Sky Stepper (Branden: name + $35 price set Nov 12, 2026; Deluxe 3 film approved Nov 12, 2026) — tier "prestige", one rung above the T-Rex; its full-scene portrait dance film (worm's-eye up through the glass, sneaker stomp at 4.04 s, RIZZ PLAZA LIVE ribbons) plays FULL-BLEED on its own .sky362 stage (see pumpStage) WITH its own music — Branden's per-gift exception to the silent catalog
         { id: "yacht", art: "img/gifts/yacht.webp", name: "Golden Yacht", icon: "🛥️", cents: 15000, tier: "prestige", fx: "across" },
         { id: "goldeneagle", art: "img/gifts/goldeneagle.webp", name: "Golden Eagle", icon: "🦅", cents: 20000, tier: "prestige", fx: "goldeneagle" }, // [RP-V7.137] +3 gifts (Branden approved Oct 30, 2026) — price-ascending: this one between Golden Yacht and Phoenix Rising
         { id: "phoenix", art: "img/gifts/phoenix.webp", name: "Phoenix Rising", icon: "🦅", cents: 25000, tier: "prestige", fx: "phoenix" },
@@ -30025,6 +30026,30 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
   mask-image:radial-gradient(ellipse at center, #000 58%, transparent 98%); }
 .rp-trex-melt{ position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(ellipse at center, transparent 52%, rgba(5,5,10,.55) 82%, #05050a 100%); }
+/* [RP-V7.362] SKY STEPPER FULL-SCENE SHOW — the prestige
+   tier's full-scene portrait film (giftfx-skystepper.mp4): a bright
+   real scene (sky, towers, the dancer on the glass), not a subject
+   on a black ground, so it plays FULL-BLEED and UNBLENDED on its own
+   stage — no screen blend, no luma key, no mask eating the frame.
+   The film carries the gift's own music (Branden's per-gift
+   exception): the stage video is created unmuted (see pumpStage). */
+#rpStage.sky362{ mix-blend-mode:normal !important; }
+#rpStage.sky362 .rp-stage-art{ position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; }
+.rp-sky-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+#rpStage.sky362 .rp-stage-art img.rp-gift-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; mix-blend-mode:normal; }
+/* [RP-V7.362] the art-fallback swap (rpSkyErr362) puts the
+   gift's img directly inside .rp-stage-art, where two GENERIC stage
+   rules would otherwise win on specificity: the :has art seat
+   (#rpStage .rp-stage-art:has(> img.rp-gift-img) = 100vw x 100vw,
+   specificity (1,2,1) vs the sky seat's (1,2,0)) would shrink the
+   fallback to a square, and the generic stage-art img screen blend
+   (also (1,2,1)) would blend the bright scene into the room behind.
+   These (1,3,1) sky-scoped rules keep the fallback full-scene and
+   unblended, exactly like the film path. Measured on the rig: before
+   the fix the fallback art measured 390x390 screen-blended; the
+   film path was never affected (no img child). */
+#rpStage.sky362 .rp-stage-art:has(> img.rp-gift-img){ width:100%; height:100%; max-width:none; max-height:none; }
+
 .gfx-film{ mix-blend-mode:screen; }
 #rpStage .rp-stage-bg{ position:absolute; inset:0; background:transparent; /* [RP-V7.207] reference correction: NO black card under big shows — the backdrop stays transparent so the screen blend composites the film into the LIVE PICTURE behind the stage (TikTok gifting). The element remains only to carry the rpFade timing. */ animation:rpFade 3.5s forwards; }
 /* [RP-V7.207] Fix 1c, as corrected by Branden's reference —
@@ -30382,8 +30407,8 @@ body:not(.live-fs) #rp65How { display:none !important; }
      it for the gift's emoji in place: never a broken-image glyph. Ids
      with no shipped art (holiday gifts, ad-hoc gifts) keep the drawn
      SVG art / orb they had. */
-  var GIFT_ART_IDS = { clocktea: 1, trex: 1, foxshot: 1, ufobeam: 1, musicnote: 1, guitarpick: 1, maraca: 1, cloverpop: 1, foamfinger: 1, confettipop: 1, micdrop: 1, saxsolo: 1, parrotdj: 1, keycascade: 1, tacofiesta: 1, drumroll: 1, laurelcrown: 1, kraken: 1, lowrider: 1, astropup: 1, moonunicorn: 1, starcruiser: 1, cometcrown: 1, dragonthrone: 1, fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1, thankfulturkey: 1, harvestwreath: 1, pumpkinpie: 1 }; // [RP-V7.220] +3 Thanksgiving holiday art ids (name-resolved via HOL_ART_IDS; no films) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
-  var GIFT_ICONS = { clocktea: "⏰", trex: "🦖", foxshot: "🏹", ufobeam: "🛸", musicnote: "🎵", guitarpick: "🎸", maraca: "🪇", cloverpop: "🍀", foamfinger: "☝️", confettipop: "🎉", micdrop: "🎤", saxsolo: "🎷", parrotdj: "🦜", keycascade: "🎹", tacofiesta: "🌮", drumroll: "🥁", laurelcrown: "👑", kraken: "🦑", lowrider: "🏎️", astropup: "🐶", moonunicorn: "🦄", starcruiser: "🚀", cometcrown: "☄️", dragonthrone: "🐉", fireflyjar: "✨", seahorse: "🌊", skylanterns: "🏮", crystalfox: "🦊", celestialstag: "🦌", honeybee: "🐝", bubblewand: "🫧", peacock: "🦚", carousel: "🎠", emeraldelephant: "🐘", worldtree: "🌳", rizzuniverse: "🌐", plazaape: "🦍", titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️", fattuesday: "🎭", thankfulturkey: "🦃", harvestwreath: "🌾", pumpkinpie: "🥧" }; // [RP-V7.220] +3 Thanksgiving fallback icons // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
+  var GIFT_ART_IDS = { skystepper: 1, clocktea: 1, trex: 1, foxshot: 1, ufobeam: 1, musicnote: 1, guitarpick: 1, maraca: 1, cloverpop: 1, foamfinger: 1, confettipop: 1, micdrop: 1, saxsolo: 1, parrotdj: 1, keycascade: 1, tacofiesta: 1, drumroll: 1, laurelcrown: 1, kraken: 1, lowrider: 1, astropup: 1, moonunicorn: 1, starcruiser: 1, cometcrown: 1, dragonthrone: 1, fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1, thankfulturkey: 1, harvestwreath: 1, pumpkinpie: 1 }; // [RP-V7.220] +3 Thanksgiving holiday art ids (name-resolved via HOL_ART_IDS; no films) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.166] +1 (Golden Ascension, RP_GIFT_ART_7166 in server.js) — art served from base64 routes in server.js (RP-V7.132, same pattern as the V7.127 icons); [RP-V7.137] +3 — same embedded-art pattern (RP_GIFT_ART_7137 in server.js)
+  var GIFT_ICONS = { skystepper: "👟", clocktea: "⏰", trex: "🦖", foxshot: "🏹", ufobeam: "🛸", musicnote: "🎵", guitarpick: "🎸", maraca: "🪇", cloverpop: "🍀", foamfinger: "☝️", confettipop: "🎉", micdrop: "🎤", saxsolo: "🎷", parrotdj: "🦜", keycascade: "🎹", tacofiesta: "🌮", drumroll: "🥁", laurelcrown: "👑", kraken: "🦑", lowrider: "🏎️", astropup: "🐶", moonunicorn: "🦄", starcruiser: "🚀", cometcrown: "☄️", dragonthrone: "🐉", fireflyjar: "✨", seahorse: "🌊", skylanterns: "🏮", crystalfox: "🦊", celestialstag: "🦌", honeybee: "🐝", bubblewand: "🫧", peacock: "🦚", carousel: "🎠", emeraldelephant: "🐘", worldtree: "🌳", rizzuniverse: "🌐", plazaape: "🦍", titanclash: "⚔️", nebuladragon: "🌌", heart: "💗", rose: "🌹", coffee: "☕", icecream: "🍦", donut: "🍩", clap: "👏", fingerheart: "🫰", kiss: "💋", fireworks: "🎆", motorcycle: "🏍️", sportscar: "🏎️", loveballoon: "🎈", airplane: "✈️", moneygun: "💸", castle: "🏰", volcano: "🌋", lion: "🦁", dragon: "🐉", meteor: "☄️", whale: "🐋", galaxy: "🌌", diamonds: "💎", rocket: "🚀", ferriswheel: "🎡", jet: "🛩️", yacht: "🛥️", phoenix: "🦅", universe: "🪐", thunderbolt: "⚡", heartburst: "💖", guardianpalm: "🖐️", goldgloves: "🥊", starsurge: "🌟", supernova: "💥", crownjewel: "👑", plazadiamond: "💎", goldeneagle: "🦅", pegasus: "🪽", auroracrown: "🌌", ascension: "☀️", fattuesday: "🎭", thankfulturkey: "🦃", harvestwreath: "🌾", pumpkinpie: "🥧" }; // [RP-V7.220] +3 Thanksgiving fallback icons // [RP-V7.166] +1 (Golden Ascension) // [RP-V7.82] +5 gifts; [RP-V7.132] +3 ($1,000 tier); [RP-V7.137] +3 (Golden Eagle / Pegasus of Light / Aurora Crown)
   window.rpGiftImgErr = function (img) {
     if (!img || !img.parentNode) return;
     var s = document.createElement("span");
@@ -30408,7 +30433,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { clocktea: 1, foxshot: 1, ufobeam: 1, musicnote: 1, guitarpick: 1, maraca: 1, cloverpop: 1, foamfinger: 1, confettipop: 1, micdrop: 1, saxsolo: 1, parrotdj: 1, keycascade: 1, tacofiesta: 1, drumroll: 1, laurelcrown: 1, kraken: 1, lowrider: 1, astropup: 1, moonunicorn: 1, starcruiser: 1, cometcrown: 1, dragonthrone: 1, fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1 };
+  var GIFT_FILM_IDS = { skystepper: 1, clocktea: 1, foxshot: 1, ufobeam: 1, musicnote: 1, guitarpick: 1, maraca: 1, cloverpop: 1, foamfinger: 1, confettipop: 1, micdrop: 1, saxsolo: 1, parrotdj: 1, keycascade: 1, tacofiesta: 1, drumroll: 1, laurelcrown: 1, kraken: 1, lowrider: 1, astropup: 1, moonunicorn: 1, starcruiser: 1, cometcrown: 1, dragonthrone: 1, fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1 };
   /* [RP-V7.337] DIM-MASTER gifts: measured against the keyer's own
      alpha curve (V7.337 audit), these gifts' ART keys to almost
      nothing (subject coverage at alpha>=0.5: fireflyjar 0.14,
@@ -30498,6 +30523,20 @@ body:not(.live-fs) #rp65How { display:none !important; }
       if (art) { art.className = "rp-stage-art pop film"; art.innerHTML = rpShowArtHtml("trex", "\uD83E\uDD96", "full"); }
     } catch (e) { }
   };
+  /* [RP-V7.362] Sky Stepper show fallback: the film failed or
+     stalled — remember it for the session and swap THIS stage show
+     to the gift's animated art IN PLACE, still full-scene on the
+     .sky362 stage (the art is a frame of the same film, so the scene
+     stays whole). NO timer surgery: the V7.219 stage timer keeps
+     ownership of this show's duration and tears it down on schedule. */
+  window.rpSkyErr362 = function (v) {
+    window.__rpSkyBad362 = true;
+    try {
+      var ov = $("rpStage"); if (!ov) return;
+      var art = ov.querySelector(".rp-stage-art");
+      if (art) { art.innerHTML = rpArt("skystepper", "\uD83D\uDC5F"); }
+    } catch (e) { }
+  };
   window.rpGiftVidErr = function (v) {
     if (!v || !v.parentNode) return;
     if (window.rpFilmStepDown(v)) return; /* event film -> standard film */
@@ -30517,7 +30556,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     return rpArt(id, icon);
   }
   window.rpShowArtHtml = rpShowArtHtml;
-  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel", "Thunderbolt": "thunderbolt", "Heart Burst": "heartburst", "Guardian Palm": "guardianpalm", "Gold Gloves": "goldgloves", "Star Surge": "starsurge", "Rizz Supernova": "supernova", "The Crown Jewel": "crownjewel", "Plaza Diamond": "plazadiamond", "Golden Eagle": "goldeneagle", "Pegasus of Light": "pegasus", "Aurora Crown": "auroracrown", "Golden Ascension": "ascension", "Nebula Dragon": "nebuladragon", "Titan Clash": "titanclash", "Rizz Plaza Universe": "rizzuniverse", "Plaza Ape": "plazaape", "World Tree": "worldtree", "Fat Tuesday Frenzy": "fattuesday", "UFO Beam": "ufobeam", "Music Note": "musicnote", "Guitar Pick": "guitarpick", "Maracas": "maraca", "Clover Pop": "cloverpop", "Foam Finger": "foamfinger", "Confetti Pop": "confettipop", "Mic Drop": "micdrop", "Sax Solo": "saxsolo", "Parrot DJ": "parrotdj", "Key Cascade": "keycascade", "Taco Fiesta": "tacofiesta", "Drumroll": "drumroll", "Golden Laurel": "laurelcrown", "Kraken": "kraken", "Lowrider": "lowrider", "Astro Pup": "astropup", "Moon Unicorn": "moonunicorn", "Star Cruiser": "starcruiser", "Comet Crown": "cometcrown", "Dragon Throne": "dragonthrone", "Fox Shot": "foxshot", "Clock That Tea": "clocktea", "T-Rex": "trex" };
+  var NAME2ID = { "Heart": "heart", "Rose": "rose", "Coffee": "coffee", "Ice Cream": "icecream", "Donut": "donut", "Clap": "clap", "Finger Heart": "fingerheart", "Kiss": "kiss", "Fireworks": "fireworks", "Love Balloon": "loveballoon", "Motorcycle": "motorcycle", "Sports Car": "sportscar", "Money Gun": "moneygun", "Airplane": "airplane", "Castle": "castle", "Volcano": "volcano", "Golden Lion": "lion", "Dragon": "dragon", "Meteor Shower": "meteor", "Galaxy": "galaxy", "Diamond Shower": "diamond", "Rocket": "rocket", "Private Jet": "jet", "Golden Yacht": "yacht", "Phoenix Rising": "phoenix", "The Universe": "universe", "Whale Dive": "whale", "Ferris Wheel": "ferriswheel", "Thunderbolt": "thunderbolt", "Heart Burst": "heartburst", "Guardian Palm": "guardianpalm", "Gold Gloves": "goldgloves", "Star Surge": "starsurge", "Rizz Supernova": "supernova", "The Crown Jewel": "crownjewel", "Plaza Diamond": "plazadiamond", "Golden Eagle": "goldeneagle", "Pegasus of Light": "pegasus", "Aurora Crown": "auroracrown", "Golden Ascension": "ascension", "Nebula Dragon": "nebuladragon", "Titan Clash": "titanclash", "Rizz Plaza Universe": "rizzuniverse", "Plaza Ape": "plazaape", "World Tree": "worldtree", "Fat Tuesday Frenzy": "fattuesday", "UFO Beam": "ufobeam", "Music Note": "musicnote", "Guitar Pick": "guitarpick", "Maracas": "maraca", "Clover Pop": "cloverpop", "Foam Finger": "foamfinger", "Confetti Pop": "confettipop", "Mic Drop": "micdrop", "Sax Solo": "saxsolo", "Parrot DJ": "parrotdj", "Key Cascade": "keycascade", "Taco Fiesta": "tacofiesta", "Drumroll": "drumroll", "Golden Laurel": "laurelcrown", "Kraken": "kraken", "Lowrider": "lowrider", "Astro Pup": "astropup", "Moon Unicorn": "moonunicorn", "Star Cruiser": "starcruiser", "Comet Crown": "cometcrown", "Dragon Throne": "dragonthrone", "Fox Shot": "foxshot", "Clock That Tea": "clocktea", "T-Rex": "trex", "Sky Stepper": "skystepper" };
   /* [RP-V7.220] Thanksgiving holiday-gift animated art: holiday gifts
      ride wire id "hol" whatever their name, so their art resolves BY
      NAME. Only the three Thanksgiving gifts have art; the other 54
@@ -30772,6 +30811,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
 var RP_SHOW_DUR = {
   plazadiamond: 14600, crownjewel: 14600, supernova: 14600, universe: 14600, ascension: 16000,
   galaxy: 14600, phoenix: 15800, trex: 10200, // [RP-V7.353] the T-Rex V3 film is a real ~10 s show: it plays ONCE in full on its own stage (no loop-fill)
+  skystepper: 9000, // [RP-V7.362] the Deluxe 3 film's real duration (9.000 s) — plays ONCE in full on its own full-scene stage, WITH its music
   auroracrown: 10000, pegasus: 10000, goldeneagle: 10000, yacht: 10000, jet: 10000, nebuladragon: 10000,
   ferriswheel: 10000, rocket: 10000, foxshot: 11500, ufobeam: 10000, // [RP-V7.343] foxshot: the Fox Shot film is a real 11.5 s show — plays ONCE in full diamonds: 10000, emeraldelephant: 10000, starsurge: 10000, // [RP-V7.341] ufobeam: the UFO Beam film is a real 10 s show — plays ONCE in full
   titanclash: 10000, rizzuniverse: 10000, dragon: 10000, lion: 10000, plazaape: 10000, fattuesday: 10000, lowrider: 10000, astropup: 10000, moonunicorn: 10000, starcruiser: 10000, cometcrown: 10000, dragonthrone: 10000, meteor: 9200,
@@ -31269,6 +31309,7 @@ function stageStreakBump(key, add) {
     var sFilm = !!(window.rpGiftFilmIds && window.rpGiftFilmIds[said]);
     var isScene = !!RP_SCENE_FILMS[said]; // [RP-V7.218] scene CONTENT class — no longer full-screen cover
     var isTrex353 = (said === "trex" && !window.__rpTrexBad); // [RP-V7.353] the T-Rex plays on its own full-screen stage (below) unless the film already failed this session
+    var isSky362 = (said === "skystepper" && !window.__rpSkyBad362); // [RP-V7.362] Sky Stepper plays on its own full-scene stage (below) unless the film already failed this session
     /* [RP-V7.218] The Supernova standard: band treatments by measured
        content. Supernova (wall-to-wall spiral, border luma 84) and
        ferriswheel (all-bright neon, border 69.6) and nebuladragon
@@ -31302,8 +31343,8 @@ function stageStreakBump(key, add) {
        geometry remains; the live stage change in this build is
        the film playing once (filmMode loop) plus the shared
        show-once queue. */
-    if (!document.body.classList.contains("live-fs") && !isTrex353) ov.classList.add("fs327"); // [RP-V7.353] the trex stage is full-bleed by design — no fs327 band geometry
-    ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + (isTrex353 ? "" : sparks); // [RP-V7.353] no sparks on the trex stage (the V7.81 original had none — the film is the whole show)
+    if (!document.body.classList.contains("live-fs") && !isTrex353 && !isSky362) ov.classList.add("fs327"); // [RP-V7.353] the trex stage is full-bleed by design — no fs327 band geometry; [RP-V7.362] same for the sky stage
+    ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + ((isTrex353 || isSky362) ? "" : sparks); // [RP-V7.353] no sparks on the trex stage (the V7.81 original had none — the film is the whole show); [RP-V7.362] none on the sky stage either — the film is the whole show
     ov.querySelector(".rp-stage-bg").style.animationDuration = dur + "ms";
     var artDiv = document.createElement("div");
     if (isTrex353) {
@@ -31324,6 +31365,35 @@ function stageStreakBump(key, add) {
       if (tv353) {
         tv353.addEventListener("playing", function () { tv353.setAttribute("data-playing353", "1"); });
         setTimeout(function () { var o353 = document.getElementById("rpStage"); if (o353 && o353.classList.contains("trex") && !tv353.getAttribute("data-playing353")) window.rpTrexErr353(tv353); }, 1800);
+      }
+    } else if (isSky362) {
+      /* [RP-V7.362] THE SKY STEPPER STAGE — by Branden's
+         design a full-scene gift like the T-Rex, not a band film:
+         the approved Deluxe 3 film (1080x1920 portrait: worm's-eye
+         up through the glass, the dancer above, her stomp on the
+         glass at 4.04 s) plays FULL-BLEED on the dedicated .sky362
+         stage, whole and uncropped, exempt from the V7.334
+         bottom-half law, the stage screen blend and the luma key
+         (CSS above). THE MUSIC IS THE GIFT'S SOUND: the video is
+         created UNMUTED — no muted attribute, volume untouched —
+         and no gift-sound rule (send beep / cha-ching / keyed
+         player) ever mutes it; only a browser autoplay-policy
+         refusal degrades that one play to muted so the show never
+         freezes on a blocked element. Film missing/stalled ->
+         rpSkyErr362 swaps this show to the gift's animated art in
+         place, still full-scene, and the session remembers
+         (__rpSkyBad362) so later sends take the art directly. */
+      ov.classList.add("sky362");
+      artDiv.className = "rp-stage-art";
+      artDiv.innerHTML = '<video class="rp-sky-video" src="' + window.rpStdFilmUrl("skystepper") + '" autoplay playsinline preload="auto" onerror="rpSkyErr362(this)"></video>';
+      var sv362 = artDiv.querySelector("video.rp-sky-video");
+      if (sv362) {
+        sv362.addEventListener("playing", function () { sv362.setAttribute("data-playing362", "1"); });
+        try {
+          var pp362 = sv362.play();
+          if (pp362 && pp362.catch) pp362.catch(function () { try { sv362.muted = true; var p2362 = sv362.play(); if (p2362 && p2362.catch) p2362.catch(function () { }); } catch (e) { } });
+        } catch (e) { }
+        setTimeout(function () { var o362 = document.getElementById("rpStage"); if (o362 && o362.classList.contains("sky362") && !sv362.getAttribute("data-playing362")) window.rpSkyErr362(sv362); }, 1800);
       }
     } else if (isScene) {
       artDiv.className = "rp-stage-art film";
