@@ -986,12 +986,57 @@ Object.keys(RP_GIFT_ART_7339).forEach((gid) => {
   });
 });
 console.log("[RP-V7.339] gift expansion art:", Object.keys(RP_GIFT_ART_7339).join(", "));
-// [RP-V7.364] Fox Shot ERASED by Branden's order (Nov 13, 2026): giftart7343.js is deleted from the repo — no /img/gifts/foxshot.webp route. (MONEY_GIFT_INFO keeps the name for past sends.)
+// [RP-V7.343] Fox Shot (Branden, Nov 11, 2026) — ANIMATED ART for
+// the new Fox Shot gift, embedded base64 WebP (320x320, 40 frames,
+// infinite loop) in the sibling module giftart7343.js, served at
+// /img/gifts/foxshot.webp ahead of express.static (same recipe as
+// RP-V7.308). The film itself rides the standard gift-film route:
+// public/giftfx-foxshot.mp4 (rpStdFilmUrl), no new serving code.
+const RP_GIFT_ART_7343 = require("./giftart7343.js");
+Object.keys(RP_GIFT_ART_7343).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7343[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+console.log("[RP-V7.343] new gift art:", Object.keys(RP_GIFT_ART_7343).join(", "));
+// [RP-V7.353] T-Rex restored (Branden, approved Nov 12, 2026) —
+// ANIMATED ART for the returning T-Rex gift, embedded base64 WebP
+// (320x320, 40 frames, infinite loop) in the sibling module
+// giftart7338.js, served at /img/gifts/trex.webp ahead of
+// express.static (same recipe as RP-V7.308). The T-Rex film itself
+// rides the existing public/trex-roar5.mp4 slot (rpTrexUrl) — the
+// approved V3 film replaces that file via the web-upload batch.
+const RP_GIFT_ART_7338 = require("./giftart7338.js");
+Object.keys(RP_GIFT_ART_7338).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7338[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+console.log("[RP-V7.338] restored gift art:", Object.keys(RP_GIFT_ART_7338).join(", "));
 
-// [RP-V7.364] T-Rex ERASED by Branden's order (Nov 13, 2026): giftart7338.js and public/trex-roar5.mp4 are deleted from the repo — no /img/gifts/trex.webp route, no film file. (MONEY_GIFT_INFO keeps the name for past sends.)
-
-// [RP-V7.364] Clock That Tea ERASED by Branden's order (Nov 13, 2026): giftart7342.js is deleted from the repo — no /img/gifts/clocktea.webp route. (MONEY_GIFT_INFO keeps the name for past sends.)
-
+// [RP-V7.353] Clock That Tea (Branden, approved Nov 12, 2026) —
+// ANIMATED ART for the new Clock That Tea gift, embedded base64 WebP
+// (320x320, 40 frames, infinite loop) in the sibling module
+// giftart7342.js, served at /img/gifts/clocktea.webp ahead of
+// express.static (same recipe as RP-V7.308). The film itself rides
+// the standard gift-film route: public/giftfx-clocktea.mp4
+// (rpStdFilmUrl), no new serving code.
+const RP_GIFT_ART_7342 = require("./giftart7342.js");
+Object.keys(RP_GIFT_ART_7342).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7342[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+console.log("[RP-V7.342] new gift art:", Object.keys(RP_GIFT_ART_7342).join(", "));
 // [RP-V7.362] Sky Stepper (Branden: name + $35 set Nov 12, 2026) —
 // ANIMATED ART for the new Sky Stepper gift, embedded base64 WebP
 // (320x320, 40 frames, infinite loop) in the sibling module
@@ -6519,7 +6564,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.364", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.365", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -15789,9 +15834,9 @@ const MONEY_GIFT_TABLE = {
   heartburst: 60, thunderbolt: 75, fingerheart: 99, kiss: 100,
   fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500, worldtree: 500, // [RP-V7.199] +World Tree 500 ($5, Branden Nov 1, 2026) — catalog now 45 gifts
   loveballoon: 600, guardianpalm: 700, airplane: 800, moneygun: 999,
-  castle: 1000, ufobeam: 1000, volcano: 2000, lion: 2500, plazaape: 2500, fattuesday: 2500, dragon: 3000, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts // [RP-V7.221] +Fat Tuesday Frenzy 2500 ($25, Branden Nov 3, 2026) — catalog now 51 gifts
+  castle: 1000, ufobeam: 1000, volcano: 2000, foxshot: 2300, lion: 2500, plazaape: 2500, fattuesday: 2500, dragon: 3000, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts // [RP-V7.221] +Fat Tuesday Frenzy 2500 ($25, Branden Nov 3, 2026) — catalog now 51 gifts
   whale: 4500, galaxy: 5000, titanclash: 5000, rizzuniverse: 5000, starsurge: 5500, diamonds: 6000,
-  rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10000, skystepper: 3500, yacht: 15000,
+  rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10000, trex: 3000, skystepper: 3500, yacht: 15000,
   phoenix: 25000, universe: 50000,
   // [RP-V7.82] +5 gifts (heartburst/thunderbolt small, goldgloves/
   // guardianpalm medium, starsurge big) — ids + prices mirror the
@@ -15812,7 +15857,7 @@ const MONEY_GIFT_TABLE = {
   // [RP-V7.308] +5 weekly gifts (Nov 9, 2026): fireflyjar 60 + seahorse 99 (small),
   // skylanterns 450 + crystalfox 700 (medium), celestialstag 6000 (big) — ids + prices mirror
   // the client's GIFT_SHOP exactly; the catalog is now 56 gifts.
-  fireflyjar: 60, seahorse: 99, skylanterns: 450, crystalfox: 700, celestialstag: 6000,
+  fireflyjar: 60, seahorse: 99, skylanterns: 450, crystalfox: 700, clocktea: 700, celestialstag: 6000,
   // [RP-V7.208] +5 weekly gifts (Nov 2, 2026): honeybee 60 + bubblewand 99 (small),
   // peacock 450 + carousel 700 (medium), emeraldelephant 6000 (big) — ids + prices mirror
   // the client's GIFT_SHOP exactly; the catalog is now 50 gifts.
@@ -15854,11 +15899,6 @@ const MONEY_GIFT_TABLE = {
   // Deluxe 3 full-scene portrait film show — the film carries its
   // own music, Branden's per-gift exception — id + price mirror
   // the client's GIFT_SHOP exactly; catalog now 80 gifts.
-  // [RP-V7.364] clocktea (Clock That Tea, 700), foxshot (Fox Shot, 2300)
-  // and trex (T-Rex, 3000) ERASED by Branden's order (Nov 13, 2026):
-  // no settle entries — sends fail cleanly as unknown gifts. Their
-  // MONEY_GIFT_INFO entries below STAY so past sends keep their names
-  // in notices/history (the RP-V7.360 Peacock Fan pattern).
 };
 // [RP-V7.250] Gift DISPLAY info — mirror of the client GIFT_SHOP's
 // name + tier (the catalog's size class: penny / small / medium / big
@@ -23034,7 +23074,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.364", online: players.size })
+  res.json({ ok: true, version: "RP-V7.365", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
