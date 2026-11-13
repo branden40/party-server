@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.359" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.360" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -744,7 +744,7 @@
          the live picture. The sender cap's white/gold text screens
          through readable; its dark pill glass is part of the show
          layer, not a backdrop. */
-      .gfx.small, .gfx.medium { mix-blend-mode: screen; }
+      .gfx.small, .gfx.medium, .gfx.big, .gfx.prestige { mix-blend-mode: screen; } /* [RP-V7.360] big/prestige extended: an UN-keyed overlay (art fallback / no WebGL) must dissolve its black too — .gfx.rp-keyed still forces normal for keyed film shows */
       .gfx.space .gfx-bg { background: #01020a; }
       @keyframes gfxBgIn { to { opacity: 1; } }
       .gfx-stage { position: absolute; inset: 0; }
@@ -22510,7 +22510,7 @@
         { id: "keycascade", art: "img/gifts/keycascade.webp", name: "Key Cascade", icon: "🎹", cents: 400, tier: "medium", fx: "rise" },
         { id: "goldgloves", art: "img/gifts/goldgloves.webp", name: "Gold Gloves", icon: "🥊", cents: 450, tier: "medium", fx: "burst" },
         { id: "skylanterns", art: "img/gifts/skylanterns.webp", name: "Sky Lanterns", icon: "🏮", cents: 450, tier: "medium", fx: "rise" }, // [RP-V7.308] weekly gifts Nov 9, 2026
-        { id: "peacock", art: "img/gifts/peacock.webp", name: "Peacock Fan", icon: "🦚", cents: 450, tier: "medium", fx: "burst" }, // [RP-V7.208] weekly gifts Nov 2, 2026
+        /* [RP-V7.360] Peacock Fan REMOVED by Branden's order (Nov 12, 2026 — "Remove the peacock gift"): no panel tile, no sends. Past sends/history stay intact — the breakdown renderer already shows catalog-missing gifts by their recorded name ("no longer in the gift catalog"), and the server keeps its MONEY_GIFT_INFO name entry. */
         { id: "tacofiesta", art: "img/gifts/tacofiesta.webp", name: "Taco Fiesta", icon: "🌮", cents: 450, tier: "medium", fx: "burst" },
         { id: "sportscar", art: "img/gifts/sportscar.webp", name: "Sports Car", icon: "🏎️", cents: 500, tier: "medium", fx: "across" },
         { id: "drumroll", art: "img/gifts/drumroll.webp", name: "Drumroll", icon: "🥁", cents: 500, tier: "medium", fx: "burst" },
@@ -23818,7 +23818,7 @@
           vid.className = "gfx-artimg gfx-film";
           vid.setAttribute("data-gid", fgid);
           vid.src = window.rpGiftFilmUrl(fgid);
-          vid.autoplay = true; vid.muted = true; vid.loop = true; vid.playsInline = true;
+          vid.autoplay = true; vid.muted = true; vid.loop = false; vid.playsInline = true; // [RP-V7.360] play ONCE at the source (was loop=true — the show lanes reset it, the combo pill did not)
           vid.style.width = px + "px"; vid.style.height = px + "px"; vid.style.objectFit = "cover";
           vid.onerror = function () {
             // [RP-V7.81] event film -> standard film before dropping to art.
@@ -23839,6 +23839,13 @@
               im2.parentNode.replaceChild(s2, im2);
             };
             vid.parentNode.replaceChild(im2, vid);
+            /* [RP-V7.360] the claimed film is gone and the ART takes over: release the dead video's keyer and UN-KEY the overlay. Left keyed, the overlay's forced mix-blend-mode:normal traps the art inside with its black ground intact — the black rectangle/box on bright posts (Foam Finger, Kraken). Released, the overlay's own screen blend dissolves the black and the art animates natively. */
+            try {
+              var ovFix = im2.closest ? im2.closest(".gfx") : null;
+              if (window.RpKeyRelease) window.RpKeyRelease(ovFix || im2.parentNode);
+              if (ovFix) ovFix.classList.remove("rp-keyed");
+              if (cvFix && cvFix.parentNode) cvFix.parentNode.removeChild(cvFix);
+            } catch (e) { }
           };
           return vid;
         }
@@ -23987,8 +23994,7 @@
         var fs327 = (s.tagName === "VIDEO") && !holFit220;
         if (fs327) {
           ov.classList.add("fs327");
-          s.loop = false; // [RP-V7.334] the film plays ONCE — giftArtImg loops it, and a show window longer than the film restarted it mid-show (Branden, Nov 11, 2026: "some of the gifts show up two times should only show once"); it now plays once and holds its end frame, the Golden Ascension treatment (V7.219) generalised to every film show, live rooms included (his live extension, same evening).
-          s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = "0px";
+          s.loop = false; // [RP-V7.334] the film plays ONCE — giftArtImg loops it, and a show window longer than the film restarted it mid-show (Branden, Nov 11, 2026: "some of the gifts show up two times should only show once"); it now plays once and holds its end frame, the Golden Ascension treatment (V7.219) generalised to every film show, live rooms included (his live extension, same evening).          s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-V7.360] off-live the hero seat rises above the bottom tab bar — the frame's lower strip was hiding behind it (Gold Gloves "plays mostly below the visible area")
           s.style.width = "100vw"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; s.style.objectFit = "contain";
           s.style.animation = "gfxHalfIn334 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
         } else {
@@ -23998,8 +24004,7 @@
         }
         stage.appendChild(s);
         if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g, undefined); } /* [RP-V7.334] no cover/keepBox on either path now — identity window + fixAspect (the band path always keyed this way) */
-        if (s.classList && s.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the band seat centres their square at 72% and pokes it above the midline */
-          s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = "0px"; s.style.transform = "none";
+        if (s.classList && s.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the band seat centres their square at 72% and pokes it above the midline */          s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); s.style.transform = "none"; // [RP-V7.360] seat raise (see C5a)
           s.style.width = "100vw"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; s.style.objectFit = "contain";
           s.style.animation = "gfxFade337 600ms ease-out both"; }
         var cap = document.createElement("div");
@@ -24024,8 +24029,7 @@
         var fs327 = (hero.tagName === "VIDEO");
         if (fs327) {
           ov.classList.add("fs327");
-          hero.loop = false; // [RP-V7.334] film plays ONCE, then holds its end frame (see the giftFxFloat note) — the 8000 ms burst window restarted the ~5.6 s films mid-show; lives included (live extension)
-          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px";
+          hero.loop = false; // [RP-V7.334] film plays ONCE, then holds its end frame (see the giftFxFloat note) — the 8000 ms burst window restarted the ~5.6 s films mid-show; lives included (live extension)          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-V7.360] seat raise (see C5a)
           hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
           hero.style.animation = "gfxHalfIn334 " + (window.RpShowDur ? window.RpShowDur(g) : 8000) + "ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.346] burst FILM hero spans the gift's whole show window — the hardcoded 4200ms was a pre-V7.219 leftover (V7.219 doubled burst windows 4000->8000; the float hero follows RpShowDur, this literal never moved), so every burst film faded out at 4.2s and its final ~1.4s never displayed (Gold Gloves — Branden, Nov 12, 2026)
         } else {
@@ -24034,30 +24038,10 @@
         }
         stage.appendChild(hero);
         if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined); // [RP-V7.217] hero keyed live — no box — [RP-V7.334] identity window + fixAspect on both paths (see the giftFxFloat note)
-        if (hero.classList && hero.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the burst's centred seat pokes their square above the midline */
-          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.transform = "none";
+        if (hero.classList && hero.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the burst's centred seat pokes their square above the midline */          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); hero.style.transform = "none"; // [RP-V7.360] seat raise (see C5a)
           hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
           hero.style.animation = "gfxFade337 600ms ease-out both"; }
-        var parts = g.fx === "burst" ? ["✨", "🎇", "💥", g.icon] : [g.icon, "✨", "⭐"];
-        var n = giftFxReduced() ? 5 : 18;
-        for (var i = 0; i < n; i++) {
-          var pv = parts[i % parts.length];
-          var s = null;
-          if (pv === (g.icon || "🎁")) s = (window.RpKeySticker && window.RpKeySticker(g, Math.round(40 + Math.random() * 18))) || null; // [RP-V7.217] gift-glyph particles are the pixel-keyed art sticker (emoji until the sticker is cached) — never an opaque box
-          if (!s) { s = document.createElement("span"); s.textContent = pv; s.style.fontSize = (18 + Math.random() * 20) + "px"; }
-          s.classList.add("gfx-p");
-          s.style.left = "50%"; s.style.top = "50%";
-          stage.appendChild(s);
-          if (s.animate) {
-            var ang = (i / n) * Math.PI * 2, dist = 90 + Math.random() * 140;
-            try {
-              s.animate([
-                { transform: "translate(-50%,-50%) scale(.5)", opacity: 1 },
-                { transform: "translate(" + Math.round(Math.cos(ang) * dist) + "px," + Math.round(Math.sin(ang) * dist) + "px) scale(1.1)", opacity: 0 }
-              ], { duration: 2200 + Math.random() * 1000, easing: "cubic-bezier(.2,.7,.3,1)", delay: 120, fill: "forwards" }); // [RP-V7.219] x2 burst particles
-            } catch (e) { }
-          }
-        }
+        /* [RP-V7.360] the burst particle scatter is REMOVED (Branden, Nov 12, 2026: "these small little pictures pop up before the gift — it need to be erased"): the 18 .gfx-p spans (the firework-burst glyph tiles, gift-icon stickers and sparkles that scattered across the post BEFORE the hero) are gone for every gift on both surfaces. The show now starts directly with the gift itself; hero, caption and the send toast/banner are untouched. */
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
         ov.appendChild(cap);
@@ -24190,15 +24174,13 @@
         var bigSeat347 = (g.tier === "big" || g.tier === "prestige"); // [RP-V7.347] TikTok-size ruling — see giftFxFloat
         if (hero.tagName === "VIDEO" && hero.style.display !== "none") {
           ov.classList.add("fs327");
-          hero.loop = false;
-          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px";
+          hero.loop = false;          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-V7.360] seat raise (see C5a)
           hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
           hero.style.animation = "gfxHalfIn334 " + dur + "ms cubic-bezier(.2,.7,.3,1) both";
           var bg337 = ov.querySelector(".gfx-bg"); if (bg337) { bg337.style.background = "transparent"; bg337.style.animation = "none"; bg337.style.opacity = "0"; }
           if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined);
         } else if (hero.tagName === "IMG") {
-          if (bigSeat347) { /* [RP-V7.347] a big gift whose film has not landed yet presents its animated art in the same raised film seat (bottom-anchored, own aspect, whole from the first frame) instead of the small centred seat */
-            hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.transform = "none";
+          if (bigSeat347) { /* [RP-V7.347] a big gift whose film has not landed yet presents its animated art in the same raised film seat (bottom-anchored, own aspect, whole from the first frame) instead of the small centred seat */            hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); hero.style.transform = "none"; // [RP-V7.360] seat raise (see C5a)
             hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = "85dvh"; hero.style.objectFit = "contain";
             hero.style.animation = "gfxHalfIn334 " + dur + "ms cubic-bezier(.2,.7,.3,1) both";
           } else hero.style.top = "72%";
@@ -30346,6 +30328,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
    band (body.live-fs) is byte-for-byte the approved presentation. */
 @keyframes gfxFsIn327 { 0% { opacity: 0; transform: scale(.97); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } } /* [RP-V7.337b] grow-in, never overshoot (see gfxHalfIn334 note) */
 @keyframes gfxHalfIn334 { 0% { opacity: 0; transform: scale(.955); } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } } /* [RP-V7.337b] grow-IN: the 1.045 overshoot kept every film hero wider than the screen (and past the bottom edge) for the whole show, worst at the first frame — Branden, Nov 11, 2026: the gift must be WHOLE from the beginning. The hero now starts a touch small and settles INTO its seat, never past it. */
+#rpStage.fs327 { padding-bottom: 76px; box-sizing: border-box; } /* [RP-V7.360] off-live stage seat rises above the bottom tab bar (see giftFxFloat) */
 #rpStage.fs327 .rp-stage-art.film { width: 100vw; height: auto; aspect-ratio: 16/9; }
 #rpStage.fs327 .rp-stage-art.film.portrait { width: auto; height: min(72vh, 150vw); aspect-ratio: 720/1280; } /* [RP-V7.347] raised big-gift portrait seat — see the live rule */
 #rpStage.fs327.bandblend218, #rpStage.fs327.ghost218 { mix-blend-mode: normal; }
@@ -30425,7 +30408,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { clocktea: 1, foxshot: 1, ufobeam: 1, musicnote: 1, guitarpick: 1, maraca: 1, cloverpop: 1, foamfinger: 1, confettipop: 1, micdrop: 1, saxsolo: 1, parrotdj: 1, keycascade: 1, tacofiesta: 1, drumroll: 1, laurelcrown: 1, kraken: 1, lowrider: 1, astropup: 1, moonunicorn: 1, starcruiser: 1, cometcrown: 1, dragonthrone: 1, fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, peacock: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1 };
+  var GIFT_FILM_IDS = { clocktea: 1, foxshot: 1, ufobeam: 1, musicnote: 1, guitarpick: 1, maraca: 1, cloverpop: 1, foamfinger: 1, confettipop: 1, micdrop: 1, saxsolo: 1, parrotdj: 1, keycascade: 1, tacofiesta: 1, drumroll: 1, laurelcrown: 1, kraken: 1, lowrider: 1, astropup: 1, moonunicorn: 1, starcruiser: 1, cometcrown: 1, dragonthrone: 1, fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1 };
   /* [RP-V7.337] DIM-MASTER gifts: measured against the keyer's own
      alpha curve (V7.337 audit), these gifts' ART keys to almost
      nothing (subject coverage at alpha>=0.5: fireflyjar 0.14,
@@ -30794,7 +30777,7 @@ var RP_SHOW_DUR = {
   titanclash: 10000, rizzuniverse: 10000, dragon: 10000, lion: 10000, plazaape: 10000, fattuesday: 10000, lowrider: 10000, astropup: 10000, moonunicorn: 10000, starcruiser: 10000, cometcrown: 10000, dragonthrone: 10000, meteor: 9200,
   whale: 9600,
   castle: 8000, airplane: 8000, guardianpalm: 8000, carousel: 8000, loveballoon: 8000, drumroll: 8000, keycascade: 8000, laurelcrown: 8000, kraken: 8000,
-  sportscar: 8000, worldtree: 8000, goldgloves: 8000, peacock: 8000, motorcycle: 8000,
+  sportscar: 8000, worldtree: 8000, goldgloves: 8000, motorcycle: 8000,
   fireworks: 8000, volcano: 8000, moneygun: 7000,
   micdrop: 7000, saxsolo: 7000, parrotdj: 7000, tacofiesta: 7000,
   kiss: 5200, bubblewand: 5200, fingerheart: 5200, thunderbolt: 5200, heartburst: 5200,
@@ -30815,7 +30798,7 @@ window.RpShowDur = rpDurFor;
 /* Portrait-raster stage films (720x1280): the stage box takes the
    film's own aspect instead of the 16/9 landscape box. nebuladragon
    is scene-class (cover), so only titanclash needs the class. */
-var RP_PORTRAIT_FILMS = { titanclash: 1, plazaape: 1 }; /* [RP-V7.241] +plazaape — Plaza Ape film gets the portrait treatment (Branden, Nov 4: "Fix the Ape") */
+var RP_PORTRAIT_FILMS = { titanclash: 1, plazaape: 1, foxshot: 1, ufobeam: 1 }; // [RP-V7.360] +foxshot +ufobeam: their 1440x2160 portrait films were never registered, so the stage squashed them into the 16:9 band (whole-scene defect) /* [RP-V7.241] +plazaape — Plaza Ape film gets the portrait treatment (Branden, Nov 4: "Fix the Ape") */
 /* [spec §2.4/§9.3] per-gift replay flag: one-play-per-streak exists
    as a mechanism (rpBigStage honors it) but NO Rizz gift is measured
    into that class — Rizz defaults to replay-per-send, so this map is
@@ -30995,6 +30978,8 @@ window.RpKeyUpgrade = function (el, g, opts327) {
        the blend class on it; every caller treats null as "no upgrade"
        and keeps the element, which is exactly the intent. */
     if (el && g && window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[g.id] && (el.tagName === "VIDEO" || el.tagName === "IMG")) { el.classList.add("rp-screen337"); return null; }
+    /* [RP-V7.360] an animated IMG is NEVER keyed: texImage2D from an animated image hands the keyer its FIRST frame forever on WebKit (rig-proven in Chrome too), so a keyed art hero is a frozen still — Branden's "some of them don't work at all it's still" (Nov 12, 2026: Lowrider, UFO Beam). Art heroes stay the raw animated image (natively animated on every engine, screen blend per the .gfx-artimg rules); the keyer remains for VIDEO sources only. */
+    if (el && el.tagName === "IMG") return null;
     if (!el || (el.tagName !== "VIDEO" && el.tagName !== "IMG") || !RpKey.supported()) return null;
     var parent = el.parentNode;
     if (!parent) return null;
@@ -31181,19 +31166,17 @@ function rpStageMedia(div, gid, icon) {
       img.src = "img/gifts/" + aid + ".webp";
       return;
     }
-    if (RpKey.supported()) {
-      var h = RpKey.attach(img, {}); // [RP-V7.337] identity window for every art hero (was { cover: true } for main-catalog gifts per V7.218 section 8 — the shader cover-cropped the square art into the band box); the keyer dissolves the black ground, so the whole art now shows inside the band with nothing cropped and no box. The V7.220 holiday fit already keyed this way.
-      if (h) {
-        ctl.h = h;
-        h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
-        div.appendChild(h.canvas);
-        img.classList.add("rp-key-src");
-        div.appendChild(img);
-        img.src = "img/gifts/" + aid + ".webp";
-        markKeyed();
-        return;
-      }
-    }
+    /* [RP-V7.360] art heroes are NO LONGER keyed (the keyed canvas froze
+       animated art at frame 0 — see RpKeyUpgrade). The raw animated img
+       presents under the stage's own screen blend (#rpStage screen rule
+       + the rp-gift-img rule); the stage must NOT carry rp-keyed (that
+       rule forces blend normal — the black rectangle), so a stage a
+       failed film attempt already keyed is un-keyed here. Box: the
+       square the art actually is, capped by the V7.347 big-gift rise —
+       objectFit contain keeps the whole scene, undistorted. */
+    var st354 = div.closest ? div.closest("#rpStage") : null;
+    if (st354) st354.classList.remove("rp-keyed");
+    if (!holFit220) { div.style.width = "min(100vw, 85dvh)"; div.style.height = "min(100vw, 85dvh)"; }
     div.appendChild(img);
     img.src = "img/gifts/" + aid + ".webp";
   }
@@ -31236,6 +31219,9 @@ function rpStageMedia(div, gid, icon) {
           if (ctl.dead || ctl.h !== h) return;
           if (h.frames() === 0 && v.readyState < 2) artMode();
         }, 2800);
+        v.addEventListener("loadedmetadata", function () { // [RP-V7.360] portrait stage seat: the .portrait CSS box hardcodes 720/1280 — hand the box the film's OWN aspect so 1440x2160 films (Fox Shot, UFO Beam) show whole AND undistorted
+          try { if (v.videoWidth && v.videoHeight && v.videoHeight > v.videoWidth) div.style.aspectRatio = v.videoWidth + " / " + v.videoHeight; } catch (e) { }
+        });
         v.src = window.rpGiftFilmUrl(aid);
         return;
       }
