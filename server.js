@@ -6546,7 +6546,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.355", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.356", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -15778,7 +15778,7 @@ const PREMIUM_PLANS = {
 // [RP-V7.224] BUSINESS ADS (Branden, Nov 3, 2026: "add something on
 // there where if a person wants to advertise their business they have
 // to pay a monthly fee. Add it with the other monthly subscriptions"
-// — price set by Branden: $19.99/month). Business Ads rides the EXACT
+// — price set by Branden: $49/month [RP-V7.356, Nov 12, 2026; was $19.99/month). Business Ads rides the EXACT
 // Premium rail: Stripe Checkout (mode "subscription", inline
 // price_data), webhook-settled state in the money ledger, 18+
 // server-locked like every money door. The subscription record ALSO
@@ -15787,7 +15787,7 @@ const PREMIUM_PLANS = {
 // only while the subscription is active — never for teen accounts,
 // never on church surfaces or in Teen Hangout (those surfaces simply
 // never call the ads endpoint / slot).
-const BIZADS_PLAN = { priceCents: 1999, interval: "month", label: "Business Ads monthly" };
+const BIZADS_PLAN = { priceCents: 4900, interval: "month", label: "Business Ads monthly" }; // [RP-V7.356] $49/mo — Branden, Nov 12, 2026 (was $19.99/mo)
 const BIZADS_NAME_MAX = 60;   // business name cap
 const BIZADS_BLURB_MAX = 140; // the Plaza's caption cap (feed/reel/comment text)
 const BIZADS_LINK_MAX = 300;  // the profile-link cap (pfLinkInput)
@@ -23033,7 +23033,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.355", online: players.size })
+  res.json({ ok: true, version: "RP-V7.356", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
