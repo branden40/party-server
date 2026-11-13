@@ -6511,7 +6511,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.351", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.349", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -18120,6 +18120,308 @@ app.get("/api/post-gifts", (req, res) => {
   const detailed = gifts.reduce((s, g) => s + g.count, 0);
   res.json({ ok: true, kind, id, total, detailed, gifts });
 });
+// ---------------------------------------------------------------------------
+// [RP-V7.349] SAVE (bookmark) POSTS — Branden approved Nov 12, 2026
+// ("Ok", after confirming a save takes ~no space). A save is a
+// REFERENCE ONLY — the row is { userId, kind, store, id, savedAt };
+// the media is never copied. The post keeps living in its own store
+// and every read re-resolves it through the SAME serializers and
+// visibility rules the feeds use, so a post the member can no
+// longer view never leaks content:
+//   * deleted post            -> dropped from the list outright
+//     (and its row is pruned on the next GET /api/saved);
+//   * audience-gated post (onlyme / followers the caller no longer
+//     satisfies)               -> dropped, exactly like the feeds
+//     drop them (no placeholder exists for audience locks);
+//   * subsOnly / clubOnly post without access -> rides as the
+//     locked placeholder the feed + profile serializers already
+//     produce (id + author + lock state; no URL, no caption, no
+//     comments) — the same choice /api/post-gifts-era gating made.
+//   * author blocked (either direction) -> dropped, mirroring the
+//     feeds' mutual-block invisibility (RP-V7.99).
+//
+// kind is the public two-value taxonomy ("reel" | "photo" — the
+// same one /api/post-gifts uses). Three stores can hold a post, so
+// each row also carries the store it resolved to at save time:
+//   "reel"  — reels.json          (public kind "reel")
+//   "photo" — photo-posts.json    (public kind "photo"; text posts
+//             included — they tile as styled text cards)
+//   "feed"  — feed.json media posts (video -> "reel", photo ->
+//             "photo"). Feed TEXT posts carry no media and are not
+//             saveable.
+// Resolution checks the primary store first, then the Feed store —
+// the same precedence the gift rails use (Feed posts never ride
+// post gifts; "photo" there means photo-posts store). Post ids are
+// timestamp+random-hex in every store, so a cross-store id
+// collision is not a practical case; if one ever occurred, the
+// primary store wins deterministically, at save AND at read.
+// ---------------------------------------------------------------------------
+const SAVED349_FILE =
+  process.env.SAVED349_FILE || path.join(path.dirname(PHOTO_DIR), "saved349.json");
+const SAVED349_CAP = 5000; // sanity cap per account — a reference is tiny, this only stops abuse
+function readSaved349() {
+  return storeReadJson(
+    SAVED349_FILE,
+    (d) => !!(d && Array.isArray(d.rows)),
+    { rows: [] },
+    "saved349"
+  );
+}
+function writeSaved349(db) {
+  storeWriteJson(SAVED349_FILE, db);
+}
+function saved349Find(kind, id) {
+  if (kind === "reel") {
+    const r = listReels().find((x) => x && x.id === id && x.file);
+    if (r) return { store: "reel", rec: r };
+    const fp = (readFeed().posts || {})[id];
+    if (fp && fp.file && fp.kind === "video") return { store: "feed", rec: fp };
+    return null;
+  }
+  const p = readPhotoPosts().posts.find((x) => x && x.id === id);
+  if (p) return { store: "photo", rec: p };
+  const fp = (readFeed().posts || {})[id];
+  if (fp && fp.file && fp.kind === "photo") return { store: "feed", rec: fp };
+  return null;
+}
+// One read of every store the resolvers gate on, per request — the
+// same one-read-per-request discipline the feed routes keep.
+function saved349Ctx(ctx) {
+  const mdb = readMoney();
+  return {
+    uid: ctx.user.id,
+    adb: ctx.db,
+    nameOf: nameResolver313(ctx.db),
+    following: new Set(socialFollowingIds(readSocial(), ctx.user.id)),
+    hidden: blockHiddenIds(ctx.user.id),
+    fanAccess: fanSubAccessSet296(mdb, ctx.user.id),
+    clubAccess: fanClubAccessSet298(mdb, ctx.user.id),
+    pg: mdb.postGifts || {},
+    vdb: readViews(),
+    likesDb: readPhotoLikes(),
+    commentsDb: readPhotoComments(),
+    repostsDb: readPhotoReposts(),
+  };
+}
+// Tile-shaped item for a saved REEL-store post, or null when the
+// caller may not view it at all. Mirrors GET /api/reels: the
+// audience filter (V7.156), mutual-block invisibility (V7.99) and
+// the subs/club locked placeholder (V7.296/V7.298).
+function saved349ResolveReel(r, c) {
+  if (!r || !r.file) return null;
+  const aKey = reelAuthorKeyFor(c.adb, r);
+  if (aKey && c.hidden.has(aKey)) return null;
+  const aud = r.audience || "everyone";
+  if (aud !== "everyone" && aKey !== c.uid) {
+    if (aud !== "followers" || !aKey || !c.following.has(aKey)) return null;
+  }
+  const author = (aKey && c.nameOf(aKey)) || r.author || "";
+  const hl = Array.isArray(r.heartLikes) ? r.heartLikes.length : 0;
+  const rp = Array.isArray(r.reposts) ? r.reposts.length : 0;
+  const base = {
+    kind: "reel", id: r.id, owner: aKey || null, ownerName: author,
+    ...(r.subsOnly ? { subsOnly: true } : {}),
+    ...(r.clubOnly ? { clubOnly: true } : {}),
+  };
+  if (r.subsOnly || r.clubOnly) {
+    const canSee = !!(
+      aKey &&
+      (aKey === c.uid ||
+        ((!r.subsOnly || c.fanAccess.has(aKey)) &&
+          (!r.clubOnly || c.clubAccess.has(aKey))))
+    );
+    if (!canSee)
+      return Object.assign(base, {
+        src: null, views: 0, caption: "", locked: true,
+        heartLikes: hl, giftCount: postGiftCountOf262(c.pg, "reel", r.id),
+        myHeart: false, comments: [], commentCount: 0,
+        reposts: rp, myReposted: false, allowDownloads: false,
+      });
+  }
+  return Object.assign(base, {
+    src: "/reel-files/" + r.file,
+    views: mediaViewCount(c.vdb, "reel:" + r.id),
+    caption: r.caption || "",
+    heartLikes: hl,
+    giftCount: postGiftCountOf262(c.pg, "reel", r.id),
+    myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(c.uid),
+    comments: reelPublicComments(r, c.nameOf),
+    commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
+    reposts: rp,
+    myReposted:
+      (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === c.uid)) ||
+      (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === c.uid)),
+    crMuted: r.crMuted || null,
+    allowDownloads: r.allowDownloads !== false,
+  });
+}
+// Tile-shaped item for a saved PHOTO-POSTS-store post. The payload
+// itself comes from photoPublicPost — the exact serializer the
+// photo feed and profiles serve — with the audience filter
+// GET /api/photo/posts applies before mapping (V7.156).
+function saved349ResolvePhoto(p, c) {
+  if (!p) return null;
+  if (p.owner && c.hidden.has(p.owner)) return null;
+  const aud = p.audience || "everyone";
+  if (aud !== "everyone" && p.owner !== c.uid) {
+    if (aud !== "followers" || !p.owner || !c.following.has(p.owner)) return null;
+  }
+  const pub = photoPublicPost(p, c.uid, c.likesDb, c.commentsDb, c.repostsDb, c.pg, c.fanAccess, c.clubAccess, c.nameOf);
+  return {
+    kind: "photopost", id: p.id, owner: p.owner || null, ownerName: pub.author || "",
+    src: pub.photo, views: 0, caption: pub.caption || "",
+    likes: pub.likes || 0, giftCount: pub.giftCount || 0,
+    ...(pub.locked
+      ? {
+          locked: true,
+          ...(pub.subsOnly ? { subsOnly: true } : {}),
+          ...(pub.clubOnly ? { clubOnly: true } : {}),
+        }
+      : {}),
+    textPost: pub.kind === "text", text: pub.text || "", tstyle: pub.tstyle || null,
+    photoCount: (pub.urls || []).length || 1,
+    myLiked: !!pub.myLiked, comments: pub.comments || [], commentCount: pub.commentCount || 0,
+    reposts: pub.reposts || 0, myReposted: !!pub.myReposted, mine: !!pub.mine,
+  };
+}
+// Tile-shaped item for a saved FEED-store media post, resolved
+// through feedPublic — the exact serializer GET /api/feed serves
+// (it returns null for a gone / pending-deletion author, and the
+// locked placeholder for subs/club posts without access).
+function saved349ResolveFeed(p, c, ctx) {
+  if (!p || !p.file || !p.authorId) return null;
+  if (c.hidden.has(p.authorId)) return null;
+  const pub = feedPublic(ctx, p, c.following, c.fanAccess, c.clubAccess);
+  if (!pub) return null;
+  return {
+    kind: pub.kind === "video" ? "reel" : "photo", feedPost: true, id: p.id,
+    owner: p.authorId, ownerName: (pub.author && pub.author.name) || "",
+    src: pub.url, views: pub.views || 0, caption: pub.text || "", likes: pub.likes || 0,
+    ...(pub.locked
+      ? {
+          locked: true,
+          ...(pub.subsOnly ? { subsOnly: true } : {}),
+          ...(pub.clubOnly ? { clubOnly: true } : {}),
+        }
+      : {}),
+    crMuted: pub.crMuted || null,
+    allowDownloads: pub.allowDownloads !== false,
+  };
+}
+function saved349Resolve(store, rec, c, ctx) {
+  if (store === "reel") return saved349ResolveReel(rec, c);
+  if (store === "photo") return saved349ResolvePhoto(rec, c);
+  return saved349ResolveFeed(rec, c, ctx);
+}
+app.post("/api/save", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const kind = String(b.kind || "");
+  const id = reelCleanId(b.id);
+  if ((kind !== "reel" && kind !== "photo") || !id)
+    return res.status(400).json({ ok: false, error: "Save needs a post kind and id" });
+  const found = saved349Find(kind, id);
+  if (!found) return res.status(404).json({ ok: false, error: "Post not found" });
+  // A post the caller cannot view at all (audience-gated or
+  // author-blocked) is "not found" for saving too — a saved
+  // reference must never become a back door. Locked subs/club
+  // posts DO save: they are publicly listed as locks, exactly
+  // like the feeds show them.
+  const probe = saved349Resolve(found.store, found.rec, saved349Ctx(ctx), ctx);
+  if (!probe) return res.status(404).json({ ok: false, error: "Post not found" });
+  const db = readSaved349();
+  const mine = db.rows.filter((r) => r && r.userId === ctx.user.id);
+  if (mine.some((r) => r.kind === kind && r.store === found.store && r.id === id))
+    return res.json({ ok: true, saved: true, already: true, kind, id });
+  if (mine.length >= SAVED349_CAP)
+    return res.status(400).json({
+      ok: false,
+      error: "You've saved " + SAVED349_CAP.toLocaleString("en-US") + " posts — unsave some to save more.",
+    });
+  db.rows.push({ userId: ctx.user.id, kind, store: found.store, id, savedAt: new Date().toISOString() });
+  writeSaved349(db);
+  return res.json({ ok: true, saved: true, kind, id });
+});
+app.post("/api/unsave", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const kind = String(b.kind || "");
+  const id = reelCleanId(b.id);
+  if ((kind !== "reel" && kind !== "photo") || !id)
+    return res.status(400).json({ ok: false, error: "Unsave needs a post kind and id" });
+  const db = readSaved349();
+  const before = db.rows.length;
+  db.rows = db.rows.filter(
+    (r) => !(r && r.userId === ctx.user.id && r.kind === kind && r.id === id)
+  );
+  if (db.rows.length !== before) writeSaved349(db);
+  return res.json({ ok: true, saved: false, kind, id });
+});
+// The lightweight saved-state signal the client paints bookmark
+// fill from: the caller's own saved keys ("kind:id"), nothing
+// resolved, nothing about anyone else. Same spirit as
+// GET /api/photo/extras' batch state, account-scoped.
+app.get("/api/saved/state", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const seen = new Set();
+  const ids = [];
+  for (const r of readSaved349().rows) {
+    if (!r || r.userId !== ctx.user.id) continue;
+    const k = r.kind + ":" + r.id;
+    if (!seen.has(k)) {
+      seen.add(k);
+      ids.push(k);
+    }
+  }
+  return res.json({ ok: true, ids });
+});
+app.get("/api/saved", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readSaved349();
+  const mine = db.rows
+    .filter((r) => r && r.userId === ctx.user.id)
+    .slice()
+    .sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
+  const c = saved349Ctx(ctx);
+  const reelIdx = new Map();
+  for (const r of listReels()) if (r && r.id) reelIdx.set(r.id, r);
+  const photoIdx = new Map();
+  for (const p of readPhotoPosts().posts) if (p && p.id) photoIdx.set(p.id, p);
+  const feedPosts = readFeed().posts || {};
+  const rowKey = (r) => r.kind + ":" + r.store + ":" + r.id;
+  const goneKeys = new Set();
+  const items = [];
+  for (const row of mine) {
+    let rec = null;
+    if (row.store === "reel") rec = reelIdx.get(row.id) || null;
+    else if (row.store === "photo") rec = photoIdx.get(row.id) || null;
+    else if (row.store === "feed") {
+      const fp = feedPosts[row.id];
+      rec = fp && fp.file ? fp : null;
+    }
+    if (!rec) {
+      goneKeys.add(rowKey(row)); // the post is gone for good — drop + prune
+      continue;
+    }
+    const item = saved349Resolve(row.store, rec, c, ctx);
+    if (item)
+      items.push(
+        Object.assign({ saveKind: row.kind, store: row.store, savedAt: row.savedAt || null }, item)
+      );
+  }
+  if (goneKeys.size)
+    writeSaved349({
+      rows: db.rows.filter(
+        (r) => !(r && r.userId === ctx.user.id && goneKeys.has(rowKey(r)))
+      ),
+    });
+  return res.json({ ok: true, items, count: items.length });
+});
+
 
 // ---------------------------------------------------------------------------
 // [RP-V7.338] GIFTER POINTS, LEVELS & REWARDS — TikTok's gifter
@@ -22688,7 +22990,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.351", online: players.size })
+  res.json({ ok: true, version: "RP-V7.349", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
