@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.356" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.358" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -36171,6 +36171,9 @@ button.rp72-chip{ cursor:pointer; }
 .rpdm-bub.them { align-self: flex-start; background: #26262e; color: #fff; border-bottom-left-radius: 6px; }
 .rpdm-media { display: block; width: 100%; max-width: 230px; border-radius: 12px; margin: 2px 0; background: #000; }
 .rpdm-btime { display: block; font-size: 10px; opacity: .65; margin-top: 3px; font-weight: 700; }
+.rpdm-storyref { display: flex; align-items: center; gap: 9px; background: rgba(0,0,0,.30); border: 1px solid rgba(255,255,255,.20); border-radius: 10px; padding: 5px 9px 5px 5px; margin-bottom: 6px; }
+.rpdm-storyref img, .rpdm-storyref video { width: 36px; height: 48px; object-fit: cover; border-radius: 6px; display: block; flex: 0 0 auto; background: #000; }
+.rpdm-storyref span { font-size: 11.5px; font-weight: 700; line-height: 1.3; opacity: .92; } /* [RP-V7.354] */
 .rpdm-empty { text-align: center; color: #9a9aad; padding: 22px 10px; font-size: 13.5px; }
 .rpdm-inputrow { display: flex; gap: 8px; margin-top: 10px; }
 .rpdm-input { flex: 1 1 auto; min-width: 0; background: #17171f; border: 1px solid rgba(255,255,255,.16); color: #fff; border-radius: 999px; padding: 11px 14px; font-family: inherit; font-size: 14.5px; }
@@ -36813,6 +36816,15 @@ button.rp72-chip{ cursor:pointer; }
         inner = '<a href="' + esc(m.media.url) + '" target="_blank" rel="noopener"><img class="rpdm-media" src="' + esc(m.media.url) + '" alt="Shared photo" loading="lazy"/></a>';
       } else {
         inner = esc(m.text);
+      }
+      if (m.storyRef && m.storyRef.url) {
+        // [RP-V7.354] Story reply: the bubble carries the story it
+        // answers (a server-verified reference) as a thumbnail card.
+        var srLabel354 = meSide ? ("You replied to " + esc(conv.name) + "'s story") : (esc(conv.name) + " replied to your story");
+        var srMedia354 = m.storyRef.kind === "photo"
+          ? '<img src="' + esc(m.storyRef.url) + '" alt="" loading="lazy"/>'
+          : '<video src="' + esc(m.storyRef.url) + '" muted playsinline preload="metadata"></video>';
+        inner = '<span class="rpdm-storyref">' + srMedia354 + "<span>" + srLabel354 + "</span></span>" + inner;
       }
       return '<div class="rpdm-bub ' + (meSide ? "me" : "them") + '">' + inner +
         '<span class="rpdm-btime">' + esc(clockText(m.at)) + "</span></div>";
@@ -42937,6 +42949,14 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .sv-rail small { display: block; font-size: 12px; font-weight: 800; margin-top: 3px; }
 .sv-rail .sv-like.on { color: #fe2c2c; }
 .sv-bottom { position: absolute; left: 12px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; gap: 12px; }
+.sv-replybar { position: absolute; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; gap: 8px; }
+.sv-replybar[hidden] { display: none; }
+.sv-replyin { flex: 1; min-width: 0; background: rgba(18,18,26,.78); border: 1.5px solid rgba(255,255,255,.38); border-radius: 999px; color: #fff; font-family: inherit; font-size: 16px; font-weight: 600; padding: 11px 16px; outline: none; }
+.sv-replyin::placeholder { color: rgba(255,255,255,.78); }
+.sv-replyin:focus { border-color: #fe2c2c; }
+.sv-replysend { flex: 0 0 auto; background: #fe2c2c; color: #fff; border: none; border-radius: 999px; padding: 12px 18px; font-weight: 800; font-family: inherit; font-size: 14.5px; cursor: pointer; }
+.sv-replysend:disabled { opacity: .55; cursor: default; }
+#storyViewer.has-reply .sv-bottom { bottom: calc(74px + env(safe-area-inset-bottom)); } /* [RP-V7.354] views/follow ride above the reply bar */
 .sv-views { color: #fff; font-weight: 700; font-size: 13.5px; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
 .sv-follow { background: #fe2c2c; color: #fff; border: none; border-radius: 8px; padding: 9px 18px; font-weight: 800; font-family: inherit; cursor: pointer; font-size: 14px; }
 .sv-follow.on { background: rgba(255,255,255,.18); }
@@ -43464,9 +43484,13 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       "</div>" +
       '<div class="sv-bottom"><span class="sv-views"></span>' +
       '<button type="button" class="sv-follow" hidden>Follow</button></div>' +
+      '<div class="sv-replybar" hidden>' + // [RP-V7.354]
+      '<input type="text" class="sv-replyin" maxlength="1000" autocomplete="off" enterkeyhint="send" aria-label="Reply to this story">' +
+      '<button type="button" class="sv-replysend">Send</button></div>' +
       "</div>";
     document.body.appendChild(d);
     V.el = d; V.video = d.querySelector("video"); V.photo = d.querySelector(".sv-photo");
+    V.replyBar = d.querySelector(".sv-replybar"); V.replyIn = d.querySelector(".sv-replyin"); // [RP-V7.354]
     d.querySelector(".sv-x").addEventListener("click", closeViewer);
     d.querySelector(".sv-del").addEventListener("click", onDeleteStory);
     d.querySelector(".sv-chip").addEventListener("click", openAuthorSheet);
@@ -43474,6 +43498,11 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     d.querySelector(".sv-gift").addEventListener("click", onGift);
     d.querySelector(".sv-share").addEventListener("click", onShare);
     d.querySelector(".sv-follow").addEventListener("click", onFollow);
+    V.replyIn.addEventListener("focus", replyHold); // [RP-V7.354]
+    V.replyIn.addEventListener("blur", replyRelease);
+    V.replyIn.addEventListener("keydown", function (ev) { ev.stopPropagation(); if (ev.key === "Enter") { ev.preventDefault(); onStoryReply(); } });
+    V.replyIn.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); });
+    d.querySelector(".sv-replysend").addEventListener("click", onStoryReply);
     d.querySelector(".sv-zone.l").addEventListener("click", function () { step(-1); });
     d.querySelector(".sv-zone.r").addEventListener("click", function () { step(1); });
     var cz = d.querySelector(".sv-zone.c");
@@ -43556,7 +43585,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     fol.hidden = e.isSelf || !!e.iFollow;
     fol.textContent = "Follow";
     fol.classList.remove("on");
-    paintLike(); paintViews();
+    paintLike(); paintViews(); paintReply(); // [RP-V7.354]
     paintSegs();
     if (!V.seenSent[s.id]) {
       V.seenSent[s.id] = true;
@@ -43607,6 +43636,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   }
   function closeViewer() {
     stopPhotoTimer();
+    replyReset(); // [RP-V7.354]
     if (V.photo) { V.photo.hidden = true; V.photo.removeAttribute("src"); }
     if (V.video) { try { V.video.pause(); } catch (e) {} V.video.removeAttribute("src"); V.video.load(); }
     if (V.el) V.el.classList.remove("open");
@@ -43652,6 +43682,63 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     if (navigator.share) { navigator.share(data).catch(function () {}); return; }
     if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toastS("Link copied — share it anywhere 🔗", 3000); });
     else toastS("Share this link: " + url, 4200);
+  }
+  /* [RP-V7.354] Story reply box (Branden, Nov 12, 2026) — TikTok-style:
+     on someone ELSE's story a reply bar sits at the bottom of the
+     viewer; sending delivers the reply through the standard DM path
+     (/api/dm/send) naming the story, and the server rebuilds the
+     story reference from its own record, so the author's thread
+     shows which story it answers. Focusing the box holds the story
+     (photo timer and video both pause); a successful send clears
+     the box and resumes; tapping away resumes too. */
+  function paintReply() {
+    var c = cur(); if (!c || !V.replyBar) return;
+    var show = !c.entry.isSelf;
+    V.replyBar.hidden = !show;
+    V.el.classList.toggle("has-reply", show);
+    if (show) V.replyIn.placeholder = "Reply to " + c.entry.author.name + "\u2026";
+    if (V.replyHeld) viewerPause();
+  }
+  function replyReset() {
+    V.replyHeld = false; V.replySending = false;
+    if (V.el) V.el.classList.remove("has-reply");
+    if (V.replyIn) { V.replyIn.value = ""; if (document.activeElement === V.replyIn) V.replyIn.blur(); }
+    var b = V.el ? V.el.querySelector(".sv-replysend") : null;
+    if (b) b.disabled = false;
+  }
+  function replyHold() { V.replyHeld = true; viewerPause(); }
+  function replyRelease() {
+    /* A tap on Send blurs the box a beat before the click lands; the
+       short delay lets an in-flight send keep the story held. */
+    setTimeout(function () {
+      if (V.replySending || !V.replyHeld) return;
+      V.replyHeld = false; viewerResume();
+    }, 80);
+  }
+  function onStoryReply() {
+    var c = cur(); if (!c || c.entry.isSelf || V.replySending) return;
+    var text = (V.replyIn.value || "").trim();
+    if (!text) return;
+    V.replySending = true;
+    var btn = V.el.querySelector(".sv-replysend");
+    btn.disabled = true;
+    api("/api/dm/send", "POST", { to: c.entry.author.id, text: text, storyId: c.story.id }).then(function (r) {
+      V.replySending = false; btn.disabled = false;
+      if (r.json && r.json.ok) {
+        V.replyIn.value = "";
+        V.replyHeld = false;
+        if (document.activeElement === V.replyIn) V.replyIn.blur();
+        toastS("Sent \u2713", 1800);
+        viewerResume();
+      } else {
+        V.replyHeld = true; viewerPause();
+        toastS((r.json && r.json.error) || "That reply didn't send \u2014 try again.", 3600);
+      }
+    }, function () {
+      V.replySending = false; btn.disabled = false;
+      V.replyHeld = true; viewerPause();
+      toastS("That reply didn't send \u2014 check your connection.", 3600);
+    });
   }
   function onFollow() {
     var c = cur(); if (!c) return;
