@@ -6564,7 +6564,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.365", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.368", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -10845,17 +10845,49 @@ function dpSettleClass(potClass) {
   );
   return { noburst: true };
 }
+// [RP-V7.368] The test-funds account id set, resolved with the
+// RP-V7.321 guardrail's own determination (testFunds321). Read fresh
+// on each use so a flag change is never stale; null when the accounts
+// store cannot be read (callers then fall back to the ledger's own
+// promo marker alone).
+function dpTestFundIds368() {
+  try {
+    const adb = readAccounts();
+    if (!adb || !Array.isArray(adb.users)) return null;
+    const ids = new Set();
+    for (const u of adb.users) if (u && testFunds321(u)) ids.add(u.id);
+    return ids;
+  } catch (e) {}
+  return null;
+}
+// [RP-V7.368] Is this ledger row a TEST-funds gift? Two witnesses,
+// either suffices: the row's own promo marker (stamped on both rows
+// of a guarded settle since RP-V7.321) or a sender id the guardrail
+// flags. Charms-only rows carry no promo marker, so the id check is
+// what catches a test sender on those.
+function dpTxIsTestGift368(tx, testIds) {
+  if (!tx) return false;
+  if (tx.promo === true) return true;
+  return !!(testIds && tx.from && testIds.has(tx.from));
+}
 function dpGiftVolumeOn(dateStr, potClass) {
   // [RP-V7.42] Total charms gifted on one ET date, from the money
   // ledger's gift-sent transactions (one per gift, charms = the
   // gift's catalog cost). No ledger yet = zero volume = Tier 1.
   // [RP-V7.263] One pot, one track: ALL gift volume counts toward
   // the single tier track.
+  // [RP-V7.368] TEST-FUNDS LEAK CLOSED: gift-sent rows from
+  // test-funds accounts no longer count toward the tier volume —
+  // Branden's own catalog-test sends alone crossed the Tier 3
+  // threshold (100K charms) and were seeding real pots with test
+  // volume. Real gifts count exactly as before.
   let total = 0;
   try {
+    const testIds = dpTestFundIds368();
     const db = readMoney();
     for (const tx of db.txlog || []) {
       if (!tx || tx.type !== "gift-sent") continue;
+      if (dpTxIsTestGift368(tx, testIds)) continue; // [RP-V7.368]
       const at = Date.parse(tx.at || "");
       if (!Number.isFinite(at)) continue;
       if (dpDateStr(at) === dateStr) total += tx.charms || 0;
@@ -10884,6 +10916,14 @@ function dpTierForNewDay(dateStr, potClass) {
 function dpFreshRec(dateStr, rolledIn, potClass) {
   const cls = "adult"; // [RP-V7.263] one class
   const t = dpTierForNewDay(dateStr, cls); // [RP-V7.42] the day carries its own class tier
+  // [RP-V7.368] HARD TOTAL-POT CEILING (Branden, Nov 13, 2026): a
+  // day's pot TOTAL (rolledIn + seed + match) may never exceed the
+  // day's tier ceiling = seed + matchCap. The rollover-in is trimmed
+  // to the cap here, at day open — the excess simply never enters
+  // the pot (platform promo accounting; no member balance moves).
+  const rolledIn368 = Math.min(rolledIn || 0, t.cap);
+  if ((rolledIn || 0) > rolledIn368)
+    console.log("[dailypot] rollover trimmed by the V7.368 ceiling:", dateStr, (rolledIn || 0) + " -> " + rolledIn368, "(ceiling " + (t.seed + t.cap) + ")");
   return {
     potClass: cls,
     date: dateStr,
@@ -10893,7 +10933,7 @@ function dpFreshRec(dateStr, rolledIn, potClass) {
     winMin: t.winMin || 1, // [RP-V7.143] this day's winner-count range (from its tier)
     winMax: t.winMax || DAILY_POT_MAX_WINNERS,
     prevVolume: t.prevVolume,
-    rolledIn: rolledIn || 0,
+    rolledIn: rolledIn368,
     match: 0,
     milestonesHit: [], // [RP-V7.43] milestone thresholds already shouted today
     entries: [],
@@ -10959,6 +10999,9 @@ function dpEnsureClass(potClass, now) {
     dpSettleClass(cls);
     rec = readDailyPot().pots[cls];
   }
+  // [RP-V7.368] one-time honest-pot correction — self-guarded by
+  // its marker file and wrapped so it can never break the roll.
+  try { dpHonestFix368(); } catch (e) { console.log("[dpfix368] hook failed", e && e.message); }
   return rec;
 }
 function dpEnsureToday(now) {
@@ -10983,15 +11026,28 @@ function dailyPotTick() {
 // platform match of 2% of its charm value (floored, min 0), capped
 // for the day at the day's tier cap (rec.matchCap). Platform accounting only — the
 // gift, its split and any live-pot match are untouched.
-function dailyPotOnGift(giftCharms) {
+// [RP-V7.368] TEST-FUNDS LEAK CLOSED (Branden, Nov 13, 2026): a gift
+// sent from a test-funds account (testFunds321 — the RP-V7.321
+// guardrail's own determination) grows the pot by NOTHING. Test
+// charms were never purchase-backed, so they must not mint pot
+// charms a real member can win; before this build the hook received
+// no sender and counted every test send, inflating the pot daily.
+function dailyPotOnGift(giftCharms, sender) {
+  if (testFunds321(sender)) return; // [RP-V7.368] test funds never grow the pot
   // [RP-V7.263] One Daily Pot: every gift grows it by the 2% match
   // against the day's own cap.
   const cls = "adult";
   const rec = dpEnsureClass(cls, Date.now());
   if (!rec || rec.status !== "open") return;
   const cap = rec.matchCap != null ? rec.matchCap : DAILY_POT_MATCH_CAP; // [RP-V7.42] the DAY's cap, from its tier
+  // [RP-V7.368] ceiling headroom: the match may only accrue while
+  // the day's TOTAL sits below the tier ceiling (seed + matchCap).
+  // The per-day match cap stays in force underneath this — the
+  // accrual stops at whichever bound comes first.
+  const headroom = Math.max(0, (rec.seed || 0) + cap - ((rec.rolledIn || 0) + (rec.seed || 0) + (rec.match || 0)));
   const add = Math.min(
     cap - (rec.match || 0),
+    headroom,
     Math.floor((giftCharms * DAILY_POT_MATCH_PCT) / 100)
   );
   if (!(add > 0)) return;
@@ -10999,12 +11055,268 @@ function dailyPotOnGift(giftCharms) {
   const cur = db.pots[cls];
   if (!cur || cur.date !== rec.date || cur.status !== "open") return;
   const cap2 = cur.matchCap != null ? cur.matchCap : DAILY_POT_MATCH_CAP;
-  const add2 = Math.min(cap2 - (cur.match || 0), add);
+  const headroom2 = Math.max(0, (cur.seed || 0) + cap2 - ((cur.rolledIn || 0) + (cur.seed || 0) + (cur.match || 0)));
+  const add2 = Math.min(cap2 - (cur.match || 0), headroom2, add);
   if (!(add2 > 0)) return;
   cur.match = (cur.match || 0) + add2;
   writeDailyPot(db);
   dpCheckMilestones(cur.date, cls); // [RP-V7.43] growth may have crossed a milestone threshold
   dpBroadcastUpdate(false); // throttled — joins/bursts force their own
+}
+// ---------------------------------------------------------------------------
+// [RP-V7.368] ONE-TIME HONEST-POT CORRECTION (Branden, Nov 13, 2026:
+// "Fix the leak and shrink today's pot back to honest size"). The
+// two fixes above stop test-funds gifts feeding the Daily Pot from
+// this build on, but today's live record was already inflated by
+// them: a whole no-burst yesterday rolled in, a Tier 3 seed set by
+// test volume, a match grown by test sends. On the first daily-pot
+// ensure after deploy — exactly once, guarded by the marker file
+// dailypot-fix368.json beside dailypot.json — the current day's
+// record is recomputed as it WOULD have stood had test gifts never
+// counted, at every step:
+//   tier/seed/matchCap/win range <- yesterday's HONEST gift volume
+//   rolledIn <- yesterday's honest carry-out, walked forward
+//     through the recorded history chain from a provable burst
+//     anchor (below), each day's honest seed + honest match
+//     recomputed from the ledger with test gifts excluded; burst
+//     payouts actually made stay paid and are honored as-is
+//   match <- today's honest 2% accrual so far
+// Entries, entry names, the drawn burst moment, status and the
+// milestone record are PRESERVED untouched.
+// HONESTY GUARDS — the recompute runs only when every input
+// verifies against the recorded chain:
+//   * history is a contiguous run of finished days ending yesterday;
+//   * each recorded day's seed (tier from the previous day's FULL
+//     ledger volume) and match (2% over the day's full ledger gifts,
+//     cut off at settlement — the first win row for a burst day,
+//     the 7–9 PM ET window range otherwise) reconcile with the
+//     recorded totals and rollovers, and today's recorded seed /
+//     rolled-in / match reconcile the same way;
+//   * the walk anchors at a burst day whose ACTUAL payouts provably
+//     cover the largest honest total that day could have held
+//     (honest seed + recorded rolled-in + honest match), making its
+//     honest carry-out provably 0;
+//   * a finished day whose honest match is genuinely ambiguous (a
+//     real gift inside its settlement window on a no-burst day)
+//     aborts the correction.
+// Any failure aborts: the record is left untouched, the reason is
+// logged and stamped into the marker — no number is ever guessed.
+// The marker makes it one-shot: applied, skipped or aborted, the
+// correction never runs twice.
+const DAILYPOT_FIX368_FILE =
+  process.env.DAILYPOT_FIX368_FILE ||
+  path.join(path.dirname(DAILYPOT_FILE), "dailypot-fix368.json");
+let dpFix368Settled = false;
+// dpTierForNewDay with the volume supplied — that one reads the
+// (now test-filtered) ledger itself; the correction runs BOTH the
+// full and the honest volume through the same table.
+function dpTierPick368(volume) {
+  if (DAILY_POT_SEED_OVERRIDE > 0)
+    return { tier: 0, seed: DAILY_POT_SEED_OVERRIDE, cap: DAILY_POT_SEED_OVERRIDE * 10, winMin: 1, winMax: DAILY_POT_MAX_WINNERS };
+  for (const t of DAILY_POT_TIERS)
+    if (volume >= t.minVolume)
+      return { tier: t.tier, seed: t.seed, cap: t.cap, winMin: t.winMin || 1, winMax: t.winMax || DAILY_POT_MAX_WINNERS };
+  return { tier: 1, seed: DAILY_POT_SEED, cap: DAILY_POT_MATCH_CAP, winMin: 1, winMax: DAILY_POT_MAX_WINNERS };
+}
+// Per-ET-date ledger aggregates for the walk: gift rows (timestamp,
+// charms, test?) plus the day's win rows (keyed by the win row's
+// ref — the pot date it paid for — when it carries one).
+function dpLedgerDays368(testIds) {
+  const days = new Map();
+  const slot = (d) => {
+    let s = days.get(d);
+    if (!s) { s = { gifts: [], volAll: 0, volHon: 0, winPaid: 0, winFirstAt: null }; days.set(d, s); }
+    return s;
+  };
+  const mdb = readMoney();
+  for (const tx of (mdb && mdb.txlog) || []) {
+    if (!tx) continue;
+    const at = Date.parse(tx.at || "");
+    if (!Number.isFinite(at)) continue;
+    if (tx.type === "gift-sent") {
+      const s = slot(dpDateStr(at));
+      const test = dpTxIsTestGift368(tx, testIds);
+      s.gifts.push({ at, charms: tx.charms || 0, test });
+      s.volAll += tx.charms || 0;
+      if (!test) s.volHon += tx.charms || 0;
+    } else if (tx.type === "dailypot-win") {
+      const ref = /^\d{4}-\d{2}-\d{2}$/.test(String(tx.ref || "")) ? String(tx.ref) : dpDateStr(at);
+      const s = slot(ref);
+      s.winPaid += tx.charms || 0;
+      if (s.winFirstAt == null || at < s.winFirstAt) s.winFirstAt = at;
+    }
+  }
+  return days;
+}
+// The 2% match a set of gift rows accrues — dailyPotOnGift's
+// per-gift floored accrual summed over a day and capped. cutoffAt
+// drops rows at/after a moment (settlement stops accrual); the
+// honest run drops test rows entirely.
+function dpMatchSum368(gifts, cap, cutoffAt, honest) {
+  let s = 0;
+  for (const g of gifts || []) {
+    if (cutoffAt != null && g.at >= cutoffAt) continue;
+    if (honest && g.test) continue;
+    s += Math.floor((g.charms * DAILY_POT_MATCH_PCT) / 100);
+  }
+  return Math.min(cap, s);
+}
+function dpHonestFix368() {
+  if (dpFix368Settled) return;
+  let marker = null;
+  try { marker = JSON.parse(fs.readFileSync(DAILYPOT_FIX368_FILE, "utf8")); } catch (e) {}
+  if (marker && (marker.done || marker.aborted)) { dpFix368Settled = true; return; }
+  const finish = (obj) => {
+    try { fs.writeFileSync(DAILYPOT_FIX368_FILE, JSON.stringify(obj, null, 2)); } catch (e) {}
+    dpFix368Settled = true;
+  };
+  const abort = (reason) => {
+    console.log("[dpfix368] ABORTED — today's pot left untouched:", reason);
+    finish({ aborted: reason, at: new Date().toISOString() });
+  };
+  const now = Date.now();
+  const today = dpDateStr(now);
+  const db = readDailyPot();
+  const rec = db && db.pots ? db.pots.adult : null;
+  if (!rec || rec.date !== today) return; // today not opened yet — a later ensure retries
+  if (rec.status !== "open") {
+    console.log("[dpfix368] today's pot already settled (" + rec.status + ") — nothing to correct");
+    finish({ done: true, skipped: "today already " + rec.status, at: new Date().toISOString() });
+    return;
+  }
+  const testIds = dpTestFundIds368();
+  if (!testIds) return abort("accounts store unreadable — cannot resolve test-funds senders");
+  let days;
+  try { days = dpLedgerDays368(testIds); } catch (e) { return abort("money ledger unreadable: " + (e && e.message)); }
+  const emptyAgg = { gifts: [], volAll: 0, volHon: 0, winPaid: 0, winFirstAt: null };
+  const agg = (d) => days.get(d) || emptyAgg;
+  // Settlement on a finished day happened inside the 7–9 PM ET
+  // window: a burst day's first win row pins the moment exactly;
+  // otherwise the recorded match lies between the window-start and
+  // window-end sums.
+  const winStart = (d) => dpEtEpoch(d, DAILY_POT_BURST_WINDOW_START_HOUR, 0);
+  const winEnd = (d) => winStart(d) + DAILY_POT_BURST_WINDOW_MS;
+  // ---- the recorded history chain ---------------------------------
+  const hist = readDpHistory("adult")
+    .filter((s) => s && s.date && Number.isFinite(s.total))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  if (!hist.length) return abort("no recorded history to walk");
+  for (let i = 1; i < hist.length; i++)
+    if (dpDatePlus(hist[i - 1].date, 1) !== hist[i].date)
+      return abort("history chain gap between " + hist[i - 1].date + " and " + hist[i].date);
+  const yesterday = dpDatePlus(today, -1);
+  if (hist[hist.length - 1].date !== yesterday)
+    return abort("history ends " + hist[hist.length - 1].date + ", not yesterday " + yesterday);
+  const infos = [];
+  for (const s of hist) {
+    const a = agg(s.date);
+    const tierR = dpTierPick368(agg(dpDatePlus(s.date, -1)).volAll);
+    const paid = (s.winners || []).reduce((t, w) => t + (Number(w && w.amount) || 0), 0);
+    const burst = s.status === "burst";
+    if (burst && !(paid > 0)) return abort("burst day " + s.date + " records no payouts");
+    if (burst && a.winPaid > 0 && a.winPaid !== paid)
+      return abort("winner payouts disagree with the ledger on " + s.date);
+    const exactCut = burst && a.winFirstAt != null ? a.winFirstAt : null;
+    const mRlo = dpMatchSum368(a.gifts, tierR.cap, exactCut != null ? exactCut : winStart(s.date), false);
+    const mRhi = exactCut != null ? mRlo : dpMatchSum368(a.gifts, tierR.cap, winEnd(s.date), false);
+    const inf = { date: s.date, total: s.total, burst, paid, seedR: tierR.seed, capR: tierR.cap, mRlo, mRhi, rolledInR: null };
+    // The day's recorded rolled-in, as the range the window
+    // ambiguity leaves: total − seed − match.
+    inf.rolledInR = { lo: inf.total - inf.seedR - mRhi, hi: inf.total - inf.seedR - mRlo };
+    if (inf.rolledInR.hi < 0) return abort("recorded chain does not reconcile on " + s.date);
+    infos.push(inf);
+  }
+  for (let i = 1; i < infos.length; i++) {
+    const prev = infos[i - 1];
+    const carry = prev.burst ? prev.total - prev.paid : prev.total;
+    if (carry < infos[i].rolledInR.lo || carry > infos[i].rolledInR.hi)
+      return abort("recorded rollover does not reconcile at " + infos[i].date);
+  }
+  // ---- today's recorded record must reconcile the same way --------
+  const yAgg = agg(yesterday);
+  const yInfo = infos[infos.length - 1];
+  if ((rec.seed || 0) !== dpTierPick368(yAgg.volAll).seed)
+    return abort("today's recorded seed does not reconcile with yesterday's ledger volume");
+  const yCarry = yInfo.burst ? yInfo.total - yInfo.paid : yInfo.total;
+  if ((rec.rolledIn || 0) !== yCarry)
+    return abort("today's recorded rolled-in does not reconcile with yesterday's record");
+  const tAgg = agg(today);
+  if ((rec.match || 0) !== dpMatchSum368(tAgg.gifts, rec.matchCap != null ? rec.matchCap : DAILY_POT_MATCH_CAP, null, false))
+    return abort("today's recorded match does not reconcile with today's ledger");
+  // ---- anchor: a burst whose real payouts provably drained it -----
+  // For a burst day, honest total <= honest seed + RECORDED
+  // rolled-in + honest match (honest components never exceed the
+  // recorded ones). If the payouts actually made cover even that
+  // bound, the day's honest carry-out is provably 0 and the walk
+  // can start the next morning from 0.
+  const anchorBoundOk = (dateStr, carryInRhi, paid) => {
+    const tH = dpTierPick368(agg(dpDatePlus(dateStr, -1)).volHon);
+    const a = agg(dateStr);
+    const mH = a.winFirstAt != null
+      ? dpMatchSum368(a.gifts, tH.cap, a.winFirstAt, true)
+      : dpMatchSum368(a.gifts, tH.cap, winEnd(dateStr), true);
+    return paid >= tH.seed + carryInRhi + mH;
+  };
+  let anchorDate = null;
+  const first = infos[0];
+  const preDate = dpDatePlus(first.date, -1);
+  const preAgg = agg(preDate);
+  if (preAgg.winPaid > 0 && preAgg.winFirstAt != null) {
+    const tierRpre = dpTierPick368(agg(dpDatePlus(preDate, -1)).volAll);
+    const mRpre = dpMatchSum368(preAgg.gifts, tierRpre.cap, preAgg.winFirstAt, false);
+    const carryInRhiPre = first.rolledInR.hi + preAgg.winPaid - tierRpre.seed - mRpre;
+    if (carryInRhiPre >= 0 && anchorBoundOk(preDate, carryInRhiPre, preAgg.winPaid)) anchorDate = preDate;
+  }
+  if (!anchorDate)
+    for (const inf of infos) {
+      if (!inf.burst) continue;
+      if (anchorBoundOk(inf.date, inf.rolledInR.hi, inf.paid)) { anchorDate = inf.date; break; }
+    }
+  if (!anchorDate) return abort("no burst day in the recorded window provably drains the honest pot");
+  // ---- walk the honest chain forward from the anchor --------------
+  const honestMatchFor = (dateStr, capH, burst) => {
+    const a = agg(dateStr);
+    if (burst && a.winFirstAt != null) return dpMatchSum368(a.gifts, capH, a.winFirstAt, true);
+    const lo = dpMatchSum368(a.gifts, capH, winStart(dateStr), true);
+    const hi = dpMatchSum368(a.gifts, capH, winEnd(dateStr), true);
+    return lo === hi ? lo : null; // null = genuinely ambiguous
+  };
+  let carryH = 0; // proven at the anchor
+  for (const inf of infos) {
+    if (inf.date <= anchorDate) continue;
+    const tierH = dpTierPick368(agg(dpDatePlus(inf.date, -1)).volHon);
+    const mH = honestMatchFor(inf.date, tierH.cap, inf.burst);
+    if (mH == null)
+      return abort("honest match is ambiguous on " + inf.date + " (a real gift landed in its settlement window)");
+    const totalH = tierH.seed + carryH + mH;
+    carryH = inf.burst ? Math.max(0, totalH - inf.paid) : totalH;
+  }
+  // ---- apply today's honest record --------------------------------
+  const tierH = dpTierPick368(yAgg.volHon);
+  // [RP-V7.368] the corrected record obeys the same hard ceiling:
+  // rolled-in trims to the corrected cap first (the day-open rule),
+  // then the match to the headroom left under seed + matchCap.
+  const newRolled = Math.min(carryH, tierH.cap);
+  const newMatch = Math.min(
+    dpMatchSum368(tAgg.gifts, tierH.cap, null, true),
+    Math.max(0, tierH.cap - newRolled)
+  );
+  const before = { date: rec.date, tier: rec.tier != null ? rec.tier : null, seed: rec.seed || 0, matchCap: rec.matchCap != null ? rec.matchCap : null, rolledIn: rec.rolledIn || 0, match: rec.match || 0, total: dailyPotTotal(rec) };
+  const after = { date: rec.date, tier: tierH.tier, seed: tierH.seed, matchCap: tierH.cap, rolledIn: newRolled, match: newMatch, total: tierH.seed + newRolled + newMatch, ceiling: tierH.seed + tierH.cap };
+  rec.tier = tierH.tier;
+  rec.seed = tierH.seed;
+  rec.matchCap = tierH.cap;
+  rec.winMin = tierH.winMin;
+  rec.winMax = tierH.winMax;
+  rec.prevVolume = yAgg.volHon;
+  rec.rolledIn = newRolled;
+  rec.match = newMatch;
+  rec.honestFix368 = { at: new Date().toISOString(), before, after };
+  db.pots.adult = rec;
+  writeDailyPot(db);
+  dpBroadcastUpdate(true);
+  console.log("[dpfix368] today's Daily Pot corrected to honest size:", JSON.stringify(before), "->", JSON.stringify(after));
+  finish({ done: true, at: new Date().toISOString(), date: today, before, after });
 }
 app.post("/api/dailypot/join", lockedHandler("dailypot-join", (req, res) => {
   const ctx = requireAccount(req, res);
@@ -19095,7 +19407,8 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // and the split above is final. [RP-V7.77]
   try {
     // [RP-V7.219] the 2% Daily Pot match is per unit.
-    for (let u = 0; u < count; u++) dailyPotOnGift(cost);
+    // [RP-V7.368] the sender rides along so test-funds sends skip.
+    for (let u = 0; u < count; u++) dailyPotOnGift(cost, ctx.user);
   } catch (e) { /* daily pot bookkeeping must never break a gift */ }
   console.log(
     "[money] gift", giftId, cost, count > 1 ? "x" + count : "", "charms:", ctx.user.name, "->", recipient.name,
@@ -23074,7 +23387,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.365", online: players.size })
+  res.json({ ok: true, version: "RP-V7.368", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
