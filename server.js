@@ -6564,7 +6564,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.368", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.369", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -9414,7 +9414,15 @@ function sweepOrphanPots() {
 // by the platform match — 10% of the gift's charm value, floored,
 // capped so the match never exceeds the seed. The gift itself and the
 // host's gift split are untouched; this is pot accounting only.
-function potOnGift(hostAccountId, giftCharms) {
+// [RP-V7.369] TEST-FUNDS LEAK CLOSED (Branden, Nov 13, 2026): a gift
+// sent from a test-funds account (testFunds321 — the RP-V7.321
+// guardrail's own determination) grows the pot by NOTHING — the same
+// closure RP-V7.368 gave the Daily Pot. Test charms were never
+// purchase-backed, so they must not mint pot match a real member can
+// win; before this build the hook received no sender and counted
+// every test send toward the host's escrow cap.
+function potOnGift(hostAccountId, giftCharms, sender) {
+  if (testFunds321(sender)) return; // [RP-V7.369] test funds never grow the pot
   const pot = potOpenForHost(hostAccountId);
   if (!pot) return;
   // [RP-V7.41] A pot at/over its burst target is FROZEN — no further
@@ -19398,7 +19406,8 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // try/catch for the same reason as the affinity hook above.
   try {
     // [RP-V7.219] the 10% Plaza Pot match is per unit.
-    for (let u = 0; u < count; u++) potOnGift(recipient.id, cost);
+    // [RP-V7.369] the sender rides along so test-funds sends skip.
+    for (let u = 0; u < count; u++) potOnGift(recipient.id, cost, ctx.user);
   } catch (e) { /* pot bookkeeping must never break a gift */ }
   // [RP-V7.42] Daily Pot growth match: EVERY gift on the Plaza also
   // grows the SENDER's class Daily Pot by 2% of its charm value
@@ -23387,7 +23396,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.368", online: players.size })
+  res.json({ ok: true, version: "RP-V7.369", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
