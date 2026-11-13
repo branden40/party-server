@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.366" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.367" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -30074,6 +30074,16 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
 .rp-trex-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;
   -webkit-mask-image:radial-gradient(ellipse at center, #000 58%, transparent 98%);
   mask-image:radial-gradient(ellipse at center, #000 58%, transparent 98%); }
+/* [RP-V7.367] a PORTRAIT film in the trex slot (the approved V3 claw
+   film, 1152x2048) plays WHOLE on the trex stage: contain, never
+   cover-cropped — Branden's whole-scene rule (the cover seat cropped
+   17.9% of the film's width at 390x844, 11.1% at 440x880 — rig-
+   measured). pumpStage sets this class from the loaded metadata
+   (videoWidth < videoHeight); a landscape source never gets it and
+   keeps the V7.81 cover melt exactly as before. The letterbox bands
+   are true black on the element itself; the melt mask above is
+   unchanged and applies to both orientations alike. */
+.rp-trex-video.rp-trex-portrait367{ object-fit:contain; background:#000; }
 .rp-trex-melt{ position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(ellipse at center, transparent 52%, rgba(5,5,10,.55) 82%, #05050a 100%); }
 /* [RP-V7.362] SKY STEPPER FULL-SCENE SHOW — the prestige
@@ -31415,6 +31425,12 @@ function stageStreakBump(key, add) {
       var tv353 = artDiv.querySelector("video.rp-trex-video");
       if (tv353) {
         tv353.addEventListener("playing", function () { tv353.setAttribute("data-playing353", "1"); });
+        /* [RP-V7.367] portrait source -> whole-frame contain (see
+           the CSS note): decided from the film's own metadata, so
+           whichever file answers the slot renders correctly. */
+        var rpTrexFit367 = function () { try { if (tv353.videoWidth && tv353.videoHeight) tv353.classList.toggle("rp-trex-portrait367", tv353.videoWidth < tv353.videoHeight); } catch (e) { } };
+        tv353.addEventListener("loadedmetadata", rpTrexFit367);
+        if (tv353.readyState >= 1) rpTrexFit367();
         setTimeout(function () { var o353 = document.getElementById("rpStage"); if (o353 && o353.classList.contains("trex") && !tv353.getAttribute("data-playing353")) window.rpTrexErr353(tv353); }, 1800);
       }
     } else if (isSky362) {
