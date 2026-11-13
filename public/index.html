@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.362" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.363" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -23995,7 +23995,9 @@
         var fs327 = (s.tagName === "VIDEO") && !holFit220;
         if (fs327) {
           ov.classList.add("fs327");
-          s.loop = false; // [RP-V7.334] the film plays ONCE — giftArtImg loops it, and a show window longer than the film restarted it mid-show (Branden, Nov 11, 2026: "some of the gifts show up two times should only show once"); it now plays once and holds its end frame, the Golden Ascension treatment (V7.219) generalised to every film show, live rooms included (his live extension, same evening).          s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-V7.360] off-live the hero seat rises above the bottom tab bar — the frame's lower strip was hiding behind it (Gold Gloves "plays mostly below the visible area")
+          s.loop = false; // [RP-V7.334] the film plays ONCE — giftArtImg loops it, and a show window longer than the film restarted it mid-show (Branden, Nov 11, 2026: "some of the gifts show up two times should only show once"); it now plays once and holds its end frame, the Golden Ascension treatment (V7.219) generalised to every film show, live rooms included (his live extension, same evening).          
+          s.style.left = "0px"; s.style.top = "auto"; s.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-GSFIX] live seat (this line's twin inside the // comment above never executed — heroes rendered ~3/4 off-screen)
+          // [seat assignments moved to live code above — RP-GSFIX] // [RP-V7.360] off-live the hero seat rises above the bottom tab bar — the frame's lower strip was hiding behind it (Gold Gloves "plays mostly below the visible area")
           s.style.width = "100vw"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; s.style.objectFit = "contain";
           s.style.animation = "gfxHalfIn334 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
         } else {
@@ -24030,7 +24032,9 @@
         var fs327 = (hero.tagName === "VIDEO");
         if (fs327) {
           ov.classList.add("fs327");
-          hero.loop = false; // [RP-V7.334] film plays ONCE, then holds its end frame (see the giftFxFloat note) — the 8000 ms burst window restarted the ~5.6 s films mid-show; lives included (live extension)          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-V7.360] seat raise (see C5a)
+          hero.loop = false; // [RP-V7.334] film plays ONCE, then holds its end frame (see the giftFxFloat note) — the 8000 ms burst window restarted the ~5.6 s films mid-show; lives included (live extension)          
+          hero.style.left = "0px"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-GSFIX] live seat (this line's twin inside the // comment above never executed — heroes rendered ~3/4 off-screen)
+          // [seat assignments moved to live code above — RP-GSFIX] // [RP-V7.360] seat raise (see C5a)
           hero.style.width = "100vw"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
           hero.style.animation = "gfxHalfIn334 " + (window.RpShowDur ? window.RpShowDur(g) : 8000) + "ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.346] burst FILM hero spans the gift's whole show window — the hardcoded 4200ms was a pre-V7.219 leftover (V7.219 doubled burst windows 4000->8000; the float hero follows RpShowDur, this literal never moved), so every burst film faded out at 4.2s and its final ~1.4s never displayed (Gold Gloves — Branden, Nov 12, 2026)
         } else {
