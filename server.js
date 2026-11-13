@@ -6546,7 +6546,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.356", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.358", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -13578,6 +13578,23 @@ app.post("/api/dm/send", (req, res) => {
     text,
     at: new Date().toISOString(),
   };
+  // [RP-V7.354] Story replies (Branden, Nov 12, 2026): the client may
+  // name the story a DM answers. The reference stored on the message
+  // is rebuilt from the server's own story record — the named story
+  // must be live and BY the recipient — so a forged, stale or
+  // someone-else's reference never lands; anything else stays a
+  // plain DM. Delivery below (dmDeliver) is the standard path, so
+  // the gates above and the V7.328 DM push fire exactly as for any
+  // other message.
+  if (b.storyId) {
+    const st354 = readStories().stories[String(b.storyId)];
+    if (st354 && st354.authorId === other.id && Date.parse(st354.expiresAt) > Date.now())
+      msg.storyRef = {
+        storyId: st354.id,
+        kind: st354.kind === "photo" ? "photo" : "video",
+        url: "/photos/stories/" + st354.file,
+      };
+  }
   dmDeliver(ctx, other, msg);
   res.json({ ok: true, message: msg });
 });
@@ -23033,7 +23050,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.356", online: players.size })
+  res.json({ ok: true, version: "RP-V7.358", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
