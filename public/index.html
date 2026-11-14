@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.372" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.373" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -49050,9 +49050,11 @@ html, body { overflow-x: clip; }
       var price = cg && typeof cg.cents === "number" && isFinite(cg.cents) ? cg.cents : null;
       var line = price != null ? price * g.count : null;
       if (line == null) allPriced = false; else totalCharms += line;
+      var from373 = ""; // [RP-V7.373] who sent this gift on this post (recorded server-side from RP-V7.373; rows sent before it simply have no sender line — never invented)
+      if (Array.isArray(g.senders) && g.senders.length) from373 = '<span class="gcb-from325">from ' + g.senders.map(function (sd) { return esc325((sd && sd.name) || "Someone") + (sd && sd.count > 1 ? " ×" + fmt325(sd.count) : ""); }).join(" · ") + '</span>';
       return '<div class="gcb-row325">' +
         '<span class="gcb-art325">' + art + '</span>' +
-        '<span class="gcb-meta325"><b>' + esc325(name) + '</b><span>' + (price != null ? fmt325(price) + ' ' + charmWord325(price) + ' each' : 'no longer in the gift catalog') + '</span></span>' +
+        '<span class="gcb-meta325"><b>' + esc325(name) + '</b><span>' + (price != null ? fmt325(price) + ' ' + charmWord325(price) + ' each' : 'no longer in the gift catalog') + '</span>' + from373 + '</span>' +
         '<span class="gcb-n325">×' + fmt325(g.count) + '</span>' +
         '<span class="gcb-tot325">' + (line != null ? fmt325(line) + ' ' + charmWord325(line) : '') + '</span></div>';
     }).join("");
@@ -49147,6 +49149,7 @@ html, body { overflow-x: clip; }
 .gcb-meta325 { flex: 1; min-width: 0; text-align: left; }
 .gcb-meta325 b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gcb-meta325 span { display: block; font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gcb-meta325 .gcb-from325 { font-size: 11.5px; font-weight: 700; color: var(--gold); } /* [RP-V7.373] the sender line under a breakdown row */
 .gcb-n325 { flex: none; font-weight: 800; }
 .gcb-tot325 { flex: none; min-width: 70px; text-align: right; font-weight: 800; color: var(--gold); }
 .gcb-old325 { opacity: .72; }
