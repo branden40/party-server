@@ -1055,6 +1055,23 @@ Object.keys(RP_GIFT_ART_7344).forEach((gid) => {
   });
 });
 console.log("[RP-V7.362] new gift art:", Object.keys(RP_GIFT_ART_7344).join(", "));
+// [RP-V7.370] Golden Goal (Branden, Nov 14, 2026) — panel/show ART
+// for the new Golden Goal gift, embedded base64 WebP (still poster
+// cut from the approved film itself, native 720x1280) in the sibling
+// module giftart7370.js, served at /img/gifts/goldengoal.webp ahead
+// of express.static (same recipe as RP-V7.362/RP-V7.366). The film
+// itself rides the standard gift-film route:
+// public/giftfx-goldengoal.mp4 (rpStdFilmUrl), no new serving code.
+const RP_GIFT_ART_7370 = require("./giftart7370.js");
+Object.keys(RP_GIFT_ART_7370).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7370[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
+console.log("[RP-V7.370] new gift art:", Object.keys(RP_GIFT_ART_7370).join(", "));
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -6564,7 +6581,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.369", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.370", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -16152,11 +16169,11 @@ const BIZADS_LINK_MAX = 300;  // the profile-link cap (pfLinkInput)
 const MONEY_GIFT_TABLE = {
   heart: 1, rose: 5, coffee: 10, icecream: 25, donut: 30, clap: 50,
   heartburst: 60, thunderbolt: 75, fingerheart: 99, kiss: 100,
-  fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500, worldtree: 500, // [RP-V7.199] +World Tree 500 ($5, Branden Nov 1, 2026) — catalog now 45 gifts
-  loveballoon: 600, guardianpalm: 700, airplane: 800, moneygun: 999,
-  castle: 1000, ufobeam: 1000, volcano: 2000, foxshot: 2300, lion: 2500, plazaape: 2500, fattuesday: 2500, dragon: 3000, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts // [RP-V7.221] +Fat Tuesday Frenzy 2500 ($25, Branden Nov 3, 2026) — catalog now 51 gifts
-  whale: 4500, galaxy: 5000, titanclash: 5000, rizzuniverse: 5000, starsurge: 5500, diamonds: 6000,
-  rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10000, trex: 3000, skystepper: 3500, yacht: 15000,
+  fireworks: 200, motorcycle: 300, goldgloves: 450, sportscar: 500, worldtree: 510, // [RP-V7.199] +World Tree 500 ($5, Branden Nov 1, 2026) — catalog now 45 gifts
+  loveballoon: 600, guardianpalm: 710, airplane: 800, moneygun: 999,
+  castle: 1000, ufobeam: 1100, volcano: 2000, foxshot: 2300, lion: 2500, plazaape: 2600, fattuesday: 2800, dragon: 3200, meteor: 4000, // [RP-V7.197] +Plaza Ape 2500 ($25, Branden Nov 1, 2026) — catalog now 44 gifts // [RP-V7.221] +Fat Tuesday Frenzy 2500 ($25, Branden Nov 3, 2026) — catalog now 51 gifts
+  whale: 4500, galaxy: 5000, titanclash: 5100, rizzuniverse: 5200, starsurge: 5500, diamonds: 6000,
+  rocket: 7500, ferriswheel: 9900, jet: 10000, nebuladragon: 10500, trex: 3000, skystepper: 3500, yacht: 15000,
   phoenix: 25000, universe: 50000,
   // [RP-V7.82] +5 gifts (heartburst/thunderbolt small, goldgloves/
   // guardianpalm medium, starsurge big) — ids + prices mirror the
@@ -16173,15 +16190,15 @@ const MONEY_GIFT_TABLE = {
   // [RP-V7.166] +1 gift (Branden, Oct 31, 2026): Golden Ascension
   // $500, prestige — id + price mirror the client's GIFT_SHOP
   // exactly; the catalog is now 40 gifts.
-  ascension: 50000,
+  ascension: 55000,
   // [RP-V7.308] +5 weekly gifts (Nov 9, 2026): fireflyjar 60 + seahorse 99 (small),
   // skylanterns 450 + crystalfox 700 (medium), celestialstag 6000 (big) — ids + prices mirror
   // the client's GIFT_SHOP exactly; the catalog is now 56 gifts.
-  fireflyjar: 60, seahorse: 99, skylanterns: 450, crystalfox: 700, clocktea: 700, celestialstag: 6000,
+  fireflyjar: 65, seahorse: 95, skylanterns: 460, crystalfox: 720, clocktea: 700, celestialstag: 6100,
   // [RP-V7.208] +5 weekly gifts (Nov 2, 2026): honeybee 60 + bubblewand 99 (small),
   // peacock 450 + carousel 700 (medium), emeraldelephant 6000 (big) — ids + prices mirror
   // the client's GIFT_SHOP exactly; the catalog is now 50 gifts.
-  honeybee: 60, bubblewand: 99, carousel: 700, emeraldelephant: 6000, // [RP-V7.360] peacock (Peacock Fan, 450) REMOVED by Branden's order (Nov 12, 2026): no settle entry — sends fail cleanly as an unknown gift. Its MONEY_GIFT_INFO entry below STAYS so past sends keep their name in notices/history.
+  honeybee: 70, bubblewand: 110, carousel: 730, emeraldelephant: 6200, // [RP-V7.360] peacock (Peacock Fan, 450) REMOVED by Branden's order (Nov 12, 2026): no settle entry — sends fail cleanly as an unknown gift. Its MONEY_GIFT_INFO entry below STAYS so past sends keep their name in notices/history.
   // [RP-V7.339] +20 gifts (Nov 11, 2026) — gift expansion from Branden's
   // TikTok recording (instruments / animals / crowns / food / vehicles /
   // fantasy / space, all Plaza-original): 6 small (25-100), 7 medium
@@ -16190,10 +16207,23 @@ const MONEY_GIFT_TABLE = {
   // on this base (76 gift-expansion slate + UFO Beam from RP-V7.341).
   // Four carry a gifterLv gate flag in MONEY_GIFT_INFO (enforced by
   // the RP-V7.338 gifter-levels build, already live).
-  musicnote: 25, guitarpick: 50, maraca: 60, cloverpop: 75, foamfinger: 99, confettipop: 100,
-  micdrop: 200, saxsolo: 300, parrotdj: 350, keycascade: 400, tacofiesta: 450, drumroll: 500, laurelcrown: 500,
-  kraken: 800, lowrider: 1500, astropup: 2000, moonunicorn: 2500,
-  starcruiser: 3500, cometcrown: 4000, dragonthrone: 5000,
+  musicnote: 20, guitarpick: 55, maraca: 80, cloverpop: 85, foamfinger: 120, confettipop: 105,
+  micdrop: 210, saxsolo: 310, parrotdj: 350, keycascade: 400, tacofiesta: 470, drumroll: 520, laurelcrown: 530,
+  kraken: 810, lowrider: 1500, astropup: 2100, moonunicorn: 2900,
+  starcruiser: 3600, cometcrown: 4100, dragonthrone: 5300,
+  // [RP-V7.370] PRICE SPREAD (Branden, Nov 14, 2026: "If I hit the same
+  // prices for other gifts spread them apart"): 36 gifts moved off
+  // shared prices so every catalog price stands alone (full map in the
+  // RP-V7.370 build report). Anchors deliberately kept: clocktea 700,
+  // foxshot 2300, trex 3000, skystepper 3500.
+  // [RP-V7.370] +1 gift (Branden, Nov 14, 2026): Golden Goal — $27
+  // (2700 charms, tier big, the Lion band) with its 10 s stadium film
+  // show (camera inside the goal; the shot beats the diving goalie,
+  // smacks the viewer's screen and bounces off; real crowd erupting) —
+  // the film carries crowd-cheering audio, Branden's per-gift
+  // exception — id + price mirror the client's GIFT_SHOP exactly;
+  // catalog now 81 gifts.
+  goldengoal: 2700,
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
@@ -16254,6 +16284,7 @@ const MONEY_GIFT_INFO = {
   ufobeam: { name: "UFO Beam", tier: "medium" }, // [RP-V7.341] new gift (Branden, Nov 11, 2026)
   volcano: { name: "Volcano", tier: "big" },
   foxshot: { name: "Fox Shot", tier: "big" }, // [RP-V7.343] new gift (Branden, Nov 11, 2026)
+  goldengoal: { name: "Golden Goal", tier: "big" }, // [RP-V7.370] new gift (Branden, Nov 14, 2026)
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
   fattuesday: { name: "Fat Tuesday Frenzy", tier: "big" },
@@ -23396,7 +23427,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.369", online: players.size })
+  res.json({ ok: true, version: "RP-V7.370", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
