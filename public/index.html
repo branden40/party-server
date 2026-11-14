@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.371" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.372" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -22622,14 +22622,15 @@
         html += '<div class="gift-qty" id="giftQtyRow"><span class="gq-lab">Send:</span><button type="button" class="gq-chip on" data-qty="1">×1</button><button type="button" class="gq-chip" data-qty="10">×10</button><button type="button" class="gq-chip" data-qty="50">×50</button><button type="button" class="gq-chip" data-qty="100">×100</button><button type="button" class="gq-chip" data-qty="500">×500</button><button type="button" class="gq-chip" data-qty="1000">×1000</button><span class="gq-total" id="giftQtyTotal"></span></div>'; // [RP-V7.219] quantity picker: the selected count applies to the next send tap; every cell below shows the TOTAL cost at the selected count
         if (live) {
           html += '<div class="gift-tier">' + live.h.icon + ' <b>Limited time</b> · ' + escHtml(live.h.name) + ' gifts</div><div class="gift-grid">' +
-            live.h.gifts.map(function (g, i) {
+            live.h.gifts.map(function (g, i) { return { g: g, i: i }; }).sort(function (a, b) { return a.g[2] - b.g[2]; }).map(function (o) { // [RP-V7.372] lowest to highest here too; data-hol keeps the ORIGINAL index — the send handlers resolve live.h.gifts[data-hol]
+              var g = o.g, i = o.i;
               var ha220 = (window.rpHolArtId && window.rpHolArtId(g[0])) || null; var gi220 = ha220 ? giftImgHTML({ art: "img/gifts/" + ha220 + ".webp", icon: g[1] }) : g[1]; // [RP-V7.220] Thanksgiving gifts show their animated art in the panel; the other holiday gifts keep their emoji
               return '<button class="gift-cell big' + (giftSpend < g[2] ? " cant" : "") + '" data-hol="' + i + '"><span class="gi">' + gi220 + '</span><b>' + escHtml(g[0]) + '</b><span>' + giftPriceLabel(g[2]) + '</span><small>' + g[2] + ' charms · limited</small></button>';
             }).join("") + '</div>';
         }
         html += GIFT_TIERS.map(function (t) {
           return '<div class="gift-tier"><b>' + t.label + '</b> · ' + t.sub + '</div><div class="gift-grid">' +
-            GIFT_SHOP.filter(function (g) { return g.tier === t.id; }).map(cell).join("") + '</div>';
+            GIFT_SHOP.filter(function (g) { return g.tier === t.id; }).sort(function (a, b) { return a.cents - b.cents; }).map(cell).join("") // [RP-V7.372] prices run lowest to highest inside every tier (Branden, Nov 14, 2026) — filter() returns a fresh array, so the shared catalog order is untouched + '</div>';
         }).join("");
         html += '<button class="btn-mini btn-big" id="giftGetCharms" type="button">⭐ Get charms</button><div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" id="giftMyEarnings">💰 My earnings &amp; cash out</button><button class="btn-mini" id="giftMyGifter338" type="button">🏆 My gifter level</button></div></div>'; // [RP-V7.63] Get charms goes BIG (btn-big)
         openSheet(html);
@@ -23826,7 +23827,7 @@
         ov.className = "gfx " + cls;
         ov.innerHTML = '<div class="gfx-bg"></div><div class="gfx-stage"></div>';
         document.body.appendChild(ov);
-        if (gfxBox366 && !(document.body && document.body.classList.contains("live-fs"))) { ov.style.setProperty("--gfx-w", gfxBox366.w + "px"); ov.style.setProperty("--gfx-x", gfxBox366.x + "px"); } // [RP-V7.366] post box on the overlay (see rpGfxPostBox366)
+        if (!(document.body && document.body.classList.contains("live-fs"))) { ov.classList.add("fs372"); ov.style.setProperty("--gfx-w", (window.innerWidth || 390) + "px"); ov.style.setProperty("--gfx-x", "0px"); } // [RP-V7.372] off-live the show is FULL SCREEN: the overlay carries fs372 and the box vars take the VIEWPORT, so every var() consumer sizes to the screen (supersedes the V7.366 post-box stamp off-live; lives never stamp — gfxBox366 is null there)
         return ov;
       }
       // [RP-V7.27] fx shows ride the gift's animated WebP art. giftArtImg
@@ -23993,7 +23994,7 @@
            objects measure ~45-60% width, center-bottom) — centered,
            lower-center, appearing IN PLACE with a scale-in pop; no
            travel path. Keyed live (WebGL) like every tier: no box. */
-        var heroPx = Math.round(gfxBox366 ? gfxBox366.w : (window.innerWidth || 400)); // [RP-V7.366] a post show's art hero takes the post's width // [RP-V7.218 section 8] band-fill: the appear hero takes the FULL bottom-band width (owner: "all gifts take up whole bottom screen space") -- the 50vw/300px cap is gone; a film hero's keyed canvas height follows the film raster (16:9 = the band box), an art hero's keyed square fills the width
+        var heroPx = Math.round(gfxBox366 ? gfxBox366.w : (window.innerWidth || 400)); if (!(document.body && document.body.classList.contains("live-fs"))) heroPx = Math.round(Math.min(window.innerWidth || 400, window.innerHeight || 800)); // [RP-V7.372] off-live the art hero sizes to the SCREEN (the holFit220 override below still wins for the Thanksgiving fits) // [RP-V7.366] a post show's art hero takes the post's width // [RP-V7.218 section 8] band-fill: the appear hero takes the FULL bottom-band width (owner: "all gifts take up whole bottom screen space") -- the 50vw/300px cap is gone; a film hero's keyed canvas height follows the film raster (16:9 = the band box), an art hero's keyed square fills the width
         var holFit220 = !!((g && g.name && window.rpHolArtId) ? window.rpHolArtId(g.name) : null); // [RP-V7.220 fix] resolves ONLY for the three Thanksgiving gifts
         if (holFit220) heroPx = Math.round(Math.min((window.innerWidth || 400) * 0.9, (window.innerHeight || 800) * 0.35)); // [RP-V7.220 fix] the holiday hero fits WHOLE inside the bottom band with margin; its keyed canvas dissolves the black ground into the room -- no box, no rectangle (Branden: "No box no rectangle shapes only blend in with screen")
         var dur217 = (window.RpShowDur ? window.RpShowDur(g) : 5200); // [RP-V7.219] fallback literal x2 with the table
@@ -24039,20 +24040,20 @@
         if (fs327) {
           ov.classList.add("fs327");
           s.loop = false; // [RP-V7.334] the film plays ONCE — giftArtImg loops it, and a show window longer than the film restarted it mid-show (Branden, Nov 11, 2026: "some of the gifts show up two times should only show once"); it now plays once and holds its end frame, the Golden Ascension treatment (V7.219) generalised to every film show, live rooms included (his live extension, same evening).          
-          s.style.left = "var(--gfx-x, 0px)"; s.style.top = "auto"; s.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-GSFIX] live seat (this line's twin inside the // comment above never executed — heroes rendered ~3/4 off-screen)
+          if (document.body && document.body.classList.contains("live-fs")) { s.style.left = "var(--gfx-x, 0px)"; s.style.top = "auto"; s.style.bottom = "0px"; } else { s.style.left = "0px"; s.style.top = "0px"; s.style.bottom = "auto"; } // [RP-V7.372] full-screen off-live; live seat as before [RP-GSFIX] (this line's twin inside the // comment above never executed — heroes rendered ~3/4 off-screen)
           // [seat assignments moved to live code above — RP-GSFIX] // [RP-V7.360] off-live the hero seat rises above the bottom tab bar — the frame's lower strip was hiding behind it (Gold Gloves "plays mostly below the visible area")
-          s.style.width = "min(100vw, var(--gfx-w, 100vw))"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; s.style.objectFit = "contain";
+          if (document.body && document.body.classList.contains("live-fs")) { s.style.width = "min(100vw, var(--gfx-w, 100vw))"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { s.style.width = "100vw"; s.style.height = "100dvh"; s.style.maxHeight = "none"; } s.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
           s.style.animation = "gfxHalfIn334 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
         } else {
-          s.style.left = "50%";
+          if (!(document.body && document.body.classList.contains("live-fs")) && !holFit220) { s.style.left = "50%"; s.style.bottom = "calc(50dvh - " + Math.round(heroPx / 2) + "px)"; } // [RP-V7.372] off-live the art hero centres on the SCREEN (gfxAppear217 keeps its translateX(-50%))
+          else { s.style.left = "50%";
           if (gfxBox366) s.style.left = (gfxBox366.x + Math.round(gfxBox366.w / 2)) + "px"; // [RP-V7.366] centre on the post, not the viewport
-          s.style.bottom = holFit220 ? "14.5%" : "17%"; /* [RP-V7.218] small-gift appear seats in the band zone with the stage shows (box top ~58% on a 440x880 screen) -- [RP-V7.220 fix] the smaller holiday hero seats lower so its whole square sits inside the band (top edge ~50.5%) */
+          s.style.bottom = holFit220 ? "14.5%" : "17%"; } /* [RP-V7.372] (the else closes here) [RP-V7.218] small-gift appear seats in the band zone with the stage shows (box top ~58% on a 440x880 screen) -- [RP-V7.220 fix] the smaller holiday hero seats lower so its whole square sits inside the band (top edge ~50.5%) */
           s.style.animation = "gfxAppear217 " + dur217 + "ms cubic-bezier(.2,.7,.3,1) both";
         }
         stage.appendChild(s);
         if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g, undefined); } /* [RP-V7.334] no cover/keepBox on either path now — identity window + fixAspect (the band path always keyed this way) */
-        if (s.classList && s.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the band seat centres their square at 72% and pokes it above the midline */          s.style.left = "var(--gfx-x, 0px)"; s.style.top = "auto"; s.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); s.style.transform = "none"; // [RP-V7.360] seat raise (see C5a)
-          s.style.width = "min(100vw, var(--gfx-w, 100vw))"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; s.style.objectFit = "contain";
+        if (s.classList && s.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the band seat centres their square at 72% and pokes it above the midline */          if (document.body && document.body.classList.contains("live-fs")) { s.style.left = "var(--gfx-x, 0px)"; s.style.top = "auto"; s.style.bottom = "0px"; s.style.width = "min(100vw, var(--gfx-w, 100vw))"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { s.style.left = "0px"; s.style.top = "0px"; s.style.bottom = "auto"; s.style.width = "100vw"; s.style.height = "100dvh"; s.style.maxHeight = "none"; } s.style.transform = "none"; s.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
           s.style.animation = "gfxFade337 600ms ease-out both"; }
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
@@ -24077,19 +24078,19 @@
         if (fs327) {
           ov.classList.add("fs327");
           hero.loop = false; // [RP-V7.334] film plays ONCE, then holds its end frame (see the giftFxFloat note) — the 8000 ms burst window restarted the ~5.6 s films mid-show; lives included (live extension)          
-          hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-GSFIX] live seat (this line's twin inside the // comment above never executed — heroes rendered ~3/4 off-screen)
+          if (document.body && document.body.classList.contains("live-fs")) { hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = "0px"; } else { hero.style.left = "0px"; hero.style.top = "0px"; hero.style.bottom = "auto"; } // [RP-V7.372] full-screen off-live; live seat as before [RP-GSFIX] (this line's twin inside the // comment above never executed — heroes rendered ~3/4 off-screen)
           // [seat assignments moved to live code above — RP-GSFIX] // [RP-V7.360] seat raise (see C5a)
-          hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
+          if (document.body && document.body.classList.contains("live-fs")) { hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { hero.style.width = "100vw"; hero.style.height = "100dvh"; hero.style.maxHeight = "none"; } hero.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
           hero.style.animation = "gfxHalfIn334 " + (window.RpShowDur ? window.RpShowDur(g) : 8000) + "ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.346] burst FILM hero spans the gift's whole show window — the hardcoded 4200ms was a pre-V7.219 leftover (V7.219 doubled burst windows 4000->8000; the float hero follows RpShowDur, this literal never moved), so every burst film faded out at 4.2s and its final ~1.4s never displayed (Gold Gloves — Branden, Nov 12, 2026)
         } else {
-          fxHeroSize(hero, Math.round((gfxBox366 ? gfxBox366.w : (window.innerWidth || 400)) * 0.76)); // [RP-V7.366] 0.76 of the post box on posts
-          if (gfxBox366) hero.style.left = (gfxBox366.x + Math.round(gfxBox366.w / 2)) + "px"; // [RP-V7.366] centre on the post, not the viewport // [RP-V7.337b] an art burst hero is a full-width square; gfxPop peaks at 1.25x with a 3deg tilt, which swept the full-width box past both screen edges — at 76vw the whole pop, tilt included, stays on screen
+          if (!(document.body && document.body.classList.contains("live-fs"))) fxHeroSize(hero, Math.round(Math.min(window.innerWidth || 400, window.innerHeight || 800) * 0.76)); // [RP-V7.372] off-live: screen-sized, centred by the fs372 CSS seat (0.76 keeps the gfxPop peak on screen — V7.337b)
+          else fxHeroSize(hero, Math.round((gfxBox366 ? gfxBox366.w : (window.innerWidth || 400)) * 0.76)); // [RP-V7.366] 0.76 of the post box on posts
+          if ((document.body && document.body.classList.contains("live-fs")) && gfxBox366) hero.style.left = (gfxBox366.x + Math.round(gfxBox366.w / 2)) + "px"; // [RP-V7.366] centre on the post, not the viewport [RP-V7.372] live only — off-live the hero centres on the screen // [RP-V7.337b] an art burst hero is a full-width square; gfxPop peaks at 1.25x with a 3deg tilt, which swept the full-width box past both screen edges — at 76vw the whole pop, tilt included, stays on screen
           hero.style.animation = "gfxPop 4200ms cubic-bezier(.2,.7,.3,1) both"; // [RP-V7.219] x2 burst hero
         }
         stage.appendChild(hero);
         if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined); // [RP-V7.217] hero keyed live — no box — [RP-V7.334] identity window + fixAspect on both paths (see the giftFxFloat note)
-        if (hero.classList && hero.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the burst's centred seat pokes their square above the midline */          hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); hero.style.transform = "none"; // [RP-V7.360] seat raise (see C5a)
-          hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
+        if (hero.classList && hero.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the burst's centred seat pokes their square above the midline */          if (document.body && document.body.classList.contains("live-fs")) { hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { hero.style.left = "0px"; hero.style.top = "0px"; hero.style.bottom = "auto"; hero.style.width = "100vw"; hero.style.height = "100dvh"; hero.style.maxHeight = "none"; } hero.style.transform = "none"; hero.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
           hero.style.animation = "gfxFade337 600ms ease-out both"; }
         /* [RP-V7.360] the burst particle scatter is REMOVED (Branden, Nov 12, 2026: "these small little pictures pop up before the gift — it need to be erased"): the 18 .gfx-p spans (the firework-burst glyph tiles, gift-icon stickers and sparkles that scattered across the post BEFORE the hero) are gone for every gift on both surfaces. The show now starts directly with the gift itself; hero, caption and the send toast/banner are untouched. */
         var cap = document.createElement("div");
@@ -24226,14 +24227,13 @@
         var bigSeat347 = (g.tier === "big" || g.tier === "prestige"); // [RP-V7.347] TikTok-size ruling — see giftFxFloat
         if (hero.tagName === "VIDEO" && hero.style.display !== "none") {
           ov.classList.add("fs327");
-          hero.loop = false;          hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); // [RP-V7.360] seat raise (see C5a)
-          hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; hero.style.objectFit = "contain";
+          hero.loop = false;          if (document.body && document.body.classList.contains("live-fs")) { hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { hero.style.left = "0px"; hero.style.top = "0px"; hero.style.bottom = "auto"; hero.style.width = "100vw"; hero.style.height = "100dvh"; hero.style.maxHeight = "none"; } hero.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
           hero.style.animation = "gfxHalfIn334 " + dur + "ms cubic-bezier(.2,.7,.3,1) both";
           var bg337 = ov.querySelector(".gfx-bg"); if (bg337) { bg337.style.background = "transparent"; bg337.style.animation = "none"; bg337.style.opacity = "0"; }
           if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined);
         } else if (hero.tagName === "IMG") {
           if (bigSeat347) { /* [RP-V7.347] a big gift whose film has not landed yet presents its animated art in the same raised film seat (bottom-anchored, own aspect, whole from the first frame) instead of the small centred seat */            hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); hero.style.transform = "none"; // [RP-V7.360] seat raise (see C5a)
-            hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = "85dvh"; hero.style.objectFit = "contain";
+            if (document.body && document.body.classList.contains("live-fs")) { hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = "85dvh"; } else { hero.style.left = "0px"; hero.style.top = "0px"; hero.style.bottom = "auto"; hero.style.width = "100vw"; hero.style.height = "100dvh"; hero.style.maxHeight = "none"; } hero.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
             hero.style.animation = "gfxHalfIn334 " + dur + "ms cubic-bezier(.2,.7,.3,1) both";
           } else hero.style.top = "72%";
           if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined);
@@ -30431,6 +30431,12 @@ body:not(.live-fs) #rp65How { display:none !important; }
 #rpStage.fs327 .rp-stage-art.film.portrait { width: auto; height: min(72vh, 150vw); aspect-ratio: 720/1280; } /* [RP-V7.347] raised big-gift portrait seat — see the live rule */
 #rpStage.fs327.bandblend218, #rpStage.fs327.ghost218 { mix-blend-mode: normal; }
 #rpStage.fs327 .rp-stage-art.bandblend218 video.rp-gift-film { mix-blend-mode: normal !important; -webkit-mask-image: none !important; mask-image: none !important; }
+/* [RP-V7.372] FULL-SCREEN SHOWS ON POSTS + VIDEOS (Branden, Nov 14, 2026: "On all posts and videos the gifting should be full screen — full screen like the soccer gift. Not on the live"): off-live the stage leaves the V7.334 bottom-half seat and takes the whole screen, the gift's WHOLE scene fitted contain (never cropped — the V7.371 Golden Goal pattern generalised to every stage gift). Lives never carry fs372: the live band presentation is byte-for-byte as approved. */
+#rpStage.fs372 { align-items: center; padding-bottom: 0; }
+#rpStage.fs372 .rp-stage-art.film { width: 100vw; height: auto; aspect-ratio: 16/9; max-height: 100dvh; }
+#rpStage.fs372 .rp-stage-art.film.portrait { width: 100vw; height: auto; aspect-ratio: 720/1280; max-height: 100dvh; max-width: 100vw; }
+#rpStage.fs372 .rp-stage-art:not(.film) { width: min(100vw, 100dvh) !important; height: min(100vw, 100dvh) !important; max-width: none; max-height: none; }
+.gfx.fs372 .gfx-stage .gfx-hero { top: 50%; } /* [RP-V7.372] burst art heroes centre on the screen off-live (the medium band seat was top:72%) */
 /* [RP-V7.347] BIG-GIFT STAGE ART SEAT (TikTok-size ruling, big gifts only — lives + posts): the stage serves only big/prestige gifts, so its art heroes (pending-film gifts presenting animated art) rise out of the 16:9 band box into the tall seat — the box grows to min(85dvh, 100vw) tall and the square art (object-fit: contain on the raw img; identity-window keyed canvas) renders at full screen width instead of band height. The three Thanksgiving fits keep their V7.220 whole-in-band box (owner's holiday rule outranks the size ruling for those three). */
 #rpStage:not(.sky362):not(.goal370):not([data-gid="thankfulturkey"]):not([data-gid="harvestwreath"]):not([data-gid="pumpkinpie"]) .rp-stage-art:not(.film):has(> img.rp-gift-img){ height:min(85dvh,100vw) !important; } /* [RP-V7.366] :not(.sky362) — the cap silently beat the V7.362 full-scene sky seat whenever the fallback img was in the art div (REPORT section 4) */
 </style>
@@ -30591,7 +30597,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     try {
       var ov = $("rpStage"); if (!ov) return;
       ov.classList.remove("trex");
-      if (!document.body.classList.contains("live-fs")) ov.classList.add("fs327");
+      if (!document.body.classList.contains("live-fs")) ov.classList.add("fs372"); // [RP-V7.372] the off-live fallback takes the full-screen seat too
       var art = ov.querySelector(".rp-stage-art");
       if (art) { art.className = "rp-stage-art pop film"; art.innerHTML = rpShowArtHtml("trex", "\uD83E\uDD96", "full"); }
     } catch (e) { }
@@ -31434,7 +31440,7 @@ function stageStreakBump(key, add) {
        geometry remains; the live stage change in this build is
        the film playing once (filmMode loop) plus the shared
        show-once queue. */
-    if (!document.body.classList.contains("live-fs") && !isTrex353 && !isSky362 && !isGoal370) ov.classList.add("fs327"); // [RP-V7.353] the trex stage is full-bleed by design — no fs327 band geometry; [RP-V7.362] same for the sky stage; [RP-V7.370] same for the goal stage
+    if (!document.body.classList.contains("live-fs") && !isTrex353 && !isSky362 && !isGoal370) ov.classList.add("fs372"); // [RP-V7.372] off-live = full screen (see the fs372 CSS); fs327 bottom-half seat now lives on ONLY inside lives via the GiftFx lanes // [RP-V7.353] the trex stage is full-bleed by design — no fs327 band geometry; [RP-V7.362] same for the sky stage; [RP-V7.370] same for the goal stage
     ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + ((isTrex353 || isSky362 || isGoal370) ? "" : sparks); // [RP-V7.353] no sparks on the trex stage (the V7.81 original had none — the film is the whole show); [RP-V7.362] none on the sky stage either — the film is the whole show; [RP-V7.370] none on the goal stage either
     ov.querySelector(".rp-stage-bg").style.animationDuration = dur + "ms";
     var artDiv = document.createElement("div");
@@ -49030,6 +49036,13 @@ html, body { overflow-x: clip; }
     var earlier = Math.max(0, total - detailed);
     var cat = (window.rpGiftCatalog325 && typeof window.rpGiftCatalog325.byId === "function") ? window.rpGiftCatalog325 : null;
     var totalCharms = 0, allPriced = earlier === 0;
+    gifts.sort(function (a, b) { // [RP-V7.372] the breakdown lists gifts lowest to highest by unit price (Branden, Nov 14, 2026); a gift no longer in the catalog (no price) sorts last, bigger counts first on a tie
+      var ca = cat ? cat.byId(a.id) : null, cb = cat ? cat.byId(b.id) : null;
+      var pa = ca && typeof ca.cents === "number" && isFinite(ca.cents) ? ca.cents : Infinity;
+      var pb = cb && typeof cb.cents === "number" && isFinite(cb.cents) ? cb.cents : Infinity;
+      if (pa !== pb) return pa - pb;
+      return ((b && b.count) || 0) - ((a && a.count) || 0);
+    });
     var rows = gifts.map(function (g) {
       var cg = cat ? cat.byId(g.id) : null;
       var name = cg ? cg.name : (g.name || g.id || "Gift");
