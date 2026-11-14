@@ -6581,7 +6581,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.370", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.373", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -18550,7 +18550,14 @@ app.get("/api/post-gifts", (req, res) => {
   const gifts = Object.keys(det).map((gid) => {
     const e = det[gid] && typeof det[gid] === "object" ? det[gid] : {};
     const n = typeof e.n === "number" && isFinite(e.n) && e.n > 0 ? Math.floor(e.n) : 0;
-    return { id: gid, name: (typeof e.name === "string" && e.name) || (MONEY_GIFT_INFO[gid] && MONEY_GIFT_INFO[gid].name) || gid, count: n };
+    // [RP-V7.373] the recorded senders of this gift on this post (name + units, biggest first; recorded from this build onward — older sends have none)
+    const by373 = e.by && typeof e.by === "object" && !Array.isArray(e.by) ? e.by : {};
+    const senders = Object.keys(by373).map((uid) => {
+      const se = by373[uid] && typeof by373[uid] === "object" ? by373[uid] : {};
+      const sn = typeof se.n === "number" && isFinite(se.n) && se.n > 0 ? Math.floor(se.n) : 0;
+      return { name: (typeof se.name === "string" && se.name) || "Someone", count: sn };
+    }).filter((x) => x.count > 0).sort((a, b2) => (b2.count - a.count) || a.name.localeCompare(b2.name)).slice(0, 20);
+    return { id: gid, name: (typeof e.name === "string" && e.name) || (MONEY_GIFT_INFO[gid] && MONEY_GIFT_INFO[gid].name) || gid, count: n, senders };
   }).filter((g) => g.count > 0).sort((a, b2) => (b2.count - a.count) || a.name.localeCompare(b2.name));
   const detailed = gifts.reduce((s, g) => s + g.count, 0);
   res.json({ ok: true, kind, id, total, detailed, gifts });
@@ -19386,6 +19393,29 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
     if (!ge325 || typeof ge325 !== "object" || Array.isArray(ge325)) ge325 = det325[giftId] = { n: 0, name: "" };
     ge325.n = (typeof ge325.n === "number" && isFinite(ge325.n) && ge325.n > 0 ? Math.floor(ge325.n) : 0) + count;
     if (typeof ge325.name !== "string" || !ge325.name) ge325.name = (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId;
+    // [RP-V7.373] WHO sent it (Branden, Nov 14, 2026: "I still can't
+    // see how much a gift is who it come from an all"): the sender
+    // rides the SAME write, keyed by account id with the display
+    // name recorded at settle time. Before this build the record
+    // held only per-gift totals, so no surface could ever show a
+    // sender; sends before it carry no sender data and are never
+    // back-filled or invented.
+    if (!ge325.by || typeof ge325.by !== "object" || Array.isArray(ge325.by)) ge325.by = {};
+    const sid373 = ctx && ctx.user && ctx.user.id ? String(ctx.user.id) : "";
+    if (sid373) {
+      let se373 = ge325.by[sid373];
+      if (!se373 || typeof se373 !== "object" || Array.isArray(se373)) {
+        // cap: a post with 100+ distinct recorded senders of one gift keeps the first 100
+        if (Object.keys(ge325.by).length < 100) se373 = ge325.by[sid373] = { name: "", n: 0 };
+        else se373 = null;
+      }
+      if (se373) {
+        se373.n = (typeof se373.n === "number" && isFinite(se373.n) && se373.n > 0 ? Math.floor(se373.n) : 0) + count;
+        const sn373 = (ctx.user && (ctx.user.name || ctx.user.username)) || "";
+        if (sn373) se373.name = String(sn373);
+        else if (typeof se373.name !== "string") se373.name = "";
+      }
+    }
   }
   // [RP-V7.338] Gifter XP: 1 charm gifted = 1 XP on this rail
   // (live gifts, battle gifts and post gifts all settle here),
@@ -23427,7 +23457,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.370", online: players.size })
+  res.json({ ok: true, version: "RP-V7.373", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
