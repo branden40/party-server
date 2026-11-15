@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.379" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.380" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -30131,6 +30131,12 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
 .rp-goal-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; display:block; } /* [RP-V7.371] whole scene, never cropped (Branden, Nov 14, 2026: the video-post show cut the scene under cover) — contain, the V7.367 T-Rex pattern */
 #rpStage.goal370 .rp-stage-art img.rp-gift-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; display:block; mix-blend-mode:normal; } /* [RP-V7.371] fallback art follows the same whole-scene rule */
 #rpStage.goal370 .rp-stage-art:has(> img.rp-gift-img){ width:100%; height:100%; max-width:none; max-height:none; }
+/* [WHALE-FIX] RP-V7.380 WHALE DIVE FULL-SCENE SHOW (posts/reels only) — the goal-stage pattern for the whale film: a full-color ocean scene whose dark body and mid-tone water fall below the luma band-key threshold and get discarded by it, so off-live the film plays WHOLE and unblended on its own stage (contain on black, normal compositing — nothing keyed away). Lives never add this class: in a live the whale keeps its keyed band path exactly as before. */
+#rpStage.whale380{ mix-blend-mode:normal !important; }
+#rpStage.whale380 .rp-stage-art{ position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; }
+.rp-whale-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; display:block; }
+#rpStage.whale380 .rp-stage-art img.rp-gift-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; display:block; mix-blend-mode:normal; }
+#rpStage.whale380 .rp-stage-art:has(> img.rp-gift-img){ width:100%; height:100%; max-width:none; max-height:none; }
 
 .gfx-film{ mix-blend-mode:screen; }
 #rpStage .rp-stage-bg{ position:absolute; inset:0; background:transparent; /* [RP-V7.207] reference correction: NO black card under big shows — the backdrop stays transparent so the screen blend composites the film into the LIVE PICTURE behind the stage (TikTok gifting). The element remains only to carry the rpFade timing. */ animation:rpFade 3.5s forwards; }
@@ -30447,7 +30453,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
 #rpStage.fs372 .rp-stage-art:not(.film) { width: min(100vw, 100dvh) !important; height: min(100vw, 100dvh) !important; max-width: none; max-height: none; }
 .gfx.fs372 .gfx-stage .gfx-hero { top: 50%; } /* [RP-V7.372] burst art heroes centre on the screen off-live (the medium band seat was top:72%) */
 /* [RP-V7.347] BIG-GIFT STAGE ART SEAT (TikTok-size ruling, big gifts only — lives + posts): the stage serves only big/prestige gifts, so its art heroes (pending-film gifts presenting animated art) rise out of the 16:9 band box into the tall seat — the box grows to min(85dvh, 100vw) tall and the square art (object-fit: contain on the raw img; identity-window keyed canvas) renders at full screen width instead of band height. The three Thanksgiving fits keep their V7.220 whole-in-band box (owner's holiday rule outranks the size ruling for those three). */
-#rpStage:not(.sky362):not(.goal370):not([data-gid="thankfulturkey"]):not([data-gid="harvestwreath"]):not([data-gid="pumpkinpie"]) .rp-stage-art:not(.film):has(> img.rp-gift-img){ height:min(85dvh,100vw) !important; } /* [RP-V7.366] :not(.sky362) — the cap silently beat the V7.362 full-scene sky seat whenever the fallback img was in the art div (REPORT section 4) */
+#rpStage:not(.sky362):not(.goal370):not(.whale380):not([data-gid="thankfulturkey"]):not([data-gid="harvestwreath"]):not([data-gid="pumpkinpie"]) .rp-stage-art:not(.film):has(> img.rp-gift-img){ height:min(85dvh,100vw) !important; } /* [RP-V7.366] :not(.sky362) — the cap silently beat the V7.362 full-scene sky seat whenever the fallback img was in the art div (REPORT section 4) */
 </style>
 <script>
 /* ================= RP-V5: gift visuals, live battle, social sign-in ================= */
@@ -30638,6 +30644,22 @@ body:not(.live-fs) #rp65How { display:none !important; }
       var ov = $("rpStage"); if (!ov) return;
       var art = ov.querySelector(".rp-stage-art");
       if (art) { art.innerHTML = rpArt("goldengoal", "\u26BD"); }
+    } catch (e) { }
+  };
+  /* [WHALE-FIX] RP-V7.380 Whale Dive scene-stage fallback: the
+     film failed or stalled — remember it for the session and swap
+     THIS stage show to the gift's art IN PLACE, still full-scene
+     on the .whale380 stage (the art is a frame of the same film,
+     so the scene stays whole). NO timer surgery: the V7.219 stage
+     timer keeps ownership of this show's duration. Later sends
+     this session take the keyed path (isWhale380 stays false once
+     __rpWhaleBad380 is set). Mirrors rpGoalErr370. */
+  window.rpWhaleErr380 = function (v) {
+    window.__rpWhaleBad380 = true;
+    try {
+      var ov = $("rpStage"); if (!ov) return;
+      var art = ov.querySelector(".rp-stage-art");
+      if (art) { art.innerHTML = rpArt("whale", "\uD83D\uDC0B"); }
     } catch (e) { }
   };
   window.rpGiftVidErr = function (v) {
@@ -31439,7 +31461,8 @@ function stageStreakBump(key, add) {
     var isScene = !!RP_SCENE_FILMS[said]; // [RP-V7.218] scene CONTENT class — no longer full-screen cover
     var isTrex353 = (said === "trex" && !window.__rpTrexBad); // [RP-V7.353] the T-Rex plays on its own full-screen stage (below) unless the film already failed this session
     var isSky362 = (said === "skystepper" && !window.__rpSkyBad362); // [RP-V7.362] Sky Stepper plays on its own full-scene stage (below) unless the film already failed this session
-    var isGoal370 = (said === "goldengoal" && !window.__rpGoalBad370); // [RP-V7.370] Golden Goal plays on its own full-scene stage (below) unless the film already failed this session
+    var isGoal370 = (said === "goldengoal" && !window.__rpGoalBad370);
+    var isWhale380 = (said === "whale" && !document.body.classList.contains("live-fs") && !window.__rpWhaleBad380); // [WHALE-FIX] RP-V7.380: OFF-LIVE only, Whale Dive plays on its own full-scene stage (below) instead of the luma band-key; in a live (body.live-fs) this stays false and the whale keeps the keyed path untouched // [RP-V7.370] Golden Goal plays on its own full-scene stage (below) unless the film already failed this session
     /* [RP-V7.218] The Supernova standard: band treatments by measured
        content. Supernova (wall-to-wall spiral, border luma 84) and
        ferriswheel (all-bright neon, border 69.6) and nebuladragon
@@ -31473,8 +31496,8 @@ function stageStreakBump(key, add) {
        geometry remains; the live stage change in this build is
        the film playing once (filmMode loop) plus the shared
        show-once queue. */
-    if (!document.body.classList.contains("live-fs") && !isTrex353 && !isSky362 && !isGoal370) ov.classList.add("fs372"); // [RP-V7.372] off-live = full screen (see the fs372 CSS); fs327 bottom-half seat now lives on ONLY inside lives via the GiftFx lanes // [RP-V7.353] the trex stage is full-bleed by design — no fs327 band geometry; [RP-V7.362] same for the sky stage; [RP-V7.370] same for the goal stage
-    ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + ((isTrex353 || isSky362 || isGoal370) ? "" : sparks); // [RP-V7.353] no sparks on the trex stage (the V7.81 original had none — the film is the whole show); [RP-V7.362] none on the sky stage either — the film is the whole show; [RP-V7.370] none on the goal stage either
+    if (!document.body.classList.contains("live-fs") && !isTrex353 && !isSky362 && !isGoal370 && !isWhale380) ov.classList.add("fs372"); // [WHALE-FIX] RP-V7.380: the whale scene stage is full-bleed by its own CSS too // [RP-V7.372] off-live = full screen (see the fs372 CSS); fs327 bottom-half seat now lives on ONLY inside lives via the GiftFx lanes // [RP-V7.353] the trex stage is full-bleed by design — no fs327 band geometry; [RP-V7.362] same for the sky stage; [RP-V7.370] same for the goal stage
+    ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + ((isTrex353 || isSky362 || isGoal370 || isWhale380) ? "" : sparks); // [RP-V7.353] no sparks on the trex stage (the V7.81 original had none — the film is the whole show); [RP-V7.362] none on the sky stage either — the film is the whole show; [RP-V7.370] none on the goal stage either
     ov.querySelector(".rp-stage-bg").style.animationDuration = dur + "ms";
     var artDiv = document.createElement("div");
     if (isTrex353) {
@@ -31564,6 +31587,33 @@ function stageStreakBump(key, add) {
           if (pp370 && pp370.catch) pp370.catch(function () { try { gv370.muted = true; var p2370 = gv370.play(); if (p2370 && p2370.catch) p2370.catch(function () { }); } catch (e) { } });
         } catch (e) { }
         setTimeout(function () { var o370 = document.getElementById("rpStage"); if (o370 && o370.classList.contains("goal370") && !gv370.getAttribute("data-playing370")) window.rpGoalErr370(gv370); }, 1800);
+      }
+    } else if (isWhale380) {
+      /* [WHALE-FIX] RP-V7.380 THE WHALE DIVE SCENE STAGE —
+         off-live only (isWhale380 is false in lives and after a
+         film failure this session). The whale film is a full-color
+         ocean scene: its dark body and mid-tone water sit below
+         the luma band-key's crush threshold, so the keyed player
+         (rpStageMedia, the isScene branch below) discarded most
+         of the film on EVERY backdrop — the Nov 15, 2026
+         visibility audit measured its dark-post render strength
+         at 10-11, the big tier's lowest; Branden sees it "only
+         half way." On posts/reels it now plays like Golden Goal:
+         the whole film, contain-fit on black, normal compositing,
+         on its own .whale380 stage — nothing keyed, nothing
+         blended, nothing thrown away; the V7.379 dimmer sits
+         underneath it, covered. The video is MUTED (the whale has
+         no per-gift audio exception). Film missing/stalled ->
+         rpWhaleErr380 swaps this show to the gift's art in place,
+         still full-scene, and the session remembers
+         (__rpWhaleBad380) so later sends take the keyed path. */
+      ov.classList.add("whale380");
+      artDiv.className = "rp-stage-art";
+      artDiv.innerHTML = '<video class="rp-whale-video" src="' + window.rpStdFilmUrl("whale") + '" autoplay muted playsinline preload="auto" onerror="rpWhaleErr380(this)"></video>';
+      var wv380 = artDiv.querySelector("video.rp-whale-video");
+      if (wv380) {
+        wv380.addEventListener("playing", function () { wv380.setAttribute("data-playing380", "1"); });
+        setTimeout(function () { var o380 = document.getElementById("rpStage"); if (o380 && o380.classList.contains("whale380") && !wv380.getAttribute("data-playing380")) window.rpWhaleErr380(wv380); }, 1800);
       }
     } else if (isScene) {
       artDiv.className = "rp-stage-art film";
