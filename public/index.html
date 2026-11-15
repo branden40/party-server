@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.378" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.379" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -30068,6 +30068,9 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
 @keyframes rpBannerIn{ from{ opacity:0; transform:translateX(-18px) scale(.92);} to{ opacity:1; transform:none;} }
 @keyframes rpPop{ 0%{ transform:scale(1);} 40%{ transform:scale(1.45);} 100%{ transform:scale(1);} }
 #rpStage{ position:fixed; inset:0; z-index:68; pointer-events:none; display:flex; align-items:center; justify-content:center; }
+/* [RP-V7.378] GIFT-SHOW STAGE DIMMER — off-live, while a gift show plays on a post/reel, the page behind the show darkens so the film composites over a dark field and reads SOLID on any backdrop. Why: V7.376 routes post/reel shows to screen blend (the freeze fix) and the stage keyer leaves wispy subjects translucent — over a BRIGHT photo the dark half of every film contributes nothing, so gifts went see-through / "only half way" (Branden, Nov 15). The dimmer is a sibling BELOW both show layers (#rpStage 68, .gfx 200) and below the gift banners (#rpBanners 46, which stay lit), above the feed: one smooth full-viewport radial — no box, no edges, nothing to rectangle on dark posts. Opaque full-scene stages (trex / sky362 / goal370) cover it completely, so their scenes are never double-darkened. Lives (body.live-fs) never get it — the controller below gates on that class. */
+#rpShowDim377{ position:fixed; inset:0; z-index:44; pointer-events:none; opacity:0; transition:opacity .3s ease; background:radial-gradient(ellipse 125% 95% at 50% 52%, rgba(2,2,7,.84), rgba(1,1,5,.94) 76%); }
+#rpShowDim377.on{ opacity:1; }
 .rp-stage-art.film{ width:100vw; max-width:none; height:auto; aspect-ratio:16/9; } /* [RP-V7.207] correction: stage film spans the full screen width, blended into the live picture */
 .rp-stage-art .rp-gift-film{ width:100%; height:100%; border-radius:0; }
 .rp-banner .rp-gift-film{ border-radius:0; }
@@ -30826,6 +30829,28 @@ body:not(.live-fs) #rp65How { display:none !important; }
     stageBusy = false; window.__rpStageTimer = 0; stageCur219 = null; pumpStage();
   }
   window.__rpStageState219 = function () { return { busy: stageBusy, queued: stageQ.length, cur: stageCur219 ? { key: stageCur219.key, extUsed: stageCur219.extUsed || 0, leftMs: Math.max(0, stageCur219.endsAt - Date.now()) } : null, streaks: JSON.parse(JSON.stringify(stageStreaks)) }; }; // demo/diagnostic readout
+  /* [RP-V7.378] show-dimmer controller (CSS: #rpShowDim377). Keeps the
+     dimmer lit exactly while an OFF-LIVE gift show exists (#rpStage or
+     .gfx in the body) so post/reel shows composite over a dark field and
+     read solid on bright backdrops. One guarded observer: it writes the
+     class ONLY when the wanted state actually changes (the Nov 4 rule —
+     an unguarded observer write loops forever). No per-frame work, no
+     WebGL — the V7.376 freeze fix is untouched. Lives never dim: the
+     want() gate reads body.live-fs, and the attribute watch re-checks
+     the moment a live opens or closes. window.__rpShowDim(on) is a
+     rig/verification hook that can hold the dimmer for a baseline. */
+  (function () {
+    var dimEl = null, dimShown = false, dimHold = false;
+    function ensureDim() { if (!dimEl) { dimEl = document.createElement("div"); dimEl.id = "rpShowDim377"; document.body.appendChild(dimEl); } return dimEl; }
+    function wantDim() { return !document.body.classList.contains("live-fs") && !!document.querySelector("#rpStage, .gfx"); }
+    function syncDim() { if (dimHold) return; var w = wantDim(); if (w === dimShown) return; dimShown = w; ensureDim().classList.toggle("on", w); }
+    window.__rpShowDim = function (on) {
+      if (on === true) { dimHold = true; dimShown = true; ensureDim().classList.add("on"); }
+      else if (on === false) { dimHold = false; dimShown = false; if (dimEl) dimEl.classList.remove("on"); syncDim(); }
+      return dimShown;
+    };
+    try { new MutationObserver(syncDim).observe(document.body, { childList: true, attributes: true, attributeFilter: ["class"] }); } catch (e) { }
+  })();
   function rpBigStage(g, fromName, toName, cnt) {
     /* [RP-V7.217] every send enqueues its own FULL play (spec §2.4
        FIFO replay chain — occupation = N x the gift's cycle, zero
