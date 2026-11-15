@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.377" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.378" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -3384,7 +3384,9 @@
           <button class="speed-btn" id="btnMusicHome">Choose music</button>
           <button class="speed-btn" id="btnMuteHome">Music on/off</button>
         </div>
-        <!-- [RP-V7.320] The Plaza "Home" panel is now a compact working
+        <!-- [RP-V7.320] SUPERSEDED by [DELETE-HOME] RP-V7.378 below —
+             the door card this comment describes was deleted Nov 15,
+             2026. Original note: The Plaza "Home" panel is now a compact working
              door (Branden, Nov 10, 2026: the oversized panel — flavor
              lines over a tall, empty avatar stage — "tapping it goes
              nowhere"). The card matches its Plaza neighbours, the
@@ -3396,12 +3398,20 @@
              renderPlaza still runs everything else it always ran
              (Live Now, room states, music). Holiday decor rides
              along exactly as it did on the panel. -->
-        <div class="plaza-card" id="plazaHomeDoor320" style="margin-top:16px; position:relative; overflow:hidden; cursor:pointer;" role="button" tabindex="0" aria-label="Open your Home page">
-          <div class="hol-fall" aria-hidden="true"></div>
-          <div class="hol-deco" aria-hidden="true"></div>
-          <div style="position:relative; z-index:2;">
-            <h3>🏠 Home</h3>
-            <p>Your home feed — posts, stories and reels from across the Plaza, all in one place.</p>
+        <!-- [DELETE-HOME] RP-V7.378 (Branden, Nov 15, 2026): the Plaza
+             "🏠 Home" door card (plazaHomeDoor320) is deleted — he
+             circled the whole card and said "Delete home." The
+             bottom-bar Home tab and the home feed screen are NOT
+             touched. The Rooms ↓ button that lived inside the card
+             keeps its exact job (scroll to #roomList — wired below,
+             unchanged) in its own small section at the same lobby
+             position. The card's click/keydown door handlers were
+             removed with it (see the [DELETE-HOME] note at the
+             btnToRooms wiring). -->
+        <div class="plaza-card" style="margin-top:16px;">
+          <div>
+            <h3>🚪 Rooms</h3>
+            <p>Jump straight to the room list below.</p>
           </div>
           <button class="scene-btn pink" id="btnToRooms" type="button">Rooms ↓</button>
         </div>
@@ -7480,11 +7490,11 @@
         document.querySelectorAll("#screen-plaza [data-adult]").forEach(function (el) { el.style.display = ""; });
       }
       $("btnToRooms").addEventListener("click", function () { closeSheet(); var rl = $("roomList"); if (rl) rl.scrollIntoView({ behavior: "smooth" }); });
-      // [RP-V7.320] The compact Home door: the whole card opens the
-      // Home screen — except the Rooms ↓ button inside it, which
-      // keeps its own job above (scroll to the room list).
-      $("plazaHomeDoor320").addEventListener("click", function (e) { if (e.target && e.target.closest && e.target.closest("#btnToRooms")) return; show("screen-home243"); });
-      $("plazaHomeDoor320").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show("screen-home243"); } });
+      // [DELETE-HOME] RP-V7.378: the V7.320 compact Home door card
+      // (plazaHomeDoor320) and its click/keydown handlers are removed
+      // with the card (Branden: "Delete home"). The Rooms ↓ wiring
+      // directly above is unchanged — the button now lives in its own
+      // Rooms section at the same lobby position.
 
       /* ---------- Home page entries ---------- */
       $("btnOnlineHome").addEventListener("click", enterLiveStageCard);
