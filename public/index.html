@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.376" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.377" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -34253,6 +34253,9 @@ function stageStreakBump(key, add) {
     api("/api/account/me", "GET").then(function (r) {
       if (r.json && r.json.ok) {
         applyAccountUser(r.json.user); // [RP-V7.61] session restore rehydrates name, username, bio, profileType + photo into local identity state (was: photo + name only, applied piecemeal)
+        // [OWNER-DELETE] Session restore re-shows the deletion
+        // notice for the whole recovery window.
+        if (r.json.ownerDeletionNotice && window.rpOwnerDeletionNotice377) { try { window.rpOwnerDeletionNotice377(r.json.ownerDeletionNotice); } catch (e) { } }
         setUnread(r.json.unread || 0); fetchReminders();
       } else if (r.status === 401) {
         signOutLocal();
@@ -34473,6 +34476,10 @@ function stageStreakBump(key, add) {
         // a scheduled deletion — say so once, plainly.
         if (r.json.deletionCancelled) toast2("Welcome back — your scheduled deletion was cancelled.", 6000);
         else toast2("👋 Welcome back, " + r.json.user.name + "!", 3600);
+        // [OWNER-DELETE] An owner-scheduled deletion is NOT cancelled
+        // by signing in — the sign-in lands on the deletion notice
+        // (date, cash-out path, appeal).
+        if (r.json.ownerDeletionNotice && window.rpOwnerDeletionNotice377) { try { window.rpOwnerDeletionNotice377(r.json.ownerDeletionNotice); } catch (e) { } }
         fetchReminders(); renderAcctBox();
         if (onOk) onOk(r.json.user, pw);
         try { if (window.rpInviteLinkAuthReady) window.rpInviteLinkAuthReady("login"); } catch (e) { } // [RP-V7.65] a share-link invite routes a logging-in guest to the live/room that invited them
@@ -34592,6 +34599,8 @@ function stageStreakBump(key, add) {
         if (r.json.deletionCancelled) toast2("Welcome back — your scheduled deletion was cancelled.", 6000);
         else toast2("👋 Welcome back, " + r.json.user.name + "!", 3600);
         adoptSession(r.json, false);
+        // [OWNER-DELETE] Same notice on the Google door.
+        if (r.json.ownerDeletionNotice && window.rpOwnerDeletionNotice377) { try { window.rpOwnerDeletionNotice377(r.json.ownerDeletionNotice); } catch (e) { } }
       } else if (r.json && r.json.ok && r.json.needsProfile) {
         showGooglePanel(true, { code: code, email: r.json.email || "", name: r.json.name || "" });
       } else {
@@ -44115,6 +44124,9 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .rp-og-row input{ flex:1; min-width:0; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:9px 10px; color:#fff; font-size:14px; }
 .rp-owner-grant button{ background:#f5c542; color:#141414; border:none; border-radius:10px; padding:9px 16px; font-size:14px; font-weight:800; cursor:pointer; }
 .rp-owner-grant button:disabled{ opacity:.5; cursor:default; }
+/* [OWNER-DELETE] the delete-a-member panel's button: Plaza red, unmistakable */
+.rp-owner-delete button{ background:#e02424; color:#fff; border:none; border-radius:10px; padding:9px 16px; font-size:14px; font-weight:800; cursor:pointer; }
+.rp-owner-delete button:disabled{ opacity:.5; cursor:default; }
 /* [RP-V7.291] Broadcast panel — same card family as the sales board. */
 .rp-ob-ta{ width:100%; box-sizing:border-box; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:9px 10px; color:#fff; font-size:14px; font-family:inherit; min-height:88px; resize:vertical; margin-top:8px; }
 .rp-ob-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; }
@@ -44313,11 +44325,32 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     var susp263 = d.ageSuspendedAccounts || [];
     h += '<div class="rp-os-rows" style="margin-top:12px"><div class="rp-os-row"><span>🚨 UNDERAGE — priority</span><b>' + (ar263.count || 0) + ' open</b></div></div>';
     (ar263.items || []).forEach(function (r) {
-      h += '<div class="rp-os-note" style="opacity:.95">⚠️ <b>' + esc2(r.reportedName || "?") + '</b>' + (r.reportedUsername ? ' (@' + esc2(r.reportedUsername) + ')' : '') + ' — reported by ' + esc2(r.reporterName || "?") + (r.surface ? ' via ' + esc2(r.surface) : '') + ' · ' + esc2(String(r.at || "").slice(0, 10)) + ' <button type="button" class="rp-age-suspend" data-acct="' + esc2(r.reportedId || "") + '" style="margin-left:8px; background:#e02424; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Suspend pending ID proof</button></div>';
+      h += '<div class="rp-os-note" style="opacity:.95">⚠️ <b>' + esc2(r.reportedName || "?") + '</b>' + (r.reportedUsername ? ' (@' + esc2(r.reportedUsername) + ')' : '') + ' — reported by ' + esc2(r.reporterName || "?") + (r.surface ? ' via ' + esc2(r.surface) : '') + ' · ' + esc2(String(r.at || "").slice(0, 10)) + ' <button type="button" class="rp-age-suspend" data-acct="' + esc2(r.reportedId || "") + '" style="margin-left:8px; background:#e02424; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Suspend pending ID proof</button> <button type="button" class="rp-del-acct" data-acct="' + esc2(r.reportedId || "") + '" data-uname="' + esc2(r.reportedUsername || "") + '" style="margin-left:6px; background:#5f0d0d; color:#fff; border:1px solid #e02424; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Delete account</button></div>';
     });
     susp263.forEach(function (a) {
       h += '<div class="rp-os-note" style="opacity:.95">⏸️ <b>' + esc2(a.name || "?") + '</b> (@' + esc2(a.username || "") + ') — suspended pending ID proof <button type="button" class="rp-age-restore" data-acct="' + esc2(a.id || "") + '" style="margin-left:8px; background:#2a7ab5; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Restore</button></div>';
     });
+    // [OWNER-DELETE] Pending deletions — the 30-day appeal + funds
+    // window (payload: d.pendingDeletions from /api/owner/sales).
+    // An entry holding a fresh appeal is flagged loud: it is
+    // waiting on the owner's review. Cancel deletion reinstates
+    // the account whole — that is also what an approved appeal
+    // does. Deny appeal records the denial; the deletion still
+    // lands on its date.
+    var pd377 = d.pendingDeletions || [];
+    if (pd377.length) {
+      h += '<div class="rp-os-rows" style="margin-top:12px"><div class="rp-os-row"><span>🗑️ Pending deletions — 30-day window</span><b>' + pd377.length + ' pending</b></div></div>';
+      pd377.forEach(function (p) {
+        var ap377 = p.appeal || null;
+        var needsReview377 = !!(ap377 && ap377.status === "pending");
+        h += '<div class="rp-os-note"' + (needsReview377 ? ' style="opacity:.98; background:rgba(224,36,36,.14); border:1px solid #e02424; border-radius:10px; padding:8px; margin-top:6px"' : ' style="opacity:.95; margin-top:6px"') + '>🗑️ <b>' + esc2(p.name || "?") + '</b> (@' + esc2(p.username || "") + ') — permanently deleted <b>' + esc2(String(p.scheduledFor || "").slice(0, 10)) + '</b> · balance at schedule $' + (Number(p.earningsAtSchedule || 0) / 100).toFixed(2) + (p.earningsCentsNow != null ? ' · still to recover $' + (Number(p.earningsCentsNow || 0) / 100).toFixed(2) : '') +
+          (needsReview377 ? '<div style="margin-top:6px"><b>📩 APPEAL — NEEDS YOUR REVIEW:</b> &ldquo;' + esc2(ap377.text || "") + '&rdquo;</div>' : '') +
+          (ap377 && ap377.status === "denied" ? '<div style="margin-top:6px">Appeal denied — the deletion stands.</div>' : '') +
+          '<div style="margin-top:6px"><button type="button" class="rp-del-cancel" data-acct="' + esc2(p.id || "") + '" data-uname="' + esc2(p.username || "") + '" style="background:#2f7d4f; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Cancel deletion — reinstate</button>' +
+          (needsReview377 ? ' <button type="button" class="rp-del-deny" data-acct="' + esc2(p.id || "") + '" data-uname="' + esc2(p.username || "") + '" style="margin-left:6px; background:#5f0d0d; color:#fff; border:1px solid #e02424; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Deny appeal</button>' : '') +
+          '</div></div>';
+      });
+    }
     return h;
   };
   var osTimer = null;
@@ -44624,6 +44657,180 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         }).catch(function () { b.disabled = false; });
     });
   }
+  /* [OWNER-DELETE] Owner delete controls + the member-facing
+     deletion notice (Branden, Nov 15, 2026). The "Delete a member"
+     panel rides the EXACT owner signal of the sales board, same as
+     the grant panel: created only inside rpOwnerSalesInit after
+     /api/owner/sales answered ok, as a SIBLING of the sales panel,
+     removed wherever the board is removed. EVERY delete is a
+     30-day schedule: the flow first dry-runs POST
+     /api/owner/delete-account so the confirm dialog names the
+     member, the deletion date and any cashable balance, then a
+     window.confirm (the board's house confirm style) gates the
+     real call. The server refuses the owner account and @Popstar
+     outright. Report rows carry the same flow on their Delete
+     button; pending-deletion rows (rendered from the sales
+     payload) carry Cancel (= reinstate / appeal approved) and
+     Deny appeal, wired by the delegated listener below.
+     window.rpOwnerDeletionNotice377 is the MEMBER side: the
+     blocking notice a scheduled member gets at sign-in and on
+     session restore — deletion date, cashable balance with the
+     Earn path, and the one-appeal form. */
+  function osDeleteMoney377(c) { return "$" + (Number(c || 0) / 100).toFixed(2); }
+  function osDeletePost377(path, payload) {
+    var t = osToken();
+    if (!t || typeof fetch !== "function") return Promise.resolve({ status: 0, j: null });
+    return fetch(path, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      return r.json().then(function (j) { return { status: r.status, j: j }; }, function () { return { status: r.status, j: null }; });
+    }).catch(function () { return { status: 0, j: null }; });
+  }
+  function osDeleteFlow377(payload, uname, done) {
+    var pre = {}; for (var k in payload) pre[k] = payload[k]; pre.dryRun = true;
+    osDeletePost377("/api/owner/delete-account", pre).then(function (preRes) {
+      var j = preRes.j;
+      if (!j || !j.ok) {
+        if (j && j.error === "already-scheduled") { done("⏳ @" + uname + " is already scheduled for deletion on " + String(j.scheduledFor || "").slice(0, 10) + "."); return; }
+        if (j && j.error === "cannot-delete-owner") { done("✗ That's your own owner account — it can never be deleted."); return; }
+        if (j && j.error === "cannot-delete-popstar") { done("✗ @Popstar is your test account — it can never be deleted."); return; }
+        if (j && j.error === "no-such-user") { done("✗ No member with that username."); return; }
+        done("✗ " + (j && j.error ? j.error : ("Could not check that account (HTTP " + preRes.status + ")")));
+        return;
+      }
+      var date = String(j.scheduledFor || "").slice(0, 10);
+      var msg = "Delete @" + j.username + "?\n\n@" + j.username + " will be locked now and permanently deleted on " + date + ". They can appeal and cash out any balance during the 30 days." +
+        (j.earningsCents > 0 ? "\n\nThey have " + osDeleteMoney377(j.earningsCents) + " in cashable earnings to recover." : "") +
+        (j.charms > 0 ? "\nTheir " + Number(j.charms).toLocaleString("en-US") + " charms are erased when the deletion lands." : "") +
+        "\n\nAfter " + date + " this cannot be undone.";
+      if (!window.confirm(msg)) { done("Delete cancelled — nothing was scheduled."); return; }
+      osDeletePost377("/api/owner/delete-account", payload).then(function (res2) {
+        var j2 = res2.j;
+        if (j2 && j2.ok) done("✓ " + (j2.message || ("@" + uname + " is scheduled for deletion on " + date + ".")));
+        else done("✗ " + (j2 && j2.error ? j2.error : ("Delete failed (HTTP " + res2.status + ")")));
+      });
+    });
+  }
+  function osDeleteEnsure377(panel) {
+    if (document.getElementById("rpOwnerDelete")) return;
+    if (!panel || !panel.parentNode) return;
+    var host = document.createElement("div");
+    host.className = "rp-owner-sales rp-owner-delete";
+    host.id = "rpOwnerDelete";
+    host.innerHTML = '<h4>🗑️ Delete a member</h4>' +
+      '<div class="rp-og-row"><input id="rpOdUser" type="text" placeholder="Exact @username" autocomplete="off" autocapitalize="none"></div>' +
+      '<button type="button" id="rpOdBtn">Delete account…</button>' +
+      '<div class="rp-os-note" id="rpOdResult">Deleting locks the account now and permanently erases it in 30 days. During the window the member can appeal once and cash out any balance. Your own account and Popstar can never be deleted.</div>';
+    var anchor = document.getElementById("rpOwnerBroadcast") || document.getElementById("rpOwnerGrant") || panel;
+    if (!anchor.parentNode) return;
+    anchor.parentNode.insertBefore(host, anchor.nextSibling);
+    document.getElementById("rpOdBtn").addEventListener("click", osDeleteGo377);
+  }
+  function osDeleteGo377() {
+    var uEl = document.getElementById("rpOdUser"), rEl = document.getElementById("rpOdResult"), btn = document.getElementById("rpOdBtn");
+    if (!uEl || !rEl || !btn) return;
+    var username = String(uEl.value || "").trim().replace(/^@+/, "");
+    if (!username) { rEl.textContent = "Enter the exact username first."; return; }
+    btn.disabled = true; btn.textContent = "Checking…";
+    osDeleteFlow377({ username: username }, username, function (msg) {
+      btn.disabled = false; btn.textContent = "Delete account…";
+      rEl.textContent = msg;
+      if (msg.charAt(0) === "✓") { uEl.value = ""; try { window.rpOwnerSalesInit(); } catch (e) { } }
+    });
+  }
+  if (!window.__rpOwnerDelWire377) {
+    window.__rpOwnerDelWire377 = true;
+    document.addEventListener("click", function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest(".rp-del-acct, .rp-del-cancel, .rp-del-deny") : null;
+      if (!b) return;
+      var acct = b.getAttribute("data-acct");
+      var uname = b.getAttribute("data-uname") || "";
+      if (!acct) return;
+      if (b.classList.contains("rp-del-acct")) {
+        b.disabled = true;
+        osDeleteFlow377({ accountId: acct }, uname, function (msg) {
+          b.disabled = false;
+          try { toast2(msg, 5600); } catch (e) { }
+          if (msg.charAt(0) === "✓") { try { window.rpOwnerSalesInit(); } catch (e) { } }
+        });
+        return;
+      }
+      if (b.classList.contains("rp-del-cancel")) {
+        if (!window.confirm("Cancel the deletion of @" + uname + "?\n\nThe account is fully reinstated — sign-in, profile, posts, follows and balances back exactly as they were. This is also how an approved appeal ends.")) return;
+        b.disabled = true; b.textContent = "Reinstating…";
+        osDeletePost377("/api/owner/delete-cancel", { accountId: acct }).then(function (r) {
+          if (r.j && r.j.ok) { try { toast2("✓ @" + uname + " reinstated — the account is fully open again.", 4600); } catch (e) { } try { window.rpOwnerSalesInit(); } catch (e) { } }
+          else { b.disabled = false; b.textContent = "Cancel deletion — reinstate"; try { toast2("✗ " + (r.j && r.j.error ? r.j.error : "Cancel failed"), 4600); } catch (e) { } }
+        });
+        return;
+      }
+      // .rp-del-deny
+      if (!window.confirm("Deny the appeal from @" + uname + "?\n\nThe denial is recorded on the board and the account is still permanently deleted on its scheduled date.")) return;
+      b.disabled = true; b.textContent = "Denying…";
+      osDeletePost377("/api/owner/delete-deny-appeal", { accountId: acct }).then(function (r) {
+        if (r.j && r.j.ok) { try { toast2("Appeal denied — @" + uname + "'s deletion stands.", 4600); } catch (e) { } try { window.rpOwnerSalesInit(); } catch (e) { } }
+        else { b.disabled = false; b.textContent = "Deny appeal"; try { toast2("✗ " + (r.j && r.j.error ? r.j.error : "Deny failed"), 4600); } catch (e) { } }
+      });
+    });
+  }
+  window.rpOwnerDeletionNotice377 = function (notice) {
+    if (!notice || !notice.scheduledFor) return;
+    var old = document.getElementById("rpDelNotice377"); if (old) old.remove();
+    var date = String(notice.scheduledFor).slice(0, 10);
+    var cents = Number(notice.earningsCents || 0);
+    var ap = notice.appeal || null;
+    var appealHtml;
+    if (!ap) {
+      appealHtml = '<div style="margin-top:14px"><div style="font-weight:800; margin-bottom:6px">Appeal this decision</div>' +
+        '<div style="opacity:.85; font-size:13.5px; margin-bottom:8px">You can appeal once. If the owner approves it, your account is fully reinstated — everything back exactly as it was.</div>' +
+        '<textarea id="rpDelAppealText" rows="3" maxlength="500" placeholder="Why should this account stay?" style="width:100%; box-sizing:border-box; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.22); border-radius:10px; padding:9px 10px; color:#fff; font-size:14px"></textarea>' +
+        '<button type="button" id="rpDelAppealBtn" style="margin-top:8px; background:#e02424; color:#fff; border:none; border-radius:10px; padding:9px 16px; font-weight:800; cursor:pointer">Submit appeal</button>' +
+        '<div id="rpDelAppealMsg" style="margin-top:8px; font-size:13.5px"></div></div>';
+    } else if (ap.status === "denied") {
+      appealHtml = '<div style="margin-top:14px; background:rgba(224,36,36,.14); border:1px solid #e02424; border-radius:10px; padding:10px">Your appeal was denied — the deletion stands.</div>';
+    } else {
+      appealHtml = '<div style="margin-top:14px; background:rgba(47,125,79,.18); border:1px solid #2f7d4f; border-radius:10px; padding:10px">📩 Your appeal was sent — the owner will review it. If it\'s approved, your account is fully reinstated.</div>';
+    }
+    var ov = document.createElement("div");
+    ov.id = "rpDelNotice377";
+    ov.setAttribute("style", "position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,.93); display:flex; align-items:center; justify-content:center; padding:18px;");
+    ov.innerHTML = '<div style="max-width:430px; width:100%; max-height:92vh; overflow:auto; background:#141414; border:1px solid #e02424; border-radius:16px; padding:22px; color:#fff">' +
+      '<div style="font-size:19px; font-weight:900">⚠️ Your account is scheduled for deletion</div>' +
+      '<div style="margin-top:10px; font-size:14.5px; line-height:1.5">This account will be <b>permanently deleted on ' + date + '</b>. Until then it is locked — you can\'t post, follow, message or gift.</div>' +
+      (cents > 0
+        ? '<div style="margin-top:10px; font-size:14.5px; line-height:1.5">You have <b>' + osDeleteMoney377(cents) + '</b> in earnings. Cash it out before ' + date + ' — anything left is erased with the account.</div>'
+        : '<div style="margin-top:10px; font-size:14.5px">You have no cashable earnings balance.</div>') +
+      appealHtml +
+      '<div style="margin-top:16px; display:flex; gap:8px">' +
+      '<button type="button" id="rpDelCashBtn" style="flex:1; background:#f5c542; color:#141414; border:none; border-radius:10px; padding:10px 12px; font-weight:800; cursor:pointer">💰 Cash out in Earn</button>' +
+      '<button type="button" id="rpDelCloseBtn" style="background:rgba(255,255,255,.12); color:#fff; border:none; border-radius:10px; padding:10px 14px; font-weight:800; cursor:pointer">Close</button>' +
+      '</div></div>';
+    document.body.appendChild(ov);
+    document.getElementById("rpDelCloseBtn").addEventListener("click", function () { ov.remove(); });
+    document.getElementById("rpDelCashBtn").addEventListener("click", function () {
+      ov.remove();
+      try { toast2("Open the Plaza tab → 💰 Earn → Cash out — your wallet stays open until " + date + ".", 6500); } catch (e) { }
+    });
+    var ab = document.getElementById("rpDelAppealBtn");
+    if (ab) ab.addEventListener("click", function () {
+      var ta = document.getElementById("rpDelAppealText"), m = document.getElementById("rpDelAppealMsg");
+      var text = ta ? String(ta.value || "").trim() : "";
+      if (!text) { if (m) m.textContent = "Write a short appeal first."; return; }
+      ab.disabled = true; ab.textContent = "Sending…";
+      fetch("/api/account/delete-appeal", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + osToken(), "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text })
+      }).then(function (r) { return r.json().catch(function () { return null; }); })
+        .then(function (j) {
+          if (j && j.ok) window.rpOwnerDeletionNotice377({ scheduledFor: notice.scheduledFor, earningsCents: cents, appeal: { status: "pending" } });
+          else { ab.disabled = false; ab.textContent = "Submit appeal"; if (m) m.textContent = "✗ " + (j && j.error ? j.error : "Appeal didn't go through — try again."); }
+        })
+        .catch(function () { ab.disabled = false; ab.textContent = "Submit appeal"; if (m) m.textContent = "✗ Network error — appeal not sent."; });
+    });
+  };
   window.rpOwnerSalesInit = function () {
     osFetch().then(function (d) {
       magniStoreApply(!!d); // [RP-V7.223] keep the store gate on the board's verdict
@@ -44636,6 +44843,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         if (gp0) gp0.remove();
         var cp0 = document.getElementById("rpOwnerCopyright"); if (cp0) cp0.remove(); // [RP-V7.286]
         var bc0 = document.getElementById("rpOwnerBroadcast"); if (bc0) bc0.remove(); // [RP-V7.291]
+        var dp0 = document.getElementById("rpOwnerDelete"); if (dp0) dp0.remove(); // [OWNER-DELETE]
         osStop();
         return;
       }
@@ -44649,6 +44857,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       panel.innerHTML = window.rpOwnerSalesRender(d) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
       osGrantEnsure(panel);
       osBroadcastEnsure291(panel); // [RP-V7.291]
+      osDeleteEnsure377(panel); // [OWNER-DELETE]
       if (!osTimer) {
       osCopyrightEnsure286(panel); // [RP-V7.286]
         osTimer = setInterval(function () {
@@ -44657,7 +44866,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
             var p2 = document.getElementById("rpOwnerSales");
             if (!p2) { osStop(); return; }
             magniStoreApply(!!d2); // [RP-V7.223] refresh verdicts re-apply the store gate
-            if (!d2) { p2.remove(); var gp2 = document.getElementById("rpOwnerGrant"); if (gp2) gp2.remove(); var cp2 = document.getElementById("rpOwnerCopyright"); if (cp2) cp2.remove(); var bc2 = document.getElementById("rpOwnerBroadcast"); if (bc2) bc2.remove(); osStop(); return; } // [RP-V7.286]
+            if (!d2) { p2.remove(); var gp2 = document.getElementById("rpOwnerGrant"); if (gp2) gp2.remove(); var cp2 = document.getElementById("rpOwnerCopyright"); if (cp2) cp2.remove(); var bc2 = document.getElementById("rpOwnerBroadcast"); if (bc2) bc2.remove(); var dp2 = document.getElementById("rpOwnerDelete"); if (dp2) dp2.remove(); osStop(); return; } // [RP-V7.286] [OWNER-DELETE]
             p2.innerHTML = window.rpOwnerSalesRender(d2) + '<div class="rp-os-note">Auto-refreshes every 5 minutes while this screen is open.</div>';
           });
         }, 300000);
