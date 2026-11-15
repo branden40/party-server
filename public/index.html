@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.375" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.376" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -31113,6 +31113,8 @@ window.RpKeyUpgrade = function (el, g, opts327) {
        the blend class on it; every caller treats null as "no upgrade"
        and keeps the element, which is exactly the intent. */
     if (el && g && window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[g.id] && (el.tagName === "VIDEO" || el.tagName === "IMG")) { el.classList.add("rp-screen337"); return null; }
+    /* [FREEZE-FIX] Off-live (post/reel) FILM heroes present screen-blended, never WebGL-keyed. The keyed show pipeline (RpKey.attach: full-frame texImage2D + shader + full-screen canvas composite for the whole show) saturates the main thread for the entire show — measured on the V7.375 rig sweep: rAF 60 -> 5/s and 5.5-7.7s of longtasks per gift send with keying, vs 54-517ms and 20-30 rAF/s with the same film screen-blended (the RP_SCREEN_FILMS337 presentation). Post/reel shows are full-screen over the dark stage (V7.372), where screen blend of a black-background film matches the keyed look; lives keep the keyer exactly as before (live-fs only). */
+    if (el && el.tagName === "VIDEO" && !(document.body && document.body.classList.contains("live-fs"))) { el.classList.add("rp-screen337"); return null; }
     /* [RP-V7.360] an animated IMG is NEVER keyed: texImage2D from an animated image hands the keyer its FIRST frame forever on WebKit (rig-proven in Chrome too), so a keyed art hero is a frozen still — Branden's "some of them don't work at all it's still" (Nov 12, 2026: Lowrider, UFO Beam). Art heroes stay the raw animated image (natively animated on every engine, screen blend per the .gfx-artimg rules); the keyer remains for VIDEO sources only. */
     if (el && el.tagName === "IMG") return null;
     if (!el || (el.tagName !== "VIDEO" && el.tagName !== "IMG") || !RpKey.supported()) return null;
