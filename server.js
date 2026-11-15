@@ -1780,11 +1780,40 @@ function noteLoginAttempt(ip) {
   arr.push(Date.now());
   loginAttempts.set(ip, arr);
 }
+// [OWNER-DELETE] Recovery-window lockout: an account the owner has
+// scheduled for deletion (user.ownerDeletion — see the delete block
+// near the V7.263 owner actions) keeps a working session ONLY for
+// recovering its earnings: reading its wallet, the Stripe Connect
+// path, cashing out, its money history, and /api/account/me (which
+// carries the deletion notice the client shows). Every other
+// authed route refuses with a clear 403 — the account is out of
+// normal app use for the whole 30-day window.
+const RP_OWNER_DELETE_RECOVERY_PATHS377 = [
+  "/api/account/me",
+  "/api/account/delete-appeal",
+  "/api/money/me",
+  "/api/money/history",
+  "/api/money/connect/onboard",
+  "/api/money/connect/status",
+  "/api/money/cashout",
+];
+function rpOwnerDeleteRecoveryPath377(p) {
+  return RP_OWNER_DELETE_RECOVERY_PATHS377.indexOf(String(p || "")) >= 0;
+}
 function requireAccount(req, res) {
   const db = readAccounts();
   const user = accountForToken(db, req);
   if (!user) {
     res.status(401).json({ ok: false, error: "Not signed in" });
+    return null;
+  }
+  if (user.ownerDeletion && !rpOwnerDeleteRecoveryPath377(req && req.path)) {
+    res.status(403).json({
+      ok: false,
+      error: "account-pending-deletion",
+      deletionDate: user.ownerDeletion.scheduledFor || null,
+      earningsAtSchedule: user.ownerDeletion.earningsAtSchedule || 0,
+    });
     return null;
   }
   return { db, user };
@@ -1949,6 +1978,11 @@ app.post("/api/account/login", (req, res) => {
   try {
     sweepPendingDeletions();
   } catch (e) {}
+  // [OWNER-DELETE] Same lazy touch for owner-scheduled deletions
+  // whose 30-day window has closed (finalize backstop).
+  try {
+    rpOwnerDeleteSweep377();
+  } catch (e) {}
   const b = req.body || {};
   const identRaw = String(b.id || b.username || b.email || "")
     .trim()
@@ -2000,7 +2034,11 @@ app.post("/api/account/login", (req, res) => {
       error: "Wrong username, email, phone or password",
     });
   }
-  if (user.deletionAt) {
+  // [OWNER-DELETE] An OWNER-scheduled deletion is NOT cancelled by
+  // signing in — the sign-in is how the member reaches the recovery
+  // window (notice + cash out). Only a member's own self-delete
+  // request cancels the member way, below.
+  if (user.deletionAt && !user.ownerDeletion) {
     delete user.deletionAt;
     delete user.deletionRequestedAt;
     deletionCancelled = true;
@@ -2016,7 +2054,7 @@ app.post("/api/account/login", (req, res) => {
   const token = newAccountToken(db, user.id);
   writeAccounts(db);
   console.log("[accounts] login", user.email || user.phone || user.username);
-  res.json({ ok: true, token, user: publicAccount(user), deletionCancelled });
+  res.json({ ok: true, token, user: publicAccount(user), deletionCancelled, ownerDeletionNotice: rpOwnerDeletionNotice377(user) });
 });
 function accountMeHandler(req, res) {
   // [RP-V7.263] A locked-out account restoring a saved session gets
@@ -2029,7 +2067,10 @@ function accountMeHandler(req, res) {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
   const unread = ctx.user.reminders.filter((r) => !r.read).length;
-  res.json({ ok: true, user: publicAccount(ctx.user), unread });
+  // [OWNER-DELETE] A session restore carries the same deletion
+  // notice as sign-in, so the client's blocking notice re-appears
+  // on every boot for the whole recovery window.
+  res.json({ ok: true, user: publicAccount(ctx.user), unread, ownerDeletionNotice: rpOwnerDeletionNotice377(ctx.user) });
 }
 app.get("/api/account/me", accountMeHandler);
 // [RP-V7.52] Short alias (audit H5): the canonical account payload
@@ -2665,9 +2706,11 @@ function finalizeAccountDeletion(uid) {
   // What is being voided with the account (read before the cascade).
   let voidCharms = 0;
   let voidCents = 0;
+  let voidGiftBal = 0; // [OWNER-DELETE] the gift balance is voided too — see step 6
   try {
     const mdb0 = readMoney();
     voidCharms = mdb0.balances[uid] || 0;
+    voidGiftBal = (mdb0.giftBals && mdb0.giftBals[uid]) || 0;
     const earn0 = mdb0.earnings[uid] || null;
     if (earn0) {
       voidCents += earn0.availableCents || 0;
@@ -2786,6 +2829,16 @@ function finalizeAccountDeletion(uid) {
       delete mdb.bizads[uid];
       changed = true;
     }
+    // [OWNER-DELETE] The gift-balance map (giftBals) was the known
+    // gap in this cascade (Nov 7, 2026 audit): a deleted account's
+    // gift balance survived under a dead id. It is cleared here so
+    // EVERY finalize path — member self-delete, the sweep, and the
+    // owner delete — leaves no orphaned balance behind. Voided,
+    // never paid out, like the rest of this step.
+    if (mdb.giftBals && mdb.giftBals[uid] !== undefined) {
+      delete mdb.giftBals[uid];
+      changed = true;
+    }
     const nc = mdb.cashouts.filter((c) => !c || c.acctId !== uid);
     if (nc.length !== mdb.cashouts.length) {
       mdb.cashouts = nc;
@@ -2834,12 +2887,14 @@ function finalizeAccountDeletion(uid) {
     voidCharms,
     "| voided earnings cents:",
     voidCents,
+    "| voided giftBal:",
+    voidGiftBal,
     "| reels removed:",
     reelsGone,
     "| workout removed:",
     workoutGone
   );
-  return { voided: { charms: voidCharms, earningsCents: voidCents } };
+  return { voided: { charms: voidCharms, earningsCents: voidCents, giftBal: voidGiftBal } };
 }
 /* The finalization sweep: every account whose 30-day window has closed
    gets the hard cascade. Runs on boot, on a 10-minute interval (both
@@ -11797,7 +11852,7 @@ app.get("/api/social/directory", (req, res) => {
   // (stable sort, original index tiebreak), and the 500 cap is taken
   // AFTER the lift so a known member is never cut by strangers.
   let dir276 = ctx.db.users
-    .filter((u) => !accountLockedOut(u) && (u.id === ctx.user.id || !hidden99.has(u.id))); // [RP-V7.263] locked-out accounts are de-listed
+    .filter((u) => !accountLockedOut(u) && !u.ownerDeletion && (u.id === ctx.user.id || !hidden99.has(u.id))); // [RP-V7.263] locked-out accounts are de-listed // [OWNER-DELETE] owner-scheduled deletions are de-listed too (treated like suspended for the window)
   try {
     const sig276d = readReelSignals();
     const urec276d = fyUserRec(sig276d, ctx.user.id, false);
@@ -15456,7 +15511,9 @@ function googleSessionFor(user, db) {
     return null;
   }
   let deletionCancelled = false;
-  if (user.deletionAt) {
+  // [OWNER-DELETE] Owner-scheduled deletions are NOT cancelled by a
+  // Google sign-in either — same rule as the password login.
+  if (user.deletionAt && !user.ownerDeletion) {
     delete user.deletionAt;
     delete user.deletionRequestedAt;
     deletionCancelled = true;
@@ -15465,7 +15522,7 @@ function googleSessionFor(user, db) {
   const token = newAccountToken(db, user.id);
   writeAccounts(db);
   console.log("[accounts] login (google)", user.email || user.username);
-  return { token, deletionCancelled };
+  return { token, deletionCancelled, ownerDeletionNotice: rpOwnerDeletionNotice377(user) };
 }
 app.post("/api/account/google/exchange", (req, res) => {
   const code = String((req.body || {}).code || "");
@@ -15489,7 +15546,7 @@ app.post("/api/account/google/exchange", (req, res) => {
   const sess = googleSessionFor(user, db);
   if (!sess)
     return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
-  res.json({ ok: true, token: sess.token, user: publicAccount(user), deletionCancelled: sess.deletionCancelled });
+  res.json({ ok: true, token: sess.token, user: publicAccount(user), deletionCancelled: sess.deletionCancelled, ownerDeletionNotice: sess.ownerDeletionNotice });
 });
 app.post("/api/account/google/complete", (req, res) => {
   const b = req.body || {};
@@ -15521,7 +15578,7 @@ app.post("/api/account/google/complete", (req, res) => {
     const sess = googleSessionFor(existing, db);
     if (!sess)
       return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
-    return res.json({ ok: true, token: sess.token, user: publicAccount(existing), deletionCancelled: sess.deletionCancelled, linked: true });
+    return res.json({ ok: true, token: sess.token, user: publicAccount(existing), deletionCancelled: sess.deletionCancelled, ownerDeletionNotice: sess.ownerDeletionNotice, linked: true });
   }
   if (usernameTaken(db, username))
     return res.status(409).json({ ok: false, error: "That username is taken — try another" });
@@ -22492,6 +22549,248 @@ app.post("/api/owner/age-restore", lockedHandler("age-restore", (req, res) => {
   console.log("[RP-V7.263] age-restored:", target.username, target.name);
   res.json({ ok: true, username: target.username, name: target.name, suspended: false });
 }));
+// ---------------------------------------------------------------------------
+// [OWNER-DELETE] OWNER ACCOUNT DELETION (Branden, Nov 15, 2026:
+// "Build the owner delete button" + his balance rule the same day:
+// "The ones with a balance they have 30 days to recover funds
+// before the account is deleted"). Until this build the shipped
+// server had NO owner delete path — the hard-erasure cascade
+// finalizeAccountDeletion(uid) was reachable only from the member
+// self-delete flow (own session + password + 30-day wait), which
+// locked-out accounts can never use. EVERY owner delete SCHEDULES
+// the deletion for +30 days (Branden's rule: the window is both
+// the funds-recovery window and the appeal window — there is no
+// immediate path and no early finalize):
+//
+//   The account record carries ownerDeletion { userId, username,
+//   scheduledFor, earningsAtSchedule, at, appeal? } and
+//   deletionAt is stamped to the same date, so the member is
+//   de-listed app-wide at once and the stock finalization sweep
+//   closes the window at day 30 (unrecovered balances are voided
+//   by the cascade; the cascade clears giftBals too, as of this
+//   build — the known Nov 7 gap). Signing in does NOT cancel
+//   (both login doors check ownerDeletion); the member signs in
+//   to a blocking notice and a session that works ONLY on the
+//   recovery paths (requireAccount guard: wallet read, Connect,
+//   cash out, money history, /api/account/me, the appeal route).
+//   Cash-out rides the untouched Stripe Connect routes. The
+//   member may file ONE appeal (short text) from the notice; it
+//   rides the board's pending-deletion entry. The owner's board
+//   decisions: CANCEL = fully reinstated (an appeal granted is a
+//   cancel); DENY APPEAL = recorded on the entry, the deletion
+//   still finalizes at day 30.
+//
+// HARD GUARDS (delete nothing, clear error): the OWNER account
+// (gate.ownerId), @Popstar (isOwnerTestAccount263), an unknown
+// target, and every non-owner caller (the gate's standing 404).
+// A second delete on an already-scheduled account reports the
+// existing schedule — never double-schedules. The gate is the
+// shared rpOwnerGate263, like every /api/owner/* action.
+// ---------------------------------------------------------------------------
+function rpEarningsCents377(mdb, uid) {
+  const e = (mdb && mdb.earnings && mdb.earnings[uid]) || null;
+  if (!e) return 0;
+  let cents = Math.round(Number(e.availableCents) || 0);
+  for (const h of e.held || []) cents += Math.round(Number((h && h.cents) || 0));
+  return cents;
+}
+function rpOwnerDeletionNotice377(user) {
+  if (!user || !user.ownerDeletion) return null;
+  let cents = Math.round(Number(user.ownerDeletion.earningsAtSchedule) || 0);
+  try { cents = rpEarningsCents377(readMoney(), user.id); } catch (e) {}
+  const ap = user.ownerDeletion.appeal || null;
+  return {
+    scheduledFor: user.ownerDeletion.scheduledFor || null,
+    earningsCents: cents,
+    appeal: ap ? { status: ap.status || "pending", at: ap.at || null } : null,
+  };
+}
+function rpOwnerPendingDeletions377(adb, mdb) {
+  const out = [];
+  for (const u of (adb && adb.users) || []) {
+    if (!u || !u.ownerDeletion) continue;
+    out.push({
+      id: u.id,
+      username: u.username || "",
+      name: u.name || "",
+      scheduledFor: u.ownerDeletion.scheduledFor || null,
+      earningsAtSchedule: Math.round(Number(u.ownerDeletion.earningsAtSchedule) || 0),
+      earningsCentsNow: mdb ? rpEarningsCents377(mdb, u.id) : null,
+      appeal: u.ownerDeletion.appeal
+        ? { text: u.ownerDeletion.appeal.text || "", at: u.ownerDeletion.appeal.at || null, status: u.ownerDeletion.appeal.status || "pending" }
+        : null,
+    });
+  }
+  out.sort((a, b) => String(a.scheduledFor || "").localeCompare(String(b.scheduledFor || "")));
+  return out;
+}
+// Close the age-report rows that name a now-deleted account, so
+// the board never shows an action row for a ghost (the age-suspend
+// route updates report statuses the same way).
+function rpCloseReportsForDeleted377(uid) {
+  try {
+    const rdb = readReports263();
+    let changed = false;
+    for (const r of rdb.reports)
+      if (r && r.reportedId === uid && (r.status === "open" || r.status === "suspended")) { r.status = "deleted"; changed = true; }
+    if (changed) writeReports263(rdb);
+  } catch (e) {}
+}
+// The owner-delete finalize sweep: an owner-scheduled deletion
+// finalizes when its 30-day window closes — the full window
+// always runs (it is the appeal window too; there is NO early
+// finalize, even if the balance is recovered to $0). The stock
+// sweep covers this via the stamped deletionAt; this is the
+// backstop that also closes the account's report rows. Runs on
+// boot + the 10-minute deletion timer + lazily at login, beside
+// sweepPendingDeletions.
+function rpOwnerDeleteSweep377() {
+  try {
+    const adb = readAccounts();
+    const now = Date.now();
+    for (const u of adb.users.slice()) {
+      if (!u || !u.ownerDeletion) continue;
+      const due = Date.parse(u.ownerDeletion.scheduledFor || "") <= now;
+      if (!due) continue;
+      const uname = u.username || "";
+      try { finalizeAccountDeletion(u.id); } catch (e) {}
+      rpCloseReportsForDeleted377(u.id);
+      console.log("[OWNER-DELETE] finalized scheduled deletion:", "@" + uname, "(30-day window closed)");
+    }
+  } catch (e) {}
+}
+// Resolve a delete target: a real account id wins; otherwise the
+// username (usernameKey — trim + lowercase, a leading @ is
+// forgiven since the board shows @usernames).
+function rpResolveDeleteTarget377(adb, b) {
+  const users = (adb && adb.users) || [];
+  const wantId = String((b && b.accountId) || "").trim();
+  if (wantId) {
+    const byId = users.find((u) => u && u.id === wantId);
+    if (byId) return byId;
+  }
+  const key = usernameKey(String((b && b.username) || "").replace(/^@+/, ""));
+  if (key) {
+    const byName = users.find((u) => u && usernameKey(u.username) === key);
+    if (byName) return byName;
+  }
+  return null;
+}
+app.post("/api/owner/delete-account", lockedHandler("owner-delete-account", (req, res) => {
+  const b = req.body || {};
+  const gate = rpOwnerGate263(req, b);
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const target = rpResolveDeleteTarget377(gate.adb, b);
+  if (!target) return res.status(404).json({ ok: false, error: "no-such-user" });
+  if (gate.ownerId && target.id === gate.ownerId)
+    return res.status(400).json({ ok: false, error: "cannot-delete-owner" });
+  if (isOwnerTestAccount263(target))
+    return res.status(400).json({ ok: false, error: "cannot-delete-popstar" });
+  if (target.ownerDeletion)
+    return res.status(409).json({ ok: false, error: "already-scheduled", username: target.username, scheduledFor: target.ownerDeletion.scheduledFor || null });
+  const mdb = readMoney();
+  const earningsCents = rpEarningsCents377(mdb, target.id);
+  const charms = (mdb.balances && mdb.balances[target.id]) || 0;
+  const giftBal = (mdb.giftBals && mdb.giftBals[target.id]) || 0;
+  const scheduledFor = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  if (b.dryRun) {
+    // Preflight for the board's confirm dialog: the real numbers
+    // (balance at stake, deletion date). Every delete is a 30-day
+    // schedule — there is no immediate path. No mutation.
+    return res.json({
+      ok: true, dryRun: true, username: target.username, name: target.name,
+      earningsCents, charms, giftBal,
+      path: "scheduled",
+      scheduledFor,
+    });
+  }
+  // Schedule the deletion +30 days. Stamping deletionAt de-lists
+  // pending-deletion invisibility) and lets the stock sweep close
+  // the window; ownerDeletion marks it owner-scheduled (sign-in
+  // never cancels it, the board lists it, the cancel route and
+  // the early-finalize sweep key off it). Existing sessions are
+  // killed, like the self-delete flow: the member signs in fresh
+  // and lands on the recovery notice.
+  target.ownerDeletion = {
+    userId: target.id,
+    username: target.username || "",
+    scheduledFor,
+    earningsAtSchedule: earningsCents,
+    at: new Date().toISOString(),
+  };
+  target.deletionRequestedAt = new Date().toISOString();
+  target.deletionAt = scheduledFor;
+  for (const k of Object.keys(gate.adb.tokens || {})) {
+    if (gate.adb.tokens[k] && gate.adb.tokens[k].userId === target.id)
+      delete gate.adb.tokens[k];
+  }
+  writeAccounts(gate.adb);
+  try { acctSockets.delete(target.id); } catch (e) {}
+  console.log("[OWNER-DELETE] owner scheduled deletion:", "@" + (target.username || ""), "| earnings at schedule:", earningsCents, "cents | finalizes:", scheduledFor);
+  res.json({
+    ok: true, deleted: false, scheduled: true, path: "scheduled",
+    username: target.username, name: target.name,
+    scheduledFor, earningsCents,
+    message: "@" + (target.username || "") + " is locked now and will be permanently deleted on " + scheduledFor.slice(0, 10) + (earningsCents > 0 ? " — they have 30 days to cash out $" + (earningsCents / 100).toFixed(2) + " and to appeal." : " — they have 30 days to appeal."),
+  });
+}));
+// Cancel a pending owner-scheduled deletion: the account returns
+// to normal whole (nothing was ever removed during the window).
+app.post("/api/owner/delete-cancel", lockedHandler("owner-delete-cancel", (req, res) => {
+  const b = req.body || {};
+  const gate = rpOwnerGate263(req, b);
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const target = rpResolveDeleteTarget377(gate.adb, b);
+  if (!target) return res.status(404).json({ ok: false, error: "no-such-user" });
+  if (!target.ownerDeletion)
+    return res.status(409).json({ ok: false, error: "not-scheduled" });
+  delete target.ownerDeletion;
+  delete target.deletionAt;
+  delete target.deletionRequestedAt;
+  writeAccounts(gate.adb);
+  console.log("[OWNER-DELETE] owner cancelled scheduled deletion:", "@" + (target.username || ""));
+  res.json({ ok: true, cancelled: true, username: target.username, name: target.name, message: "Deletion cancelled — @" + (target.username || "") + " is back to normal." });
+}));
+// Deny a pending appeal: the denial is recorded on the board
+// entry and the deletion still finalizes at day 30. (Granting an
+// appeal IS the cancel route above — the account is reinstated.)
+app.post("/api/owner/delete-deny-appeal", lockedHandler("owner-delete-deny-appeal", (req, res) => {
+  const b = req.body || {};
+  const gate = rpOwnerGate263(req, b);
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const target = rpResolveDeleteTarget377(gate.adb, b);
+  if (!target) return res.status(404).json({ ok: false, error: "no-such-user" });
+  if (!target.ownerDeletion)
+    return res.status(409).json({ ok: false, error: "not-scheduled" });
+  const ap = target.ownerDeletion.appeal;
+  if (!ap) return res.status(409).json({ ok: false, error: "no-appeal" });
+  if (ap.status && ap.status !== "pending")
+    return res.status(409).json({ ok: false, error: "already-decided" });
+  ap.status = "denied";
+  ap.decidedAt = new Date().toISOString();
+  writeAccounts(gate.adb);
+  console.log("[OWNER-DELETE] owner denied appeal:", "@" + (target.username || ""), "— deletion stands for", target.ownerDeletion.scheduledFor);
+  res.json({ ok: true, denied: true, username: target.username, scheduledFor: target.ownerDeletion.scheduledFor || null, message: "Appeal denied — @" + (target.username || "") + " is still deleted on " + String(target.ownerDeletion.scheduledFor || "").slice(0, 10) + "." });
+}));
+// The member's ONE appeal, filed from the deletion notice screen
+// during the window. The requireAccount guard lets a scheduled
+// member reach exactly this route (it is on the recovery-path
+// list); the appeal lands on the user record, which is what the
+// owner board's pending-deletion entry renders.
+app.post("/api/account/delete-appeal", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const od = ctx.user.ownerDeletion;
+  if (!od) return res.status(409).json({ ok: false, error: "not-scheduled" });
+  if (od.appeal)
+    return res.status(409).json({ ok: false, error: "already-appealed", status: od.appeal.status || "pending" });
+  const text = String((req.body || {}).text || "").replace(/\s+/g, " ").trim().slice(0, 500);
+  if (!text) return res.status(400).json({ ok: false, error: "appeal-text-required" });
+  od.appeal = { text, at: new Date().toISOString(), status: "pending" };
+  writeAccounts(ctx.db);
+  console.log("[OWNER-DELETE] deletion appeal filed:", "@" + (ctx.user.username || ""));
+  res.json({ ok: true, appealed: true, status: "pending", scheduledFor: od.scheduledFor || null });
+});
 // Boot inventory line (server console only): the sweep, in one
 // line, the moment this build first boots against real data.
 function rpLogTeenInventory263() {
@@ -22581,6 +22880,7 @@ app.get("/api/owner/sales", (req, res) => {
     guardrail: rpGuardrailBoard323(mdb, adb), // [RP-V7.323] test-funds guardrail status: flagged accounts, promo settlements, pool exclusion
     ageReports: rpAgeReportsOpen263(),
     ageSuspendedAccounts: rpAgeSuspendedList263(adb),
+    pendingDeletions: rpOwnerPendingDeletions377(adb, mdb), // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
   });
 });
 // ---------------------------------------------------------------------------
@@ -24681,9 +24981,17 @@ try {
 try {
   sweepPendingDeletions();
 } catch (e) {}
+// [OWNER-DELETE] Owner-scheduled deletions ride the same cadence:
+// the full 30-day window always runs, then finalize.
+try {
+  rpOwnerDeleteSweep377();
+} catch (e) {}
 const deletionSweepTimer = setInterval(() => {
   try {
     sweepPendingDeletions();
+  } catch (e) {}
+  try {
+    rpOwnerDeleteSweep377();
   } catch (e) {}
 }, 10 * 60 * 1000);
 if (deletionSweepTimer.unref) deletionSweepTimer.unref();
