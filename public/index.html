@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.391" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.392" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -3094,6 +3094,20 @@
             history.replaceState(null, "", location.pathname + (rest2 ? "?" + rest2 : "") + location.hash);
           }
         }
+        // [RP-V7.392] Referral deep link: /?ref=<code> — stashed
+        // for the signup payloads; the server stamps attribution at
+        // account creation only (first link wins, never changeable).
+        var rfu = q.get("ref");
+        if (rfu) {
+          var rc392 = String(rfu).trim().toUpperCase().slice(0, 24);
+          if (/^[A-Z0-9_-]+$/.test(rc392)) {
+            try { sessionStorage.setItem("rpRefLink.v1", rc392); } catch (e) { }
+            q.delete("ref");
+            var rest392 = q.toString();
+            history.replaceState(null, "", location.pathname + (rest392 ? "?" + rest392 : "") + location.hash);
+          }
+        }
+        window.rpRefCode392 = function () { try { return sessionStorage.getItem("rpRefLink.v1") || ""; } catch (e) { return ""; } };
         // [RP-V7.328] DM deep link: /?dm=<accountId> — where a push
         // notification for a new message lands. Same stash pattern;
         // the consumer module at the end of the body opens that exact
@@ -9485,23 +9499,24 @@
         var goBtn = $("btnRoomGoLive");
         if (goBtn) goBtn.hidden = !(eligible && (rpAdultOk())); // [RP-V7.75] a signed-in teen sees Go LIVE too — their live runs charms-only
       }
-      function addChatLine(name, text, mine, mid, fromId, glv338) { // [RP-V7.338] glv338 = sender's gifter level (0/absent = no badge)
+      function addChatLine(name, text, mine, mid, fromId, glv338, fx392) { // [RP-V7.338] glv338 = sender's gifter level (0/absent = no badge) // [RP-V7.392] fx392 = chat effect
         // [RP-V7.24] chat also lives in the LIVE overlay stream (and
         // the Teen Hangout's bubble stream) — feed those FIRST.
         // [RP-V7.47] the meet rooms' floating stream is fed the same
         // way, through the room stage module's hook (it renders only
         // while its room layout is up). Sender id rides along so a
         // report/mute can purge the sender's bubbles on screen.
-        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, "", glv338); } catch (e) { } // [RP-V7.338] the badge rides into the live stream too
+        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, "", glv338, fx392); } catch (e) { } // [RP-V7.338] the badge rides into the live stream too // [RP-V7.392] the chat effect rides too
         try { if (window.rpRoomBubble) window.rpRoomBubble(name, text, false, fromId || (mid ? String(mid).split(":")[0] : "")); } catch (e) { }
         var log = $("onlineChatLog"); if (!log) return;
         var isQ = chatIsQuestion(text);
         var row = document.createElement("div");
-        row.className = "chat-msg" + (mine ? " mine" : "") + (isQ ? " q" : "");
+        row.className = "chat-msg" + (mine ? " mine" : "") + (isQ ? " q" : "") + (fx392 && fx392.hl ? " fx392-hl" : ""); // [RP-V7.392] one-message highlight
         if (isQ) row.title = "Question — highlighted so hosts and mods spot it fast";
         if (mid) row.setAttribute("data-mid", mid);
         var who = document.createElement("span");
-        who.className = "who"; who.textContent = name;
+        who.className = "who" + (fx392 && fx392.n === "gold" ? " fx392-gold" : fx392 && fx392.n === "rainbow" ? " fx392-rainbow" : ""); // [RP-V7.392]
+        who.textContent = name;
         row.appendChild(who);
         if (glv338 > 0) { var gb338 = document.createElement("span"); gb338.innerHTML = rpGifterBadge338(glv338); if (gb338.firstChild) row.appendChild(gb338.firstChild); } // [RP-V7.338] gifter badge beside the name
         if (isQ) { var qt = document.createElement("span"); qt.className = "q-text"; qt.textContent = text; row.appendChild(qt); }
@@ -9556,7 +9571,7 @@
         if (fromId) statBump("chat", fromId, name);
         // 🔥 a real comment in a live room counts toward that live's engagement score
         try { if (fromId && typeof Live !== "undefined" && Live.active && Live.hostId && typeof inLiveRoom === "function" && inLiveRoom()) engRecord(Live.hostId, fromId, "comment", 1); } catch (e) { }
-        addChatLine(name, text, fromId === Online.myId, mid, fromId, (d && d.glv) || 0); // [RP-V7.338]
+        addChatLine(name, text, fromId === Online.myId, mid, fromId, (d && d.glv) || 0, (d && d.fx392) || null); // [RP-V7.338] [RP-V7.392] fx392 = points-shop chat effect
       }
       function onChatBlocked(d) {
         // If the spam cap caught a live-room signal (not a typed message),
@@ -17776,7 +17791,7 @@
         if (Online.room !== LIVE_ROOM_ID) switchOnlineRoom(LIVE_ROOM_ID);
       }
       /* ---------- TikTok-style live overlay: host chip, viewer row, comments, rail, host tools ---------- */
-      function pushLiveComment(name, text, kind, glv338) { // [RP-V7.338]
+      function pushLiveComment(name, text, kind, glv338, fx392) { // [RP-V7.338] [RP-V7.392] fx392 = chat effect
         var box = $("liveComments"); if (!box || !Live.active) return;
         var row = document.createElement("div");
         row.className = "lv-comment" + (kind ? " " + kind : "");
@@ -17786,7 +17801,8 @@
           var cp2 = (typeof playerForName === "function") ? playerForName(name) : null;
           var cav = cp2 ? faceHTML(cp2, false) : personFace({ name: name || "Guest" });
           row.classList.add("chat");
-          row.innerHTML = '<span class="lv-cav">' + cav + '</span><span class="lv-cbody"><b>' + escHtml(name) + "</b>" + (glv338 ? rpGifterBadge338(glv338) : "") + " " + escHtml(text) + "</span>";
+          row.innerHTML = '<span class="lv-cav">' + cav + '</span><span class="lv-cbody"><b' + (fx392 && fx392.n === "gold" ? ' class="fx392-gold"' : fx392 && fx392.n === "rainbow" ? ' class="fx392-rainbow"' : "") + '>' + escHtml(name) + "</b>" + (glv338 ? rpGifterBadge338(glv338) : "") + " " + escHtml(text) + "</span>"; // [RP-V7.392]
+          if (fx392 && fx392.hl) row.classList.add("fx392-hl"); // [RP-V7.392]
           if (cp2) row.addEventListener("click", function () { openOnlinePlayerCard(cp2); });
         }
         box.appendChild(row);
@@ -19739,9 +19755,11 @@
         if (!ov) return;
         var t = $("lkWinTitle389");
         var s = $("lkWinSub389");
-        var title = "🏆 " + (data.name || "Winner");
+        var title = data.kind === "jumbotron" ? "📣 " + (data.name || "") : "🏆 " + (data.name || "Winner"); // [RP-V7.392]
         var sub =
-          data.kind === "auction"
+          data.kind === "jumbotron"
+            ? (data.text || "") // [RP-V7.392] points-shop shout
+            : data.kind === "auction"
             ? "won " + (data.text || "the auction")
             : "won the giveaway — " + (data.text || "") + " 🎉";
         if (t && t.textContent !== title) t.textContent = title;
@@ -35182,7 +35200,7 @@ function stageStreakBump(key, add) {
     var pw = $("suPass") ? $("suPass").value : "";
     if (un && !/^[A-Za-z0-9_]{3,20}$/.test(un)) { showAcctErr("Usernames are 3–20 characters — letters, numbers and underscores only."); return; }
     acctBusy = true;
-    api("/api/account/signup", "POST", { name: profileName(), username: un, email: em, phone: ph, password: pw, dob: dobOnFile() }).then(function (r) {
+    api("/api/account/signup", "POST", { name: profileName(), username: un, email: em, phone: ph, password: pw, dob: dobOnFile(), ref: (window.rpRefCode392 ? window.rpRefCode392() : "") }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok) {
         acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice() : [] }; // [RP-V7.61] bio rides the saved session too // [RP-V7.62] + the gallery
@@ -35323,7 +35341,7 @@ function stageStreakBump(key, add) {
     if (!dob) { if (eD) { eD.textContent = "Add your date of birth — one time, for your account."; eD.hidden = false; } return; }
     if (acctBusy) return;
     acctBusy = true;
-    api("/api/account/google/complete", "POST", { code: googleCode, username: un, dob: dob }).then(function (r) {
+    api("/api/account/google/complete", "POST", { code: googleCode, username: un, dob: dob, ref: (window.rpRefCode392 ? window.rpRefCode392() : "") }).then(function (r) {
       acctBusy = false;
       if (r.json && r.json.ok && r.json.token) {
         try { localStorage.setItem(DOB_KEY, dob); } catch (e) { } // so the age hydrate sees the DOB the gate pass is about to read
@@ -41656,6 +41674,7 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "auction-paid") { label = "🔨 Auction win" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.promo ? " · promo charms" : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; var wa383 = t.auc383 || null; if (wa383 && wa383.refunded) label += " · ↩️ Refunded"; else if (wa383 && wa383.claimStatus === "open") label += " · 🛡️ Claim open"; else if (wa383 && wa383.claimStatus === "denied") label += " · Claim denied"; else if (wa383 && t.ref && (Date.now() - Date.parse(wa383.settledAt || t.at)) <= 14 * 24 * 3600 * 1000) act383 = '<button type="button" class="btn-mini" data-aucclaim383="' + esc(t.ref) + '">Request refund</button>'; } // [RP-V7.383] the winner's row: buyer protection — one claim within 14 days of the settle
         else if (t.type === "auction-refund") { label = "↩️ Auction refund"; amt = "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.383] the full bid back in the winner's wallet
         else if (t.type === "auction-refund-reversal") { label = "↩️ Auction refund — sale reversed"; amt = t.promo ? "-" + (t.charms || 0).toLocaleString("en-US") + " charms" : "-" + fmt$(t.cents); } // [RP-V7.383] the host-side reversal of a refunded sale
+        else if (t.type === "referral") { label = "🎁 Referral reward"; amt = "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.392]
         else if (t.type === "store-sale") { label = "🛍️ Store sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); } // [RP-V7.240]
         else if (t.type === "creator-pool") { label = "👀 Creator Pool — weekly views payout"; amt = "+" + fmt$(t.cents); } // [RP-V7.293]
         else if (t.type === "profile-tip") { label = "💝 Profile tip" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.promo ? " · promo charms" : t.charmsOnly ? " · charms-only" : ""); amt = (t.charmsOnly || t.promo) ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.294] the recipient's wallet row (kind "profile-tip") — charms-only tips show charms, never a $ figure (V7.217 honesty pattern)
@@ -48675,6 +48694,7 @@ html, body { overflow-x: clip; }
             '</div><p class="store-note" style="margin:0;">' + l.qty + ' available · Secure checkout powered by Stripe · The seller ships after payment clears.</p>'
           : '<p class="store-note">Sold out — check back, sellers restock.</p>') +
         '<div id="storeBuyMsg"></div>' +
+        (mine ? '' : '<input id="rp392StoreCpn" type="text" maxlength="24" placeholder="Coupon code (optional)" style="text-transform:uppercase;width:100%;box-sizing:border-box;margin-top:8px">') + // [RP-V7.392]
         '<div style="margin-top:20px;"><button class="btn-mini" id="storeReportBtn" type="button">🚩 Report this product</button></div>' +
         '<div id="storeReportBox"></div>' +
         '</div>';
@@ -48687,7 +48707,7 @@ html, body { overflow-x: clip; }
       if (buy) buy.addEventListener("click", function () {
         var qty = parseInt(($("storeQty") || {}).value || "1", 10) || 1;
         buy.disabled = true; buy.textContent = "Opening Stripe…";
-        api("/api/store/checkout", "POST", { listingId: l.id, qty: qty }, 30000).then(function (r2) {
+        api("/api/store/checkout", "POST", { listingId: l.id, qty: qty, couponCode: String((document.getElementById("rp392StoreCpn") || {}).value || "").trim().toUpperCase() || undefined }, 30000).then(function (r2) { // [RP-V7.392]
           if (r2.json && r2.json.ok && r2.json.url) { location.href = r2.json.url; return; }
           buy.disabled = false; buy.textContent = "Buy now — " + fmt$(l.priceCents);
           var msg = $("storeBuyMsg");
@@ -54015,6 +54035,7 @@ window.rpOpenSavedSheet349 = function () {
   function offerRowHtml(itemId) {
     return '<div class="rp390-orow"><div class="rp390-meta">Your offer in dollars — it can be under the start bid; the seller decides. You only pay if they accept.</div>' +
       '<div class="rp390-flex"><input type="number" class="rp390-in" id="rp390OfferIn-' + esc(itemId) + '" min="1" max="100000" step="1" placeholder="$ amount"/>' +
+      '<input type="text" class="rp390-in" id="rp392CpnIn-' + esc(itemId) + '" maxlength="24" placeholder="Coupon (optional)" style="text-transform:uppercase"/>' + // [RP-V7.392]
       '<button type="button" class="rp390-btn sm" data-rp390-offer-go="' + esc(itemId) + '">Send offer</button></div></div>';
   }
 
@@ -54181,7 +54202,8 @@ window.rpOpenSavedSheet349 = function () {
     var inp = document.getElementById("rp390OfferIn-" + itemId);
     var dollars = inp ? Math.floor(Number(inp.value) || 0) : 0;
     if (!(dollars >= 1)) { S.msg = ERR390["bad-amount"]; render(); return; }
-    api("POST", "/api/offers", { itemId: itemId, dollars: dollars }).then(function (r) {
+    var cpn392 = String((document.getElementById("rp392CpnIn-" + itemId) || {}).value || "").trim().toUpperCase(); // [RP-V7.392]
+    api("POST", "/api/offers", { itemId: itemId, dollars: dollars, couponCode: cpn392 || undefined }).then(function (r) { // [RP-V7.392]
       if (r.j && r.j.ok) {
         S.msg = r.j.replaced ? "✓ Offer updated to $" + dollars + " — the seller has it." : "✓ Offer sent — $" + dollars + ". The seller can accept or decline it here in Activity.";
         S.offerFor = null;
@@ -54553,6 +54575,273 @@ window.rpOpenSavedSheet349 = function () {
 })();
 </script>
 
+<style>
+/* [RP-V7.392] Referrals + Challenges/Points + Coupons surfaces. */
+.rp392-card { cursor: pointer; }
+.rp392-body { padding: 6px 2px 2px; }
+.rp392-link { word-break: break-all; background: rgba(255,255,255,.08); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin: 6px 0; }
+.rp392-btn { background: #e50914; color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; font-weight: 700; cursor: pointer; }
+.rp392-btn.alt { background: rgba(255,255,255,.14); }
+.rp392-btn:disabled { opacity: .5; cursor: default; }
+.rp392-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rp392-muted { opacity: .72; font-size: 12.5px; }
+.rp392-overlay { position: fixed; inset: 0; background: #0b0b0d; z-index: 120; display: none; flex-direction: column; }
+.rp392-overlay.open { display: flex; }
+.rp392-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.rp392-head h3 { margin: 0; font-size: 18px; }
+.rp392-tabs { display: flex; gap: 8px; padding: 10px 16px 0; }
+.rp392-tab { flex: 1; text-align: center; padding: 8px 4px; border-radius: 8px; background: rgba(255,255,255,.08); font-weight: 700; cursor: pointer; font-size: 13.5px; }
+.rp392-tab.on { background: #e50914; }
+.rp392-scroll { flex: 1; overflow-y: auto; padding: 12px 16px 28px; }
+.rp392-chal { margin: 0 0 14px; }
+.rp392-chal .t { display: flex; justify-content: space-between; font-weight: 700; font-size: 14.5px; }
+.rp392-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); margin-top: 5px; overflow: hidden; }
+.rp392-bar i { display: block; height: 100%; background: #e50914; border-radius: 4px; }
+.rp392-chal.done .t { color: #7ee787; }
+.rp392-item { border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 10px 12px; margin: 0 0 10px; }
+.rp392-item .t { font-weight: 800; font-size: 15px; }
+.rp392-input, .rp392-select { width: 100%; box-sizing: border-box; background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; padding: 8px 10px; margin: 4px 0 8px; font-size: 14px; }
+.rp392-input::placeholder { color: rgba(255,255,255,.45); }
+.rp392-select option { color: #000; }
+.rp392-pts { font-size: 20px; font-weight: 800; }
+/* live chat effects bought with points */
+.fx392-gold { color: #ffd75e !important; text-shadow: 0 0 6px rgba(255,180,0,.55); }
+.fx392-rainbow { background: linear-gradient(90deg,#ff5f6d,#ffc371,#7ee787,#58a6ff,#c792ea); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
+.fx392-hl { background: rgba(229,9,20,.28); border-radius: 6px; padding: 1px 5px; }
+</style>
+<script>
+(function () {
+  // [RP-V7.392] Referrals + daily challenges + points shop + coupons.
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok392() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function authH() { var t = tok392(); return t ? { "Authorization": "Bearer " + t } : {}; }
+  function myId() { return (typeof rpMyId === "function") ? rpMyId() : null; }
+  function toast(m) { if (typeof showToast === "function") showToast(m); }
+  function jget(u) { return fetch(u, { headers: authH(), credentials: "same-origin" }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; }); }
+  function jpost(u, body) { return fetch(u, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authH()), credentials: "same-origin", body: JSON.stringify(body || {}) }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; }); }
+
+  /* ---------- referrals: Earn sheet card ---------- */
+  var refState = null;
+  function refLink(code) { return location.origin + "/?ref=" + encodeURIComponent(code || ""); }
+  function shareText(txt, url) {
+    if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: txt, url: url }).catch(function () {}); return; }
+    var full = txt + " " + url;
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(full).then(function () { toast("Copied"); }, function () {}); }
+  }
+  function renderRef() {
+    var box = $("rp392RefBox"); if (!box) return;
+    if (!refState) { box.innerHTML = '<div class="rp392-muted">Loading your invite link…</div>'; return; }
+    if (!refState.ok) { box.innerHTML = '<div class="rp392-muted">Sign in to get your invite link.</div>'; return; }
+    var link = refLink(refState.code);
+    var rows = (refState.referred || []).slice(0, 10).map(function (r) {
+      var st = r.bought ? "✅ First purchase reward paid" : (r.sold ? "✅ First sale reward paid" : "Joined — no reward yet");
+      return '<div class="rp392-row" style="justify-content:space-between"><span>' + esc(r.name || "Member") + '</span><span class="rp392-muted">' + st + "</span></div>";
+    }).join("");
+    box.innerHTML =
+      '<div class="rp392-link">' + esc(link) + "</div>" +
+      '<div class="rp392-row"><button class="rp392-btn" id="rp392RefCopy">Copy link</button>' +
+      '<button class="rp392-btn alt" id="rp392RefShare">Share</button>' +
+      '<span class="rp392-muted">Code: <b>' + esc(refState.code) + "</b></span></div>" +
+      '<div class="rp392-muted" style="margin-top:8px">Friends who join with your link: <b>' + (refState.signups || 0) + "</b> · Referral charms earned: <b>" + (refState.charmsEarned || 0) + "</b></div>" +
+      '<div class="rp392-muted">When a friend you invited makes their first purchase, you BOTH get 500 charms. When they make their first sale, you get 2,000 charms.</div>' +
+      (rows ? '<div style="margin-top:8px">' + rows + "</div>" : "");
+    var cp = $("rp392RefCopy"), sh = $("rp392RefShare");
+    if (cp) cp.onclick = function () { if (navigator.clipboard) navigator.clipboard.writeText(link).then(function () { toast("Invite link copied"); }, function () {}); };
+    if (sh) sh.onclick = function () { shareText("Join me on Rizz Plaza — live streams, auctions, gifts and more:", link); };
+  }
+  function loadRef() { jget("/api/referrals/me").then(function (d) { refState = d; renderRef(); }); }
+  function injectRefCard() {
+    var panel = document.querySelector("#earnSheet .rp-panel") || $("earnSheet");
+    if (!panel || $("rp392RefCard")) return;
+    var card = document.createElement("div");
+    card.className = "rp-sec";
+    card.id = "rp392RefCard";
+    card.innerHTML = "<h3>🎁 Invite &amp; earn</h3>" +
+      '<div class="rp392-muted">Invite friends with your personal link. Referral rewards are charms, paid by the Plaza.</div>' +
+      '<div id="rp392RefBox" style="margin-top:6px"></div>';
+    var anchor = null;
+    var kids = panel.children;
+    for (var i = 0; i < kids.length; i++) { if (/How cash-out works/i.test(kids[i].textContent || "")) { anchor = kids[i]; break; } }
+    if (anchor) panel.insertBefore(card, anchor); else panel.appendChild(card);
+    renderRef();
+    loadRef();
+  }
+
+  /* ---------- challenges + points shop + coupons overlay ---------- */
+  var ov = null, chalState = null, shopState = null, cpnState = null, curTab = "chal";
+  function ensureOverlay() {
+    if (ov) return ov;
+    ov = document.createElement("div");
+    ov.className = "rp392-overlay";
+    ov.id = "rp392Overlay";
+    ov.innerHTML =
+      '<div class="rp392-head"><button class="rp392-btn alt" id="rp392Close">← Back</button><h3>🏆 Challenges</h3><span class="rp392-pts" id="rp392Pts" style="margin-left:auto"></span></div>' +
+      '<div class="rp392-tabs"><div class="rp392-tab on" data-t="chal">Challenges</div><div class="rp392-tab" data-t="shop">Points Shop</div><div class="rp392-tab" data-t="cpn">My Coupons</div></div>' +
+      '<div class="rp392-scroll" id="rp392Scroll"></div>';
+    document.body.appendChild(ov);
+    $("rp392Close").onclick = function () { ov.classList.remove("open"); };
+    var tabs = ov.querySelectorAll(".rp392-tab");
+    for (var i = 0; i < tabs.length; i++) tabs[i].onclick = function () { curTab = this.getAttribute("data-t"); paintTabs(); renderTab(); };
+    return ov;
+  }
+  function paintTabs() {
+    var tabs = ov.querySelectorAll(".rp392-tab");
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle("on", tabs[i].getAttribute("data-t") === curTab);
+    $("rp392Pts").textContent = chalState && chalState.ok && chalState.points ? (chalState.points.balance + " pts") : "";
+  }
+  function open392(tab) {
+    ensureOverlay();
+    if (tab) curTab = tab;
+    ov.classList.add("open");
+    paintTabs();
+    renderTab();
+    loadChal();
+    if (curTab === "shop") loadShop();
+    if (curTab === "cpn") loadCpn();
+  }
+  function loadChal() { jget("/api/challenges").then(function (d) { chalState = d; if (ov && ov.classList.contains("open")) { paintTabs(); if (curTab === "chal") renderTab(); } }); }
+  function loadShop() { jget("/api/points-shop").then(function (d) { shopState = d; if (ov && ov.classList.contains("open") && curTab === "shop") renderTab(); }); }
+  function loadCpn() {
+    jget("/api/coupons/mine").then(function (d) { cpnState = d; if (ov && ov.classList.contains("open") && curTab === "cpn") renderTab(); });
+  }
+  function renderTab() {
+    var sc = $("rp392Scroll"); if (!sc) return;
+    if (curTab === "chal") return renderChal(sc);
+    if (curTab === "shop") return renderShop(sc);
+    return renderCpn(sc);
+  }
+  function renderChal(sc) {
+    if (!chalState) { sc.innerHTML = '<div class="rp392-muted">Loading…</div>'; return; }
+    if (!chalState.ok) { sc.innerHTML = '<div class="rp392-muted">Sign in to see your challenges.</div>'; return; }
+    var html = '<div class="rp392-muted" style="margin-bottom:10px">New challenges every day at midnight ET. Points are for in-app perks only — they are not charms and never turn into money.</div>';
+    html += chalState.challenges.map(function (c) {
+      var pct = Math.min(100, Math.round((c.progress / c.target) * 100));
+      return '<div class="rp392-chal' + (c.done ? " done" : "") + '"><div class="t"><span>' + esc(c.label) + '</span><span>' + (c.done ? "✅ +" + c.points + " pts" : c.progress + " / " + c.target) + '</span></div><div class="rp392-bar"><i style="width:' + pct + '%"></i></div></div>';
+    }).join("");
+    html += '<div class="rp392-item"><div class="t">📣 Share a show or live</div><div class="rp392-muted">Sharing from here counts toward today\'s share challenge.</div><div id="rp392ShareList" style="margin-top:6px"></div></div>';
+    sc.innerHTML = html;
+    jget("/api/shows").then(function (d) {
+      var list = $("rp392ShareList"); if (!list) return;
+      var shows = ((d && d.shows) || []).slice(0, 5);
+      if (!shows.length) { list.innerHTML = '<div class="rp392-muted">No shows to share right now.</div>'; return; }
+      list.innerHTML = shows.map(function (sh, i) {
+        return '<div class="rp392-row" style="justify-content:space-between;margin:4px 0"><span>' + esc(sh.title || "Show") + ' — ' + esc(sh.hostName || "") + '</span><button class="rp392-btn alt" data-sh="' + i + '">Share</button></div>';
+      }).join("");
+      var btns = list.querySelectorAll("[data-sh]");
+      for (var i = 0; i < btns.length; i++) btns[i].onclick = function () {
+        var sh = shows[Number(this.getAttribute("data-sh"))];
+        var url = location.origin + "/?show=" + encodeURIComponent(sh.id);
+        shareText("Check out this show on Rizz Plaza: " + (sh.title || ""), url);
+        jpost("/api/challenges/share", {}).then(function (r) { if (r && r.ok) { toast("Share counted"); loadChal(); } });
+      };
+    });
+  }
+  function renderShop(sc) {
+    if (!shopState) { sc.innerHTML = '<div class="rp392-muted">Loading…</div>'; return; }
+    if (!shopState.ok) { sc.innerHTML = '<div class="rp392-muted">Sign in to use the Points Shop.</div>'; return; }
+    var fx = shopState.fx || {};
+    var ptsNow = (shopState.points && shopState.points.balance) || 0;
+    var html = '<div class="rp392-muted" style="margin-bottom:10px">Your balance: <b>' + ptsNow + ' points</b>. Perks are visual only — points never buy charms or money.</div>';
+    html += (shopState.perks || []).map(function (it) {
+      var extra = "";
+      if (it.id === "name-gold" && fx.name === "gold") extra = ' <span class="rp392-muted">(active)</span>';
+      if (it.id === "name-rainbow" && fx.name === "rainbow") extra = ' <span class="rp392-muted">(active)</span>';
+      if (it.id === "highlight" && fx.highlightArmed) extra = ' <span class="rp392-muted">(armed for your next message)</span>';
+      var dis = ptsNow < it.cost ? " disabled" : "";
+      return '<div class="rp392-item"><div class="t">' + esc(it.label) + extra + '</div><div class="rp392-muted">' + esc(it.blurb) + '</div><div class="rp392-row" style="margin-top:6px"><button class="rp392-btn" data-buy="' + it.id + '"' + dis + ">" + it.cost + " pts</button></div></div>";
+    }).join("");
+    sc.innerHTML = html;
+    var btns = sc.querySelectorAll("[data-buy]");
+    for (var i = 0; i < btns.length; i++) btns[i].onclick = function () {
+      var id = this.getAttribute("data-buy");
+      var body = { perk: id };
+      if (id === "jumbotron") {
+        var txt = window.prompt("Your Jumbotron message (shown big in the live you are watching):");
+        if (txt == null || !String(txt).trim()) return;
+        body.text = String(txt).slice(0, 80);
+      }
+      this.disabled = true;
+      jpost("/api/points-shop/buy", body).then(function (r) {
+        if (r && r.ok) { toast("Perk applied 🎉"); loadShop(); loadChal(); }
+        else { toast((r && r.error) || "Could not buy that perk"); loadShop(); }
+      });
+    };
+  }
+  function renderCpn(sc) {
+    var targets = '<option value="">Loading your products &amp; items…</option>';
+    var html = '<div class="rp392-muted" style="margin-bottom:8px">Create a coupon for one of YOUR Plaza Store products or pre-listed auction items. The discount comes out of your share — buyers pay less, the Plaza cut is figured on the lower price.</div>' +
+      '<label class="rp392-muted">Applies to</label><select class="rp392-select" id="rp392CpnTarget">' + targets + "</select>" +
+      '<label class="rp392-muted">Code (4-24 letters/numbers)</label><input class="rp392-input" id="rp392CpnCode" placeholder="SAVE20" maxlength="24">' +
+      '<label class="rp392-muted">Discount</label><select class="rp392-select" id="rp392CpnKind"><option value="pct">Percent off (5-50%)</option><option value="flat">Flat charms off</option></select>' +
+      '<input class="rp392-input" id="rp392CpnAmt" type="number" min="1" placeholder="Amount — % or charms">' +
+      '<label class="rp392-muted">Max total uses</label><input class="rp392-input" id="rp392CpnUses" type="number" min="1" max="1000" value="10">' +
+      '<label class="rp392-muted">Expires (optional)</label><input class="rp392-input" id="rp392CpnExp" type="datetime-local">' +
+      '<button class="rp392-btn" id="rp392CpnCreate">Create coupon</button>' +
+      '<div id="rp392CpnList" style="margin-top:14px"></div>';
+    sc.innerHTML = html;
+    Promise.all([jget("/api/store/mine"), jget("/api/auction-items/mine")]).then(function (rs) {
+      var sel = $("rp392CpnTarget"); if (!sel) return;
+      var opts = "";
+      ((rs[0] && rs[0].listings) || []).forEach(function (l) { opts += '<option value="store:' + esc(l.id) + '">🛍️ Store: ' + esc(l.title || "Product") + "</option>"; });
+      ((rs[1] && rs[1].items) || []).forEach(function (it) { if (it.status === "listed") opts += '<option value="item:' + esc(it.id) + '">🔨 Auction item: ' + esc(it.title || "Item") + "</option>"; });
+      sel.innerHTML = opts || '<option value="">You have no products or listed items yet</option>';
+    });
+    var list = $("rp392CpnList");
+    if (cpnState && cpnState.ok) {
+      list.innerHTML = (cpnState.coupons || []).map(function (c) {
+        var d = c.kind === "pct" ? (c.pct + "% off") : (c.flatCharms + " charms off");
+        return '<div class="rp392-item"><div class="t">' + esc(c.code) + ' — ' + d + '</div><div class="rp392-muted">' + esc(c.scope === "store" ? "Store: " : "Item: ") + esc(c.targetTitle || "") + " · used " + (c.uses || 0) + " / " + c.maxUses + (c.expiresAt ? " · expires " + esc(String(c.expiresAt).slice(0, 10)) : "") + (c.active ? "" : " · off") + '</div>' + (c.active ? '<button class="rp392-btn alt" data-off="' + c.id + '">Turn off</button>' : "") + "</div>";
+      }).join("") || '<div class="rp392-muted">No coupons yet.</div>';
+      var offs = list.querySelectorAll("[data-off]");
+      for (var i = 0; i < offs.length; i++) offs[i].onclick = function () { jpost("/api/coupons/" + encodeURIComponent(this.getAttribute("data-off")) + "/deactivate", {}).then(function () { loadCpn(); }); };
+    } else {
+      list.innerHTML = '<div class="rp392-muted">Loading your coupons…</div>';
+    }
+    var create = $("rp392CpnCreate");
+    if (create) create.onclick = function () {
+      var tv = ($("rp392CpnTarget") || {}).value || "";
+      var parts = tv.split(":");
+      if (parts.length < 2) { toast("Pick a product or item first"); return; }
+      var kind = ($("rp392CpnKind") || {}).value || "pct";
+      var amt = Number(($("rp392CpnAmt") || {}).value || 0);
+      var body = { scope: parts[0], targetId: parts.slice(1).join(":"), code: ($("rp392CpnCode") || {}).value || "", kind: kind, maxUses: Number(($("rp392CpnUses") || {}).value || 10) };
+      if (kind === "pct") body.pct = amt; else body.flatCharms = amt;
+      var exp = ($("rp392CpnExp") || {}).value;
+      if (exp) body.expiresAt = new Date(exp).toISOString();
+      jpost("/api/coupons", body).then(function (r) {
+        if (r && r.ok) { toast("Coupon created"); loadCpn(); }
+        else toast("Coupon not created: " + ((r && r.error) || "error"));
+      });
+    };
+  }
+
+  /* ---------- Auctions-screen card ---------- */
+  function injectCard() {
+    var host = $("rp391Card") || $("rp390Card");
+    if (!host || !host.parentNode || $("rp392Card")) return;
+    var card = document.createElement("div");
+    card.className = "plaza-card rp392-card";
+    card.id = "rp392Card";
+    card.innerHTML = '<div class="plaza-card-t">🏆 Challenges &amp; rewards</div><div class="rp392-muted">Daily challenges, points perks, invite rewards and coupons.</div>';
+    card.addEventListener("click", function () { open392("chal"); });
+    host.parentNode.insertBefore(card, host.nextSibling);
+  }
+
+  /* ---------- boot ---------- */
+  function boot392() { injectRefCard(); injectCard(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot392);
+  else boot392();
+  var mo = new MutationObserver(function () {
+    if (!$("rp392RefCard")) injectRefCard();
+    if (!$("rp392Card")) injectCard();
+  });
+  if (document.body) mo.observe(document.body, { childList: true, subtree: true });
+
+  window.rp392open = open392;
+})();
+</script>
 </body>
 </html>
 
