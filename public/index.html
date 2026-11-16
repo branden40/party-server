@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.382" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.383" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -3793,7 +3793,7 @@
             <h4>📜 Auction rules — the honest version</h4>
             <ul>
               <li><b>Sellers ship the item</b> to the winner after payment clears — the Plaza never holds or ships items.</li>
-              <li><b>All auction sales are final.</b> No returns, no refunds — bid only on items you truly want.</li>
+              <li><b>Buyer protection on every win.</b> If an item never arrives, isn't as described, or shows up damaged, the winner can request a full refund within 14 days from their Earn history — sellers can refund right away, and the Plaza reviews every claim.</li>
               <li><b>No counterfeits, ever.</b> List only genuine items you own and can ship. Fakes get your selling privileges pulled.</li>
               <li><b>18+ only</b> — listing and bidding are adults-only, like the rest of the party.</li>
               <li>Bids go up in <b>steps that grow with the price</b> — $1 under $10, then $2, $4, $5, $10, $20 (at $250–$999) and $25 as the price climbs. A bid in the last 5 seconds adds 5 seconds, so nobody gets sniped at the buzzer — unless the seller switched on <b>Sudden Death</b>, where the clock never extends and the last bid standing when it hits zero wins.</li>
@@ -20274,7 +20274,7 @@
           '<p style="text-align:center;">Questions? Something not working? You\u2019re in the right place — check the quick answers, or send the team a message and we\u2019ll get back to you.</p>' +
           '<h4 style="margin:14px 0 4px;">❓ Quick answers</h4>' +
           '<details style="margin:4px 0;"><summary><b>How do I go live?</b></summary><p style="margin:6px 0;">Open the 🔴 Live Stage and tap Go LIVE — every player gets their own broadcast. No waiting, no follower minimum. (Under-18 hosts earn charms, not cash.)</p></details>' +
-          '<details style="margin:4px 0;"><summary><b>How do auctions work?</b></summary><p style="margin:6px 0;">In 🔨 Live Auction you can bid on live items, or tap ＋ Sell an item to list your own. Winners pay bid + shipping, sellers ship the item. All sales are final unless an item never ships — and counterfeits are never allowed.</p></details>' +
+          '<details style="margin:4px 0;"><summary><b>How do auctions work?</b></summary><p style="margin:6px 0;">In 🔨 Live Auction you can bid on live items, or tap ＋ Sell an item to list your own. Winners pay bid + shipping, sellers ship the item. Winners are protected: a full refund within 14 days if an item never ships, isn\'t as described, or arrives damaged — request it from the Earn sheet. Counterfeits are never allowed.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>How do I earn and cash out?</b></summary><p style="margin:6px 0;">Hosts earn charms from gifts, and sellers keep 90% of auction sales. When your balance reaches $20 you can cash out once a day through Stripe — see the 💰 Earn card.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>Is Rizz Plaza free?</b></summary><p style="margin:6px 0;">Yes — joining, the rooms, going live, and the fellowship room are all free. Gift charm packs and Premium are optional extras.</p></details>' +
           '<details style="margin:4px 0;"><summary><b>Who can use the prayer room?</b></summary><p style="margin:6px 0;">Every member — Rizz Plaza is 18+ only, and the Christian Fellowship room is for everyone here: chapel, prayer wall, and Bible study. Lives, Stories and Reels are open to all ages as well; the dating rooms, state rooms and auctions stay 18+.</p></details>' +
@@ -29215,7 +29215,7 @@
         var w = Auc.pendingWin;
         var total = w.amt + (w.ship || 0);
         return '<div class="auc-card"><div class="auc-body" style="text-align:center;"><h3>🏆 You won an auction!</h3>' +
-          '<p>You took <b>"' + escHtml(w.title) + '"</b> at <b>' + moneyLabel(w.amt) + '</b> from ' + escHtml(w.hostName) + (w.ship ? ' — plus ' + moneyLabel(w.ship) + ' shipping' : ' — with free shipping') + '. Pay to complete the sale — they ship once you\'re paid up. All auction sales are final.</p>' +
+          '<p>You took <b>"' + escHtml(w.title) + '"</b> at <b>' + moneyLabel(w.amt) + '</b> from ' + escHtml(w.hostName) + (w.ship ? ' — plus ' + moneyLabel(w.ship) + ' shipping' : ' — with free shipping') + '. Pay to complete the sale — they ship once you\'re paid up. Buyer protection covers you for 14 days if it never ships, isn\'t as described, or arrives damaged.</p>' +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:12px 24px;" type="button" id="aucPayNow">💳 Pay ' + moneyLabel(total) + ' with Stripe</button></div></div></div>';
       }
       function aucSalesHtml() {
@@ -40997,7 +40997,7 @@ button.rp72-chip{ cursor:pointer; }
         html += '<div class="rpM-hrow"><span>💸 Cash-out · ' + fmtDate(c.at) + ' · ' + statusLabel(c.status) + '</span><span class="rpM-hamt">' + fmt$(c.netCents) + '</span></div>';
       });
       (hist.tx || []).slice(0, 8).forEach(function (t) {
-        var label = "", amt = "";
+        var label = "", amt = "", act383 = ""; // [RP-V7.383] act383: an optional action button rendered inside auction rows (buyer protection)
         // [RP-V7.233] WHO + WHERE on gift rows (Branden, Nov 4):
         // fromName/toName are resolved server-side and ride the
         // history payload — they appear even on gifts sent before
@@ -41009,7 +41009,10 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "gift-received") { label = "🎁 Gift received" + (t.fromName ? " — from " + esc(t.fromName) : "") + srcTag233 + (t.promo ? " · promo charms" : t.charmsOnly ? " · charms-only" : ""); amt = (t.charmsOnly || t.promo) ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.74] charms-only gifts (a teen on either side) earn no money — show the charms, never "+$0.00" // [RP-V7.217] + the stored charmsOnly flag labels the entry and pins the amount to charms even if a legacy record carried cents
         else if (t.type === "gift-sent") { label = "🎁 Gift sent" + (t.toName ? " — to " + esc(t.toName) : "") + srcTag233; amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
         else if (t.type === "purchase") { label = "⭐ Charm pack"; amt = "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; }
-        else if (t.type === "auction") { label = "🔨 Auction sale" + (t.promo ? " · promo charms" : ""); amt = t.promo ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : "+" + fmt$(t.cents - (t.cut || 0)); } // [RP-V7.321] promo (test-funds) auction settles pay the host in charms
+        else if (t.type === "auction") { label = "🔨 Auction sale" + (t.promo ? " · promo charms" : ""); amt = t.promo ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : "+" + fmt$(t.cents - (t.cut || 0)); var ha383 = t.auc383 || null; if (ha383 && ha383.refunded) label += " · ↩️ Refunded"; else if (ha383 && ha383.claimStatus === "open") label += " · 🛡️ Claim open"; else if (ha383 && t.ref) act383 = '<button type="button" class="btn-mini" data-aucrefund383="' + esc(t.ref) + '">Refund buyer</button>'; } // [RP-V7.321] promo (test-funds) auction settles pay the host in charms // [RP-V7.383] buyer protection: the host can refund the buyer in one tap until the sale is refunded
+        else if (t.type === "auction-paid") { label = "🔨 Auction win" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.promo ? " · promo charms" : ""); amt = "-" + (t.charms || 0).toLocaleString("en-US") + " charms"; var wa383 = t.auc383 || null; if (wa383 && wa383.refunded) label += " · ↩️ Refunded"; else if (wa383 && wa383.claimStatus === "open") label += " · 🛡️ Claim open"; else if (wa383 && wa383.claimStatus === "denied") label += " · Claim denied"; else if (wa383 && t.ref && (Date.now() - Date.parse(wa383.settledAt || t.at)) <= 14 * 24 * 3600 * 1000) act383 = '<button type="button" class="btn-mini" data-aucclaim383="' + esc(t.ref) + '">Request refund</button>'; } // [RP-V7.383] the winner's row: buyer protection — one claim within 14 days of the settle
+        else if (t.type === "auction-refund") { label = "↩️ Auction refund"; amt = "+" + (t.charms || 0).toLocaleString("en-US") + " charms"; } // [RP-V7.383] the full bid back in the winner's wallet
+        else if (t.type === "auction-refund-reversal") { label = "↩️ Auction refund — sale reversed"; amt = t.promo ? "-" + (t.charms || 0).toLocaleString("en-US") + " charms" : "-" + fmt$(t.cents); } // [RP-V7.383] the host-side reversal of a refunded sale
         else if (t.type === "store-sale") { label = "🛍️ Store sale"; amt = "+" + fmt$(t.cents - (t.cut || 0)); } // [RP-V7.240]
         else if (t.type === "creator-pool") { label = "👀 Creator Pool — weekly views payout"; amt = "+" + fmt$(t.cents); } // [RP-V7.293]
         else if (t.type === "profile-tip") { label = "💝 Profile tip" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.promo ? " · promo charms" : t.charmsOnly ? " · charms-only" : ""); amt = (t.charmsOnly || t.promo) ? "+" + (t.charms || 0).toLocaleString("en-US") + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + (t.charms || 0).toLocaleString("en-US") + " charms"); } // [RP-V7.294] the recipient's wallet row (kind "profile-tip") — charms-only tips show charms, never a $ figure (V7.217 honesty pattern)
@@ -41028,7 +41031,7 @@ button.rp72-chip{ cursor:pointer; }
         else if (t.type === "dailypot-win" || t.type === "pot-win" || t.type === "pot-remainder" || t.type === "pot-refund" || t.type === "daily-claim" || t.type === "owner-grant") { label = esc(t.type); amt = t.charms ? "+" + Math.abs(Number(t.charms)).toLocaleString("en-US") + " charms" : ""; } // [RP-V7.320] FIX 4: charm-only CREDIT rows (Daily Pot / Plaza Pot wins, pot remainder + seed refund, daily claim, owner grant) — the ledger stores charms (cents always 0) and history already sends them; they used to fall through to the plain fallback and show NO amount (Branden, Nov 10: his 12,000-charm Daily Pot win read just "dailypot-win · Nov 10"). Label stays the stored type, exactly as it rendered before; a row with no stored charms renders plain — never an invented number.
         else if (t.type === "pot-seed" || t.type === "pot-topup") { label = esc(t.type); amt = t.charms ? "-" + Math.abs(Number(t.charms)).toLocaleString("en-US") + " charms" : ""; } // [RP-V7.320] FIX 4: charm-only DEBIT rows — the host's pot escrow leaving their balance (seed / top-up), same stored-charms rule.
         else { label = esc(t.type || "Activity"); amt = t.cents ? fmt$(t.cents) : ((t.charms && ((t.from && !t.to) || (!t.from && t.to))) ? (t.from ? "-" : "+") + Math.abs(Number(t.charms)).toLocaleString("en-US") + " charms" : ""); } // [RP-V7.320] FIX 4 safety net: any FUTURE charm-only label (cents 0, charms stored, exactly one side of the transfer empty — credit when it lands TO the viewer, debit when it leaves FROM them) shows its charms instead of silently dropping them; cash rows keep fmt$ untouched, and a record with no stored amount still renders plain.
-        html += '<div class="rpM-hrow"><span>' + label + ' · ' + fmtDate(t.at) + '</span><span class="rpM-hamt">' + amt + '</span></div>';
+        html += '<div class="rpM-hrow"><span>' + label + ' · ' + fmtDate(t.at) + '</span>' + act383 + '<span class="rpM-hamt">' + amt + '</span></div>';
       });
       html += '</div>';
     }
@@ -41048,6 +41051,12 @@ button.rp72-chip{ cursor:pointer; }
     });
     document.querySelectorAll("[data-shoutout-open300]").forEach(function (b300o) { // [RP-V7.300] Buyer side: jump to the posted shoutout
       b300o.addEventListener("click", function () { if (window.rpShoutoutOpen300) window.rpShoutoutOpen300(b300o.getAttribute("data-shoutout-open300"), b300o.getAttribute("data-shoutout-kind300")); });
+    });
+    document.querySelectorAll("[data-aucclaim383]").forEach(function (b383c) { // [RP-V7.383] Winner side: open the buyer-protection claim sheet
+      b383c.addEventListener("click", function () { if (window.rpAuctionClaim383) window.rpAuctionClaim383(b383c.getAttribute("data-aucclaim383")); });
+    });
+    document.querySelectorAll("[data-aucrefund383]").forEach(function (b383r) { // [RP-V7.383] Host side: voluntary refund with a confirm step
+      b383r.addEventListener("click", function () { if (window.rpAuctionHostRefund383) window.rpAuctionHostRefund383(b383r.getAttribute("data-aucrefund383")); });
     });
     var co = $("rpMCoBtn");
     if (co) co.addEventListener("click", doCashOut);
@@ -41094,6 +41103,59 @@ button.rp72-chip{ cursor:pointer; }
       toast2("Stripe connect hit a snag — please try again in a moment.", 3600);
     });
   }
+
+  /* ---------- [RP-V7.383] Auction buyer protection ---------- */
+  // Winner side: file ONE claim on a settled win within 14 days.
+  // The claim lands on the owner board; an approved claim (or the
+  // host refunding first) puts the full bid back in the winner's
+  // charm balance and the row re-renders as Refunded.
+  window.rpAuctionClaim383 = function (auctionId) {
+    if (!auctionId) return;
+    var reasons383 = [["not-received", "📦 Item never arrived"], ["not-as-described", "🎭 Not as described"], ["damaged", "💔 Arrived damaged"], ["other", "❓ Something else"]];
+    var sel383 = "";
+    var html383 =
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">🛡️ Request a refund</h3>' +
+      '<p style="text-align:center;">Auction buyer protection: if the owner approves your claim, the full bid goes back into your charm wallet and the seller\u2019s earning is reversed. Pick what happened:</p>' +
+      '<div style="display:flex; flex-direction:column; gap:8px; margin:10px 0;">' +
+      reasons383.map(function (r383) { return '<button type="button" class="btn-mini" style="text-align:left; padding:10px 12px;" data-aucreason383="' + r383[0] + '">' + r383[1] + '</button>'; }).join("") +
+      '</div>' +
+      '<textarea id="rpAucNote383" rows="3" maxlength="300" placeholder="Anything the owner should know? (optional)" style="width:100%; box-sizing:border-box; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.22); border-radius:10px; padding:9px 10px; color:#fff; font-size:14px"></textarea>' +
+      '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-primary" style="width:auto; padding:12px 24px;" id="rpAucClaimGo383">Send claim</button></div>' +
+      '<div id="rpAucClaimMsg383" style="margin-top:8px; font-size:13.5px; text-align:center;"></div></div>';
+    if (!sheetOpen(html383)) return;
+    document.querySelectorAll("[data-aucreason383]").forEach(function (rb383) {
+      rb383.addEventListener("click", function () {
+        sel383 = rb383.getAttribute("data-aucreason383") || "";
+        document.querySelectorAll("[data-aucreason383]").forEach(function (x383) { x383.style.outline = ""; x383.style.borderColor = ""; });
+        rb383.style.outline = "2px solid #e02424"; rb383.style.borderColor = "#e02424";
+      });
+    });
+    var go383 = $("rpAucClaimGo383");
+    if (go383) go383.addEventListener("click", function () {
+      var msg383 = $("rpAucClaimMsg383");
+      if (!sel383) { if (msg383) msg383.textContent = "Pick what happened first."; return; }
+      var noteEl383 = $("rpAucNote383");
+      go383.disabled = true; go383.textContent = "Sending…";
+      api("/api/money/auction-claim", "POST", { auctionId: auctionId, reason: sel383, note: noteEl383 ? String(noteEl383.value || "") : "" }, 30000).then(function (r) {
+        if (r.json && r.json.ok) { toast2("🛡️ Claim sent — the owner reviews it, and an approved claim refunds the full bid to your wallet.", 5200); openServerEarnings(); return; }
+        go383.disabled = false; go383.textContent = "Send claim";
+        var e383 = r.json && r.json.error ? r.json.error : "";
+        if (msg383) msg383.textContent = e383 === "claim-window-closed" ? "✗ The 14-day claim window on this win has closed." : e383 === "claim-already-open" ? "✗ You already have a claim open on this win." : e383 === "already-refunded" ? "✗ This win was already refunded." : "✗ That claim didn't go through — try again in a moment.";
+      });
+    });
+  };
+  // Host side: refund the buyer voluntarily — the server executes
+  // it immediately (full bid back, this earning reversed).
+  window.rpAuctionHostRefund383 = function (auctionId) {
+    if (!auctionId) return;
+    if (!window.confirm("Refund the buyer for this auction sale?\n\nThey get the full bid back in charms and your earning from this sale is reversed. This can't be undone.")) return;
+    api("/api/money/auction-refund-host", "POST", { auctionId: auctionId }, 30000).then(function (r) {
+      if (r.json && r.json.ok) { toast2("↩️ Buyer refunded — the full bid went back to their wallet.", 4600); openServerEarnings(); return; }
+      if (r.json && r.json.error === "already-refunded") { toast2("That sale was already refunded.", 4000); openServerEarnings(); return; }
+      toast2("That refund didn't go through — try again in a moment.", 4000);
+    });
+  };
 
   /* ---------- Premium ---------- */
   function openPremiumSheet() {
@@ -44467,6 +44529,24 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
           '</div></div>';
       });
     }
+    // [RP-V7.383] AUCTION CLAIMS — buyer protection: open claims
+    // filed by auction winners (payload: d.auctionClaims from
+    // /api/owner/sales). Refund buyer executes the full refund
+    // (bid back to the winner, the host's earning reversed);
+    // Deny leaves the sale final. Wired by the delegated
+    // listener below (__rpAucWire383).
+    var ac383 = d.auctionClaims || [];
+    var acReason383 = { "not-received": "Item never arrived", "not-as-described": "Not as described", "damaged": "Arrived damaged", "other": "Other" };
+    h += '<div class="rp-os-rows" style="margin-top:12px"><div class="rp-os-row"><span>🛡️ Auction claims</span><b>' + ac383.length + ' open</b></div></div>';
+    if (!ac383.length) {
+      h += '<div class="rp-os-note" style="margin-top:2px">No open auction claims.</div>';
+    }
+    ac383.forEach(function (c) {
+      h += '<div class="rp-os-note" style="opacity:.95; margin-top:6px">🔨 <b>' + esc2(c.winnerName || "?") + '</b> (@' + esc2(c.winnerUsername || "") + ') → <b>' + esc2(c.hostName || "?") + '</b> (@' + esc2(c.hostUsername || "") + ') — ' + Number(c.bidCharms || 0).toLocaleString("en-US") + ' charms (' + money(c.bidCharms || 0) + ') · ' + esc2(acReason383[c.reason] || "Other") + ' · filed ' + esc2(String(c.at || "").slice(0, 10)) +
+        (c.note ? '<div style="margin-top:4px">&ldquo;' + esc2(c.note) + '&rdquo;</div>' : '') +
+        '<div style="margin-top:6px"><button type="button" class="rp-auc-refund383" data-auction="' + esc2(c.auctionId || "") + '" style="background:#e02424; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Refund buyer</button>' +
+        ' <button type="button" class="rp-auc-deny383" data-auction="' + esc2(c.auctionId || "") + '" style="margin-left:6px; background:#5f0d0d; color:#fff; border:1px solid #e02424; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">Deny</button></div></div>';
+    });
     return h;
   };
   var osTimer = null;
@@ -44888,6 +44968,35 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       osDeletePost377("/api/owner/delete-deny-appeal", { accountId: acct }).then(function (r) {
         if (r.j && r.j.ok) { try { toast2("Appeal denied — @" + uname + "'s deletion stands.", 4600); } catch (e) { } try { window.rpOwnerSalesInit(); } catch (e) { } }
         else { b.disabled = false; b.textContent = "Deny appeal"; try { toast2("✗ " + (r.j && r.j.error ? r.j.error : "Deny failed"), 4600); } catch (e) { } }
+      });
+    });
+  }
+  /* [RP-V7.383] Auction-claim actions on the owner board: one
+     delegated listener (the board re-renders every 5 minutes, so
+     per-button wiring would rot — same pattern as the V7.263 age
+     actions and the V7.377 delete controls). Refund executes the
+     buyer-protection refund server-side; Deny leaves the sale
+     final. Both re-render the board from a fresh /api/owner/sales. */
+  if (!window.__rpAucWire383) {
+    window.__rpAucWire383 = true;
+    document.addEventListener("click", function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest(".rp-auc-refund383, .rp-auc-deny383") : null;
+      if (!b) return;
+      var auc = b.getAttribute("data-auction");
+      if (!auc) return;
+      var deny = b.classList.contains("rp-auc-deny383");
+      if (!window.confirm(deny
+        ? "Deny this auction claim?\n\nThe sale stays final — the buyer keeps the item and the host keeps the earning."
+        : "Refund this buyer?\n\nThey get the full bid back in charms and the host's earning from the sale is reversed. This can't be undone.")) return;
+      b.disabled = true; b.textContent = deny ? "Denying…" : "Refunding…";
+      osDeletePost377(deny ? "/api/owner/auction-claim-deny" : "/api/owner/auction-refund", { auctionId: auc }).then(function (r) {
+        if (r.j && r.j.ok) {
+          try { toast2(deny ? "Claim denied — the sale stands." : "↩️ Buyer refunded — the full bid went back to their wallet.", 4600); } catch (e) { }
+          try { window.rpOwnerSalesInit(); } catch (e) { }
+        } else {
+          b.disabled = false; b.textContent = deny ? "Deny" : "Refund buyer";
+          try { toast2("✗ " + (r.j && r.j.error ? r.j.error : "That didn't go through"), 4600); } catch (e) { }
+        }
       });
     });
   }
