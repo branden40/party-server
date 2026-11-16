@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.386" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.387" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -34805,6 +34805,8 @@ function stageStreakBump(key, add) {
         else if (typeof show === "function") show("screen-moments");
       } else if (go.screen === "ownprofile") {
         if (typeof show === "function") show("screen-profile");
+      } else if (go.screen === "auctions") { // [RP-V7.387] rate-your-purchase prompts land on the Auctions screen (My purchases)
+        if (typeof show === "function") show("screen-auctions");
       } else if (go.screen === "plaza") {
         if (typeof show === "function") show("screen-plaza");
       } else if (go.screen === "live") { // [RP-V7.138] a private-live invite tap lands in the live
@@ -52442,6 +52444,13 @@ window.rpOpenSavedSheet349 = function () {
     }
     if (ctx === "buy" && o.status === "shipped")
       h += '<button type="button" class="rp386-btn sm" data-rp386-received="' + esc(o.id) + '">✓ Mark received</button>';
+    // [RP-V7.387] a delivered purchase can be rated (once): the
+    // button opens the rp387 rate sheet; after rating, the row
+    // shows the buyer's own stars (myStars rides /api/orders/buying).
+    if (ctx === "buy" && o.status === "delivered") {
+      if (o.myStars) h += '<span class="rp386-meta">⭐ Your rating: ' + "★★★★★".slice(0, o.myStars) + "☆☆☆☆☆".slice(0, 5 - o.myStars) + "</span>";
+      else h += '<button type="button" class="rp386-btn sm ghost" data-rp387-rate="' + esc(o.id) + '" data-rp387-seller="' + esc(o.hostName) + '">⭐ Rate this purchase</button>';
+    }
     h += "</div></div>";
     return h;
   }
@@ -52696,6 +52705,294 @@ window.rpOpenSavedSheet349 = function () {
       } else if (sheetOpen) {
         if (Date.now() - S.buyAt > 15000) loadBuying(); else renderPurchases();
       }
+    } catch (e) { /* the module must never break the app */ }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1500); tick(); });
+  else { setInterval(tick, 1500); tick(); }
+})();
+</script>
+
+<style>
+/* [RP-V7.387] Seller ratings + account health */
+.rp387-card{background:#101014;border:1px solid #26262e;border-radius:14px;padding:14px;margin:10px 0;color:#f2f2f5}
+.rp387-card h3{margin:0 0 4px;font-size:16px}
+.rp387-sub{margin:0 0 6px;color:#a7a7b3;font-size:12.5px;line-height:1.45}
+.rp387-meta{color:#a7a7b3;font-size:12.5px;line-height:1.5}
+.rp387-line{font-size:14px;margin:2px 0 8px}
+.rp387-hrow{display:flex;justify-content:space-between;gap:10px;align-items:baseline;border-top:1px solid #26262e;padding:8px 0}
+.rp387-hrow .lbl{font-size:13.5px;font-weight:700}
+.rp387-hrow .val{font-size:15px;font-weight:800;text-align:right}
+.rp387-hrow .cnt{display:block;color:#a7a7b3;font-size:12px;font-weight:400;margin-top:1px}
+.rp387-btn{background:#e02424;color:#fff;border:0;border-radius:9px;padding:9px 12px;font-weight:800;font-size:13.5px;cursor:pointer}
+.rp387-btn.ghost{background:#1d1d24;color:#f2f2f5;border:1px solid #33333f}
+.rp387-btn.sm{padding:7px 10px;font-size:12.5px}
+.rp387-btn:disabled{opacity:.45}
+.rp387-stars{color:#ffd76a;letter-spacing:1px}
+.rp387-rev{border-top:1px solid #26262e;padding:8px 0}
+.rp387-empty{color:#a7a7b3;font-size:13px;padding:8px 0}
+.rp387-msg{font-size:12.5px;color:#ffd76a;min-height:16px;margin:6px 0 0}
+#rp387Sheet{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.72);display:none}
+#rp387Sheet .rp387-sheetbox{position:absolute;left:0;right:0;bottom:0;max-height:82vh;overflow:auto;background:#0c0c10;border-radius:18px 18px 0 0;padding:16px;color:#f2f2f5}
+#rp387Sheet textarea{width:100%;box-sizing:border-box;background:#17171d;border:1px solid #2c2c36;border-radius:9px;color:#f2f2f5;padding:9px 10px;font-size:14px;color-scheme:dark}
+.rp387-starpick{display:flex;gap:4px;margin:8px 0}
+.rp387-star{background:none;border:0;font-size:34px;line-height:1;color:#55555f;cursor:pointer;padding:2px}
+.rp387-star.on{color:#ffd76a}
+.rp387-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+</style>
+<script>
+/* [RP-V7.387] Seller ratings + account health (Whatnot parity build 5).
+   Self-contained module (the rp384/385/386 pattern). Server:
+   /api/reviews, /api/sellers/me/health, /api/sellers/:id/health.
+   Buyers rate a delivered purchase once (the Rate button rides the
+   rp386 purchases rows; myStars comes back on /api/orders/buying);
+   the seller's profile shows their average + reviews; the seller's
+   own 🩺 Account health card sits with the seller tools in the
+   Auctions screen and renders the server's rates verbatim — the
+   client never re-derives a rate. */
+(function () {
+  "use strict";
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" }; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return { ok: false }; }).then(function (j) { return { status: r.status, j: j }; }); })
+      .catch(function () { return { status: 0, j: { ok: false, error: "network" } }; });
+  }
+  function isVis(el) { if (!el) return false; try { return !!(el.offsetParent || el.getClientRects().length); } catch (e) { return false; } }
+  function fmtDay(ms) { try { return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }); } catch (e) { return ""; } }
+  function starsStr(n) { n = Math.max(0, Math.min(5, Math.floor(Number(n) || 0))); return "★★★★★".slice(0, n) + "☆☆☆☆☆".slice(0, 5 - n); }
+  function pct(rate) { return rate == null ? "—" : Math.round(rate * 100) + "%"; }
+  var ERR387 = {
+    "bad-stars": "Pick 1 to 5 stars first.",
+    "not-delivered": "That order hasn't been delivered yet.",
+    "already-reviewed": "You already rated this order.",
+    "not-the-buyer": "That purchase belongs to another buyer.",
+    "order-refunded": "That order was refunded — there's nothing to rate.",
+    "order-not-found": "That order is gone.",
+    "network": "Network hiccup — try again."
+  };
+  function errText(j) { var e = (j && j.error) || "error"; return ERR387[e] || e; }
+
+  var S = {
+    health: null, healthAt: 0, myId: "",
+    myReviews: [], myReviewsAt: 0, healthSig: "",
+    sheetOrder: null, sheetSeller: "", sheetStars: 0
+  };
+
+  /* ---------------- account health card (Auctions screen) ---------------- */
+  function ensureHealth() {
+    var scr = document.getElementById("screen-auctions");
+    if (!scr || document.getElementById("rp387Health")) return;
+    var d = document.createElement("div");
+    d.className = "rp387-card"; d.id = "rp387Health";
+    d.innerHTML = "<h3>🩺 Account health</h3>" +
+      '<p class="rp387-sub">Your seller record, computed from your real orders. Buyers see your star rating on your profile.</p>' +
+      '<div id="rp387HealthBody"></div>';
+    var board = document.getElementById("rp386Board");
+    var pur = document.getElementById("rp386Purchases");
+    if (board && board.parentNode === scr) scr.insertBefore(d, board.nextSibling);
+    else if (pur && pur.parentNode === scr) scr.insertBefore(d, pur.nextSibling);
+    else scr.insertBefore(d, scr.firstChild);
+  }
+  function hrow(lbl, valHtml, cntHtml) {
+    return '<div class="rp387-hrow"><span class="lbl">' + lbl + '</span><span class="val">' + valHtml +
+      '<span class="cnt">' + cntHtml + "</span></span></div>";
+  }
+  function renderHealth() {
+    var box = document.getElementById("rp387HealthBody"); if (!box) return;
+    var html;
+    if (!tok()) html = '<p class="rp387-empty">Sign in to see your account health.</p>';
+    else if (!S.health) html = '<p class="rp387-empty">Loading…</p>';
+    else {
+      var h = S.health, t = h.health.trailing90, a = h.health.allTime, cf = h.health.cancelFree;
+      html = "";
+      if (h.rating && h.rating.count)
+        html += '<div class="rp387-line"><span class="rp387-stars">' + starsStr(Math.round(h.rating.average)) + "</span> <b>" + h.rating.average.toFixed(1) + "</b> · " + h.rating.count + " rating" + (h.rating.count === 1 ? "" : "s") + "</div>";
+      else
+        html += '<div class="rp387-line">⭐ No ratings yet — buyers rate you after their orders arrive.</div>';
+      var noData = !t.settledOrders && !a.settledOrders && !cf.started;
+      if (noData) {
+        html += '<p class="rp387-empty">Sell and ship orders to build your health — your rates appear here from your real orders.</p>';
+      } else {
+        html += '<p class="rp387-sub">Trailing 90 days · all-time counts in ( )</p>';
+        html += hrow("🚚 On-time shipping", pct(t.onTimeRate),
+          t.onTimeOrders + "/" + t.judgedOrders + " judged · all-time " + pct(a.onTimeRate) + " (" + a.onTimeOrders + "/" + a.judgedOrders + ")");
+        html += hrow("↩️ Refund-free", pct(t.refundFreeRate),
+          t.refundedOrders + " refunded of " + t.settledOrders + " sold · all-time " + pct(a.refundFreeRate) + " (" + a.refundedOrders + "/" + a.settledOrders + ")");
+        html += hrow("🚫 Cancellation-free", pct(cf.rate),
+          cf.cancelled + " cancelled of " + cf.started + " started · counting since " + esc(fmtDay(Date.parse(cf.since) || Date.now())));
+      }
+      if (S.myReviews.length) {
+        html += '<h3 style="margin-top:12px">⭐ Your recent reviews</h3>' +
+          S.myReviews.slice(0, 10).map(reviewRowHtml).join("");
+      }
+    }
+    if (S.healthSig === html) return;
+    S.healthSig = html;
+    box.innerHTML = html;
+  }
+  function loadHealth() {
+    if (!tok()) { renderHealth(); return; }
+    api("GET", "/api/sellers/me/health").then(function (r) {
+      if (r.j && r.j.ok) {
+        S.health = r.j; S.healthAt = Date.now();
+        if (r.j.sellerId && r.j.sellerId !== S.myId) { S.myId = r.j.sellerId; S.myReviewsAt = 0; }
+      }
+      renderHealth();
+      loadMyReviews();
+    });
+  }
+  function loadMyReviews() {
+    if (!S.myId || Date.now() - S.myReviewsAt < 15000) return;
+    S.myReviewsAt = Date.now();
+    api("GET", "/api/reviews?seller=" + encodeURIComponent(S.myId)).then(function (r) {
+      if (r.j && r.j.ok) { S.myReviews = r.j.reviews || []; S.healthSig = ""; }
+      renderHealth();
+    });
+  }
+
+  /* ---------------- reviews rendering (shared) ---------------- */
+  function reviewRowHtml(r) {
+    return '<div class="rp387-rev"><span class="rp387-stars">' + starsStr(r.stars) + "</span> <b>" + esc(r.buyerName) + '</b> <span class="rp387-meta">' + esc(fmtDay(r.ts)) + "</span>" +
+      (r.text ? '<div class="rp387-meta">“' + esc(r.text) + "”</div>" : "") + "</div>";
+  }
+
+  /* ---------------- profile rating section ---------------- */
+  function renderProfileRating() {
+    var pp = document.querySelector(".pprof");
+    if (!pp) return;
+    var nameEl = pp.querySelector(".pprof-name");
+    var name = nameEl ? (nameEl.textContent || "").trim() : "";
+    if (!name || !tok()) return;
+    if (pp.dataset.rp387name === name && pp.querySelector("#rp387ProfRating")) return;
+    api("GET", "/api/social/directory").then(function (r) {
+      var users = (r.j && r.j.users) || [];
+      var hit = null;
+      for (var i = 0; i < users.length; i++) if (users[i].name === name) { hit = users[i]; break; }
+      if (!hit) return;
+      api("GET", "/api/reviews?seller=" + encodeURIComponent(hit.id)).then(function (r2) {
+        var pp2 = document.querySelector(".pprof");
+        if (!pp2) return;
+        var nm = pp2.querySelector(".pprof-name");
+        if (!nm || (nm.textContent || "").trim() !== name) return;
+        if (pp2.querySelector("#rp387ProfRating")) return;
+        var agg = (r2.j && r2.j.aggregate) || { count: 0, average: null };
+        var revs = (r2.j && r2.j.reviews) || [];
+        var d = document.createElement("div");
+        d.id = "rp387ProfRating"; d.className = "rp387-card";
+        var html = "<h3>Seller rating</h3>";
+        if (agg.count)
+          html += '<div class="rp387-line"><span class="rp387-stars">' + starsStr(Math.round(agg.average)) + "</span> <b>" + agg.average.toFixed(1) + "</b> · " + agg.count + " rating" + (agg.count === 1 ? "" : "s") + "</div>";
+        else
+          html += '<div class="rp387-line">⭐ No ratings yet</div>';
+        if (revs.length) {
+          html += '<div class="rp387-revwrap" style="display:none">' + revs.map(reviewRowHtml).join("") + "</div>" +
+            '<button type="button" class="rp387-btn ghost sm" data-rp387-prof-toggle="1">Read reviews</button>';
+        }
+        d.innerHTML = html;
+        pp2.appendChild(d);
+        pp2.dataset.rp387name = name;
+      });
+    });
+  }
+
+  /* ---------------- rate sheet ---------------- */
+  function ensureSheet() {
+    if (document.getElementById("rp387Sheet")) return;
+    var d = document.createElement("div");
+    d.id = "rp387Sheet";
+    d.innerHTML = '<div class="rp387-sheetbox"><h3 id="rp387SheetTitle">⭐ Rate your purchase</h3>' +
+      '<div class="rp387-starpick" id="rp387Stars"></div>' +
+      '<textarea id="rp387Text" maxlength="300" rows="3" placeholder="Say a few words (optional)"></textarea>' +
+      '<p class="rp387-msg" id="rp387SheetMsg"></p>' +
+      '<div class="rp387-actions"><button type="button" class="rp387-btn ghost" data-rp387-close="1">Not now</button>' +
+      '<button type="button" class="rp387-btn" data-rp387-submit="1">Submit rating</button></div></div>';
+    document.body.appendChild(d);
+  }
+  function renderSheetStars() {
+    var box = document.getElementById("rp387Stars"); if (!box) return;
+    var h = "";
+    for (var i = 1; i <= 5; i++)
+      h += '<button type="button" class="rp387-star' + (i <= S.sheetStars ? " on" : "") + '" data-rp387-star="' + i + '" aria-label="' + i + ' stars">' + (i <= S.sheetStars ? "★" : "☆") + "</button>";
+    box.innerHTML = h;
+  }
+  function openSheet(orderId, sellerName) {
+    ensureSheet();
+    S.sheetOrder = orderId; S.sheetSeller = sellerName || ""; S.sheetStars = 0;
+    var t = document.getElementById("rp387SheetTitle");
+    if (t) t.textContent = "⭐ Rate your purchase from " + (sellerName || "your seller");
+    var tx = document.getElementById("rp387Text"); if (tx) tx.value = "";
+    var m = document.getElementById("rp387SheetMsg"); if (m) m.textContent = "";
+    renderSheetStars();
+    var sh = document.getElementById("rp387Sheet"); if (sh) sh.style.display = "block";
+  }
+  function closeSheet() {
+    var sh = document.getElementById("rp387Sheet"); if (sh) sh.style.display = "none";
+    S.sheetOrder = null;
+  }
+  function submitSheet(btn) {
+    if (!S.sheetOrder) return;
+    if (!S.sheetStars) {
+      var m0 = document.getElementById("rp387SheetMsg"); if (m0) m0.textContent = "Pick 1 to 5 stars first.";
+      return;
+    }
+    var orderId = S.sheetOrder, stars = S.sheetStars;
+    var tx = document.getElementById("rp387Text");
+    btn.disabled = true;
+    api("POST", "/api/reviews", { orderId: orderId, stars: stars, text: tx ? tx.value : "" }).then(function (r) {
+      btn.disabled = false;
+      if (r.j && r.j.ok) {
+        closeSheet();
+        // Reflect it on the purchases row right away; the next
+        // natural reload of /api/orders/buying agrees (myStars).
+        var b = document.querySelector('[data-rp387-rate="' + orderId + '"]');
+        if (b && b.parentNode) {
+          var sp = document.createElement("span");
+          sp.className = "rp386-meta";
+          sp.textContent = "⭐ Your rating: " + starsStr(stars);
+          b.parentNode.replaceChild(sp, b);
+        }
+        S.healthAt = 0;
+      } else {
+        var m = document.getElementById("rp387SheetMsg");
+        if (m) m.textContent = "Couldn't save that rating: " + errText(r.j);
+      }
+    });
+  }
+
+  /* ---------------- actions (delegated) ---------------- */
+  document.addEventListener("click", function (ev) {
+    var t = ev.target && ev.target.closest ? ev.target.closest("[data-rp387-rate],[data-rp387-star],[data-rp387-close],[data-rp387-submit],[data-rp387-prof-toggle]") : null;
+    if (t) {
+      if (t.hasAttribute("data-rp387-rate")) openSheet(t.getAttribute("data-rp387-rate"), t.getAttribute("data-rp387-seller") || "");
+      else if (t.hasAttribute("data-rp387-star")) { S.sheetStars = Number(t.getAttribute("data-rp387-star")) || 0; renderSheetStars(); }
+      else if (t.hasAttribute("data-rp387-close")) closeSheet();
+      else if (t.hasAttribute("data-rp387-submit")) submitSheet(t);
+      else if (t.hasAttribute("data-rp387-prof-toggle")) {
+        var card = t.closest ? t.closest(".rp387-card") : null;
+        var wrap = card ? card.querySelector(".rp387-revwrap") : null;
+        if (wrap) {
+          var open = wrap.style.display !== "none";
+          wrap.style.display = open ? "none" : "block";
+          t.textContent = open ? "Read reviews" : "Hide reviews";
+        }
+      }
+      return;
+    }
+    // backdrop tap closes the sheet
+    if (ev.target && ev.target.id === "rp387Sheet") closeSheet();
+  });
+
+  /* ---------------- boot + light polling ---------------- */
+  function tick() {
+    try {
+      ensureHealth();
+      var scr = document.getElementById("screen-auctions");
+      if (isVis(scr)) {
+        if (Date.now() - S.healthAt > 15000) loadHealth(); else renderHealth();
+      }
+      renderProfileRating();
     } catch (e) { /* the module must never break the app */ }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1500); tick(); });
