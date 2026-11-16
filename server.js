@@ -3887,7 +3887,7 @@ app.post("/api/profile-photo", upload.single("photo"), async (req, res) => {
     const player = players.get(String(req.body.playerId || ""));
     if (!player) {
       if (req.file) fs.unlink(req.file.path, () => {});
-      return res.status(400).json({ error: "Join the party before uploading a photo." });
+      return res.status(400).json({ error: "Join the Plaza before uploading a photo." });
     }
     if (!req.file) {
       return res.status(400).json({ error: "No image file received." });
@@ -28595,7 +28595,7 @@ app.get("/api/boosted-lives", (req, res) => {
 });
 
 app.get("/", (req, res) =>
-  res.send("Party server is running. Connect with the game client.")
+  res.send("Rizz Plaza server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
   res.json({ ok: true, version: "RP-V7.396", online: players.size })
