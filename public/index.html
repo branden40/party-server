@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.383" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.384" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -51641,6 +51641,407 @@ window.rpOpenSavedSheet349 = function () {
   });
 };
 </script>
+<style>
+/* [RP-V7.384] Show items — pre-listing + pre-bids + in-live shop drawer */
+.rp384-card{background:#101014;border:1px solid #26262e;border-radius:14px;padding:14px;margin:10px 0;color:#f2f2f5}
+.rp384-card h3{margin:0 0 4px;font-size:16px}
+.rp384-sub{margin:0 0 10px;color:#a7a7b3;font-size:12.5px;line-height:1.45}
+.rp384-card input[type=text],.rp384-card input[type=number],.rp384-in{width:100%;box-sizing:border-box;background:#17171d;border:1px solid #2c2c36;border-radius:9px;color:#f2f2f5;padding:8px 10px;margin:0 0 8px;font-size:14px}
+.rp384-row{display:flex;gap:8px}.rp384-row>*{flex:1}
+.rp384-btn{background:#e02424;color:#fff;border:0;border-radius:9px;padding:9px 12px;font-weight:800;font-size:13.5px;cursor:pointer}
+.rp384-btn.ghost{background:#1d1d24;color:#f2f2f5;border:1px solid #33333f}
+.rp384-btn:disabled{opacity:.45}
+.rp384-item{border:1px solid #26262e;border-radius:11px;padding:10px;margin:8px 0;background:#141419}
+.rp384-item b{font-size:14.5px}
+.rp384-meta{color:#a7a7b3;font-size:12.5px;margin-top:2px;line-height:1.5}
+.rp384-chip{display:inline-block;background:#1d1d24;border:1px solid #33333f;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:800;color:#ffb3b3;margin-left:6px;vertical-align:2px}
+.rp384-chip.sold{color:#9fe8a9}.rp384-chip.running{color:#ffd76a}
+.rp384-thumb{width:100%;max-height:150px;object-fit:cover;border-radius:8px;margin:0 0 8px;display:block}
+.rp384-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.rp384-actions .rp384-btn{padding:7px 10px;font-size:12.5px}
+.rp384-bm{background:#1d1d24;border:1px solid #33333f;color:#f2f2f5;border-radius:9px;padding:7px 10px;cursor:pointer;font-size:12.5px}
+.rp384-bm.on{color:#ff5b5b;border-color:#e02424}
+.rp384-msg{font-size:12.5px;color:#ffd76a;min-height:16px;margin:6px 0 0}
+.rp384-empty{color:#a7a7b3;font-size:13px;padding:8px 0}
+#rp384Live{position:fixed;left:8px;right:8px;bottom:78px;z-index:55;background:rgba(13,13,17,.97);border:1px solid #33333f;border-radius:14px;padding:10px 12px;color:#f2f2f5;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+#rp384Live h4{margin:0 0 4px;font-size:14px}
+#rp384Drawer{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.72);display:none}
+#rp384Drawer .rp384-sheet{position:absolute;left:0;right:0;bottom:0;max-height:82vh;overflow:auto;background:#0c0c10;border-radius:18px 18px 0 0;padding:16px;color:#f2f2f5}
+.rp384-check{display:flex;align-items:center;gap:8px;color:#d7d7de;font-size:13px;margin:2px 0 10px}
+</style>
+<script>
+/* [RP-V7.384] Show items: pre-listing + pre-bids + in-live shop drawer.
+   Self-contained module on the window.rpSocket / rpMyId / rpLive
+   bridges (the same pattern as rpWn). Server: /api/auction-items. */
+(function () {
+  "use strict";
+  var LS_BM = "rp384.bookmarks";
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function myId() { return ACCT_ID; }
+  // The REST account id (items are keyed by it) is NOT window.rpMyId()
+  // — that is the live player id. The account id rides the stored
+  // session (userId), with /api/account/me as the fallback.
+  var ACCT_ID = "";
+  function resolveAcctId() {
+    if (ACCT_ID) return ACCT_ID;
+    try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a) ACCT_ID = (a.user && a.user.id) || a.userId || a.id || ""; } catch (e) { }
+    if (!ACCT_ID && tok()) {
+      api("GET", "/api/account/me").then(function (r) {
+        var u = r.j && (r.j.user || r.j);
+        if (u && u.id) { ACCT_ID = u.id; S.lastSig = ""; }
+      });
+    }
+    return ACCT_ID;
+  }
+  function sock() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function live() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" }; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return { ok: false }; }).then(function (j) { return { status: r.status, j: j }; }); })
+      .catch(function () { return { status: 0, j: { ok: false, error: "network" } }; });
+  }
+  function stepFor(d) { d = Number(d) || 0; if (d < 10) return 1; if (d < 25) return 2; if (d < 50) return 4; if (d < 100) return 5; if (d < 250) return 10; if (d < 1000) return 20; return 25; }
+  function minNext(it) { if (!it.highPreBid) return it.startBid; return it.highPreBid.amount + stepFor(it.highPreBid.amount); }
+  function bookmarks() { try { var b = JSON.parse(localStorage.getItem(LS_BM) || "[]"); return Array.isArray(b) ? b : []; } catch (e) { return []; } }
+  function isBm(id) { return bookmarks().indexOf(id) >= 0; }
+  function toggleBm(id) { var b = bookmarks(); var i = b.indexOf(id); if (i >= 0) b.splice(i, 1); else b.push(id); try { localStorage.setItem(LS_BM, JSON.stringify(b)); } catch (e) { } return i < 0; }
+  function isVis(el) { if (!el) return false; try { return !!(el.offsetParent || el.getClientRects().length); } catch (e) { return false; } }
+
+  var S = {
+    mine: [], mineLoadedAt: 0,
+    hostId: null, hostAcctId: null, items: [], itemsLoadedAt: 0,
+    auc: null, lastMsg: "", lastSig: "",
+    drawerHost: null, sockBound: null,
+    profHost: null
+  };
+  // Live.hostId is a PLAYER id; show items are keyed by ACCOUNT id.
+  // The app bridges the two by display name (/api/social/profile), and
+  // the live directory carries the host's name for their player id.
+  function resolveLiveHostAcct(playerHostId, mine) {
+    if (mine) { S.hostAcctId = resolveAcctId() || null; return; }
+    if (!playerHostId) { S.hostAcctId = null; return; }
+    if (S.hostAcctPending === playerHostId) return;
+    var name = null;
+    try {
+      var dir = window.rpDirectory ? window.rpDirectory() : [];
+      for (var i = 0; i < dir.length; i++) if (dir[i].hostId === playerHostId) { name = dir[i].name; break; }
+    } catch (e) { }
+    if (!name || !tok()) { S.hostAcctId = null; return; }
+    S.hostAcctPending = playerHostId;
+    api("GET", "/api/social/profile?name=" + encodeURIComponent(name)).then(function (r) {
+      if (S.hostAcctPending === playerHostId) S.hostAcctPending = null;
+      var u = r.j || {};
+      var id = u.id || (u.user && u.user.id) || null;
+      if (id && S.hostId === playerHostId) { S.hostAcctId = id; S.itemsLoadedAt = 0; S.lastSig = ""; }
+    });
+  }
+
+  /* ---------------- shared item card ---------------- */
+  function itemCard(it, ctx) {
+    var mine = it.hostId === myId();
+    var priceLine = it.highPreBid
+      ? "High pre-bid <b>$" + it.highPreBid.amount + "</b> by " + esc(it.highPreBid.name)
+      : "Starts at <b>$" + it.startBid + "</b>";
+    var h = '<div class="rp384-item" data-rp384-card="' + esc(it.id) + '">';
+    if (it.photoUrl) h += '<img class="rp384-thumb" src="' + esc(it.photoUrl) + '" alt=""/>';
+    h += "<b>" + esc(it.title) + "</b>";
+    h += '<span class="rp384-chip ' + esc(it.status) + '">' + esc(it.status) + "</span>";
+    if (it.description) h += '<div class="rp384-meta">' + esc(it.description) + "</div>";
+    h += '<div class="rp384-meta">' + priceLine + " · " + (it.preBidCount || 0) + " pre-bid" + (it.preBidCount === 1 ? "" : "s") + (it.suddenDeath ? " · ⚡ Sudden Death" : "") + "</div>";
+    h += '<div class="rp384-actions">';
+    if (it.status === "listed" && !mine && tok())
+      h += '<button type="button" class="rp384-btn" data-rp384-prebid="' + esc(it.id) + '" data-ctx="' + ctx + '">Pre-bid</button>';
+    if (it.status === "listed" && mine && ctx === "mine")
+      h += '<button type="button" class="rp384-btn ghost" data-rp384-remove="' + esc(it.id) + '">Remove</button>';
+    h += '<button type="button" class="rp384-bm' + (isBm(it.id) ? " on" : "") + '" data-rp384-bm="' + esc(it.id) + '" aria-label="Bookmark item">♥</button>';
+    h += "</div>";
+    h += '<div id="rp384Amt-' + ctx + "-" + esc(it.id) + '"></div>';
+    h += "</div>";
+    return h;
+  }
+  function prebidRowHtml(it, ctx) {
+    var min = minNext(it);
+    return '<div style="margin-top:8px"><div class="rp384-meta">Minimum pre-bid: <b>$' + min + "</b> — no money is held; you only pay if you win.</div>" +
+      '<div class="rp384-row"><input type="number" class="rp384-in" id="rp384AmtIn-' + ctx + "-" + esc(it.id) + '" value="' + min + '" min="' + min + '" step="1"/>' +
+      '<button type="button" class="rp384-btn" data-rp384-prebid-go="' + esc(it.id) + '" data-ctx="' + ctx + '">Place pre-bid</button></div></div>';
+  }
+
+  /* ---------------- host manager (Auctions screen) ---------------- */
+  function ensureManager() {
+    var scr = document.getElementById("screen-auctions");
+    if (!scr || document.getElementById("rp384Manager")) return;
+    var d = document.createElement("div");
+    d.className = "rp384-card"; d.id = "rp384Manager";
+    d.innerHTML = "<h3>📦 Show items</h3>" +
+      '<p class="rp384-sub">Pre-list items for your show. Viewers can pre-bid before you go live — when you run an item in your live, the auction opens at the high pre-bid.</p>' +
+      '<input type="text" id="rp384Title" maxlength="80" placeholder="Item title"/>' +
+      '<input type="text" id="rp384Desc" maxlength="300" placeholder="Description (optional)"/>' +
+      '<input type="text" id="rp384Photo" placeholder="Photo URL (optional)"/>' +
+      '<div class="rp384-row"><input type="number" id="rp384Bid" min="1" max="100000" step="1" placeholder="Start bid $"/>' +
+      '<input type="number" id="rp384Dur" min="10" max="600" step="1" placeholder="Seconds (60)"/></div>' +
+      '<label class="rp384-check"><input type="checkbox" id="rp384Sd"/> ⚡ Sudden Death (late bids never extend the clock)</label>' +
+      '<button type="button" class="rp384-btn" data-rp384-add="1">＋ Add show item</button> ' +
+      '<button type="button" class="rp384-btn ghost" data-rp384-refresh="1">↻ Refresh</button>' +
+      '<p class="rp384-msg" id="rp384MgrMsg"></p>' +
+      '<div id="rp384Mine"></div>';
+    scr.insertBefore(d, scr.firstChild);
+  }
+  function mgrMsg(t) { var m = document.getElementById("rp384MgrMsg"); if (m && m.textContent !== t) m.textContent = t; }
+  function renderMine() {
+    var box = document.getElementById("rp384Mine"); if (!box) return;
+    if (!tok()) { box.innerHTML = '<p class="rp384-empty">Sign in to pre-list show items.</p>'; return; }
+    if (!S.mine.length) { box.innerHTML = '<p class="rp384-empty">No show items yet — add your first one above.</p>'; return; }
+    box.innerHTML = S.mine.map(function (it) { return itemCard(it, "mine"); }).join("");
+  }
+  function loadMine() {
+    if (!tok()) { renderMine(); return; }
+    api("GET", "/api/auction-items/mine").then(function (r) {
+      if (r.j && r.j.ok) { S.mine = r.j.items || []; S.mineLoadedAt = Date.now(); renderMine(); }
+    });
+  }
+
+  /* ---------------- in-live panel + shop drawer ---------------- */
+  function ensureLivePanel() {
+    if (document.getElementById("rp384Live")) return;
+    var d = document.createElement("div");
+    d.id = "rp384Live"; d.style.display = "none";
+    document.body.appendChild(d);
+    var dr = document.createElement("div");
+    dr.id = "rp384Drawer";
+    dr.innerHTML = '<div class="rp384-sheet"><div id="rp384DrawerBody"></div></div>';
+    document.body.appendChild(dr);
+  }
+  function endsText() {
+    if (!S.auc || !S.auc.endsAt) return "";
+    var s = Math.max(0, Math.round((S.auc.endsAt - Date.now()) / 1000));
+    return " · ⏱ " + s + "s";
+  }
+  function renderLive() {
+    var p = document.getElementById("rp384Live"); if (!p) return;
+    var lv = live();
+    if (!lv || !lv.active || !S.hostId) { if (p.style.display !== "none") p.style.display = "none"; S.lastSig = ""; return; }
+    var mine = !!lv.mine;
+    var listed = S.items.filter(function (x) { return x.status === "listed"; });
+    var sig = [S.hostId, mine ? 1 : 0, listed.length, S.auc ? S.auc.auctionId + ":" + S.auc.currentBid : "-", S.lastMsg].join("|");
+    if (sig === S.lastSig) { var e = document.getElementById("rp384Ends"); if (e) { var t = endsText(); if (e.textContent !== t) e.textContent = t; } return; }
+    S.lastSig = sig;
+    var h = "";
+    if (S.auc) {
+      h += "<h4>🔨 " + esc(S.auc.item ? S.auc.item.title : "Auction") + "</h4>";
+      if (S.auc.preBid) h += '<div class="rp384-meta">Opened at a pre-bid: <b>$' + S.auc.currentBid + "</b> by " + esc(S.auc.highBidderName || "a viewer") + "</div>";
+      h += '<div class="rp384-meta">Current bid: <b>$' + (S.auc.currentBid || 0) + "</b>" + (S.auc.highBidderName ? " — " + esc(S.auc.highBidderName) : "") + '<span id="rp384Ends">' + endsText() + "</span></div>";
+      if (!mine) {
+        var min = S.auc.currentBid ? S.auc.currentBid + stepFor(S.auc.currentBid) : S.auc.startBid;
+        h += '<div class="rp384-row" style="margin-top:6px"><input type="number" class="rp384-in" id="rp384BidIn" value="' + min + '" min="' + min + '" step="1"/>' +
+          '<button type="button" class="rp384-btn" data-rp384-bid="1">Bid</button></div>';
+      } else {
+        h += '<div class="rp384-actions"><button type="button" class="rp384-btn ghost" data-rp384-end="1">End auction now</button></div>';
+      }
+    } else if (mine) {
+      h += "<h4>📦 Your show queue</h4>";
+      if (!listed.length) h += '<p class="rp384-empty">No listed items — add them in the Auctions tab (📦 Show items).</p>';
+      h += listed.map(function (it) {
+        return '<div class="rp384-item"><b>' + esc(it.title) + "</b>" +
+          '<div class="rp384-meta">' + (it.highPreBid ? "High pre-bid <b>$" + it.highPreBid.amount + "</b> by " + esc(it.highPreBid.name) : "Starts at <b>$" + it.startBid + "</b>") + " · " + (it.preBidCount || 0) + " pre-bids</div>" +
+          '<div class="rp384-actions"><button type="button" class="rp384-btn" data-rp384-run="' + esc(it.id) + '">▶ Run this item</button></div></div>';
+      }).join("");
+    } else {
+      h += "<h4>🛍️ This show's items</h4>";
+      h += '<p class="rp384-sub">Pre-bid on upcoming items — the auction opens at the high pre-bid.</p>';
+    }
+    if (!mine) h += '<div class="rp384-actions"><button type="button" class="rp384-btn" data-rp384-shop="1">🛍️ Shop (' + S.items.length + ")</button></div>";
+    if (S.lastMsg) h += '<p class="rp384-msg">' + esc(S.lastMsg) + "</p>";
+    p.innerHTML = h;
+    if (p.style.display === "none") p.style.display = "block";
+  }
+  function loadItems(hostAcctId) {
+    if (!hostAcctId) return;
+    api("GET", "/api/auction-items?host=" + encodeURIComponent(hostAcctId)).then(function (r) {
+      if (r.j && r.j.ok && S.hostAcctId === hostAcctId) {
+        S.items = r.j.items || []; S.itemsLoadedAt = Date.now(); S.lastSig = ""; renderLive();
+        // Don't rebuild the drawer over an open pre-bid row / result
+        // message — the fresh data lands on the next drawer open.
+        var interacting = !!document.querySelector('#rp384Drawer [id^="rp384Amt-"]:not(:empty)');
+        if (S.drawerHost === hostAcctId && !interacting) renderDrawer();
+      }
+    });
+  }
+  function renderDrawer() {
+    var dr = document.getElementById("rp384Drawer"); if (!dr) return;
+    var body = document.getElementById("rp384DrawerBody"); if (!body) return;
+    var items = S.items;
+    body.innerHTML = "<h3 style='margin:0 0 6px'>🛍️ Shop this show</h3>" +
+      (items.length ? items.map(function (it) { return itemCard(it, "shop"); }).join("") : '<p class="rp384-empty">No items listed for this show yet.</p>') +
+      '<button type="button" class="rp384-btn ghost" data-rp384-close-drawer="1" style="width:100%;margin-top:8px">Close</button>';
+    dr.style.display = "block";
+  }
+  function bindSocket() {
+    var s = sock(); if (!s || S.sockBound === s) return;
+    S.sockBound = s;
+    s.on("auction-live", function (d) {
+      if (!d) return;
+      S.auc = { auctionId: d.auctionId, item: d.item, startBid: d.startBid, currentBid: d.currentBid || 0, highBidderName: d.highBidderName || null, endsAt: d.endsAt, preBid: !!d.preBid, itemId: d.itemId || null };
+      S.lastMsg = d.preBid ? "Auction opened at the high pre-bid." : "Auction is live.";
+      S.lastSig = ""; renderLive();
+    });
+    s.on("auction-update", function (d) {
+      if (!d || !S.auc) return;
+      S.auc.currentBid = d.currentBid; S.auc.highBidderName = d.highBidderName; S.auc.endsAt = d.endsAt;
+      S.lastSig = ""; renderLive();
+    });
+    s.on("auction-ended", function (d) {
+      var w = d && d.winner;
+      S.lastMsg = w ? "🏆 " + (w.name || "Someone") + " won for $" + w.amount + "." : "Auction ended with no bids.";
+      S.auc = null; S.lastSig = ""; renderLive();
+      if (S.hostAcctId) loadItems(S.hostAcctId);
+      loadMine();
+    });
+    s.on("auction-cancelled", function () {
+      S.lastMsg = "Auction cancelled — the item is back in the queue.";
+      S.auc = null; S.lastSig = ""; renderLive();
+      if (S.hostAcctId) loadItems(S.hostAcctId);
+      loadMine();
+    });
+    s.on("auction-blocked", function (d) {
+      S.lastMsg = (d && d.error) ? d.error : "That auction can't run here.";
+      S.lastSig = ""; renderLive();
+    });
+  }
+
+  /* ---------------- profile section ---------------- */
+  function renderProfileItems() {
+    var pp = document.querySelector(".pprof");
+    if (!pp) { S.profHost = null; return; }
+    var nameEl = pp.querySelector(".pprof-name");
+    var name = nameEl ? (nameEl.textContent || "").trim() : "";
+    if (!name || !tok()) return;
+    if (pp.dataset.rp384name === name && pp.querySelector("#rp384ProfItems")) return;
+    api("GET", "/api/social/directory").then(function (r) {
+      var users = (r.j && r.j.users) || [];
+      var hit = null;
+      for (var i = 0; i < users.length; i++) if (users[i].name === name) { hit = users[i]; break; }
+      if (!hit) return;
+      api("GET", "/api/auction-items?host=" + encodeURIComponent(hit.id)).then(function (r2) {
+        var pp2 = document.querySelector(".pprof");
+        if (!pp2) return;
+        var nm = pp2.querySelector(".pprof-name");
+        if (!nm || (nm.textContent || "").trim() !== name) return;
+        if (pp2.querySelector("#rp384ProfItems")) return;
+        var items = (r2.j && r2.j.items) || [];
+        var d = document.createElement("div");
+        d.id = "rp384ProfItems"; d.className = "rp384-card";
+        d.innerHTML = "<h3>🛍️ Upcoming show items</h3>" +
+          (items.length ? items.map(function (it) { return itemCard(it, "prof"); }).join("") : '<p class="rp384-empty">No items listed for the next show yet.</p>');
+        pp2.appendChild(d);
+        pp2.dataset.rp384name = name;
+        S.profHost = hit.id;
+      });
+    });
+  }
+
+  /* ---------------- actions (delegated) ---------------- */
+  document.addEventListener("click", function (ev) {
+    var t = ev.target && ev.target.closest ? ev.target.closest("[data-rp384-add],[data-rp384-refresh],[data-rp384-remove],[data-rp384-run],[data-rp384-shop],[data-rp384-close-drawer],[data-rp384-prebid],[data-rp384-prebid-go],[data-rp384-bm],[data-rp384-bid],[data-rp384-end]") : null;
+    if (!t) return;
+    if (t.hasAttribute("data-rp384-add")) {
+      var title = (document.getElementById("rp384Title") || {}).value || "";
+      var body = {
+        title: title,
+        description: (document.getElementById("rp384Desc") || {}).value || "",
+        photoUrl: (document.getElementById("rp384Photo") || {}).value || "",
+        startBid: Number((document.getElementById("rp384Bid") || {}).value || 0),
+        durationSec: Number((document.getElementById("rp384Dur") || {}).value || 60),
+        suddenDeath: !!((document.getElementById("rp384Sd") || {}).checked)
+      };
+      api("POST", "/api/auction-items", body).then(function (r) {
+        if (r.j && r.j.ok) { mgrMsg("Added “" + r.j.item.title + "” — viewers can pre-bid now."); loadMine(); }
+        else mgrMsg("Couldn't add that item: " + ((r.j && r.j.error) || "error"));
+      });
+    }
+    else if (t.hasAttribute("data-rp384-refresh")) { loadMine(); if (S.hostAcctId) loadItems(S.hostAcctId); }
+    else if (t.hasAttribute("data-rp384-remove")) {
+      var rid = t.getAttribute("data-rp384-remove");
+      api("POST", "/api/auction-items/" + encodeURIComponent(rid) + "/remove", {}).then(function (r) {
+        if (r.j && r.j.ok) { mgrMsg("Item removed."); loadMine(); } else mgrMsg("Couldn't remove: " + ((r.j && r.j.error) || "error"));
+      });
+    }
+    else if (t.hasAttribute("data-rp384-run")) {
+      var s = sock(); if (!s) { S.lastMsg = "Not connected to the live yet."; S.lastSig = ""; renderLive(); return; }
+      s.emit("auction-start", { itemId: t.getAttribute("data-rp384-run") });
+    }
+    else if (t.hasAttribute("data-rp384-shop")) { S.drawerHost = S.hostAcctId; renderDrawer(); }
+    else if (t.hasAttribute("data-rp384-close-drawer")) { var dr = document.getElementById("rp384Drawer"); if (dr) dr.style.display = "none"; S.drawerHost = null; }
+    else if (t.hasAttribute("data-rp384-prebid")) {
+      var pid = t.getAttribute("data-rp384-prebid"), ctx = t.getAttribute("data-ctx") || "shop";
+      var all = ctx === "prof" ? null : S.items;
+      var it = null, pools = [S.items, S.mine];
+      for (var pi = 0; pi < pools.length && !it; pi++) for (var ii = 0; ii < pools[pi].length; ii++) if (pools[pi][ii].id === pid) it = pools[pi][ii];
+      if (!it && S.profHost) { /* profile items are re-fetched below on submit anyway */ }
+      var slot = document.getElementById("rp384Amt-" + ctx + "-" + pid);
+      if (slot) {
+        if (slot.innerHTML) { slot.innerHTML = ""; return; }
+        if (it) { slot.innerHTML = prebidRowHtml(it, ctx); return; }
+        // profile cards: fetch fresh to learn the minimum
+        api("GET", "/api/auction-items?host=" + encodeURIComponent(S.profHost || "")).then(function (r) {
+          var items = (r.j && r.j.items) || [];
+          for (var k = 0; k < items.length; k++) if (items[k].id === pid) { slot.innerHTML = prebidRowHtml(items[k], ctx); S.items = items; return; }
+        });
+      }
+    }
+    else if (t.hasAttribute("data-rp384-prebid-go")) {
+      var gid = t.getAttribute("data-rp384-prebid-go"), gctx = t.getAttribute("data-ctx") || "shop";
+      var inp = document.getElementById("rp384AmtIn-" + gctx + "-" + gid);
+      var amt = inp ? Number(inp.value || 0) : 0;
+      api("POST", "/api/auction-items/" + encodeURIComponent(gid) + "/prebid", { amount: amt }).then(function (r) {
+        if (r.j && r.j.ok) {
+          S.lastMsg = "Pre-bid placed: $" + amt + ".";
+          if (S.hostAcctId) loadItems(S.hostAcctId);
+          loadMine();
+          var slot = document.getElementById("rp384Amt-" + gctx + "-" + gid);
+          if (slot) slot.innerHTML = '<p class="rp384-msg">✓ Pre-bid placed — $' + amt + "</p>";
+          if (gctx === "prof") { var pp = document.querySelector(".pprof"); if (pp) { pp.dataset.rp384name = ""; var old = pp.querySelector("#rp384ProfItems"); if (old) old.remove(); renderProfileItems(); } }
+        } else {
+          var slot2 = document.getElementById("rp384Amt-" + gctx + "-" + gid);
+          if (slot2) slot2.innerHTML = '<p class="rp384-msg">Couldn\'t place that pre-bid: ' + esc((r.j && r.j.error) || "error") + (r.j && r.j.minimum ? " (minimum $" + r.j.minimum + ")" : "") + "</p>";
+        }
+      });
+    }
+    else if (t.hasAttribute("data-rp384-bm")) {
+      var on = toggleBm(t.getAttribute("data-rp384-bm"));
+      t.classList.toggle("on", on);
+    }
+    else if (t.hasAttribute("data-rp384-bid")) {
+      var s2 = sock(); var inp2 = document.getElementById("rp384BidIn");
+      if (s2 && inp2) s2.emit("auction-bid", { amount: Number(inp2.value || 0) });
+    }
+    else if (t.hasAttribute("data-rp384-end")) {
+      var s3 = sock(); if (s3) s3.emit("auction-end", {});
+    }
+  });
+
+  /* ---------------- boot + light polling ---------------- */
+  function tick() {
+    try {
+      resolveAcctId();
+      ensureManager(); ensureLivePanel(); bindSocket();
+      var lv = live();
+      var hid = lv && lv.active ? lv.hostId : null;
+      if (hid !== S.hostId) { S.hostId = hid; S.hostAcctId = null; S.items = []; S.auc = null; S.lastSig = ""; if (hid) resolveLiveHostAcct(hid, !!lv.mine); }
+      else if (hid && !S.hostAcctId) resolveLiveHostAcct(hid, !!lv.mine);
+      else if (hid && S.hostAcctId && Date.now() - S.itemsLoadedAt > 20000) loadItems(S.hostAcctId);
+      renderLive();
+      var scr = document.getElementById("screen-auctions");
+      if (isVis(scr) && Date.now() - S.mineLoadedAt > 15000) loadMine();
+      renderProfileItems();
+    } catch (e) { /* the module must never break the app */ }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1200); tick(); });
+  else { setInterval(tick, 1200); tick(); }
+})();
+</script>
+
 </body>
 </html>
 
