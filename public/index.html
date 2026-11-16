@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.398" /> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.399" /> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -55291,6 +55291,255 @@ window.rpOpenSavedSheet349 = function () {
   if (document.body) mo.observe(document.body, { childList: true, subtree: true });
 })();
 </script>
+<style id="rp399Css">
+  /* ================= [RP-V7.399] Pull-to-refresh =================
+     Branden (Nov 16, 2026): TikTok has pull-down-to-refresh, Rizz
+     Plaza didn't. The indicator is one fixed chip — black surface,
+     true-red spinner ring (the app's accent family) — shared by
+     every feed surface. It is driven entirely by the script below:
+     it slides in with the pull, spins while the fresh fetch is in
+     flight, and slides away when the re-render lands. */
+  #rpPtr399 { position: fixed; left: 50%; top: 0; z-index: 99990; width: 40px; height: 40px; border-radius: 50%; background: #000; border: 1.5px solid rgba(255, 255, 255, .28); box-shadow: 0 4px 18px rgba(0, 0, 0, .55); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transform: translate(-50%, -56px); }
+  #rpPtr399 .rp-ptr-ring { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, .22); border-top-color: #ff2040; box-sizing: border-box; }
+  #rpPtr399.spin .rp-ptr-ring { animation: rpPtrSpin399 .7s linear infinite; }
+  @keyframes rpPtrSpin399 { to { transform: rotate(360deg); } }
+</style>
+<script>
+/* ================= [RP-V7.399] PULL-TO-REFRESH =================
+   Branden (Nov 16, 2026), with his TikTok screen recording: "I
+   don't have a refresh that will refresh the page if I swipe
+   down." A deliberate pull-down at the very top of a feed now
+   re-fetches that feed FRESH from the server and re-renders it.
+
+   SURFACES (the app's main scrollable feeds):
+   - Home (#screen-home243): the window scrolls; refresh rides the
+     V7.243 module's own exposed refresh (window.rpHomeRails243.
+     refresh — resets its render signatures and reloads the photo
+     flow, the reels rail and the business ads).
+   - Reels (#screen-moments in .rpfs254 pager mode): refresh calls
+     the pager's own loader, reelFetchFeed(). The gesture only
+     engages while the FIRST card is the current one (the pager
+     rests a few px into the card after some rebuilds — measured
+     92 px on Friends entry — so "first" means less than half a
+     card scrolled), and a refresh lands back on the first card;
+     normal one-page-at-a-time swiping is untouched.
+   - Friends (the same pager with Reels.friends on): reelFetchFeed
+     already routes to /api/reels?friends=1 in that mode, so the
+     same pull refreshes the Friends list.
+   - Photos (#screen-moments in Photos mode): refresh calls
+     momLoadServer() + renderMoments(), the Photos feed's own path.
+
+   FRESHNESS — the point of the build. Every one of those loaders
+   fetches with the browser's default cache mode, and the Reels
+   entry points additionally paint a localStorage-persisted list
+   first (rpForYouList265 / rpFriendsList265), so a member could
+   stare at a stale list with no way to force the truth. While a
+   pull-refresh runs, this module's fetch gate (installed below)
+   forces cache:"no-store" on GET requests to the three feed
+   endpoints (/api/photo/posts, /api/reels, /api/feed), so the
+   loaders' own fetches go to the server, never to the HTTP cache;
+   the loaders then replace the in-memory lists and re-render from
+   the fresh payload (reelFetchFeed also re-persists the local
+   seeds with the fresh list, healing the next cold open too).
+   The Reels in-flight dedupe (V7.258, 1.5 s) is cleared before
+   the call so a pull right after entry is never swallowed.
+
+   GESTURE SAFETY: the pull engages only when the surface is
+   scrolled to its very top, only for a vertical-dominant drag
+   (a horizontal-dominant drag — the Home reels rail, story tray,
+   photo flips — kills the gesture), only for one finger, and
+   never while a refresh is already running, while the sheet /
+   overlay system is open (composer, gift sheet, dialogs), while
+   a gift show (.gfx) is on screen, or in a full-screen live
+   (body.live-fs). Releasing under the 90 px threshold snaps back
+   with no fetch at all. */
+(function () {
+  "use strict";
+  var THRESH = 90;      // raw finger travel (px) that triggers a refresh
+  var RESIST = 0.6;     // content follows the finger at 60%
+  var MAXVIS = 64;      // px cap on the content shift
+  var ind = null, refreshing = false;
+
+  /* ---------- the fresh-fetch gate ---------- */
+  var FEED_PATHS = { "/api/photo/posts": 1, "/api/reels": 1, "/api/feed": 1, "/api/feed/": 1 };
+  var gateOn = false, gateInFlight = 0, gateSaw = false;
+  var origFetch = window.fetch;
+  if (typeof origFetch === "function") {
+    window.fetch = function (input, init) {
+      try {
+        if (gateOn) {
+          var raw = (typeof input === "string") ? input : (input && input.url) || "";
+          var path = "";
+          try { path = new URL(raw, location.href).pathname; } catch (e) { path = String(raw).split("?")[0]; }
+          var method = (init && init.method) || (input && input.method) || "GET";
+          if (FEED_PATHS[path] && String(method).toUpperCase() === "GET") {
+            var merged = {};
+            if (init) for (var k in init) merged[k] = init[k];
+            merged.cache = "no-store";
+            gateSaw = true; gateInFlight++;
+            var p = origFetch.call(window, input, merged);
+            var dec = function () { if (gateInFlight > 0) gateInFlight--; };
+            if (p && p.then) p.then(dec, dec);
+            return p;
+          }
+        }
+      } catch (e) { }
+      return origFetch.apply(window, arguments);
+    };
+  }
+
+  /* ---------- surfaces ---------- */
+  function $(id) { return document.getElementById(id); }
+  function overlayOpen() {
+    try {
+      var ov = $("overlay"); if (ov && ov.classList.contains("open")) return true;
+      if (document.querySelector(".gfx")) return true; // a gift show is on screen
+      if (document.querySelector(".sheet.open, .modal.open")) return true;
+      if (document.body && document.body.classList.contains("live-fs")) return true;
+    } catch (e) { }
+    return false;
+  }
+  function surface() {
+    var scr = document.querySelector(".screen.active");
+    if (!scr) return null;
+    if (scr.id === "screen-home243") {
+      return { key: "home", el: scr, atTop: function () { return (window.pageYOffset || 0) <= 8; }, refresh: refreshHome };
+    }
+    if (scr.id === "screen-moments") {
+      if (scr.classList.contains("rpfs254")) {
+        var rf = $("reelFeed"); if (!rf) return null;
+        /* "At the top" for the pager = the FIRST card is the current
+           one. The pager does not always rest at scrollTop 0 (the
+           Friends entry was measured resting at 92 px after its
+           rebuild), so the rule is majority visibility: less than
+           half a card scrolled. A full card down (the second reel)
+           refuses, exactly as the mid-feed pulls refuse. */
+        return { key: (typeof Reels !== "undefined" && Reels.friends) ? "friends" : "reels", el: scr, atTop: function () { return rf.clientHeight > 0 ? rf.scrollTop < rf.clientHeight * 0.5 : rf.scrollTop <= 1; }, refresh: refreshReels };
+      }
+      var mf = $("momFeed"); if (!mf) return null;
+      return { key: "photos", el: scr, atTop: function () { return mf.scrollTop <= 8; }, refresh: refreshPhotos }; // the .mom-feed rests at 2 px (its top padding), not 0 — measured on the rig
+    }
+    return null;
+  }
+  function refreshHome() {
+    if (window.rpHomeRails243 && typeof window.rpHomeRails243.refresh === "function") window.rpHomeRails243.refresh();
+  }
+  function refreshReels() {
+    try { if (typeof Reels !== "undefined") Reels._inflight258 = null; } catch (e) { } // never let the entry dedupe swallow a deliberate pull
+    var rf = $("reelFeed"); if (rf) { try { rf.scrollTop = 0; } catch (e) { } } // a refresh lands on the first (newest) card
+    if (typeof reelFetchFeed === "function") reelFetchFeed();
+  }
+  function refreshPhotos() {
+    if (typeof momLoadServer === "function") momLoadServer(function () { try { renderMoments(); } catch (e) { } });
+  }
+
+  /* ---------- indicator + content shift ---------- */
+  function ensureInd() {
+    if (ind) return ind;
+    ind = document.createElement("div");
+    ind.id = "rpPtr399";
+    ind.setAttribute("aria-hidden", "true");
+    ind.innerHTML = '<div class="rp-ptr-ring"></div>';
+    document.body.appendChild(ind);
+    return ind;
+  }
+  function indShow(visPx, spinning) {
+    var el = ensureInd();
+    var y = Math.min(14, -56 + visPx * 1.15);
+    el.style.transition = "none";
+    el.style.transform = "translate(-50%, " + y + "px)";
+    el.style.opacity = String(Math.max(0, Math.min(1, visPx / 38)));
+    if (spinning) { el.classList.add("spin"); el.style.opacity = "1"; el.style.transform = "translate(-50%, 12px)"; }
+  }
+  function indHide() {
+    if (!ind) return;
+    ind.classList.remove("spin");
+    ind.style.transition = "transform .25s ease, opacity .25s ease";
+    ind.style.transform = "translate(-50%, -56px)";
+    ind.style.opacity = "0";
+    var ring = ind.querySelector(".rp-ptr-ring"); if (ring) ring.style.transform = "";
+  }
+  function shift(surf, px, animate) {
+    if (!surf || !surf.el) return;
+    surf.el.style.transition = animate ? "transform .28s ease" : "none";
+    surf.el.style.transform = px ? "translateY(" + px + "px)" : "";
+    if (animate) setTimeout(function () { if (surf.el) { surf.el.style.transition = ""; surf.el.style.transform = ""; } }, 320);
+  }
+
+  /* ---------- the refresh run ---------- */
+  function runRefresh(surf) {
+    refreshing = true;
+    shift(surf, 0, true);
+    indShow(MAXVIS, true);
+    gateOn = true; gateSaw = false; gateInFlight = 0;
+    var t0 = Date.now();
+    try { surf.refresh(); } catch (e) { }
+    var iv = setInterval(function () {
+      var el = Date.now() - t0;
+      var settled = gateSaw && gateInFlight === 0 && el > 500;   // fresh fetch landed + render beat
+      var gaveUp = (!gateSaw && el > 1600) || el > 7000;          // loader deduped/failed — never trap the spinner
+      if (settled || gaveUp) {
+        clearInterval(iv);
+        gateOn = false; refreshing = false;
+        indHide();
+      }
+    }, 120);
+  }
+
+  /* ---------- gesture ---------- */
+  var tr = null; // {id, x, y, dy, surf, locked, dead}
+  document.addEventListener("touchstart", function (e) {
+    tr = null;
+    if (refreshing || !e.touches || e.touches.length !== 1) return;
+    if (overlayOpen()) return;
+    var s = surface();
+    if (!s || !s.atTop()) return;
+    var t = e.touches[0];
+    tr = { id: t.identifier, x: t.clientX, y: t.clientY, dy: 0, surf: s, locked: false, dead: false };
+  }, { passive: true });
+  document.addEventListener("touchmove", function (e) {
+    if (!tr || tr.dead) return;
+    var t = null;
+    for (var i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === tr.id) t = e.touches[i];
+    if (!t) { tr.dead = true; return; }
+    var dx = t.clientX - tr.x, dy = t.clientY - tr.y;
+    tr.dy = dy;
+    if (!tr.locked) {
+      if (dy > 10 && dy >= Math.abs(dx)) tr.locked = true;
+      else if (Math.abs(dx) > 10 && Math.abs(dx) > dy) { tr.dead = true; return; }
+      else return;
+    }
+    if (dy < -4) { // reversed into a normal scroll — hand the gesture back
+      shift(tr.surf, 0, true); indHide(); tr.dead = true; return;
+    }
+    if (dy <= 0) { shift(tr.surf, 0, false); indShow(0, false); return; }
+    if (e.cancelable) e.preventDefault();
+    var vis = Math.min(MAXVIS, dy * RESIST);
+    shift(tr.surf, vis, false);
+    indShow(vis, false);
+    var ring = ind && ind.querySelector(".rp-ptr-ring");
+    if (ring) ring.style.transform = "rotate(" + Math.round(dy * 2.2) + "deg)";
+  }, { passive: false });
+  function endTouch() {
+    if (!tr) return;
+    var t = tr; tr = null;
+    if (t.dead || !t.locked) return;
+    if (t.dy >= THRESH && !refreshing && !overlayOpen()) runRefresh(t.surf);
+    else { shift(t.surf, 0, true); indHide(); }
+  }
+  document.addEventListener("touchend", endTouch, { passive: true });
+  document.addEventListener("touchcancel", function () { if (tr) { shift(tr.surf, 0, true); indHide(); } tr = null; }, { passive: true });
+
+  /* Diagnostics + rig handle (same convention as __rp257MediaSync). */
+  window.__rpPtr399 = {
+    threshold: THRESH,
+    isRefreshing: function () { return refreshing; },
+    surfaceKey: function () { var s = surface(); return s ? s.key : null; },
+    refreshNow: function () { var s = surface(); if (s && !refreshing) { runRefresh(s); return s.key; } return null; }
+  };
+})();
+</script>
+
 </body>
 </html>
 
