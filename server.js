@@ -6636,7 +6636,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.373", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.383", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -22164,6 +22164,230 @@ function settleAuctionMoney(adb, mdb, opts) {
     winnerBalance: mdb.balances[winnerId],
   });
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.383] AUCTION BUYER PROTECTION — refunds & claims (Branden,
+// Nov 15, 2026: "Do I have refunds and cancels on the live auction
+// bids" → "Yes everything whatnot has to offer build it"). Until
+// this build a settled auction was final: bids never hold money
+// while an auction runs, the winner's charms move exactly once in
+// settleAuctionMoney, and there was NO way back. This build adds
+// the Whatnot-style protection layer on top of the settlement
+// record (mdb.auctionSettlements[auctionId]):
+//   - The WINNER may file ONE claim within 14 days of the settle
+//     (not-received | not-as-described | damaged | other, with an
+//     optional note). The claim rides the settlement record and
+//     surfaces on the owner board via /api/owner/sales.
+//   - The HOST may refund voluntarily at any time — immediate,
+//     no owner step.
+//   - The OWNER approves an open claim (refund executes) or
+//     denies it (settlement stays final) from the owner board.
+//   - executeAuctionRefund383 reverses the settle IN KIND: the
+//     winner is re-credited the full bidCharms; a normal settle's
+//     host earning is reversed by exactly hostShareCents (and the
+//     platform cut recorded reversed by cutCents) — if the host
+//     already cashed out, availableCents goes negative and the
+//     record is flagged shortfall:true, never silently clamped;
+//     a promo (test-funds) settle mirrors in charms only — the
+//     host's charm balance is debited the hostShareCharms (floored
+//     at 0, shortfall flagged), cents never move.
+//   - IDEMPOTENT: a refunded settlement refuses every second
+//     attempt with 409 already-refunded, whoever asks.
+// Ledger rows (moneyTx): "auction-refund" (host → winner, the
+// full bid back) and "auction-refund-reversal" (the host-side
+// reversal), both ref'd by auctionId, so Earn history can render
+// the refund on both sides. Runs inside the money lock; the
+// helper mutates mdb — the caller writes it.
+// ---------------------------------------------------------------------------
+const AUCTION_CLAIM_REASONS_383 = ["not-received", "not-as-described", "damaged", "other"];
+const AUCTION_CLAIM_WINDOW_MS_383 = 14 * 24 * 60 * 60 * 1000;
+function rpAuctionSettlement383(mdb, auctionId) {
+  if (!mdb || !mdb.auctionSettlements || typeof mdb.auctionSettlements !== "object") return null;
+  return mdb.auctionSettlements[String(auctionId || "")] || null;
+}
+function executeAuctionRefund383(mdb, settlement, by) {
+  if (!settlement || !settlement.ok)
+    return { ok: false, error: "not-settled" };
+  if (settlement.refunded)
+    return { ok: false, error: "already-refunded", refunded: settlement.refunded };
+  const auctionId = String(settlement.auctionId || "");
+  const winnerId = String(settlement.winnerId || "");
+  const hostId = String(settlement.hostId || "");
+  const bidCharms = Math.round(Number(settlement.bidCharms) || 0);
+  if (!winnerId || !hostId || !(bidCharms > 0))
+    return { ok: false, error: "bad-settlement" };
+  const promo = !!settlement.promoFunds;
+  let shortfall = false;
+  // Winner: full bid back into their charm balance.
+  mdb.balances[winnerId] = (mdb.balances[winnerId] || 0) + bidCharms;
+  if (promo) {
+    // Charms-only mirror of the V7.321 promo settle: the host's
+    // share came in as charms, so it leaves as charms — debited
+    // down to a floor of 0; any missing part is flagged, and no
+    // cent figure moves anywhere.
+    const shareCharms = Math.round(Number(settlement.hostShareCharms) || 0);
+    const hostBal = Math.round(Number(mdb.balances[hostId]) || 0);
+    const debit = Math.min(hostBal, shareCharms);
+    mdb.balances[hostId] = hostBal - debit;
+    if (debit < shareCharms) shortfall = true;
+    moneyTx(mdb, {
+      type: "auction-refund", from: hostId, to: winnerId, charms: bidCharms,
+      cents: 0, cut: 0, promo: true, ref: auctionId,
+    });
+    moneyTx(mdb, {
+      type: "auction-refund-reversal", from: hostId, to: null, charms: debit,
+      cents: 0, cut: 0, promo: true, ref: auctionId,
+    });
+    settlement.refunded = { at: new Date().toISOString(), by: by === "owner" ? "owner" : "host" };
+    if (shortfall) settlement.refundShortfall = true;
+    if (settlement.claim && settlement.claim.status === "open") settlement.claim.status = "refunded";
+    return { ok: true, auctionId, bidCharms, hostShareCents: 0, cutCents: 0, promoFunds: true, hostShareCharms: shareCharms, shortfall };
+  }
+  // Normal settle: reverse recordAuctionEarning in kind — the
+  // host's available + all-time earnings drop by exactly the
+  // hostShareCents they were credited, and the platform cut is
+  // recorded reversed by cutCents. A host who already cashed the
+  // money out goes negative (flagged), never clamped.
+  const hostShareCents = Math.round(Number(settlement.hostShareCents) || 0);
+  const cutCents = Math.round(Number(settlement.cutCents) || 0);
+  const earn = moneyEarningsFor(mdb, hostId);
+  earn.availableCents -= hostShareCents;
+  earn.totalEarnedCents -= hostShareCents;
+  if (earn.availableCents < 0) shortfall = true;
+  moneyTx(mdb, {
+    type: "auction-refund", from: hostId, to: winnerId, charms: bidCharms,
+    cents: bidCharms, cut: 0, ref: auctionId,
+  });
+  moneyTx(mdb, {
+    type: "auction-refund-reversal", from: hostId, to: null, charms: 0,
+    cents: hostShareCents, cut: cutCents, ref: auctionId,
+  });
+  settlement.refunded = { at: new Date().toISOString(), by: by === "owner" ? "owner" : "host" };
+  if (shortfall) settlement.refundShortfall = true;
+  if (settlement.claim && settlement.claim.status === "open") settlement.claim.status = "refunded";
+  return { ok: true, auctionId, bidCharms, hostShareCents, cutCents, promoFunds: false, shortfall };
+}
+// Open auction claims for the owner board (rides /api/owner/sales).
+// Names resolve from the accounts db; the settlement record never
+// stored the item title (the socket auction's item is not
+// persisted), so item rides null — the board renders the parties,
+// amount, reason and date, which are all recoverable.
+function rpAuctionClaims383(mdb, adb) {
+  const out = [];
+  const sets = (mdb && mdb.auctionSettlements) || {};
+  const nameOf = (id) => {
+    const u = ((adb && adb.users) || []).find((x) => x && x.id === id);
+    return u ? { name: u.name || "", username: u.username || "" } : { name: "", username: "" };
+  };
+  for (const id of Object.keys(sets)) {
+    const s = sets[id];
+    if (!s || !s.claim || s.claim.status !== "open") continue;
+    const w = nameOf(s.winnerId), hst = nameOf(s.hostId);
+    out.push({
+      auctionId: id,
+      item: null,
+      winnerId: s.winnerId, winnerName: w.name, winnerUsername: w.username,
+      hostId: s.hostId, hostName: hst.name, hostUsername: hst.username,
+      bidCharms: Math.round(Number(s.bidCharms) || 0),
+      bidDollars: Number(s.bidDollars) || 0,
+      reason: s.claim.reason || "other",
+      note: s.claim.note || "",
+      at: s.claim.at || null,
+      settledAt: s.at || null,
+    });
+  }
+  out.sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")));
+  return out;
+}
+// Winner files a buyer-protection claim on a settled win.
+app.post("/api/money/auction-claim", lockedHandler("auction-claim", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const b = req.body || {};
+  const auctionId = String(b.auctionId || "").trim().slice(0, 80);
+  const reason = String(b.reason || "").trim();
+  const note = String(b.note || "").replace(/[<>&"']/g, "").trim().slice(0, 300);
+  if (!auctionId) return res.status(400).json({ ok: false, error: "auctionId-required" });
+  if (AUCTION_CLAIM_REASONS_383.indexOf(reason) < 0)
+    return res.status(400).json({ ok: false, error: "bad-reason" });
+  const mdb = readMoney();
+  const s = rpAuctionSettlement383(mdb, auctionId);
+  if (!s) return res.status(404).json({ ok: false, error: "settlement-not-found" });
+  if (String(s.winnerId || "") !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-winner" });
+  if (!s.ok) return res.status(400).json({ ok: false, error: "not-settled" });
+  if (s.refunded) return res.status(409).json({ ok: false, error: "already-refunded" });
+  if (s.claim && s.claim.status === "open")
+    return res.status(409).json({ ok: false, error: "claim-already-open" });
+  if (s.claim && s.claim.status === "denied")
+    return res.status(409).json({ ok: false, error: "claim-denied" });
+  if (s.claim) return res.status(409).json({ ok: false, error: "claim-already-filed" });
+  const settledMs = Date.parse(s.at || "");
+  if (!isFinite(settledMs) || Date.now() - settledMs > AUCTION_CLAIM_WINDOW_MS_383)
+    return res.status(400).json({ ok: false, error: "claim-window-closed" });
+  s.claim = { by: ctx.user.id, reason, note, at: new Date().toISOString(), status: "open" };
+  writeMoney(mdb);
+  res.json({ ok: true, auctionId, claim: s.claim });
+}));
+// Host refunds the buyer voluntarily — immediate, no owner step.
+app.post("/api/money/auction-refund-host", lockedHandler("auction-refund-host", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const b = req.body || {};
+  const auctionId = String(b.auctionId || "").trim().slice(0, 80);
+  if (!auctionId) return res.status(400).json({ ok: false, error: "auctionId-required" });
+  const mdb = readMoney();
+  const s = rpAuctionSettlement383(mdb, auctionId);
+  if (!s) return res.status(404).json({ ok: false, error: "settlement-not-found" });
+  if (String(s.hostId || "") !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-host" });
+  const r = executeAuctionRefund383(mdb, s, "host");
+  if (!r.ok)
+    return res.status(r.error === "already-refunded" ? 409 : 400).json(r);
+  writeMoney(mdb);
+  res.json(r);
+}));
+// Owner approves an open claim → the refund executes.
+app.post("/api/owner/auction-refund", lockedHandler("owner-auction-refund", (req, res) => {
+  const b = req.body || {};
+  const gate = rpOwnerGate263(req, b);
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const auctionId = String(b.auctionId || "").trim().slice(0, 80);
+  if (!auctionId) return res.status(400).json({ ok: false, error: "auctionId-required" });
+  const mdb = readMoney();
+  const s = rpAuctionSettlement383(mdb, auctionId);
+  if (!s) return res.status(404).json({ ok: false, error: "settlement-not-found" });
+  if (s.refunded) return res.status(409).json({ ok: false, error: "already-refunded" });
+  if (!s.claim || s.claim.status !== "open")
+    return res.status(409).json({ ok: false, error: "no-open-claim" });
+  const r = executeAuctionRefund383(mdb, s, "owner");
+  if (!r.ok) return res.status(400).json(r);
+  writeMoney(mdb);
+  console.log("[RP-V7.383] owner approved auction claim — refund executed:", auctionId);
+  res.json(r);
+}));
+// Owner denies an open claim — the settlement stays final.
+app.post("/api/owner/auction-claim-deny", lockedHandler("owner-auction-claim-deny", (req, res) => {
+  const b = req.body || {};
+  const gate = rpOwnerGate263(req, b);
+  if (!gate.ok) return res.status(404).json({ ok: false, error: "not-found" });
+  const auctionId = String(b.auctionId || "").trim().slice(0, 80);
+  if (!auctionId) return res.status(400).json({ ok: false, error: "auctionId-required" });
+  const mdb = readMoney();
+  const s = rpAuctionSettlement383(mdb, auctionId);
+  if (!s) return res.status(404).json({ ok: false, error: "settlement-not-found" });
+  if (!s.claim || s.claim.status !== "open")
+    return res.status(409).json({ ok: false, error: "no-open-claim" });
+  s.claim.status = "denied";
+  s.claim.deniedAt = new Date().toISOString();
+  s.claim.deniedBy = "owner";
+  writeMoney(mdb);
+  console.log("[RP-V7.383] owner denied auction claim:", auctionId);
+  res.json({ ok: true, auctionId, denied: true, claim: s.claim });
+}));
 // [RP-V7.80] The client (rpWn) settle path — account auth only, and
 // the winner is ALWAYS the authenticated caller: a settle request
 // can spend the caller's own charms to pay a host, but it can never
@@ -22878,6 +23102,7 @@ app.get("/api/owner/sales", (req, res) => {
     // the board's one-tap suspend, plus who is currently suspended.
     creatorPool: rpCpBoardSummary(mdb, adb), // [RP-V7.293] Creator Pool: this week's accrual + last settled week + rollover
     guardrail: rpGuardrailBoard323(mdb, adb), // [RP-V7.323] test-funds guardrail status: flagged accounts, promo settlements, pool exclusion
+    auctionClaims: rpAuctionClaims383(mdb, adb), // [RP-V7.383] open auction buyer-protection claims awaiting the owner's refund/deny
     ageReports: rpAgeReportsOpen263(),
     ageSuspendedAccounts: rpAgeSuspendedList263(adb),
     pendingDeletions: rpOwnerPendingDeletions377(adb, mdb), // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
@@ -23736,13 +23961,39 @@ app.get("/api/money/history", async (req, res) => {
     .map((t) => {
       const fromName233 = t.from ? nameById233[t.from] : null;
       const toName233 = t.to ? nameById233[t.to] : null;
-      if (!fromName233 && !toName233) return t;
-      return Object.assign(
-        {},
-        t,
-        fromName233 ? { fromName: fromName233 } : null,
-        toName233 ? { toName: toName233 } : null
-      );
+      let row233 = t;
+      if (fromName233 || toName233)
+        row233 = Object.assign(
+          {},
+          t,
+          fromName233 ? { fromName: fromName233 } : null,
+          toName233 ? { toName: toName233 } : null
+        );
+      // [RP-V7.383] Auction buyer-protection state rides the
+      // auction rows (the host's "auction" earning row and the
+      // winner's "auction-paid" row, both ref'd by auctionId):
+      // settledAt + refunded + claim status, resolved from the
+      // settlement record so the Earn sheet can render the
+      // Request refund / Refund buyer actions and their states
+      // without a second fetch. Stored rows are never mutated.
+      if (
+        (t.type === "auction" || t.type === "auction-paid") &&
+        t.ref &&
+        db.auctionSettlements &&
+        db.auctionSettlements[t.ref]
+      ) {
+        const s383 = db.auctionSettlements[t.ref];
+        row233 = Object.assign({}, row233, {
+          auc383: {
+            settledAt: s383.at || null,
+            refunded: !!s383.refunded,
+            refundedBy: s383.refunded ? s383.refunded.by || null : null,
+            claimStatus: s383.claim ? s383.claim.status || null : null,
+            claimReason: s383.claim ? s383.claim.reason || null : null,
+          },
+        });
+      }
+      return row233;
     });
   const cashouts = db.cashouts
     .filter((c) => c.acctId === ctx.user.id)
@@ -23757,7 +24008,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.373", online: players.size })
+  res.json({ ok: true, version: "RP-V7.383", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
