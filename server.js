@@ -1291,12 +1291,19 @@ function accountForTokenRaw(db, req) {
 // permanent deletion separately (GET /api/owner/teen-accounts
 // carries the exact list).
 // THE ONE EXEMPTION (Branden, Nov 6, 09:06 ET: "Keep popstar as
-// test account"): the owner's own test account @Popstar is exempt
+// test account"): the owner's own test account is exempt
 // BY ACCOUNT IDENTITY — resolved by its unique username, the same
 // way the owner grant has always identified it. It signs in and
 // functions exactly as before (charms-only economy, gift balance);
 // no other account can use this path, and the sign-up floor has
-// NO exception — Popstar already exists.
+// NO exception — the test account already exists.
+// [RP-V7.396] RENAMED (Branden, Nov 16, 2026): the test account's
+// username changed @Popstar -> @Jesusisking (its display name was
+// already Jesusisking). Every name-keyed protection moved with it
+// (this exemption, TEST_FUNDS_USERNAME_KEYS_321, testFundsSeed321,
+// the owner-delete guard); the boot migration rpRenamePopstar396
+// below rewrites the stored username. The name "popstar" now
+// carries NO special status anywhere.
 // The same lock carries the owner's age-suspension (an "Under 18"
 // report acted on from the owner board): ageSuspended accounts are
 // locked out identically until the owner restores them after ID
@@ -1305,7 +1312,7 @@ function accountForTokenRaw(db, req) {
 const RP_AGE_LOCK_NOTICE_263 = "Rizz Plaza is now 18+ only, so this account can no longer sign in. Nothing has been deleted \u2014 if you believe this is a mistake, contact Help & Support (support@rizzplaza.com).";
 const RP_AGE_SUSPEND_NOTICE_263 = "Your account is paused while we verify your age \u2014 Rizz Plaza is 18+. If you are 18 or older, prove it with a photo ID through Help & Support (support@rizzplaza.com) and we will restore your account.";
 function isOwnerTestAccount263(user) {
-  return !!user && usernameKey(user.username) === "popstar";
+  return !!user && usernameKey(user.username) === "jesusisking"; // [RP-V7.396] renamed @Popstar -> @Jesusisking (Branden, Nov 16, 2026)
 }
 function teenAccountDisabled(user) {
   return !!user && ageFromDob(user.dob) < 18 && !isOwnerTestAccount263(user);
@@ -1868,7 +1875,7 @@ app.post("/api/account/signup", (req, res) => {
       .json({ ok: false, error: "That date of birth doesn't look right" });
   // [RP-V7.263] 18+ ONLY (Branden, Nov 6, 2026). The floor is 18
   // for EVERYONE — no exceptions. The one pre-existing teen account
-  // the owner keeps for testing (@Popstar) already exists and is
+  // the owner keeps for testing (@Jesusisking) already exists and is
   // exempted at sign-in (teenAccountDisabled), never at sign-up:
   // no new under-18 account can ever be created again.
   if (age < 18)
@@ -2047,7 +2054,7 @@ app.post("/api/account/login", (req, res) => {
     deletionCancelled = true;
   }
   // [RP-V7.263] Locked-out accounts never get a session: under-18
-  // accounts (18+ only — @Popstar is the sole, identity-keyed
+  // accounts (18+ only — @Jesusisking is the sole, identity-keyed
   // exemption) and accounts the owner suspended pending ID proof.
   if (teenAccountDisabled(user))
     return res.status(403).json({ ok: false, error: RP_AGE_LOCK_NOTICE_263, ageLocked: true });
@@ -6639,7 +6646,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.395", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.396", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -17416,10 +17423,10 @@ function moneyTx(db, entry) {
 // The flag itself lives on the account record (testFunds: true) and
 // is seeded at boot for exactly two accounts: the owner (resolved by
 // rpOwnerUserId — the same identity /api/owner/sales and the owner
-// charm grant use) and @Popstar (resolved by its unique username,
+// charm grant use) and @Jesusisking (resolved by its unique username,
 // the identity key RP-V7.263 already uses). Unflagged senders settle
 // byte-identically to before this build.
-const TEST_FUNDS_USERNAME_KEYS_321 = ["popstar"];
+const TEST_FUNDS_USERNAME_KEYS_321 = ["jesusisking"]; // [RP-V7.396] was ["popstar"] before the rename
 function testFunds321(user) {
   if (!user) return false;
   if (user.testFunds === true) return true;
@@ -17442,7 +17449,7 @@ function testFundsSeed321() {
   let changed = false;
   for (const u of adb.users) {
     if (!u || u.testFunds === true) continue;
-    if ((ownerId && u.id === ownerId) || usernameKey(u.username) === "popstar") {
+    if ((ownerId && u.id === ownerId) || usernameKey(u.username) === "jesusisking") { // [RP-V7.396]
       u.testFunds = true;
       changed = true;
       console.log("[testfunds321] flagged test-funds account:", u.username || u.id);
@@ -20390,7 +20397,7 @@ app.get("/api/battle/boosters", (req, res) => {
 // A tip is NOT a gift: it grows no pot, credits no rank/affinity,
 // and stamps no post — those hooks are gift-only by their rules.
 // Teen corner mirrors gifts (RP-V7.74): with an under-18 account on
-// either side (in the 18+ Plaza that is only the owner's @Popstar
+// either side (in the 18+ Plaza that is only the owner's @Jesusisking
 // test account) the tip runs CHARMS-ONLY — a teen sender spends
 // their earned/won gift balance, the recipient is credited charms,
 // and no earnings exist. Tips to a locked-out (teen-disabled /
@@ -20652,7 +20659,7 @@ app.get("/api/gifter/level", (req, res) => {
 // "expired") and bells BOTH sides; no balance ever goes negative.
 // Teen corner mirrors gifts/tips (RP-V7.74): with an under-18
 // account on either side (in the 18+ Plaza that is only the
-// owner's @Popstar test account) the charge runs CHARMS-ONLY — a
+// owner's @Jesusisking test account) the charge runs CHARMS-ONLY — a
 // teen fan spends their earned/won gift balance, the creator is
 // credited charms, and no earnings exist. Access is granted the
 // same either way.
@@ -21125,7 +21132,7 @@ function fanSubTick296() {
 // leaving a free club ends access at once (there is no paid
 // period to honour). Teen corner mirrors gifts/tips/subs
 // (RP-V7.74): an under-18 account on either side (in the 18+
-// Plaza only the owner's @Popstar test account) runs the charge
+// Plaza only the owner's @Jesusisking test account) runs the charge
 // CHARMS-ONLY — no earnings exist; access is granted the same.
 //
 // THE PERK — club-only posts, gated SERVER-side like subsOnly:
@@ -21763,7 +21770,7 @@ function fanClubTick298() {
 // bell notice kind is "ticket", riding the member's "gifts" switch,
 // never SMS. Teen corner mirrors gifts/tips/subs (RP-V7.74): an
 // under-18 account on either side (in the 18+ Plaza only the
-// owner's @Popstar test account) runs the charge CHARMS-ONLY.
+// owner's @Jesusisking test account) runs the charge CHARMS-ONLY.
 //
 // ENTRY IS SERVER-SIDE: liveJoinRefusal299 (beside the V7.138
 // private door) runs on join AND switch-room before any player
@@ -22214,7 +22221,7 @@ function ticketEvictRoom299(key, room, hostSocket) {
 // the shared money lock, so the escrow can never settle twice or
 // settle after a refund — across restarts included (the records
 // live in money.json, never in memory). Teen corner mirrors gifts:
-// charms-only end to end (only the exempt @Popstar can reach it).
+// charms-only end to end (only the exempt @Jesusisking can reach it).
 // =====================================================================
 const SHOUTOUT_TIERS_300 = [250, 500, 1000, 2500, 5000];
 const SHOUTOUT_DEFAULT_PRICE_300 = 500;
@@ -25324,7 +25331,7 @@ function rpAgeSuspendedList263(adb) {
     }));
 }
 // The exact teen-removal inventory for the owner's deletion call:
-// @Popstar is KEPT (owner test account, his order); every other
+// @Jesusisking is KEPT (owner test account, his order); every other
 // under-18 account is disabled + de-listed by teenAccountDisabled.
 function rpTeenInventory263(adb) {
   const kept = [], disabled = [];
@@ -25499,7 +25506,7 @@ app.post("/api/owner/age-restore", lockedHandler("age-restore", (req, res) => {
 //   still finalizes at day 30.
 //
 // HARD GUARDS (delete nothing, clear error): the OWNER account
-// (gate.ownerId), @Popstar (isOwnerTestAccount263), an unknown
+// (gate.ownerId), @Jesusisking (isOwnerTestAccount263), an unknown
 // target, and every non-owner caller (the gate's standing 404).
 // A second delete on an already-scheduled account reports the
 // existing schedule — never double-schedules. The gate is the
@@ -25603,7 +25610,7 @@ app.post("/api/owner/delete-account", lockedHandler("owner-delete-account", (req
   if (gate.ownerId && target.id === gate.ownerId)
     return res.status(400).json({ ok: false, error: "cannot-delete-owner" });
   if (isOwnerTestAccount263(target))
-    return res.status(400).json({ ok: false, error: "cannot-delete-popstar" });
+    return res.status(400).json({ ok: false, error: "cannot-delete-jesusisking" }); // [RP-V7.396]
   if (target.ownerDeletion)
     return res.status(409).json({ ok: false, error: "already-scheduled", username: target.username, scheduledFor: target.ownerDeletion.scheduledFor || null });
   const mdb = readMoney();
@@ -25843,7 +25850,7 @@ app.get("/api/owner/sales", (req, res) => {
 // carve-out (CREATOR_POOL_EXCLUDE_OWNER flips that on his word).
 // [RP-V7.321] One exclusion DOES apply, on Branden's Nov 10 word
 // ("Exclude them — finish V7.321 with it"): test-funds accounts
-// (testFunds321 — owner RP + @Popstar) are never payable AND their
+// (testFunds321 — owner RP + @Jesusisking) are never payable AND their
 // views are removed from the split's total before shares are
 // computed, so house/test views can neither earn from the pool nor
 // dilute real creators. CREATOR_POOL_EXCLUDE_OWNER stays as-is
@@ -25978,7 +25985,7 @@ function rpCpWeekViews(adb, daySet) {
     if (!u) return false;
     if (teenAccountDisabled(u) || isPendingDeletion(u)) return false;
     // [RP-V7.321] Test-funds accounts (testFunds321 — the owner RP
-    // and @Popstar, flagged by testFundsSeed321) are NOT payable and
+    // and @Jesusisking, flagged by testFundsSeed321) are NOT payable and
     // their views leave the split entirely: a house/test account can
     // neither draw real pool money nor dilute real creators' shares.
     // The exclusion happens HERE, at compute/settle time, so the
@@ -26355,7 +26362,7 @@ app.post("/api/owner/store-sales", lockedHandler("owner-store-sales", (req, res)
 // this build the server had NO path that credits charms to an
 // account by hand — balances moved only via purchases, claims,
 // pot wins and gift settlements — so the owner could not comp
-// test charms onto his own teen test account (@Popstar) for
+// test charms onto his own teen test account (@Jesusisking) for
 // teen-side gifting tests. POST /api/owner/grant-charms accepts
 // EITHER the owner session (the exact check /api/owner/sales
 // uses: the signed-in account is rpOwnerUserId) OR the
@@ -26728,7 +26735,7 @@ app.get("/api/money/history", async (req, res) => {
 //   One reward per referred member per type, ever. Guards: the
 //   referrer must already exist and be an adult account; a member
 //   can never be their own referrer; test-funds accounts (RP /
-//   @Popstar) neither earn nor trigger. Signup's own one-email /
+//   @Jesusisking) neither earn nor trigger. Signup's own one-email /
 //   one-phone uniqueness is the enforceable same-person layer; a
 //   second account on entirely different contacts cannot be detected
 //   from the data the Plaza holds, and nothing here pretends it can.
@@ -28591,7 +28598,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.395", online: players.size })
+  res.json({ ok: true, version: "RP-V7.396", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -30320,8 +30327,47 @@ if (fanClubTimer298.unref) fanClubTimer298.unref();
 // in full, once, at boot.
 try { ticketBootSweep299(); } catch (e) {}
 
+// ---------------------------------------------------------------------------
+// [RP-V7.396] TEST-ACCOUNT RENAME (Branden, Nov 16, 2026): the owner's
+// test account was @Popstar; he renamed it @Jesusisking (its display
+// name was already Jesusisking). One-time, idempotent boot migration
+// in the testFundsSeed321 style: it finds the account by the OLD
+// username key AND its email together (magniphiscents@gmail.com —
+// both must match, so no other account can ever be swept in) and
+// rewrites the stored username. UNIQUENESS GATE: if a DIFFERENT
+// account already holds the "jesusisking" username key, the rename
+// ABORTS (logged, nothing written) rather than creating a duplicate
+// key — signup's one-username rule is never violated. After the
+// rename no account matches the finder, so later boots are no-ops.
+// Every other store keys by account ID (money balances / giftBals /
+// earnings, social follows + blocks, photo posts + reels + stories
+// via authorId/owner, tokens, orders, challenges, referrals), so
+// nothing else needs re-keying; post/reel bylines resolve live from
+// the account record (nameResolver313), so existing content keeps
+// rendering under the account's name. Sign-in by email is untouched;
+// username sign-in / lookup follows the stored username, so
+// "popstar" stops resolving and "jesusisking" resolves instead.
+// ---------------------------------------------------------------------------
+function rpRenamePopstar396() {
+  const adb = readAccounts();
+  if (!adb || !Array.isArray(adb.users)) return;
+  const target = adb.users.find((u) => u && usernameKey(u.username) === "popstar" && String(u.email || "").trim().toLowerCase() === "magniphiscents@gmail.com");
+  if (!target) return; // already renamed, or the account is absent — no-op
+  const clash = adb.users.find((u) => u && u.id !== target.id && usernameKey(u.username) === "jesusisking");
+  if (clash) {
+    console.log("[RP-V7.396] rename ABORTED: @Jesusisking is already held by another account (id " + (clash.id || "?") + "); @Popstar left unchanged.");
+    return;
+  }
+  target.username = "Jesusisking";
+  writeAccounts(adb);
+  console.log("[RP-V7.396] renamed test account @Popstar -> @Jesusisking (id " + target.id + ")");
+}
+// [RP-V7.396] Run BEFORE the test-funds seed so the seed's username
+// key ("jesusisking") resolves the renamed account on the same boot.
+try { rpRenamePopstar396(); } catch (e) { console.log("[RP-V7.396] rename failed:", e && e.message); }
+
 // [RP-V7.321] Test-funds guardrail: seed the account flags (owner +
-// @Popstar) once at boot — see testFundsSeed321 above.
+// @Jesusisking) once at boot — see testFundsSeed321 above.
 try { testFundsSeed321(); } catch (e) {}
 
 // [RP-V7.300] Paid shoutouts: the expiry sweep — once on boot,
