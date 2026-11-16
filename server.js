@@ -6636,7 +6636,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.383", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.384", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -22388,6 +22388,192 @@ app.post("/api/owner/auction-claim-deny", lockedHandler("owner-auction-claim-den
   console.log("[RP-V7.383] owner denied auction claim:", auctionId);
   res.json({ ok: true, auctionId, denied: true, claim: s.claim });
 }));
+// ---------------------------------------------------------------------------
+// [RP-V7.384] SHOW ITEMS — pre-listing + pre-bids (Whatnot parity build 2;
+// Branden, Nov 15, 2026: "everything whatnot has to offer build it").
+// Hosts pre-list items for a show in auction-items.json; viewers place
+// PRE-BIDS before the show — a pre-bid never holds money, the same rule
+// as live bids. When the host runs an item live (socket auction-start
+// with itemId), the auction opens at the high pre-bid with that bidder
+// as high bidder — account-based, so an absent pre-bidder still wins
+// and settles. Lifecycle: listed -> running -> sold | unsold; a
+// cancelled auction returns the item to listed so the host can re-run
+// it; the host may remove a listed item. Public reads expose only the
+// high pre-bid (amount + the bidder's display name) and the pre-bid
+// count — never the full pre-bid map.
+// ---------------------------------------------------------------------------
+const AUCTION_ITEMS_FILE384 =
+  process.env.AUCTION_ITEMS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "auction-items.json");
+function readAuctionItems384() {
+  return storeReadJson(
+    AUCTION_ITEMS_FILE384,
+    (d) => !!(d && Array.isArray(d.items)),
+    { items: [] },
+    "auction-items"
+  );
+}
+function writeAuctionItems384(db) {
+  storeWriteJson(AUCTION_ITEMS_FILE384, db);
+}
+function auctionItemPublic384(it) {
+  return {
+    id: it.id,
+    hostId: it.hostId,
+    hostName: it.hostName,
+    title: it.title,
+    description: it.description,
+    photoUrl: it.photoUrl,
+    startBid: it.startBid,
+    durationSec: it.durationSec,
+    suddenDeath: !!it.suddenDeath,
+    status: it.status,
+    highPreBid: it.highPreBid
+      ? { amount: it.highPreBid.amount, name: it.highPreBid.name }
+      : null,
+    preBidCount: it.preBids ? Object.keys(it.preBids).length : 0,
+    auctionId: it.auctionId || null,
+    createdAt: it.createdAt,
+  };
+}
+// Called from endAuction for auctions that ran a show item.
+function auctionItemOnEnd384(itemId, auctionId, cancelled, winner) {
+  if (!itemId) return;
+  const db = readAuctionItems384();
+  const it = db.items.find((x) => x.id === itemId);
+  if (!it || it.status !== "running") return;
+  if (cancelled) {
+    it.status = "listed";
+    it.auctionId = null;
+  } else if (winner) {
+    it.status = "sold";
+    it.soldTo = {
+      name: winner.name || null,
+      amount: winner.amount || 0,
+      at: new Date().toISOString(),
+    };
+  } else {
+    it.status = "unsold";
+  }
+  writeAuctionItems384(db);
+}
+app.post("/api/auction-items", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "adults-only" });
+  const b = req.body || {};
+  const title = String(b.title || "").replace(/[<>&"']/g, "").trim();
+  if (!title) return res.status(400).json({ ok: false, error: "title-required" });
+  if (title.length > 80)
+    return res.status(400).json({ ok: false, error: "title-too-long" });
+  const startBidRaw = Number(b.startBid);
+  if (!isFinite(startBidRaw) || Math.floor(startBidRaw) < 1 || Math.floor(startBidRaw) > 100000)
+    return res.status(400).json({ ok: false, error: "bad-start-bid" });
+  const db = readAuctionItems384();
+  const it = {
+    id: "itm-" + crypto.randomBytes(8).toString("hex"),
+    hostId: ctx.user.id,
+    hostName: ctx.user.name || ctx.user.username || "Host",
+    title,
+    description: String(b.description || "").replace(/[<>&"']/g, "").slice(0, 300),
+    photoUrl: String(b.photoUrl || "").slice(0, 500),
+    startBid: Math.floor(startBidRaw),
+    durationSec: Math.max(10, Math.min(600, Math.floor(Number(b.durationSec) || 60))),
+    suddenDeath: !!b.suddenDeath,
+    status: "listed",
+    preBids: {},
+    highPreBid: null,
+    auctionId: null,
+    createdAt: new Date().toISOString(),
+  };
+  db.items.push(it);
+  writeAuctionItems384(db);
+  res.json({ ok: true, item: auctionItemPublic384(it) });
+});
+app.get("/api/auction-items/mine", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readAuctionItems384();
+  res.json({
+    ok: true,
+    items: db.items.filter((x) => x.hostId === ctx.user.id).map(auctionItemPublic384),
+  });
+});
+app.get("/api/auction-items", (req, res) => {
+  const host = String(req.query.host || "").trim();
+  if (!host) return res.status(400).json({ ok: false, error: "host-required" });
+  const db = readAuctionItems384();
+  res.json({
+    ok: true,
+    items: db.items
+      .filter(
+        (x) =>
+          x.hostId === host &&
+          (x.status === "listed" || x.status === "running" || x.status === "sold")
+      )
+      .map(auctionItemPublic384),
+  });
+});
+app.post("/api/auction-items/:id/prebid", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "adults-only" });
+  const db = readAuctionItems384();
+  const it = db.items.find((x) => x.id === String(req.params.id || ""));
+  if (!it) return res.status(404).json({ ok: false, error: "item-not-found" });
+  if (it.hostId === ctx.user.id)
+    return res.status(403).json({ ok: false, error: "host-cannot-prebid" });
+  if (it.status !== "listed")
+    return res.status(409).json({ ok: false, error: "not-listed" });
+  const amount = Math.floor(Number((req.body || {}).amount) || 0);
+  const high = it.highPreBid || null;
+  // Ladder: first pre-bid may land exactly on startBid; a challenger
+  // must clear the high by the tier step; the standing high bidder may
+  // raise their own bid by any amount above it.
+  let minimum;
+  if (!high) minimum = it.startBid;
+  else if (high.accountId === ctx.user.id) minimum = high.amount + 1;
+  else minimum = high.amount + auctionBidStepDollars(high.amount);
+  if (!(amount >= minimum))
+    return res.status(400).json({ ok: false, error: "below-minimum", minimum });
+  if (!it.preBids || typeof it.preBids !== "object") it.preBids = {};
+  it.preBids[ctx.user.id] = {
+    amount,
+    name: ctx.user.name || ctx.user.username || "Bidder",
+    at: new Date().toISOString(),
+  };
+  let top = null;
+  for (const k of Object.keys(it.preBids)) {
+    const pb = it.preBids[k];
+    if (!top || pb.amount > top.amount)
+      top = { accountId: k, name: pb.name, amount: pb.amount };
+  }
+  it.highPreBid = top;
+  writeAuctionItems384(db);
+  res.json({ ok: true, item: auctionItemPublic384(it), minimum });
+});
+app.post("/api/auction-items/:id/remove", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const db = readAuctionItems384();
+  const it = db.items.find((x) => x.id === String(req.params.id || ""));
+  if (!it) return res.status(404).json({ ok: false, error: "item-not-found" });
+  if (it.hostId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-host" });
+  if (it.status !== "listed")
+    return res.status(409).json({ ok: false, error: "not-listed" });
+  it.status = "removed";
+  writeAuctionItems384(db);
+  res.json({ ok: true, item: auctionItemPublic384(it) });
+});
 // [RP-V7.80] The client (rpWn) settle path — account auth only, and
 // the winner is ALWAYS the authenticated caller: a settle request
 // can spend the caller's own charms to pay a host, but it can never
@@ -24008,7 +24194,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.383", online: players.size })
+  res.json({ ok: true, version: "RP-V7.384", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -24957,9 +25143,14 @@ io.on("connection", (socket) => {
     if (!a) return;
     if (a.timer) clearTimeout(a.timer);
     auctions.delete(room);
-    const winner = a.highBidderId
-      ? { id: a.highBidderId, name: a.highBidderName, amount: a.currentBid }
+    const winner = (a.highBidderId || a.highBidderAccountId)
+      ? { id: a.highBidderId || a.highBidderAccountId, name: a.highBidderName, amount: a.currentBid }
       : null;
+    // [RP-V7.384] A show item rides this auction: cancelled -> back to
+    // listed (the host can re-run it); ended with a winner -> sold;
+    // ended with no bids -> unsold. Plain auctions carry no itemId
+    // and skip the store entirely.
+    try { auctionItemOnEnd384(a.itemId || null, a.id, cancelled, winner); } catch (e) { }
     const payload = {
       room,
       item: a.item,
@@ -25007,48 +25198,98 @@ io.on("connection", (socket) => {
     if (ticketCfgForRoom299(me.room)) { socket.emit("auction-blocked", { reason: "ticketed", error: "\uD83C\uDF9F\uFE0F Ticketed lives can\u2019t run auctions \u2014 this live charges at the door instead." }); return; } // [RP-V7.299] no ticketing on auction lives, and no auctions on ticketed lives
     const room = me.room;
     if (auctions.has(room)) return;
-    const startBid = Math.max(1, Math.min(100000, Math.floor(Number(data.startBid) || 1)));
-    const durationSec = Math.max(10, Math.min(600, Math.floor(Number(data.durationSec) || 60)));
-    const item = {
-      title: String(data.item?.title || "Item").replace(/[<>&"']/g, "").slice(0, 80),
-      description: String(data.item?.description || "").replace(/[<>&"']/g, "").slice(0, 300),
-      photoUrl: String(data.item?.photoUrl || "").slice(0, 500),
-    };
+    // [RP-V7.384] Running a pre-listed show item: the fields come from
+    // the item store (never from the socket payload), the item must
+    // belong to the host's account and still be listed, and a standing
+    // high pre-bid opens the auction at that amount. The ticketed-live
+    // gate above covers item starts exactly like plain starts.
+    let preItem384 = null, preHigh384 = null;
+    if (data.itemId) {
+      const store384 = readAuctionItems384();
+      preItem384 = store384.items.find((x) => x.id === String(data.itemId || "")) || null;
+      if (!preItem384 || preItem384.hostId !== (socket.data.accountId || "") || preItem384.status !== "listed") {
+        socket.emit("auction-blocked", { reason: "item", error: "That show item can't be run right now." });
+        return;
+      }
+      preHigh384 = preItem384.highPreBid || null;
+    }
+    const startBid = preItem384 ? preItem384.startBid : Math.max(1, Math.min(100000, Math.floor(Number(data.startBid) || 1)));
+    const durationSec = preItem384 ? preItem384.durationSec : Math.max(10, Math.min(600, Math.floor(Number(data.durationSec) || 60)));
+    const item = preItem384
+      ? { title: preItem384.title, description: preItem384.description, photoUrl: preItem384.photoUrl }
+      : {
+        title: String(data.item?.title || "Item").replace(/[<>&"']/g, "").slice(0, 80),
+        description: String(data.item?.description || "").replace(/[<>&"']/g, "").slice(0, 300),
+        photoUrl: String(data.item?.photoUrl || "").slice(0, 500),
+      };
     const a = {
       hostId: socket.id,
       hostName: me.name,
       item,
       startBid,
-      currentBid: 0,
+      currentBid: preHigh384 ? preHigh384.amount : 0,
       highBidderId: null,
-      highBidderName: null,
+      highBidderName: preHigh384 ? preHigh384.name : null,
       endsAt: Date.now() + durationSec * 1000,
       timer: null,
       // [RP-V7.80] Full-scan F5: Sudden Death — when the seller
       // starts with suddenDeath:true, a late bid never extends the
       // clock (the client rpWn module's aucSd rule, now server-side).
-      suddenDeath: !!data.suddenDeath,
+      suddenDeath: preItem384 ? !!preItem384.suddenDeath : !!data.suddenDeath,
       // [RP-V7.80] Full-scan F2: settlement identity — a stable
       // per-auction id (the settlement idempotency key) and the
       // host's ACCOUNT id, captured from acct-presence.
       id: "auc-" + crypto.randomBytes(8).toString("hex"),
       hostAccountId: socket.data.accountId || null,
-      highBidderAccountId: null,
+      highBidderAccountId: preHigh384 ? preHigh384.accountId : null,
+      // [RP-V7.384] the show item this auction is running (null for a
+      // plain start) and its standing pre-bid, for the open label.
+      itemId: preItem384 ? preItem384.id : null,
+      preBidOpen: preHigh384 ? { amount: preHigh384.amount, name: preHigh384.name } : null,
     };
+    // [RP-V7.384] If the high pre-bidder is in this room, bind their
+    // socket as the high bidder; if not, the bid still stands on the
+    // account alone (settlement is account-based) and live bids must
+    // clear it by the ladder.
+    if (preHigh384) {
+      const sids384 = acctSockets.get(preHigh384.accountId);
+      if (sids384) for (const sid384 of sids384) {
+        const pp384 = players.get(sid384);
+        if (pp384 && pp384.room === room) { a.highBidderId = sid384; break; }
+      }
+    }
     a.timer = setTimeout(() => endAuction(room, false), durationSec * 1000);
     auctions.set(room, a);
-    io.to(room).emit("auction-live", {
+    if (preItem384) {
+      const store384b = readAuctionItems384();
+      const it384 = store384b.items.find((x) => x.id === preItem384.id);
+      if (it384 && it384.status === "listed") {
+        it384.status = "running";
+        it384.auctionId = a.id;
+        writeAuctionItems384(store384b);
+      }
+    }
+    const livePayload384 = {
       room,
       hostId: a.hostId,
       hostName: a.hostName,
       item: a.item,
       startBid: a.startBid,
-      currentBid: 0,
-      highBidderName: null,
+      currentBid: a.currentBid,
+      highBidderName: a.highBidderName,
       endsAt: a.endsAt,
       suddenDeath: a.suddenDeath,
       auctionId: a.id,
-    });
+    };
+    if (preItem384) {
+      livePayload384.itemId = preItem384.id;
+      livePayload384.preBid = !!preHigh384;
+      if (preHigh384) {
+        livePayload384.preBidAmount = preHigh384.amount;
+        livePayload384.preBidName = preHigh384.name;
+      }
+    }
+    io.to(room).emit("auction-live", livePayload384);
   });
   socket.on("auction-bid", (data = {}) => {
     const me = players.get(socket.id);
@@ -25063,7 +25304,7 @@ io.on("connection", (socket) => {
     // current high by the tier step. A below-ladder bid is refused
     // silently with NO state change, exactly like a below-minimum
     // bid before.
-    const minimum = a.highBidderId
+    const minimum = (a.highBidderId || a.highBidderAccountId)
       ? a.currentBid + auctionBidStepDollars(a.currentBid)
       : a.startBid;
     if (amount < minimum) return;
