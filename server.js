@@ -266,7 +266,7 @@ setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [k, e] of [...liveRegistry]) {
-    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); pollLiveEnded319(k); ticketLiveEnded299(k); } // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
+    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); pollLiveEnded319(k); ticketLiveEnded299(k); gwLiveEnded389(k); } // [RP-V7.389] giveaway settles with the live // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
   }
   for (const k of [...liveAccess138.keys()]) if (!liveRegistry.has(k) && changed) endLiveAccess138(k); // [RP-V7.138] access state dies with its live
   if (changed) broadcastLives();
@@ -6636,7 +6636,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.388", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.389", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -9798,6 +9798,678 @@ app.get("/api/pot/state", (req, res) => {
   }
   res.json({ ok: true, pot: potPublic(pot, viewerId) });
 });
+
+// ---------------------------------------------------------------------------
+// [RP-V7.389] LIVE KIT (Whatnot parity build 7; Branden, Nov 15, 2026:
+// "everything whatnot has to offer build it"). Five pieces, all inside
+// a host's personal live, all following the Plaza Pot's settled shape:
+//
+// 1) GIVEAWAYS — the host escrows a charm prize (min 100, from their
+//    own balance, through the money ledger) OR stakes one of their
+//    V7.384 pre-listed show items. Entry is FREE, one tap, one per
+//    member — no buy-ins, ever (the pot's legal shape). Winning is
+//    gated exactly like the pot (Branden's rule): the winner must
+//    FOLLOW the host AND have been in this live at least 30 minutes
+//    at draw time. Anyone signed-in and 18+ may enter; ineligible
+//    entrants are skipped at the draw (the pick runs over the
+//    QUALIFIED pool only, uniform crypto-random). If nobody qualifies
+//    when a draw is forced (timer out / live end), the escrow refunds
+//    to the host and the room is told honestly. A charm prize settles
+//    to the winner's charm balance at the draw (ledger rows
+//    giveaway-escrow / giveaway-win / giveaway-refund, cents 0
+//    throughout — charms only, and a test-funds host's prize is the
+//    same spendable charms a pot pays, zero earnings anywhere). An
+//    item prize flips the item to sold and creates a V7.386 order
+//    (bidDollars 0, status to-ship) so the existing shipping flow
+//    carries it. One open giveaway per live; the record lives in
+//    giveaways.json keyed by the live-registry (device) key.
+//    18+ ONLY (unlike the pot): create and enter refuse under-18
+//    accounts outright. CHURCH CALL (judgment, flagged for the
+//    parent): giveaways are BLOCKED in Fellowship lives — the prize
+//    is free, but a giveaway is a promotional mechanic, and the
+//    commerce-free church rule is read conservatively here.
+// 2) WATCH-TO-EARN — a viewer accrues in-live watch time on the
+//    server clock (socket presence, the pot-watch pattern); every
+//    full 10 minutes in one live pays +10 charms, PLATFORM-funded,
+//    charms only (moneyTx "watch-earn", cents 0 — never earnings).
+//    Caps: 6 bonuses per live per viewer, 12 per day per member
+//    (America/New_York day). Test-funds accounts earn nothing; the
+//    host never earns from their own live; under-18 accounts do not
+//    accrue (the kit is 18+). Accrual + caps are memory-only, like
+//    the lives themselves.
+// 3) SHOW NOTES — the host pins a short note (<=140 chars, plain
+//    text, NO links) at the top of the live's chat column; it rides
+//    socket events only, lives in memory, and dies with the live. A
+//    V7.385 scheduled show's note is carried in when the show flips
+//    live (read lazily on the first note-get for that live; the
+//    shows store is only READ here, never written).
+// 4) WINNER OVERLAY — one room-wide "winner-overlay" broadcast. The
+//    giveaway draw fires it, and endAuction fires it for auction
+//    wins (presentation only — the settle is untouched).
+// 5) RAIDS — a host ending their live may raid another live: their
+//    own live ends through the EXACT live-unregister sequence (pot /
+//    poll / ticket settles untouched), then their room gets a
+//    20-second "raid-banner" (tap = join the target through the
+//    normal door), and the target room + host are told. No money
+//    moves. A raid INTO a Fellowship live is blocked (fellowship is
+//    not a funnel target — judgment call, flagged); private and
+//    ticketed targets are blocked too (their doors would refuse the
+//    raiders anyway). A running auction blocks the raid — finish it
+//    first — so no settle path is ever forked.
+// ---------------------------------------------------------------------------
+const GIVEAWAY_FILE389 =
+  process.env.GIVEAWAY_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "giveaways.json");
+const GW_MIN_CHARMS389 = 100;
+const GW_MIN_WATCH_MS389 =
+  process.env.GIVEAWAY_MIN_WATCH_MS !== undefined &&
+  Number.isFinite(Number(process.env.GIVEAWAY_MIN_WATCH_MS))
+    ? Math.max(0, Number(process.env.GIVEAWAY_MIN_WATCH_MS))
+    : 30 * 60 * 1000;
+const GW_MAX_TIMER_MIN389 = 10;
+const WATCH_EARN_MS389 =
+  process.env.WATCH_EARN_MS !== undefined &&
+  Number.isFinite(Number(process.env.WATCH_EARN_MS))
+    ? Math.max(1000, Number(process.env.WATCH_EARN_MS))
+    : 10 * 60 * 1000;
+const WATCH_EARN_CHARMS389 = 10;
+const WATCH_EARN_LIVE_CAP389 = 6;
+const WATCH_EARN_DAY_CAP389 = 12;
+const LK_TICK_MS389 = Math.max(250, Number(process.env.LIVEKIT_TICK_MS) || 15000);
+const liveWatch389 = new Map(); // live key -> { instance, byAcct: Map(accountId -> { ms, earned }) }
+const watchEarnDay389 = new Map(); // ET day key -> Map(accountId -> bonuses paid)
+const liveNotes389 = new Map(); // live key -> { text, hostAccountId, instance, at }
+const gwTimers389 = new Map(); // live key -> auto-draw timeout handle
+
+function readGiveaways389() {
+  return storeReadJson(
+    GIVEAWAY_FILE389,
+    (d) => !!(d && d.giveaways && typeof d.giveaways === "object" && !Array.isArray(d.giveaways)),
+    { giveaways: {} },
+    "giveaways"
+  );
+}
+function writeGiveaways389(db) {
+  storeWriteJson(GIVEAWAY_FILE389, db);
+}
+function lkDayKey389(ms) {
+  try {
+    const parts = {};
+    for (const p of new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date(ms || Date.now()))) parts[p.type] = p.value;
+    return parts.year + "-" + parts.month + "-" + parts.day;
+  } catch (e) {
+    return new Date(ms || Date.now()).toISOString().slice(0, 10);
+  }
+}
+// A server-relayed system line in a live's chat (the potShout shape).
+function lkShout389(room, text) {
+  try {
+    io.to(room).emit("chat-message", { id: "", name: "", text, sys: true, at: Date.now() });
+  } catch (e) {}
+}
+// A live hosted FROM Christian Fellowship carries org "faith" on its
+// ticket config (the V7.89 origin signal the ticket door also reads).
+function gwChurchLive389(entry) {
+  try {
+    const cfg = entry && liveTicketCfg299.get(entry.key);
+    return !!(cfg && cfg.org === "faith");
+  } catch (e) {
+    return false;
+  }
+}
+function gwWatchMs389(key, accountId) {
+  const w = liveWatch389.get(key);
+  if (!w) return 0;
+  const rec = w.byAcct.get(accountId);
+  return rec ? rec.ms || 0 : 0;
+}
+// The qualified pool for a draw: entrants who FOLLOW the host AND
+// have at least GW_MIN_WATCH_MS389 of presence in THIS live (accrued
+// from socket presence since the live started — the brief's rule is
+// "in that live 30 minutes", so presence before the giveaway opened
+// counts too; the pot's while-open accrual is the narrower cousin).
+function gwQualified389(gw) {
+  const entries = gw.entries || [];
+  if (!entries.length) return [];
+  const sdb = readSocial();
+  return entries.filter((id) => {
+    if (id === gw.hostAccountId) return false;
+    if (gwWatchMs389(gw.key, id) < GW_MIN_WATCH_MS389) return false;
+    return socialFollowingIds(sdb, id).indexOf(gw.hostAccountId) >= 0;
+  });
+}
+function gwPublic389(gw, viewerId) {
+  if (!gw) return null;
+  const isHost = !!viewerId && gw.hostAccountId === viewerId;
+  return {
+    key: gw.key,
+    room: gw.room,
+    status: gw.status,
+    prizeType: gw.prizeType,
+    charms: gw.prizeType === "charms" ? gw.charms || 0 : 0,
+    itemId: gw.itemId || null,
+    itemTitle: gw.itemTitle || null,
+    hostName: gw.hostName || "Host",
+    entries: (gw.entries || []).length,
+    // The qualified count is the HOST's working number; viewers see
+    // the entry count and the eligibility line, never the pool size
+    // (a drawn record reports the pool it drew from, to everyone).
+    qualified: isHost && gw.status === "open"
+      ? gwQualified389(gw).length
+      : gw.status === "drawn"
+        ? gw.qualifiedCount != null
+          ? gw.qualifiedCount
+          : null
+        : null,
+    endsAt: gw.endsAt || null,
+    winner: gw.status === "drawn" ? gw.winner || null : null,
+    joined: viewerId ? (gw.entries || []).indexOf(viewerId) >= 0 : false,
+    isHost,
+    createdAt: gw.createdAt || null,
+    drawnAt: gw.drawnAt || null,
+    minWatchMin: Math.round(GW_MIN_WATCH_MS389 / 60000),
+  };
+}
+function gwBroadcast389(gw) {
+  if (!gw) return;
+  try {
+    io.to(gw.room).emit("giveaway-update", {
+      key: gw.key,
+      room: gw.room,
+      giveaway: gwPublic389(gw, null),
+    });
+  } catch (e) {}
+}
+function gwClearTimer389(key) {
+  const t = gwTimers389.get(key);
+  if (t) {
+    clearTimeout(t);
+    gwTimers389.delete(key);
+  }
+}
+// The one draw path (host draw, timer draw, live-end draw): pick ONE
+// winner uniformly at random from the QUALIFIED pool and settle the
+// prize. Returns null when nobody qualifies — callers decide what
+// that means (a host draw 409s and the giveaway stays open; a forced
+// draw refunds). Fully synchronous money movement, the pot's shape.
+function gwSettleDraw389(gdb, gw, reason) {
+  const pool = gwQualified389(gw);
+  if (!pool.length) return null;
+  const winnerId = pool[crypto.randomInt(pool.length)];
+  const adb = readAccounts();
+  const wu = adb.users.find((x) => x.id === winnerId);
+  const winnerName =
+    (wu && wu.name) || (gw.entryNames && gw.entryNames[winnerId]) || "Winner";
+  gwClearTimer389(gw.key);
+  if (gw.prizeType === "item") {
+    try {
+      const idb = readAuctionItems384();
+      const it = idb.items.find((x) => x.id === gw.itemId);
+      if (it && it.status === "giveaway") {
+        it.status = "sold";
+        it.soldTo = {
+          name: winnerName,
+          amount: 0,
+          at: new Date().toISOString(),
+          giveaway: gw.id,
+        };
+        it.giveawayKey = null;
+        writeAuctionItems384(idb);
+      }
+    } catch (e) {}
+    try {
+      const odb = readOrders386();
+      const nowMs = Date.now();
+      odb.orders.push({
+        id: "gw-" + gw.id,
+        hostId: gw.hostAccountId,
+        hostName: gw.hostName,
+        winnerId,
+        winnerName,
+        itemTitle: gw.itemTitle || "Giveaway prize",
+        bidDollars: 0,
+        bidCharms: 0,
+        settledAt: nowMs,
+        shipBy: nowMs + ORDER_SHIP_MS386,
+        status: "to-ship",
+        shippedAt: null,
+        tracking: null,
+        bundleId: null,
+        deliveredAt: null,
+        refundedAt: null,
+        createdAt: new Date().toISOString(),
+        giveaway: true, // [RP-V7.389] a giveaway win, not an auction settle
+      });
+      writeOrders386(odb);
+    } catch (e) {}
+  } else {
+    const mdb = readMoney();
+    mdb.balances[winnerId] = (mdb.balances[winnerId] || 0) + (gw.charms || 0);
+    moneyTx(mdb, {
+      type: "giveaway-win", from: gw.hostAccountId, to: winnerId,
+      charms: gw.charms || 0, cents: 0, cut: 0, ref: gw.key,
+    });
+    giftBalMirrorWin(mdb, wu, gw.charms || 0); // no-op for adults (the kit is 18+); kept for the helper's stated contract
+    writeMoney(mdb);
+  }
+  gw.status = "drawn";
+  gw.winner = { id: winnerId, name: winnerName };
+  gw.qualifiedCount = pool.length;
+  gw.drawnAt = new Date().toISOString();
+  gw.drawReason = reason || "host";
+  writeGiveaways389(gdb);
+  gwBroadcast389(gw);
+  const prizeText =
+    gw.prizeType === "item" ? gw.itemTitle || "the prize" : (gw.charms || 0) + " charms";
+  try {
+    io.to(gw.room).emit("winner-overlay", {
+      kind: "giveaway",
+      room: gw.room,
+      name: winnerName,
+      text: prizeText,
+      hostName: gw.hostName,
+    });
+  } catch (e) {}
+  lkShout389(gw.room, "🎁🏆 " + winnerName + " won the giveaway — " + prizeText + "! 🎉");
+  notifyActivity({
+    toId: winnerId,
+    kind: gw.prizeType === "item" ? "order" : "gift",
+    actorId: gw.hostAccountId,
+    actorName: gw.hostName,
+    text:
+      gw.prizeType === "item"
+        ? "🎁 You won " + (gw.itemTitle || "a prize") + " in " + (gw.hostName || "a") + "'s giveaway — they'll ship it to you"
+        : "🎁🏆 You won " + (gw.charms || 0) + " charms in " + (gw.hostName || "a") + "'s giveaway!",
+    go: { screen: "live", room: gw.room },
+  });
+  console.log("[giveaway389] drawn", gw.key, "winner", winnerId, "pool", pool.length, reason || "");
+  return { winner: gw.winner, pool: pool.length };
+}
+// Refund path: the escrow returns to the host in full through the
+// ledger; an item prize simply goes back to listed.
+function gwRefund389(gdb, gw, status) {
+  gwClearTimer389(gw.key);
+  if (gw.prizeType === "item") {
+    try {
+      const idb = readAuctionItems384();
+      const it = idb.items.find((x) => x.id === gw.itemId);
+      if (it && it.status === "giveaway") {
+        it.status = "listed";
+        it.giveawayKey = null;
+        writeAuctionItems384(idb);
+      }
+    } catch (e) {}
+  } else if ((gw.charms || 0) > 0) {
+    const mdb = readMoney();
+    mdb.balances[gw.hostAccountId] =
+      (mdb.balances[gw.hostAccountId] || 0) + (gw.charms || 0);
+    moneyTx(mdb, {
+      type: "giveaway-refund", from: null, to: gw.hostAccountId,
+      charms: gw.charms || 0, cents: 0, cut: 0, ref: gw.key,
+    });
+    writeMoney(mdb);
+  }
+  gw.status = status || "cancelled";
+  writeGiveaways389(gdb);
+  gwBroadcast389(gw);
+  console.log("[giveaway389] refunded", gw.key, gw.prizeType, gw.charms || 0, status || "");
+}
+// A live ended (or was replaced): settle its open giveaway by the
+// lifecycle rule — qualified entrants draw on the spot; otherwise the
+// escrow goes home and the room hears why. Called from every
+// registry-removal path beside potLiveEnded, plus the tick's orphan
+// sweep. The note and the watch clocks die with the live.
+function gwLiveEnded389(key) {
+  let gw = null;
+  try {
+    const gdb = readGiveaways389();
+    gw = gdb.giveaways[key];
+    if (gw && gw.status === "open") {
+      const drawn = (gw.entries || []).length >= 1
+        ? gwSettleDraw389(gdb, gw, "live-end")
+        : null;
+      if (!drawn) {
+        gwRefund389(gdb, gw, "cancelled");
+        lkShout389(
+          gw.room,
+          "🎁 The giveaway ended with the live — nobody qualified (follow the host + 30 min in the live), so the prize went back to " +
+            (gw.hostName || "the host") + "."
+        );
+      }
+    }
+  } catch (e) {
+    console.log("[giveaway389] live-end settle failed", key, e && e.message);
+  }
+  if (!liveRegistry.has(key)) liveNotes389.delete(key);
+  const w = liveWatch389.get(key);
+  if (!liveRegistry.has(key) || (w && gw && w.instance === gw.liveStartedAt))
+    liveWatch389.delete(key);
+}
+// Auto-draw: at the host-set timer the draw fires through the one
+// settle path; with no qualified entrants the escrow refunds and the
+// room is told honestly (a giveaway never just evaporates).
+function gwArmTimer389(gw) {
+  gwClearTimer389(gw.key);
+  if (!gw.endsAt) return;
+  const t = setTimeout(() => {
+    gwTimers389.delete(gw.key);
+    try {
+      const gdb = readGiveaways389();
+      const cur = gdb.giveaways[gw.key];
+      if (!cur || cur.status !== "open") return;
+      if (!gwSettleDraw389(gdb, cur, "timer")) {
+        gwRefund389(gdb, cur, "refunded");
+        lkShout389(
+          cur.room,
+          "🎁 The giveaway timer ran out — nobody qualified (follow the host + 30 min in the live), so the prize went back to " +
+            (cur.hostName || "the host") + "."
+        );
+      }
+    } catch (e) {}
+  }, Math.max(0, gw.endsAt - Date.now()));
+  if (t.unref) t.unref();
+  gwTimers389.set(gw.key, t);
+}
+app.post("/api/giveaway/open", lockedHandler("giveaway-open", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  // [RP-V7.389] Giveaways are 18+ ONLY — create and enter refuse
+  // under-18 accounts outright (the pot's teen carve-out does NOT
+  // extend to the kit).
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "adults-only" });
+  const b = req.body || {};
+  const entry = potLiveForHost(ctx.user, b.live);
+  if (!entry)
+    return res.status(403).json({ ok: false, error: "Only the live's host can start a giveaway" });
+  if (gwChurchLive389(entry))
+    return res.status(403).json({
+      ok: false,
+      error: "church",
+      message: "Giveaways are off in Fellowship lives — church rooms stay free of promotions too.",
+    });
+  // Validate the timer BEFORE any escrow moves.
+  let endsAt = null;
+  if (b.minutes !== undefined && b.minutes !== null && b.minutes !== "") {
+    const mins = Math.floor(Number(b.minutes) || 0);
+    if (!(mins >= 1 && mins <= GW_MAX_TIMER_MIN389))
+      return res.status(400).json({ ok: false, error: "Timer must be 1–10 minutes" });
+    endsAt = Date.now() + mins * 60000;
+  }
+  const gdb = readGiveaways389();
+  const existing = gdb.giveaways[entry.key];
+  if (existing && existing.status === "open")
+    return res.status(409).json({ ok: false, error: "A giveaway is already open in this live" });
+  const prizeType = b.prizeType === "item" ? "item" : "charms";
+  let charms = 0, itemId = null, itemTitle = null;
+  if (prizeType === "charms") {
+    charms = Math.floor(Number(b.charms) || 0);
+    if (!(charms >= GW_MIN_CHARMS389))
+      return res.status(400).json({
+        ok: false,
+        error: "Prize must be at least " + GW_MIN_CHARMS389 + " charms",
+      });
+    const mdb = readMoney();
+    const bal = mdb.balances[ctx.user.id] || 0;
+    if (bal < charms)
+      return res.status(400).json({ ok: false, error: "insufficient-charms", balance: bal, needed: charms });
+    // Escrow: the prize leaves the host's spendable balance now and
+    // only ever lands with the winner or back home.
+    mdb.balances[ctx.user.id] = bal - charms;
+    moneyTx(mdb, {
+      type: "giveaway-escrow", from: ctx.user.id, to: null,
+      charms, cents: 0, cut: 0, ref: entry.key,
+    });
+    writeMoney(mdb);
+  } else {
+    itemId = String(b.itemId || "");
+    const idb = readAuctionItems384();
+    const it = idb.items.find((x) => x.id === itemId);
+    if (!it || it.hostId !== ctx.user.id)
+      return res.status(404).json({ ok: false, error: "item-not-found" });
+    if (it.status !== "listed")
+      return res.status(409).json({ ok: false, error: "item-not-listed" });
+    it.status = "giveaway"; // held: can't be auctioned, pre-bid or removed while staked
+    it.giveawayKey = entry.key;
+    writeAuctionItems384(idb);
+    itemTitle = it.title;
+  }
+  const gw = {
+    id: "gw" + crypto.randomBytes(6).toString("hex"),
+    key: entry.key,
+    room: entry.room,
+    liveStartedAt: entry.startedAt || null,
+    hostAccountId: ctx.user.id,
+    hostName: ctx.user.name,
+    prizeType,
+    charms,
+    itemId,
+    itemTitle,
+    entries: [],
+    entryNames: {},
+    status: "open",
+    winner: null,
+    qualifiedCount: null,
+    drawReason: null,
+    createdAt: new Date().toISOString(),
+    endsAt,
+    drawnAt: null,
+  };
+  gdb.giveaways[entry.key] = gw;
+  writeGiveaways389(gdb);
+  gwArmTimer389(gw);
+  gwBroadcast389(gw);
+  lkShout389(
+    entry.room,
+    "🎁 GIVEAWAY — " +
+      (prizeType === "item" ? itemTitle : charms + " charms") +
+      "! Free to enter — tap the 🎁 chip. To win: follow " + ctx.user.name +
+      " and be in this live at least 30 minutes."
+  );
+  console.log("[giveaway389] opened", entry.key, prizeType, charms || itemId, "by", ctx.user.name);
+  res.json({
+    ok: true,
+    giveaway: gwPublic389(gw, ctx.user.id),
+    balance: prizeType === "charms" ? readMoney().balances[ctx.user.id] || 0 : undefined,
+  });
+}));
+app.post("/api/giveaway/enter", lockedHandler("giveaway-enter", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "adults-only" });
+  const liveKey = String((req.body || {}).live || "");
+  const gdb = readGiveaways389();
+  const gw = gdb.giveaways[liveKey];
+  if (!gw || gw.status !== "open")
+    return res.status(404).json({ ok: false, error: "No open giveaway in this live" });
+  if (gw.hostAccountId === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't enter your own giveaway" });
+  if ((gw.entries || []).indexOf(ctx.user.id) >= 0)
+    return res.status(409).json({ ok: false, error: "You're already in the giveaway" });
+  gw.entries.push(ctx.user.id);
+  gw.entryNames[ctx.user.id] = ctx.user.name;
+  writeGiveaways389(gdb);
+  gwBroadcast389(gw);
+  res.json({ ok: true, giveaway: gwPublic389(gw, ctx.user.id) });
+}));
+app.post("/api/giveaway/draw", lockedHandler("giveaway-draw", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const entry = potLiveForHost(ctx.user, b.live);
+  if (!entry)
+    return res.status(403).json({ ok: false, error: "Only the live's host can draw the giveaway" });
+  const gdb = readGiveaways389();
+  const gw = gdb.giveaways[entry.key];
+  if (!gw || gw.status !== "open")
+    return res.status(404).json({ ok: false, error: "No open giveaway in this live" });
+  if ((gw.entries || []).length < 1)
+    return res.status(400).json({ ok: false, error: "No entries yet — the giveaway needs at least one entrant" });
+  const out = gwSettleDraw389(gdb, gw, "host");
+  if (!out)
+    return res.status(409).json({
+      ok: false,
+      error: "Nobody qualifies yet — winners must follow you and be in your live at least 30 minutes",
+    });
+  res.json({ ok: true, giveaway: gwPublic389(gw, ctx.user.id), winner: out.winner });
+}));
+app.post("/api/giveaway/cancel", lockedHandler("giveaway-cancel", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const entry = potLiveForHost(ctx.user, b.live);
+  if (!entry)
+    return res.status(403).json({ ok: false, error: "Only the live's host can cancel the giveaway" });
+  const gdb = readGiveaways389();
+  const gw = gdb.giveaways[entry.key];
+  if (!gw || gw.status !== "open")
+    return res.status(404).json({ ok: false, error: "No open giveaway in this live" });
+  gwRefund389(gdb, gw, "cancelled");
+  res.json({ ok: true, giveaway: gwPublic389(gw, ctx.user.id) });
+}));
+app.get("/api/giveaway/state", (req, res) => {
+  const liveKey = String(req.query.live || "");
+  let viewerId = null;
+  try {
+    const u = accountForToken(readAccounts(), req);
+    if (u) viewerId = u.id;
+  } catch (e) {}
+  let gw = readGiveaways389().giveaways[liveKey] || null;
+  // Scope a terminal record to the live that created it: a drawn /
+  // refunded record from a PREVIOUS live on this device key is
+  // history, exactly like the pot's stale rule.
+  if (gw && gw.status !== "open") {
+    const entry = liveRegistry.get(liveKey);
+    if (entry && gw.liveStartedAt && entry.startedAt !== gw.liveStartedAt) gw = null;
+  }
+  res.json({ ok: true, giveaway: gwPublic389(gw, viewerId) });
+});
+// [RP-V7.389] The kit's one tick: orphan settle for ended/replaced
+// lives, in-live watch accrual (the giveaway's 30-minute rule), and
+// watch-to-earn payouts. Mirrors the pot-watch tick's shape and cost.
+setInterval(() => {
+  try {
+    const now = Date.now();
+    // 1) Any open giveaway / note / watch state whose live is gone —
+    //    or whose live INSTANCE was replaced — settles and cleans up.
+    const gdb389 = readGiveaways389();
+    const keys389 = new Set([
+      ...Object.keys(gdb389.giveaways),
+      ...liveNotes389.keys(),
+      ...liveWatch389.keys(),
+    ]);
+    for (const k of keys389) {
+      const e = liveRegistry.get(k);
+      const gw = gdb389.giveaways[k];
+      const gwStale =
+        gw && gw.status === "open" &&
+        (!e || (gw.liveStartedAt && e.startedAt !== gw.liveStartedAt));
+      const noteStale =
+        liveNotes389.has(k) &&
+        (!e || (liveNotes389.get(k).instance && e.startedAt !== liveNotes389.get(k).instance));
+      if (!e || gwStale || noteStale) gwLiveEnded389(k);
+      if (noteStale && e) liveNotes389.delete(k);
+    }
+    // 2) Accrue presence per live; pay watch-to-earn on the server
+    //    clock. Adults only, never the host, never test funds.
+    const dayKey = lkDayKey389(now);
+    for (const dk of [...watchEarnDay389.keys()])
+      if (dk !== dayKey) watchEarnDay389.delete(dk);
+    let dayMap = watchEarnDay389.get(dayKey);
+    if (!dayMap) {
+      dayMap = new Map();
+      watchEarnDay389.set(dayKey, dayMap);
+    }
+    let adb389 = null;
+    let adbById389 = null;
+    for (const e of liveRegistry.values()) {
+      let w = liveWatch389.get(e.key);
+      if (!w || w.instance !== e.startedAt) {
+        w = { instance: e.startedAt, byAcct: new Map() };
+        liveWatch389.set(e.key, w);
+      }
+      const hostAcct = liveHostAccountId(e);
+      for (const [sid, p] of players) {
+        if (!p || p.room !== e.room) continue;
+        const s = io.sockets.sockets.get(sid);
+        const acctId = s && s.data && s.data.accountId;
+        if (!acctId) continue;
+        let rec = w.byAcct.get(acctId);
+        if (!rec) {
+          rec = { ms: 0, earned: 0 };
+          w.byAcct.set(acctId, rec);
+        }
+        rec.ms += LK_TICK_MS389;
+        let progress = null;
+        if (acctId !== hostAcct && s.data.adultClass) {
+          if (!adb389) {
+            adb389 = readAccounts();
+            adbById389 = new Map(adb389.users.map((u) => [u.id, u]));
+          }
+          const user = adbById389.get(acctId);
+          if (user && !testFunds321(user)) {
+            const due = Math.min(
+              WATCH_EARN_LIVE_CAP389,
+              Math.floor(rec.ms / WATCH_EARN_MS389)
+            );
+            let paidToday = dayMap.get(acctId) || 0;
+            while (rec.earned < due && paidToday < WATCH_EARN_DAY_CAP389) {
+              rec.earned++;
+              paidToday++;
+              const mdb = readMoney();
+              mdb.balances[acctId] =
+                (mdb.balances[acctId] || 0) + WATCH_EARN_CHARMS389;
+              moneyTx(mdb, {
+                type: "watch-earn", from: null, to: acctId,
+                charms: WATCH_EARN_CHARMS389, cents: 0, cut: 0, ref: e.key,
+              });
+              writeMoney(mdb);
+              try {
+                s.emit("watch-earn", {
+                  charms: WATCH_EARN_CHARMS389,
+                  earnedThisLive: rec.earned,
+                  earnedToday: paidToday,
+                  room: e.room,
+                });
+              } catch (err) {}
+            }
+            dayMap.set(acctId, paidToday);
+            progress = {
+              msInLive: rec.ms,
+              nextInMs:
+                rec.earned >= WATCH_EARN_LIVE_CAP389
+                  ? 0
+                  : WATCH_EARN_MS389 - (rec.ms % WATCH_EARN_MS389),
+              earnedThisLive: rec.earned,
+              liveCap: WATCH_EARN_LIVE_CAP389,
+              todayLeft: Math.max(0, WATCH_EARN_DAY_CAP389 - paidToday),
+              room: e.room,
+            };
+          }
+        }
+        if (!progress)
+          progress = {
+            msInLive: rec.ms, nextInMs: 0, earnedThisLive: rec.earned,
+            liveCap: WATCH_EARN_LIVE_CAP389, todayLeft: 0, room: e.room,
+            ineligible: true,
+          };
+        try {
+          s.emit("watch-progress", progress);
+        } catch (err) {}
+      }
+    }
+  } catch (e) {
+    console.log("[livekit389] tick failed", e && e.message);
+  }
+}, LK_TICK_MS389);
 
 // ---------------------------------------------------------------------------
 // [RP-V7.319] LIVE POLLS — host-run polls inside a live, modelled on
@@ -25347,7 +26019,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.388", online: players.size })
+  res.json({ ok: true, version: "RP-V7.389", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -25731,7 +26403,7 @@ io.on("connection", (socket) => {
     const swKey = clientKeys.get(socket.id);
     if (swKey) {
       const reg = liveRegistry.get(swKey);
-      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); pollLiveEnded319(swKey); ticketLiveEnded299(swKey); } // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
+      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); pollLiveEnded319(swKey); ticketLiveEnded299(swKey); gwLiveEnded389(swKey); } // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
     }
     socket.to(room).emit("player-joined", p);
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
@@ -25844,7 +26516,7 @@ io.on("connection", (socket) => {
   socket.on("live-unregister", () => {
     const devKey = clientKeys.get(socket.id);
     if (!devKey) return;
-    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); } // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
+    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); gwLiveEnded389(devKey); } // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
   });
 
   // [RP-V7.138] PRIVATE LIVE controls — invite / un-invite / link
@@ -26315,8 +26987,25 @@ io.on("connection", (socket) => {
       item: a.item,
       winner: cancelled ? null : winner,
     };
-    const emitEnd = () =>
+    const emitEnd = () => {
       io.to(room).emit(cancelled ? "auction-cancelled" : "auction-ended", payload);
+      // [RP-V7.389] The shared winner overlay: a settled win is
+      // celebrated room-wide. Presentation only — the settle above
+      // is untouched and this broadcast moves no money.
+      if (!cancelled && winner) {
+        try {
+          io.to(room).emit("winner-overlay", {
+            kind: "auction",
+            room,
+            name: winner.name,
+            text:
+              (a.item && a.item.title ? a.item.title : "the auction") +
+              " \u2014 $" + winner.amount,
+            hostName: a.hostName,
+          });
+        } catch (e) {}
+      }
+    };
     // [RP-V7.80] Full-scan F2: a real (not cancelled) win with BOTH
     // parties account-identified settles server-side through
     // settleAuctionMoney BEFORE the end broadcast, so the money has
@@ -26498,6 +27187,169 @@ io.on("connection", (socket) => {
     const a = auctions.get(me.room);
     if (a && a.hostId === socket.id) endAuction(me.room, false);
   });
+  // [RP-V7.389] LIVE KIT sockets — pinned show notes + raids. Both
+  // hang on the same host sanity rule as live-register / the V7.138
+  // private-live controls: the sender must be standing in their OWN
+  // live room. Notes are presentation only; a raid ends the sender's
+  // live through the exact live-unregister sequence and moves no
+  // money. 18+ gates on both (socketIsTeen).
+  function lkHostCtx389() {
+    const p = players.get(socket.id);
+    const key = clientKeys.get(socket.id);
+    if (!p || !key) return null;
+    if (p.room !== ("live-" + key).slice(0, 40)) return null;
+    return { p, key };
+  }
+  function lkCleanNote389(raw) {
+    return String(raw || "")
+      .replace(/[<>&"]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 140);
+  }
+  socket.on("live-note-set", (data = {}) => {
+    const ctx = lkHostCtx389();
+    if (!ctx) return;
+    if (socketIsTeen(socket)) {
+      socket.emit("live-note-error", { error: "Show notes are 18+." });
+      return;
+    }
+    const text = lkCleanNote389(data.text);
+    if (/https?:|www\./i.test(text)) {
+      socket.emit("live-note-error", { error: "Links aren't allowed in a show note." });
+      return;
+    }
+    const entry = liveRegistry.get(ctx.key);
+    if (!text) liveNotes389.delete(ctx.key);
+    else
+      liveNotes389.set(ctx.key, {
+        text,
+        hostAccountId: socket.data.accountId || null,
+        instance: entry ? entry.startedAt : null,
+        at: Date.now(),
+      });
+    io.to(ctx.p.room).emit("live-note", { key: ctx.key, room: ctx.p.room, text });
+  });
+  socket.on("live-note-clear", () => {
+    const ctx = lkHostCtx389();
+    if (!ctx) return;
+    if (socketIsTeen(socket)) {
+      socket.emit("live-note-error", { error: "Show notes are 18+." });
+      return;
+    }
+    liveNotes389.delete(ctx.key);
+    io.to(ctx.p.room).emit("live-note", { key: ctx.key, room: ctx.p.room, text: "" });
+  });
+  socket.on("live-note-get", () => {
+    const p = players.get(socket.id);
+    if (!p) return;
+    let entry = null;
+    for (const e of liveRegistry.values())
+      if (e.room === p.room) {
+        entry = e;
+        break;
+      }
+    if (!entry) return;
+    let note = liveNotes389.get(entry.key);
+    if (!note) {
+      // [RP-V7.389] Carry-in: a V7.385 scheduled show that flipped
+      // live brings its note with it (the shows store is only READ
+      // here — the note becomes this live's pinned note).
+      try {
+        const hostId = liveHostAccountId(entry);
+        if (hostId) {
+          const sdb = readShows385();
+          const sh = (sdb.shows || []).find(
+            (x) => x.hostId === hostId && x.status === "live" && x.note
+          );
+          if (sh) {
+            const text = lkCleanNote389(sh.note);
+            if (text && !/https?:|www\./i.test(text)) {
+              note = {
+                text,
+                hostAccountId: hostId,
+                instance: entry.startedAt,
+                at: Date.now(),
+              };
+              liveNotes389.set(entry.key, note);
+              io.to(entry.room).emit("live-note", {
+                key: entry.key,
+                room: entry.room,
+                text,
+              });
+            }
+          }
+        }
+      } catch (e) {}
+    }
+    if (note)
+      socket.emit("live-note", { key: entry.key, room: entry.room, text: note.text });
+  });
+  socket.on("live-raid", (data = {}) => {
+    const ctx = lkHostCtx389();
+    if (!ctx) return;
+    const fail389 = (error) => socket.emit("raid-error", { error });
+    if (socketIsTeen(socket)) return fail389("Raids are 18+.");
+    const targetKey = String(data.targetKey || "");
+    const target = liveRegistry.get(targetKey);
+    if (!target) return fail389("That live has already ended.");
+    if (targetKey === ctx.key) return fail389("You can't raid your own live.");
+    if (target.priv)
+      return fail389("That live is private — raids can't drop viewers there.");
+    if (target.ticketPrice > 0)
+      return fail389("That live is ticketed — raids can't drop viewers at a paid door.");
+    const tcfg389 = liveTicketCfg299.get(targetKey);
+    if (tcfg389 && tcfg389.org === "faith")
+      return fail389("Fellowship lives aren't raid targets.");
+    if (auctions.has(ctx.p.room))
+      return fail389("Finish your auction first, then raid.");
+    let viewers389 = 0;
+    for (const pp of players.values())
+      if (pp && pp.room === ctx.p.room && pp.id !== socket.id) viewers389++;
+    const fromName389 = ctx.p.name;
+    // End my live through the EXACT live-unregister sequence — the
+    // pot / poll / ticket settles run their normal paths, and the
+    // giveaway settles beside them. Nothing here forks a settle.
+    if (liveRegistry.delete(ctx.key)) {
+      endLiveAccess138(ctx.key);
+      broadcastLives();
+      potLiveEnded(ctx.key);
+      pollLiveEnded319(ctx.key);
+      ticketLiveEnded299(ctx.key);
+    }
+    gwLiveEnded389(ctx.key);
+    io.to(ctx.p.room).emit("raid-banner", {
+      fromName: fromName389,
+      targetName: target.name,
+      targetRoom: target.room,
+      targetKey,
+      viewers: viewers389,
+      expiresAt: Date.now() + 20000,
+    });
+    lkShout389(
+      target.room,
+      "🚀 " + fromName389 + " raided this live with " + viewers389 +
+        (viewers389 === 1 ? " viewer" : " viewers") + "! 🎉"
+    );
+    const tHost389 = liveHostAccountId(target);
+    if (tHost389)
+      notifyActivity({
+        toId: tHost389,
+        kind: "liveinvite",
+        actorId: socket.data.accountId || null,
+        actorName: fromName389,
+        text:
+          "🚀 " + fromName389 + " raided your live with " + viewers389 + " viewers",
+        go: { screen: "live", room: target.room },
+      });
+    socket.emit("raid-sent", {
+      targetName: target.name,
+      targetRoom: target.room,
+      viewers: viewers389,
+    });
+    console.log("[livekit389] raid", ctx.key, "->", targetKey, "viewers", viewers389);
+  });
+
 
   socket.on("disconnect", () => {
     if (socket.data.accountId) acctSocketRemove(socket.data.accountId, socket.id); // [RP-V7.30]
@@ -26552,6 +27404,7 @@ io.on("connection", (socket) => {
         broadcastLives();
         potLiveEnded(discKey); pollLiveEnded319(discKey);
         ticketLiveEnded299(discKey); // [RP-V7.299] ticket refunds run too
+        gwLiveEnded389(discKey); // [RP-V7.389] giveaway settles with the live
       }
     }
     // [RP-V7.52] Stage-request bookkeeping dies with either side.
