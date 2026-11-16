@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.385" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.386" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -52327,6 +52327,380 @@ window.rpOpenSavedSheet349 = function () {
   else { setInterval(tick, 4000); tick(); }
 })();
 
+</script>
+
+<style>
+/* [RP-V7.386] Seller orders board + weekly bundling + my purchases */
+.rp386-card{background:#101014;border:1px solid #26262e;border-radius:14px;padding:14px;margin:10px 0;color:#f2f2f5}
+.rp386-card h3{margin:0 0 4px;font-size:16px}
+.rp386-sub{margin:0 0 10px;color:#a7a7b3;font-size:12.5px;line-height:1.45}
+.rp386-card input[type=text]{width:100%;box-sizing:border-box;background:#17171d;border:1px solid #2c2c36;border-radius:9px;color:#f2f2f5;padding:8px 10px;margin:0 0 8px;font-size:14px}
+.rp386-card select{box-sizing:border-box;background:#17171d;border:1px solid #2c2c36;border-radius:9px;color:#f2f2f5;padding:8px 10px;font-size:14px;color-scheme:dark}
+.rp386-btn{background:#e02424;color:#fff;border:0;border-radius:9px;padding:9px 12px;font-weight:800;font-size:13.5px;cursor:pointer}
+.rp386-btn.ghost{background:#1d1d24;color:#f2f2f5;border:1px solid #33333f}
+.rp386-btn:disabled{opacity:.45}
+.rp386-btn.sm{padding:7px 10px;font-size:12.5px}
+.rp386-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.rp386-tab{background:#1d1d24;border:1px solid #33333f;color:#f2f2f5;border-radius:20px;padding:6px 12px;cursor:pointer;font-size:12.5px;font-weight:700}
+.rp386-tab.on{color:#ff5b5b;border-color:#e02424}
+.rp386-order{border:1px solid #26262e;border-radius:11px;padding:10px;margin:8px 0;background:#141419}
+.rp386-order b{font-size:14.5px}
+.rp386-meta{color:#a7a7b3;font-size:12.5px;margin-top:2px;line-height:1.5}
+.rp386-meta.over{color:#ff5b5b;font-weight:800}
+.rp386-chip{display:inline-block;background:#1d1d24;border:1px solid #33333f;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:800;color:#ffb3b3;margin-left:6px;vertical-align:2px}
+.rp386-chip.shipped{color:#ffd76a}.rp386-chip.delivered{color:#9fe8a9}.rp386-chip.refunded{color:#a7a7b3}
+.rp386-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.rp386-actions input[type=text]{flex:1;min-width:140px;margin:0}
+.rp386-msg{font-size:12.5px;color:#ffd76a;min-height:16px;margin:6px 0 0}
+.rp386-empty{color:#a7a7b3;font-size:13px;padding:8px 0}
+.rp386-counts{font-size:13px;color:#d7d7de;margin:4px 0 2px}
+.rp386-counts .over{color:#ff5b5b;font-weight:800}
+.rp386-set{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;border-top:1px solid #26262e;padding-top:10px}
+.rp386-check{display:flex;align-items:center;gap:8px;color:#d7d7de;font-size:13px}
+#rp386Win{position:fixed;left:8px;right:8px;top:70px;z-index:56;background:rgba(13,13,17,.97);border:1px solid #e02424;border-radius:14px;padding:10px 12px;color:#f2f2f5;box-shadow:0 8px 28px rgba(0,0,0,.55);font-size:13.5px;line-height:1.5;display:none}
+</style>
+<script>
+/* [RP-V7.386] Seller orders board + weekly bundling + my purchases.
+   Self-contained module (the rp384/rp385 pattern). Server: /api/orders.
+   Every settled auction win is an order: the seller ships within 3
+   days, the buyer tracks it here and confirms receipt. Shipping is
+   arranged between buyer and seller — the app never charges for it,
+   so the win moment promises the ship-by, never a shipping price. */
+(function () {
+  "use strict";
+  var TZS386 = [
+    ["America/New_York", "Eastern (New York)"], ["America/Chicago", "Central (Chicago)"],
+    ["America/Denver", "Mountain (Denver)"], ["America/Los_Angeles", "Pacific (Los Angeles)"],
+    ["America/Anchorage", "Alaska (Anchorage)"], ["Pacific/Honolulu", "Hawaii (Honolulu)"], ["UTC", "UTC"]
+  ];
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" }; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return { ok: false }; }).then(function (j) { return { status: r.status, j: j }; }); })
+      .catch(function () { return { status: 0, j: { ok: false, error: "network" } }; });
+  }
+  function isVis(el) { if (!el) return false; try { return !!(el.offsetParent || el.getClientRects().length); } catch (e) { return false; } }
+  function fmtDay(ms) { try { return new Date(ms).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }); } catch (e) { return ""; } }
+  function fmtWhen(ms) { try { return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } }
+  function rel(ms) {
+    var diff = ms - Date.now();
+    if (diff <= 0) return "";
+    var mins = Math.round(diff / 60000);
+    if (mins < 60) return " · in " + mins + " min";
+    var hrs = Math.floor(mins / 60), rm = mins % 60;
+    if (hrs < 48) return " · in " + hrs + " h" + (rm ? " " + rm + " min" : "");
+    return " · in " + Math.round(hrs / 24) + " days";
+  }
+  var ERR386 = {
+    "not-the-seller": "That order belongs to another seller.",
+    "not-the-buyer": "That order belongs to another buyer.",
+    "not-to-ship": "That order isn't waiting to ship.",
+    "not-shipped": "That order hasn't shipped yet.",
+    "order-refunded": "That order was refunded — nothing to ship.",
+    "order-not-found": "That order is gone.",
+    "nothing-to-ship": "Nothing left to ship in that bundle.",
+    "bad-tz": "That timezone isn't on the list.",
+    "network": "Network hiccup — try again."
+  };
+  function errText(j) { var e = (j && j.error) || "error"; return ERR386[e] || e; }
+
+  var S = {
+    selling: [], counts: null, settings: { signatureRequired: false, tz: "America/New_York" },
+    buying: [], bundles: [], weekKey: "",
+    sellAt: 0, buyAt: 0, bunAt: 0, tab: "toship",
+    msg: "", buyMsg: "", setAt: 0,
+    boardSig: "", buySig: "", earnSig: "",
+    sockBound: null, winTimer: null
+  };
+
+  /* ---------------- shared order row ---------------- */
+  function chip(o) {
+    var label = o.status === "to-ship" ? "To ship" : o.status === "shipped" ? "Shipped" : o.status === "delivered" ? "Delivered" : "Refunded";
+    return '<span class="rp386-chip ' + esc(o.status) + '">' + label + "</span>";
+  }
+  function orderRow(o, ctx) {
+    var h = '<div class="rp386-order" data-rp386-order="' + esc(o.id) + '">';
+    h += "<b>" + esc(o.itemTitle) + "</b>" + chip(o);
+    h += '<div class="rp386-meta">' +
+      (ctx === "sell" ? "Won by " + esc(o.winnerName) : "Sold by " + esc(o.hostName)) +
+      " · <b>$" + (o.bidDollars || 0) + "</b> · won " + esc(fmtWhen(o.settledAt)) + "</div>";
+    if (o.status === "to-ship") {
+      if (o.overdue) h += '<div class="rp386-meta over">⚠️ OVERDUE — ship-by was ' + esc(fmtDay(o.shipBy)) + "</div>";
+      else h += '<div class="rp386-meta">📦 Ship by <b>' + esc(fmtDay(o.shipBy)) + "</b>" + esc(rel(o.shipBy)) + "</div>";
+      if (o.signatureRequired) h += '<div class="rp386-meta">✍️ Signature confirmation is ON for your sales — ask the carrier for it.</div>';
+    }
+    if (o.status === "shipped") h += '<div class="rp386-meta">🚚 Shipped ' + esc(fmtWhen(o.shippedAt)) + (o.tracking ? " · Tracking: <b>" + esc(o.tracking) + "</b>" : " · no tracking") + "</div>";
+    if (o.status === "delivered") h += '<div class="rp386-meta">✅ Delivered ' + esc(fmtWhen(o.deliveredAt)) + (o.tracking ? " · Tracking: " + esc(o.tracking) : "") + "</div>";
+    if (o.status === "refunded") h += '<div class="rp386-meta">↩️ Refunded ' + esc(o.refundedAt ? fmtWhen(Date.parse(o.refundedAt) || o.settledAt) : "") + " — buyer protection closed this order.</div>";
+    if (o.bundleId && o.status !== "refunded") h += '<div class="rp386-meta">Bundle: ' + esc(o.bundleId) + "</div>";
+    h += '<div class="rp386-actions">';
+    if (ctx === "sell" && o.status === "to-ship") {
+      h += '<input type="text" id="rp386Trk-' + esc(o.id) + '" maxlength="64" placeholder="Tracking # (optional)"/>';
+      h += '<button type="button" class="rp386-btn sm" data-rp386-ship="' + esc(o.id) + '">Mark shipped</button>';
+    }
+    if (ctx === "buy" && o.status === "shipped")
+      h += '<button type="button" class="rp386-btn sm" data-rp386-received="' + esc(o.id) + '">✓ Mark received</button>';
+    h += "</div></div>";
+    return h;
+  }
+
+  /* ---------------- seller board (Auctions screen) ---------------- */
+  function ensureBoard() {
+    var scr = document.getElementById("screen-auctions");
+    if (!scr || document.getElementById("rp386Board")) return;
+    var d = document.createElement("div");
+    d.className = "rp386-card"; d.id = "rp386Board";
+    var tzOpts = TZS386.map(function (z) { return '<option value="' + z[0] + '">' + esc(z[1]) + "</option>"; }).join("");
+    d.innerHTML = "<h3>📦 Orders</h3>" +
+      '<p class="rp386-sub">Every auction win becomes an order here. Ship within <b>3 days</b> of the win — buyers are covered by buyer protection, and your on-time record starts with these ship-bys (build 5 turns it into your account health).</p>' +
+      '<div class="rp386-counts" id="rp386Counts"></div>' +
+      '<div class="rp386-tabs">' +
+      '<button type="button" class="rp386-tab" data-rp386-tab="toship">To ship</button>' +
+      '<button type="button" class="rp386-tab" data-rp386-tab="shipped">Shipped</button>' +
+      '<button type="button" class="rp386-tab" data-rp386-tab="done">Done</button>' +
+      '<button type="button" class="rp386-btn ghost sm" data-rp386-refresh="1">↻ Refresh</button></div>' +
+      '<div id="rp386List"></div>' +
+      '<p class="rp386-msg" id="rp386Msg"></p>' +
+      "<h3 style='margin-top:14px'>🧺 This week's bundles</h3>" +
+      '<p class="rp386-sub">To-ship orders from this week (Mon–Sun, your timezone), grouped by buyer — ship each bundle in one package with one tracking number.</p>' +
+      '<div id="rp386Bundles"></div>' +
+      '<div class="rp386-set"><label class="rp386-check"><input type="checkbox" id="rp386Sig"/> ✍️ Signature confirmation on my shipments</label>' +
+      '<label class="rp386-check">My timezone <select id="rp386Tz">' + tzOpts + "</select></label></div>";
+    var host385 = document.getElementById("rp385Host");
+    var mgr384 = document.getElementById("rp384Manager");
+    if (host385 && host385.parentNode === scr) scr.insertBefore(d, host385.nextSibling);
+    else if (mgr384 && mgr384.parentNode === scr) scr.insertBefore(d, mgr384.nextSibling);
+    else scr.insertBefore(d, scr.firstChild);
+    var tzSel = document.getElementById("rp386Tz");
+    if (tzSel) tzSel.value = S.settings.tz;
+  }
+  function renderBoard() {
+    var box = document.getElementById("rp386List"); if (!box) return;
+    var countsEl = document.getElementById("rp386Counts");
+    if (countsEl) {
+      var c = S.counts || { toShip: 0, shipped: 0, delivered: 0, refunded: 0, overdue: 0 };
+      var ch = !tok() ? "Sign in to see your orders." :
+        "<b>" + c.toShip + "</b> to ship" + (c.overdue ? ' · <span class="over">' + c.overdue + " overdue ⚠️</span>" : "") +
+        " · <b>" + c.shipped + "</b> shipped · <b>" + c.delivered + "</b> delivered" + (c.refunded ? " · <b>" + c.refunded + "</b> refunded" : "");
+      if (countsEl.innerHTML !== ch) countsEl.innerHTML = ch;
+    }
+    var tabs = document.querySelectorAll("[data-rp386-tab]");
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle("on", tabs[i].getAttribute("data-rp386-tab") === S.tab);
+    var rows = S.selling.filter(function (o) {
+      if (S.tab === "toship") return o.status === "to-ship";
+      if (S.tab === "shipped") return o.status === "shipped";
+      return o.status === "delivered" || o.status === "refunded";
+    });
+    var html;
+    if (!tok()) html = '<p class="rp386-empty">Sign in to see your orders.</p>';
+    else if (!rows.length) html = '<p class="rp386-empty">' +
+      (S.tab === "toship" ? "Nothing waiting to ship — new wins land here the moment an auction settles." :
+        S.tab === "shipped" ? "Nothing in transit right now." : "No finished orders yet.") + "</p>";
+    else html = rows.map(function (o) { return orderRow(o, "sell"); }).join("");
+    var sig = "board:" + S.tab + ":" + html + ":" + S.msg;
+    if (S.boardSig === sig) return;
+    S.boardSig = sig;
+    box.innerHTML = html;
+    var m = document.getElementById("rp386Msg");
+    if (m && m.textContent !== S.msg) m.textContent = S.msg;
+  }
+  function renderBundles() {
+    var box = document.getElementById("rp386Bundles"); if (!box) return;
+    var html;
+    if (!tok()) html = '<p class="rp386-empty">Sign in to see your bundles.</p>';
+    else if (!S.bundles.length) html = '<p class="rp386-empty">No to-ship orders this week yet.</p>';
+    else html = S.bundles.map(function (g) {
+      var total = g.orders.reduce(function (a, o) { return a + (o.bidDollars || 0); }, 0);
+      var h = '<div class="rp386-order" data-rp386-bundle="' + esc(g.bundleId) + '"><b>' + esc(g.buyerName) + "</b>" +
+        '<span class="rp386-chip">' + g.orders.length + " order" + (g.orders.length === 1 ? "" : "s") + " · $" + total + "</span>";
+      h += g.orders.map(function (o) {
+        return '<div class="rp386-meta">' + (o.overdue ? "⚠️ " : "📦 ") + esc(o.itemTitle) + " · $" + (o.bidDollars || 0) + " · ship by " + esc(fmtDay(o.shipBy)) + "</div>";
+      }).join("");
+      h += '<div class="rp386-actions"><input type="text" id="rp386BTrk-' + esc(g.buyerId) + '" maxlength="64" placeholder="Tracking # for the bundle (optional)"/>' +
+        '<button type="button" class="rp386-btn sm" data-rp386-bship="' + esc(g.buyerId) + '">Ship bundle (' + g.orders.length + ")</button></div></div>";
+      return h;
+    }).join("");
+    var sig = "bun:" + html;
+    if (S.bunSig === sig) return;
+    S.bunSig = sig;
+    box.innerHTML = html;
+  }
+  function loadSelling() {
+    if (!tok()) { renderBoard(); renderBundles(); return; }
+    api("GET", "/api/orders/selling").then(function (r) {
+      if (r.j && r.j.ok) {
+        S.selling = r.j.orders || []; S.counts = r.j.counts || null;
+        if (r.j.settings) {
+          S.settings = r.j.settings;
+          // A local settings change wins over a stale in-flight read:
+          // never stomp the controls within 5s of the seller touching them.
+          if (Date.now() - (S.setAt || 0) > 5000) {
+            var tzSel = document.getElementById("rp386Tz");
+            if (tzSel && tzSel.value !== S.settings.tz) tzSel.value = S.settings.tz;
+            var sigEl = document.getElementById("rp386Sig");
+            if (sigEl && sigEl.checked !== !!S.settings.signatureRequired) sigEl.checked = !!S.settings.signatureRequired;
+          }
+        }
+        S.sellAt = Date.now();
+      }
+      renderBoard();
+    });
+    api("GET", "/api/orders/bundles").then(function (r) {
+      if (r.j && r.j.ok) { S.bundles = r.j.bundles || []; S.weekKey = r.j.weekKey || ""; S.bunAt = Date.now(); }
+      renderBundles();
+    });
+  }
+
+  /* ---------------- buyer purchases (Auctions screen + Earn sheet) ---------------- */
+  function purchasesHtml() {
+    if (!tok()) return '<p class="rp386-empty">Sign in to see your purchases.</p>';
+    if (!S.buying.length) return '<p class="rp386-empty">No purchases yet — win an auction and your order shows up here with its shipping status.</p>';
+    return S.buying.map(function (o) { return orderRow(o, "buy"); }).join("") +
+      (S.buyMsg ? '<p class="rp386-msg">' + esc(S.buyMsg) + "</p>" : "");
+  }
+  function ensurePurchases() {
+    var scr = document.getElementById("screen-auctions");
+    if (scr && !document.getElementById("rp386Purchases")) {
+      var d = document.createElement("div");
+      d.className = "rp386-card"; d.id = "rp386Purchases";
+      d.innerHTML = "<h3>🧾 My purchases</h3>" +
+        '<p class="rp386-sub">Your auction wins and where they are. Sellers ship within 3 days — when yours arrives, tap <b>Mark received</b>. Buyer protection covers you for 14 days after the win.</p>' +
+        '<div id="rp386BuyList"></div>';
+      var board = document.getElementById("rp386Board");
+      if (board && board.parentNode === scr) scr.insertBefore(d, board.nextSibling);
+      else scr.insertBefore(d, scr.firstChild);
+    }
+    var sheet = document.querySelector("#earnSheet .rp-panel");
+    if (sheet && !document.getElementById("rp386PurchasesEarn")) {
+      var e = document.createElement("div");
+      e.className = "rp386-card"; e.id = "rp386PurchasesEarn";
+      e.innerHTML = "<h3>🧾 My purchases</h3>" +
+        '<p class="rp386-sub">Your auction wins and where they are. Sellers ship within 3 days — when yours arrives, tap <b>Mark received</b>.</p>' +
+        '<div id="rp386BuyListEarn"></div>';
+      sheet.appendChild(e);
+    }
+  }
+  function renderPurchases() {
+    var html = purchasesHtml();
+    var a = document.getElementById("rp386BuyList");
+    if (a) {
+      var sigA = "buyA:" + html;
+      if (S.buySig !== sigA) { S.buySig = sigA; a.innerHTML = html; }
+    }
+    var b = document.getElementById("rp386BuyListEarn");
+    if (b) {
+      var sigB = "buyB:" + html;
+      if (S.earnSig !== sigB) { S.earnSig = sigB; b.innerHTML = html; }
+    }
+  }
+  function loadBuying() {
+    if (!tok()) { renderPurchases(); return; }
+    api("GET", "/api/orders/buying").then(function (r) {
+      if (r.j && r.j.ok) { S.buying = r.j.orders || []; S.buyAt = Date.now(); }
+      renderPurchases();
+    });
+  }
+
+  /* ---------------- post-win shipping line ---------------- */
+  function ensureWinStrip() {
+    if (document.getElementById("rp386Win")) return;
+    var d = document.createElement("div");
+    d.id = "rp386Win";
+    document.body.appendChild(d);
+  }
+  function sock() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function bindSocket() {
+    var s = sock(); if (!s || S.sockBound === s) return;
+    S.sockBound = s;
+    s.on("auction-ended", function (d) {
+      var w = d && d.winner;
+      var strip = document.getElementById("rp386Win");
+      if (!strip) return;
+      if (!w || (d.settlement && d.settlement.ok === false)) { strip.style.display = "none"; return; }
+      strip.innerHTML = "🏆 <b>" + esc(w.name || "Someone") + "</b> won “" + esc((d.item && d.item.title) || "Auction win") + "” for <b>$" + (w.amount || 0) + "</b> — 📦 the seller ships within <b>3 days</b>. Winners: track it under 🧾 My purchases in Earn.";
+      strip.style.display = "block";
+      if (S.winTimer) clearTimeout(S.winTimer);
+      S.winTimer = setTimeout(function () { strip.style.display = "none"; }, 12000);
+      S.sellAt = 0; S.buyAt = 0; S.bunAt = 0; // fresh order lands on the next loads
+    });
+    s.on("auction-live", function () {
+      var strip = document.getElementById("rp386Win");
+      if (strip) strip.style.display = "none";
+    });
+  }
+
+  /* ---------------- actions (delegated) ---------------- */
+  document.addEventListener("click", function (ev) {
+    var t = ev.target && ev.target.closest ? ev.target.closest("[data-rp386-ship],[data-rp386-bship],[data-rp386-received],[data-rp386-tab],[data-rp386-refresh]") : null;
+    if (!t) return;
+    if (t.hasAttribute("data-rp386-tab")) { S.tab = t.getAttribute("data-rp386-tab"); S.boardSig = ""; renderBoard(); }
+    else if (t.hasAttribute("data-rp386-refresh")) { S.sellAt = 0; S.buyAt = 0; loadSelling(); loadBuying(); }
+    else if (t.hasAttribute("data-rp386-ship")) {
+      var id = t.getAttribute("data-rp386-ship");
+      var inp = document.getElementById("rp386Trk-" + id);
+      t.disabled = true;
+      api("POST", "/api/orders/" + encodeURIComponent(id) + "/ship", { tracking: inp ? inp.value : "" }).then(function (r) {
+        t.disabled = false;
+        if (r.j && r.j.ok) { S.msg = "✓ Marked shipped — the buyer has been notified."; S.sellAt = 0; loadSelling(); }
+        else { S.msg = "Couldn't mark that shipped: " + errText(r.j); S.boardSig = ""; renderBoard(); }
+      });
+    }
+    else if (t.hasAttribute("data-rp386-bship")) {
+      var buyer = t.getAttribute("data-rp386-bship");
+      var binp = document.getElementById("rp386BTrk-" + buyer);
+      t.disabled = true;
+      api("POST", "/api/orders/bundles/ship", { buyerId: buyer, tracking: binp ? binp.value : "" }).then(function (r) {
+        t.disabled = false;
+        if (r.j && r.j.ok) { S.msg = "✓ Bundle shipped (" + (r.j.shipped || []).length + " orders) — the buyer has been notified once."; S.sellAt = 0; loadSelling(); }
+        else { S.msg = "Couldn't ship that bundle: " + errText(r.j); S.boardSig = ""; renderBoard(); }
+      });
+    }
+    else if (t.hasAttribute("data-rp386-received")) {
+      var rid = t.getAttribute("data-rp386-received");
+      t.disabled = true;
+      api("POST", "/api/orders/" + encodeURIComponent(rid) + "/delivered", {}).then(function (r) {
+        t.disabled = false;
+        if (r.j && r.j.ok) { S.buyMsg = "✓ Marked received — enjoy!"; S.buyAt = 0; loadBuying(); }
+        else { S.buyMsg = "Couldn't mark that received: " + errText(r.j); S.buySig = ""; S.earnSig = ""; renderPurchases(); }
+      });
+    }
+  });
+  document.addEventListener("change", function (ev) {
+    var t = ev.target;
+    if (!t || !t.id) return;
+    if (t.id === "rp386Sig" || t.id === "rp386Tz") {
+      S.setAt = Date.now();
+      var body = {
+        signatureRequired: !!((document.getElementById("rp386Sig") || {}).checked),
+        tz: (document.getElementById("rp386Tz") || {}).value || S.settings.tz
+      };
+      api("POST", "/api/orders/settings", body).then(function (r) {
+        if (r.j && r.j.ok) { S.settings = r.j.settings; S.msg = "✓ Seller settings saved."; S.bunAt = 0; loadSelling(); }
+        else { S.msg = "Couldn't save settings: " + errText(r.j); S.boardSig = ""; renderBoard(); }
+      });
+    }
+  });
+
+  /* ---------------- boot + light polling ---------------- */
+  function tick() {
+    try {
+      ensureBoard(); ensurePurchases(); ensureWinStrip(); bindSocket();
+      var scr = document.getElementById("screen-auctions");
+      var sheet = document.getElementById("earnSheet");
+      var sheetOpen = !!(sheet && (sheet.classList.contains("open") || sheet.getAttribute("aria-hidden") === "false"));
+      if (isVis(scr)) {
+        if (Date.now() - S.sellAt > 15000) loadSelling(); else { renderBoard(); renderBundles(); }
+        if (Date.now() - S.buyAt > 15000) loadBuying(); else renderPurchases();
+      } else if (sheetOpen) {
+        if (Date.now() - S.buyAt > 15000) loadBuying(); else renderPurchases();
+      }
+    } catch (e) { /* the module must never break the app */ }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1500); tick(); });
+  else { setInterval(tick, 1500); tick(); }
+})();
 </script>
 
 </body>
