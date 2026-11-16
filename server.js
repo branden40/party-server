@@ -6636,7 +6636,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.386", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.387", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -23154,11 +23154,21 @@ app.get("/api/orders/buying", (req, res) => {
   const mine = odb.orders
     .filter((o) => o.winnerId === ctx.user.id)
     .sort((a, b) => b.settledAt - a.settledAt);
+  // [RP-V7.387] each purchase carries the buyer's own stars (or null)
+  // so the purchases list can show "your rating" / the Rate button
+  // without a second round-trip per order.
+  const myStars387 = {};
+  for (const r of readReviews387().reviews)
+    if (r.buyerId === ctx.user.id) myStars387[r.orderId] = r.stars;
   res.json({
     ok: true,
     orders: mine
       .slice(0, 200)
-      .map((o) => orderPublic386(o, orderSettings386(odb, o.hostId))),
+      .map((o) =>
+        Object.assign(orderPublic386(o, orderSettings386(odb, o.hostId)), {
+          myStars: myStars387[o.id] || null,
+        })
+      ),
   });
 });
 app.post("/api/orders/bundles/ship", (req, res) => {
@@ -23237,6 +23247,7 @@ app.post("/api/orders/:id/delivered", (req, res) => {
     return res.status(409).json({ ok: false, error: "not-shipped", status: o.status });
   o.status = "delivered";
   o.deliveredAt = Date.now();
+  orderRatePrompt387(o); // [RP-V7.387] one-time "rate your purchase" prompt (flag persists with this write)
   writeOrders386(odb);
   res.json({
     ok: true,
@@ -23317,11 +23328,299 @@ function orderSweep386() {
       o.status = "delivered";
       o.deliveredAt = now;
       o.autoDelivered = true;
+      orderRatePrompt387(o); // [RP-V7.387] same one-time prompt on auto-delivery
       changed = true;
     }
   }
   if (changed) writeOrders386(odb);
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.387] SELLER RATINGS + ACCOUNT HEALTH (Whatnot parity build 5).
+// Buyers rate sellers after delivery; the seller's health is three
+// rates computed from REAL order data — nothing here is self-reported
+// and no money ever moves in this build.
+//
+// RATINGS (reviews.json, hardened store): one review per order,
+// written by that order's buyer, only once the order is DELIVERED
+// (buyer-confirmed or auto-delivered — never while in transit, never
+// on a refunded order). Stars 1-5; text optional, sanitized with the
+// codebase's strip rule ([<>&"'] removed) and capped at 300 chars,
+// exactly like auction item text. The public read exposes the
+// aggregate + recent reviews with buyer DISPLAY names only.
+//
+// ACCOUNT HEALTH — computed on read, never stored, so it can never
+// drift from the orders it describes:
+//   onTimeRate      shipped orders with shippedAt <= shipBy, over
+//                   every JUDGED order. An order is judged once it
+//                   has shipped, or once it sits unshipped 7 days
+//                   past its ship-by (then it counts as late). An
+//                   order still inside its ship-by, or inside the
+//                   7-day grace, is pending — in neither number.
+//                   Refunded orders are excluded (the refund-free
+//                   rate already judges them).
+//   refundFreeRate  1 - refunded / settled (settled = every order;
+//                   every order began as a settlement).
+//   Both are reported for the trailing 90 days (by settledAt) and
+//   all-time, with raw counts beside every rate.
+//   cancelFreeRate  1 - host-cancelled / host-started auctions.
+//                   NO durable record of auction starts/cancels
+//                   existed before this build (endAuction settled or
+//                   dropped the auction in memory only), so a small
+//                   counter store (auction-stats.json) is
+//                   instrumented at the two sites from this build
+//                   forward: +1 started where auction-start creates
+//                   the auction, +1 cancelled where endAuction takes
+//                   the cancelled path (host cancel, host disconnect,
+//                   host kicked or session replaced — every way an
+//                   auction dies on the host's side before settling).
+//                   The rate is therefore labelled with the counter's
+//                   "since" date wherever it is shown — history
+//                   before this build simply does not exist and is
+//                   never invented. Guest-host auctions (no account)
+//                   are not counted: there is no seller to judge.
+//
+// RATING PROMPT: when an order transitions to delivered — the
+// buyer's Mark-received OR the sweep's 14-day auto-deliver — the
+// buyer gets ONE notifyActivity (kind "order", riding the "gifts"
+// switch like the shipped notice; its reminder tap routes to the
+// Auctions screen, where My purchases carries the Rate button). A
+// ratePromptedAt flag on the order makes it fire exactly once;
+// orders already delivered before this build never transition
+// again, so nobody gets a prompt storm for old purchases.
+// ---------------------------------------------------------------------------
+const REVIEWS_FILE387 =
+  process.env.REVIEWS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "reviews.json");
+const ASTATS_FILE387 =
+  process.env.AUCTION_STATS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "auction-stats.json");
+const HEALTH_WINDOW_MS387 = 90 * 24 * 60 * 60 * 1000; // trailing 90 days
+const ONTIME_GRACE_MS387 = 7 * 24 * 60 * 60 * 1000; // unshipped grace past ship-by
+function readReviews387() {
+  return storeReadJson(
+    REVIEWS_FILE387,
+    (d) => !!(d && Array.isArray(d.reviews)),
+    { reviews: [] },
+    "reviews"
+  );
+}
+function writeReviews387(db) {
+  storeWriteJson(REVIEWS_FILE387, db);
+}
+function reviewAgg387(rdb, sellerId) {
+  let count = 0, sum = 0;
+  for (const r of rdb.reviews)
+    if (r && r.sellerId === sellerId) { count++; sum += Number(r.stars) || 0; }
+  return { count, average: count ? Math.round((sum / count) * 100) / 100 : null };
+}
+function readAuctionStats387() {
+  const fresh387 = !fs.existsSync(ASTATS_FILE387);
+  const db387 = storeReadJson(
+    ASTATS_FILE387,
+    (d) =>
+      !!(
+        d &&
+        typeof d.since === "string" &&
+        d.hosts &&
+        typeof d.hosts === "object" &&
+        !Array.isArray(d.hosts)
+      ),
+    { since: new Date().toISOString(), hosts: {} },
+    "auction-stats"
+  );
+  // Pin the counter's start the first time it is ever touched, so
+  // the "since" label is one stable date, not a fresh fallback per
+  // read.
+  if (fresh387) {
+    try { storeWriteJson(ASTATS_FILE387, db387); } catch (e) {}
+  }
+  return db387;
+}
+function bumpAuctionStat387(accountId, field) {
+  try {
+    if (!accountId) return;
+    const db = readAuctionStats387();
+    const h =
+      db.hosts[accountId] || (db.hosts[accountId] = { started: 0, cancelled: 0 });
+    h[field] = (h[field] || 0) + 1;
+    h.lastAt = new Date().toISOString();
+    storeWriteJson(ASTATS_FILE387, db);
+  } catch (e) {
+    /* a stats write must never break an auction */
+  }
+}
+// Fire the one-time rate prompt for a freshly delivered order. The
+// flag is set on the order object; the CALLER persists the orders
+// store (the delivered endpoint and the sweep both write after
+// transitioning), which is what makes "exactly once" durable.
+function orderRatePrompt387(o) {
+  try {
+    if (!o || o.ratePromptedAt || o.status !== "delivered") return;
+    o.ratePromptedAt = Date.now();
+    const hostName = o.hostName || "Your seller";
+    const text =
+      "⭐ Rate your purchase from " + hostName + " — " + (o.itemTitle || "Auction win");
+    notifyActivity({
+      toId: o.winnerId,
+      kind: "order",
+      actorId: o.hostId,
+      actorName: hostName,
+      text,
+      go: { screen: "auctions" },
+      emailSubject: "Rate your Rizz Plaza purchase",
+      emailText:
+        text +
+        "\n\nOpen Rizz Plaza → Auctions → 🧾 My purchases to leave your stars: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    });
+  } catch (e) {
+    /* a prompt must never break a delivery */
+  }
+}
+function healthBlock387(list, now) {
+  let settled = 0, refunded = 0, shipped = 0, onTime = 0, lateUnshipped = 0;
+  for (const o of list) {
+    settled++;
+    if (o.status === "refunded") { refunded++; continue; }
+    if (o.shippedAt) {
+      shipped++;
+      if (o.shippedAt <= o.shipBy) onTime++;
+    } else if (o.status === "to-ship" && now - o.shipBy > ONTIME_GRACE_MS387) {
+      lateUnshipped++;
+    }
+  }
+  const judged = shipped + lateUnshipped;
+  return {
+    settledOrders: settled,
+    refundedOrders: refunded,
+    refundFreeRate: settled ? Math.round((1 - refunded / settled) * 10000) / 10000 : null,
+    shippedOrders: shipped,
+    onTimeOrders: onTime,
+    lateUnshipped,
+    judgedOrders: judged,
+    onTimeRate: judged ? Math.round((onTime / judged) * 10000) / 10000 : null,
+  };
+}
+function sellerHealth387(odb, statsDb, sellerId) {
+  const now = Date.now();
+  const mine = odb.orders.filter((o) => o.hostId === sellerId);
+  const trailing = mine.filter((o) => o.settledAt >= now - HEALTH_WINDOW_MS387);
+  const h = (statsDb.hosts || {})[sellerId] || { started: 0, cancelled: 0 };
+  const started = h.started || 0, cancelled = h.cancelled || 0;
+  return {
+    trailing90: healthBlock387(trailing, now),
+    allTime: healthBlock387(mine, now),
+    cancelFree: {
+      since: statsDb.since,
+      started,
+      cancelled,
+      rate: started ? Math.round((1 - cancelled / started) * 10000) / 10000 : null,
+    },
+  };
+}
+app.post("/api/reviews", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const b = req.body || {};
+  const orderId = String(b.orderId || "").trim().slice(0, 80);
+  const stars = Math.floor(Number(b.stars));
+  if (!orderId) return res.status(400).json({ ok: false, error: "order-required" });
+  if (!(stars >= 1 && stars <= 5))
+    return res.status(400).json({ ok: false, error: "bad-stars" });
+  const text = String(b.text || "").replace(/[<>&"']/g, "").trim().slice(0, 300);
+  const odb = ordersForRequest386(ctx);
+  const o = odb.orders.find((x) => x.id === orderId);
+  if (!o) return res.status(404).json({ ok: false, error: "order-not-found" });
+  if (o.winnerId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-buyer" });
+  if (o.status === "refunded")
+    return res.status(409).json({ ok: false, error: "order-refunded" });
+  if (o.status !== "delivered")
+    return res.status(409).json({ ok: false, error: "not-delivered", status: o.status });
+  const rdb = readReviews387();
+  if (rdb.reviews.some((r) => r.orderId === orderId))
+    return res.status(409).json({ ok: false, error: "already-reviewed" });
+  const review = {
+    id: "rev-" + crypto.randomBytes(8).toString("hex"),
+    orderId,
+    sellerId: o.hostId,
+    buyerId: ctx.user.id,
+    buyerName: o.winnerName || "Member",
+    stars,
+    text,
+    ts: Date.now(),
+  };
+  rdb.reviews.push(review);
+  writeReviews387(rdb);
+  res.json({
+    ok: true,
+    review: {
+      id: review.id,
+      orderId: review.orderId,
+      sellerId: review.sellerId,
+      stars: review.stars,
+      text: review.text,
+      ts: review.ts,
+    },
+    aggregate: reviewAgg387(rdb, o.hostId),
+  });
+});
+app.get("/api/reviews", (req, res) => {
+  const sellerId = String(req.query.seller || "").trim().slice(0, 64);
+  if (!sellerId) return res.status(400).json({ ok: false, error: "seller-required" });
+  const rdb = readReviews387();
+  const list = rdb.reviews
+    .filter((r) => r && r.sellerId === sellerId)
+    .sort((a, b) => b.ts - a.ts);
+  res.json({
+    ok: true,
+    sellerId,
+    aggregate: reviewAgg387(rdb, sellerId),
+    reviews: list
+      .slice(0, 50)
+      .map((r) => ({ id: r.id, buyerName: r.buyerName, stars: r.stars, text: r.text, ts: r.ts })),
+  });
+});
+// The seller's own detail FIRST — "/api/sellers/me/health" must be
+// registered before ":id" or Express would eat "me" as an id (the
+// V7.386 bundles/ship route-order lesson).
+app.get("/api/sellers/me/health", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const odb = ordersForRequest386(ctx);
+  const rdb = readReviews387();
+  res.json({
+    ok: true,
+    sellerId: ctx.user.id,
+    sellerName: orderName386(ctx.db, ctx.user.id),
+    rating: reviewAgg387(rdb, ctx.user.id),
+    health: sellerHealth387(odb, readAuctionStats387(), ctx.user.id),
+  });
+});
+app.get("/api/sellers/:id/health", (req, res) => {
+  const sellerId = String(req.params.id || "").trim().slice(0, 64);
+  const adb = readAccounts();
+  const odb = readOrders386();
+  if (orderSync386(odb, readMoney(), adb)) writeOrders386(odb);
+  const rdb = readReviews387();
+  const full = sellerHealth387(odb, readAuctionStats387(), sellerId);
+  // Public-safe: rates + the rating aggregate only. Raw counts live
+  // on the seller's own /me view.
+  res.json({
+    ok: true,
+    sellerId,
+    sellerName: orderName386(adb, sellerId),
+    rating: reviewAgg387(rdb, sellerId),
+    health: {
+      trailing90: {
+        onTimeRate: full.trailing90.onTimeRate,
+        refundFreeRate: full.trailing90.refundFreeRate,
+      },
+      cancelFree: { since: full.cancelFree.since, rate: full.cancelFree.rate },
+    },
+  });
+});
 // [RP-V7.80] The client (rpWn) settle path — account auth only, and
 // the winner is ALWAYS the authenticated caller: a settle request
 // can spend the caller's own charms to pay a host, but it can never
@@ -24943,7 +25242,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.386", online: players.size })
+  res.json({ ok: true, version: "RP-V7.387", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -25894,6 +26193,10 @@ io.on("connection", (socket) => {
     if (!a) return;
     if (a.timer) clearTimeout(a.timer);
     auctions.delete(room);
+    // [RP-V7.387] account-health counter: an auction that ends on the
+    // cancelled path (host cancel, host disconnect, host kicked or
+    // session replaced) counts against the host's cancel-free rate.
+    if (cancelled) bumpAuctionStat387(a.hostAccountId, "cancelled");
     const winner = (a.highBidderId || a.highBidderAccountId)
       ? { id: a.highBidderId || a.highBidderAccountId, name: a.highBidderName, amount: a.currentBid }
       : null;
@@ -26012,6 +26315,7 @@ io.on("connection", (socket) => {
     }
     a.timer = setTimeout(() => endAuction(room, false), durationSec * 1000);
     auctions.set(room, a);
+    bumpAuctionStat387(a.hostAccountId, "started"); // [RP-V7.387] account-health counter: this host started an auction
     if (preItem384) {
       const store384b = readAuctionItems384();
       const it384 = store384b.items.find((x) => x.id === preItem384.id);
