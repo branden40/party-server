@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.392" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.393" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -9499,14 +9499,14 @@
         var goBtn = $("btnRoomGoLive");
         if (goBtn) goBtn.hidden = !(eligible && (rpAdultOk())); // [RP-V7.75] a signed-in teen sees Go LIVE too — their live runs charms-only
       }
-      function addChatLine(name, text, mine, mid, fromId, glv338, fx392) { // [RP-V7.338] glv338 = sender's gifter level (0/absent = no badge) // [RP-V7.392] fx392 = chat effect
+      function addChatLine(name, text, mine, mid, fromId, glv338, fx392, rcb393) { // [RP-V7.338] glv338 = sender's gifter level (0/absent = no badge) // [RP-V7.392] fx392 = chat effect // [RP-V7.393] rcb393 = rewards-club tier badge
         // [RP-V7.24] chat also lives in the LIVE overlay stream (and
         // the Teen Hangout's bubble stream) — feed those FIRST.
         // [RP-V7.47] the meet rooms' floating stream is fed the same
         // way, through the room stage module's hook (it renders only
         // while its room layout is up). Sender id rides along so a
         // report/mute can purge the sender's bubbles on screen.
-        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, "", glv338, fx392); } catch (e) { } // [RP-V7.338] the badge rides into the live stream too // [RP-V7.392] the chat effect rides too
+        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, "", glv338, fx392, rcb393); } catch (e) { } // [RP-V7.338] the badge rides into the live stream too // [RP-V7.392] the chat effect rides too // [RP-V7.393] the club badge rides too
         try { if (window.rpRoomBubble) window.rpRoomBubble(name, text, false, fromId || (mid ? String(mid).split(":")[0] : "")); } catch (e) { }
         var log = $("onlineChatLog"); if (!log) return;
         var isQ = chatIsQuestion(text);
@@ -9519,6 +9519,7 @@
         who.textContent = name;
         row.appendChild(who);
         if (glv338 > 0) { var gb338 = document.createElement("span"); gb338.innerHTML = rpGifterBadge338(glv338); if (gb338.firstChild) row.appendChild(gb338.firstChild); } // [RP-V7.338] gifter badge beside the name
+        if (rcb393) { var cb393 = document.createElement("span"); cb393.className = "rp393-badge"; cb393.textContent = rcb393; row.appendChild(cb393); } // [RP-V7.393] rewards-club tier badge with this room's seller
         if (isQ) { var qt = document.createElement("span"); qt.className = "q-text"; qt.textContent = text; row.appendChild(qt); }
         else row.appendChild(document.createTextNode(text));
         if (mid) {
@@ -9571,7 +9572,7 @@
         if (fromId) statBump("chat", fromId, name);
         // 🔥 a real comment in a live room counts toward that live's engagement score
         try { if (fromId && typeof Live !== "undefined" && Live.active && Live.hostId && typeof inLiveRoom === "function" && inLiveRoom()) engRecord(Live.hostId, fromId, "comment", 1); } catch (e) { }
-        addChatLine(name, text, fromId === Online.myId, mid, fromId, (d && d.glv) || 0, (d && d.fx392) || null); // [RP-V7.338] [RP-V7.392] fx392 = points-shop chat effect
+        addChatLine(name, text, fromId === Online.myId, mid, fromId, (d && d.glv) || 0, (d && d.fx392) || null, (d && d.rcb393) || null); // [RP-V7.338] [RP-V7.392] fx392 = points-shop chat effect // [RP-V7.393] rcb393 = rewards-club tier badge with this live's host
       }
       function onChatBlocked(d) {
         // If the spam cap caught a live-room signal (not a typed message),
@@ -17791,7 +17792,7 @@
         if (Online.room !== LIVE_ROOM_ID) switchOnlineRoom(LIVE_ROOM_ID);
       }
       /* ---------- TikTok-style live overlay: host chip, viewer row, comments, rail, host tools ---------- */
-      function pushLiveComment(name, text, kind, glv338, fx392) { // [RP-V7.338] [RP-V7.392] fx392 = chat effect
+      function pushLiveComment(name, text, kind, glv338, fx392, rcb393) { // [RP-V7.338] [RP-V7.392] fx392 = chat effect // [RP-V7.393] rcb393 = rewards-club tier badge
         var box = $("liveComments"); if (!box || !Live.active) return;
         var row = document.createElement("div");
         row.className = "lv-comment" + (kind ? " " + kind : "");
@@ -17801,7 +17802,7 @@
           var cp2 = (typeof playerForName === "function") ? playerForName(name) : null;
           var cav = cp2 ? faceHTML(cp2, false) : personFace({ name: name || "Guest" });
           row.classList.add("chat");
-          row.innerHTML = '<span class="lv-cav">' + cav + '</span><span class="lv-cbody"><b' + (fx392 && fx392.n === "gold" ? ' class="fx392-gold"' : fx392 && fx392.n === "rainbow" ? ' class="fx392-rainbow"' : "") + '>' + escHtml(name) + "</b>" + (glv338 ? rpGifterBadge338(glv338) : "") + " " + escHtml(text) + "</span>"; // [RP-V7.392]
+          row.innerHTML = '<span class="lv-cav">' + cav + '</span><span class="lv-cbody"><b' + (fx392 && fx392.n === "gold" ? ' class="fx392-gold"' : fx392 && fx392.n === "rainbow" ? ' class="fx392-rainbow"' : "") + '>' + escHtml(name) + "</b>" + (glv338 ? rpGifterBadge338(glv338) : "") + (rcb393 ? ' <span class="rp393-badge">' + rcb393 + "</span>" : "") + " " + escHtml(text) + "</span>"; // [RP-V7.392] // [RP-V7.393] club badge beside the name
           if (fx392 && fx392.hl) row.classList.add("fx392-hl"); // [RP-V7.392]
           if (cp2) row.addEventListener("click", function () { openOnlinePlayerCard(cp2); });
         }
@@ -48695,6 +48696,7 @@ html, body { overflow-x: clip; }
           : '<p class="store-note">Sold out — check back, sellers restock.</p>') +
         '<div id="storeBuyMsg"></div>' +
         (mine ? '' : '<input id="rp392StoreCpn" type="text" maxlength="24" placeholder="Coupon code (optional)" style="text-transform:uppercase;width:100%;box-sizing:border-box;margin-top:8px">') + // [RP-V7.392]
+        (mine ? '' : '<div id="rp393StoreClub" data-rp393-seller="' + esc(String(l.sellerId || "")) + '"></div>') + // [RP-V7.393] rewards-club standing + credit with this seller
         '<div style="margin-top:20px;"><button class="btn-mini" id="storeReportBtn" type="button">🚩 Report this product</button></div>' +
         '<div id="storeReportBox"></div>' +
         '</div>';
@@ -53816,6 +53818,7 @@ window.rpOpenSavedSheet349 = function () {
         '<span class="small">Cashable balance' + (hub.money && hub.money.pendingCents > 0 ? " · " + moneyStr(hub.money.pendingCents) + " pending" : "") + "</span></button>" +
         "</div>";
 
+      if (window.rp393HubHtml) html += window.rp393HubHtml(hub.rewardsClub); // [RP-V7.393] rewards-club roster (members by tier + outstanding credits)
       html += "<h4>📅 My upcoming shows</h4>";
       var ups = hub.upcomingShows || [];
       if (!ups.length) html += '<p class="rp388-empty">No upcoming shows — schedule one above.</p>';
@@ -54840,6 +54843,180 @@ window.rpOpenSavedSheet349 = function () {
   if (document.body) mo.observe(document.body, { childList: true, subtree: true });
 
   window.rp392open = open392;
+})();
+</script>
+<style>
+/* [RP-V7.393] Per-seller Rewards Club surfaces. */
+.rp393-badge { font-size: 12px; margin-left: 2px; }
+.rp393-card { background: #101014; border: 1px solid #26262e; border-radius: 14px; padding: 14px; margin: 10px 0; color: #f2f2f5; }
+.rp393-card h3 { margin: 0 0 4px; font-size: 16px; }
+.rp393-sub { margin: 0 0 6px; color: #a7a7b3; font-size: 12.5px; line-height: 1.45; }
+.rp393-line { font-size: 14px; margin: 2px 0 8px; }
+.rp393-muted { color: #a7a7b3; font-size: 12.5px; line-height: 1.5; }
+.rp393-credit { border-top: 1px solid #26262e; padding: 8px 0; font-size: 13.5px; }
+.rp393-code { background: rgba(255,255,255,.08); border-radius: 6px; padding: 1px 7px; font-weight: 800; letter-spacing: .5px; }
+.rp393-club { border-top: 1px solid #26262e; padding: 10px 0; }
+.rp393-club:first-of-type { border-top: 0; }
+.rp393-store { margin-top: 8px; font-size: 13px; color: #ffd76a; }
+</style>
+<script>
+(function () {
+  // [RP-V7.393] Per-seller Rewards Club: Earn-sheet club list,
+  // profile club card, store-page club line, Seller Hub roster
+  // section (via window.rp393HubHtml), chat tier badges (server
+  // field rcb393, plumbed by the anchored edits). Every number is
+  // the server's, computed from real orders / watch records.
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok393() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function authH() { var t = tok393(); return t ? { "Authorization": "Bearer " + t } : {}; }
+  function jget(u) { return fetch(u, { headers: authH(), credentials: "same-origin" }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; }); }
+  function fmtDay(iso) { try { return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }); } catch (e) { return ""; } }
+  function gateText(g) {
+    if (!g) return "";
+    if (g.kind === "purchases") return g.purchasesNeeded + " more purchase" + (g.purchasesNeeded === 1 ? "" : "s") + " from them";
+    return "watch " + g.showsNeeded + " more of their shows or spend $" + Number(g.spendNeeded || 0).toFixed(2) + " more";
+  }
+  function creditHtml(c) {
+    var state = c.spent ? " · used" : (c.expired ? " · expired" : (c.pending ? " · checkout in progress" : ""));
+    return '<div class="rp393-credit">' + (c.tier ? esc(c.tier.charAt(0).toUpperCase() + c.tier.slice(1)) + " credit: " : "Credit: ") +
+      "<b>" + (c.value || 0).toLocaleString("en-US") + " charms off</b> — code <span class=\"rp393-code\">" + esc(c.code) + "</span>" +
+      '<div class="rp393-muted">Use it in the coupon box when you buy from ' + esc(c.sellerName || "this seller") + (c.expiresAt ? " · good through " + fmtDay(c.expiresAt) : "") + state + "</div></div>";
+  }
+  function clubHtml(v) {
+    var h = '<div class="rp393-club"><div class="rp393-line">' +
+      (v.tierEmoji ? '<span class="rp393-badge" style="font-size:15px">' + v.tierEmoji + "</span> " : "") +
+      "<b>" + esc(v.sellerName || "Seller") + "</b>" +
+      (v.tierLabel ? ' — ' + esc(v.tierLabel) : ' — no tier yet') + "</div>" +
+      '<div class="rp393-muted">' + (v.purchases || 0) + " purchase" + (v.purchases === 1 ? "" : "s") + " · $" + Number(v.spendDollars || 0).toFixed(2) + " spent · " + (v.showsWatched || 0) + " / 50 shows watched this season</div>";
+    if (v.nextTier) h += '<div class="rp393-muted">Next: ' + (v.nextTier.emoji || "") + " " + esc(v.nextTier.label) + " (" + (v.nextTier.credit || 0).toLocaleString("en-US") + " charms credit) — " + esc(gateText(v.nextTier.gate)) + "</div>";
+    else if (v.tier) h += '<div class="rp393-muted">Top tier reached this season 🏆</div>';
+    var usable = (v.credits || []).filter(function (c) { return c.usable; });
+    var spent = (v.credits || []).filter(function (c) { return !c.usable; });
+    h += usable.map(creditHtml).join("") + spent.map(creditHtml).join("");
+    return h + "</div>";
+  }
+
+  /* ---------- Earn sheet: My Rewards Clubs ---------- */
+  var myClubs = null;
+  function renderMyClubs() {
+    var box = $("rp393ClubsBox"); if (!box) return;
+    if (!myClubs) { box.innerHTML = '<div class="rp393-muted">Loading your clubs…</div>'; return; }
+    if (!myClubs.ok) { box.innerHTML = '<div class="rp393-muted">Sign in to see your Rewards Clubs.</div>'; return; }
+    if (!(myClubs.clubs || []).length) {
+      box.innerHTML = '<div class="rp393-muted">No clubs yet — buy from a seller or watch their shows and your standing starts here. Season ends ' + fmtDay(myClubs.season && myClubs.season.endsAt) + ".</div>";
+      return;
+    }
+    box.innerHTML = '<div class="rp393-muted">Season ends ' + fmtDay(myClubs.season && myClubs.season.endsAt) + ". Credits are paid out of the seller's share — enter the code in the coupon box when you buy from them.</div>" +
+      myClubs.clubs.map(clubHtml).join("");
+  }
+  function loadMyClubs() { jget("/api/rewards-club/me").then(function (d) { myClubs = d; renderMyClubs(); }); }
+  function injectClubsCard() {
+    var panel = document.querySelector("#earnSheet .rp-panel") || $("earnSheet");
+    if (!panel || $("rp393ClubsCard")) return;
+    var card = document.createElement("div");
+    card.className = "rp-sec";
+    card.id = "rp393ClubsCard";
+    card.innerHTML = "<h3>🏆 My Rewards Clubs</h3>" +
+      '<div class="rp393-muted">Every seller runs their own club. Your tiers and credits with each seller, from your real purchases and watching.</div>' +
+      '<div id="rp393ClubsBox" style="margin-top:6px"></div>';
+    var anchor = $("rp392RefCard");
+    if (anchor && anchor.parentNode === panel) panel.insertBefore(card, anchor.nextSibling);
+    else panel.appendChild(card);
+    renderMyClubs();
+    loadMyClubs();
+  }
+
+  /* ---------- profile club card (the rp387 pattern) ---------- */
+  function renderProfClub() {
+    var pp = document.querySelector(".pprof");
+    if (!pp || !tok393()) return;
+    var nameEl = pp.querySelector(".pprof-name");
+    var name = nameEl ? (nameEl.textContent || "").trim() : "";
+    if (!name) return;
+    if (pp.dataset.rp393name === name && pp.querySelector("#rp393ProfClub")) return;
+    jget("/api/social/directory").then(function (r) {
+      var users = (r && r.users) || [];
+      var hit = null;
+      for (var i = 0; i < users.length; i++) if (users[i].name === name) { hit = users[i]; break; }
+      if (!hit) return;
+      jget("/api/rewards-club/seller/" + encodeURIComponent(hit.id)).then(function (v) {
+        var pp2 = document.querySelector(".pprof");
+        if (!pp2) return;
+        var nm = pp2.querySelector(".pprof-name");
+        if (!nm || (nm.textContent || "").trim() !== name) return;
+        if (pp2.querySelector("#rp393ProfClub")) return;
+        var d = document.createElement("div");
+        d.id = "rp393ProfClub"; d.className = "rp393-card";
+        var h = "";
+        if (v && v.ok && v.own) {
+          var ro = v.roster || {};
+          var bt = ro.byTier || {};
+          h = "<h3>🏆 Your Rewards Club</h3>" +
+            '<div class="rp393-line">' + (ro.members || 0) + " member" + (ro.members === 1 ? "" : "s") + " this season</div>" +
+            '<div class="rp393-muted">🥉 ' + (bt.bronze || 0) + " · 🥈 " + (bt.silver || 0) + " · 🥇 " + (bt.gold || 0) + " · 💠 " + (bt.platinum || 0) + " · 💎 " + (bt.diamond || 0) + "</div>" +
+            '<div class="rp393-muted">' + (ro.creditsOutstanding || 0) + " credits outstanding (" + (ro.creditsOutstandingCharms || 0).toLocaleString("en-US") + " charms) · season ends " + fmtDay(ro.season && ro.season.endsAt) + "</div>";
+        } else if (v && v.ok && !v.ineligible) {
+          h = "<h3>🏆 " + esc(v.sellerName || name) + "'s Rewards Club</h3>" + clubHtml(v) +
+            '<div class="rp393-muted">Season ends ' + fmtDay(v.season && v.season.endsAt) + ". Tiers: 🥉 Bronze 500 · 🥈 Silver 1,000 · 🥇 Gold 2,000 · 💠 Platinum 3,500 · 💎 Diamond 5,000 charms credit.</div>";
+        } else {
+          h = "<h3>🏆 " + esc(name) + "'s Rewards Club</h3>" +
+            '<div class="rp393-muted">Buy from them or watch their shows to start your standing. Season ends ' + fmtDay(v && v.season && v.season.endsAt) + ".</div>";
+        }
+        d.innerHTML = h;
+        pp2.appendChild(d);
+        pp2.dataset.rp393name = name;
+      });
+    });
+  }
+
+  /* ---------- store product page club line ---------- */
+  function fillStoreClub() {
+    var el = $("rp393StoreClub");
+    if (!el || el.dataset.done) return;
+    var sellerId = el.getAttribute("data-rp393-seller");
+    if (!sellerId || !tok393()) { el.dataset.done = "1"; return; }
+    el.dataset.done = "1";
+    jget("/api/rewards-club/seller/" + encodeURIComponent(sellerId)).then(function (v) {
+      var box = $("rp393StoreClub"); if (!box) return;
+      if (!v || !v.ok || v.own || v.ineligible) return;
+      var usable = (v.credits || []).filter(function (c) { return c.usable; });
+      var h = "";
+      if (v.tierLabel) h += "🏆 You're " + (v.tierEmoji || "") + " " + esc(v.tierLabel) + " with this seller.";
+      if (usable.length) {
+        h += (h ? " " : "🏆 ") + "You have a <b>" + (usable[0].value || 0).toLocaleString("en-US") + " charms</b> club credit — code <span class=\"rp393-code\">" + esc(usable[0].code) + "</span> (already in the coupon box).";
+        var inp = $("rp392StoreCpn");
+        if (inp && !inp.value) inp.value = usable[0].code;
+      }
+      if (h) box.innerHTML = '<div class="rp393-store">' + h + "</div>";
+    });
+  }
+
+  /* ---------- Seller Hub roster section (called by rp388) ---------- */
+  window.rp393HubHtml = function (rc) {
+    if (!rc) return "";
+    var bt = rc.byTier || {};
+    var h = "<h4>🏆 Rewards Club</h4>";
+    if (!rc.members) h += '<p class="rp388-empty">No club members yet this season — buyers join by purchasing from you or watching your shows.</p>';
+    else {
+      h += '<div class="rp388-show"><b>' + rc.members + " member" + (rc.members === 1 ? "" : "s") + "</b>" +
+        '<div class="meta">🥉 ' + (bt.bronze || 0) + " · 🥈 " + (bt.silver || 0) + " · 🥇 " + (bt.gold || 0) + " · 💠 " + (bt.platinum || 0) + " · 💎 " + (bt.diamond || 0) + "</div></div>" +
+        '<div class="rp388-show"><div class="meta">' + (rc.creditsOutstanding || 0) + " member credits outstanding (" + (rc.creditsOutstandingCharms || 0).toLocaleString("en-US") + " charms, from your share when used) · " + (rc.creditsGrantedThisSeason || 0) + " granted this season · season ends " + fmtDay(rc.season && rc.season.endsAt) + "</div></div>";
+    }
+    return h;
+  };
+
+  /* ---------- boot ---------- */
+  function boot393() { injectClubsCard(); renderProfClub(); fillStoreClub(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot393);
+  else boot393();
+  var mo = new MutationObserver(function () {
+    if (!$("rp393ClubsCard")) injectClubsCard();
+    renderProfClub();
+    fillStoreClub();
+  });
+  if (document.body) mo.observe(document.body, { childList: true, subtree: true });
 })();
 </script>
 </body>
