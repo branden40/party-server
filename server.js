@@ -6636,7 +6636,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.384", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.385", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -22574,6 +22574,333 @@ app.post("/api/auction-items/:id/remove", (req, res) => {
   writeAuctionItems384(db);
   res.json({ ok: true, item: auctionItemPublic384(it) });
 });
+// ---------------------------------------------------------------------------
+// [RP-V7.385] SCHEDULED SHOWS + BOOKMARK REMINDERS (Whatnot parity build 3;
+// Branden, Nov 15, 2026: "everything whatnot has to offer build it").
+// A host schedules a show (title, room, start time, note) in shows.json;
+// viewers bookmark it. All alerts ride the EXISTING activity system
+// (notifyActivity, kind "liveinvite" — the member's own "Live invites"
+// switch governs them; bell + email per their channel switches, never
+// SMS): bookmarkers are reminded ~15 minutes before start (once — the
+// reminded15 flag), notified the moment the host's live flips the show
+// live, and told if the host cancels. The live linkage hangs on the
+// same two doors as liveStartedReinvite274 (live-register creation and
+// beat-heal creation): the host's scheduled show for the room they went
+// live from (ticket config org), startsAt within [-2h, +30min], flips
+// to live; the soonest match wins when several qualify. A periodic
+// sweep (SHOW_SWEEP_MS, default 60s) sends the 15-minute reminders,
+// marks shows missed when the start is >2h past with no live, and
+// closes live shows whose host live has left the registry. Public
+// reads expose bookmark COUNTS only — never the bookmarker ids.
+// ---------------------------------------------------------------------------
+const SHOWS_FILE385 =
+  process.env.SHOWS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "shows.json");
+// The room ids a show can be scheduled under — the client's ROOMS list
+// (index.html), mirrored: the client is the source of truth for rooms.
+const SHOW_ROOMS385 = [
+  "neon", "roof", "beach", "garden", "love", "friends", "faith", "music",
+  "foodie", "travel", "movies", "games", "books", "comedy", "podcast",
+  "art", "wellness", "workout", "sports", "singles", "career",
+];
+const SHOW_MAX_AHEAD_MS385 = 30 * 24 * 60 * 60 * 1000; // <= 30 days out
+const SHOW_MAX_PER_HOST385 = 10; // scheduled shows at a time
+const SHOW_LIVE_PAST_MS385 = 2 * 60 * 60 * 1000; // live-match / missed window
+const SHOW_LIVE_FUTURE_MS385 = 30 * 60 * 1000; // live-match early window
+const SHOW_REMIND_MS385 = 15 * 60 * 1000; // bookmark reminder lead time
+const SHOW_LIST_GRACE_MS385 = 15 * 60 * 1000; // public list keeps just-started shows
+const SHOW_SWEEP_MS385 = Math.max(1000, Number(process.env.SHOW_SWEEP_MS) || 60 * 1000);
+function readShows385() {
+  return storeReadJson(
+    SHOWS_FILE385,
+    (d) => !!(d && Array.isArray(d.shows)),
+    { shows: [] },
+    "shows"
+  );
+}
+function writeShows385(db) {
+  storeWriteJson(SHOWS_FILE385, db);
+}
+// The host's current personal-live room (live-<devKey>) when they are
+// in the registry, resolved by ACCOUNT exactly like livesSnapshot.
+function showLiveRoom385(hostId) {
+  if (!hostId) return null;
+  for (const e of liveRegistry.values()) {
+    if (liveHostAccount274(e) === hostId) return e.room;
+  }
+  return null;
+}
+function showPublic385(sh, photoById, meId) {
+  const bms = Array.isArray(sh.bookmarks) ? sh.bookmarks : [];
+  return {
+    id: sh.id,
+    hostId: sh.hostId,
+    hostName: sh.hostName,
+    hostPhoto: (photoById && photoById[sh.hostId]) || null,
+    title: sh.title,
+    room: sh.room,
+    startsAt: sh.startsAt,
+    note: sh.note || "",
+    status: sh.status,
+    bookmarkCount: bms.length,
+    bookmarkedByMe: meId ? bms.indexOf(meId) >= 0 : false,
+    liveRoom: sh.status === "live" ? showLiveRoom385(sh.hostId) : null,
+    liveAt: sh.liveAt || null,
+    createdAt: sh.createdAt,
+  };
+}
+function showPhotoMap385(adb) {
+  const map = {};
+  for (const u of (adb && adb.users) || []) {
+    if (u && u.id && u.photo) map[u.id] = String(u.photo).slice(0, 500);
+  }
+  return map;
+}
+function showNotify385(toId, hostId, hostName, text, emailSubject, go) {
+  notifyActivity({
+    toId,
+    kind: "liveinvite",
+    actorId: hostId,
+    actorName: hostName,
+    text,
+    emailSubject,
+    emailText:
+      text +
+      "\n\nOpen Rizz Plaza to watch: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    go: go || undefined,
+  });
+}
+app.post("/api/shows", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "adults-only" });
+  const b = req.body || {};
+  const title = String(b.title || "").replace(/[<>&"']/g, "").trim();
+  if (!title) return res.status(400).json({ ok: false, error: "title-required" });
+  if (title.length > 80)
+    return res.status(400).json({ ok: false, error: "title-too-long" });
+  const room = String(b.room || "").trim();
+  if (SHOW_ROOMS385.indexOf(room) < 0)
+    return res.status(400).json({ ok: false, error: "bad-room" });
+  const startsAt = Math.floor(Number(b.startsAt) || 0);
+  const now = Date.now();
+  if (!startsAt || startsAt <= now)
+    return res.status(400).json({ ok: false, error: "starts-in-past" });
+  if (startsAt - now > SHOW_MAX_AHEAD_MS385)
+    return res.status(400).json({ ok: false, error: "too-far-ahead" });
+  const db = readShows385();
+  const mine = db.shows.filter(
+    (x) => x.hostId === ctx.user.id && x.status === "scheduled"
+  );
+  if (mine.length >= SHOW_MAX_PER_HOST385)
+    return res.status(409).json({ ok: false, error: "too-many-shows", limit: SHOW_MAX_PER_HOST385 });
+  const sh = {
+    id: "show-" + crypto.randomBytes(8).toString("hex"),
+    hostId: ctx.user.id,
+    hostName: ctx.user.name || ctx.user.username || "Host",
+    title,
+    room,
+    startsAt,
+    note: String(b.note || "").replace(/[<>&"']/g, "").slice(0, 200),
+    status: "scheduled",
+    bookmarks: [],
+    reminded15: false,
+    liveAt: null,
+    createdAt: new Date().toISOString(),
+  };
+  db.shows.push(sh);
+  writeShows385(db);
+  res.json({ ok: true, show: showPublic385(sh, showPhotoMap385(ctx.db), ctx.user.id) });
+});
+app.get("/api/shows", (req, res) => {
+  const adb = readAccounts();
+  const me = accountForToken(adb, req);
+  const now = Date.now();
+  const db = readShows385();
+  const photos = showPhotoMap385(adb);
+  const list = db.shows
+    .filter(
+      (sh) =>
+        sh.status === "live" ||
+        (sh.status === "scheduled" && sh.startsAt > now - SHOW_LIST_GRACE_MS385)
+    )
+    .sort((a, b) => a.startsAt - b.startsAt)
+    .map((sh) => showPublic385(sh, photos, me ? me.id : null));
+  res.json({ ok: true, shows: list });
+});
+app.get("/api/shows/mine", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const now = Date.now();
+  const db = readShows385();
+  const photos = showPhotoMap385(ctx.db);
+  const list = db.shows
+    .filter(
+      (sh) =>
+        sh.hostId === ctx.user.id &&
+        (sh.status === "scheduled" ||
+          sh.status === "live" ||
+          sh.startsAt > now - 7 * 24 * 60 * 60 * 1000)
+    )
+    .sort((a, b) => a.startsAt - b.startsAt)
+    .slice(0, 100)
+    .map((sh) => showPublic385(sh, photos, ctx.user.id));
+  res.json({ ok: true, shows: list });
+});
+app.post("/api/shows/:id/bookmark", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const db = readShows385();
+  const sh = db.shows.find((x) => x.id === String(req.params.id || ""));
+  if (!sh) return res.status(404).json({ ok: false, error: "show-not-found" });
+  if (sh.hostId === ctx.user.id)
+    return res.status(403).json({ ok: false, error: "own-show" });
+  if (sh.status !== "scheduled" && sh.status !== "live")
+    return res.status(409).json({ ok: false, error: "not-bookmarkable" });
+  if (!Array.isArray(sh.bookmarks)) sh.bookmarks = [];
+  const i = sh.bookmarks.indexOf(ctx.user.id);
+  let bookmarked;
+  if (i >= 0) {
+    sh.bookmarks.splice(i, 1);
+    bookmarked = false;
+  } else {
+    sh.bookmarks.push(ctx.user.id);
+    bookmarked = true;
+  }
+  writeShows385(db);
+  res.json({ ok: true, bookmarked, bookmarkCount: sh.bookmarks.length });
+});
+app.post("/api/shows/:id/cancel", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const db = readShows385();
+  const sh = db.shows.find((x) => x.id === String(req.params.id || ""));
+  if (!sh) return res.status(404).json({ ok: false, error: "show-not-found" });
+  if (sh.hostId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-host" });
+  if (sh.status !== "scheduled")
+    return res.status(409).json({ ok: false, error: "not-scheduled" });
+  sh.status = "cancelled";
+  sh.cancelledAt = new Date().toISOString();
+  writeShows385(db);
+  const hostName = sh.hostName || "A host";
+  for (const bid of sh.bookmarks || []) {
+    if (bid === sh.hostId) continue;
+    showNotify385(
+      bid,
+      sh.hostId,
+      hostName,
+      "🚫 " + hostName + " cancelled their show “" + sh.title + "”",
+      hostName + " cancelled a show on Rizz Plaza",
+      null
+    );
+  }
+  res.json({ ok: true, show: showPublic385(sh, showPhotoMap385(ctx.db), ctx.user.id) });
+});
+// A host's NEW live just entered the registry (called beside
+// liveStartedReinvite274 at both creation doors): flip their matching
+// scheduled show to live and tell every bookmarker. Private lives are
+// invisible to shows end to end, exactly like the re-invite system.
+// Matching: the host's scheduled shows with startsAt in
+// [now-2h, now+30min]; the show whose room equals the room the host
+// went live FROM (ticket-config org) wins; otherwise the soonest.
+function showOnLiveStart385(socket, entry) {
+  try {
+    if (!entry || entry.priv) return; // public lives only
+    const hostId = socket && socket.data && socket.data.accountId;
+    if (!hostId) return; // guest host: no account, no shows
+    const now = Date.now();
+    const db = readShows385();
+    const cands = db.shows
+      .filter(
+        (sh) =>
+          sh.hostId === hostId &&
+          sh.status === "scheduled" &&
+          sh.startsAt >= now - SHOW_LIVE_PAST_MS385 &&
+          sh.startsAt <= now + SHOW_LIVE_FUTURE_MS385
+      )
+      .sort((a, b) => a.startsAt - b.startsAt);
+    if (!cands.length) return;
+    let org = "";
+    try {
+      const cfg = liveTicketCfg299.get(entry.key);
+      if (cfg && cfg.org) org = String(cfg.org);
+    } catch (e) {}
+    const pick = (org && cands.find((sh) => sh.room === org)) || cands[0];
+    pick.status = "live";
+    pick.liveAt = now;
+    writeShows385(db);
+    const hostName = String(entry.name || pick.hostName || "Someone").slice(0, 60);
+    for (const bid of pick.bookmarks || []) {
+      if (bid === hostId) continue;
+      showNotify385(
+        bid,
+        hostId,
+        hostName,
+        "🔴 " + hostName + " is LIVE — " + pick.title,
+        hostName + " is live on Rizz Plaza",
+        { screen: "live", room: entry.room }
+      );
+    }
+  } catch (e) {
+    /* a show flip must never break a live start */
+  }
+}
+// The shows sweep: 15-minute reminders (once per show), missed flips
+// (>2h past, never live), and live-show closure when the host's live
+// has left the registry. Fully guarded, like every other sweep.
+function showSweep385() {
+  const now = Date.now();
+  const db = readShows385();
+  let changed = false;
+  const liveHosts = new Set();
+  for (const e of liveRegistry.values()) {
+    const hid = liveHostAccount274(e);
+    if (hid) liveHosts.add(hid);
+  }
+  for (const sh of db.shows) {
+    if (sh.status === "scheduled") {
+      if (
+        !sh.reminded15 &&
+        sh.startsAt - now <= SHOW_REMIND_MS385 &&
+        sh.startsAt - now > 0
+      ) {
+        sh.reminded15 = true; // flag first: never twice, even on a send hiccup
+        changed = true;
+        const hostName = sh.hostName || "A host";
+        for (const bid of sh.bookmarks || []) {
+          if (bid === sh.hostId) continue;
+          showNotify385(
+            bid,
+            sh.hostId,
+            hostName,
+            "⏰ “" + sh.title + "” with " + hostName + " starts in ~15 minutes",
+            "A show you bookmarked starts soon on Rizz Plaza",
+            null
+          );
+        }
+      }
+      if (now - sh.startsAt > SHOW_LIVE_PAST_MS385) {
+        sh.status = "missed";
+        changed = true;
+      }
+    } else if (sh.status === "live") {
+      if (!liveHosts.has(sh.hostId)) {
+        sh.status = "done";
+        sh.doneAt = new Date().toISOString();
+        changed = true;
+      }
+    }
+  }
+  if (changed) writeShows385(db);
+}
 // [RP-V7.80] The client (rpWn) settle path — account auth only, and
 // the winner is ALWAYS the authenticated caller: a settle request
 // can spend the caller's own charms to pay a host, but it can never
@@ -24194,7 +24521,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.384", online: players.size })
+  res.json({ ok: true, version: "RP-V7.385", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -24646,6 +24973,7 @@ io.on("connection", (socket) => {
       ticketPrice: cfg299 ? cfg299.price : 0, // [RP-V7.299]
     });
     if (!prev) liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a NEW live invites the host's remembered viewers (public only — the helper refuses private)
+    if (!prev) showOnLiveStart385(socket, liveRegistry.get(devKey)); // [RP-V7.385] flip a matching scheduled show live + notify its bookmarkers
     broadcastLives();
     emitLiveAccess138(socket, devKey);
   });
@@ -24679,6 +25007,7 @@ io.on("connection", (socket) => {
         ticketPrice: 0, // [RP-V7.299] a beat-healed live never had a setup pass — free at the door
       });
       liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a beat-healed creation is still a new live — invite past viewers (public only)
+      showOnLiveStart385(socket, liveRegistry.get(devKey)); // [RP-V7.385] a beat-healed creation flips a matching scheduled show live too
       broadcastLives();
       return;
     }
@@ -25620,6 +25949,19 @@ const storySweepTimer = setInterval(() => {
   } catch (e) {}
 }, 10 * 60 * 1000);
 if (storySweepTimer.unref) storySweepTimer.unref();
+
+// [RP-V7.385] Scheduled-shows sweep: once on boot, then on the
+// SHOW_SWEEP_MS cadence (60s default — the daily-pot timer's rhythm):
+// 15-minute bookmark reminders, missed flips, live-show closure.
+try {
+  showSweep385();
+} catch (e) {}
+const showSweepTimer385 = setInterval(() => {
+  try {
+    showSweep385();
+  } catch (e) {}
+}, SHOW_SWEEP_MS385);
+if (showSweepTimer385.unref) showSweepTimer385.unref();
 
 // [RP-V7.133] Share-in expiry sweep: once on boot (already run beside
 // the store load above), then every 10 minutes — a parked share and
