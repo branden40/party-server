@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.384" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.385" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -52040,6 +52040,293 @@ window.rpOpenSavedSheet349 = function () {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1200); tick(); });
   else { setInterval(tick, 1200); tick(); }
 })();
+</script>
+<style>
+/* [RP-V7.385] Scheduled shows + bookmark reminders */
+.rp385-card{background:#101014;border:1px solid #26262e;border-radius:14px;padding:14px;margin:10px 0;color:#f2f2f5}
+.rp385-card h3{margin:0 0 4px;font-size:16px}
+.rp385-sub{margin:0 0 10px;color:#a7a7b3;font-size:12.5px;line-height:1.45}
+.rp385-card input[type=text],.rp385-card input[type=datetime-local],.rp385-card select{width:100%;box-sizing:border-box;background:#17171d;border:1px solid #2c2c36;border-radius:9px;color:#f2f2f5;padding:8px 10px;margin:0 0 8px;font-size:14px;color-scheme:dark}
+.rp385-row{display:flex;gap:8px}.rp385-row>*{flex:1}
+.rp385-btn{background:#e02424;color:#fff;border:0;border-radius:9px;padding:9px 12px;font-weight:800;font-size:13.5px;cursor:pointer}
+.rp385-btn.ghost{background:#1d1d24;color:#f2f2f5;border:1px solid #33333f}
+.rp385-btn:disabled{opacity:.45}
+.rp385-show{border:1px solid #26262e;border-radius:11px;padding:10px;margin:8px 0;background:#141419}
+.rp385-show b{font-size:14.5px}
+.rp385-meta{color:#a7a7b3;font-size:12.5px;margin-top:2px;line-height:1.5}
+.rp385-chip{display:inline-block;background:#1d1d24;border:1px solid #33333f;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:800;color:#ffb3b3;margin-left:6px;vertical-align:2px}
+.rp385-chip.live{background:#e02424;border-color:#e02424;color:#fff}
+.rp385-chip.done,.rp385-chip.missed,.rp385-chip.cancelled{color:#a7a7b3}
+.rp385-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.rp385-actions .rp385-btn{padding:7px 10px;font-size:12.5px}
+.rp385-bm{background:#1d1d24;border:1px solid #33333f;color:#f2f2f5;border-radius:9px;padding:7px 10px;cursor:pointer;font-size:12.5px;font-weight:700}
+.rp385-bm.on{color:#ff5b5b;border-color:#e02424}
+.rp385-msg{font-size:12.5px;color:#ffd76a;min-height:16px;margin:6px 0 0}
+.rp385-empty{color:#a7a7b3;font-size:13px;padding:8px 0}
+.rp385-ava{width:34px;height:34px;border-radius:50%;object-fit:cover;vertical-align:-11px;margin-right:8px;background:#26262e}
+.rp385-join{background:#e02424;color:#fff;border:0;border-radius:9px;padding:7px 12px;font-weight:800;font-size:12.5px;cursor:pointer}
+</style>
+<script>
+/* [RP-V7.385] Scheduled shows + bookmark reminders.
+   Self-contained module (the rp384 pattern). Server: /api/shows.
+   Times: startsAt is an epoch — every render uses the viewer's own
+   local timezone; the picker is a native datetime-local (local too). */
+(function () {
+  "use strict";
+  var ROOMS385 = [
+    ["neon", "Neon Nights Club"], ["roof", "Rooftop Sunset Lounge"], ["beach", "Beach Bonfire"],
+    ["garden", "Garden Masquerade"], ["love", "Love Lounge"], ["friends", "Friends Hangout"],
+    ["faith", "Christian Fellowship"], ["music", "Music Lovers Lounge"], ["foodie", "Foodie Table"],
+    ["travel", "Wanderlust Corner"], ["movies", "Movie Night Room"], ["games", "Game Night Arena"],
+    ["books", "Book & Poetry Corner"], ["comedy", "Comedy Corner"], ["podcast", "Podcast"],
+    ["art", "Art Studio Loft"], ["wellness", "Wellness Garden"], ["workout", "Workout Room"],
+    ["sports", "Sports Fans Zone"], ["singles", "Serious Singles"], ["career", "Dream Builders"]
+  ];
+  function roomName(id) { for (var i = 0; i < ROOMS385.length; i++) if (ROOMS385[i][0] === id) return ROOMS385[i][1]; return id || ""; }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" }; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return { ok: false }; }).then(function (j) { return { status: r.status, j: j }; }); })
+      .catch(function () { return { status: 0, j: { ok: false, error: "network" } }; });
+  }
+  function isVis(el) { if (!el) return false; try { return !!(el.offsetParent || el.getClientRects().length); } catch (e) { return false; } }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function toLocalInput(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function fmtWhen(ms) {
+    try {
+      return new Date(ms).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    } catch (e) { return new Date(ms).toString(); }
+  }
+  function rel(ms) {
+    var diff = ms - Date.now();
+    if (diff <= 0) return "";
+    var mins = Math.round(diff / 60000);
+    if (mins < 60) return " · in " + mins + " min";
+    var hrs = Math.floor(mins / 60), rm = mins % 60;
+    if (hrs < 48) return " · in " + hrs + " h" + (rm ? " " + rm + " min" : "");
+    return " · in " + Math.round(hrs / 24) + " days";
+  }
+  var ERR385 = {
+    "starts-in-past": "That start time is in the past — pick a future time.",
+    "too-far-ahead": "Shows can be scheduled up to 30 days out.",
+    "bad-room": "Pick a room for the show.",
+    "title-required": "Give your show a title.",
+    "title-too-long": "Title is too long (80 characters max).",
+    "too-many-shows": "You already have 10 scheduled shows — cancel one first.",
+    "adults-only": "Scheduling a show is 18+.",
+    "own-show": "You can't bookmark your own show.",
+    "not-bookmarkable": "That show can't be bookmarked anymore.",
+    "show-not-found": "That show is gone.",
+    "network": "Network hiccup — try again."
+  };
+  function errText(j) { var e = (j && j.error) || "error"; return ERR385[e] || e; }
+
+  var S = { shows: [], showsAt: 0, mine: [], mineAt: 0, upSig: "", mineSig: "", profHost: null };
+
+  /* ---------------- shared show card ---------------- */
+  function showCard(sh, ctx) {
+    var live = sh.status === "live";
+    var h = '<div class="rp385-show" data-rp385-card="' + esc(sh.id) + '">';
+    if (ctx !== "mine" && sh.hostPhoto) h += '<img class="rp385-ava" src="' + esc(sh.hostPhoto) + '" alt=""/>';
+    h += "<b>" + esc(sh.title) + "</b>";
+    h += '<span class="rp385-chip ' + esc(sh.status) + '">' + (live ? "🔴 LIVE" : esc(sh.status)) + "</span>";
+    h += '<div class="rp385-meta">' +
+      (ctx !== "mine" ? esc(sh.hostName) + " · " : "") +
+      esc(roomName(sh.room)) + " · " +
+      (live ? "Live now" : esc(fmtWhen(sh.startsAt)) + esc(rel(sh.startsAt))) +
+      "</div>";
+    if (sh.note) h += '<div class="rp385-meta">' + esc(sh.note) + "</div>";
+    h += '<div class="rp385-actions">';
+    if (live && sh.liveRoom)
+      h += '<button type="button" class="rp385-join" data-rp385-join="' + esc(sh.liveRoom) + '">🔴 Watch live</button>';
+    if (tok() && ctx !== "mine")
+      h += '<button type="button" class="rp385-bm' + (sh.bookmarkedByMe ? " on" : "") + '" data-rp385-bm="' + esc(sh.id) + '">🔖 ' + (sh.bookmarkedByMe ? "Bookmarked" : "Bookmark") + " · " + (sh.bookmarkCount || 0) + "</button>";
+    else
+      h += '<span class="rp385-meta">🔖 ' + (sh.bookmarkCount || 0) + " bookmark" + (sh.bookmarkCount === 1 ? "" : "s") + "</span>";
+    if (ctx === "mine" && sh.status === "scheduled")
+      h += '<button type="button" class="rp385-btn ghost" data-rp385-cancel="' + esc(sh.id) + '">Cancel show</button>';
+    h += "</div></div>";
+    return h;
+  }
+
+  /* ---------------- host: schedule form + my shows (Auctions screen) ---------------- */
+  function ensureHostCard() {
+    var scr = document.getElementById("screen-auctions");
+    if (!scr || document.getElementById("rp385Host")) return;
+    var d = document.createElement("div");
+    d.className = "rp384-card"; d.id = "rp385Host";
+    var opts = ROOMS385.map(function (r) { return '<option value="' + r[0] + '">' + esc(r[1]) + "</option>"; }).join("");
+    d.innerHTML = "<h3>📅 Schedule a show</h3>" +
+      '<p class="rp384-sub">Announce your next live ahead of time. Viewers bookmark it from the Plaza and profiles — they get a reminder ~15 minutes before, and a 🔴 alert the moment you go live.</p>' +
+      '<input type="text" id="rp385Title" maxlength="80" placeholder="Show title"/>' +
+      '<div class="rp384-row"><select id="rp385Room">' + opts + '</select>' +
+      '<input type="datetime-local" id="rp385When"/></div>' +
+      '<input type="text" id="rp385Note" maxlength="200" placeholder="Note for viewers (optional)"/>' +
+      '<button type="button" class="rp385-btn" data-rp385-add="1">📅 Schedule show</button> ' +
+      '<button type="button" class="rp385-btn ghost" data-rp385-refresh="1">↻ Refresh</button>' +
+      '<p class="rp385-msg" id="rp385HostMsg"></p>' +
+      '<div id="rp385Mine"></div>';
+    var mgr = document.getElementById("rp384Manager");
+    if (mgr && mgr.parentNode === scr) scr.insertBefore(d, mgr.nextSibling);
+    else scr.insertBefore(d, scr.firstChild);
+    var when = document.getElementById("rp385When");
+    if (when) {
+      var now = new Date();
+      when.min = toLocalInput(now);
+      when.value = toLocalInput(new Date(now.getTime() + 60 * 60 * 1000));
+    }
+  }
+  function hostMsg(t) { var m = document.getElementById("rp385HostMsg"); if (m && m.textContent !== t) m.textContent = t; }
+  function renderMine() {
+    var box = document.getElementById("rp385Mine"); if (!box) return;
+    var html;
+    if (!tok()) html = '<p class="rp385-empty">Sign in to schedule shows.</p>';
+    else if (!S.mine.length) html = '<p class="rp385-empty">No shows yet — schedule your first one above.</p>';
+    else html = S.mine.map(function (sh) { return showCard(sh, "mine"); }).join("");
+    var sig = "mine:" + html;
+    if (S.mineSig === sig) return;
+    S.mineSig = sig;
+    box.innerHTML = html;
+  }
+  function loadMine() {
+    if (!tok()) { renderMine(); return; }
+    api("GET", "/api/shows/mine").then(function (r) {
+      if (r.j && r.j.ok) { S.mine = r.j.shows || []; S.mineAt = Date.now(); }
+      renderMine();
+    });
+  }
+
+  /* ---------------- discovery: Upcoming shows (Plaza, under Live Now) ---------------- */
+  function ensureUpcoming() {
+    if (document.getElementById("rp385Upcoming")) return;
+    var anchor = document.getElementById("liveNowBox");
+    if (!anchor || !anchor.parentNode) return;
+    var d = document.createElement("div");
+    d.className = "plaza-card"; d.id = "rp385Upcoming"; d.style.marginTop = "16px";
+    d.innerHTML = "<div><h3>📅 Upcoming shows</h3></div>" +
+      '<p style="color:#a7a7b3;font-size:12.5px;margin:0 0 6px">Bookmark a show and you will be reminded before it starts — and the moment it goes live.</p>' +
+      '<div id="rp385UpList"></div>';
+    anchor.parentNode.insertBefore(d, anchor.nextSibling);
+  }
+  function renderUpcoming() {
+    var box = document.getElementById("rp385UpList"); if (!box) return;
+    var html = S.shows.length
+      ? S.shows.map(function (sh) { return showCard(sh, "up"); }).join("")
+      : '<p class="rp385-empty">No shows scheduled yet — hosts can schedule one from the Auctions tab.</p>';
+    var sig = "up:" + html;
+    if (S.upSig === sig) return;
+    S.upSig = sig;
+    box.innerHTML = html;
+  }
+  function loadShows() {
+    api("GET", "/api/shows").then(function (r) {
+      if (r.j && r.j.ok) { S.shows = r.j.shows || []; S.showsAt = Date.now(); }
+      renderUpcoming();
+    });
+  }
+
+  /* ---------------- profile: their upcoming shows ---------------- */
+  function renderProfileShows() {
+    var pp = document.querySelector(".pprof");
+    if (!pp) { S.profHost = null; return; }
+    var nameEl = pp.querySelector(".pprof-name");
+    var name = nameEl ? (nameEl.textContent || "").trim() : "";
+    if (!name || !tok()) return;
+    if (pp.dataset.rp385name === name && pp.querySelector("#rp385ProfShows")) return;
+    api("GET", "/api/social/directory").then(function (r) {
+      var users = (r.j && r.j.users) || [];
+      var hit = null;
+      for (var i = 0; i < users.length; i++) if (users[i].name === name) { hit = users[i]; break; }
+      if (!hit) return;
+      api("GET", "/api/shows").then(function (r2) {
+        var pp2 = document.querySelector(".pprof");
+        if (!pp2) return;
+        var nm = pp2.querySelector(".pprof-name");
+        if (!nm || (nm.textContent || "").trim() !== name) return;
+        if (pp2.querySelector("#rp385ProfShows")) return;
+        var shows = ((r2.j && r2.j.shows) || []).filter(function (sh) { return sh.hostId === hit.id; });
+        var d = document.createElement("div");
+        d.id = "rp385ProfShows"; d.className = "rp385-card";
+        d.innerHTML = "<h3>📅 Upcoming shows</h3>" +
+          (shows.length ? shows.map(function (sh) { return showCard(sh, "prof"); }).join("") : '<p class="rp385-empty">No upcoming shows scheduled.</p>');
+        pp2.appendChild(d);
+        pp2.dataset.rp385name = name;
+        S.profHost = hit.id;
+      });
+    });
+  }
+
+  /* ---------------- actions (delegated) ---------------- */
+  function patchBookmark(id, bookmarked, count) {
+    var btns = document.querySelectorAll('[data-rp385-bm="' + id + '"]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle("on", !!bookmarked);
+      btns[i].textContent = "🔖 " + (bookmarked ? "Bookmarked" : "Bookmark") + " · " + count;
+    }
+    [S.shows, S.mine].forEach(function (pool) {
+      for (var k = 0; k < pool.length; k++) if (pool[k].id === id) { pool[k].bookmarkedByMe = !!bookmarked; pool[k].bookmarkCount = count; }
+    });
+    S.upSig = ""; // force one clean re-render on the next tick
+  }
+  document.addEventListener("click", function (ev) {
+    var t = ev.target && ev.target.closest ? ev.target.closest("[data-rp385-add],[data-rp385-refresh],[data-rp385-cancel],[data-rp385-bm],[data-rp385-join]") : null;
+    if (!t) return;
+    if (t.hasAttribute("data-rp385-add")) {
+      var title = (document.getElementById("rp385Title") || {}).value || "";
+      var room = (document.getElementById("rp385Room") || {}).value || "";
+      var whenEl = document.getElementById("rp385When");
+      var startsAt = whenEl && whenEl.value ? new Date(whenEl.value).getTime() : 0;
+      var note = (document.getElementById("rp385Note") || {}).value || "";
+      if (!startsAt) { hostMsg("Pick a date and time for the show."); return; }
+      t.disabled = true;
+      api("POST", "/api/shows", { title: title, room: room, startsAt: startsAt, note: note }).then(function (r) {
+        t.disabled = false;
+        if (r.j && r.j.ok) {
+          hostMsg("✓ Show scheduled — viewers can bookmark it now.");
+          var ti = document.getElementById("rp385Title"); if (ti) ti.value = "";
+          var no = document.getElementById("rp385Note"); if (no) no.value = "";
+          S.mineAt = 0; S.showsAt = 0; loadMine(); loadShows();
+        } else hostMsg("Couldn't schedule that show: " + errText(r.j));
+      });
+    }
+    else if (t.hasAttribute("data-rp385-refresh")) { S.mineAt = 0; loadMine(); }
+    else if (t.hasAttribute("data-rp385-cancel")) {
+      var cid = t.getAttribute("data-rp385-cancel");
+      t.disabled = true;
+      api("POST", "/api/shows/" + encodeURIComponent(cid) + "/cancel", {}).then(function (r) {
+        if (r.j && r.j.ok) { hostMsg("Show cancelled — bookmarkers have been notified."); S.mineAt = 0; S.showsAt = 0; loadMine(); loadShows(); }
+        else { t.disabled = false; hostMsg("Couldn't cancel: " + errText(r.j)); }
+      });
+    }
+    else if (t.hasAttribute("data-rp385-bm")) {
+      var bid = t.getAttribute("data-rp385-bm");
+      api("POST", "/api/shows/" + encodeURIComponent(bid) + "/bookmark", {}).then(function (r) {
+        if (r.j && r.j.ok) patchBookmark(bid, r.j.bookmarked, r.j.bookmarkCount);
+      });
+    }
+    else if (t.hasAttribute("data-rp385-join")) {
+      var room2 = t.getAttribute("data-rp385-join");
+      try { if (window.rpJoinLive) window.rpJoinLive(room2); } catch (e) { }
+    }
+  });
+
+  /* ---------------- boot + light polling ---------------- */
+  function tick() {
+    try {
+      ensureHostCard();
+      ensureUpcoming();
+      if (Date.now() - S.showsAt > 20000) loadShows(); else renderUpcoming();
+      var scr = document.getElementById("screen-auctions");
+      if (isVis(scr) && Date.now() - S.mineAt > 20000) loadMine(); else renderMine();
+      renderProfileShows();
+    } catch (e) { /* the module must never break the app */ }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 4000); tick(); });
+  else { setInterval(tick, 4000); tick(); }
+})();
+
 </script>
 
 </body>
