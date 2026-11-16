@@ -126,6 +126,7 @@ function livesSnapshot() {
       ticketSold: liveTicketSold299(e.key, e.startedAt), // [RP-V7.299] gross tickets sold for this live instance
       pot: potSnapshotFrom(potsDb, e.key, e.startedAt), // [RP-V7.41] null unless a pot is open/drawn here; [RP-V7.49] terminal pots from a previous live are scoped out
       poll: pollSnapshot319(e.key, e.startedAt), // [RP-V7.319] null unless a poll is open (or just ended) on this live
+      boost: bstPoolTotal394(e.key, e.startedAt), // [RP-V7.394] Community Boost pool for this live instance (charms; 0 = unboosted)
     };
   });
 }
@@ -266,7 +267,7 @@ setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [k, e] of [...liveRegistry]) {
-    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); pollLiveEnded319(k); ticketLiveEnded299(k); gwLiveEnded389(k); } // [RP-V7.389] giveaway settles with the live // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
+    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); pollLiveEnded319(k); ticketLiveEnded299(k); gwLiveEnded389(k); bstLiveEnded394(k); } // [RP-V7.394] the boost pool dies with the live; the narrow refund runs // [RP-V7.389] giveaway settles with the live // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
   }
   for (const k of [...liveAccess138.keys()]) if (!liveRegistry.has(k) && changed) endLiveAccess138(k); // [RP-V7.138] access state dies with its live
   if (changed) broadcastLives();
@@ -6638,7 +6639,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.393", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.394", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -24456,6 +24457,7 @@ app.get("/api/seller-hub", (req, res) => {
     health: sellerHealth387(odb, readAuctionStats387(), me),
     rating: reviewAgg387(readReviews387(), me),
     rewardsClub: rcRoster393(ctx.db, mdb, me), // [RP-V7.393] my rewards-club roster: members by tier + outstanding credits
+    boost: bstHub394(me), // [RP-V7.394] Community Boost promotion stat — NOT earnings: pooled charms promote my lives and are never paid to me
     money: { cashableCents: (earn.availableCents || 0) + maturedCents, pendingCents },
   });
 });
@@ -25003,6 +25005,8 @@ function catLivePublic391(s) {
     startedAt: s.startedAt,
     viewers: s.watchers || 0, // the snapshot's own count — the rail's number
     ticketPrice: s.ticketPrice || 0,
+    boost: bstPoolTotal394(s.key, s.startedAt), // [RP-V7.394] real pooled charms for this live instance
+    boosted: bstPoolTotal394(s.key, s.startedAt) >= BST_BADGE_AT394, // [RP-V7.394] at the badge threshold
   };
 }
 function catLives391() {
@@ -25052,7 +25056,7 @@ app.get("/api/categories", (req, res) => {
 });
 app.get("/api/trending-lives", (req, res) => {
   const lives = catLives391()
-    .sort((a, b) => b.viewers - a.viewers || a.startedAt - b.startedAt)
+    .sort(bstLiveRankCmp394) // [RP-V7.394] boost-weighted order: viewers + boost/1000; the viewer counts themselves stay real
     .slice(0, TRENDING_CAP391);
   res.json({ ok: true, lives });
 });
@@ -25065,7 +25069,7 @@ app.get("/api/categories/:room", (req, res) => {
     ok: true,
     room,
     church,
-    lives: catLives391().filter((l) => l.org === room),
+    lives: catLives391().filter((l) => l.org === room).sort(bstLiveRankCmp394), // [RP-V7.394] boost-weighted order, same as Trending
     shows: catShowsPayload391(req).filter((sh) => sh.room === room),
     items: church ? [] : catItems391(room),
   });
@@ -25790,7 +25794,8 @@ app.get("/api/owner/sales", (req, res) => {
     ageSuspendedAccounts: rpAgeSuspendedList263(adb),
     pendingDeletions: rpOwnerPendingDeletions377(adb, mdb),
     referrals392: rpRefBoard392(),
-    rewardsClub393: rpRewardsBoard393(), // [RP-V7.393] rewards-club summary (Branden's every-stream-reports rule) // [RP-V7.392] referrals + points + coupons summary (Branden's every-stream-reports rule) // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
+    rewardsClub393: rpRewardsBoard393(),
+    boost394: bstBoard394(), // [RP-V7.394] Community Boost summary (Branden's every-stream-reports rule) // [RP-V7.393] rewards-club summary (Branden's every-stream-reports rule) // [RP-V7.392] referrals + points + coupons summary (Branden's every-stream-reports rule) // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
   });
 });
 // ---------------------------------------------------------------------------
@@ -28188,11 +28193,398 @@ function rpRewardsBoard393() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// [RP-V7.394] COMMUNITY BOOST (Whatnot parity build 12 — the last
+// build in the parity queue; Branden, Nov 15, 2026: "everything
+// whatnot has to offer build it"). Viewers collectively pay CHARMS
+// to promote a live they are standing in. The host NEVER receives
+// boost charms: a contribution is spent out of the contributor's
+// balance into a per-live pool (ledger "boost", cents 0 — a
+// charms-only economy sink, platform-collected), and the pool buys
+// REAL, code-backed promotion inside the app:
+//
+//   RANK — the pool feeds the V7.391 live-shopping order. The
+//   Trending strip (/api/trending-lives) and the category pages
+//   sort lives by
+//     rankScore394 = viewers + boost/1000
+//   (every 1,000 pooled charms = +1 viewer-equivalent of ORDER;
+//   ties fall back to real viewers, then earlier start). Displayed
+//   viewer counts are the snapshot's own real counts and are NEVER
+//   altered — boost moves a live's POSITION, it does not fabricate
+//   an audience. The settled Trending/Viral CONTENT algorithms
+//   (posts/reels) share nothing with this and are untouched,
+//   exactly as V7.391 documented for its own strip. The Live Now
+//   rail keeps its settled V7.40 per-viewer order; the pool just
+//   displays there (snapshot field `boost`), like the pot before it.
+//
+//   BADGE + RAIL — at pool >= 1,000 the live carries a "🚀 Boosted"
+//   badge (Live Now rows, the trending strip, category pages) and
+//   pins into the "🚀 Boosted lives" rail on the Auctions screen
+//   (GET /api/boosted-lives, pool order) for as long as it stays
+//   live. Thresholds: badge/rail at 1,000; the sheet also shows the
+//   5,000 / 10,000 marks as the pool's next goals.
+//
+// MECHANICS: fixed tiers 100 / 250 / 500 / 1,000 charms per
+// contribution; repeats allowed; one member's total toward ONE
+// live instance is capped at 5,000 charms. The host cannot boost
+// their own live (a pool the host funds themself would fake the
+// collective signal the rank is priced on). A pool is scoped to
+// one live INSTANCE (registry key + startedAt) and dies with the
+// live; a scheduled show collects nothing before it is live —
+// there is no pre-live pool anywhere in this build.
+//
+// THE DOOR: a contribution names NO live. Like the V7.392
+// Jumbotron, the server resolves the live from the contributor's
+// own socket presence — you can only boost the live you are
+// standing in, and a client-supplied live id is never trusted.
+// The socket door (boost-contribute) runs the same core under the
+// same money lock.
+//
+// REFUND (the one narrow rule): when a live ends, a contribution
+// refunds IN FULL if BOTH (a) the server registered the live's
+// end within 2 minutes of the contribution (the same end moment
+// every other live-end settle uses) AND (b) the pool never
+// reached the 1,000-charm badge threshold (pools only grow before
+// any refund runs, so a final total under the threshold is proof
+// it never reached it). Everything else is final — the sheet says
+// so before anyone taps. Refunds ride the ledger as
+// "boost-refund" and are marked on the contribution row.
+//
+// EXCLUSIONS: 18+ only — the HTTP endpoint AND the socket door
+// refuse under-18 accounts outright (no teen carve-out; the teen
+// gift-balance is never touched). Church lives (gwChurchLive389)
+// take no contributions, carry no badge and never enter the rail.
+// Test-funds contributions move as charms with zero earnings
+// anywhere (ledger promo:true) and are reported separately on the
+// owner board, so the headline pooled figure is real-member
+// charms only.
+//
+// Owner reporting: /api/owner/sales gains boost394. The Seller
+// Hub gains a promotion stat (hub.boost) that is labelled
+// non-earnings on its face — pooled charms never appear in any
+// Earn balance, because they are never the host's.
+// ---------------------------------------------------------------------------
+const BOOST_FILE394 =
+  process.env.BOOST_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "boost.json");
+const BST_TIERS394 = [100, 250, 500, 1000];
+const BST_MEMBER_CAP394 = 5000; // one member's total toward one live instance
+const BST_BADGE_AT394 = 1000; // pool >= this: "🚀 Boosted" badge + rail seat
+const BST_RAIL_AT394 = 1000;
+const BST_GOALS394 = [1000, 5000, 10000]; // badge mark + sheet goal marks
+const BST_REFUND_WINDOW_MS394 = Math.max(
+  0,
+  Number(process.env.BST_REFUND_WINDOW_MS) || 2 * 60 * 1000
+); // rig knob; production: the narrow 2-minute rule above
+
+/* ---------------- store + in-memory pools ---------------- */
+function readBoost394() {
+  return storeReadJson(
+    BOOST_FILE394,
+    (d) => !!(d && Array.isArray(d.contributions)),
+    { contributions: [] },
+    "boost"
+  );
+}
+function writeBoost394(db) {
+  storeWriteJson(BOOST_FILE394, db);
+}
+// Live pools are memory, exactly like the registry they scope to:
+// a pool is born inside one server lifetime and dies with its
+// live. boost.json is the durable contribution record (refunds +
+// owner board), never a pool source — after a restart the registry
+// is empty too, so no live can inherit a stale pool.
+const bstPools394 = new Map(); // pid -> { total, byUser: Map<userId, charms> }
+function bstPid394(key, startedAt) {
+  return String(key || "") + "|" + (Number(startedAt) || 0);
+}
+function bstPool394(pid) {
+  let p = bstPools394.get(pid);
+  if (!p) {
+    p = { total: 0, byUser: new Map() };
+    bstPools394.set(pid, p);
+  }
+  return p;
+}
+function bstPoolTotal394(key, startedAt) {
+  const p = bstPools394.get(bstPid394(key, startedAt));
+  return p ? p.total || 0 : 0;
+}
+
+/* ---------------- ranking (V7.391 live-shopping order) ---------------- */
+function bstRankScore394(viewers, boost) {
+  return (Number(viewers) || 0) + (Number(boost) || 0) / 1000;
+}
+function bstLiveRankCmp394(a, b) {
+  return (
+    bstRankScore394(b.viewers, b.boost) - bstRankScore394(a.viewers, a.boost) ||
+    (b.viewers || 0) - (a.viewers || 0) ||
+    (a.startedAt || 0) - (b.startedAt || 0)
+  );
+}
+
+/* ---------------- public shape ---------------- */
+function bstPublic394(entry, viewerId) {
+  if (!entry) return null;
+  const total = bstPoolTotal394(entry.key, entry.startedAt);
+  const pool = bstPools394.get(bstPid394(entry.key, entry.startedAt));
+  const byUser = pool ? pool.byUser : new Map();
+  let nextGoal = null;
+  for (const g of BST_GOALS394) if (total < g) { nextGoal = g; break; }
+  return {
+    key: entry.key,
+    liveStartedAt: entry.startedAt || null,
+    room: entry.room,
+    hostId: liveHostAccountId(entry),
+    hostName: entry.name || "",
+    total,
+    contributors: byUser.size,
+    boosted: total >= BST_BADGE_AT394,
+    badgeAt: BST_BADGE_AT394,
+    railAt: BST_RAIL_AT394,
+    goals: BST_GOALS394,
+    nextGoal,
+    tiers: BST_TIERS394,
+    memberCap: BST_MEMBER_CAP394,
+    myTotal: viewerId ? byUser.get(viewerId) || 0 : 0,
+    isHost: !!(viewerId && liveHostAccountId(entry) === viewerId),
+    church: gwChurchLive389(entry),
+  };
+}
+
+/* ---------------- presence door (the V7.392 Jumbotron pattern) ------- */
+// The live a member is standing in, resolved from their own
+// socket presence — never from a client-supplied id.
+function bstEntryForUser394(userId) {
+  try {
+    for (const [sid, s] of io.sockets.sockets) {
+      if (s && s.data && s.data.accountId === userId) {
+        const p = players.get(sid);
+        if (p && p.room) {
+          const entry = [...liveRegistry.values()].find((e) => e.room === p.room);
+          if (entry) return entry;
+        }
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+function bstEntryForSocket394(socket) {
+  try {
+    const p = players.get(socket.id);
+    if (p && p.room)
+      return [...liveRegistry.values()].find((e) => e.room === p.room) || null;
+  } catch (e) {}
+  return null;
+}
+function bstEntryByRef394(ref) {
+  const r = String(ref || "");
+  if (!r) return null;
+  return (
+    liveRegistry.get(r) ||
+    [...liveRegistry.values()].find((e) => e.room === r) ||
+    null
+  );
+}
+
+/* ---------------- the contribution core (both doors) ---------------- */
+function bstContribute394(user, entry, charms) {
+  const fail = (code, error, extra) => ({
+    code,
+    payload: Object.assign({ ok: false, error }, extra || {}),
+  });
+  if (!user) return fail(401, "sign-in-required");
+  if (isPendingDeletion(user)) return fail(403, "account-pending-deletion");
+  if (ageFromDob(user.dob) < 18) return fail(403, "adults-only");
+  charms = Math.floor(Number(charms) || 0);
+  if (BST_TIERS394.indexOf(charms) < 0) return fail(400, "bad-tier");
+  if (!entry) return fail(409, "not-in-a-live");
+  if (gwChurchLive389(entry))
+    return fail(403, "church", {
+      message: "Boosts are off in Fellowship lives — church rooms stay free of promotions too.",
+    });
+  const hostId = liveHostAccountId(entry);
+  if (hostId && hostId === user.id) return fail(400, "own-live");
+  const pool = bstPool394(bstPid394(entry.key, entry.startedAt));
+  const mine = pool.byUser.get(user.id) || 0;
+  if (mine + charms > BST_MEMBER_CAP394)
+    return fail(400, "member-cap", { cap: BST_MEMBER_CAP394, myTotal: mine });
+  const mdb = readMoney();
+  const bal = mdb.balances[user.id] || 0;
+  if (bal < charms)
+    return fail(400, "insufficient-charms", { balance: bal, needed: charms });
+  // The spend: charms leave the contributor permanently. They are
+  // NOT credited to the host, not held, not escrowed — the pool is
+  // a promotion sink, and the ledger row is the whole trail.
+  mdb.balances[user.id] = bal - charms;
+  const tf = testFunds321(user);
+  const tx = {
+    type: "boost", from: user.id, to: null,
+    charms, cents: 0, cut: 0, ref: entry.key,
+  };
+  if (tf) tx.promo = true; // [RP-V7.321] test-funds: charms move, zero earnings anywhere
+  moneyTx(mdb, tx);
+  writeMoney(mdb);
+  const db = readBoost394();
+  db.contributions.push({
+    id: "bst" + crypto.randomBytes(6).toString("hex"),
+    key: entry.key,
+    liveStartedAt: entry.startedAt || null,
+    room: entry.room,
+    org: liveOrg391({ key: entry.key, startedAt: entry.startedAt }),
+    hostAccountId: hostId || null,
+    hostName: entry.name || "",
+    userId: user.id,
+    userName: user.name || "",
+    charms,
+    at: Date.now(),
+    testFunds: tf,
+    refunded: false,
+    refundedAt: null,
+  });
+  writeBoost394(db);
+  pool.total += charms;
+  pool.byUser.set(user.id, mine + charms);
+  const pub = bstPublic394(entry, user.id);
+  try {
+    io.to(entry.room).emit("boost-update", { key: entry.key, room: entry.room, boost: pub });
+  } catch (e) {}
+  try { broadcastLives(); } catch (e) {} // badges + snapshot pool refresh everywhere
+  return { code: 200, payload: { ok: true, boost: pub, balance: mdb.balances[user.id] } };
+}
+
+/* ---------------- live end: pool dies, narrow refund runs ------------ */
+function bstLiveEnded394(key) {
+  try {
+    const entry = liveRegistry.get(key);
+    const endedAt = Date.now();
+    let db = null;
+    let mdb = null;
+    let wrote = false;
+    for (const [pid, pool] of [...bstPools394]) {
+      const sep = pid.lastIndexOf("|");
+      if (pid.slice(0, sep) !== String(key)) continue;
+      const startedAt = Number(pid.slice(sep + 1));
+      if (entry && (entry.startedAt || 0) === startedAt) continue; // that instance is still live
+      // This instance has ended. The narrow refund: the pool never
+      // reached the badge threshold AND the end registered within
+      // the window of the contribution.
+      if ((pool.total || 0) < BST_BADGE_AT394) {
+        db = db || readBoost394();
+        const rows = db.contributions.filter(
+          (c) =>
+            c.key === key &&
+            (c.liveStartedAt || 0) === startedAt &&
+            !c.refunded &&
+            endedAt - (c.at || 0) <= BST_REFUND_WINDOW_MS394
+        );
+        if (rows.length) {
+          mdb = mdb || readMoney();
+          for (const c of rows) {
+            mdb.balances[c.userId] = (mdb.balances[c.userId] || 0) + (c.charms || 0);
+            moneyTx(mdb, {
+              type: "boost-refund", from: null, to: c.userId,
+              charms: c.charms || 0, cents: 0, cut: 0, ref: key,
+            });
+            c.refunded = true;
+            c.refundedAt = new Date(endedAt).toISOString();
+            wrote = true;
+          }
+        }
+      }
+      bstPools394.delete(pid);
+    }
+    if (mdb) writeMoney(mdb);
+    if (db && wrote) writeBoost394(db);
+  } catch (e) {}
+}
+// Backstop sweep: any pool whose live instance is gone or replaced
+// settles, whichever removal path the live took (the giveaway
+// tick's orphan rule, same shape).
+const bstSweep394 = setInterval(() => {
+  try {
+    for (const pid of [...bstPools394.keys()])
+      bstLiveEnded394(pid.slice(0, pid.lastIndexOf("|")));
+  } catch (e) {}
+}, 20000);
+if (bstSweep394.unref) bstSweep394.unref();
+
+/* ---------------- owner board + seller hub ---------------- */
+function bstBoard394() {
+  const db = readBoost394();
+  const day = lkDayKey389(Date.now());
+  let pooledToday = 0;
+  let refundedToday = 0;
+  let testCharmsToday = 0;
+  for (const c of db.contributions) {
+    if (lkDayKey389(c.at || 0) !== day) continue;
+    if (c.refunded) { refundedToday += c.charms || 0; continue; }
+    if (c.testFunds) testCharmsToday += c.charms || 0;
+    else pooledToday += c.charms || 0;
+  }
+  let activePools = 0;
+  let activeBoostedLives = 0;
+  for (const e of liveRegistry.values()) {
+    const t = bstPoolTotal394(e.key, e.startedAt);
+    if (t > 0) activePools++;
+    if (t >= BST_BADGE_AT394 && !gwChurchLive389(e)) activeBoostedLives++;
+  }
+  return { pooledToday, refundedToday, testCharmsToday, activePools, activeBoostedLives };
+}
+function bstHub394(me) {
+  // A promotion stat for the seller's OWN hub — never earnings:
+  // pooled charms promote the seller's lives and are never paid
+  // to anyone. livePool = the pool on the seller's current live.
+  let livePool = 0;
+  for (const e of liveRegistry.values()) {
+    if (liveHostAccountId(e) === me) {
+      livePool = bstPoolTotal394(e.key, e.startedAt);
+      break;
+    }
+  }
+  const day = lkDayKey389(Date.now());
+  let pooledToday = 0;
+  for (const c of readBoost394().contributions)
+    if (c.hostAccountId === me && !c.refunded && !c.testFunds && lkDayKey389(c.at || 0) === day)
+      pooledToday += c.charms || 0; // real charms only — test-funds charms are reported apart on the owner board, same rule as bstBoard394
+  return { livePool, pooledToday };
+}
+
+/* ---------------- endpoints ---------------- */
+app.post("/api/boost/contribute", lockedHandler("boost-contribute", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  // The live is resolved from the caller's own presence (see the
+  // module header) — the body names only the tier.
+  const entry = bstEntryForUser394(ctx.user.id);
+  const out = bstContribute394(ctx.user, entry, (req.body || {}).charms);
+  res.status(out.code).json(out.payload);
+}));
+app.get("/api/boost/state", (req, res) => {
+  let viewerId = null;
+  try {
+    const u = accountForToken(readAccounts(), req);
+    if (u) viewerId = u.id;
+  } catch (e) {}
+  const ref = String(req.query.live || "");
+  const entry = ref ? bstEntryByRef394(ref) : viewerId ? bstEntryForUser394(viewerId) : null;
+  res.json({ ok: true, boost: entry ? bstPublic394(entry, viewerId) : null });
+});
+app.get("/api/boosted-lives", (req, res) => {
+  // The Auctions rail: boosted lives only, pool order. Church
+  // lives are excluded on their face (they can hold no pool —
+  // contributions refuse — and the rail is a commerce surface).
+  const lives = catLives391()
+    .filter((l) => (l.boost || 0) >= BST_RAIL_AT394 && l.org !== "faith")
+    .sort((a, b) => (b.boost || 0) - (a.boost || 0) || bstLiveRankCmp394(a, b));
+  res.json({ ok: true, lives, railAt: BST_RAIL_AT394 });
+});
+
 app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.393", online: players.size })
+  res.json({ ok: true, version: "RP-V7.394", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -28578,7 +28970,7 @@ io.on("connection", (socket) => {
     const swKey = clientKeys.get(socket.id);
     if (swKey) {
       const reg = liveRegistry.get(swKey);
-      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); pollLiveEnded319(swKey); ticketLiveEnded299(swKey); gwLiveEnded389(swKey); } // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
+      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); pollLiveEnded319(swKey); ticketLiveEnded299(swKey); gwLiveEnded389(swKey); bstLiveEnded394(swKey); } // [RP-V7.394] boost pool ends too // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
     }
     socket.to(room).emit("player-joined", p);
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
@@ -28691,7 +29083,7 @@ io.on("connection", (socket) => {
   socket.on("live-unregister", () => {
     const devKey = clientKeys.get(socket.id);
     if (!devKey) return;
-    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); gwLiveEnded389(devKey); } // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
+    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); gwLiveEnded389(devKey); bstLiveEnded394(devKey); } // [RP-V7.394] boost pool ends too // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
   });
 
   // [RP-V7.138] PRIVATE LIVE controls — invite / un-invite / link
@@ -29383,6 +29775,17 @@ io.on("connection", (socket) => {
       .trim()
       .slice(0, 140);
   }
+  socket.on("boost-contribute", (data = {}) => { // [RP-V7.394] Community Boost socket door — the same core the HTTP endpoint runs, under the same money lock; the live is this socket's own room, never a client-supplied id
+    const acctId394 = socket.data && socket.data.accountId;
+    if (!acctId394) { socket.emit("boost-result", { ok: false, error: "sign-in-required" }); return; }
+    if (socketIsTeen(socket)) { socket.emit("boost-result", { ok: false, error: "adults-only" }); return; }
+    const user394 = (readAccounts().users || []).find((u) => u.id === acctId394);
+    if (!user394) { socket.emit("boost-result", { ok: false, error: "account-not-found" }); return; }
+    withMoneyLock(() => {
+      const out = bstContribute394(user394, bstEntryForSocket394(socket), (data || {}).charms);
+      socket.emit("boost-result", out.payload);
+    }).catch(() => { try { socket.emit("boost-result", { ok: false, error: "server-error" }); } catch (e) {} });
+  });
   socket.on("live-note-set", (data = {}) => {
     const ctx = lkHostCtx389();
     if (!ctx) return;
@@ -29494,6 +29897,7 @@ io.on("connection", (socket) => {
       ticketLiveEnded299(ctx.key);
     }
     gwLiveEnded389(ctx.key);
+    bstLiveEnded394(ctx.key); // [RP-V7.394] the raider's boost pool dies with their live
     io.to(ctx.p.room).emit("raid-banner", {
       fromName: fromName389,
       targetName: target.name,
@@ -29581,6 +29985,7 @@ io.on("connection", (socket) => {
         potLiveEnded(discKey); pollLiveEnded319(discKey);
         ticketLiveEnded299(discKey); // [RP-V7.299] ticket refunds run too
         gwLiveEnded389(discKey); // [RP-V7.389] giveaway settles with the live
+        bstLiveEnded394(discKey); // [RP-V7.394] host disconnect teardown — the boost pool dies with the live here too (this is the path a closed tab takes)
       }
     }
     // [RP-V7.52] Stage-request bookkeeping dies with either side.
