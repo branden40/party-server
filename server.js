@@ -1953,10 +1953,12 @@ app.post("/api/account/signup", (req, res) => {
       lastLoginAt: now,
       reminders: [],
     };
+    refStamp392(fresh, user, b.ref); // [RP-V7.392] referral attribution — first link wins, stamped once at creation
     seedWelcomeReminders(user);
     fresh.users.push(user);
     const token = newAccountToken(fresh, user.id);
     writeAccounts(fresh);
+    refRecord392(user); // [RP-V7.392]
     sendAccountEmail(user, "welcome");
     sendAccountSms(user, "welcome"); // [RP-V7.55] email AND phone, per Branden's rule
     notifyOwnerOfSignup307(user, fresh.users.length); // [RP-V7.307] the owner hears about every new member
@@ -6636,7 +6638,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.391", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.392", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -10295,6 +10297,7 @@ app.post("/api/giveaway/enter", lockedHandler("giveaway-enter", (req, res) => {
   if ((gw.entries || []).indexOf(ctx.user.id) >= 0)
     return res.status(409).json({ ok: false, error: "You're already in the giveaway" });
   gw.entries.push(ctx.user.id);
+  try { chalEvent392(ctx.user.id, "giveaway"); } catch (e) {} // [RP-V7.392] daily giveaways challenge
   gw.entryNames[ctx.user.id] = ctx.user.name;
   writeGiveaways389(gdb);
   gwBroadcast389(gw);
@@ -10408,6 +10411,7 @@ setInterval(() => {
           w.byAcct.set(acctId, rec);
         }
         rec.ms += LK_TICK_MS389;
+        try { chalWatchTick392(acctId, hostAcct, LK_TICK_MS389); } catch (e) {} // [RP-V7.392] daily watch challenge accrues the same real presence
         let progress = null;
         if (acctId !== hostAcct && s.data.adultClass) {
           if (!adb389) {
@@ -14992,7 +14996,7 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", // [RP-V7.390] offer + saved-search alerts ride the "gifts" switch like order, never SMS // [RP-V7.386] order updates ride the "gifts" switch like tips, never SMS // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", // [RP-V7.390] offer + saved-search alerts ride the "gifts" switch like order, never SMS // [RP-V7.386] order updates ride the "gifts" switch like tips, never SMS // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
  like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups" }; // [RP-V7.307] owner signup alerts ride the "signups" switch // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true, signup: true }; // [RP-V7.307] signup alerts text too — the kind only ever targets the owner, and only once Twilio is configured (notifySmsReady)
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -16275,10 +16279,12 @@ app.post("/api/account/google/complete", (req, res) => {
     lastLoginAt: now,
     reminders: [],
   };
+  refStamp392(db, user, (req.body || {}).ref); // [RP-V7.392] referral attribution — first link wins, stamped once at creation
   seedWelcomeReminders(user);
   db.users.push(user);
   const token = newAccountToken(db, user.id);
   writeAccounts(db);
+  refRecord392(user); // [RP-V7.392]
   sendAccountEmail(user, "welcome");
   notifyOwnerOfSignup307(user, db.users.length); // [RP-V7.307] same owner alert for Google sign-ups
   console.log("[accounts] signup (google)", user.email);
@@ -18295,16 +18301,32 @@ app.post("/api/store/checkout", async (req, res) => {
   try {
     const origin = siteOrigin(req);
     const grossCents = l.priceCents * qty;
+    // [RP-V7.392] seller coupon: validated against THIS listing's
+    // seller. The Stripe session is created for the discounted total
+    // and the order's grossCents becomes that total below, so the
+    // webhook settle splits the discounted price 90/10.
+    let cpn392 = null, cpnDisc392 = 0;
+    const cpnCode392 = String(b.couponCode || "").trim().toUpperCase().slice(0, 24);
+    if (cpnCode392) {
+      const cdb392 = readCoupons392();
+      cpn392 = couponFind392(cdb392, l.sellerId, "store", l.id, cpnCode392);
+      if (!cpn392) return res.status(400).json({ ok: false, error: "coupon-invalid" });
+      const chk392 = couponCheck392(cpn392, ctx.user.id, Date.now());
+      if (!chk392.ok) return res.status(400).json({ ok: false, error: chk392.error });
+      cpnDisc392 = couponDiscount392(cpn392, grossCents);
+      if (!(cpnDisc392 > 0)) return res.status(400).json({ ok: false, error: "coupon-too-small" });
+    }
+    const effCents392 = grossCents - cpnDisc392;
     const session = await stripeApi("POST", "/checkout/sessions", {
       mode: "payment",
       success_url: origin + "/?store=ok",
       cancel_url: origin + "/?store=cancel",
       line_items: [
         {
-          quantity: qty,
+          quantity: cpn392 ? 1 : qty, // [RP-V7.392] a coupon prices the whole order as one discounted line
           price_data: {
             currency: "usd",
-            unit_amount: l.priceCents,
+            unit_amount: cpn392 ? effCents392 : l.priceCents, // [RP-V7.392]
             product_data: { name: "Plaza Store — " + l.title },
           },
         },
@@ -18327,6 +18349,17 @@ app.post("/api/store/checkout", async (req, res) => {
       at: new Date().toISOString(),
       paidAt: null,
     });
+    if (cpn392) { // [RP-V7.392] stamp the order: settle splits the discounted gross
+      const o392 = sdb.orders[sdb.orders.length - 1];
+      if (o392 && o392.sessionId === session.id) {
+        o392.listGrossCents = grossCents;
+        o392.grossCents = effCents392;
+        o392.couponId = cpn392.id;
+        o392.couponCode = cpn392.code;
+        o392.discountCents = cpnDisc392;
+        try { couponReserve392(cpn392.id, ctx.user.id, o392.id, cpnDisc392, "cents"); } catch (e) {}
+      }
+    }
     writeStore240(sdb);
     res.json({ ok: true, url: session.url });
   } catch (e) {
@@ -18364,6 +18397,8 @@ function settleStoreOrder240(mdb, sessionObj) {
     type: "store-sale", from: order.buyerId, to: order.sellerId,
     charms: 0, cents: gross, cut, ref: order.id,
   });
+  try { refSettle392(readAccounts(), mdb, order.buyerId, order.sellerId, order.id); } catch (e) {} // [RP-V7.392]
+  try { couponSettleStore392(order); } catch (e) {} // [RP-V7.392] a settled store order consumes its coupon
   writeStore240(sdb);
   console.log("[store] sale settled", order.id, "gross", gross, "net", net, "to seller", order.sellerId);
 }
@@ -22829,6 +22864,7 @@ function settleAuctionMoney(adb, mdb, opts) {
     cut,
     ref: auctionId,
   });
+  try { refSettle392(adb, mdb, winnerId, hostId, auctionId); } catch (e) {} // [RP-V7.392] first-purchase / first-sale referral rewards (charms only)
   return record({
     ok: true,
     hostShareCents: hostShare,
@@ -22912,6 +22948,7 @@ function executeAuctionRefund383(mdb, settlement, by) {
     settlement.refunded = { at: new Date().toISOString(), by: by === "owner" ? "owner" : "host" };
     if (shortfall) settlement.refundShortfall = true;
     if (settlement.claim && settlement.claim.status === "open") settlement.claim.status = "refunded";
+    try { couponRefundRestore392(auctionId); } catch (e) {} // [RP-V7.392]
     return { ok: true, auctionId, bidCharms, hostShareCents: 0, cutCents: 0, promoFunds: true, hostShareCharms: shareCharms, shortfall };
   }
   // Normal settle: reverse recordAuctionEarning in kind — the
@@ -22936,6 +22973,7 @@ function executeAuctionRefund383(mdb, settlement, by) {
   settlement.refunded = { at: new Date().toISOString(), by: by === "owner" ? "owner" : "host" };
   if (shortfall) settlement.refundShortfall = true;
   if (settlement.claim && settlement.claim.status === "open") settlement.claim.status = "refunded";
+  try { couponRefundRestore392(auctionId); } catch (e) {} // [RP-V7.392]
   return { ok: true, auctionId, bidCharms, hostShareCents, cutCents, promoFunds: false, shortfall };
 }
 // Open auction claims for the owner board (rides /api/owner/sales).
@@ -23461,6 +23499,7 @@ app.post("/api/shows/:id/bookmark", (req, res) => {
     bookmarked = true;
   }
   writeShows385(db);
+  if (bookmarked) { try { chalEvent392(ctx.user.id, "bookmark"); } catch (e) {} } // [RP-V7.392] daily saves challenge
   res.json({ ok: true, bookmarked, bookmarkCount: sh.bookmarks.length });
 });
 app.post("/api/shows/:id/cancel", (req, res) => {
@@ -24501,6 +24540,8 @@ function offerPublic390(o) {
     updatedAt: o.updatedAt,
     decidedAt: o.decidedAt || null,
     settlementId: o.settlementId || null,
+    couponCode: o.couponCode || null, // [RP-V7.392]
+    discountCharms: o.discountCharms || 0, // [RP-V7.392]
   };
 }
 // Offers die with their item: any ACTIVE offer whose item is gone
@@ -24556,6 +24597,23 @@ app.post("/api/offers", (req, res) => {
     return res.status(403).json({ ok: false, error: "own-item" });
   if (it.status !== "listed")
     return res.status(409).json({ ok: false, error: "not-listed" });
+  // [RP-V7.392] an optional seller coupon rides the offer; the
+  // discount is computed now for display and recomputed at accept.
+  let cpn392 = null, cpnDisc392 = 0;
+  const cpnCode392 = String(b.couponCode || "").trim().toUpperCase().slice(0, 24);
+  if (cpnCode392) {
+    const cdb392 = readCoupons392();
+    cpn392 = couponFind392(cdb392, it.hostId, "item", it.id, cpnCode392);
+    if (!cpn392) return res.status(400).json({ ok: false, error: "coupon-invalid" });
+    const odbPre392 = readOffers390();
+    const extra392 = odbPre392.offers.filter(
+      (x) => x && x.buyerId === ctx.user.id && x.couponId === cpn392.id && (x.status === "active" || x.status === "accepted")
+    ).length;
+    const chk392 = couponCheck392(cpn392, ctx.user.id, Date.now(), extra392);
+    if (!chk392.ok) return res.status(400).json({ ok: false, error: chk392.error });
+    cpnDisc392 = couponDiscount392(cpn392, dollars * 100);
+    if (!(cpnDisc392 > 0)) return res.status(400).json({ ok: false, error: "coupon-too-small" });
+  }
   const odb = readOffers390();
   const nowIso = new Date().toISOString();
   let offer = odb.offers.find(
@@ -24584,6 +24642,9 @@ app.post("/api/offers", (req, res) => {
     };
     odb.offers.push(offer);
   }
+  offer.couponId = cpn392 ? cpn392.id : null; // [RP-V7.392]
+  offer.couponCode = cpn392 ? cpn392.code : null; // [RP-V7.392]
+  offer.discountCharms = cpn392 ? cpnDisc392 : 0; // [RP-V7.392]
   writeOffers390(odb);
   offerNotify390(
     it.hostId,
@@ -24667,12 +24728,33 @@ app.post("/api/offers/:id/accept", lockedHandler("offer-accept", (req, res) => {
   // insufficient-charms failure persists nothing, so this accept
   // can simply be retried once the buyer tops up.
   const settlementId = "offer-" + offer.id;
+  // [RP-V7.392] a coupon on the offer discounts the settle itself:
+  // the buyer pays (dollars x 100 - discountCharms) charms and the
+  // 90/10 split is computed on that discounted amount, so the
+  // V7.383 refund of this settlement reverses it exactly.
+  let effDollars392 = offer.dollars;
+  let cpnDisc392 = 0;
+  if (offer.couponId) {
+    const cdb392 = readCoupons392();
+    const cpn392 = cdb392.coupons.find((x) => x && x.id === offer.couponId);
+    if (cpn392 && cpn392.active) {
+      const extra392 = odb.offers.filter(
+        (x) => x && x.id !== offer.id && x.buyerId === offer.buyerId && x.couponId === cpn392.id && x.status === "accepted"
+      ).length;
+      const chk392 = couponCheck392(cpn392, offer.buyerId, Date.now(), extra392);
+      if (chk392.ok) {
+        cpnDisc392 = couponDiscount392(cpn392, offer.dollars * 100);
+        if (cpnDisc392 > 0) effDollars392 = (offer.dollars * 100 - cpnDisc392) / 100;
+        else cpnDisc392 = 0;
+      }
+    }
+  }
   const mdb = readMoney();
   const result = settleAuctionMoney(ctx.db, mdb, {
     auctionId: settlementId,
     winnerId: offer.buyerId,
     hostId: offer.hostId,
-    winningBid: offer.dollars,
+    winningBid: effDollars392,
   });
   writeMoney(mdb);
   if (!result.ok) {
@@ -24687,6 +24769,7 @@ app.post("/api/offers/:id/accept", lockedHandler("offer-accept", (req, res) => {
     });
   }
   const nowIso = new Date().toISOString();
+  if (cpnDisc392 > 0 && offer.couponId) { try { couponRedeem392(offer.couponId, offer.buyerId, settlementId, cpnDisc392, "charms"); } catch (e) {} } // [RP-V7.392] the accepted sale consumes the use
   offer.status = "accepted";
   offer.decidedAt = nowIso;
   offer.updatedAt = nowIso;
@@ -25700,7 +25783,8 @@ app.get("/api/owner/sales", (req, res) => {
     auctionClaims: rpAuctionClaims383(mdb, adb), // [RP-V7.383] open auction buyer-protection claims awaiting the owner's refund/deny
     ageReports: rpAgeReportsOpen263(),
     ageSuspendedAccounts: rpAgeSuspendedList263(adb),
-    pendingDeletions: rpOwnerPendingDeletions377(adb, mdb), // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
+    pendingDeletions: rpOwnerPendingDeletions377(adb, mdb),
+    referrals392: rpRefBoard392(), // [RP-V7.392] referrals + points + coupons summary (Branden's every-stream-reports rule) // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
   });
 });
 // ---------------------------------------------------------------------------
@@ -26599,11 +26683,856 @@ app.get("/api/money/history", async (req, res) => {
 });
 
 
+// ---------------------------------------------------------------------------
+// [RP-V7.392] REFERRALS + CHALLENGES/POINTS + COUPONS (Whatnot parity
+// build 10; Branden, Nov 15, 2026: "everything whatnot has to offer
+// build it"). Three member systems on the established additive-store
+// pattern; money math is never re-implemented — referral credits ride
+// mdb.balances + moneyTx inside the EXISTING settle functions (two
+// one-line hooks), and coupon discounts are applied by changing the
+// amount the existing settle paths see.
+//
+//   A) REFERRALS (referrals.json). Every member gets a personal code
+//   + link (rizzplaza.com/?ref=<code>, captured by the client boot
+//   stash exactly like ?creator=). Attribution is stamped on the new
+//   account record (referredBy / referredVia) at signup — password
+//   and Google paths — FIRST LINK WINS and nothing anywhere can
+//   change it afterwards (no endpoint writes those fields). Rewards
+//   are platform-funded CHARMS ONLY (ledger kind "referral",
+//   cents 0 — the promo shape: they land in the spendable charm
+//   balance and never mint earnings by themselves):
+//     - buyer referral: the referred member's FIRST settled purchase
+//       (auction settle / offer accept / Plaza Store buy, real path
+//       only — a test-funds settle never fires it) pays 500 charms
+//       to the referred member AND 500 to their referrer.
+//     - seller referral: the referred member's FIRST settled sale
+//       pays 2,000 charms to their referrer.
+//   One reward per referred member per type, ever. Guards: the
+//   referrer must already exist and be an adult account; a member
+//   can never be their own referrer; test-funds accounts (RP /
+//   @Popstar) neither earn nor trigger. Signup's own one-email /
+//   one-phone uniqueness is the enforceable same-person layer; a
+//   second account on entirely different contacts cannot be detected
+//   from the data the Plaza holds, and nothing here pretends it can.
+//
+//   B) CHALLENGES + POINTS (challenges.json). Six daily challenges,
+//   reset at ET midnight (lkDayKey389), progressed ONLY by real
+//   server-side events: check-in (first authenticated touch of the
+//   day), watch (presence accrued by the V7.389 live-kit tick for
+//   non-host viewers), bids (accepted socket auction bids),
+//   bookmarks (show bookmark adds), giveaway entries, shares
+//   (shares actually performed from the Challenges surface through
+//   the app's share cascade). Completion awards POINTS — a separate
+//   non-cashable balance that lives ONLY in challenges.json: points
+//   are not charms, never enter money.json, have no transfer or
+//   cash-out path anywhere. The Points Shop sells three real perks:
+//   a Jumbotron (a room-wide shout banner in the live the buyer is
+//   standing in, rendered by the V7.389 winner-overlay component),
+//   gold / rainbow chat-name effects (24 h, riding the chat relay
+//   like the V7.338 gifter level), and a one-message chat highlight.
+//   Church lives refuse the Jumbotron (commerce-free rooms).
+//
+//   C) COUPONS (coupons.json). A seller mints codes for their OWN
+//   Plaza Store listings or their OWN pre-listed auction items:
+//   % off (5-50) or flat charms off, expiry, max uses, one use per
+//   buyer. The discount reduces the amount the settle splits, so the
+//   platform cut is computed on the DISCOUNTED price and the buyer
+//   truly pays less — the discount comes out of the sale proceeds,
+//   never out of the platform's pocket beyond its proportional cut
+//   and never as an extra charge to the buyer. Paths: Plaza Store
+//   checkout (code at checkout; the Stripe session is created for
+//   the discounted total and the order settles on it) and offers on
+//   pre-listed items (code rides the offer; accept settles the
+//   discounted amount through settleAuctionMoney itself, so the
+//   V7.383 refund layer reverses it exactly — and a refund restores
+//   the buyer's coupon use). Live socket auctions take no code:
+//   their settle is automatic at the horn and has no buyer entry
+//   point — documented, not faked.
+//
+//   Owner reporting: /api/owner/sales gains a referrals392 summary
+//   (Branden's rule: every stream reports into the owner board).
+// ---------------------------------------------------------------------------
+const REFERRALS_FILE392 =
+  process.env.REFERRALS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "referrals.json");
+const CHALLENGES_FILE392 =
+  process.env.CHALLENGES_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "challenges.json");
+const COUPONS_FILE392 =
+  process.env.COUPONS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "coupons.json");
+const REF_BUYER_CHARMS392 = 500; // $5 to the referred buyer AND $5 to the referrer
+const REF_SELLER_CHARMS392 = 2000; // $20 to the referrer on the referred member's first sale
+const CHAL_WATCH_TARGET392 = Math.max(
+  1000,
+  Number(process.env.CHAL_WATCH_MS) || 10 * 60 * 1000
+); // rig knob (the LIVEKIT_TICK_MS precedent); production = 10 real minutes
+const CHAL_DEFS392 = [
+  { id: "checkin", label: "Daily check-in", target: 1, points: 10 },
+  { id: "watch", label: "Watch lives for 10 minutes", target: CHAL_WATCH_TARGET392, points: 25 },
+  { id: "bids", label: "Place 10 bids in live auctions", target: 10, points: 25 },
+  { id: "bookmarks", label: "Save 3 shows", target: 3, points: 25 },
+  { id: "giveaways", label: "Enter 3 giveaways", target: 3, points: 25 },
+  { id: "shares", label: "Share 3 shows or lives", target: 3, points: 25 },
+];
+const POINTS_SHOP392 = [
+  { id: "jumbotron", label: "📣 Jumbotron", cost: 150, blurb: "A big shout banner for the whole live you're in (your words, up to 80 characters)." },
+  { id: "name-gold", label: "✨ Gold chat name", cost: 100, blurb: "Your chat name shines gold in lives and rooms for 24 hours." },
+  { id: "name-rainbow", label: "🌈 Rainbow chat name", cost: 100, blurb: "Your chat name goes rainbow in lives and rooms for 24 hours." },
+  { id: "highlight", label: "💬 Message highlight", cost: 50, blurb: "Your next chat message in a live or room stands out with a highlight (use within 24 hours)." },
+];
+
+/* ---------------- referrals store ---------------- */
+function readReferrals392() {
+  return storeReadJson(
+    REFERRALS_FILE392,
+    (d) => !!(d && d.attr && typeof d.attr === "object" && d.codes && typeof d.codes === "object" && d.codeOwner && typeof d.codeOwner === "object"),
+    { codes: {}, codeOwner: {}, attr: {} },
+    "referrals"
+  );
+}
+function writeReferrals392(db) {
+  storeWriteJson(REFERRALS_FILE392, db);
+}
+function refCodeFor392(db, userId) {
+  if (db.codes[userId]) return db.codes[userId];
+  const alpha = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let code = "";
+  do {
+    code = "RP";
+    const bytes = crypto.randomBytes(6);
+    for (let i = 0; i < 6; i++) code += alpha[bytes[i] % alpha.length];
+  } while (db.codeOwner[code]);
+  db.codes[userId] = code;
+  db.codeOwner[code] = userId;
+  return code;
+}
+// Signup hook (both creation paths): resolve the presented code to
+// its owner and stamp the new account. First-link-wins is structural:
+// the stamp is written once, here, at creation, and no route in the
+// app ever writes referredBy again.
+function refStamp392(adb, user, refCode) {
+  try {
+    const code = String(refCode || "").trim().toUpperCase().slice(0, 24);
+    if (!code || !user || user.referredBy) return;
+    const rdb = readReferrals392();
+    const ownerId = rdb.codeOwner[code];
+    if (!ownerId || ownerId === user.id) return;
+    const referrer = (adb.users || []).find((u) => u && u.id === ownerId);
+    if (!referrer) return;
+    if (ageFromDob(referrer.dob) < 18) return;
+    user.referredBy = ownerId;
+    user.referredVia = code;
+  } catch (e) { /* attribution must never break a signup */ }
+}
+function refRecord392(user) {
+  try {
+    if (!user || !user.referredBy) return;
+    const rdb = readReferrals392();
+    if (rdb.attr[user.id]) return;
+    rdb.attr[user.id] = {
+      referrerId: user.referredBy,
+      code: user.referredVia || null,
+      at: new Date().toISOString(),
+      buyerDone: false,
+      sellerDone: false,
+    };
+    writeReferrals392(rdb);
+  } catch (e) { /* attribution must never break a signup */ }
+}
+function refNotify392(toId, actorName, text, subject) {
+  try {
+    notifyActivity({
+      toId,
+      kind: "referral",
+      actorId: null,
+      actorName: actorName || "Rizz Plaza",
+      text,
+      emailSubject: subject,
+      emailText: text + "\n\nOpen Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "earn" },
+    });
+  } catch (e) {}
+}
+// Settle hook — called from settleAuctionMoney's real path and from
+// settleStoreOrder240, with the money db in hand (the caller writes
+// it). Fires each reward at most once per referred member, ever.
+function refSettle392(adb, mdb, buyerId, sellerId, ref) {
+  const rdb = readReferrals392();
+  const byId = (id) => (adb.users || []).find((u) => u && u.id === id);
+  let changed = false;
+  const aB = rdb.attr[buyerId];
+  if (aB && !aB.buyerDone) {
+    const buyer = byId(buyerId);
+    const referrer = byId(aB.referrerId);
+    if (buyer && referrer && buyer.id !== referrer.id && !testFunds321(buyer) && !testFunds321(referrer)) {
+      mdb.balances[buyerId] = (mdb.balances[buyerId] || 0) + REF_BUYER_CHARMS392;
+      mdb.balances[referrer.id] = (mdb.balances[referrer.id] || 0) + REF_BUYER_CHARMS392;
+      moneyTx(mdb, { type: "referral", from: null, to: buyerId, charms: REF_BUYER_CHARMS392, cents: 0, cut: 0, ref: "refbuy-" + buyerId });
+      moneyTx(mdb, { type: "referral", from: null, to: referrer.id, charms: REF_BUYER_CHARMS392, cents: 0, cut: 0, ref: "refbuy-" + buyerId });
+      aB.buyerDone = true;
+      aB.buyerAt = new Date().toISOString();
+      aB.buyerRef = String(ref || "");
+      changed = true;
+      refNotify392(buyerId, "Rizz Plaza", "🎁 Welcome aboard — your referral bonus just landed: 500 charms for your first purchase!", "Your referral bonus landed");
+      refNotify392(referrer.id, buyer.name || "A new member", "🎁 " + (buyer.name || "A member you invited") + " made their first purchase — you earned a 500-charm referral bonus!", "You earned a referral bonus");
+    }
+  }
+  const aS = rdb.attr[sellerId];
+  if (aS && !aS.sellerDone) {
+    const seller = byId(sellerId);
+    const referrer = byId(aS.referrerId);
+    if (seller && referrer && seller.id !== referrer.id && !testFunds321(seller) && !testFunds321(referrer)) {
+      mdb.balances[referrer.id] = (mdb.balances[referrer.id] || 0) + REF_SELLER_CHARMS392;
+      moneyTx(mdb, { type: "referral", from: null, to: referrer.id, charms: REF_SELLER_CHARMS392, cents: 0, cut: 0, ref: "refsell-" + sellerId });
+      aS.sellerDone = true;
+      aS.sellerAt = new Date().toISOString();
+      aS.sellerRef = String(ref || "");
+      changed = true;
+      refNotify392(referrer.id, seller.name || "A new seller", "🎁 " + (seller.name || "A member you invited") + " made their first sale — you earned a 2,000-charm seller referral bonus!", "You earned a seller referral bonus");
+    }
+  }
+  if (changed) writeReferrals392(rdb);
+}
+app.get("/api/referrals/me", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readReferrals392();
+  const code = refCodeFor392(db, ctx.user.id);
+  writeReferrals392(db);
+  const mine = Object.keys(db.attr)
+    .map((id) => Object.assign({ id }, db.attr[id]))
+    .filter((a) => a.referrerId === ctx.user.id)
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  const byId = (id) => (ctx.db.users || []).find((u) => u && u.id === id);
+  let charmsEarned = 0;
+  const referred = mine.map((a) => {
+    const u = byId(a.id);
+    if (a.buyerDone) charmsEarned += REF_BUYER_CHARMS392;
+    if (a.sellerDone) charmsEarned += REF_SELLER_CHARMS392;
+    return {
+      name: u ? u.name || u.username || "Member" : "Member",
+      username: u ? u.username || "" : "",
+      joinedAt: a.at,
+      bought: !!a.buyerDone,
+      sold: !!a.sellerDone,
+    };
+  });
+  res.json({
+    ok: true,
+    code,
+    link: siteOrigin(req) + "/?ref=" + code,
+    signups: referred.length,
+    buyerRewards: mine.filter((a) => a.buyerDone).length,
+    sellerRewards: mine.filter((a) => a.sellerDone).length,
+    charmsEarned,
+    referred,
+    buyerCharms: REF_BUYER_CHARMS392,
+    sellerCharms: REF_SELLER_CHARMS392,
+  });
+});
+
+/* ---------------- challenges + points store ---------------- */
+function readChallenges392() {
+  return storeReadJson(
+    CHALLENGES_FILE392,
+    (d) => !!(d && d.days && typeof d.days === "object" && d.points && typeof d.points === "object"),
+    { days: {}, points: {}, fx: {} },
+    "challenges"
+  );
+}
+function writeChallenges392(db) {
+  // keep today + yesterday only — daily state is not an archive
+  const keep = [lkDayKey389(Date.now()), lkDayKey389(Date.now() - 24 * 60 * 60 * 1000)];
+  for (const k of Object.keys(db.days || {})) if (keep.indexOf(k) < 0) delete db.days[k];
+  storeWriteJson(CHALLENGES_FILE392, db);
+}
+function chalDayRec392(db, userId, dayKey) {
+  if (!db.days[dayKey]) db.days[dayKey] = {};
+  let rec = db.days[dayKey][userId];
+  if (!rec) {
+    rec = { checkin: 0, watchMs: 0, bids: 0, bookmarks: 0, giveaways: 0, shares: 0, awarded: {} };
+    db.days[dayKey][userId] = rec;
+  }
+  if (!db.points[userId]) db.points[userId] = { balance: 0, earned: 0 };
+  return rec;
+}
+function chalProgress392(rec, id) {
+  if (id === "checkin") return rec.checkin ? 1 : 0;
+  if (id === "watch") return Math.floor(rec.watchMs || 0);
+  return Math.floor(rec[id] || 0);
+}
+function chalAward392(db, userId, rec) {
+  let gained = 0;
+  for (const def of CHAL_DEFS392) {
+    if (rec.awarded[def.id]) continue;
+    if (chalProgress392(rec, def.id) >= def.target) {
+      rec.awarded[def.id] = def.points;
+      db.points[userId].balance += def.points;
+      db.points[userId].earned += def.points;
+      gained += def.points;
+    }
+  }
+  return gained;
+}
+// Any real, authenticated activity counts as the day's check-in —
+// opening the app IS the check-in; there is no separate claim tap.
+function chalTouch392(userId) {
+  if (!userId) return;
+  try {
+    const db = readChallenges392();
+    const rec = chalDayRec392(db, userId, lkDayKey389(Date.now()));
+    if (!rec.checkin) {
+      rec.checkin = 1;
+      chalAward392(db, userId, rec);
+      writeChallenges392(db);
+    }
+  } catch (e) {}
+}
+const CHAL_EVENT_FIELD392 = { bid: "bids", bookmark: "bookmarks", giveaway: "giveaways", share: "shares" };
+function chalEvent392(userId, kind) {
+  const field = CHAL_EVENT_FIELD392[kind];
+  if (!userId || !field) return;
+  try {
+    const db = readChallenges392();
+    const rec = chalDayRec392(db, userId, lkDayKey389(Date.now()));
+    rec.checkin = 1;
+    rec[field] = (rec[field] || 0) + 1;
+    chalAward392(db, userId, rec);
+    writeChallenges392(db);
+  } catch (e) {}
+}
+// Watch presence: the V7.389 tick accrues real in-live time per
+// account; a one-line hook feeds the same milliseconds here (non-host
+// viewers only). Kept in memory and flushed every 30 s so the tick
+// never pays a file write per viewer per tick.
+const chalWatchMem392 = new Map(); // dayKey -> Map(acctId -> ms)
+function chalWatchTick392(acctId, hostAcctId, ms) {
+  if (!acctId || !ms || acctId === hostAcctId) return;
+  const dayKey = lkDayKey389(Date.now());
+  let dayMap = chalWatchMem392.get(dayKey);
+  if (!dayMap) {
+    dayMap = new Map();
+    chalWatchMem392.set(dayKey, dayMap);
+  }
+  dayMap.set(acctId, (dayMap.get(acctId) || 0) + ms);
+}
+function chalWatchFlush392() {
+  try {
+    if (!chalWatchMem392.size) return;
+    const db = readChallenges392();
+    let dirty = false;
+    for (const [dayKey, dayMap] of chalWatchMem392) {
+      for (const [acctId, ms] of dayMap) {
+        if (!ms) continue;
+        const rec = chalDayRec392(db, acctId, dayKey);
+        rec.checkin = 1;
+        rec.watchMs = (rec.watchMs || 0) + ms;
+        chalAward392(db, acctId, rec);
+        dirty = true;
+      }
+    }
+    chalWatchMem392.clear();
+    if (dirty) writeChallenges392(db);
+  } catch (e) {}
+}
+const CHAL_FLUSH_MS392 = Math.max(250, Number(process.env.CHAL_FLUSH_MS) || 30 * 1000); // rig knob; production 30 s
+setInterval(chalWatchFlush392, CHAL_FLUSH_MS392);
+function chalState392(userId) {
+  const db = readChallenges392();
+  const dayKey = lkDayKey389(Date.now());
+  const rec = chalDayRec392(db, userId, dayKey);
+  // display overlays the unflushed watch memory; awards land at flush
+  const mem = chalWatchMem392.get(dayKey);
+  const memMs = mem ? mem.get(userId) || 0 : 0;
+  const view = Object.assign({}, rec, { watchMs: (rec.watchMs || 0) + memMs });
+  return {
+    day: dayKey,
+    points: { balance: db.points[userId].balance, earned: db.points[userId].earned },
+    challenges: CHAL_DEFS392.map((def) => ({
+      id: def.id,
+      label: def.label,
+      target: def.target,
+      points: def.points,
+      progress: Math.min(chalProgress392(view, def.id), def.target),
+      done: chalProgress392(view, def.id) >= def.target,
+      awarded: rec.awarded[def.id] || 0,
+    })),
+  };
+}
+app.get("/api/challenges", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  chalTouch392(ctx.user.id);
+  const st = chalState392(ctx.user.id);
+  res.json(Object.assign({ ok: true }, st, { fx: fxPublic392(ctx.user.id) }));
+});
+app.post("/api/challenges/share", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  // The client calls this only after the share cascade actually
+  // completed (native sheet shared, or the link was copied) for a
+  // show or a live — the count is of shares performed, not taps.
+  chalEvent392(ctx.user.id, "share");
+  const st = chalState392(ctx.user.id);
+  res.json(Object.assign({ ok: true }, st));
+});
+
+/* ---------------- points shop + chat effects ---------------- */
+function fxRec392(db, userId) {
+  if (!db.fx || typeof db.fx !== "object") db.fx = {};
+  let fx = db.fx[userId];
+  if (!fx) {
+    fx = { name: null, nameExp: 0, hlNext: false, hlExp: 0 };
+    db.fx[userId] = fx;
+  }
+  return fx;
+}
+function fxPublic392(userId) {
+  try {
+    const db = readChallenges392();
+    const fx = fxRec392(db, userId);
+    const now = Date.now();
+    return {
+      name: fx.name && fx.nameExp > now ? fx.name : null,
+      nameExp: fx.name && fx.nameExp > now ? fx.nameExp : 0,
+      highlightArmed: !!(fx.hlNext && fx.hlExp > now),
+    };
+  } catch (e) {
+    return { name: null, nameExp: 0, highlightArmed: false };
+  }
+}
+// Chat-relay lookup (the V7.338 glv pattern): the sender's active
+// name effect + a one-shot highlight flag, consumed as it is spent.
+// Cached in memory; purchases write through to the cache.
+const fxCache392 = new Map(); // userId -> fx record (mirror of the store row)
+function chatFx392(accountId) {
+  if (!accountId) return null;
+  try {
+    let fx = fxCache392.get(accountId);
+    if (!fx) {
+      const db = readChallenges392();
+      fx = Object.assign({}, fxRec392(db, accountId));
+      fxCache392.set(accountId, fx);
+    }
+    const now = Date.now();
+    const out = { n: fx.name && fx.nameExp > now ? fx.name : null, hl: false };
+    if (fx.hlNext && fx.hlExp > now) {
+      out.hl = true;
+      fx.hlNext = false;
+      fxCache392.set(accountId, fx);
+      const db = readChallenges392();
+      const row = fxRec392(db, accountId);
+      row.hlNext = false;
+      writeChallenges392(db);
+    }
+    return out.n || out.hl ? out : null;
+  } catch (e) {
+    return null;
+  }
+}
+app.get("/api/points-shop", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readChallenges392();
+  chalDayRec392(db, ctx.user.id, lkDayKey389(Date.now()));
+  res.json({
+    ok: true,
+    points: { balance: db.points[ctx.user.id].balance, earned: db.points[ctx.user.id].earned },
+    perks: POINTS_SHOP392,
+    fx: fxPublic392(ctx.user.id),
+  });
+});
+app.post("/api/points-shop/buy", lockedHandler("points-buy", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "adults-only" });
+  const b = req.body || {};
+  const perk = POINTS_SHOP392.find((p) => p.id === String(b.perk || ""));
+  if (!perk) return res.status(400).json({ ok: false, error: "bad-perk" });
+  const db = readChallenges392();
+  chalDayRec392(db, ctx.user.id, lkDayKey389(Date.now()));
+  const pts = db.points[ctx.user.id];
+  if (pts.balance < perk.cost)
+    return res.status(400).json({ ok: false, error: "not-enough-points", balance: pts.balance, cost: perk.cost });
+  if (perk.id === "jumbotron") {
+    const text = String(b.text || "").replace(/[<>&"']/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
+    if (!text) return res.status(400).json({ ok: false, error: "text-required" });
+    if (/https?:|www\./i.test(text)) return res.status(400).json({ ok: false, error: "no-links" });
+    // The buyer must be standing in a live room right now — resolved
+    // from their own socket, never from a client-supplied room id.
+    let room = null;
+    try {
+      for (const [sid, s] of io.sockets.sockets) {
+        if (s && s.data && s.data.accountId === ctx.user.id) {
+          const p = players.get(sid);
+          if (p && p.room) { room = p.room; break; }
+        }
+      }
+    } catch (e) {}
+    if (!room) return res.status(409).json({ ok: false, error: "not-in-a-live" });
+    const entry = [...liveRegistry.values()].find((e) => e.room === room);
+    if (!entry) return res.status(409).json({ ok: false, error: "not-in-a-live" });
+    if (gwChurchLive389(entry))
+      return res.status(403).json({ ok: false, error: "church-room" });
+    pts.balance -= perk.cost;
+    writeChallenges392(db);
+    try {
+      io.to(room).emit("winner-overlay", {
+        room,
+        kind: "jumbotron",
+        name: ctx.user.name || ctx.user.username || "A member",
+        text,
+      });
+    } catch (e) {}
+    return res.json({ ok: true, perk: perk.id, balance: pts.balance, room });
+  }
+  if (perk.id === "name-gold" || perk.id === "name-rainbow") {
+    const fx = fxRec392(db, ctx.user.id);
+    fx.name = perk.id === "name-gold" ? "gold" : "rainbow";
+    fx.nameExp = Date.now() + 24 * 60 * 60 * 1000;
+    pts.balance -= perk.cost;
+    writeChallenges392(db);
+    fxCache392.set(ctx.user.id, Object.assign({}, fx));
+    return res.json({ ok: true, perk: perk.id, balance: pts.balance, fx: fxPublic392(ctx.user.id) });
+  }
+  if (perk.id === "highlight") {
+    const fx = fxRec392(db, ctx.user.id);
+    if (fx.hlNext && fx.hlExp > Date.now())
+      return res.status(409).json({ ok: false, error: "highlight-armed" });
+    fx.hlNext = true;
+    fx.hlExp = Date.now() + 24 * 60 * 60 * 1000;
+    pts.balance -= perk.cost;
+    writeChallenges392(db);
+    fxCache392.set(ctx.user.id, Object.assign({}, fx));
+    return res.json({ ok: true, perk: perk.id, balance: pts.balance, fx: fxPublic392(ctx.user.id) });
+  }
+  return res.status(400).json({ ok: false, error: "bad-perk" });
+}));
+
+/* ---------------- coupons ---------------- */
+function readCoupons392() {
+  return storeReadJson(
+    COUPONS_FILE392,
+    (d) => !!(d && Array.isArray(d.coupons)),
+    { coupons: [] },
+    "coupons"
+  );
+}
+function writeCoupons392(db) {
+  storeWriteJson(COUPONS_FILE392, db);
+}
+function couponPublic392(c) {
+  return {
+    id: c.id,
+    sellerId: c.sellerId,
+    code: c.code,
+    scope: c.scope,
+    targetId: c.targetId,
+    targetTitle: c.targetTitle || "",
+    kind: c.kind,
+    pct: c.pct || 0,
+    flatCharms: c.flatCharms || 0,
+    expiresAt: c.expiresAt || null,
+    maxUses: c.maxUses,
+    uses: c.uses || 0,
+    active: !!c.active,
+    createdAt: c.createdAt,
+  };
+}
+function couponFind392(db, sellerId, scope, targetId, code) {
+  const want = String(code || "").trim().toUpperCase();
+  if (!want) return null;
+  return (
+    db.coupons.find(
+      (c) =>
+        c && c.active && c.sellerId === sellerId && c.scope === scope &&
+        c.targetId === targetId && String(c.code).toUpperCase() === want
+    ) || null
+  );
+}
+// One use per buyer per code, maxUses across everyone. "used"
+// redemptions count forever; store "pending" redemptions (a Stripe
+// session was created) count while fresh (< 24 h — a checkout
+// session cannot outlive that); offer-flow uses are counted by the
+// caller from the offers store (extraUses) because an accepted offer
+// IS the redemption there and it is only written at accept time.
+function couponCheck392(cpn, buyerId, now, extraUses) {
+  if (!cpn || !cpn.active) return { ok: false, error: "coupon-invalid" };
+  if (cpn.expiresAt && Date.parse(cpn.expiresAt) <= now)
+    return { ok: false, error: "coupon-expired" };
+  let used = 0;
+  for (const r of cpn.redemptions || []) {
+    if (!r) continue;
+    if (r.state === "used") {
+      used++;
+      if (r.buyerId === buyerId) return { ok: false, error: "coupon-already-used" };
+    } else if (r.state === "pending" && now - Date.parse(r.at || 0) < 24 * 60 * 60 * 1000) {
+      used++;
+      if (r.buyerId === buyerId) return { ok: false, error: "coupon-already-used" };
+    }
+  }
+  used += Math.max(0, Math.floor(Number(extraUses) || 0));
+  if (used >= (cpn.maxUses || 1)) return { ok: false, error: "coupon-exhausted" };
+  return { ok: true };
+}
+// The discount in the path's native unit (charms for items, cents
+// for the store — 1 charm == 1 cent in the Plaza's own accounting).
+// Percent: floor of base * pct / 100 (offer bases are whole dollars
+// x 100, so percent discounts there are exact to the charm). A sale
+// always leaves at least 100 units ($1) payable.
+function couponDiscount392(cpn, baseUnits) {
+  const base = Math.floor(Number(baseUnits) || 0);
+  if (!cpn || !(base > 100)) return 0;
+  let disc = 0;
+  if (cpn.kind === "pct") disc = Math.floor((base * (cpn.pct || 0)) / 100);
+  else disc = Math.floor(Number(cpn.flatCharms) || 0);
+  if (disc > base - 100) disc = base - 100;
+  return disc > 0 ? disc : 0;
+}
+function couponReserve392(couponId, buyerId, ref, discount, unit) {
+  const db = readCoupons392();
+  const cpn = db.coupons.find((c) => c.id === couponId);
+  if (!cpn) return;
+  if (!Array.isArray(cpn.redemptions)) cpn.redemptions = [];
+  cpn.redemptions.push({ buyerId, state: "pending", ref: String(ref || ""), discount, unit, at: new Date().toISOString() });
+  writeCoupons392(db);
+}
+function couponSettleStore392(order) {
+  if (!order || !order.couponId) return;
+  const db = readCoupons392();
+  const cpn = db.coupons.find((c) => c.id === order.couponId);
+  if (!cpn) return;
+  if (!Array.isArray(cpn.redemptions)) cpn.redemptions = [];
+  const r = cpn.redemptions.find((x) => x && x.ref === order.id && x.state === "pending");
+  if (r) {
+    r.state = "used";
+    r.settledAt = new Date().toISOString();
+  } else {
+    cpn.redemptions.push({ buyerId: order.buyerId, state: "used", ref: order.id, discount: order.discountCents || 0, unit: "cents", at: new Date().toISOString() });
+  }
+  cpn.uses = (cpn.uses || 0) + 1;
+  writeCoupons392(db);
+}
+function couponRedeem392(couponId, buyerId, ref, discount, unit) {
+  const db = readCoupons392();
+  const cpn = db.coupons.find((c) => c.id === couponId);
+  if (!cpn) return;
+  if (!Array.isArray(cpn.redemptions)) cpn.redemptions = [];
+  cpn.redemptions.push({ buyerId, state: "used", ref: String(ref || ""), discount, unit, at: new Date().toISOString() });
+  cpn.uses = (cpn.uses || 0) + 1;
+  writeCoupons392(db);
+}
+// A refunded offer sale restores the buyer's use exactly (the use
+// count drops back and the redemption is marked refunded, never
+// silently deleted). Called from executeAuctionRefund383.
+function couponRefundRestore392(auctionId) {
+  if (!auctionId || String(auctionId).indexOf("offer-") !== 0) return;
+  const odb = readOffers390();
+  const offer = odb.offers.find((x) => x && x.settlementId === auctionId && x.couponId);
+  if (!offer) return;
+  const db = readCoupons392();
+  const cpn = db.coupons.find((c) => c.id === offer.couponId);
+  if (!cpn) return;
+  const r = (cpn.redemptions || []).find((x) => x && x.ref === auctionId && x.state === "used");
+  if (r) {
+    r.state = "refunded";
+    cpn.uses = Math.max(0, (cpn.uses || 0) - 1);
+    writeCoupons392(db);
+  }
+}
+app.post("/api/coupons", lockedHandler("coupon-create", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "adults-only" });
+  const b = req.body || {};
+  const code = String(b.code || "").trim().toUpperCase().slice(0, 24);
+  if (!/^[A-Z0-9][A-Z0-9_-]{3,23}$/.test(code))
+    return res.status(400).json({ ok: false, error: "bad-code" });
+  const scope = String(b.scope || "");
+  if (scope !== "store" && scope !== "item")
+    return res.status(400).json({ ok: false, error: "bad-scope" });
+  const targetId = String(b.targetId || "").trim();
+  if (!targetId) return res.status(400).json({ ok: false, error: "target-required" });
+  let targetTitle = "";
+  if (scope === "store") {
+    const l = readStore240().listings.find((x) => x && x.id === targetId);
+    if (!l) return res.status(404).json({ ok: false, error: "listing-not-found" });
+    if (l.sellerId !== ctx.user.id) return res.status(403).json({ ok: false, error: "not-your-listing" });
+    targetTitle = l.title || "";
+  } else {
+    const it = readAuctionItems384().items.find((x) => x && x.id === targetId);
+    if (!it) return res.status(404).json({ ok: false, error: "item-not-found" });
+    if (it.hostId !== ctx.user.id) return res.status(403).json({ ok: false, error: "not-your-item" });
+    if (it.room === "faith") return res.status(400).json({ ok: false, error: "church-room" });
+    targetTitle = it.title || "";
+  }
+  const kind = String(b.kind || "");
+  let pct = 0, flatCharms = 0;
+  if (kind === "pct") {
+    pct = Math.floor(Number(b.pct));
+    if (!isFinite(pct) || pct < 5 || pct > 50)
+      return res.status(400).json({ ok: false, error: "bad-pct" });
+  } else if (kind === "flat") {
+    flatCharms = Math.floor(Number(b.flatCharms));
+    if (!isFinite(flatCharms) || flatCharms < 10 || flatCharms > 100000)
+      return res.status(400).json({ ok: false, error: "bad-flat" });
+  } else {
+    return res.status(400).json({ ok: false, error: "bad-kind" });
+  }
+  let expiresAt = null;
+  if (b.expiresAt) {
+    const ms = Date.parse(String(b.expiresAt));
+    if (!isFinite(ms) || ms <= Date.now())
+      return res.status(400).json({ ok: false, error: "bad-expiry" });
+    if (ms > Date.now() + 366 * 24 * 60 * 60 * 1000)
+      return res.status(400).json({ ok: false, error: "bad-expiry" });
+    expiresAt = new Date(ms).toISOString();
+  }
+  const maxUses = Math.floor(Number(b.maxUses));
+  if (!isFinite(maxUses) || maxUses < 1 || maxUses > 1000)
+    return res.status(400).json({ ok: false, error: "bad-max-uses" });
+  const db = readCoupons392();
+  const dupe = db.coupons.find(
+    (c) => c && c.active && c.sellerId === ctx.user.id && c.scope === scope &&
+      c.targetId === targetId && String(c.code).toUpperCase() === code
+  );
+  if (dupe) return res.status(409).json({ ok: false, error: "code-exists" });
+  const cpn = {
+    id: "cpn-" + crypto.randomBytes(8).toString("hex"),
+    sellerId: ctx.user.id,
+    sellerName: ctx.user.name || ctx.user.username || "Seller",
+    code,
+    scope,
+    targetId,
+    targetTitle,
+    kind,
+    pct,
+    flatCharms,
+    expiresAt,
+    maxUses,
+    uses: 0,
+    active: true,
+    createdAt: new Date().toISOString(),
+    redemptions: [],
+  };
+  db.coupons.push(cpn);
+  writeCoupons392(db);
+  res.json({ ok: true, coupon: couponPublic392(cpn) });
+}));
+app.get("/api/coupons/mine", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readCoupons392();
+  const mine = db.coupons
+    .filter((c) => c && c.sellerId === ctx.user.id)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .map(couponPublic392);
+  res.json({ ok: true, coupons: mine });
+});
+app.post("/api/coupons/:id/deactivate", lockedHandler("coupon-deactivate", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const db = readCoupons392();
+  const cpn = db.coupons.find((c) => c && c.id === String(req.params.id || ""));
+  if (!cpn) return res.status(404).json({ ok: false, error: "coupon-not-found" });
+  if (cpn.sellerId !== ctx.user.id) return res.status(403).json({ ok: false, error: "not-your-coupon" });
+  cpn.active = false;
+  writeCoupons392(db);
+  res.json({ ok: true, coupon: couponPublic392(cpn) });
+}));
+app.post("/api/coupons/preview", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const scope = String(b.scope || "");
+  const targetId = String(b.targetId || "").trim();
+  const base = Math.floor(Number(b.base) || 0);
+  if ((scope !== "store" && scope !== "item") || !targetId || !(base > 0))
+    return res.status(400).json({ ok: false, error: "bad-preview" });
+  let sellerId = null;
+  if (scope === "store") {
+    const l = readStore240().listings.find((x) => x && x.id === targetId);
+    if (!l) return res.status(404).json({ ok: false, error: "listing-not-found" });
+    sellerId = l.sellerId;
+  } else {
+    const it = readAuctionItems384().items.find((x) => x && x.id === targetId);
+    if (!it) return res.status(404).json({ ok: false, error: "item-not-found" });
+    sellerId = it.hostId;
+  }
+  if (sellerId === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "own-product" });
+  const db = readCoupons392();
+  const cpn = couponFind392(db, sellerId, scope, targetId, String(b.code || ""));
+  if (!cpn) return res.status(404).json({ ok: false, error: "coupon-invalid" });
+  const chk = couponCheck392(cpn, ctx.user.id, Date.now());
+  if (!chk.ok) return res.status(400).json({ ok: false, error: chk.error });
+  const discount = couponDiscount392(cpn, base);
+  if (!(discount > 0)) return res.status(400).json({ ok: false, error: "coupon-too-small" });
+  res.json({ ok: true, code: cpn.code, discount, effective: base - discount, unit: scope === "store" ? "cents" : "charms" });
+});
+
+/* ---------------- owner board summary ---------------- */
+// Rides /api/owner/sales (one additive key): referral counts +
+// charms paid, points in circulation, coupon activity. All read
+// from the three 392 stores — no ledger re-walk.
+function rpRefBoard392() {
+  try {
+    const rdb = readReferrals392();
+    const attrs = Object.values(rdb.attr || {});
+    let referralCharmsPaid = 0;
+    for (const a of attrs) {
+      if (a.buyerDone) referralCharmsPaid += REF_BUYER_CHARMS392 * 2;
+      if (a.sellerDone) referralCharmsPaid += REF_SELLER_CHARMS392;
+    }
+    const cdb = readChallenges392();
+    let pointsOutstanding = 0, pointsEarned = 0;
+    for (const p of Object.values(cdb.points || {})) {
+      pointsOutstanding += Math.round(Number(p.balance) || 0);
+      pointsEarned += Math.round(Number(p.earned) || 0);
+    }
+    const pdb = readCoupons392();
+    let couponRedemptions = 0, couponDiscountCharms = 0, couponDiscountCents = 0;
+    for (const c of pdb.coupons || []) {
+      for (const r of c.redemptions || []) {
+        if (!r || r.state !== "used") continue;
+        couponRedemptions++;
+        if (r.unit === "cents") couponDiscountCents += Math.round(Number(r.discount) || 0);
+        else couponDiscountCharms += Math.round(Number(r.discount) || 0);
+      }
+    }
+    return {
+      referredMembers: attrs.length,
+      buyerRewardsPaid: attrs.filter((a) => a.buyerDone).length,
+      sellerRewardsPaid: attrs.filter((a) => a.sellerDone).length,
+      referralCharmsPaid,
+      pointsOutstanding,
+      pointsEarnedAllTime: pointsEarned,
+      couponsActive: (pdb.coupons || []).filter((c) => c && c.active).length,
+      couponRedemptions,
+      couponDiscountCharms,
+      couponDiscountCents,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.391", online: players.size })
+  res.json({ ok: true, version: "RP-V7.392", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -26949,6 +27878,7 @@ io.on("connection", (socket) => {
       text,
       at: now,
       glv: gifterLevelOf338(p.acctId || (socket.data && socket.data.accountId)), // [RP-V7.338] sender's gifter level rides the relay (0 = no badge)
+      fx392: chatFx392(socket.data && socket.data.accountId), // [RP-V7.392] points-shop chat effect (name colour / one-message highlight)
     });
   });
 
@@ -27746,6 +28676,7 @@ io.on("connection", (socket) => {
     a.highBidderId = socket.id;
     a.highBidderName = me.name;
     a.highBidderAccountId = socket.data.accountId || null; // [RP-V7.80] settlement identity (F2)
+    try { chalEvent392(socket.data.accountId, "bid"); } catch (e) {} // [RP-V7.392] daily bids challenge
     let extended = false;
     const remaining = a.endsAt - Date.now();
     // [RP-V7.80] Full-scan F5: Sudden Death auctions never extend.
