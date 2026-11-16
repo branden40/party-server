@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.390" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.391" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -52427,6 +52427,7 @@ window.rpOpenSavedSheet349 = function () {
       '<div class="rp384-row"><input type="number" id="rp384Bid" min="1" max="100000" step="1" placeholder="Start bid $"/>' +
       '<input type="number" id="rp384Dur" min="10" max="600" step="1" placeholder="Seconds (60)"/></div>' +
       '<label class="rp384-check"><input type="checkbox" id="rp384Sd"/> ⚡ Sudden Death (late bids never extend the clock)</label>' +
+      '<select id="rp384Room" class="rp384-in" style="display:block;width:100%;margin:6px 0"><option value="">Category room (optional)</option><option value="neon">Neon Nights Club</option><option value="roof">Rooftop Sunset Lounge</option><option value="beach">Beach Bonfire</option><option value="garden">Garden Masquerade</option><option value="love">Love Lounge</option><option value="friends">Friends Hangout</option><option value="music">Music Lovers Lounge</option><option value="foodie">Foodie Table</option><option value="travel">Wanderlust Corner</option><option value="movies">Movie Night Room</option><option value="games">Game Night Arena</option><option value="books">Book & Poetry Corner</option><option value="comedy">Comedy Corner</option><option value="podcast">Podcast</option><option value="art">Art Studio Loft</option><option value="wellness">Wellness Garden</option><option value="workout">Workout Room</option><option value="sports">Sports Fans Zone</option><option value="singles">Serious Singles</option><option value="career">Dream Builders</option></select>' + // [RP-V7.391] optional category filing
       '<button type="button" class="rp384-btn" data-rp384-add="1">＋ Add show item</button> ' +
       '<button type="button" class="rp384-btn ghost" data-rp384-refresh="1">↻ Refresh</button>' +
       '<p class="rp384-msg" id="rp384MgrMsg"></p>' +
@@ -52598,7 +52599,8 @@ window.rpOpenSavedSheet349 = function () {
         photoUrl: (document.getElementById("rp384Photo") || {}).value || "",
         startBid: Number((document.getElementById("rp384Bid") || {}).value || 0),
         durationSec: Number((document.getElementById("rp384Dur") || {}).value || 60),
-        suddenDeath: !!((document.getElementById("rp384Sd") || {}).checked)
+        suddenDeath: !!((document.getElementById("rp384Sd") || {}).checked),
+        room: (document.getElementById("rp384Room") || {}).value || "" // [RP-V7.391]
       };
       api("POST", "/api/auction-items", body).then(function (r) {
         if (r.j && r.j.ok) { mgrMsg("Added “" + r.j.item.title + "” — viewers can pre-bid now."); loadMine(); }
@@ -54277,6 +54279,273 @@ window.rpOpenSavedSheet349 = function () {
       var scr = document.getElementById("screen-auctions");
       if (S.open || isVis(scr)) loadAll(false);
       render();
+    } catch (e) { /* the module must never break the app */ }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1500); tick(); });
+  else { setInterval(tick, 1500); tick(); }
+})();
+</script>
+
+<style>
+.rp391-card{background:#101014;border:1px solid #26262e;border-radius:14px;padding:14px;margin:10px 0;color:#f2f2f5}
+.rp391-card h3{margin:0 0 4px;font-size:16px}
+.rp391-sub{margin:0 0 6px;color:#a7a7b3;font-size:12.5px;line-height:1.45}
+.rp391-counts{color:#d7d7de;font-size:13px;margin:6px 0 10px}
+.rp391-btn{background:#e02424;color:#fff;border:1px solid #e02424;border-radius:9px;padding:8px 12px;cursor:pointer;font-weight:700;font-size:13px}
+.rp391-btn.ghost{background:#1d1d24;border-color:#33333f;color:#f2f2f5}
+.rp391-btn.sm{padding:6px 10px;font-size:12.5px}
+#rp391Cats{position:fixed;inset:0;z-index:85;background:#000;color:#f2f2f5;display:none;flex-direction:column}
+#rp391Cats.open{display:flex}
+.rp391-head{display:flex;align-items:center;gap:10px;padding:14px 12px;border-bottom:1px solid #26262e}
+.rp391-head h3{margin:0;font-size:17px;flex:1}
+.rp391-x{background:#1d1d24;border:1px solid #33333f;color:#f2f2f5;border-radius:9px;padding:7px 12px;cursor:pointer;font-size:14px}
+.rp391-body{flex:1;overflow:auto;padding:12px}
+.rp391-sec{font-size:14px;margin:16px 0 8px}
+.rp391-sec:first-child{margin-top:0}
+.rp391-empty{color:#a7a7b3;font-size:13px;padding:8px 0;line-height:1.5}
+.rp391-cat{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#101014;border:1px solid #26262e;border-radius:12px;padding:11px 12px;margin:0 0 8px;color:#f2f2f5;cursor:pointer;font-size:14px}
+.rp391-cat b{flex:1}
+.rp391-cat .cnt{color:#a7a7b3;font-size:12px;white-space:nowrap}
+.rp391-cat .cnt .lv{color:#ff5a5a;font-weight:800}
+.rp391-row{border:1px solid #26262e;border-radius:12px;padding:10px 12px;margin:0 0 10px;background:#101014}
+.rp391-lrow{display:flex;gap:10px;align-items:center}
+.rp391-ava{width:40px;height:40px;border-radius:50%;object-fit:cover;background:#1d1d24;flex:none}
+.rp391-rank{font-weight:900;color:#e02424;font-size:15px;min-width:26px;text-align:center}
+.rp391-main{flex:1;min-width:0}
+.rp391-meta{color:#a7a7b3;font-size:12.5px;margin-top:2px;line-height:1.5}
+.rp391-chip{display:inline-block;background:#1d1d24;border:1px solid #33333f;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:800;color:#ffb3b3;margin-left:6px;vertical-align:2px}
+.rp391-live{display:inline-block;background:#e02424;color:#fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:800;margin-right:6px}
+.rp391-bm{background:#1d1d24;border:1px solid #33333f;color:#f2f2f5;border-radius:9px;padding:6px 10px;cursor:pointer;font-size:12.5px}
+.rp391-bm.on{color:#ff5b5b;border-color:#e02424}
+.rp391-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.rp391-note{border:1px solid #33333f;border-radius:12px;padding:10px 12px;background:#0c0c10;color:#d7d7de;font-size:13px;line-height:1.5;margin:0 0 10px}
+</style>
+<script>
+/* [RP-V7.391] Categories + Trending (Whatnot parity build 9).
+   Self-contained module (the rp384-390 pattern). One "🗂️ Categories"
+   card on the Auctions screen opens a browse center: a 🔥 Trending
+   strip (current lives ranked by REAL concurrent viewers, from
+   GET /api/trending-lives — a live-shopping view only, nothing to do
+   with the Add Sound / Viral content rankings), the 21 room
+   categories with live/show/item counts (GET /api/categories), and
+   per-room pages (GET /api/categories/:room) with lives now,
+   upcoming shows (bookmark buttons ride rp385's own data-rp385-bm
+   handler, so counts patch across every surface) and — except in
+   Christian Fellowship, which is commerce-free and shows lives +
+   shows only — the items sellers filed under that room. */
+(function () {
+  "use strict";
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function myId() {
+    try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a ? ((a.user && a.user.id) || a.userId || a.id || "") : ""; } catch (e) { return ""; }
+  }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" }; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return { ok: false }; }).then(function (j) { return { status: r.status, j: j }; }); })
+      .catch(function () { return { status: 0, j: { ok: false, error: "network" } }; });
+  }
+  function isVis(el) { if (!el) return false; try { return !!(el.offsetParent || el.getClientRects().length); } catch (e) { return false; } }
+  function fmtWhen(ms) { try { return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } }
+  function rel(ms) {
+    var diff = ms - Date.now();
+    if (diff <= 0) return "";
+    var mins = Math.round(diff / 60000);
+    if (mins < 60) return " · in " + mins + " min";
+    var hrs = Math.floor(mins / 60), rm = mins % 60;
+    if (hrs < 48) return " · in " + hrs + " h" + (rm ? " " + rm + " min" : "");
+    return " · in " + Math.round(hrs / 24) + " days";
+  }
+  var ROOMLBL391 = { neon: "Neon Nights Club", roof: "Rooftop Sunset Lounge", beach: "Beach Bonfire", garden: "Garden Masquerade", love: "Love Lounge", friends: "Friends Hangout", faith: "Christian Fellowship", music: "Music Lovers Lounge", foodie: "Foodie Table", travel: "Wanderlust Corner", movies: "Movie Night Room", games: "Game Night Arena", books: "Book & Poetry Corner", comedy: "Comedy Corner", podcast: "Podcast", art: "Art Studio Loft", wellness: "Wellness Garden", workout: "Workout Room", sports: "Sports Fans Zone", singles: "Serious Singles", career: "Dream Builders" };
+  function roomLbl(id) { return ROOMLBL391[id] || id || ""; }
+
+  var S = {
+    open: false, view: "index", room: null,
+    cats: null, trending: null, page: null,
+    idxAt: 0, pageAt: 0, cardAt: 0, cardSig: "", bodySig: ""
+  };
+
+  /* ---------------- placement ---------------- */
+  function ensureCard() {
+    var scr = document.getElementById("screen-auctions");
+    if (!scr) return;
+    var d = document.getElementById("rp391Card");
+    if (!d) {
+      d = document.createElement("div");
+      d.className = "rp391-card"; d.id = "rp391Card";
+      d.innerHTML = "<h3>🗂️ Categories</h3>" +
+        '<p class="rp391-sub">Browse live shopping by room — who\'s live, what\'s coming up, and what\'s listed.</p>' +
+        '<div class="rp391-counts" id="rp391Counts"></div>' +
+        '<button type="button" class="rp391-btn" data-rp391-open="1">Browse categories</button>';
+      var act = document.getElementById("rp390Card");
+      var hub = document.getElementById("rp388Hub");
+      if (act && act.parentNode === scr) scr.insertBefore(d, act.nextSibling);
+      else if (hub && hub.parentNode === scr) scr.insertBefore(d, hub.nextSibling);
+      else scr.insertBefore(d, scr.firstChild);
+    } else {
+      // keep the card right under the Activity card when that card
+      // arrives later than ours (guarded: only move when misplaced)
+      var act2 = document.getElementById("rp390Card");
+      if (act2 && act2.parentNode === scr && d.parentNode === scr && act2.nextSibling !== d && act2.compareDocumentPosition(d) & 2) {
+        scr.insertBefore(d, act2.nextSibling);
+      }
+    }
+  }
+  function ensureOverlay() {
+    if (document.getElementById("rp391Cats")) return;
+    var d = document.createElement("div");
+    d.id = "rp391Cats";
+    d.innerHTML = '<div class="rp391-head">' +
+      '<button type="button" class="rp391-x" data-rp391-back="1" id="rp391Back" style="display:none">←</button>' +
+      '<h3 id="rp391Title">🗂️ Categories</h3>' +
+      '<button type="button" class="rp391-x" data-rp391-close="1">✕</button></div>' +
+      '<div class="rp391-body" id="rp391Body"></div>';
+    document.body.appendChild(d);
+  }
+  function openCats() { ensureOverlay(); S.open = true; S.view = "index"; S.room = null; document.getElementById("rp391Cats").classList.add("open"); S.idxAt = 0; loadIndex(true); }
+  function closeCats() { S.open = false; var o = document.getElementById("rp391Cats"); if (o) o.classList.remove("open"); }
+
+  /* ---------------- data ---------------- */
+  function loadIndex(force) {
+    if (!force && Date.now() - S.idxAt < 8000) { render(); return; }
+    S.idxAt = Date.now();
+    api("GET", "/api/categories").then(function (r) { if (r.j && r.j.ok) { S.cats = r.j.categories || []; renderCard(); if (S.open && S.view === "index") render(); } });
+    api("GET", "/api/trending-lives").then(function (r) { if (r.j && r.j.ok) { S.trending = r.j.lives || []; if (S.open && S.view === "index") render(); } });
+  }
+  function loadPage(room) {
+    S.pageAt = Date.now();
+    api("GET", "/api/categories/" + encodeURIComponent(room)).then(function (r) {
+      if (r.j && r.j.ok) { S.page = r.j; if (S.open && S.view === "room" && S.room === room) render(); }
+    });
+  }
+
+  /* ---------------- render ---------------- */
+  function renderCard() {
+    var el = document.getElementById("rp391Counts");
+    if (!el || !S.cats) return;
+    var live = 0, shows = 0;
+    S.cats.forEach(function (c) { live += c.liveCount || 0; shows += c.upcomingCount || 0; });
+    var txt = live + " live now · " + shows + " upcoming shows · 21 categories";
+    if (el.textContent !== txt) el.textContent = txt;
+  }
+  function liveRow(l, rank) {
+    var h = '<div class="rp391-row"><div class="rp391-lrow">';
+    if (rank) h += '<div class="rp391-rank">#' + rank + "</div>";
+    if (l.photo) h += '<img class="rp391-ava" src="' + esc(l.photo) + '" alt=""/>';
+    h += '<div class="rp391-main"><b>' + esc(l.name || "Host") + "</b>";
+    if (l.ticketPrice) h += '<span class="rp391-chip">🎟 ' + esc(l.ticketPrice) + "</span>";
+    h += '<div class="rp391-meta">' + (l.title ? esc(l.title) + " · " : "") + esc(l.org ? roomLbl(l.org) : (l.topic || "Live")) + " · 👁 " + (l.viewers || 0) + " watching</div></div>";
+    h += '<button type="button" class="rp391-btn sm" data-rp391-join="' + esc(l.room) + '">Watch</button>';
+    h += "</div></div>";
+    return h;
+  }
+  function showRow(sh) {
+    var live = sh.status === "live";
+    var h = '<div class="rp391-row"><b>' + esc(sh.title) + "</b>";
+    h += live ? '<span class="rp391-live">🔴 LIVE</span>' : '<span class="rp391-chip">scheduled</span>';
+    h += '<div class="rp391-meta">' + esc(sh.hostName) + " · " + (live ? "Live now" : esc(fmtWhen(sh.startsAt)) + esc(rel(sh.startsAt))) + "</div>";
+    if (sh.note) h += '<div class="rp391-meta">' + esc(sh.note) + "</div>";
+    h += '<div class="rp391-actions">';
+    if (live && sh.liveRoom) h += '<button type="button" class="rp391-btn sm" data-rp391-join="' + esc(sh.liveRoom) + '">🔴 Watch live</button>';
+    if (tok() && sh.hostId !== myId())
+      h += '<button type="button" class="rp391-bm' + (sh.bookmarkedByMe ? " on" : "") + '" data-rp385-bm="' + esc(sh.id) + '">🔖 ' + (sh.bookmarkedByMe ? "Bookmarked" : "Bookmark") + " · " + (sh.bookmarkCount || 0) + "</button>";
+    else
+      h += '<span class="rp391-meta">🔖 ' + (sh.bookmarkCount || 0) + "</span>";
+    h += "</div></div>";
+    return h;
+  }
+  function itemRow(it) {
+    var h = '<div class="rp391-row"><div class="rp391-lrow">';
+    if (it.photoUrl) h += '<img class="rp391-ava" src="' + esc(it.photoUrl) + '" alt=""/>';
+    h += '<div class="rp391-main"><b>' + esc(it.title) + '</b><div class="rp391-meta">by ' + esc(it.hostName) + " · starts at $" + (it.startBid || 0);
+    if (it.highPreBid) h += " · high pre-bid $" + it.highPreBid.amount + " (" + esc(it.highPreBid.name) + ")";
+    h += "</div></div>";
+    h += '<button type="button" class="rp391-btn ghost sm" data-rp391-prof="' + esc(it.hostId) + '" data-rp391-profname="' + esc(it.hostName) + '">Seller</button>';
+    h += "</div></div>";
+    return h;
+  }
+  function render() {
+    var body = document.getElementById("rp391Body");
+    if (!body) return;
+    var title = document.getElementById("rp391Title");
+    var back = document.getElementById("rp391Back");
+    var h = "", sig = "";
+    if (S.view === "index") {
+      if (title && title.textContent !== "🗂️ Categories") title.textContent = "🗂️ Categories";
+      if (back && back.style.display !== "none") back.style.display = "none";
+      sig = "idx|" + JSON.stringify(S.trending) + "|" + JSON.stringify(S.cats);
+      h += '<div class="rp391-sec">🔥 Trending lives</div>';
+      if (!S.trending) h += '<p class="rp391-empty">Loading…</p>';
+      else if (!S.trending.length) h += '<p class="rp391-empty">No lives on air right now — when hosts go live, the most-watched rise here.</p>';
+      else h += S.trending.map(function (l, i) { return liveRow(l, i + 1); }).join("");
+      h += '<div class="rp391-sec">All categories</div>';
+      if (!S.cats) h += '<p class="rp391-empty">Loading…</p>';
+      else h += S.cats.map(function (c) {
+        var cnt = "";
+        if (c.liveCount) cnt += '<span class="lv">🔴 ' + c.liveCount + " live</span> · ";
+        cnt += "📅 " + (c.upcomingCount || 0);
+        if (!c.church) cnt += " · 🛍️ " + (c.itemCount || 0);
+        return '<button type="button" class="rp391-cat" data-rp391-room="' + esc(c.room) + '"><b>' + esc(roomLbl(c.room)) + '</b><span class="cnt">' + cnt + "</span></button>";
+      }).join("");
+    } else {
+      var lbl = roomLbl(S.room);
+      if (title && title.textContent !== lbl) title.textContent = lbl;
+      if (back && back.style.display !== "") back.style.display = "";
+      var pg = S.page;
+      if (pg && pg.room !== S.room) pg = null; // never render another room's payload
+      sig = "room|" + S.room + "|" + JSON.stringify(pg);
+      if (!pg) h += '<p class="rp391-empty">Loading…</p>';
+      else {
+        if (pg.church) h += '<div class="rp391-note">🙏 Christian Fellowship is a faith room — lives and shows only. Nothing is sold here.</div>';
+        h += '<div class="rp391-sec">🔴 Live now in ' + esc(lbl) + "</div>";
+        h += pg.lives.length ? pg.lives.map(function (l) { return liveRow(l, 0); }).join("") : '<p class="rp391-empty">No one is live in ' + esc(lbl) + " right now.</p>";
+        h += '<div class="rp391-sec">📅 Shows in ' + esc(lbl) + "</div>";
+        h += pg.shows.length ? pg.shows.map(showRow).join("") : '<p class="rp391-empty">No shows scheduled in ' + esc(lbl) + " yet.</p>";
+        if (!pg.church) {
+          h += '<div class="rp391-sec">🛍️ Listed for ' + esc(lbl) + "</div>";
+          h += pg.items.length ? pg.items.map(itemRow).join("") : '<p class="rp391-empty">No items filed under ' + esc(lbl) + " yet — when a seller lists an item, they can file it under this room.</p>";
+        }
+      }
+    }
+    if (sig !== S.bodySig) { S.bodySig = sig; body.innerHTML = h; }
+  }
+
+  /* ---------------- actions (delegated) ---------------- */
+  document.addEventListener("click", function (ev) {
+    var t = ev.target && ev.target.closest ? ev.target.closest("[data-rp391-open],[data-rp391-close],[data-rp391-back],[data-rp391-room],[data-rp391-join],[data-rp391-prof]") : null;
+    if (!t) return;
+    if (t.hasAttribute("data-rp391-open")) { openCats(); return; }
+    if (t.hasAttribute("data-rp391-close")) { closeCats(); return; }
+    if (t.hasAttribute("data-rp391-back")) { S.view = "index"; S.room = null; S.page = null; S.idxAt = 0; loadIndex(true); render(); return; }
+    if (t.hasAttribute("data-rp391-room")) {
+      S.view = "room"; S.room = t.getAttribute("data-rp391-room"); S.page = null; S.bodySig = "";
+      render(); loadPage(S.room); return;
+    }
+    if (t.hasAttribute("data-rp391-join")) {
+      var room = t.getAttribute("data-rp391-join");
+      closeCats();
+      try { if (window.rpJoinLive) window.rpJoinLive(room); } catch (e) { }
+      return;
+    }
+    if (t.hasAttribute("data-rp391-prof")) {
+      var pid = t.getAttribute("data-rp391-prof"), pname = t.getAttribute("data-rp391-profname") || "";
+      closeCats();
+      try { if (window.rpDm && window.rpDm.openProfile) window.rpDm.openProfile(pid, pname); } catch (e) { }
+      return;
+    }
+  });
+
+  /* ---------------- boot + light polling ---------------- */
+  function tick() {
+    try {
+      ensureCard();
+      var scr = document.getElementById("screen-auctions");
+      if (isVis(scr) && Date.now() - S.cardAt > 20000) { S.cardAt = Date.now(); loadIndex(false); }
+      if (S.open) {
+        if (S.view === "index" && Date.now() - S.idxAt > 8000) loadIndex(true);
+        else if (S.view === "room" && S.room && Date.now() - S.pageAt > 8000) loadPage(S.room);
+      }
     } catch (e) { /* the module must never break the app */ }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1500); tick(); });
