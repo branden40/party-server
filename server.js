@@ -6638,7 +6638,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.392", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.393", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -10412,6 +10412,7 @@ setInterval(() => {
         }
         rec.ms += LK_TICK_MS389;
         try { chalWatchTick392(acctId, hostAcct, LK_TICK_MS389); } catch (e) {} // [RP-V7.392] daily watch challenge accrues the same real presence
+        try { rcWatchTick393(acctId, hostAcct, e); } catch (e) {} // [RP-V7.393] rewards-club show watching accrues the same real presence (per live, >=60s = one show)
         let progress = null;
         if (acctId !== hostAcct && s.data.adultClass) {
           if (!adb389) {
@@ -14996,7 +14997,7 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", // [RP-V7.390] offer + saved-search alerts ride the "gifts" switch like order, never SMS // [RP-V7.386] order updates ride the "gifts" switch like tips, never SMS // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", rewards: "gifts", // [RP-V7.390] offer + saved-search alerts ride the "gifts" switch like order, never SMS // [RP-V7.386] order updates ride the "gifts" switch like tips, never SMS // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
  like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups" }; // [RP-V7.307] owner signup alerts ride the "signups" switch // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true, signup: true }; // [RP-V7.307] signup alerts text too — the kind only ever targets the owner, and only once Twilio is configured (notifySmsReady)
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -18309,7 +18310,7 @@ app.post("/api/store/checkout", async (req, res) => {
     const cpnCode392 = String(b.couponCode || "").trim().toUpperCase().slice(0, 24);
     if (cpnCode392) {
       const cdb392 = readCoupons392();
-      cpn392 = couponFind392(cdb392, l.sellerId, "store", l.id, cpnCode392);
+      cpn392 = couponFind392(cdb392, l.sellerId, "store", l.id, cpnCode392) || couponFind392(cdb392, l.sellerId, "club", l.sellerId, cpnCode392); // [RP-V7.393] a Rewards Club credit code applies to any of this seller's listings
       if (!cpn392) return res.status(400).json({ ok: false, error: "coupon-invalid" });
       const chk392 = couponCheck392(cpn392, ctx.user.id, Date.now());
       if (!chk392.ok) return res.status(400).json({ ok: false, error: chk392.error });
@@ -18400,6 +18401,7 @@ function settleStoreOrder240(mdb, sessionObj) {
   try { refSettle392(readAccounts(), mdb, order.buyerId, order.sellerId, order.id); } catch (e) {} // [RP-V7.392]
   try { couponSettleStore392(order); } catch (e) {} // [RP-V7.392] a settled store order consumes its coupon
   writeStore240(sdb);
+  try { rcEvaluate393(readAccounts(), mdb, order.buyerId, order.sellerId); } catch (e) {} // [RP-V7.393] rewards-club tier check on the settled store purchase
   console.log("[store] sale settled", order.id, "gross", gross, "net", net, "to seller", order.sellerId);
 }
 // Report a product. Reports land on the owner board (the count
@@ -22865,12 +22867,14 @@ function settleAuctionMoney(adb, mdb, opts) {
     ref: auctionId,
   });
   try { refSettle392(adb, mdb, winnerId, hostId, auctionId); } catch (e) {} // [RP-V7.392] first-purchase / first-sale referral rewards (charms only)
-  return record({
+  const settledRec393 = record({
     ok: true,
     hostShareCents: hostShare,
     cutCents: cut,
     winnerBalance: mdb.balances[winnerId],
   });
+  try { rcEvaluate393(adb, mdb, winnerId, hostId); } catch (e) {} // [RP-V7.393] rewards-club tier check on the settled purchase (after record(), so this purchase counts)
+  return settledRec393;
 }
 // ---------------------------------------------------------------------------
 // [RP-V7.383] AUCTION BUYER PROTECTION — refunds & claims (Branden,
@@ -24451,6 +24455,7 @@ app.get("/api/seller-hub", (req, res) => {
     upcomingShows: upcoming.slice(0, 10).map((sh) => showPublic385(sh, photos, me)),
     health: sellerHealth387(odb, readAuctionStats387(), me),
     rating: reviewAgg387(readReviews387(), me),
+    rewardsClub: rcRoster393(ctx.db, mdb, me), // [RP-V7.393] my rewards-club roster: members by tier + outstanding credits
     money: { cashableCents: (earn.availableCents || 0) + maturedCents, pendingCents },
   });
 });
@@ -24603,7 +24608,7 @@ app.post("/api/offers", (req, res) => {
   const cpnCode392 = String(b.couponCode || "").trim().toUpperCase().slice(0, 24);
   if (cpnCode392) {
     const cdb392 = readCoupons392();
-    cpn392 = couponFind392(cdb392, it.hostId, "item", it.id, cpnCode392);
+    cpn392 = couponFind392(cdb392, it.hostId, "item", it.id, cpnCode392) || couponFind392(cdb392, it.hostId, "club", it.hostId, cpnCode392); // [RP-V7.393] a Rewards Club credit code applies to any of this seller's items
     if (!cpn392) return res.status(400).json({ ok: false, error: "coupon-invalid" });
     const odbPre392 = readOffers390();
     const extra392 = odbPre392.offers.filter(
@@ -25784,7 +25789,8 @@ app.get("/api/owner/sales", (req, res) => {
     ageReports: rpAgeReportsOpen263(),
     ageSuspendedAccounts: rpAgeSuspendedList263(adb),
     pendingDeletions: rpOwnerPendingDeletions377(adb, mdb),
-    referrals392: rpRefBoard392(), // [RP-V7.392] referrals + points + coupons summary (Branden's every-stream-reports rule) // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
+    referrals392: rpRefBoard392(),
+    rewardsClub393: rpRewardsBoard393(), // [RP-V7.393] rewards-club summary (Branden's every-stream-reports rule) // [RP-V7.392] referrals + points + coupons summary (Branden's every-stream-reports rule) // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
   });
 });
 // ---------------------------------------------------------------------------
@@ -27264,6 +27270,7 @@ function couponFind392(db, sellerId, scope, targetId, code) {
 // IS the redemption there and it is only written at accept time.
 function couponCheck392(cpn, buyerId, now, extraUses) {
   if (!cpn || !cpn.active) return { ok: false, error: "coupon-invalid" };
+  if (cpn.boundBuyerId && cpn.boundBuyerId !== buyerId) return { ok: false, error: "coupon-invalid" }; // [RP-V7.393] rewards-club credits are bound to the member who earned them
   if (cpn.expiresAt && Date.parse(cpn.expiresAt) <= now)
     return { ok: false, error: "coupon-expired" };
   let used = 0;
@@ -27528,11 +27535,664 @@ function rpRefBoard392() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// [RP-V7.393] PER-SELLER REWARDS CLUB (Whatnot parity build 11;
+// Branden, Nov 15, 2026: "everything whatnot has to offer build it").
+// Every seller runs their own loyalty club; every buyer holds a
+// standing with each seller they engage with, computed ONLY from
+// real records — V7.386 orders + the money db's auction settlements
+// (purchases / spend), Plaza Store paid orders (purchases / spend),
+// and live presence accrued by the V7.389 tick (shows watched).
+// Nothing is self-reported and no progress is ever fabricated.
+//
+//   SEASON: season 1 runs to Dec 1, 2026 (the Whatnot cadence);
+//   seasons then roll quarterly (Mar 1 / Jun 1 / Sep 1 / Dec 1,
+//   00:00 ET) — the window is computed from those fixed boundaries,
+//   never edited by hand. Standings are computed inside the current
+//   window only, so a rollover resets them by construction. A tier
+//   credit granted in season N expires at the END of season N+1
+//   (credits carry exactly one season).
+//
+//   TIERS (per seller, from the buyer's season activity WITH THAT
+//   SELLER): Bronze = watch 50 of the seller's lives (a "show
+//   watched" = >= 60 s of real presence in one live) OR spend $25;
+//   Silver = 1 purchase; Gold = 3; Platinum = 5; Diamond = 10.
+//   Each tier's gate is judged independently (Whatnot's shape), so
+//   a buyer can hold Silver without Bronze; the badge shows the
+//   highest tier held. Purchases count auction/offer settles AND
+//   Plaza Store paid orders; refunded purchases never count (the
+//   settlement/order refund flags are the source, same as the
+//   V7.386 orders board reconciles from). Spend = what the buyer
+//   actually paid (discounted settles count at the discounted
+//   amount — the settlement record carries it).
+//
+//   REWARDS: reaching a tier grants its credit ONCE per buyer per
+//   seller per season (grant rows in rewards.json are the record;
+//   a refund that drops the buyer back below the gate does NOT
+//   revoke a granted credit, and re-crossing never double-grants):
+//   Bronze 500, Silver 1000, Gold 2000, Platinum 3500, Diamond 5000
+//   charms of discount toward a future purchase FROM THAT SELLER.
+//   A credit is minted as a V7.392 coupon record with scope "club"
+//   (seller-scoped, flat, maxUses 1, boundBuyerId = the buyer), so
+//   the whole coupon redemption machinery carries it unchanged:
+//   the buyer enters the credit's code in the same coupon field on
+//   an offer or a store checkout; the discount comes out of the
+//   sale price (the seller's share — the platform cut is computed
+//   on the discounted price, exactly like a coupon); an offer-path
+//   refund reverses the settle to the cent and restores the credit
+//   via couponRefundRestore392. Live socket auctions take no code
+//   (same documented limit as coupons).
+//
+//   BADGE: the buyer's highest tier with a live's HOST rides the
+//   chat relay as rcb393 (one of 🥉🥈🥇💠💎), resolved server-side
+//   from the room's live entry — never in church lives, never for
+//   the host themself, never from a client-supplied claim.
+//
+//   EXCLUSIONS: test-funds accounts (either side) earn no tiers and
+//   no credits and their activity advances nobody (evaluation
+//   refuses the pair outright); church lives accrue no watch time
+//   and show no badges; both sides must be adult accounts.
+//
+//   Owner reporting: /api/owner/sales gains a rewardsClub393
+//   summary (Branden's rule: every stream reports into the board).
+// ---------------------------------------------------------------------------
+const REWARDS_FILE393 =
+  process.env.REWARDS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "rewards.json");
+const RC_WATCH_SHOW_MS393 = Math.max(
+  250,
+  Number(process.env.RC_WATCH_SHOW_MS) || 60 * 1000
+); // rig knob; production: 60 real seconds in one live = one show watched
+const RC_FLUSH_MS393 = Math.max(
+  250,
+  Number(process.env.RC_FLUSH_MS) || 30 * 1000
+); // rig knob; production 30 s (the CHAL_FLUSH_MS pattern)
+const RC_TIERS393 = [
+  { id: "bronze", label: "Bronze", emoji: "🥉", credit: 500 },
+  { id: "silver", label: "Silver", emoji: "🥈", credit: 1000 },
+  { id: "gold", label: "Gold", emoji: "🥇", credit: 2000 },
+  { id: "platinum", label: "Platinum", emoji: "💠", credit: 3500 },
+  { id: "diamond", label: "Diamond", emoji: "💎", credit: 5000 },
+];
+const RC_BRONZE_SHOWS393 = 50;
+const RC_BRONZE_SPEND393 = 25; // dollars
+const RC_TIER_PURCHASES393 = { silver: 1, gold: 3, platinum: 5, diamond: 10 };
+
+/* ---------------- season window ---------------- */
+// Season 1: [Nov 16 2026 00:00 ET, Dec 1 2026 00:00 ET). After
+// that, quarterly boundaries on the 1st of Mar/Jun/Sep/Dec at
+// 00:00 ET (EST = UTC-5 for Dec/Mar boundaries, EDT = UTC-4 for
+// Jun/Sep — the offset is fixed per boundary month, so no tz
+// database is needed and the window never needs a manual edit).
+const RC_SEASON1_START393 = Date.parse("2026-11-16T05:00:00.000Z");
+const RC_SEASON1_END393 = Date.parse("2026-12-01T05:00:00.000Z");
+function rcBoundaryMs393(year, monthIdx) {
+  const offH = monthIdx === 5 || monthIdx === 8 ? 4 : 5; // Jun/Sep: EDT; Mar/Dec: EST
+  return Date.UTC(year, monthIdx, 1, offH, 0, 0, 0);
+}
+function rcSeasonWindow393(now) {
+  now = Number(now) || Date.now();
+  if (now < RC_SEASON1_END393)
+    return { key: "2026-S1", start: RC_SEASON1_START393, end: RC_SEASON1_END393 };
+  const y = new Date(now).getUTCFullYear();
+  const bounds = [];
+  for (let yy = y - 1; yy <= y + 1; yy++)
+    for (const m of [2, 5, 8, 11]) bounds.push(rcBoundaryMs393(yy, m));
+  bounds.sort((a, b) => a - b);
+  let start = bounds[0], end = bounds[bounds.length - 1];
+  for (let i = 0; i < bounds.length - 1; i++) {
+    if (now >= bounds[i] && now < bounds[i + 1]) { start = bounds[i]; end = bounds[i + 1]; break; }
+  }
+  return { key: "S-" + new Date(start).toISOString().slice(0, 10), start, end };
+}
+
+/* ---------------- store ---------------- */
+function readRewards393() {
+  return storeReadJson(
+    REWARDS_FILE393,
+    (d) => !!(d && d.watch && typeof d.watch === "object" && Array.isArray(d.grants)),
+    { watch: {}, grants: [] },
+    "rewards"
+  );
+}
+function writeRewards393(db) {
+  // keep the current + previous season of watch state only —
+  // standings are windowed, older seasons are not an archive
+  try {
+    const cur = rcSeasonWindow393(Date.now());
+    const prev = rcSeasonWindow393(cur.start - 1000);
+    for (const k of Object.keys(db.watch || {})) {
+      const pair = db.watch[k];
+      if (!pair || !pair.seasons) continue;
+      for (const sk of Object.keys(pair.seasons))
+        if (sk !== cur.key && sk !== prev.key) delete pair.seasons[sk];
+    }
+  } catch (e) {}
+  storeWriteJson(REWARDS_FILE393, db);
+}
+function rcPairKey393(buyerId, sellerId) {
+  return String(buyerId) + "|" + String(sellerId);
+}
+function rcUser393(adb, id) {
+  return ((adb && adb.users) || []).find((u) => u && u.id === id) || null;
+}
+function rcEligible393(adb, buyerId, sellerId) {
+  if (!buyerId || !sellerId || buyerId === sellerId) return false;
+  const b = rcUser393(adb, buyerId);
+  const s = rcUser393(adb, sellerId);
+  if (!b || !s) return false;
+  if (ageFromDob(b.dob) < 18 || ageFromDob(s.dob) < 18) return false;
+  if (testFunds321(b) || testFunds321(s)) return false;
+  if (isPendingDeletion(b) || isPendingDeletion(s)) return false;
+  return true;
+}
+
+/* ---------------- standing (real records only) ---------------- */
+// Auction/offer purchases: the union of the V7.386 orders store
+// (durable) and the money db's settlements (the just-settled one
+// may not be synced into orders yet), deduped by settlement id.
+// Refunded on either record excludes the purchase.
+function rcPurchases393(mdb, buyerId, sellerId, win) {
+  const seen = new Map();
+  try {
+    const odb = readOrders386();
+    for (const o of odb.orders || []) {
+      if (!o || o.winnerId !== buyerId || o.hostId !== sellerId) continue;
+      if (o.status === "refunded") continue;
+      const t = Number(o.settledAt) || 0;
+      if (t >= win.start && t < win.end) seen.set(String(o.id), Number(o.bidDollars) || 0);
+    }
+  } catch (e) {}
+  const sets = (mdb && mdb.auctionSettlements) || {};
+  for (const id of Object.keys(sets)) {
+    const s = sets[id];
+    if (!s || !s.ok || s.refunded) continue;
+    if (s.winnerId !== buyerId || s.hostId !== sellerId) continue;
+    const t = Date.parse(s.at || "") || 0;
+    if (t >= win.start && t < win.end && !seen.has(id))
+      seen.set(id, Number(s.bidDollars) || 0);
+  }
+  let count = 0, spend = 0;
+  for (const v of seen.values()) { count++; spend += v; }
+  try {
+    const sdb = readStore240();
+    for (const o of sdb.orders || []) {
+      if (!o || o.status !== "paid" || o.buyerId !== buyerId || o.sellerId !== sellerId) continue;
+      const t = Date.parse(o.paidAt || o.at || "") || 0;
+      if (t >= win.start && t < win.end) {
+        count++;
+        spend += (Number(o.grossCents) || 0) / 100;
+      }
+    }
+  } catch (e) {}
+  return { count, spendDollars: Math.round(spend * 100) / 100 };
+}
+function rcShowsWatched393(wdb, buyerId, sellerId, win) {
+  const pair = (wdb || readRewards393()).watch[rcPairKey393(buyerId, sellerId)];
+  if (!pair || !pair.seasons || !pair.seasons[win.key]) return 0;
+  return Math.floor(Number(pair.seasons[win.key].shows) || 0);
+}
+function rcStanding393(adb, mdb, buyerId, sellerId, win) {
+  win = win || rcSeasonWindow393(Date.now());
+  const p = rcPurchases393(mdb, buyerId, sellerId, win);
+  const shows = rcShowsWatched393(null, buyerId, sellerId, win);
+  const met = {
+    bronze: shows >= RC_BRONZE_SHOWS393 || p.spendDollars >= RC_BRONZE_SPEND393,
+    silver: p.count >= RC_TIER_PURCHASES393.silver,
+    gold: p.count >= RC_TIER_PURCHASES393.gold,
+    platinum: p.count >= RC_TIER_PURCHASES393.platinum,
+    diamond: p.count >= RC_TIER_PURCHASES393.diamond,
+  };
+  let tier = null;
+  for (const t of RC_TIERS393) if (met[t.id]) tier = t.id;
+  return {
+    purchases: p.count,
+    spendDollars: p.spendDollars,
+    showsWatched: shows,
+    met,
+    tier,
+    season: { key: win.key, start: win.start, end: win.end },
+  };
+}
+function rcNextTier393(st) {
+  for (const t of RC_TIERS393) if (!st.met[t.id]) return t;
+  return null;
+}
+// Progress text toward a tier, from the same real numbers.
+function rcTierGate393(tierId, st) {
+  if (tierId === "bronze")
+    return {
+      kind: "watch-or-spend",
+      showsNeeded: Math.max(0, RC_BRONZE_SHOWS393 - st.showsWatched),
+      spendNeeded: Math.max(0, Math.round((RC_BRONZE_SPEND393 - st.spendDollars) * 100) / 100),
+    };
+  return { kind: "purchases", purchasesNeeded: Math.max(0, (RC_TIER_PURCHASES393[tierId] || 0) - st.purchases) };
+}
+
+/* ---------------- credits (V7.392 coupon records, scope "club") ---------------- */
+function rcCredits393(buyerId, sellerId) {
+  const cdb = readCoupons392();
+  const now = Date.now();
+  return (cdb.coupons || [])
+    .filter((c) => c && c.scope === "club" && c.boundBuyerId === buyerId && (!sellerId || c.sellerId === sellerId))
+    .map((c) => {
+      const reds = c.redemptions || [];
+      const spent = reds.some((r) => r && r.state === "used");
+      const pending = !spent && reds.some((r) => r && r.state === "pending" && now - Date.parse(r.at || 0) < 24 * 60 * 60 * 1000);
+      const expired = !!(c.expiresAt && Date.parse(c.expiresAt) <= now);
+      return {
+        id: c.id,
+        code: c.code,
+        sellerId: c.sellerId,
+        sellerName: c.sellerName || "",
+        tier: c.clubTier || null,
+        value: Math.floor(Number(c.flatCharms) || 0),
+        expiresAt: c.expiresAt || null,
+        spent,
+        pending,
+        expired,
+        usable: !!c.active && !spent && !expired,
+      };
+    })
+    .sort((a, b) => String(a.expiresAt || "").localeCompare(String(b.expiresAt || "")));
+}
+function rcMintCredit393(adb, buyerId, sellerId, tier, win) {
+  const cdb = readCoupons392();
+  const seller = rcUser393(adb, sellerId);
+  const sellerName = seller ? seller.name || seller.username || "Seller" : "Seller";
+  const expiresAt = new Date(rcSeasonWindow393(win.end + 1000).end).toISOString();
+  const alpha = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let code = "";
+  do {
+    code = "CLUB";
+    const bytes = crypto.randomBytes(6);
+    for (let i = 0; i < 6; i++) code += alpha[bytes[i] % alpha.length];
+  } while ((cdb.coupons || []).some((c) => c && String(c.code).toUpperCase() === code));
+  const cpn = {
+    id: "cpn-" + crypto.randomBytes(8).toString("hex"),
+    sellerId,
+    sellerName,
+    code,
+    scope: "club",
+    targetId: sellerId,
+    targetTitle: sellerName + "'s Rewards Club — " + tier.label + " credit",
+    kind: "flat",
+    pct: 0,
+    flatCharms: tier.credit,
+    expiresAt,
+    maxUses: 1,
+    uses: 0,
+    active: true,
+    createdAt: new Date().toISOString(),
+    redemptions: [],
+    boundBuyerId: buyerId,
+    clubTier: tier.id,
+    clubSeason: win.key,
+  };
+  cdb.coupons.push(cpn);
+  writeCoupons392(cdb);
+  return cpn;
+}
+function rcNotify393(toId, actorName, text, subject) {
+  try {
+    notifyActivity({
+      toId,
+      kind: "rewards",
+      actorId: null,
+      actorName: actorName || "Rizz Plaza",
+      text,
+      emailSubject: subject,
+      emailText: text + "\n\nOpen Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "earn" },
+    });
+  } catch (e) {}
+}
+
+/* ---------------- evaluation + granting + badge cache ---------------- */
+const rcBadgeCache393 = new Map(); // pairKey -> emoji | null (refreshed at every evaluation)
+function rcEvaluate393(adb, mdb, buyerId, sellerId) {
+  try {
+    const key = rcPairKey393(buyerId, sellerId);
+    if (!rcEligible393(adb, buyerId, sellerId)) {
+      rcBadgeCache393.delete(key);
+      return null;
+    }
+    const win = rcSeasonWindow393(Date.now());
+    const st = rcStanding393(adb, mdb, buyerId, sellerId, win);
+    const tObj = RC_TIERS393.find((t) => t.id === st.tier) || null;
+    rcBadgeCache393.set(key, tObj ? tObj.emoji : null);
+    const wdb = readRewards393();
+    let changed = false;
+    for (const t of RC_TIERS393) {
+      if (!st.met[t.id]) continue;
+      const has = (wdb.grants || []).some(
+        (g) => g && g.buyerId === buyerId && g.sellerId === sellerId && g.season === win.key && g.tier === t.id
+      );
+      if (has) continue;
+      const cpn = rcMintCredit393(adb, buyerId, sellerId, t, win);
+      wdb.grants.push({
+        buyerId, sellerId, season: win.key, tier: t.id,
+        couponId: cpn.id, code: cpn.code, value: t.credit,
+        at: new Date().toISOString(),
+      });
+      changed = true;
+      const seller = rcUser393(adb, sellerId);
+      const sName = seller ? seller.name || seller.username || "a seller" : "a seller";
+      rcNotify393(
+        buyerId,
+        sName,
+        "🏆 You reached " + t.label + " in " + sName + "'s Rewards Club — a " + t.credit.toLocaleString("en-US") + "-charm credit is yours for a future purchase from them. Find it in Earn → My Rewards Clubs.",
+        "You earned a Rewards Club credit"
+      );
+    }
+    if (changed) writeRewards393(wdb);
+    return st;
+  } catch (e) {
+    return null;
+  }
+}
+// Chat-relay lookup: the sender's tier badge with THIS live's host.
+// Server-resolved from the room's live entry; church lives and the
+// host themself get nothing. Cache-only (evaluations keep it warm:
+// settles, the watch flush, and every club read evaluate the pair).
+function rcBadge393(acctId, p) {
+  if (!acctId || !p || !p.room) return null;
+  try {
+    const entry = [...liveRegistry.values()].find((e) => e.room === p.room);
+    if (!entry || gwChurchLive389(entry)) return null;
+    const hostAcct = liveHostAccountId(entry);
+    if (!hostAcct || hostAcct === acctId) return null;
+    return rcBadgeCache393.get(rcPairKey393(acctId, hostAcct)) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/* ---------------- watch accrual (the V7.389 tick's real presence) ---------------- */
+// Per (viewer, host, live instance): >= RC_WATCH_SHOW_MS393 of real
+// presence counts ONE watched show for that pair, once per live.
+// Church lives never accrue (commerce-free rooms). In-memory like
+// the challenges watch accrual, flushed on RC_FLUSH_MS393.
+const rcWatchMem393 = new Map(); // pairKey -> Map(liveKey -> ms)
+function rcWatchTick393(acctId, hostAcct, entry) {
+  if (!acctId || !hostAcct || acctId === hostAcct || !entry) return;
+  try { if (gwChurchLive389(entry)) return; } catch (e) {}
+  const liveKey = String(entry.key || entry.room || "") + "@" + String(entry.startedAt || 0);
+  const pairKey = rcPairKey393(acctId, hostAcct);
+  let lm = rcWatchMem393.get(pairKey);
+  if (!lm) { lm = new Map(); rcWatchMem393.set(pairKey, lm); }
+  lm.set(liveKey, (lm.get(liveKey) || 0) + LK_TICK_MS389);
+}
+function rcWatchFlush393() {
+  try {
+    if (!rcWatchMem393.size) return;
+    const wdb = readRewards393();
+    const win = rcSeasonWindow393(Date.now());
+    const pairs = [];
+    let dirty = false;
+    for (const [pairKey, lm] of rcWatchMem393) {
+      const parts = pairKey.split("|");
+      const buyerId = parts[0], sellerId = parts[1];
+      let pair = wdb.watch[pairKey];
+      if (!pair) { pair = { seasons: {} }; wdb.watch[pairKey] = pair; }
+      if (!pair.seasons || typeof pair.seasons !== "object") pair.seasons = {};
+      let ss = pair.seasons[win.key];
+      if (!ss) { ss = { shows: 0, lives: {} }; pair.seasons[win.key] = ss; }
+      if (!ss.lives || typeof ss.lives !== "object") ss.lives = {};
+      for (const [liveKey, ms] of lm) {
+        let lv = ss.lives[liveKey];
+        if (!lv) { lv = { ms: 0, counted: false }; ss.lives[liveKey] = lv; }
+        lv.ms = (lv.ms || 0) + ms;
+        if (!lv.counted && lv.ms >= RC_WATCH_SHOW_MS393) {
+          lv.counted = true;
+          ss.shows = (ss.shows || 0) + 1;
+        }
+        dirty = true;
+      }
+      pairs.push([buyerId, sellerId]);
+    }
+    rcWatchMem393.clear();
+    if (dirty) writeRewards393(wdb);
+    if (pairs.length) {
+      const adb = readAccounts();
+      const mdb = readMoney();
+      for (const [b, s] of pairs) rcEvaluate393(adb, mdb, b, s);
+    }
+  } catch (e) {}
+}
+setInterval(rcWatchFlush393, RC_FLUSH_MS393);
+
+/* ---------------- club views ---------------- */
+function rcClubView393(adb, mdb, buyerId, sellerId, st) {
+  const seller = rcUser393(adb, sellerId);
+  const tObj = RC_TIERS393.find((t) => t.id === st.tier) || null;
+  const next = rcNextTier393(st);
+  const credits = rcCredits393(buyerId, sellerId);
+  return {
+    sellerId,
+    sellerName: seller ? seller.name || seller.username || "Seller" : "Seller",
+    sellerUsername: seller ? seller.username || "" : "",
+    tier: st.tier,
+    tierLabel: tObj ? tObj.label : null,
+    tierEmoji: tObj ? tObj.emoji : null,
+    purchases: st.purchases,
+    spendDollars: st.spendDollars,
+    showsWatched: st.showsWatched,
+    nextTier: next
+      ? { id: next.id, label: next.label, emoji: next.emoji, credit: next.credit, gate: rcTierGate393(next.id, st) }
+      : null,
+    tiers: RC_TIERS393.map((t) => ({
+      id: t.id, label: t.label, emoji: t.emoji, credit: t.credit,
+      met: !!st.met[t.id], gate: rcTierGate393(t.id, st),
+    })),
+    credits,
+    unspentCredits: credits.filter((c) => c.usable),
+    season: { key: st.season.key, endsAt: new Date(st.season.end).toISOString() },
+  };
+}
+function rcSellerIdsForBuyer393(adb, mdb, buyerId) {
+  const out = new Set();
+  const win = rcSeasonWindow393(Date.now());
+  try {
+    const odb = readOrders386();
+    for (const o of odb.orders || [])
+      if (o && o.winnerId === buyerId && o.hostId) out.add(o.hostId);
+  } catch (e) {}
+  const sets = (mdb && mdb.auctionSettlements) || {};
+  for (const id of Object.keys(sets)) {
+    const s = sets[id];
+    if (s && s.ok && s.winnerId === buyerId && s.hostId) out.add(s.hostId);
+  }
+  try {
+    const sdb = readStore240();
+    for (const o of sdb.orders || [])
+      if (o && o.status === "paid" && o.buyerId === buyerId && o.sellerId) out.add(o.sellerId);
+  } catch (e) {}
+  const wdb = readRewards393();
+  for (const k of Object.keys(wdb.watch || {})) {
+    const parts = k.split("|");
+    if (parts[0] === buyerId && parts[1]) out.add(parts[1]);
+  }
+  for (const g of wdb.grants || []) if (g && g.buyerId === buyerId) out.add(g.sellerId);
+  for (const c of rcCredits393(buyerId, null)) out.add(c.sellerId);
+  out.delete(buyerId);
+  return [...out];
+}
+app.get("/api/rewards-club/me", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const mdb = readMoney();
+  const win = rcSeasonWindow393(Date.now());
+  const clubs = [];
+  for (const sellerId of rcSellerIdsForBuyer393(ctx.db, mdb, ctx.user.id)) {
+    const st = rcEvaluate393(ctx.db, mdb, ctx.user.id, sellerId);
+    if (!st) continue;
+    const view = rcClubView393(ctx.db, mdb, ctx.user.id, sellerId, st);
+    if (view.purchases > 0 || view.showsWatched > 0 || view.tier || view.unspentCredits.length)
+      clubs.push(view);
+  }
+  const rank = (v) => RC_TIERS393.findIndex((t) => t.id === v.tier);
+  clubs.sort((a, b) => rank(b) - rank(a) || String(a.sellerName).localeCompare(String(b.sellerName)));
+  res.json({
+    ok: true,
+    season: { key: win.key, endsAt: new Date(win.end).toISOString() },
+    clubs,
+  });
+});
+app.get("/api/rewards-club/seller/:id", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const sellerId = String(req.params.id || "");
+  const seller = rcUser393(ctx.db, sellerId);
+  if (!seller) return res.status(404).json({ ok: false, error: "seller-not-found" });
+  if (sellerId === ctx.user.id) {
+    return res.json({ ok: true, own: true, sellerId, roster: rcRoster393(ctx.db, readMoney(), sellerId) });
+  }
+  const mdb = readMoney();
+  const st = rcEvaluate393(ctx.db, mdb, ctx.user.id, sellerId);
+  if (!st) {
+    // Ineligible pair (test funds on a side, teen, self excluded
+    // above): the club simply does not operate — honest empty view.
+    const win = rcSeasonWindow393(Date.now());
+    return res.json({
+      ok: true, own: false, ineligible: true, sellerId,
+      sellerName: seller.name || seller.username || "Seller",
+      season: { key: win.key, endsAt: new Date(win.end).toISOString() },
+      tiers: RC_TIERS393.map((t) => ({ id: t.id, label: t.label, emoji: t.emoji, credit: t.credit })),
+    });
+  }
+  const view = rcClubView393(ctx.db, mdb, ctx.user.id, sellerId, st);
+  res.json(Object.assign({ ok: true, own: false }, view));
+});
+
+/* ---------------- seller roster + owner board ---------------- */
+function rcBuyerIdsForSeller393(adb, mdb, sellerId) {
+  const out = new Set();
+  try {
+    const odb = readOrders386();
+    for (const o of odb.orders || [])
+      if (o && o.hostId === sellerId && o.winnerId) out.add(o.winnerId);
+  } catch (e) {}
+  const sets = (mdb && mdb.auctionSettlements) || {};
+  for (const id of Object.keys(sets)) {
+    const s = sets[id];
+    if (s && s.ok && s.hostId === sellerId && s.winnerId) out.add(s.winnerId);
+  }
+  try {
+    const sdb = readStore240();
+    for (const o of sdb.orders || [])
+      if (o && o.status === "paid" && o.sellerId === sellerId && o.buyerId) out.add(o.buyerId);
+  } catch (e) {}
+  const wdb = readRewards393();
+  for (const k of Object.keys(wdb.watch || {})) {
+    const parts = k.split("|");
+    if (parts[1] === sellerId && parts[0]) out.add(parts[0]);
+  }
+  for (const g of wdb.grants || []) if (g && g.sellerId === sellerId) out.add(g.buyerId);
+  out.delete(sellerId);
+  return [...out];
+}
+function rcRoster393(adb, mdb, sellerId) {
+  const win = rcSeasonWindow393(Date.now());
+  const byTier = { bronze: 0, silver: 0, gold: 0, platinum: 0, diamond: 0 };
+  let members = 0;
+  for (const buyerId of rcBuyerIdsForSeller393(adb, mdb, sellerId)) {
+    if (!rcEligible393(adb, buyerId, sellerId)) continue;
+    const st = rcStanding393(adb, mdb, buyerId, sellerId, win);
+    if (!(st.purchases > 0 || st.showsWatched > 0 || st.tier)) continue;
+    members++;
+    if (st.tier) byTier[st.tier] = (byTier[st.tier] || 0) + 1;
+  }
+  let creditsOutstanding = 0, creditsOutstandingCharms = 0;
+  const cdb = readCoupons392();
+  const now = Date.now();
+  for (const c of cdb.coupons || []) {
+    if (!c || c.scope !== "club" || c.sellerId !== sellerId || !c.active) continue;
+    const reds = c.redemptions || [];
+    if (reds.some((r) => r && r.state === "used")) continue;
+    if (c.expiresAt && Date.parse(c.expiresAt) <= now) continue;
+    creditsOutstanding++;
+    creditsOutstandingCharms += Math.floor(Number(c.flatCharms) || 0);
+  }
+  const wdb = readRewards393();
+  const grantedThisSeason = (wdb.grants || []).filter((g) => g && g.sellerId === sellerId && g.season === win.key).length;
+  return {
+    season: { key: win.key, endsAt: new Date(win.end).toISOString() },
+    members,
+    byTier,
+    creditsOutstanding,
+    creditsOutstandingCharms,
+    creditsGrantedThisSeason: grantedThisSeason,
+  };
+}
+function rpRewardsBoard393() {
+  try {
+    const adb = readAccounts();
+    const mdb = readMoney();
+    const win = rcSeasonWindow393(Date.now());
+    const wdb = readRewards393();
+    const grantsSeason = (wdb.grants || []).filter((g) => g && g.season === win.key);
+    const byTier = { bronze: 0, silver: 0, gold: 0, platinum: 0, diamond: 0 };
+    let grantedCharms = 0;
+    const memberPairs = new Set();
+    const clubSellers = new Set();
+    for (const g of grantsSeason) {
+      byTier[g.tier] = (byTier[g.tier] || 0) + 1;
+      grantedCharms += Math.floor(Number(g.value) || 0);
+      memberPairs.add(rcPairKey393(g.buyerId, g.sellerId));
+      clubSellers.add(g.sellerId);
+    }
+    for (const k of Object.keys(wdb.watch || {})) {
+      const pair = wdb.watch[k];
+      const ss = pair && pair.seasons && pair.seasons[win.key];
+      if (ss && (ss.shows || 0) > 0) {
+        memberPairs.add(k);
+        clubSellers.add(k.split("|")[1]);
+      }
+    }
+    const sets = (mdb && mdb.auctionSettlements) || {};
+    for (const id of Object.keys(sets)) {
+      const s = sets[id];
+      if (!s || !s.ok || s.refunded) continue;
+      const t = Date.parse(s.at || "") || 0;
+      if (t >= win.start && t < win.end && s.winnerId && s.hostId) {
+        memberPairs.add(rcPairKey393(s.winnerId, s.hostId));
+        clubSellers.add(s.hostId);
+      }
+    }
+    let creditsOutstanding = 0, creditsOutstandingCharms = 0, creditsRedeemed = 0;
+    const cdb = readCoupons392();
+    const now = Date.now();
+    for (const c of cdb.coupons || []) {
+      if (!c || c.scope !== "club") continue;
+      const reds = c.redemptions || [];
+      if (reds.some((r) => r && r.state === "used")) { creditsRedeemed++; continue; }
+      if (!c.active || (c.expiresAt && Date.parse(c.expiresAt) <= now)) continue;
+      creditsOutstanding++;
+      creditsOutstandingCharms += Math.floor(Number(c.flatCharms) || 0);
+    }
+    return {
+      season: win.key,
+      seasonEndsAt: new Date(win.end).toISOString(),
+      clubsWithMembers: clubSellers.size,
+      members: memberPairs.size,
+      creditsGranted: grantsSeason.length,
+      creditsGrantedCharms: grantedCharms,
+      creditsGrantedByTier: byTier,
+      creditsOutstanding,
+      creditsOutstandingCharms,
+      creditsRedeemed,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.392", online: players.size })
+  res.json({ ok: true, version: "RP-V7.393", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -27879,6 +28539,7 @@ io.on("connection", (socket) => {
       at: now,
       glv: gifterLevelOf338(p.acctId || (socket.data && socket.data.accountId)), // [RP-V7.338] sender's gifter level rides the relay (0 = no badge)
       fx392: chatFx392(socket.data && socket.data.accountId), // [RP-V7.392] points-shop chat effect (name colour / one-message highlight)
+      rcb393: rcBadge393(socket.data && socket.data.accountId, p), // [RP-V7.393] sender's rewards-club tier badge with this live's host (null when none / church live)
     });
   });
 
