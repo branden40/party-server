@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.389" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.390" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -52396,6 +52396,8 @@ window.rpOpenSavedSheet349 = function () {
     h += '<div class="rp384-actions">';
     if (it.status === "listed" && !mine && tok())
       h += '<button type="button" class="rp384-btn" data-rp384-prebid="' + esc(it.id) + '" data-ctx="' + ctx + '">Pre-bid</button>';
+    if (it.status === "listed" && !mine && tok())
+      h += '<button type="button" class="rp384-btn ghost" data-rp390-offer="' + esc(it.id) + '">Offer</button>'; // [RP-V7.390] buyer offer (rp390 module handles the click)
     if (it.status === "listed" && mine && ctx === "mine")
       h += '<button type="button" class="rp384-btn ghost" data-rp384-remove="' + esc(it.id) + '">Remove</button>';
     h += '<button type="button" class="rp384-bm' + (isBm(it.id) ? " on" : "") + '" data-rp384-bm="' + esc(it.id) + '" aria-label="Bookmark item">♥</button>';
@@ -53831,6 +53833,450 @@ window.rpOpenSavedSheet349 = function () {
       if (isVis(scr)) {
         if (Date.now() - S.hubAt > 15000) loadHub(); else renderHub();
       }
+    } catch (e) { /* the module must never break the app */ }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1500); tick(); });
+  else { setInterval(tick, 1500); tick(); }
+})();
+</script>
+
+<style>
+.rp390-card{background:#101014;border:1px solid #26262e;border-radius:14px;padding:14px;margin:10px 0;color:#f2f2f5}
+.rp390-card h3{margin:0 0 4px;font-size:16px}
+.rp390-sub{margin:0 0 6px;color:#a7a7b3;font-size:12.5px;line-height:1.45}
+.rp390-counts{color:#d7d7de;font-size:13px;margin:6px 0 10px}
+.rp390-counts .bad{color:#ff5a5a;font-weight:800}
+.rp390-btn{background:#e02424;color:#fff;border:1px solid #e02424;border-radius:9px;padding:8px 12px;cursor:pointer;font-weight:700;font-size:13px}
+.rp390-btn.ghost{background:#1d1d24;border-color:#33333f;color:#f2f2f5}
+.rp390-btn.sm{padding:6px 10px;font-size:12.5px}
+.rp390-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.rp390-flex{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.rp390-in{background:#0c0c10;border:1px solid #33333f;border-radius:9px;color:#f2f2f5;padding:8px 10px;font-size:13.5px;flex:1;min-width:110px}
+.rp390-empty{color:#a7a7b3;font-size:13px;padding:8px 0}
+.rp390-msg{font-size:12.5px;color:#ffd76a;min-height:16px;margin:8px 0 0}
+#rp390Act{position:fixed;inset:0;z-index:85;background:#000;color:#f2f2f5;display:none;flex-direction:column}
+#rp390Act.open{display:flex}
+.rp390-head{display:flex;align-items:center;gap:10px;padding:14px 12px;border-bottom:1px solid #26262e}
+.rp390-head h3{margin:0;font-size:17px;flex:1}
+.rp390-x{background:#1d1d24;border:1px solid #33333f;color:#f2f2f5;border-radius:9px;padding:7px 12px;cursor:pointer;font-size:14px}
+.rp390-tabs{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid #26262e}
+.rp390-tab{background:#1d1d24;border:1px solid #33333f;color:#f2f2f5;border-radius:20px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:700}
+.rp390-tab.on{background:#e02424;border-color:#e02424;color:#fff}
+.rp390-tab .bdg{background:#fff;color:#e02424;border-radius:10px;padding:0 6px;margin-left:5px;font-size:11px}
+.rp390-body{flex:1;overflow:auto;padding:12px}
+.rp390-sec{font-size:14px;margin:16px 0 8px}
+.rp390-sec:first-child{margin-top:0}
+.rp390-row{border:1px solid #26262e;border-radius:12px;padding:10px 12px;margin:0 0 10px;background:#101014}
+.rp390-meta{color:#a7a7b3;font-size:12.5px;margin-top:2px;line-height:1.5}
+.rp390-meta.over{color:#ff5a5a;font-weight:700}
+.rp390-chip{display:inline-block;background:#1d1d24;border:1px solid #33333f;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:800;color:#ffb3b3;margin-left:6px;vertical-align:2px}
+.rp390-chip.shipped{color:#ffd76a}.rp390-chip.delivered{color:#9fe8a9}.rp390-chip.active{color:#ffd76a}.rp390-chip.accepted{color:#9fe8a9}
+.rp390-live{display:inline-block;background:#e02424;color:#fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:800;margin-right:6px}
+.rp390-bm{background:#1d1d24;border:1px solid #33333f;color:#f2f2f5;border-radius:9px;padding:6px 10px;cursor:pointer;font-size:12.5px}
+.rp390-bm.on{color:#ff5b5b;border-color:#e02424}
+.rp390-orow{border:1px solid #33333f;border-radius:12px;padding:10px 12px;margin:0 0 10px;background:#0c0c10}
+</style>
+<script>
+/* [RP-V7.390] Activity Center (Whatnot parity build 8). Self-contained
+   module (the rp384-388 pattern). One "🧾 Activity" card on the
+   Auctions screen opens a full-screen center with three tabs:
+   Purchases (GET /api/orders/buying — the V7.386 data, rows in the
+   rp386 buy-row style, Mark received + the rp387 Rate sheet ride
+   the existing endpoints/attributes), Offers (GET /api/offers/mine;
+   accept/decline POST to the V7.390 offer endpoints — accept IS the
+   auction settle server-side), Saved (server show bookmarks from
+   GET /api/shows, shop-item bookmarks from the rp384 localStorage
+   key resolved via POST /api/auction-items/lookup, and saved
+   searches from /api/saved-searches). Offer buttons also ride the
+   rp384 item cards (data-rp390-offer) so a buyer can offer from the
+   Shop drawer / profile / manager lists, not only from here. */
+(function () {
+  "use strict";
+  var LS_BM = "rp384.bookmarks"; // the V7.384 key — read, never forked
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function myId() {
+    try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a ? ((a.user && a.user.id) || a.userId || a.id || "") : ""; } catch (e) { return ""; }
+  }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" }; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return { ok: false }; }).then(function (j) { return { status: r.status, j: j }; }); })
+      .catch(function () { return { status: 0, j: { ok: false, error: "network" } }; });
+  }
+  function isVis(el) { if (!el) return false; try { return !!(el.offsetParent || el.getClientRects().length); } catch (e) { return false; } }
+  function fmtWhen(ms) { try { return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } }
+  function fmtDay(ms) { try { return new Date(ms).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }); } catch (e) { return ""; } }
+  function rel(ms) {
+    var diff = ms - Date.now();
+    if (diff <= 0) return "";
+    var mins = Math.round(diff / 60000);
+    if (mins < 60) return " · in " + mins + " min";
+    var hrs = Math.floor(mins / 60), rm = mins % 60;
+    if (hrs < 48) return " · in " + hrs + " h" + (rm ? " " + rm + " min" : "");
+    return " · in " + Math.round(hrs / 24) + " days";
+  }
+  var ROOMLBL390 = { neon: "Neon Nights Club", roof: "Rooftop Sunset Lounge", beach: "Beach Bonfire", garden: "Garden Masquerade", love: "Love Lounge", friends: "Friends Hangout", faith: "Christian Fellowship", music: "Music Lovers Lounge", foodie: "Foodie Table", travel: "Wanderlust Corner", movies: "Movie Night Room", games: "Game Night Arena", books: "Book & Poetry Corner", comedy: "Comedy Corner", podcast: "Podcast", art: "Art Studio Loft", wellness: "Wellness Garden", workout: "Workout Room", sports: "Sports Fans Zone", singles: "Serious Singles", career: "Dream Builders" };
+  function roomLbl(id) { return ROOMLBL390[id] || id || ""; }
+  var ERR390 = {
+    "insufficient-charms": "The buyer doesn't have enough charms yet — the offer stays open, and you can accept again once they've topped up.",
+    "offer-not-active": "That offer is no longer open.",
+    "offer-not-found": "That offer is gone.",
+    "not-the-host": "That offer isn't on one of your items.",
+    "item-not-available": "That item is no longer listed.",
+    "not-listed": "That item isn't listed anymore.",
+    "own-item": "You can't offer on your own item.",
+    "bad-amount": "Enter a whole dollar amount.",
+    "too-many-searches": "You can save up to 10 searches — remove one first.",
+    "query-required": "Type a search first.",
+    "not-shipped": "That order hasn't shipped yet.",
+    "not-the-buyer": "That order belongs to another buyer.",
+    "order-refunded": "That order was refunded.",
+    "network": "Network hiccup — try again."
+  };
+  function errText(j) { var e = (j && j.error) || "error"; return ERR390[e] || e; }
+  function bookmarks() { try { var b = JSON.parse(localStorage.getItem(LS_BM) || "[]"); return Array.isArray(b) ? b : []; } catch (e) { return []; } }
+  function toggleBm(id) { var b = bookmarks(); var i = b.indexOf(id); if (i >= 0) b.splice(i, 1); else b.push(id); try { localStorage.setItem(LS_BM, JSON.stringify(b)); } catch (e) { } return i < 0; }
+
+  var S = {
+    tab: "buy", open: false,
+    purchases: null, offers: null, searches: null, shows: null, items: null,
+    loadedAt: 0, bodySig: "", cardSig: "", msg: "", offerFor: null
+  };
+
+  /* ---------------- placement ---------------- */
+  function ensureCard() {
+    var scr = document.getElementById("screen-auctions");
+    if (!scr || document.getElementById("rp390Card")) return;
+    var d = document.createElement("div");
+    d.className = "rp390-card"; d.id = "rp390Card";
+    d.innerHTML = "<h3>🧾 Activity</h3>" +
+      '<p class="rp390-sub">Your purchases, your offers and everything you saved — in one place.</p>' +
+      '<div class="rp390-counts" id="rp390Counts"></div>' +
+      '<button type="button" class="rp390-btn" data-rp390-open="1">Open Activity Center</button>';
+    var hub = document.getElementById("rp388Hub");
+    if (hub && hub.parentNode === scr) scr.insertBefore(d, hub.nextSibling);
+    else scr.insertBefore(d, scr.firstChild);
+  }
+  function ensureOverlay() {
+    if (document.getElementById("rp390Act")) return;
+    var d = document.createElement("div");
+    d.id = "rp390Act";
+    d.innerHTML =
+      '<div class="rp390-head"><h3>🧾 Activity</h3><button type="button" class="rp390-x" data-rp390-close="1">✕</button></div>' +
+      '<div class="rp390-tabs">' +
+      '<button type="button" class="rp390-tab" data-rp390-tab="buy">Purchases</button>' +
+      '<button type="button" class="rp390-tab" data-rp390-tab="offers">Offers<span class="bdg" id="rp390OfferBdg" style="display:none"></span></button>' +
+      '<button type="button" class="rp390-tab" data-rp390-tab="saved">Saved</button></div>' +
+      '<div class="rp390-body" id="rp390Body"></div>';
+    document.body.appendChild(d);
+  }
+  function openAct(tab) {
+    ensureOverlay();
+    if (tab) S.tab = tab;
+    S.open = true;
+    var d = document.getElementById("rp390Act");
+    if (d && !d.classList.contains("open")) d.classList.add("open");
+    loadAll(true);
+    render();
+  }
+  function closeAct() {
+    S.open = false;
+    var d = document.getElementById("rp390Act");
+    if (d && d.classList.contains("open")) d.classList.remove("open");
+  }
+
+  /* ---------------- data ---------------- */
+  function loadAll(force) {
+    if (!tok()) { S.purchases = []; S.offers = { sent: [], received: [] }; S.searches = []; S.shows = []; S.items = []; S.loadedAt = Date.now(); render(); return; }
+    if (!force && Date.now() - S.loadedAt < 12000) { render(); return; }
+    S.loadedAt = Date.now();
+    api("GET", "/api/orders/buying").then(function (r) { if (r.j && r.j.ok) { S.purchases = r.j.orders || []; render(); } });
+    api("GET", "/api/offers/mine").then(function (r) { if (r.j && r.j.ok) { S.offers = { sent: r.j.sent || [], received: r.j.received || [] }; render(); } });
+    api("GET", "/api/saved-searches").then(function (r) { if (r.j && r.j.ok) { S.searches = r.j.searches || []; render(); } });
+    api("GET", "/api/shows").then(function (r) {
+      if (r.j && r.j.ok) S.shows = (r.j.shows || []).filter(function (sh) { return sh.bookmarkedByMe; });
+      render();
+    });
+    var ids = bookmarks();
+    if (ids.length) {
+      api("POST", "/api/auction-items/lookup", { ids: ids }).then(function (r) { if (r.j && r.j.ok) { S.items = r.j.items || []; render(); } });
+    } else { S.items = []; }
+  }
+
+  /* ---------------- shared bits ---------------- */
+  function chip390(status, label) { return '<span class="rp390-chip ' + esc(status) + '">' + esc(label) + "</span>"; }
+  function orderChip(o) {
+    var label = o.status === "to-ship" ? "To ship" : o.status === "shipped" ? "Shipped" : o.status === "delivered" ? "Delivered" : "Refunded";
+    return chip390(o.status, label);
+  }
+  function offerRowHtml(itemId) {
+    return '<div class="rp390-orow"><div class="rp390-meta">Your offer in dollars — it can be under the start bid; the seller decides. You only pay if they accept.</div>' +
+      '<div class="rp390-flex"><input type="number" class="rp390-in" id="rp390OfferIn-' + esc(itemId) + '" min="1" max="100000" step="1" placeholder="$ amount"/>' +
+      '<button type="button" class="rp390-btn sm" data-rp390-offer-go="' + esc(itemId) + '">Send offer</button></div></div>';
+  }
+
+  /* ---------------- Purchases tab (rp386 buy-row conventions) ---------------- */
+  function buyRow(o) {
+    var h = '<div class="rp390-row" data-rp390-order="' + esc(o.id) + '">';
+    h += "<b>" + esc(o.itemTitle) + "</b>" + orderChip(o);
+    h += '<div class="rp390-meta">Sold by ' + esc(o.hostName) + " · <b>$" + (o.bidDollars || 0) + "</b> · won " + esc(fmtWhen(o.settledAt)) + (o.via === "offer" ? " · via offer" : "") + "</div>";
+    if (o.status === "to-ship") {
+      if (o.overdue) h += '<div class="rp390-meta over">⚠️ OVERDUE — ship-by was ' + esc(fmtDay(o.shipBy)) + "</div>";
+      else h += '<div class="rp390-meta">📦 Ship by <b>' + esc(fmtDay(o.shipBy)) + "</b>" + esc(rel(o.shipBy)) + "</div>";
+    }
+    if (o.status === "shipped") h += '<div class="rp390-meta">🚚 Shipped ' + esc(fmtWhen(o.shippedAt)) + (o.tracking ? " · Tracking: <b>" + esc(o.tracking) + "</b>" : " · no tracking") + "</div>";
+    if (o.status === "delivered") h += '<div class="rp390-meta">✅ Delivered ' + esc(fmtWhen(o.deliveredAt)) + (o.tracking ? " · Tracking: " + esc(o.tracking) : "") + "</div>";
+    if (o.status === "refunded") h += '<div class="rp390-meta">↩️ Refunded — buyer protection closed this order.</div>';
+    h += '<div class="rp390-actions">';
+    if (o.status === "shipped")
+      h += '<button type="button" class="rp390-btn sm" data-rp390-received="' + esc(o.id) + '">✓ Mark received</button>';
+    if (o.status === "delivered") {
+      if (o.myStars) h += '<span class="rp390-meta">⭐ Your rating: ' + "★★★★★".slice(0, o.myStars) + "☆☆☆☆☆".slice(0, 5 - o.myStars) + "</span>";
+      else h += '<button type="button" class="rp390-btn sm ghost" data-rp387-rate="' + esc(o.id) + '" data-rp387-seller="' + esc(o.hostName) + '">⭐ Rate this purchase</button>';
+    }
+    h += "</div></div>";
+    return h;
+  }
+  function renderBuy() {
+    if (!tok()) return '<p class="rp390-empty">Sign in to see your purchases.</p>';
+    if (!S.purchases) return '<p class="rp390-empty">Loading…</p>';
+    if (!S.purchases.length) return '<p class="rp390-empty">No purchases yet — win an auction or have an offer accepted and it lands here.</p>';
+    return S.purchases.map(buyRow).join("");
+  }
+
+  /* ---------------- Offers tab ---------------- */
+  function offerStatusLine(o, mine) {
+    if (o.status === "active") return mine ? "Waiting on the seller…" : "Waiting on you — accept makes it a sale right away.";
+    if (o.status === "accepted") return "🎉 Accepted — it's an order now (see Purchases / Orders).";
+    if (o.status === "declined") return o.autoDeclined ? "The item sold to another buyer." : (mine ? "Declined — you can offer again from the item." : "You declined this offer.");
+    if (o.status === "dead") return "Closed — the item is no longer listed.";
+    return "";
+  }
+  function renderOffers() {
+    if (!tok()) return '<p class="rp390-empty">Sign in to see your offers.</p>';
+    if (!S.offers) return '<p class="rp390-empty">Loading…</p>';
+    var h = '<h4 class="rp390-sec">Offers you received</h4>';
+    var rec = S.offers.received || [];
+    if (!rec.length) h += '<p class="rp390-empty">No offers on your items yet.</p>';
+    else h += rec.map(function (o) {
+      var r = '<div class="rp390-row"><b>' + esc(o.itemTitle) + "</b>" + chip390(o.status, o.status) +
+        '<div class="rp390-meta">Offer from ' + esc(o.buyerName) + " · <b>$" + (o.dollars || 0) + "</b> · " + esc(fmtWhen(Date.parse(o.updatedAt || o.createdAt) || Date.now())) + "</div>" +
+        '<div class="rp390-meta">' + esc(offerStatusLine(o, false)) + "</div>";
+      if (o.status === "active")
+        r += '<div class="rp390-actions"><button type="button" class="rp390-btn sm" data-rp390-accept="' + esc(o.id) + '">✓ Accept — sell for $' + (o.dollars || 0) + '</button>' +
+          '<button type="button" class="rp390-btn sm ghost" data-rp390-decline="' + esc(o.id) + '">Decline</button></div>';
+      return r + "</div>";
+    }).join("");
+    h += '<h4 class="rp390-sec">Offers you sent</h4>';
+    var sent = S.offers.sent || [];
+    if (!sent.length) h += '<p class="rp390-empty">You haven\'t offered on anything yet — tap <b>Offer</b> on a listed show item.</p>';
+    else h += sent.map(function (o) {
+      return '<div class="rp390-row"><b>' + esc(o.itemTitle) + "</b>" + chip390(o.status, o.status) +
+        '<div class="rp390-meta">Offer to ' + esc(o.hostName) + " · <b>$" + (o.dollars || 0) + "</b> · " + esc(fmtWhen(Date.parse(o.updatedAt || o.createdAt) || Date.now())) + "</div>" +
+        '<div class="rp390-meta">' + esc(offerStatusLine(o, true)) + "</div></div>";
+    }).join("");
+    return h;
+  }
+
+  /* ---------------- Saved tab ---------------- */
+  function renderSaved() {
+    if (!tok()) return '<p class="rp390-empty">Sign in to see your saved shows, items and searches.</p>';
+    var h = '<h4 class="rp390-sec">🔎 Saved searches</h4>';
+    h += '<div class="rp390-flex"><input type="text" class="rp390-in" id="rp390SearchIn" maxlength="60" placeholder="Save a search — e.g. sneakers"/>' +
+      '<button type="button" class="rp390-btn sm" data-rp390-search-add="1">Save search</button></div>';
+    h += '<p class="rp390-sub" style="margin-top:6px">You get one ping when a new show item or show title matches. Up to 10.</p>';
+    if (!S.searches) h += '<p class="rp390-empty">Loading…</p>';
+    else if (!S.searches.length) h += '<p class="rp390-empty">No saved searches yet.</p>';
+    else h += S.searches.map(function (s) {
+      return '<div class="rp390-row"><b>' + esc(s.query) + '</b><div class="rp390-actions">' +
+        '<button type="button" class="rp390-btn sm ghost" data-rp390-search-del="' + esc(s.id) + '">Remove</button></div></div>';
+    }).join("");
+    h += '<h4 class="rp390-sec">🔖 Bookmarked shows</h4>';
+    if (!S.shows) h += '<p class="rp390-empty">Loading…</p>';
+    else if (!S.shows.length) h += '<p class="rp390-empty">No bookmarked shows — tap 🔖 on an upcoming show to keep it here.</p>';
+    else h += S.shows.map(function (sh) {
+      var r = '<div class="rp390-row">' + (sh.status === "live" ? '<span class="rp390-live">🔴 LIVE</span>' : "") + "<b>" + esc(sh.title) + "</b>" +
+        '<div class="rp390-meta">' + esc(sh.hostName) + " · " + esc(roomLbl(sh.room)) + " · " +
+        (sh.status === "live" ? "live now" : esc(fmtWhen(sh.startsAt)) + esc(rel(sh.startsAt))) + " · 🔖 " + (sh.bookmarkCount || 0) + "</div>";
+      r += '<div class="rp390-actions">';
+      if (sh.status === "live" && sh.liveRoom) r += '<button type="button" class="rp390-btn sm" data-rp390-watch="' + esc(sh.liveRoom) + '">🔴 Watch live</button>';
+      r += '<button type="button" class="rp390-btn sm ghost" data-rp390-prof="' + esc(sh.hostId) + '" data-rp390-profname="' + esc(sh.hostName) + '">Seller profile</button>';
+      return r + "</div></div>";
+    }).join("");
+    h += '<h4 class="rp390-sec">♥ Bookmarked items</h4>';
+    if (!S.items) h += '<p class="rp390-empty">Loading…</p>';
+    else if (!S.items.length) h += '<p class="rp390-empty">No bookmarked items — tap ♥ on a show item to keep it here.</p>';
+    else h += S.items.map(function (it) {
+      var price = it.highPreBid ? "High pre-bid <b>$" + it.highPreBid.amount + "</b> by " + esc(it.highPreBid.name) : "Starts at <b>$" + it.startBid + "</b>";
+      var r = '<div class="rp390-row"><b>' + esc(it.title) + "</b>" + chip390(it.status, it.status) +
+        '<div class="rp390-meta">' + esc(it.hostName) + " · " + price + " · " + (it.preBidCount || 0) + " pre-bids</div>" +
+        '<div class="rp390-actions">';
+      if (it.status === "listed" && it.hostId !== myId())
+        r += '<button type="button" class="rp390-btn sm" data-rp390-offer="' + esc(it.id) + '">Offer</button>';
+      r += '<button type="button" class="rp390-bm on" data-rp390-bm="' + esc(it.id) + '" aria-label="Remove bookmark">♥</button>';
+      r += "</div>";
+      if (S.offerFor === it.id) r += offerRowHtml(it.id);
+      return r + "</div>";
+    }).join("");
+    return h;
+  }
+
+  /* ---------------- render (signature-guarded) ---------------- */
+  function render() {
+    // card counts
+    var countsEl = document.getElementById("rp390Counts");
+    if (countsEl) {
+      var pend = S.offers ? (S.offers.received || []).filter(function (o) { return o.status === "active"; }).length : 0;
+      var savedN = (S.searches ? S.searches.length : 0) + (S.shows ? S.shows.length : 0) + (S.items ? S.items.length : 0);
+      var ct = !tok() ? "Sign in to see your activity." :
+        "<b>" + (S.purchases ? S.purchases.length : 0) + "</b> purchases · <b>" + (S.offers ? (S.offers.sent || []).length + (S.offers.received || []).length : 0) + "</b> offers" +
+        (pend ? ' · <span class="bad">' + pend + " waiting on you</span>" : "") +
+        " · <b>" + savedN + "</b> saved";
+      if (ct !== S.cardSig) { S.cardSig = ct; countsEl.innerHTML = ct; }
+    }
+    var bdg = document.getElementById("rp390OfferBdg");
+    if (bdg && S.offers) {
+      var n = (S.offers.received || []).filter(function (o) { return o.status === "active"; }).length;
+      var want = n > 0 ? "inline-block" : "none";
+      if (bdg.style.display !== want) bdg.style.display = want;
+      if (n > 0 && bdg.textContent !== String(n)) bdg.textContent = String(n);
+    }
+    if (!S.open) return;
+    var body = document.getElementById("rp390Body"); if (!body) return;
+    var tabs = document.querySelectorAll("[data-rp390-tab]");
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle("on", tabs[i].getAttribute("data-rp390-tab") === S.tab);
+    var html = S.tab === "buy" ? renderBuy() : S.tab === "offers" ? renderOffers() : renderSaved();
+    if (S.msg) html += '<p class="rp390-msg">' + esc(S.msg) + "</p>";
+    var sig = S.tab + "|" + S.offerFor + "|" + html;
+    if (sig === S.bodySig) return;
+    // preserve in-progress typing across a data refresh
+    var keep = {};
+    var act = document.activeElement;
+    var actId = act && act.id ? act.id : "";
+    var inputs = body.querySelectorAll("input[id]");
+    for (var k = 0; k < inputs.length; k++) keep[inputs[k].id] = inputs[k].value;
+    S.bodySig = sig;
+    body.innerHTML = html;
+    for (var id in keep) { var el = document.getElementById(id); if (el && el.value !== keep[id]) el.value = keep[id]; }
+    if (actId) { var f = document.getElementById(actId); if (f) { try { f.focus({ preventScroll: true }); } catch (e) { } } }
+  }
+
+  /* ---------------- offer row outside the overlay (rp384 cards) ---------------- */
+  function toggleOfferRowOutside(itemId) {
+    var old = document.getElementById("rp390OfferRow");
+    var wasFor = old ? old.getAttribute("data-for") : null;
+    if (old) old.remove();
+    if (wasFor === itemId) return;
+    var card = document.querySelector('[data-rp384-card="' + itemId + '"]');
+    if (!card || !card.parentNode) return;
+    var d = document.createElement("div");
+    d.id = "rp390OfferRow"; d.setAttribute("data-for", itemId);
+    d.innerHTML = offerRowHtml(itemId);
+    card.parentNode.insertBefore(d, card.nextSibling);
+  }
+  function sendOffer(itemId) {
+    var inp = document.getElementById("rp390OfferIn-" + itemId);
+    var dollars = inp ? Math.floor(Number(inp.value) || 0) : 0;
+    if (!(dollars >= 1)) { S.msg = ERR390["bad-amount"]; render(); return; }
+    api("POST", "/api/offers", { itemId: itemId, dollars: dollars }).then(function (r) {
+      if (r.j && r.j.ok) {
+        S.msg = r.j.replaced ? "✓ Offer updated to $" + dollars + " — the seller has it." : "✓ Offer sent — $" + dollars + ". The seller can accept or decline it here in Activity.";
+        S.offerFor = null;
+        var row = document.getElementById("rp390OfferRow"); if (row) row.remove();
+        S.loadedAt = 0; loadAll(true);
+      } else {
+        S.msg = errText(r.j);
+        var row2 = document.getElementById("rp390OfferRow");
+        if (row2 && !S.open) { var m = document.createElement("p"); m.className = "rp390-msg"; m.textContent = S.msg; row2.appendChild(m); S.msg = ""; }
+      }
+      render();
+    });
+  }
+
+  /* ---------------- actions (delegated) ---------------- */
+  document.addEventListener("click", function (ev) {
+    var t = ev.target && ev.target.closest ? ev.target.closest("[data-rp390-open],[data-rp390-close],[data-rp390-tab],[data-rp390-received],[data-rp390-accept],[data-rp390-decline],[data-rp390-offer],[data-rp390-offer-go],[data-rp390-bm],[data-rp390-search-add],[data-rp390-search-del],[data-rp390-watch],[data-rp390-prof]") : null;
+    if (!t) return;
+    if (t.hasAttribute("data-rp390-open")) { openAct(); return; }
+    if (t.hasAttribute("data-rp390-close")) { closeAct(); return; }
+    if (t.hasAttribute("data-rp390-tab")) { S.tab = t.getAttribute("data-rp390-tab"); S.msg = ""; render(); return; }
+    if (t.hasAttribute("data-rp390-received")) {
+      var oid = t.getAttribute("data-rp390-received");
+      api("POST", "/api/orders/" + encodeURIComponent(oid) + "/delivered", {}).then(function (r) {
+        S.msg = r.j && r.j.ok ? "✓ Marked received — thanks!" : errText(r.j);
+        S.loadedAt = 0; loadAll(true); render();
+      });
+      return;
+    }
+    if (t.hasAttribute("data-rp390-accept")) {
+      var aid = t.getAttribute("data-rp390-accept");
+      api("POST", "/api/offers/" + encodeURIComponent(aid) + "/accept", {}).then(function (r) {
+        S.msg = r.j && r.j.ok ? "🎉 Sold! The buyer was charged and the order is on your Orders board." : errText(r.j);
+        S.loadedAt = 0; loadAll(true); render();
+      });
+      return;
+    }
+    if (t.hasAttribute("data-rp390-decline")) {
+      var did = t.getAttribute("data-rp390-decline");
+      api("POST", "/api/offers/" + encodeURIComponent(did) + "/decline", {}).then(function (r) {
+        S.msg = r.j && r.j.ok ? "Offer declined." : errText(r.j);
+        S.loadedAt = 0; loadAll(true); render();
+      });
+      return;
+    }
+    if (t.hasAttribute("data-rp390-offer")) {
+      var iid = t.getAttribute("data-rp390-offer");
+      if (S.open) { S.offerFor = S.offerFor === iid ? null : iid; render(); }
+      else toggleOfferRowOutside(iid);
+      return;
+    }
+    if (t.hasAttribute("data-rp390-offer-go")) { sendOffer(t.getAttribute("data-rp390-offer-go")); return; }
+    if (t.hasAttribute("data-rp390-bm")) {
+      toggleBm(t.getAttribute("data-rp390-bm"));
+      S.items = null; S.loadedAt = 0; loadAll(true); render();
+      return;
+    }
+    if (t.hasAttribute("data-rp390-search-add")) {
+      var inp = document.getElementById("rp390SearchIn");
+      var q = inp ? inp.value.trim() : "";
+      if (!q) { S.msg = ERR390["query-required"]; render(); return; }
+      api("POST", "/api/saved-searches", { query: q }).then(function (r) {
+        if (r.j && r.j.ok) { S.msg = r.j.deduped ? "That search is already saved." : "🔎 Saved — we'll ping you when a new item or show matches “" + q + "”."; if (inp) inp.value = ""; }
+        else S.msg = errText(r.j);
+        S.loadedAt = 0; loadAll(true); render();
+      });
+      return;
+    }
+    if (t.hasAttribute("data-rp390-search-del")) {
+      api("POST", "/api/saved-searches/" + encodeURIComponent(t.getAttribute("data-rp390-search-del")) + "/remove", {}).then(function (r) {
+        S.msg = r.j && r.j.ok ? "Search removed." : errText(r.j);
+        S.loadedAt = 0; loadAll(true); render();
+      });
+      return;
+    }
+    if (t.hasAttribute("data-rp390-watch")) {
+      var room = t.getAttribute("data-rp390-watch");
+      closeAct();
+      try { if (window.rpJoinLive) window.rpJoinLive(room); } catch (e) { }
+      return;
+    }
+    if (t.hasAttribute("data-rp390-prof")) {
+      var pid = t.getAttribute("data-rp390-prof"), pname = t.getAttribute("data-rp390-profname") || "";
+      closeAct();
+      try { if (window.rpDm && window.rpDm.openProfile) window.rpDm.openProfile(pid, pname); } catch (e) { }
+      return;
+    }
+  });
+
+  /* ---------------- boot + light polling ---------------- */
+  function tick() {
+    try {
+      ensureCard();
+      ensureOverlay();
+      var scr = document.getElementById("screen-auctions");
+      if (S.open || isVis(scr)) loadAll(false);
+      render();
     } catch (e) { /* the module must never break the app */ }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1500); tick(); });
