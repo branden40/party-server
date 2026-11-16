@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.393" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.394" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -3643,7 +3643,7 @@
               <button type="button" class="lv-fsclose" id="liveFsClose" aria-label="Close live"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
             </div>
             <div class="lv-titleline" id="liveTitleLine"></div>
-            <div class="lk-gwrow389"><button type="button" class="lk-gwchip389" id="lkGwChip389" hidden>🎁 Giveaway</button></div> <!-- [RP-V7.389] giveaway chip -->
+            <div class="lk-gwrow389"><button type="button" class="lk-gwchip389" id="lkGwChip389" hidden>🎁 Giveaway</button><button type="button" class="lk-gwchip389" id="bstChip394" hidden>🚀 Boost</button></div> <!-- [RP-V7.389] giveaway chip --> <!-- [RP-V7.394] Community Boost chip -->
             <div class="lk-note389" id="lkNote389" hidden></div> <!-- [RP-V7.389] pinned show note -->
             <div><span class="lk-watch389" id="lkWatch389" hidden></span></div> <!-- [RP-V7.389] watch & earn -->
             <div class="lv-comments" id="liveComments" aria-live="polite"></div>
@@ -11780,7 +11780,7 @@
         });
         var list = Object.keys(Live.directory).map(function (id) {
           var e = Live.directory[id];
-          var o = { hostId: id, room: e.room, name: e.name || "Host", title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0, regKey: e.regKey || "", hostAccountId: e.hostAccountId || null, priv: !!e.priv, pot: e.pot || null, poll: e.poll || null, startedAt: e.startedAt || 0, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0 }; // [RP-V7.299] registry fields ride the render object — the ticket badge/door (and the priv/pot lines liveRowHTML already draws) read them from here
+          var o = { hostId: id, room: e.room, name: e.name || "Host", title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0, regKey: e.regKey || "", hostAccountId: e.hostAccountId || null, priv: !!e.priv, pot: e.pot || null, poll: e.poll || null, startedAt: e.startedAt || 0, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0, boost: e.boost || 0 }; // [RP-V7.299] registry fields ride the render object // [RP-V7.394] + the boost pool — the ticket badge/door (and the priv/pot lines liveRowHTML already draws) read them from here
           // the host's own announced home + interests win over any
           // fallback location guessed from the room they announced in
           var hm = Live.hostMeta[id];
@@ -11874,10 +11874,11 @@
             if (lv.startedAt) e.startedAt = lv.startedAt; // [RP-V7.63] …and its earliest-started tie-break
             if (typeof lv.ticketPrice === "number") e.ticketPrice = lv.ticketPrice; // [RP-V7.299] door price refreshes on existing entries too
             if (typeof lv.ticketSold === "number") e.ticketSold = lv.ticketSold; // [RP-V7.299]
+            if (typeof lv.boost === "number") e.boost = lv.boost; // [RP-V7.394] boost pool refreshes on existing entries too
             e.seen = now; e.reg = true; e.regKey = lv.key || e.regKey || "";
             if (foundId !== key && lv.hostId) { Live.directory[key] = e; delete Live.directory[foundId]; }
           } else {
-            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, pot: lv.pot || null, poll: lv.poll || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0 }; // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
+            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, pot: lv.pot || null, poll: lv.poll || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0, boost: lv.boost || 0 }; // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.394] + boost pool // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
           }
         });
         Live.regRooms = rooms;
@@ -12122,12 +12123,13 @@
         var ticketLine = (e.ticketPrice > 0)
           ? '<span class="lnr-pot">\uD83C\uDF9F\uFE0F ' + ((window.rpTicketHeld299 && window.rpTicketHeld299(e)) ? "Ticket \u2713 \u2014 tap to watch" : Number(e.ticketPrice).toLocaleString("en-US") + " charms at the door" + (e.ticketSold ? " \u00B7 " + e.ticketSold + " in" : "")) + "</span>"
           : "";
+        var boostLine394 = (e.boost >= 1000) ? '<span class="lnr-pot">🚀 Boosted · ' + Number(e.boost || 0).toLocaleString("en-US") + ' charms</span>' : ""; // [RP-V7.394] boosted lives advertise their pool on the card
         var potLine = (e.pot && e.pot.status === "open")
           ? '<span class="lnr-pot">🪙 Pot: ' + Number(e.pot.total || 0).toLocaleString("en-US") + " charms" +
             ((e.pot.burstAt && (e.pot.total || 0) >= Math.ceil(e.pot.burstAt * 0.75)) ? " 💥" : "") + "</span>"
           : "";
         return '<button class="live-now-row" data-lnroom="' + escHtml(e.room) + '">' + av +
-          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + privBadge + fyBadge + riseBadge + pushBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i>' + ticketLine + potLine + '</span>' +
+          '<span class="lnr-meta"><b>' + escHtml(e.name) + (e.mine ? " · You" : "") + folBadge + privBadge + fyBadge + riseBadge + pushBadge + ' <span class="live-badge-sm">● LIVE</span></b><i>' + escHtml(e.title || e.topic || "Live") + '</i>' + ticketLine + potLine + boostLine394 + '</span>' +
           '<span class="lnr-n">👁 ' + (e.n || 1) + " watching</span></button>";
       }
       /* Tap a 🔴 Live Now / lobby entry: join that host's live room. */
@@ -53819,6 +53821,7 @@ window.rpOpenSavedSheet349 = function () {
         "</div>";
 
       if (window.rp393HubHtml) html += window.rp393HubHtml(hub.rewardsClub); // [RP-V7.393] rewards-club roster (members by tier + outstanding credits)
+      if (window.rp394HubHtml) html += window.rp394HubHtml(hub.boost); // [RP-V7.394] Community Boost promotion stat (never earnings)
       html += "<h4>📅 My upcoming shows</h4>";
       var ups = hub.upcomingShows || [];
       if (!ups.length) html += '<p class="rp388-empty">No upcoming shows — schedule one above.</p>';
@@ -54460,6 +54463,7 @@ window.rpOpenSavedSheet349 = function () {
     if (l.photo) h += '<img class="rp391-ava" src="' + esc(l.photo) + '" alt=""/>';
     h += '<div class="rp391-main"><b>' + esc(l.name || "Host") + "</b>";
     if (l.ticketPrice) h += '<span class="rp391-chip">🎟 ' + esc(l.ticketPrice) + "</span>";
+    if (l.boosted) h += '<span class="rp391-chip">🚀 Boosted · ' + Number(l.boost || 0).toLocaleString("en-US") + "</span>"; // [RP-V7.394]
     h += '<div class="rp391-meta">' + (l.title ? esc(l.title) + " · " : "") + esc(l.org ? roomLbl(l.org) : (l.topic || "Live")) + " · 👁 " + (l.viewers || 0) + " watching</div></div>";
     h += '<button type="button" class="rp391-btn sm" data-rp391-join="' + esc(l.room) + '">Watch</button>';
     h += "</div></div>";
@@ -55015,6 +55019,187 @@ window.rpOpenSavedSheet349 = function () {
     if (!$("rp393ClubsCard")) injectClubsCard();
     renderProfClub();
     fillStoreClub();
+  });
+  if (document.body) mo.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+<style>
+/* [RP-V7.394] Community Boost surfaces. */
+.bst394-badge { background: rgba(255,150,0,.18); border: 1px solid rgba(255,150,0,.55); color: #ffb84d; border-radius: 999px; padding: 0 7px; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
+.rp394-rail { margin: 10px 0; }
+.rp394-rail h3 { margin: 0 0 6px; font-size: 16px; }
+.rp394-row { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; text-align: left; background: #101014; border: 1px solid rgba(255,150,0,.45); border-radius: 12px; padding: 9px 11px; margin: 0 0 8px; color: #f2f2f5; cursor: pointer; }
+.rp394-ava { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex: none; }
+.rp394-main { flex: 1; min-width: 0; }
+.rp394-meta { color: #a7a7b3; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp394-pool { color: #ffb84d; font-weight: 800; white-space: nowrap; }
+.rp394-overlay { position: fixed; inset: 0; background: #0b0b0d; z-index: 120; display: none; flex-direction: column; }
+.rp394-overlay.open { display: flex; }
+.rp394-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.rp394-head h3 { margin: 0; font-size: 18px; }
+.rp394-body { flex: 1; overflow-y: auto; padding: 14px 16px 28px; }
+.rp394-total { font-size: 30px; font-weight: 900; color: #ffb84d; }
+.rp394-muted { color: #a7a7b3; font-size: 12.5px; line-height: 1.5; }
+.rp394-tiers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+.rp394-tier { background: #e50914; color: #fff; border: 0; border-radius: 10px; padding: 13px; font-weight: 800; font-size: 15px; cursor: pointer; }
+.rp394-tier:disabled { opacity: .45; cursor: default; }
+.rp394-btn { background: rgba(255,255,255,.14); color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; font-weight: 700; cursor: pointer; }
+.rp394-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); margin: 6px 0 2px; overflow: hidden; }
+.rp394-bar i { display: block; height: 100%; background: #ff9600; border-radius: 4px; }
+.rp394-hub { border-top: 1px solid rgba(255,255,255,.12); padding: 10px 0 2px; }
+</style>
+<script>
+(function () {
+  // [RP-V7.394] Community Boost — client half. All truth lives
+  // server-side (boost.json + the money ledger): this module only
+  // renders what the server hands it. The in-room chip + sheet work
+  // off GET /api/boost/state, which resolves the live from the
+  // caller's own presence — the client never names a live to boost.
+  // The Auctions rail reads GET /api/boosted-lives. DOM writes are
+  // guarded (only when the value actually changed).
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function authH() { var t = tok(); return t ? { "Authorization": "Bearer " + t } : {}; }
+  function jget(u) { return fetch(u, { headers: authH(), credentials: "same-origin" }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; }); }
+  function jpost(u, body) { return fetch(u, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authH()), credentials: "same-origin", body: JSON.stringify(body || {}) }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; }); }
+  function fmt(n) { return Number(n || 0).toLocaleString("en-US"); }
+  function toast(m) { if (typeof showToast === "function") showToast(m); }
+
+  var Bst = { state: null, fetchAt: 0, chipWired: false, railSig: "", railAt: 0 };
+
+  /* ---------- in-room chip ---------- */
+  function bstRenderChip() {
+    var chip = $("bstChip394");
+    if (!chip) return;
+    if (!Bst.chipWired) {
+      Bst.chipWired = true;
+      chip.addEventListener("click", function () { openBstSheet(); });
+    }
+    var b = Bst.state;
+    if (!b || b.church) { if (!chip.hidden) chip.hidden = true; return; }
+    var txt = b.total > 0 ? "🚀 Boost · " + fmt(b.total) + (b.boosted ? " 🚀" : "") : "🚀 Boost";
+    if (chip.textContent !== txt) chip.textContent = txt;
+    if (chip.hidden) chip.hidden = false;
+  }
+  function bstSync(force) {
+    var now = Date.now();
+    if (!force && now - Bst.fetchAt < 8000) return;
+    if (!$("bstChip394") && !$("bstOverlay394")) return;
+    Bst.fetchAt = now;
+    jget("/api/boost/state").then(function (r) {
+      Bst.state = r && r.ok ? r.boost : null;
+      bstRenderChip();
+      if ($("bstOverlay394") && $("bstOverlay394").classList.contains("open")) renderBstSheet();
+    });
+  }
+
+  /* ---------- boost sheet ---------- */
+  function ensureOverlay() {
+    if ($("bstOverlay394")) return;
+    var d = document.createElement("div");
+    d.className = "rp394-overlay"; d.id = "bstOverlay394";
+    d.innerHTML = '<div class="rp394-head"><button type="button" class="rp394-btn" id="bstClose394">← Back</button><h3>🚀 Community Boost</h3></div><div class="rp394-body" id="bstBody394"></div>';
+    document.body.appendChild(d);
+    $("bstClose394").onclick = function () { d.classList.remove("open"); };
+  }
+  function openBstSheet() {
+    ensureOverlay();
+    $("bstOverlay394").classList.add("open");
+    Bst.fetchAt = 0;
+    bstSync(true);
+    renderBstSheet();
+  }
+  function renderBstSheet() {
+    var body = $("bstBody394"); if (!body) return;
+    var b = Bst.state;
+    if (!b) { body.innerHTML = '<p class="rp394-muted">You are not in a live right now — join one and boost it from here.</p>'; return; }
+    var h = "";
+    h += '<div class="rp394-muted">' + esc(b.hostName || "This live") + "’s live · " + (b.contributors || 0) + " booster" + (b.contributors === 1 ? "" : "s") + "</div>";
+    h += '<div class="rp394-total">' + fmt(b.total) + " <span style=\"font-size:15px\">charms pooled</span></div>";
+    if (b.nextGoal) {
+      var pct = Math.min(100, Math.round((b.total / b.nextGoal) * 100));
+      h += '<div class="rp394-bar"><i style="width:' + pct + '%"></i></div><div class="rp394-muted">' + fmt(b.nextGoal - b.total) + " more charms to the " + fmt(b.nextGoal) + " mark" + (b.nextGoal === (b.badgeAt || 1000) ? " — that earns this live the 🚀 Boosted badge and a seat in the Boosted lives rail" : "") + ".</div>";
+    } else {
+      h += '<div class="rp394-muted">Top mark reached — this live is carrying the 🚀 Boosted badge.</div>';
+    }
+    h += '<p class="rp394-muted" style="margin-top:10px">Boost promotes this live in the app — it climbs the Trending lives order and, at ' + fmt(b.badgeAt || 1000) + ' pooled, wears the 🚀 Boosted badge and pins into the Boosted lives rail. <b>The host doesn’t receive boost charms</b> — they are spent on promotion, not paid to anyone.</p>';
+    h += '<p class="rp394-muted">If this live ends within 2 minutes of your boost and the pool never reaches ' + fmt(b.badgeAt || 1000) + ', your boost comes back. Otherwise boosts are final.</p>';
+    if (b.isHost) {
+      h += '<p class="rp394-muted" style="margin-top:10px">You’re the host — viewers boost this live from their side. The pool is promotion only; it never lands in your Earn balance.</p>';
+    } else if (!tok()) {
+      h += '<p class="rp394-muted" style="margin-top:10px">Sign in to boost this live.</p>';
+    } else {
+      h += '<div class="rp394-muted" style="margin-top:10px">Your boosts in this live: <b>' + fmt(b.myTotal) + "</b> of " + fmt(b.memberCap) + " max</div>";
+      h += '<div class="rp394-tiers">' + (b.tiers || [100, 250, 500, 1000]).map(function (t) {
+        var dis = (b.myTotal + t > b.memberCap) ? " disabled" : "";
+        return '<button type="button" class="rp394-tier" data-bst-tier="' + t + '"' + dis + ">🚀 " + fmt(t) + "</button>";
+      }).join("") + "</div>";
+    }
+    body.innerHTML = h;
+    var btns = body.querySelectorAll("[data-bst-tier]");
+    for (var i = 0; i < btns.length; i++) btns[i].onclick = function () {
+      var tier = Number(this.getAttribute("data-bst-tier"));
+      this.disabled = true;
+      jpost("/api/boost/contribute", { charms: tier }).then(function (r) {
+        if (r && r.ok) { Bst.state = r.boost; toast("🚀 Boosted +" + fmt(tier) + " — pool is now " + fmt(r.boost && r.boost.total)); }
+        else toast((r && (r.message || r.error)) || "Boost didn’t go through");
+        Bst.fetchAt = 0; bstSync(true); renderBstSheet();
+      });
+    };
+  }
+
+  /* ---------- Auctions rail ---------- */
+  function ensureRail() {
+    var scr = $("screen-auctions");
+    if (!scr || $("bstRail394")) return;
+    var d = document.createElement("div");
+    d.className = "rp394-rail"; d.id = "bstRail394"; d.hidden = true;
+    var anchor = $("rp391Card") || $("rp390Card") || $("rp388Hub");
+    if (anchor && anchor.parentNode === scr) scr.insertBefore(d, anchor);
+    else scr.insertBefore(d, scr.firstChild);
+  }
+  function loadRail() {
+    if (!$("screen-auctions")) return;
+    ensureRail();
+    var rail = $("bstRail394"); if (!rail) return;
+    jget("/api/boosted-lives").then(function (r) {
+      var lives = (r && r.ok && r.lives) || [];
+      var sig = JSON.stringify(lives.map(function (l) { return [l.room, l.boost, l.viewers]; }));
+      if (sig === Bst.railSig) return;
+      Bst.railSig = sig;
+      if (!lives.length) { if (!rail.hidden) rail.hidden = true; rail.innerHTML = ""; return; }
+      rail.innerHTML = "<h3>🚀 Boosted lives</h3>" + lives.map(function (l) {
+        return '<button type="button" class="rp394-row" data-bst-join="' + esc(l.room) + '">' +
+          (l.photo ? '<img class="rp394-ava" src="' + esc(l.photo) + '" alt=""/>' : "") +
+          '<span class="rp394-main"><b>' + esc(l.name || "Host") + '</b><div class="rp394-meta">' + esc(l.title || l.topic || "Live") + " · 👁 " + (l.viewers || 0) + " watching</div></span>" +
+          '<span class="rp394-pool">🚀 ' + fmt(l.boost) + "</span></button>";
+      }).join("");
+      if (rail.hidden) rail.hidden = false;
+      var btns = rail.querySelectorAll("[data-bst-join]");
+      for (var i = 0; i < btns.length; i++) btns[i].onclick = function () {
+        try { if (window.rpJoinLive) window.rpJoinLive(this.getAttribute("data-bst-join")); } catch (e) {}
+      };
+    });
+  }
+
+  /* ---------- Seller Hub section (window hook) ---------- */
+  window.rp394HubHtml = function (bst) {
+    if (!bst) return "";
+    return '<div class="rp394-hub"><h4>🚀 Community Boost — promotion, not earnings</h4>' +
+      '<div class="rp392-muted">Viewers pool charms to promote your lives (Trending order, the 🚀 Boosted badge, the Boosted lives rail). Those charms are spent on promotion — <b>they are never paid to you</b> and never enter your Earn balance.</div>' +
+      '<div class="rp392-muted" style="margin-top:4px">Pool on your live right now: <b>' + fmt(bst.livePool) + "</b> · Pooled toward your lives today: <b>" + fmt(bst.pooledToday) + "</b></div></div>";
+  };
+
+  /* ---------- boot ---------- */
+  function boot394() { bstSync(false); loadRail(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot394);
+  else boot394();
+  setInterval(function () { bstSync(false); }, 4000);
+  setInterval(function () { loadRail(); }, 15000);
+  var mo = new MutationObserver(function () {
+    if (!$("bstRail394") && $("screen-auctions")) loadRail();
   });
   if (document.body) mo.observe(document.body, { childList: true, subtree: true });
 })();
