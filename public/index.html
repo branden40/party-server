@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.387" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.388" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -52993,6 +52993,203 @@ window.rpOpenSavedSheet349 = function () {
         if (Date.now() - S.healthAt > 15000) loadHealth(); else renderHealth();
       }
       renderProfileRating();
+    } catch (e) { /* the module must never break the app */ }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1500); tick(); });
+  else { setInterval(tick, 1500); tick(); }
+})();
+</script>
+
+<style>
+/* [RP-V7.388] Seller Hub */
+.rp388-card{background:#101014;border:1px solid #26262e;border-radius:14px;padding:14px;margin:10px 0;color:#f2f2f5}
+.rp388-card h3{margin:0 0 4px;font-size:16px}
+.rp388-card h4{margin:14px 0 6px;font-size:14px}
+.rp388-sub{margin:0 0 6px;color:#a7a7b3;font-size:12.5px;line-height:1.45}
+.rp388-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}
+.rp388-btn{background:#e02424;color:#fff;border:0;border-radius:9px;padding:10px 13px;font-weight:800;font-size:13.5px;cursor:pointer}
+.rp388-btn.ghost{background:#1d1d24;color:#f2f2f5;border:1px solid #33333f}
+.rp388-btn:disabled{opacity:.45}
+.rp388-task{display:flex;width:100%;box-sizing:border-box;text-align:left;justify-content:space-between;gap:10px;align-items:baseline;background:#17171d;border:1px solid #26262e;border-radius:10px;padding:10px 12px;margin:6px 0;color:#f2f2f5;font-size:13.5px;cursor:pointer}
+.rp388-task .go{color:#a7a7b3;font-size:12px;white-space:nowrap}
+.rp388-task .bad{color:#ff5a5a;font-weight:800}
+.rp388-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.rp388-tile{background:#17171d;border:1px solid #26262e;border-radius:10px;padding:10px 12px;color:#f2f2f5;text-align:left;cursor:pointer}
+.rp388-tile .big{font-size:16px;font-weight:800;display:block}
+.rp388-tile .small{color:#a7a7b3;font-size:12px;line-height:1.45;display:block;margin-top:2px}
+.rp388-tile .bad{color:#ff5a5a;font-weight:700}
+.rp388-show{border-top:1px solid #26262e;padding:8px 0;font-size:13.5px}
+.rp388-show .meta{color:#a7a7b3;font-size:12.5px;margin-top:1px}
+.rp388-live{display:inline-block;background:#e02424;color:#fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:800;margin-right:6px}
+.rp388-empty{color:#a7a7b3;font-size:13px;padding:6px 0}
+.rp388-msg{font-size:12.5px;color:#ffd76a;min-height:16px;margin:6px 0 0}
+.rp388-flash{outline:2px solid #e02424 !important;outline-offset:2px}
+</style>
+<script>
+/* [RP-V7.388] Seller Hub (Whatnot parity build 6). Self-contained
+   module (the rp384-387 pattern). ONE aggregate call — GET
+   /api/seller-hub — feeds the whole card: today's tasks, orders /
+   health / rating / money snapshots and my upcoming shows. Every
+   number is the server's, rendered verbatim; every row deep-links
+   into the EXISTING tool (schedule form rp385Host, items manager
+   rp384Manager, orders board rp386Board, health card rp387Health,
+   Earn via openEarnings, go-live via startOwnLiveEntry) — the hub
+   duplicates no logic of its own. */
+(function () {
+  "use strict";
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function api(method, path, body) {
+    var h = { "Content-Type": "application/json" }; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return { ok: false }; }).then(function (j) { return { status: r.status, j: j }; }); })
+      .catch(function () { return { status: 0, j: { ok: false, error: "network" } }; });
+  }
+  function isVis(el) { if (!el) return false; try { return !!(el.offsetParent || el.getClientRects().length); } catch (e) { return false; } }
+  function pct(rate) { return rate == null ? "—" : Math.round(rate * 100) + "%"; }
+  function starsStr(n) { n = Math.max(0, Math.min(5, Math.floor(Number(n) || 0))); return "★★★★★".slice(0, n) + "☆☆☆☆☆".slice(0, 5 - n); }
+  function moneyStr(cents) { return "$" + (Math.max(0, Number(cents) || 0) / 100).toFixed(2); }
+  function fmtWhen(ms) { try { return new Date(ms).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } }
+  function fmtTimeTz(ms, tz) {
+    try { return new Date(ms).toLocaleTimeString([], { timeZone: tz, hour: "numeric", minute: "2-digit" }); }
+    catch (e) { try { return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch (e2) { return ""; } }
+  }
+  var ROOMLBL388 = { neon: "Neon Nights Club", roof: "Rooftop Sunset Lounge", beach: "Beach Bonfire", garden: "Garden Masquerade", love: "Love Lounge", friends: "Friends Hangout", faith: "Christian Fellowship", music: "Music Lovers Lounge", foodie: "Foodie Table", travel: "Wanderlust Corner", movies: "Movie Night Room", games: "Game Night Arena", books: "Book & Poetry Corner", comedy: "Comedy Corner", podcast: "Podcast", art: "Art Studio Loft", wellness: "Wellness Garden", workout: "Workout Room", sports: "Sports Fans Zone", singles: "Serious Singles", career: "Dream Builders" };
+  function roomLbl(id) { return ROOMLBL388[id] || id || ""; }
+
+  var S = { hub: null, hubAt: 0, sig: "" };
+
+  /* ---------------- placement: top of the Auctions screen ---------------- */
+  function ensureHub() {
+    var scr = document.getElementById("screen-auctions");
+    if (!scr) return;
+    var d = document.getElementById("rp388Hub");
+    if (!d) {
+      d = document.createElement("div");
+      d.className = "rp388-card"; d.id = "rp388Hub";
+      d.innerHTML = "<h3>🧑‍💼 Seller Hub</h3>" +
+        '<p class="rp388-sub">Your whole selling day in one place — shows, items, orders, health and payouts.</p>' +
+        '<div class="rp388-actions">' +
+        '<button type="button" class="rp388-btn" data-rp388-go="schedule">📅 Schedule a show</button>' +
+        '<button type="button" class="rp388-btn ghost" data-rp388-go="items">➕ List an item</button>' +
+        '<button type="button" class="rp388-btn" data-rp388-go="golive">🔴 Go live</button></div>' +
+        '<div id="rp388Body"></div>' +
+        '<p class="rp388-msg" id="rp388Msg"></p>';
+      scr.insertBefore(d, scr.firstChild);
+    } else if (scr.firstChild !== d) {
+      // Other seller cards insert at firstChild when THEY are
+      // created (once each) — re-take the top, but only when the
+      // hub is actually out of place (guarded write).
+      scr.insertBefore(d, scr.firstChild);
+    }
+  }
+
+  /* ---------------- deep links into the existing tools ---------------- */
+  function gotoCard(id, focusId) {
+    if (typeof show === "function") show("screen-auctions");
+    setTimeout(function () {
+      var el = document.getElementById(id);
+      if (el) {
+        try { el.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { el.scrollIntoView(); }
+        el.classList.add("rp388-flash");
+        setTimeout(function () { el.classList.remove("rp388-flash"); }, 1600);
+      }
+      if (focusId) {
+        var f = document.getElementById(focusId);
+        if (f) { try { f.focus({ preventScroll: true }); } catch (e) { try { f.focus(); } catch (e2) {} } }
+      }
+    }, 90);
+  }
+  function goLive388() {
+    if (typeof startOwnLiveEntry === "function") { startOwnLiveEntry(); return; }
+    var g = document.getElementById("hsLive"); if (g) { g.click(); return; }
+    var b = document.getElementById("btnRoomGoLive"); if (b) { b.click(); return; }
+    if (typeof enterLiveStageCard === "function") enterLiveStageCard();
+  }
+  function openEarn388() {
+    if (typeof window.openEarnings === "function") window.openEarnings();
+  }
+
+  /* ---------------- render ---------------- */
+  function taskRow(go, html) {
+    return '<button type="button" class="rp388-task" data-rp388-go="' + go + '"><span>' + html + '</span><span class="go">Open ›</span></button>';
+  }
+  function renderHub() {
+    var box = document.getElementById("rp388Body"); if (!box) return;
+    var html;
+    if (!tok()) html = '<p class="rp388-empty">Sign in to see your Seller Hub.</p>';
+    else if (!S.hub) html = '<p class="rp388-empty">Loading…</p>';
+    else {
+      var hub = S.hub, t = hub.tasks || {}, o = hub.orders || {};
+      html = "<h4>🗓️ Today's tasks</h4>";
+      var rows = "";
+      if (t.toShip > 0)
+        rows += taskRow("orders", "📦 <b>" + t.toShip + "</b> order" + (t.toShip === 1 ? "" : "s") + " to ship" +
+          (t.overdue > 0 ? ' — <span class="bad">' + t.overdue + " overdue</span>" : ""));
+      if (t.showsToday > 0 && hub.nextShow) {
+        if (hub.nextShow.status === "live")
+          rows += taskRow("schedule", "🔴 You're LIVE now — <b>" + esc(hub.nextShow.title) + "</b>");
+        else
+          rows += taskRow("schedule", "📅 Show today at <b>" + esc(fmtTimeTz(hub.nextShow.startsAt, hub.tz)) + "</b> — " + esc(hub.nextShow.title));
+      }
+      if (t.itemsListed > 0)
+        rows += taskRow("items", "🛍️ <b>" + t.itemsListed + "</b> item" + (t.itemsListed === 1 ? "" : "s") + " listed for your shows");
+      html += rows || '<p class="rp388-empty">Nothing due today.</p>';
+
+      var h90 = (hub.health && hub.health.trailing90) || {};
+      var cf = (hub.health && hub.health.cancelFree) || {};
+      html += '<div class="rp388-grid">' +
+        '<button type="button" class="rp388-tile" data-rp388-go="orders"><span class="big">📦 ' + (o.toShip || 0) + ' to ship</span>' +
+        '<span class="small">' + (o.shipped || 0) + " shipped · " + (o.delivered || 0) + " delivered" +
+        (o.overdue > 0 ? ' · <span class="bad">' + o.overdue + " overdue</span>" : "") + "</span></button>" +
+        '<button type="button" class="rp388-tile" data-rp388-go="health"><span class="big">🩺 Health</span>' +
+        '<span class="small">On-time ' + pct(h90.onTimeRate) + " · Refund-free " + pct(h90.refundFreeRate) + " · Cancel-free " + pct(cf.rate) + "</span></button>" +
+        '<button type="button" class="rp388-tile" data-rp388-go="health"><span class="big">⭐ ' +
+        (hub.rating && hub.rating.count ? esc(String(hub.rating.average)) + " (" + hub.rating.count + ")" : "No ratings yet") + "</span>" +
+        '<span class="small">' + (hub.rating && hub.rating.count ? starsStr(Math.round(hub.rating.average)) + " from buyers" : "Buyers rate you after delivery") + "</span></button>" +
+        '<button type="button" class="rp388-tile" data-rp388-go="earn"><span class="big">💰 ' + moneyStr(hub.money && hub.money.cashableCents) + "</span>" +
+        '<span class="small">Cashable balance' + (hub.money && hub.money.pendingCents > 0 ? " · " + moneyStr(hub.money.pendingCents) + " pending" : "") + "</span></button>" +
+        "</div>";
+
+      html += "<h4>📅 My upcoming shows</h4>";
+      var ups = hub.upcomingShows || [];
+      if (!ups.length) html += '<p class="rp388-empty">No upcoming shows — schedule one above.</p>';
+      else html += ups.map(function (sh) {
+        return '<div class="rp388-show">' + (sh.status === "live" ? '<span class="rp388-live">🔴 LIVE</span>' : "") +
+          "<b>" + esc(sh.title) + '</b><div class="meta">' + esc(roomLbl(sh.room)) + " · " +
+          (sh.status === "live" ? "live now" : esc(fmtWhen(sh.startsAt))) + " · 🔖 " + (sh.bookmarkCount || 0) + "</div></div>";
+      }).join("");
+    }
+    if (html !== S.sig) { S.sig = html; box.innerHTML = html; }
+  }
+  function loadHub() {
+    if (!tok()) { S.hub = null; S.hubAt = Date.now(); renderHub(); return; }
+    api("GET", "/api/seller-hub").then(function (r) {
+      if (r.j && r.j.ok) { S.hub = r.j; S.hubAt = Date.now(); renderHub(); }
+    });
+  }
+
+  /* ---------------- actions (delegated) ---------------- */
+  document.addEventListener("click", function (ev) {
+    var t = ev.target && ev.target.closest ? ev.target.closest("[data-rp388-go]") : null;
+    if (!t) return;
+    var go = t.getAttribute("data-rp388-go");
+    if (go === "schedule") gotoCard("rp385Host", "rp385Title");
+    else if (go === "items") gotoCard("rp384Manager", "rp384Title");
+    else if (go === "orders") gotoCard("rp386Board");
+    else if (go === "health") gotoCard("rp387Health");
+    else if (go === "earn") openEarn388();
+    else if (go === "golive") goLive388();
+  });
+
+  /* ---------------- boot + light polling ---------------- */
+  function tick() {
+    try {
+      ensureHub();
+      var scr = document.getElementById("screen-auctions");
+      if (isVis(scr)) {
+        if (Date.now() - S.hubAt > 15000) loadHub(); else renderHub();
+      }
     } catch (e) { /* the module must never break the app */ }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setInterval(tick, 1500); tick(); });
