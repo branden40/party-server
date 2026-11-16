@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.399" /> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.400" /> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -9952,7 +9952,7 @@
          own mine checks compare against Online.myId, a socket id —
          the server re-checks authorship anyway). Two-tap arm, then
          the profile re-renders so the item leaves the grid. */
-      function rpMyId243() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.userId) || ""; } catch (e) { return ""; } }
+      function rpMyId243() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && ((a.user && a.user.id) || a.userId || a.id)) || ""; } catch (e) { return ""; } } // [RP-V7.400] the full session-record chain — the same source of truth myAccountId() reads; userId alone missed record shapes that carry the id on user.id
       function rpAcctDel243(path) {
         var tok = ""; try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); tok = (a && a.token) || ""; } catch (e) { }
         if (!tok) return Promise.resolve(false);
@@ -25765,7 +25765,7 @@
             if (pim243) pim243.addEventListener("click", function () {
               if (typeof window.rpViewsOpenPhoto === "function") {
                 var urls243 = (p.urls && p.urls.length) ? p.urls : (p.photo ? [p.photo] : []);
-                window.rpViewsOpenPhoto({ kind: "photopost", id: p.id, owner: null, ownerName: p.name || "", src: p.photo || "", views: 0, photoCount: urls243.length || 1, caption: p.caption || "", likes: p.srvLikes || 0, myLiked: !!p.liked, comments: p.comments || [], commentCount: (typeof p.commentCount === "number" ? p.commentCount : (p.comments || []).length), reposts: p.srvReposts || 0, myReposted: !!p.reposted, giftCount: p.giftCount || 0 /* [RP-V7.262] */ }, null);
+                window.rpViewsOpenPhoto({ kind: "photopost", id: p.id, owner: p.authorId || null, ownerName: p.name || "", src: p.photo || "", views: 0, photoCount: urls243.length || 1, caption: p.caption || "", likes: p.srvLikes || 0, myLiked: !!p.liked, comments: p.comments || [], commentCount: (typeof p.commentCount === "number" ? p.commentCount : (p.comments || []).length), reposts: p.srvReposts || 0, myReposted: !!p.reposted, giftCount: p.giftCount || 0 /* [RP-V7.262] */ }, null);
               }
             });
           }
@@ -26468,6 +26468,8 @@
         if (rp) rp.addEventListener("click", function () { photoRepostToggle123(item, rp); });
         var fb = root.querySelector(".reel-followbtn");
         if (fb) fb.addEventListener("click", function () { reelToggleFollow(item.author, fb); });
+        var db400 = root.querySelector(".pp-del243"); // [RP-V7.400]
+        if (db400) db400.addEventListener("click", function () { if (window.rpLbDel243) window.rpLbDel243("photo", item.postId, db400, { stay: true, after: function (ok) { if (ok) { try { pagerPhotosFetch123(); } catch (e) { } try { Reels._inflight258 = null; reelFetchFeed(); } catch (e) { } } } }); });
       }
       function rpPhotoMusicChip123(item) {
         if (item.music && item.music.trackId) {
@@ -26519,6 +26521,7 @@
             (item.mine
             ? '<span class="reel-act gc262-static" aria-hidden="true"' + ((item.giftCount || 0) > 0 ? "" : ' style="display:none"') + ">" + RPICO.gift + '<span class="gc262" data-gc262="photo:' + escHtml(item.postId) + '" data-gc-host="1">' + ((item.giftCount || 0) > 0 ? item.giftCount : "") + "</span></span>" /* [RP-V7.262] your own photo post: the count alone, above zero only */
             : '<button class="reel-act gift pp-gift" type="button">' + RPICO.gift + '<span class="gc262" data-gc262="photo:' + escHtml(item.postId) + '" data-gc-label="Gift">' + ((item.giftCount || 0) > 0 ? item.giftCount : "Gift") + "</span></button>") +
+            (item.mine ? '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>' : "") + /* [RP-V7.400] your own photo post — delete it right here (item.mine is the server's account-id stamp on the payload) */
           "</div>";
         while (rest.firstChild) card.appendChild(rest.firstChild);
         rpPhotoActsWire123(item, card);
@@ -26564,7 +26567,8 @@
           : '<button type="button" class="hp-act pp-gift"><span class="hp-ico">' + RPICO.gift + '</span><span class="hp-n gc262" data-gc262="photo:' + escHtml(item.postId) + '" data-gc-label="Gift">' + ((item.giftCount || 0) > 0 ? item.giftCount : "Gift") + "</span></button>") +
           '<button type="button" class="hp-act pp-share"><span class="hp-ico">' + RPICO.share + '</span><span class="hp-n">Share</span></button>' +
           '<button type="button" class="hp-act rp-save349" data-save349="photo:' + escHtml(item.postId) + '"><span class="hp-ico">' + RPICO.bookmark + '</span><span class="hp-n sv-lb349">Save</span></button>' + /* [RP-V7.349] */
-          '<button type="button" class="hp-act pp-repost' + (item.myReposted ? " reposted" : "") + '"><span class="hp-ico">' + RPICO.repost + '</span><span class="hp-n">' + (item.reposts || 0) + "</span></button>";
+          '<button type="button" class="hp-act pp-repost' + (item.myReposted ? " reposted" : "") + '"><span class="hp-ico">' + RPICO.repost + '</span><span class="hp-n">' + (item.reposts || 0) + "</span></button>" +
+          (item.mine ? '<button type="button" class="hp-act pp-del243"><span class="hp-ico" style="font-size:19px;line-height:1;">🗑</span><span class="hp-n">Delete</span></button>' : ""); // [RP-V7.400] your own photo post — delete it right here (item.mine is the server's account-id stamp)
         slide.appendChild(acts);
         rpPhotoActsWire123(item, slide);
         slide._rpPlay = function () { if (ctl) ctl.start(); };
@@ -27585,6 +27589,7 @@
             (item.mine
               ? (item.server ? '<span class="reel-act gc262-static" aria-hidden="true"' + ((item.giftCount || 0) > 0 ? "" : ' style="display:none"') + ">" + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(item.id) + '" data-gc-host="1">' + ((item.giftCount || 0) > 0 ? item.giftCount : "") + "</span></span>" : "") /* [RP-V7.262] your own reel: no gift button (never gift yourself) — the count alone, shown only when it is above zero */
               : '<button class="reel-act gift" type="button">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(item.id) + '" data-gc-label="Gift">' + ((item.giftCount || 0) > 0 ? item.giftCount : "Gift") + "</span></button>") +
+            (whoMine303 ? '<button class="reel-act pp-del243" type="button"><span style="font-size:19px;line-height:1;">🗑</span><span>Delete</span></button>' : "") + /* [RP-V7.400] your own server reel — delete it right here (authorship by account id: the whoMine303 test) */
             (canRemix ? '<button class="reel-act remix" type="button">' + RPICO.remix + '<span>Remix</span></button>' : "") +
             /* [RP-V7.106] Branden: "Move the icons" — the 👁 views moved
                from the bottom-left onto the rail. [RP-V7.107] the 😊
@@ -27906,6 +27911,8 @@
         card.querySelector(".share").addEventListener("click", function () { reelShare(item); });
         var rpb = card.querySelector(".repost");
         if (rpb) rpb.addEventListener("click", function () { reelToggleRepost(item, card); }); // [RP-V7.89]
+        var db400 = card.querySelector(".pp-del243"); // [RP-V7.400]
+        if (db400) db400.addEventListener("click", function () { if (window.rpLbDel243) window.rpLbDel243("reel", item.id, db400, { stay: true, after: function (ok) { if (ok) { try { Reels._inflight258 = null; reelFetchFeed(); } catch (e) { } } } }); });
         var gb = card.querySelector(".gift");
         if (gb) gb.addEventListener("click", function () {
           // [RP-V7.104] Server reels send a REAL gift to the poster — the
@@ -39567,22 +39574,24 @@ button.rp72-chip{ cursor:pointer; }
   function lbGiftBtn262(kind, id, n) { if (window.rpGiftCount262 && window.rpGiftCount262.seed) n = window.rpGiftCount262.seed(kind, id, n); return '<button class="reel-act gift pp-gift" type="button">' + lbIco241("gift") + '<span class="gc262" data-gc262="' + kind + ":" + esc(String(id == null ? "" : id)) + '" data-gc-label="Gift">' + ((n || 0) > 0 ? n : "Gift") + "</span></button>"; } // [RP-V7.325] seeded — a viewer rebuilt after an in-viewer gift shows the count
   function lbGiftMine262(kind, id, n) { if (window.rpGiftCount262 && window.rpGiftCount262.seed) n = window.rpGiftCount262.seed(kind, id, n); return '<span class="reel-act gc262-static" aria-hidden="true"' + ((n || 0) > 0 ? "" : ' style="display:none"') + ">" + lbIco241("gift") + '<span class="gc262" data-gc262="' + kind + ":" + esc(String(id == null ? "" : id)) + '" data-gc-host="1">' + ((n || 0) > 0 ? n : "") + "</span></span>"; } // [RP-V7.325] seeded, same reason
   function lbShareBtn241() { return '<button class="reel-act share pp-share" type="button">' + lbIco241("share") + "<span>Share</span></button>"; }
+  /* [RP-V7.400] Ownership is ACCOUNT-ID ONLY. The old display-name
+     fallback (ownerId missing -> compare names) is gone: display
+     names are not unique, so a member sharing an author's name was
+     shown Delete (and the own-post gift treatment) on posts that
+     are not theirs. Every caller that knows the author now passes
+     the account id (the feed openers and grid maps carry authorId);
+     an item with no author id is simply never "mine" here — and
+     the server re-checks authorship on the DELETE itself. */
   function lbMine241(ownerId, ownerName) {
     var myId = myAccountId();
-    if (ownerId && myId && String(ownerId) === String(myId)) return true;
-    if (!ownerId && ownerName) {
-      var a = acct();
-      var myName = (a && (a.name || (a.user && a.user.name))) || "";
-      if (myName && ownerName === myName) return true;
-    }
-    return false;
+    return !!(ownerId && myId && String(ownerId) === String(myId));
   }
   /* [RP-V7.243] Delete-your-own from the lightbox rail. The server
      routes (DELETE /api/reel/:id, DELETE /api/photo/:id) accept the
      author or the app owner; the rails below show the button only
      when lbMine241 says the item is yours (the server re-checks).
      Two-tap arm, like the Feed's onDelete. */
-  function lbDel243(kind, id, btn) {
+  function lbDel243(kind, id, btn, opts400) {
     if (!btn.classList.contains("armed243")) { btn.classList.add("armed243"); var sp243 = btn.querySelector("span:last-of-type"); if (sp243) sp243.textContent = "Tap again to delete"; return; }
     btn.classList.remove("armed243");
     var a243 = acct(); var tok243 = (a243 && a243.token) || "";
@@ -39592,13 +39601,15 @@ button.rp72-chip{ cursor:pointer; }
       .then(function (res) {
         if (res.ok) {
           try { window.toast(kind === "reel" ? "Reel deleted" : "Photo deleted"); } catch (e) { }
-          try { window.closeSheet(); } catch (e) { }
+          if (!(opts400 && opts400.stay)) { try { window.closeSheet(); } catch (e) { } } // [RP-V7.400] pager cards are not in a sheet — they refresh in place via opts400.after
           try { if (window.rpHomeRails243) window.rpHomeRails243.refresh(); } catch (e) { }
           try { if (window.RPFeed) window.RPFeed.refresh(); } catch (e) { }
+          if (opts400 && opts400.after) { try { opts400.after(true); } catch (e) { } } // [RP-V7.400]
         } else { try { window.toast("Couldn't delete that — it may not be yours."); } catch (e) { } }
       })
       .catch(function () { try { window.toast("Network error — try again."); } catch (e) { } });
   }
+  window.rpLbDel243 = lbDel243; // [RP-V7.400] the pagers (reelCard, the pager photo cards) ride this same two-tap delete with { stay: true }
   function railForPhoto241(it) {
     var ownerId = it.owner || null;
     var ownerName = it.ownerName || "";
@@ -49492,7 +49503,7 @@ html, body { overflow-x: clip; }
     /* ---------------- the photo-post flow -------------------------- */
     function gridItem243(pp) {
       var urls = (Array.isArray(pp.urls) && pp.urls.length) ? pp.urls : (pp.photo ? [pp.photo] : []);
-      return { kind: "photopost", id: pp.id, owner: null, ownerName: pp.author || "", src: pp.photo || "", textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: urls.length || 1, caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted };
+      return { kind: "photopost", id: pp.id, owner: pp.authorId || null, ownerName: pp.author || "", src: pp.photo || "", textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: urls.length || 1, caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted };
     }
     function share243(pp) {
       var url = (window.rpShareUrl269 && window.rpShareUrl269("post", pp.id)) || (location.origin + "/#photo-" + pp.id); // [RP-V7.269] Home-stream photo posts are server posts: share the share page
