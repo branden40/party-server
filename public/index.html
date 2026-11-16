@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.388" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.389" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -1088,6 +1088,25 @@
       @keyframes lvPotFloat { 0% { transform: translateY(8px) scale(.8); opacity: 0; } 18% { opacity: 1; transform: translateY(0) scale(1.1); } 30% { transform: translateY(-3px) scale(1); } 100% { transform: translateY(-32px) scale(1); opacity: 0; } }
       .lv-potchip { pointer-events: auto; border: 1px solid rgba(255,190,60,.75); background: rgba(46,32,4,.82); color: #ffd166; font-weight: 900; font-size: 12.5px; border-radius: 999px; padding: 5px 12px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 2px 14px rgba(255,180,40,.35); }
       .lv-potchip[hidden] { display: none; }
+      /* [RP-V7.389] Live Kit — giveaway chip, pinned note, watch bar,
+         winner overlay, raid banner. Black + the Plaza's true red. */
+      .lk-gwrow389 { margin: 2px 0; }
+      .lk-gwchip389 { pointer-events: auto; border: 1px solid rgba(224,36,36,.85); background: rgba(30,3,6,.88); color: #ffb3b3; font-weight: 900; font-size: 12.5px; border-radius: 999px; padding: 5px 12px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 2px 14px rgba(224,36,36,.4); }
+      .lk-gwchip389[hidden] { display: none; }
+      .lk-note389 { background: rgba(10,10,12,.9); border-left: 3px solid #e02424; color: #fff; font-weight: 700; font-size: 13px; padding: 7px 10px; border-radius: 8px; margin: 4px 0; }
+      .lk-note389[hidden] { display: none; }
+      .lk-watch389 { background: rgba(10,10,12,.8); color: #ffb3b3; font-weight: 800; font-size: 12px; padding: 5px 10px; border-radius: 999px; margin: 4px 0; display: inline-block; }
+      .lk-watch389[hidden] { display: none; }
+      .lk-winoverlay389 { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 40; }
+      .lk-winoverlay389[hidden] { display: none; }
+      .lk-wincard389 { background: rgba(8,8,10,.94); border: 2px solid #e02424; border-radius: 18px; padding: 22px 30px; text-align: center; box-shadow: 0 10px 44px rgba(224,36,36,.5); max-width: 84%; }
+      .lk-winoverlay389.show .lk-wincard389 { animation: lkWinPop389 .45s cubic-bezier(.2,1.6,.4,1); }
+      @keyframes lkWinPop389 { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+      .lk-wintitle389 { color: #fff; font-weight: 1000; font-size: 24px; }
+      .lk-winsub389 { color: #ffb3b3; font-weight: 800; font-size: 15px; margin-top: 4px; }
+      .lk-raidbanner389 { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 9999; background: rgba(8,8,10,.96); border: 2px solid #e02424; color: #fff; border-radius: 999px; padding: 10px 16px; font-weight: 800; font-size: 14px; display: flex; gap: 10px; align-items: center; cursor: pointer; box-shadow: 0 8px 30px rgba(224,36,36,.55); max-width: 92vw; }
+      .lk-raidcount389 { color: #ffb3b3; font-weight: 1000; }
+      .lk-raidclose389 { background: none; border: none; color: #fff; font-size: 14px; cursor: pointer; padding: 2px 4px; }
       /* [RP-V7.53] The REAL pot: an actual pot of gold on the live stage
          (Branden: the text chip alone read as "just a description"). It
          fills with gold as gifts land, swells toward 1.6x at the burst
@@ -3610,9 +3629,13 @@
               <button type="button" class="lv-fsclose" id="liveFsClose" aria-label="Close live"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
             </div>
             <div class="lv-titleline" id="liveTitleLine"></div>
+            <div class="lk-gwrow389"><button type="button" class="lk-gwchip389" id="lkGwChip389" hidden>🎁 Giveaway</button></div> <!-- [RP-V7.389] giveaway chip -->
+            <div class="lk-note389" id="lkNote389" hidden></div> <!-- [RP-V7.389] pinned show note -->
+            <div><span class="lk-watch389" id="lkWatch389" hidden></span></div> <!-- [RP-V7.389] watch & earn -->
             <div class="lv-comments" id="liveComments" aria-live="polite"></div>
             <div class="lv-aucpin" id="liveAucPin" hidden></div>
             <div class="lv-pollcard" id="livePollCard" hidden></div> <!-- [RP-V7.319] in-player live poll card -->
+            <div class="lk-winoverlay389" id="lkWinOverlay389" hidden><div class="lk-wincard389"><div class="lk-wintitle389" id="lkWinTitle389"></div><div class="lk-winsub389" id="lkWinSub389"></div></div></div> <!-- [RP-V7.389] winner overlay -->
             <div class="lv-bottombar" id="liveBottomBar">
               <div class="lv-commentbar" id="liveCommentBar" hidden>
                 <input id="liveCommentInput" type="text" maxlength="200" placeholder="Say something nice…" autocomplete="off" />
@@ -8816,6 +8839,15 @@
           socket.on("pot-update", onPotUpdate); // [RP-V7.41] Plaza Pot state changes in a live
           socket.on("poll-update", onPollUpdate319); // [RP-V7.319] Live poll state changes in a live
           socket.on("pot-drawn", onPotDrawn); // [RP-V7.41] Plaza Pot draw results (winner celebration)
+          socket.on("giveaway-update", onLkGwUpdate389); // [RP-V7.389] Live Kit giveaway state changes in a live
+          socket.on("winner-overlay", onLkWinOverlay389); // [RP-V7.389] shared winner overlay (giveaway draws + auction wins)
+          socket.on("live-note", onLkNote389); // [RP-V7.389] pinned show note for this live
+          socket.on("live-note-error", onLkNoteError389); // [RP-V7.389] show-note refusal (links / 18+)
+          socket.on("watch-progress", onLkWatchProgress389); // [RP-V7.389] watch-to-earn progress (server clock)
+          socket.on("watch-earn", onLkWatchEarn389); // [RP-V7.389] a watch-to-earn bonus landed
+          socket.on("raid-banner", onLkRaidBanner389); // [RP-V7.389] this live is raiding — tap to follow
+          socket.on("raid-sent", onLkRaidSent389); // [RP-V7.389] my raid confirmed — run the end + follow
+          socket.on("raid-error", onLkRaidError389); // [RP-V7.389] raid refused — my live stays on
           socket.on("dailypot-update", onDailyPotUpdate); // [RP-V7.42] Daily Pot state (whole-Plaza broadcast)
           socket.on("dailypot-burst", onDailyPotBurst); // [RP-V7.42] Daily Pot burst — secret moment 7–9 PM ET, the app-wide show
           socket.on("dailypot-milestone", onDailyPotMilestone); // [RP-V7.43] Daily Pot milestone shouts — Home card flash only
@@ -11840,6 +11872,7 @@
         });
         if (typeof syncLivePot === "function") syncLivePot(); // [RP-V7.41] refresh the pot chip for the live I'm in
         if (typeof syncLivePoll319 === "function") syncLivePoll319(); // [RP-V7.319] refresh the poll card for the live I'm in
+        if (typeof lkGwSync389 === "function") lkGwSync389(); // [RP-V7.389] refresh the live kit for the live I'm in
         if (typeof renderLiveNow === "function") renderLiveNow();
         if (typeof renderLiveDir === "function") renderLiveDir();
         try { rpInviteLinkOnSync(); } catch (e) { } // [RP-V7.65] a share-link invite routes on this same first sync — and outranks the generic invite below
@@ -17691,9 +17724,13 @@
         if (host && !liveChurchCtx() && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreSell">🔨 Sell — pin my auction in this live</button>'; // [RP-V7.89] no Sell row in a church live
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreSetup"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z\"/><path d=\"M14.5 6.5l3 3\"/></svg> Edit title &amp; topic</button>'; // [RP-V7.63] the setup sheet's new home: an optional editor, no longer a mandatory pre-live gate
         if (host) html += '<button type="button" class="btn-mini" id="lvMorePot">🪙 Plaza Pot' + (Live.pot && Live.pot.status === "open" ? " · " + (Live.pot.total || 0) + " charms · " + (Live.pot.entries || 0) + " in" : (liveAcctToken() ? "" : " · sign in to open")) + "</button>"; // [RP-V7.41] host opens/manages the pot from the ••• tray // [RP-V7.48] guest hosts see the sign-in requirement on the row itself
+        var lkGwRow389 = ""; try { if (typeof Lk389 !== "undefined" && Lk389.gw && Lk389.gw.status === "open") lkGwRow389 = " · " + (Lk389.gw.entries || 0) + " in"; } catch (e) { }
+        html += '<button type="button" class="btn-mini" id="lvMoreGw389">🎁 Giveaway' + lkGwRow389 + "</button>"; // [RP-V7.389] giveaways for everyone — hosts run them, viewers enter free
+        if (host) html += '<button type="button" class="btn-mini" id="lvMoreNote389">📌 Show note' + (typeof Lk389 !== "undefined" && Lk389.note ? " · pinned" : "") + "</button>"; // [RP-V7.389] host pins a show note
         if (host && !aucCtx) html += '<button type="button" class="btn-mini" id="lvMorePoll319">📊 Poll' + (Live.poll && Live.poll.status === "open" ? " · live now — tap to manage" : "") + "</button>"; // [RP-V7.319] host runs polls from the ••• tray — never on an auction show
         if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreBattle">⚔️ Battle</button>'; // [RP-V7.83] Battle's home is this sheet now (was a floating button) — regular lives only, never an auction show
         if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreAddPeople">＋ Add people</button>'; // [RP-V7.83] Add people moved with Battle
+        if (host) html += '<button type="button" class="btn-mini" id="lvMoreRaid389">🚀 Raid — end into another live</button>'; // [RP-V7.389] raid: end this live into another host's
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreEnd">⏹ End Live</button>';
         else if (onStage) html += '<button type="button" class="btn-mini" id="lvMoreLeave">Leave the stage</button>';
         if (!host) html += '<button type="button" class="btn-mini" id="lvMoreClose"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg> Close this live</button>';
@@ -17718,6 +17755,9 @@
         wire("lvMoreBattle", function () { closeSheet(); if (window.rpBattleOpen) window.rpBattleOpen(); }); // [RP-V7.83]
         wire("lvMoreAddPeople", function () { closeSheet(); if (window.rpAddPeopleOpen) window.rpAddPeopleOpen(); }); // [RP-V7.83]
         wire("lvMorePot", function () { closeSheet(); openPotSheet(); }); // [RP-V7.41]
+        wire("lvMoreGw389", function () { closeSheet(); openLkGwSheet389(); }); // [RP-V7.389]
+        wire("lvMoreNote389", function () { closeSheet(); openLkNoteSheet389(); }); // [RP-V7.389]
+        wire("lvMoreRaid389", function () { closeSheet(); openLkRaidSheet389(); }); // [RP-V7.389]
         wire("lvMorePoll319", function () { closeSheet(); openPollSheet319(); }); // [RP-V7.319]
         wire("lvMoreSetup", function () { closeSheet(); openLiveSetup(); }); // [RP-V7.63]
         wire("lvMoreEnd", function () { closeSheet(); liveEndMine(); });
@@ -17762,6 +17802,9 @@
           if (chip) chip.hidden = true;
           var potChipOff = $("livePotChip"); if (potChipOff) potChipOff.hidden = true; // [RP-V7.41]
           var potVisOff = $("livePotVisual"); if (potVisOff) potVisOff.hidden = true; // [RP-V7.53]
+          var lkGwOff389 = $("lkGwChip389"); if (lkGwOff389) lkGwOff389.hidden = true; // [RP-V7.389]
+          var lkNoteOff389 = $("lkNote389"); if (lkNoteOff389) lkNoteOff389.hidden = true; // [RP-V7.389]
+          var lkWatchOff389 = $("lkWatch389"); if (lkWatchOff389) lkWatchOff389.hidden = true; // [RP-V7.389]
           var pollCardOff = $("livePollCard"); if (pollCardOff) { pollCardOff.hidden = true; } var pollPanelOff = $("livePanel"); if (pollPanelOff) pollPanelOff.classList.remove("poll-on"); // [RP-V7.319]
           if (rail) rail.hidden = true;
           if (bar) bar.hidden = true;
@@ -19581,6 +19624,604 @@
           });
         });
       }
+
+      /* ---------- [RP-V7.389] Live Kit: giveaways, watch-to-earn,
+         show notes, winner overlay, raids ----------
+         The client half of the kit. All truth lives server-side
+         (giveaways.json + the money ledger for giveaways; the
+         server clock for watch-to-earn; memory for notes) — this
+         module only renders what the server hands it (giveaway
+         state fetches, giveaway-update / live-note / watch-progress
+         / winner-overlay / raid-banner socket events) and calls the
+         /api/giveaway/* routes with the account token, exactly like
+         the Plaza Pot module above. The watch bar's countdown is a
+         DISPLAY interpolation between server progress events — the
+         bonus itself is always server-timed. DOM writes are guarded
+         (text/hidden only change when the value actually changed). */
+      var Lk389 = {
+        gw: null, gwKey: "", gwFetchAt: 0,
+        note: "",
+        watch: null, watchTimer: 0, watchShown: "",
+        winTimer: 0,
+        myRaidAt: 0, pendingRaid: null, raid: null, raidTimer: 0,
+      };
+      function lkGwKey389() { return livePotKey(); }
+      function lkGet389(path) {
+        var tok = liveAcctToken();
+        var headers = {};
+        if (tok) headers["Authorization"] = "Bearer " + tok;
+        return fetch(path, { headers: headers })
+          .then(function (r) { return r.json(); })
+          .catch(function () { return null; });
+      }
+      function lkGwFetch389(key) {
+        return lkGet389("/api/giveaway/state?live=" + encodeURIComponent(key || ""));
+      }
+      function lkGwPrizeText389(g) {
+        if (!g) return "";
+        return g.prizeType === "item"
+          ? g.itemTitle || "a prize"
+          : potFmt(g.charms || 0) + " charms";
+      }
+      function lkGwSync389(force) {
+        if (!Live.active) {
+          Lk389.gw = null;
+          Lk389.gwKey = "";
+          Lk389.note = "";
+          Lk389.watch = null;
+          lkGwRender389();
+          lkNoteRender389();
+          lkWatchRender389();
+          return;
+        }
+        var key = lkGwKey389();
+        var changed = key !== Lk389.gwKey;
+        if (changed) {
+          Lk389.gwKey = key;
+          Lk389.gw = null;
+          Lk389.note = "";
+          Lk389.watch = null;
+          lkGwRender389();
+          lkNoteRender389();
+          lkWatchRender389();
+          try {
+            if (Online.socket) Online.socket.emit("live-note-get", {});
+          } catch (e) {}
+        }
+        var now = Date.now();
+        if (key && (force || changed || now - (Lk389.gwFetchAt || 0) > 15000)) {
+          Lk389.gwFetchAt = now;
+          lkGwFetch389(key).then(function (r) {
+            if (!Live.active || lkGwKey389() !== key) return;
+            Lk389.gw = r && r.ok ? r.giveaway : null;
+            lkGwRender389();
+            if (lkGwSheetShowing389()) renderLkGwSheet389();
+          });
+        }
+        lkWatchEnsure389();
+      }
+      function lkGwRender389() {
+        var chip = $("lkGwChip389");
+        if (!chip) return;
+        if (chip.__lkWired389 !== true) {
+          chip.__lkWired389 = true;
+          chip.addEventListener("click", function () { openLkGwSheet389(); });
+        }
+        var g = Lk389.gw;
+        var txt = null;
+        if (Live.active && g) {
+          if (g.status === "open")
+            txt =
+              "🎁 Giveaway · " + lkGwPrizeText389(g) + " · " + (g.entries || 0) + " in";
+          else if (
+            g.status === "drawn" &&
+            g.drawnAt &&
+            Date.now() - Date.parse(g.drawnAt) < 90000
+          )
+            txt = "🎁 Giveaway won by " + ((g.winner && g.winner.name) || "someone") + "!";
+        }
+        if (txt === null) {
+          if (!chip.hidden) chip.hidden = true;
+          return;
+        }
+        if (chip.textContent !== txt) chip.textContent = txt;
+        if (chip.hidden) chip.hidden = false;
+      }
+      function onLkGwUpdate389(data) {
+        if (!data || data.room !== livePotRoom()) return;
+        Lk389.gw = data.giveaway || null;
+        lkGwRender389();
+        if (lkGwSheetShowing389()) renderLkGwSheet389();
+      }
+      /* ----- winner overlay (giveaway draws + auction wins) ----- */
+      function lkShowWinOverlay389(data) {
+        var ov = $("lkWinOverlay389");
+        if (!ov) return;
+        var t = $("lkWinTitle389");
+        var s = $("lkWinSub389");
+        var title = "🏆 " + (data.name || "Winner");
+        var sub =
+          data.kind === "auction"
+            ? "won " + (data.text || "the auction")
+            : "won the giveaway — " + (data.text || "") + " 🎉";
+        if (t && t.textContent !== title) t.textContent = title;
+        if (s && s.textContent !== sub) s.textContent = sub;
+        if (ov.hidden) ov.hidden = false;
+        ov.classList.remove("show");
+        void ov.offsetWidth;
+        ov.classList.add("show");
+        if (Lk389.winTimer) clearTimeout(Lk389.winTimer);
+        Lk389.winTimer = setTimeout(function () {
+          var o2 = $("lkWinOverlay389");
+          if (o2) {
+            o2.hidden = true;
+            o2.classList.remove("show");
+          }
+        }, 5200);
+      }
+      function onLkWinOverlay389(data) {
+        if (!data || data.room !== livePotRoom()) return;
+        lkShowWinOverlay389(data);
+      }
+      /* ----- pinned show note ----- */
+      function lkNoteRender389() {
+        var el = $("lkNote389");
+        if (!el) return;
+        var txt = Live.active ? Lk389.note || "" : "";
+        if (!txt) {
+          if (!el.hidden) el.hidden = true;
+          return;
+        }
+        var full = "📌 " + txt;
+        if (el.textContent !== full) el.textContent = full;
+        if (el.hidden) el.hidden = false;
+      }
+      function onLkNote389(data) {
+        if (!data || data.room !== livePotRoom()) return;
+        Lk389.note = data.text || "";
+        lkNoteRender389();
+      }
+      function onLkNoteError389(data) {
+        toast((data && data.error) || "Couldn't set the note.", 3600);
+      }
+      function openLkNoteSheet389() {
+        if (!Live.active || !iAmHost()) return;
+        openSheet(
+          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+            '<div class="game-box"><h3>📌 Show note</h3>' +
+            '<p class="pot-sub">Pin a short note at the top of the chat for everyone watching. Plain text, no links.</p>' +
+            '<div class="field"><label for="lkNoteIn389">Note (max 140 characters)</label>' +
+            '<input class="online-input-full" id="lkNoteIn389" type="text" maxlength="140"/></div>' +
+            '<div class="btn-row" style="justify-content:center;"><button type="button" class="btn-primary" id="lkNoteSave389" style="width:auto; padding:10px 18px;">📌 Pin it</button>' +
+            '<button type="button" class="btn-mini" id="lkNoteClear389">Clear</button>' +
+            '<button class="btn-mini" data-act="close2">Done</button></div></div>'
+        );
+        wireLiveSheetClose();
+        var inp = $("lkNoteIn389");
+        if (inp) inp.value = Lk389.note || "";
+        var save = $("lkNoteSave389");
+        if (save)
+          save.addEventListener("click", function () {
+            var v = inp ? inp.value : "";
+            try {
+              if (Online.socket) Online.socket.emit("live-note-set", { text: v });
+            } catch (e) {}
+            closeSheet();
+            toast("📌 Note pinned for everyone in the live.");
+          });
+        var clear = $("lkNoteClear389");
+        if (clear)
+          clear.addEventListener("click", function () {
+            try {
+              if (Online.socket) Online.socket.emit("live-note-clear", {});
+            } catch (e) {}
+            Lk389.note = "";
+            lkNoteRender389();
+            closeSheet();
+          });
+      }
+      /* ----- watch-to-earn ----- */
+      function lkWatchEnsure389() {
+        if (Lk389.watchTimer) return;
+        Lk389.watchTimer = setInterval(function () { lkWatchRender389(); }, 1000);
+      }
+      function lkWatchRender389() {
+        var el = $("lkWatch389");
+        if (!el) return;
+        var w = Lk389.watch;
+        var txt = "";
+        if (Live.active && w && !iAmHost() && !w.ineligible) {
+          if ((w.earnedThisLive || 0) >= (w.liveCap || 6))
+            txt = "⏱ Watch & earn: maxed for this live ✓";
+          else if ((w.todayLeft || 0) <= 0)
+            txt = "⏱ Watch & earn: daily max reached ✓";
+          else {
+            var left = Math.max(
+              0,
+              (w.nextInMs || 0) - (Date.now() - (w.at || Date.now()))
+            );
+            var sec = Math.ceil(left / 1000);
+            txt =
+              "⏱ Watch & earn: " +
+              Math.floor(sec / 60) +
+              ":" +
+              ("0" + (sec % 60)).slice(-2) +
+              " to next +10 🎁";
+          }
+        }
+        if (txt !== Lk389.watchShown) {
+          Lk389.watchShown = txt;
+          el.textContent = txt;
+        }
+        var wantHidden = !txt;
+        if (el.hidden !== wantHidden) el.hidden = wantHidden;
+      }
+      function onLkWatchProgress389(data) {
+        if (!data || data.room !== livePotRoom()) return;
+        data.at = Date.now();
+        Lk389.watch = data;
+        lkWatchRender389();
+      }
+      function onLkWatchEarn389(data) {
+        if (!data || data.room !== livePotRoom()) return;
+        toast("⏱ Watch & earn: +" + (data.charms || 10) + " charms! 🎁", 2600);
+      }
+      /* ----- giveaway sheet ----- */
+      function lkGwSheetShowing389() { return !!$("lkGwSheetBody389"); }
+      function openLkGwSheet389() {
+        if (!Live.active) {
+          toast("Nobody is live right now.");
+          return;
+        }
+        openSheet(
+          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button><div class="game-box" id="lkGwSheetBody389"><h3>🎁 Giveaway</h3><p class="pot-sub">Loading the giveaway…</p></div>'
+        );
+        wireLiveSheetClose();
+        renderLkGwSheet389();
+      }
+      function renderLkGwSheet389() {
+        var body0 = $("lkGwSheetBody389");
+        if (!body0) return;
+        var key = lkGwKey389();
+        lkGwFetch389(key).then(function (r) {
+          var body = $("lkGwSheetBody389");
+          if (!body) return; // sheet moved on
+          var st = r && r.ok ? r.giveaway : null;
+          Lk389.gw = st;
+          lkGwRender389();
+          var host = iAmHost();
+          var signedIn = !!liveAcctToken();
+          var church = false;
+          try { church = liveChurchCtx(); } catch (e) {}
+          var html = "<h3>🎁 Giveaway</h3>";
+          var terms =
+            '<p class="age-note" style="margin-top:12px;">Free to enter — no purchase necessary. One entry per member. To win, you must follow the host and have been in this live at least 30 minutes when the winner is drawn. 18+ only.</p>';
+          if (!st) {
+            html += '<p class="pot-sub">No giveaway is open in this live yet.</p>';
+            if (host && church) {
+              html +=
+                '<p class="pot-sub">Giveaways are off in Fellowship lives — church rooms stay free of promotions too.</p>';
+            } else if (host && !signedIn) {
+              html +=
+                '<p class="pot-sub">🔐 Sign in to run a giveaway — the prize escrows from your account so it lands in the right place.</p>';
+            } else if (host) {
+              html +=
+                '<div class="field"><label>Prize</label><div class="btn-row" style="justify-content:center;">' +
+                '<button type="button" class="btn-mini" id="lkGwTypeCharms389">🪙 Charms</button>' +
+                '<button type="button" class="btn-mini" id="lkGwTypeItem389">📦 A show item</button></div></div>' +
+                '<div id="lkGwCharmsBox389"><div class="field"><label for="lkGwAmt389">Charms (min 100, from your balance)</label>' +
+                '<input class="online-input-full" id="lkGwAmt389" type="number" min="100" step="10" inputmode="numeric" value="100"/></div></div>' +
+                '<div id="lkGwItemBox389" hidden><div class="field"><label for="lkGwItemSel389">Your listed show item</label>' +
+                '<select class="online-input-full" id="lkGwItemSel389"><option value="">Loading your items…</option></select></div></div>' +
+                '<div class="field"><label for="lkGwMins389">Auto-draw timer (optional)</label>' +
+                '<select class="online-input-full" id="lkGwMins389"><option value="">No timer — I\'ll draw it myself</option>' +
+                '<option value="1">1 minute</option><option value="3">3 minutes</option>' +
+                '<option value="5">5 minutes</option><option value="10">10 minutes</option></select></div>' +
+                '<button type="button" class="btn-primary" id="lkGwOpenBtn389" style="width:100%; padding:13px;">🎁 Start the giveaway</button>';
+            } else {
+              html +=
+                '<p class="age-note">When the host starts a giveaway, entering is free — one tap and you\'re in.</p>';
+            }
+          } else if (st.status === "open") {
+            html +=
+              '<div class="pot-total">🎁 ' + escHtml(lkGwPrizeText389(st)) + "</div>" +
+              '<p class="pot-sub">' + st.entries + (st.entries === 1 ? " entry" : " entries") + " so far</p>";
+            if (st.endsAt)
+              html +=
+                '<p class="pot-sub">⏱ Auto-draws at ' +
+                new Date(st.endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) +
+                "</p>";
+            if (st.isHost) {
+              html +=
+                '<p class="pot-sub">' + (st.qualified != null ? st.qualified : 0) + " of " + st.entries +
+                " entrants qualify right now (follow you + 30 min in the live).</p>" +
+                '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
+                '<button type="button" class="btn-primary" id="lkGwDrawBtn389" style="width:auto; padding:10px 18px;">🎲 Draw the winner</button>' +
+                '<button type="button" class="btn-mini" id="lkGwCancelBtn389">Cancel giveaway</button></div>';
+            } else if (!signedIn) {
+              html += '<p class="pot-sub">Sign in to enter the giveaway — it\'s free.</p>';
+            } else if (st.joined) {
+              html +=
+                '<p class="pot-sub" style="color:#7ee787; font-weight:900;">You\'re in ✓ — good luck!</p>';
+            } else {
+              html +=
+                '<button type="button" class="btn-primary" id="lkGwEnterBtn389" style="width:100%; padding:14px;">🎁 ENTER — free</button>' +
+                '<p class="pot-sub">To win: follow ' + escHtml(st.hostName || "the host") +
+                " and be in this live at least 30 minutes.</p>";
+            }
+          } else if (st.status === "drawn") {
+            html +=
+              '<div class="pot-total">🎁 ' + escHtml(lkGwPrizeText389(st)) + " — won!</div>" +
+              '<div class="pot-winrow"><span>🏆 Winner</span><span>' +
+              escHtml((st.winner && st.winner.name) || "Winner") + "</span></div>" +
+              (st.qualified != null
+                ? '<p class="pot-sub">' + st.qualified + " entrant" + (st.qualified === 1 ? "" : "s") +
+                  " qualified (following + 30 min in the live) and were in the draw.</p>"
+                : "");
+            if (host)
+              html += '<p class="age-note">Want another round? Open the 🎁 Giveaway sheet again any time.</p>';
+          } else {
+            html +=
+              '<p class="pot-sub">This giveaway ended and the prize went back to the host.</p>';
+          }
+          html +=
+            terms +
+            '<p class="pot-err" id="lkGwErr389"></p>' +
+            '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" data-act="close2">Done</button></div>';
+          body.innerHTML = html;
+          wireLiveSheetClose();
+          function err(msg) {
+            var e2 = $("lkGwErr389");
+            if (e2) e2.textContent = msg || "";
+          }
+          function busy(btn, on) {
+            if (btn) {
+              btn.disabled = !!on;
+              btn.style.opacity = on ? ".55" : "";
+            }
+          }
+          var gwType389 = "charms";
+          var typeC = $("lkGwTypeCharms389");
+          var typeI = $("lkGwTypeItem389");
+          function syncType389() {
+            var cb = $("lkGwCharmsBox389");
+            var ib = $("lkGwItemBox389");
+            if (cb) cb.hidden = gwType389 !== "charms";
+            if (ib) ib.hidden = gwType389 !== "item";
+            if (typeC) typeC.classList.toggle("on", gwType389 === "charms");
+            if (typeI) typeI.classList.toggle("on", gwType389 === "item");
+          }
+          if (typeC)
+            typeC.addEventListener("click", function () { gwType389 = "charms"; syncType389(); });
+          if (typeI)
+            typeI.addEventListener("click", function () {
+              gwType389 = "item";
+              syncType389();
+              lkGet389("/api/auction-items/mine").then(function (rr) {
+                var sel = $("lkGwItemSel389");
+                if (!sel) return;
+                var items = ((rr && rr.items) || []).filter(function (x) {
+                  return x.status === "listed";
+                });
+                sel.innerHTML = items.length
+                  ? items
+                      .map(function (x) {
+                        return '<option value="' + escHtml(x.id) + '">' + escHtml(x.title) + "</option>";
+                      })
+                      .join("")
+                  : '<option value="">No listed items — add one in Show items first</option>';
+              });
+            });
+          syncType389();
+          var openBtn = $("lkGwOpenBtn389");
+          if (openBtn)
+            openBtn.addEventListener("click", function () {
+              var payload = { live: key, prizeType: gwType389 };
+              if (gwType389 === "charms") {
+                var amt = Math.floor(Number(($("lkGwAmt389") || {}).value) || 0);
+                if (!(amt >= 100)) { err("Prize must be at least 100 charms."); return; }
+                payload.charms = amt;
+              } else {
+                var iid = ($("lkGwItemSel389") || {}).value || "";
+                if (!iid) { err("Pick one of your listed show items first."); return; }
+                payload.itemId = iid;
+              }
+              var mins = ($("lkGwMins389") || {}).value || "";
+              if (mins) payload.minutes = Number(mins);
+              busy(openBtn, true);
+              potCall("/api/giveaway/open", payload).then(function (rr) {
+                busy(openBtn, false);
+                if (rr.json && rr.json.ok) {
+                  Lk389.gw = rr.json.giveaway;
+                  lkGwRender389();
+                  toast("🎁 Giveaway is OPEN — free to enter!");
+                  renderLkGwSheet389();
+                } else
+                  err(
+                    (rr.json && (rr.json.message || rr.json.error)) ||
+                      "Couldn't start the giveaway."
+                  );
+              });
+            });
+          var enterBtn = $("lkGwEnterBtn389");
+          if (enterBtn)
+            enterBtn.addEventListener("click", function () {
+              busy(enterBtn, true);
+              potCall("/api/giveaway/enter", { live: key }).then(function (rr) {
+                busy(enterBtn, false);
+                if (rr.json && rr.json.ok) {
+                  Lk389.gw = rr.json.giveaway;
+                  lkGwRender389();
+                  toast("🎁 You're in the giveaway — good luck! 🍀");
+                  renderLkGwSheet389();
+                } else err((rr.json && rr.json.error) || "Couldn't enter the giveaway.");
+              });
+            });
+          var drawBtn = $("lkGwDrawBtn389");
+          if (drawBtn)
+            drawBtn.addEventListener("click", function () {
+              busy(drawBtn, true);
+              potCall("/api/giveaway/draw", { live: key }).then(function (rr) {
+                busy(drawBtn, false);
+                if (rr.json && rr.json.ok) {
+                  Lk389.gw = rr.json.giveaway;
+                  lkGwRender389();
+                  renderLkGwSheet389();
+                } else err((rr.json && rr.json.error) || "Couldn't draw the giveaway.");
+              });
+            });
+          var cancelBtn = $("lkGwCancelBtn389");
+          if (cancelBtn)
+            cancelBtn.addEventListener("click", function () {
+              busy(cancelBtn, true);
+              potCall("/api/giveaway/cancel", { live: key }).then(function (rr) {
+                busy(cancelBtn, false);
+                if (rr.json && rr.json.ok) {
+                  Lk389.gw = rr.json.giveaway;
+                  lkGwRender389();
+                  toast("🎁 Giveaway cancelled — the prize went back to your balance.");
+                  renderLkGwSheet389();
+                } else err((rr.json && rr.json.error) || "Couldn't cancel the giveaway.");
+              });
+            });
+        });
+      }
+      /* ----- raids ----- */
+      function openLkRaidSheet389() {
+        if (!Live.active || !iAmHost()) return;
+        var list = [];
+        try {
+          list = liveDirectoryList().filter(function (e) {
+            return e && !e.mine && e.regKey && !e.priv;
+          });
+        } catch (e) {}
+        var html =
+          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+          '<div class="game-box"><h3>🚀 Raid another live</h3>' +
+          '<p class="pot-sub">Ending your live sends your viewers to theirs — they get a banner to tap and follow you over. Your pot and any giveaway settle the usual way.</p>';
+        if (!list.length)
+          html += '<p class="pot-sub">Nobody else is live right now.</p>';
+        else
+          html += list
+            .map(function (e, i) {
+              return (
+                '<button type="button" class="btn-mini" style="display:block; width:100%; margin:6px 0; text-align:left;" data-lkraid389="' +
+                i + '">🔴 ' + escHtml(e.name || "Host") +
+                (e.title ? " — “" + escHtml(e.title) + "”" : "") +
+                " · 👁 " + (e.n || 1) + "</button>"
+              );
+            })
+            .join("");
+        html +=
+          '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" data-act="close2">Not now</button></div></div>';
+        openSheet(html);
+        wireLiveSheetClose();
+        document.querySelectorAll("[data-lkraid389]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var e = list[Number(b.getAttribute("data-lkraid389"))];
+            if (!e) return;
+            Lk389.myRaidAt = Date.now();
+            Lk389.pendingRaid = { room: e.room, name: e.name || "Host", key: e.regKey };
+            try {
+              if (Online.socket)
+                Online.socket.emit("live-raid", { targetKey: e.regKey });
+            } catch (err) {}
+            closeSheet();
+            toast("🚀 Raiding " + (e.name || "them") + "…");
+            setTimeout(function () {
+              if (Lk389.pendingRaid && Lk389.pendingRaid.key === e.regKey) {
+                Lk389.pendingRaid = null;
+                Lk389.myRaidAt = 0;
+                toast("Raid didn't confirm — your live is still on.", 3600);
+              }
+            }, 3000);
+          });
+        });
+      }
+      function onLkRaidSent389() {
+        var pr = Lk389.pendingRaid;
+        if (!pr) return;
+        Lk389.pendingRaid = null;
+        setTimeout(function () {
+          try { liveEndMine(); } catch (err) {}
+          setTimeout(function () {
+            try {
+              if (Online.room !== pr.room) openLiveFromList(pr.room);
+            } catch (err) {}
+          }, 700);
+        }, 300);
+      }
+      function onLkRaidError389(data) {
+        if (Lk389.pendingRaid) {
+          Lk389.pendingRaid = null;
+          Lk389.myRaidAt = 0;
+        }
+        toast((data && data.error) || "Raid didn't go through.", 3600);
+      }
+      function onLkRaidBanner389(data) {
+        if (!data || !data.targetRoom) return;
+        if (Date.now() - (Lk389.myRaidAt || 0) < 15000) return; // I started this raid
+        lkShowRaidBanner389(data);
+      }
+      function lkShowRaidBanner389(data) {
+        lkHideRaidBanner389();
+        var el = document.createElement("div");
+        el.id = "lkRaidBanner389";
+        el.className = "lk-raidbanner389";
+        el.innerHTML =
+          '<span class="lk-raidtxt389">🚀 <b></b> is raiding <b></b> — tap to follow!</span>' +
+          '<span class="lk-raidcount389"></span>' +
+          '<button type="button" class="lk-raidclose389" aria-label="Dismiss">✕</button>';
+        var bs = el.querySelectorAll("b");
+        if (bs[0]) bs[0].textContent = data.fromName || "The host";
+        if (bs[1]) bs[1].textContent = data.targetName || "another live";
+        document.body.appendChild(el);
+        Lk389.raid = {
+          el: el,
+          targetRoom: data.targetRoom,
+          expiresAt: data.expiresAt || Date.now() + 20000,
+        };
+        el.addEventListener("click", function () {
+          var room = Lk389.raid && Lk389.raid.targetRoom;
+          lkHideRaidBanner389();
+          if (room) openLiveFromList(room);
+        });
+        var closeBtn = el.querySelector(".lk-raidclose389");
+        if (closeBtn)
+          closeBtn.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            lkHideRaidBanner389();
+          });
+        var tick389 = function () {
+          if (!Lk389.raid) return;
+          var left = Math.max(
+            0,
+            Math.round(((Lk389.raid.expiresAt || 0) - Date.now()) / 1000)
+          );
+          var c = el.querySelector(".lk-raidcount389");
+          var label = left + "s";
+          if (c && c.textContent !== label) c.textContent = label;
+          if (left <= 0) {
+            lkHideRaidBanner389();
+            return;
+          }
+          Lk389.raidTimer = setTimeout(tick389, 500);
+        };
+        tick389();
+      }
+      function lkHideRaidBanner389() {
+        if (Lk389.raidTimer) {
+          clearTimeout(Lk389.raidTimer);
+          Lk389.raidTimer = 0;
+        }
+        if (Lk389.raid && Lk389.raid.el) {
+          try { Lk389.raid.el.remove(); } catch (e) {}
+        }
+        Lk389.raid = null;
+        var old = document.getElementById("lkRaidBanner389");
+        if (old) old.remove();
+      }
+
       /* ---------- [RP-V7.319] Live polls ----------
          Host-run polls inside a live, modelled on Facebook's
          in-player poll (Branden's call, Nov 10, 2026). FREE voting
