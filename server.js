@@ -6639,7 +6639,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.394", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.395", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -16961,6 +16961,8 @@ const MONEY_GIFT_TABLE = {
   // exception — id + price mirror the client's GIFT_SHOP exactly;
   // catalog now 81 gifts.
   goldengoal: 2700,
+  // [RP-V7.395] +5 weekly gifts (Nov 16, 2026) — ids + prices mirror the client's GIFT_SHOP exactly; catalog now 86 gifts.
+  cometkite: 40, jellybloom: 90, rainbowfalls: 240, clockworkowl: 640, prismleviathan: 3400,
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
@@ -17022,6 +17024,11 @@ const MONEY_GIFT_INFO = {
   volcano: { name: "Volcano", tier: "big" },
   foxshot: { name: "Fox Shot", tier: "big" }, // [RP-V7.343] new gift (Branden, Nov 11, 2026)
   goldengoal: { name: "Golden Goal", tier: "big" }, // [RP-V7.370] new gift (Branden, Nov 14, 2026)
+  cometkite: { name: "Comet Kite", tier: "small" }, // [RP-V7.395] weekly gifts Nov 16, 2026
+  jellybloom: { name: "Jellyfish Bloom", tier: "small" },
+  rainbowfalls: { name: "Rainbow Falls", tier: "medium" },
+  clockworkowl: { name: "Clockwork Owl", tier: "medium" },
+  prismleviathan: { name: "Prism Leviathan", tier: "big" },
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
   fattuesday: { name: "Fat Tuesday Frenzy", tier: "big" },
@@ -28584,7 +28591,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.394", online: players.size })
+  res.json({ ok: true, version: "RP-V7.395", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
