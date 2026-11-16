@@ -6636,7 +6636,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.390", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.391", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -23091,7 +23091,7 @@ function writeAuctionItems384(db) {
   storeWriteJson(AUCTION_ITEMS_FILE384, db);
 }
 function auctionItemPublic384(it) {
-  return {
+  const pub384 = {
     id: it.id,
     hostId: it.hostId,
     hostName: it.hostName,
@@ -23109,6 +23109,8 @@ function auctionItemPublic384(it) {
     auctionId: it.auctionId || null,
     createdAt: it.createdAt,
   };
+  if (it.room) pub384.room = it.room; // [RP-V7.391] only room-tagged items carry it
+  return pub384;
 }
 // Called from endAuction for auctions that ran a show item.
 function auctionItemOnEnd384(itemId, auctionId, cancelled, winner) {
@@ -23146,6 +23148,15 @@ app.post("/api/auction-items", (req, res) => {
   const startBidRaw = Number(b.startBid);
   if (!isFinite(startBidRaw) || Math.floor(startBidRaw) < 1 || Math.floor(startBidRaw) > 100000)
     return res.status(400).json({ ok: false, error: "bad-start-bid" });
+  // [RP-V7.391] optional category room — additive; absent = uncategorised
+  let room391 = null;
+  if (b.room !== undefined && b.room !== null && String(b.room).trim() !== "") {
+    room391 = String(b.room).trim().slice(0, 24);
+    if (room391 === "faith")
+      return res.status(400).json({ ok: false, error: "church-room" });
+    if (SHOW_ROOMS385.indexOf(room391) < 0)
+      return res.status(400).json({ ok: false, error: "bad-room" });
+  }
   const db = readAuctionItems384();
   const it = {
     id: "itm-" + crypto.randomBytes(8).toString("hex"),
@@ -23161,6 +23172,7 @@ app.post("/api/auction-items", (req, res) => {
     preBids: {},
     highPreBid: null,
     auctionId: null,
+    room: room391, // [RP-V7.391] optional category room (null = uncategorised)
     createdAt: new Date().toISOString(),
   };
   db.items.push(it);
@@ -24829,6 +24841,147 @@ app.post("/api/saved-searches/:id/remove", (req, res) => {
   writeSavedSearches390(db);
   res.json({ ok: true });
 });
+// ---------------------------------------------------------------------------
+// [RP-V7.391] CATEGORIES + TRENDING — live-shopping browse (Whatnot
+// parity build 9; Branden, Nov 15, 2026: "everything whatnot has to
+// offer build it"). READ-ONLY: three public GET endpoints computed
+// from state that already exists — the live registry via
+// livesSnapshot() (the exact snapshot the Live Now rail renders, so
+// viewer counts here can never disagree with the rail), the V7.385
+// shows store rendered with showPublic385 itself, and the V7.384
+// items store rendered with auctionItemPublic384 itself. No parallel
+// taxonomy: a "category" IS one of the 21 rooms.
+//
+// A live files under the room its host entered from — the origin
+// room ("org") captured in liveTicketCfg299 at live-register (the
+// V7.89 signal showOnLiveStart385 already trusts for show matching),
+// accepted only when that cfg was written by the very register that
+// created this registry entry (startedAt match within 5s), so a
+// stale cfg from an earlier live can never misfile a beat-healed
+// one. A live whose origin cannot be proven files under NO category;
+// it still counts in Trending, which is cross-category. Private
+// lives are excluded from every payload here: discovery shows them
+// badged only to the people allowed in, and a public browse API
+// must not leak their existence.
+//
+// CHURCH GUARD: "faith" (Christian Fellowship — the prayer room is
+// a scenic space inside that same room, and the client's
+// rpChurchRoom agrees faith is the only church room id) is
+// commerce-free, so its category page carries lives + shows ONLY —
+// no items, no offer entry points. Item creation refuses a "faith"
+// room tag outright (see the POST /api/auction-items hook), so no
+// item can ever be filed under Fellowship.
+//
+// ITEMS carry an OPTIONAL room tag, new in this build (additive
+// field on POST /api/auction-items; items created before it have
+// no room and simply never file under a category — nothing is
+// backfilled or fabricated). auctionItemPublic384 exposes `room`
+// only when the record carries one, so roomless item payloads stay
+// byte-identical.
+//
+// TRENDING here is a live-shopping view ONLY: current lives ranked
+// by concurrent viewers (ties: earlier start first). It shares
+// nothing with the settled content Trending/Viral algorithms (Add
+// Sound trending, the Viral board) — no shared state, no reads, no
+// overrides in either direction.
+// ---------------------------------------------------------------------------
+const CATEGORY_ROOMS391 = SHOW_ROOMS385; // the canonical 21 room ids
+const CHURCH_ROOMS391 = ["faith"]; // mirrors the client's rpChurchRoom (V7.89)
+const CATEGORY_ITEM_CAP391 = 20; // recently listed items per category page
+const TRENDING_CAP391 = 10;
+
+function liveOrg391(snap) {
+  try {
+    const cfg = liveTicketCfg299.get(snap.key);
+    if (
+      cfg &&
+      cfg.org &&
+      Math.abs((cfg.startedAt || 0) - (snap.startedAt || 0)) <= 5000
+    )
+      return String(cfg.org);
+  } catch (e) {}
+  return "";
+}
+function catLivePublic391(s) {
+  return {
+    key: s.key,
+    room: s.room, // the live-<devKey> room a viewer joins
+    org: liveOrg391(s), // the category room the host entered from ("" = unproven)
+    hostId: s.hostAccountId || null,
+    name: s.name,
+    title: s.title,
+    topic: s.topic,
+    photo: s.photo || null,
+    startedAt: s.startedAt,
+    viewers: s.watchers || 0, // the snapshot's own count — the rail's number
+    ticketPrice: s.ticketPrice || 0,
+  };
+}
+function catLives391() {
+  return livesSnapshot().filter((s) => !s.priv).map(catLivePublic391);
+}
+function catShowsPayload391(req) {
+  // the GET /api/shows payload, verbatim — same filter, same renderer
+  const adb = readAccounts();
+  const me = accountForToken(adb, req);
+  const photos = showPhotoMap385(adb);
+  const now = Date.now();
+  return readShows385()
+    .shows.filter(
+      (sh) =>
+        sh.status === "live" ||
+        (sh.status === "scheduled" && sh.startsAt > now - SHOW_LIST_GRACE_MS385)
+    )
+    .sort((a, b) => a.startsAt - b.startsAt)
+    .map((sh) => showPublic385(sh, photos, me ? me.id : null));
+}
+function catItems391(room) {
+  return readAuctionItems384()
+    .items.filter((it) => it.status === "listed" && it.room === room)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, CATEGORY_ITEM_CAP391)
+    .map(auctionItemPublic384);
+}
+app.get("/api/categories", (req, res) => {
+  const lives = catLives391();
+  const shows = catShowsPayload391(req);
+  const listed = readAuctionItems384().items.filter(
+    (it) => it.status === "listed" && it.room
+  );
+  const categories = CATEGORY_ROOMS391.map((room) => {
+    const church = CHURCH_ROOMS391.indexOf(room) >= 0;
+    return {
+      room,
+      church,
+      liveCount: lives.filter((l) => l.org === room).length,
+      upcomingCount: shows.filter((sh) => sh.room === room).length,
+      itemCount: church
+        ? 0
+        : listed.filter((it) => it.room === room).length,
+    };
+  });
+  res.json({ ok: true, categories });
+});
+app.get("/api/trending-lives", (req, res) => {
+  const lives = catLives391()
+    .sort((a, b) => b.viewers - a.viewers || a.startedAt - b.startedAt)
+    .slice(0, TRENDING_CAP391);
+  res.json({ ok: true, lives });
+});
+app.get("/api/categories/:room", (req, res) => {
+  const room = String(req.params.room || "");
+  if (CATEGORY_ROOMS391.indexOf(room) < 0)
+    return res.status(404).json({ ok: false, error: "unknown-room" });
+  const church = CHURCH_ROOMS391.indexOf(room) >= 0;
+  res.json({
+    ok: true,
+    room,
+    church,
+    lives: catLives391().filter((l) => l.org === room),
+    shows: catShowsPayload391(req).filter((sh) => sh.room === room),
+    items: church ? [] : catItems391(room),
+  });
+});
 // [RP-V7.80] The client (rpWn) settle path — account auth only, and
 // the winner is ALWAYS the authenticated caller: a settle request
 // can spend the caller's own charms to pay a host, but it can never
@@ -26450,7 +26603,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.390", online: players.size })
+  res.json({ ok: true, version: "RP-V7.391", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
