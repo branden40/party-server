@@ -6636,7 +6636,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.387", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.388", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -23621,6 +23621,111 @@ app.get("/api/sellers/:id/health", (req, res) => {
     },
   });
 });
+
+// ---------------------------------------------------------------------------
+// [RP-V7.388] SELLER HUB aggregate (Whatnot parity build 6). ONE
+// read-only rollup behind the client's Seller Hub card: every number
+// is produced by the SAME helpers the source endpoints use — the
+// orders counts run the identical loop as /api/orders/selling,
+// health comes from sellerHealth387, the rating from reviewAgg387 —
+// so the hub can never disagree with the tool it deep-links into.
+// No new stores, no money logic, no writes of its own (the orders
+// reconcile inside ordersForRequest386 is the pre-existing read
+// pattern every seller endpoint already shares).
+//
+// MONEY: a pure read of the earnings record. cashableCents =
+// availableCents + holds whose unlockAt has passed — exactly the
+// figure /api/money/me reports after its lazy unlock, computed
+// without performing the unlock; pendingCents = holds still
+// maturing. (moneyProcessCashouts state changes stay exclusive to
+// the Earn endpoints; the hub's tap-through opens Earn for the
+// authoritative cash-out view.)
+//
+// "TODAY" for shows is read in the seller's stored timezone (the
+// orders settings tz, default America/New_York), compared as local
+// calendar dates via Intl parts — the orderWeekKey386 technique.
+// A show that is LIVE right now always counts as today's.
+// nextShow: the live show if one is running, else the soonest
+// scheduled show still in the future; a scheduled show whose start
+// has passed without going live is neither (it is on its way to
+// missed via the V7.385 sweep).
+// ---------------------------------------------------------------------------
+function hubLocalDate388(tz, ms) {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = {};
+    for (const p of fmt.formatToParts(new Date(ms))) parts[p.type] = p.value;
+    return parts.year + "-" + parts.month + "-" + parts.day;
+  } catch (e) {
+    return "";
+  }
+}
+app.get("/api/seller-hub", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const me = ctx.user.id;
+  const now = Date.now();
+  const odb = ordersForRequest386(ctx);
+  const st = orderSettings386(odb, me);
+  // orders — the /api/orders/selling counts loop, unchanged
+  const counts = { toShip: 0, shipped: 0, delivered: 0, refunded: 0, overdue: 0 };
+  for (const o of odb.orders) {
+    if (o.hostId !== me) continue;
+    if (o.status === "to-ship") {
+      counts.toShip++;
+      if (now > o.shipBy) counts.overdue++;
+    } else if (o.status === "shipped") counts.shipped++;
+    else if (o.status === "delivered") counts.delivered++;
+    else if (o.status === "refunded") counts.refunded++;
+  }
+  // shows — mine, upcoming (scheduled/live), soonest first
+  const sdb = readShows385();
+  const photos = showPhotoMap385(ctx.db);
+  const upcoming = sdb.shows
+    .filter((sh) => sh && sh.hostId === me && (sh.status === "scheduled" || sh.status === "live"))
+    .sort((a, b) => a.startsAt - b.startsAt);
+  const todayKey = hubLocalDate388(st.tz, now);
+  let showsToday = 0;
+  for (const sh of upcoming)
+    if (sh.status === "live" || hubLocalDate388(st.tz, sh.startsAt) === todayKey)
+      showsToday++;
+  const nextRaw =
+    upcoming.find((sh) => sh.status === "live") ||
+    upcoming.find((sh) => sh.startsAt > now) ||
+    null;
+  // items — how many of mine are listed right now
+  const idb = readAuctionItems384();
+  let itemsListed = 0;
+  for (const it of idb.items)
+    if (it && it.hostId === me && it.status === "listed") itemsListed++;
+  // money — pure read of the earnings record (see header)
+  const mdb = readMoney();
+  const earn = moneyEarningsFor(mdb, me);
+  let maturedCents = 0, pendingCents = 0;
+  for (const h of earn.held || []) {
+    if (!h) continue;
+    if (Date.parse(h.unlockAt) <= now) maturedCents += h.cents || 0;
+    else pendingCents += h.cents || 0;
+  }
+  res.json({
+    ok: true,
+    sellerId: me,
+    sellerName: orderName386(ctx.db, me),
+    tz: st.tz,
+    tasks: { toShip: counts.toShip, overdue: counts.overdue, showsToday, itemsListed },
+    orders: counts,
+    nextShow: nextRaw ? showPublic385(nextRaw, photos, me) : null,
+    upcomingShows: upcoming.slice(0, 10).map((sh) => showPublic385(sh, photos, me)),
+    health: sellerHealth387(odb, readAuctionStats387(), me),
+    rating: reviewAgg387(readReviews387(), me),
+    money: { cashableCents: (earn.availableCents || 0) + maturedCents, pendingCents },
+  });
+});
 // [RP-V7.80] The client (rpWn) settle path — account auth only, and
 // the winner is ALWAYS the authenticated caller: a settle request
 // can spend the caller's own charms to pay a host, but it can never
@@ -25242,7 +25347,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.387", online: players.size })
+  res.json({ ok: true, version: "RP-V7.388", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
