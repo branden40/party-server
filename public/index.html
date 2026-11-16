@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.380" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.381" /> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -24941,7 +24941,7 @@
               '<button class="mom-act cmt" type="button">' + RPICO.comment + ' <span class="cc">' + momCommentTotal(p) + '</span></button>' +
               ((p.srv) ? '<button class="mom-act repost' /* [RP-V7.101] own photos too — reshare */ + (p.reposted ? " reposted" : "") + '" type="button">' + RPICO.repost + ' <span class="rc">' + (p.srvReposts || 0) + '</span></button>' : "") + /* [RP-V7.89] server posts only — seed/demo posts have no server record to repost */
               (p.mine ? "" : '<button class="mom-act gift" type="button">' + RPICO.gift + ' Gift' + (p.srv ? ' <span class="gc262" data-gc262="photo:' + escHtml(p.id) + '"' + ((p.giftCount || 0) > 0 ? ">" + p.giftCount : ' style="display:none">') + "</span>" : "") + "</button>") + /* [RP-V7.262] the post's gift count, in this row's own count idiom — server posts only (a demo post has no server record to count against) */
-              '<button class="mom-act share" type="button">' + RPICO.share + ' Share</button>' + // [RP-V7.243] Facebook parity: Share on every photo post
+              '<button class="mom-act share" type="button" aria-label="Share" title="Share">' + RPICO.share + '</button>' + // [SHARE-ICON] RP-V7.381 icon-only share pill (Branden) — [RP-V7.243] Facebook parity: Share on every photo post
             '</div>'; /* [RP-V7.107] reactions removed everywhere (Branden) */
           card.querySelector(".like").addEventListener("click", function () { momToggleLike(p.id); });
           /* [RP-V7.123] in-card set flip (manual only — no auto-advance in feeds) */
@@ -48646,7 +48646,7 @@ html, body { overflow-x: clip; }
           '<button class="mom-act cmt" type="button">' + (ico.comment || "") + ' <span class="cc">' + fi.commentCount + "</span></button>" +
           '<button class="mom-act repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + (ico.repost || "") + ' <span class="rc">' + fi.reposts + "</span></button>" +
           (fi.mine ? "" : '<button class="mom-act gift" type="button">' + (ico.gift || "") + ' Gift <span class="gc262" data-gc262="photo:' + esc243(pp.id) + '"' + ((pp.giftCount || 0) > 0 ? ">" + pp.giftCount : ' style="display:none">') + "</span></button>") + /* [RP-V7.262] the post's gift count beside the word, hidden at zero */
-          '<button class="mom-act share" type="button">' + (ico.share || "") + " Share</button>" +
+          '<button class="mom-act share" type="button" aria-label="Share" title="Share">' + (ico.share || "") + "</button>" + /* [SHARE-ICON] RP-V7.381 icon-only share pill (Branden) */
         "</div>";
       var lk = card.querySelector(".like"); if (lk && acts.photoLike) lk.addEventListener("click", function () { acts.photoLike(fi, lk); });
       var cm = card.querySelector(".cmt"); if (cm && acts.photoComments) cm.addEventListener("click", function () { acts.photoComments(fi); });
@@ -49439,6 +49439,8 @@ html, body { overflow-x: clip; }
 .reel-act > .gico375 { font-size: 27px; }
 .hp-act .hp-ico > .gico375 { font-size: 29px; }
 .mom-act.gift .gc262 { margin-left: 2px; margin-right: -12px; padding: 10px 12px; border-left: 1.5px solid var(--line); border-radius: 0 999px 999px 0; } /* [RP-V7.374] the count number is a fat tap target now: the padding grows its hit area ~3x while the equal negative margin keeps every layout exactly where it was — Branden (Nov 14, 2026): tapping the little number to see the gifts was too hard */
+/* [SHARE-ICON] RP-V7.381 the post-row Share pill is icon-only now (Branden: "just the symbol to make more room") — hold a full-size tap target and center the arrow; the screen-scoped selectors outrank the home243 pack, which otherwise zeroes min-height and widens the padding back */
+.mom-act.share, #screen-home243 .mom-act.share, #screen-moments .mom-act.share { min-height: 40px; min-width: 40px; justify-content: center; padding-left: 10px; padding-right: 10px; }
 .gcb-list325 { display: flex; flex-direction: column; margin-top: 4px; }
 .gcb-row325 { display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-bottom: 1px solid rgba(127,127,127,.28); }
 .gcb-row325:last-child { border-bottom: none; }
