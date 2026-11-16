@@ -6636,7 +6636,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.385", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.386", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -14320,7 +14320,7 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", // [RP-V7.386] order updates ride the "gifts" switch like tips, never SMS // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
  like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups" }; // [RP-V7.307] owner signup alerts ride the "signups" switch // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true, signup: true }; // [RP-V7.307] signup alerts text too — the kind only ever targets the owner, and only once Twilio is configured (notifySmsReady)
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -22348,6 +22348,7 @@ app.post("/api/money/auction-refund-host", lockedHandler("auction-refund-host", 
   if (!r.ok)
     return res.status(r.error === "already-refunded" ? 409 : 400).json(r);
   writeMoney(mdb);
+  orderSyncPersist386(mdb, ctx.db); // [RP-V7.386] the order flips to refunded
   res.json(r);
 }));
 // Owner approves an open claim → the refund executes.
@@ -22366,6 +22367,7 @@ app.post("/api/owner/auction-refund", lockedHandler("owner-auction-refund", (req
   const r = executeAuctionRefund383(mdb, s, "owner");
   if (!r.ok) return res.status(400).json(r);
   writeMoney(mdb);
+  orderSyncPersist386(mdb, readAccounts()); // [RP-V7.386] the order flips to refunded
   console.log("[RP-V7.383] owner approved auction claim — refund executed:", auctionId);
   res.json(r);
 }));
@@ -22901,6 +22903,425 @@ function showSweep385() {
   }
   if (changed) writeShows385(db);
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.386] SELLER ORDERS BOARD + WEEKLY BUNDLING (Whatnot parity
+// build 4; Branden, Nov 15, 2026: "everything whatnot has to offer
+// build it"). Until this build a settled auction simply ended:
+// shipping was a host/buyer matter outside the app with no structure
+// at all. Now every settled win becomes an ORDER in orders.json:
+//   - CREATED at settle time (hooks in endAuction + the HTTP settle
+//     path) by reconciling against mdb.auctionSettlements; the same
+//     reconcile runs on every orders read and in the sweep, so wins
+//     that settled before this build backfill on first contact, and
+//     a V7.383 refund flips its order to refunded wherever it lands
+//     (host refund + owner-approved claim hooks call the same sync).
+//   - The seller works a board: To ship (ship-by = settledAt + 3
+//     days, overdue computed on read) / Shipped / Done. Mark shipped
+//     takes an optional tracking string and notifies the buyer via
+//     notifyActivity (kind "order", riding the member's "gifts"
+//     switch like tips; bell + email, never SMS).
+//   - The buyer sees their purchases with status and confirms
+//     receipt (shipped -> delivered). A sweep auto-delivers shipped
+//     orders 14 days after shipping when no claim interrupted them
+//     (a refunded order is never auto-delivered — its status has
+//     already left "shipped").
+//   - WEEKLY BUNDLING: a seller's to-ship orders group by buyer for
+//     the current week — Monday 00:00 through Sunday 23:59 in the
+//     SELLER's stored timezone (default America/New_York). Shipping
+//     a bundle ships every order in it under one tracking value and
+//     notifies each buyer exactly once. bundleId is deterministic:
+//     "bun-<mondayYYYY-MM-DD>-<buyerId>".
+//   - Seller settings (per seller, in the same store): a
+//     signature-confirmation flag (surfaced on their orders so the
+//     seller remembers to ask for it — the app takes no shipping
+//     money, so nothing enforces it) and their timezone.
+// MONEY IS NEVER TOUCHED by this build: no balance, earning or
+// ledger writes anywhere below. Item titles resolve through the
+// V7.384 items store (the item that ran an auction keeps its
+// auctionId after it sells); plain socket auctions never persisted
+// a title, so those orders honestly read "Auction win".
+// ---------------------------------------------------------------------------
+const ORDERS_FILE386 =
+  process.env.ORDERS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "orders.json");
+const ORDER_SHIP_MS386 = 3 * 24 * 60 * 60 * 1000; // ship-by: settle + 3 days
+const ORDER_AUTODELIVER_MS386 = 14 * 24 * 60 * 60 * 1000; // shipped + 14d -> delivered
+const ORDER_SWEEP_MS386 = Math.max(1000, Number(process.env.ORDER_SWEEP_MS) || 60 * 1000);
+const ORDER_TZS386 = [
+  "America/New_York", "America/Chicago", "America/Denver",
+  "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu", "UTC",
+];
+function readOrders386() {
+  return storeReadJson(
+    ORDERS_FILE386,
+    (d) =>
+      !!(
+        d &&
+        Array.isArray(d.orders) &&
+        d.settings &&
+        typeof d.settings === "object" &&
+        !Array.isArray(d.settings)
+      ),
+    { orders: [], settings: {} },
+    "orders"
+  );
+}
+function writeOrders386(db) {
+  storeWriteJson(ORDERS_FILE386, db);
+}
+function orderSettings386(db, sellerId) {
+  const s = (db.settings && db.settings[sellerId]) || {};
+  return {
+    signatureRequired: !!s.signatureRequired,
+    tz: ORDER_TZS386.indexOf(s.tz) >= 0 ? s.tz : "America/New_York",
+  };
+}
+function orderName386(adb, id) {
+  const u = ((adb && adb.users) || []).find((x) => x && x.id === id);
+  return u ? u.name || u.username || "Member" : "Member";
+}
+function orderTitle386(auctionId) {
+  try {
+    const items = readAuctionItems384().items || [];
+    for (const it of items)
+      if (it && it.auctionId === auctionId && it.title)
+        return String(it.title).slice(0, 80);
+  } catch (e) {}
+  return "Auction win";
+}
+// Reconcile the orders store against the money db's settlements:
+// create orders for settled wins that lack one, flip refunded ones.
+// mdb/adb are snapshots the caller already holds. Returns true when
+// the orders store changed (the caller persists).
+function orderSync386(odb, mdb, adb) {
+  let changed = false;
+  const sets = (mdb && mdb.auctionSettlements) || {};
+  const byId = {};
+  for (const o of odb.orders) byId[o.id] = o;
+  for (const auctionId of Object.keys(sets)) {
+    const s = sets[auctionId];
+    if (!s || !s.ok) continue;
+    let o = byId[auctionId];
+    if (!o) {
+      const settledMs = Date.parse(s.at || "") || Date.now();
+      o = {
+        id: auctionId,
+        hostId: String(s.hostId || ""),
+        hostName: orderName386(adb, s.hostId),
+        winnerId: String(s.winnerId || ""),
+        winnerName: orderName386(adb, s.winnerId),
+        itemTitle: orderTitle386(auctionId),
+        bidDollars: Number(s.bidDollars) || 0,
+        bidCharms: Math.round(Number(s.bidCharms) || 0),
+        settledAt: settledMs,
+        shipBy: settledMs + ORDER_SHIP_MS386,
+        status: "to-ship",
+        shippedAt: null,
+        tracking: null,
+        bundleId: null,
+        deliveredAt: null,
+        refundedAt: null,
+        createdAt: new Date().toISOString(),
+      };
+      odb.orders.push(o);
+      byId[auctionId] = o;
+      changed = true;
+    }
+    if (s.refunded && o.status !== "refunded") {
+      o.status = "refunded";
+      o.refundedAt =
+        (s.refunded && s.refunded.at) || new Date().toISOString();
+      changed = true;
+    }
+  }
+  return changed;
+}
+function orderSyncPersist386(mdb, adb) {
+  try {
+    const odb = readOrders386();
+    if (orderSync386(odb, mdb, adb)) writeOrders386(odb);
+  } catch (e) {
+    /* an order must never break a settle or a refund */
+  }
+}
+// "YYYY-MM-DD" of the Monday that opens the week containing whenMs,
+// in the given IANA timezone (en-CA parts; the UTC date math is only
+// a calendar shift on the already-local Y/M/D, so DST never enters).
+function orderWeekKey386(tz, whenMs) {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+    });
+    const parts = {};
+    for (const p of fmt.formatToParts(new Date(whenMs || Date.now())))
+      parts[p.type] = p.value;
+    const back =
+      { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[parts.weekday] || 0;
+    const d = new Date(
+      Date.UTC(+parts.year, +parts.month - 1, +parts.day) - back * 86400000
+    );
+    return d.toISOString().slice(0, 10);
+  } catch (e) {
+    return "";
+  }
+}
+function orderPublic386(o, settings) {
+  const now = Date.now();
+  return {
+    id: o.id,
+    hostId: o.hostId,
+    hostName: o.hostName,
+    winnerId: o.winnerId,
+    winnerName: o.winnerName,
+    itemTitle: o.itemTitle,
+    bidDollars: o.bidDollars,
+    bidCharms: o.bidCharms,
+    settledAt: o.settledAt,
+    shipBy: o.shipBy,
+    status: o.status,
+    overdue: o.status === "to-ship" && now > o.shipBy,
+    shippedAt: o.shippedAt || null,
+    tracking: o.tracking || null,
+    bundleId: o.bundleId || null,
+    deliveredAt: o.deliveredAt || null,
+    refundedAt: o.refundedAt || null,
+    signatureRequired: settings ? !!settings.signatureRequired : false,
+  };
+}
+function orderCleanTracking386(v) {
+  const t = String(v || "").replace(/[<>&"']/g, "").trim().slice(0, 64);
+  return t || null;
+}
+function orderNotifyShipped386(o, count) {
+  const hostName = o.hostName || "Your seller";
+  const text =
+    count && count > 1
+      ? "📦 " + hostName + " shipped your bundle of " + count + " orders"
+      : "📦 " + hostName + " shipped your order — " + o.itemTitle;
+  notifyActivity({
+    toId: o.winnerId,
+    kind: "order",
+    actorId: o.hostId,
+    actorName: hostName,
+    text,
+    emailSubject: "Your Rizz Plaza order shipped",
+    emailText:
+      text +
+      (o.tracking ? "\nTracking: " + o.tracking : "") +
+      "\n\nOpen Rizz Plaza to see your purchases: https://rizzplaza.com\n\n— The Rizz Plaza team",
+  });
+}
+// Prepare a synced orders store for an endpoint: reconcile against
+// fresh money + accounts snapshots, persist when anything changed.
+function ordersForRequest386(ctx) {
+  const odb = readOrders386();
+  if (orderSync386(odb, readMoney(), ctx.db)) writeOrders386(odb);
+  return odb;
+}
+app.get("/api/orders/selling", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const odb = ordersForRequest386(ctx);
+  const st = orderSettings386(odb, ctx.user.id);
+  const mine = odb.orders
+    .filter((o) => o.hostId === ctx.user.id)
+    .sort((a, b) => b.settledAt - a.settledAt);
+  const counts = { toShip: 0, shipped: 0, delivered: 0, refunded: 0, overdue: 0 };
+  const now = Date.now();
+  for (const o of mine) {
+    if (o.status === "to-ship") {
+      counts.toShip++;
+      if (now > o.shipBy) counts.overdue++;
+    } else if (o.status === "shipped") counts.shipped++;
+    else if (o.status === "delivered") counts.delivered++;
+    else if (o.status === "refunded") counts.refunded++;
+  }
+  res.json({
+    ok: true,
+    orders: mine.slice(0, 200).map((o) => orderPublic386(o, st)),
+    counts,
+    settings: st,
+  });
+});
+app.get("/api/orders/buying", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const odb = ordersForRequest386(ctx);
+  const mine = odb.orders
+    .filter((o) => o.winnerId === ctx.user.id)
+    .sort((a, b) => b.settledAt - a.settledAt);
+  res.json({
+    ok: true,
+    orders: mine
+      .slice(0, 200)
+      .map((o) => orderPublic386(o, orderSettings386(odb, o.hostId))),
+  });
+});
+app.post("/api/orders/bundles/ship", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const buyerId = String((req.body || {}).buyerId || "").trim();
+  if (!buyerId) return res.status(400).json({ ok: false, error: "buyer-required" });
+  const tracking = orderCleanTracking386((req.body || {}).tracking);
+  const odb = ordersForRequest386(ctx);
+  const st = orderSettings386(odb, ctx.user.id);
+  const wk = orderWeekKey386(st.tz, Date.now());
+  const bundleId = "bun-" + wk + "-" + buyerId;
+  const targets = odb.orders.filter(
+    (o) =>
+      o.hostId === ctx.user.id &&
+      o.winnerId === buyerId &&
+      o.status === "to-ship" &&
+      orderWeekKey386(st.tz, o.settledAt) === wk
+  );
+  if (!targets.length)
+    return res.status(409).json({ ok: false, error: "nothing-to-ship" });
+  const now = Date.now();
+  for (const o of targets) {
+    o.status = "shipped";
+    o.shippedAt = now;
+    o.tracking = tracking;
+    o.bundleId = bundleId;
+  }
+  writeOrders386(odb);
+  orderNotifyShipped386(targets[0], targets.length);
+  res.json({
+    ok: true,
+    bundleId,
+    shipped: targets.map((o) => orderPublic386(o, st)),
+  });
+});
+app.post("/api/orders/:id/ship", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const odb = ordersForRequest386(ctx);
+  const o = odb.orders.find((x) => x.id === String(req.params.id || ""));
+  if (!o) return res.status(404).json({ ok: false, error: "order-not-found" });
+  if (o.hostId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-seller" });
+  if (o.status === "refunded")
+    return res.status(409).json({ ok: false, error: "order-refunded" });
+  if (o.status !== "to-ship")
+    return res.status(409).json({ ok: false, error: "not-to-ship", status: o.status });
+  o.status = "shipped";
+  o.shippedAt = Date.now();
+  o.tracking = orderCleanTracking386((req.body || {}).tracking);
+  writeOrders386(odb);
+  orderNotifyShipped386(o, 1);
+  res.json({
+    ok: true,
+    order: orderPublic386(o, orderSettings386(odb, ctx.user.id)),
+  });
+});
+app.post("/api/orders/:id/delivered", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const odb = ordersForRequest386(ctx);
+  const o = odb.orders.find((x) => x.id === String(req.params.id || ""));
+  if (!o) return res.status(404).json({ ok: false, error: "order-not-found" });
+  if (o.winnerId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-buyer" });
+  if (o.status === "refunded")
+    return res.status(409).json({ ok: false, error: "order-refunded" });
+  if (o.status !== "shipped")
+    return res.status(409).json({ ok: false, error: "not-shipped", status: o.status });
+  o.status = "delivered";
+  o.deliveredAt = Date.now();
+  writeOrders386(odb);
+  res.json({
+    ok: true,
+    order: orderPublic386(o, orderSettings386(odb, o.hostId)),
+  });
+});
+app.get("/api/orders/bundles", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const odb = ordersForRequest386(ctx);
+  const st = orderSettings386(odb, ctx.user.id);
+  const wk = orderWeekKey386(st.tz, Date.now());
+  const groups = {};
+  let dirty = false;
+  const mine = odb.orders
+    .filter(
+      (o) =>
+        o.hostId === ctx.user.id &&
+        o.status === "to-ship" &&
+        orderWeekKey386(st.tz, o.settledAt) === wk
+    )
+    .sort((a, b) => a.settledAt - b.settledAt);
+  for (const o of mine) {
+    const bundleId = "bun-" + wk + "-" + o.winnerId;
+    if (o.bundleId !== bundleId) {
+      o.bundleId = bundleId;
+      dirty = true;
+    }
+    const g =
+      groups[o.winnerId] ||
+      (groups[o.winnerId] = {
+        bundleId,
+        buyerId: o.winnerId,
+        buyerName: o.winnerName,
+        orders: [],
+      });
+    g.orders.push(orderPublic386(o, st));
+  }
+  if (dirty) writeOrders386(odb);
+  const bundles = Object.keys(groups)
+    .map((k) => groups[k])
+    .sort((a, b) => String(a.buyerName).localeCompare(String(b.buyerName)));
+  res.json({ ok: true, weekKey: wk, tz: st.tz, bundles });
+});
+app.post("/api/orders/settings", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const b = req.body || {};
+  const odb = readOrders386();
+  const cur = orderSettings386(odb, ctx.user.id);
+  if (typeof b.signatureRequired === "boolean")
+    cur.signatureRequired = b.signatureRequired;
+  if (b.tz !== undefined) {
+    if (ORDER_TZS386.indexOf(String(b.tz)) < 0)
+      return res.status(400).json({ ok: false, error: "bad-tz" });
+    cur.tz = String(b.tz);
+  }
+  if (!odb.settings || typeof odb.settings !== "object") odb.settings = {};
+  odb.settings[ctx.user.id] = cur;
+  writeOrders386(odb);
+  res.json({ ok: true, settings: cur });
+});
+// The orders sweep: backfill/flip via the settle reconcile, then
+// auto-deliver shipped orders 14 days after shipping (a refunded
+// order has already left "shipped", so it can never auto-deliver).
+function orderSweep386() {
+  const odb = readOrders386();
+  let changed = orderSync386(odb, readMoney(), readAccounts());
+  const now = Date.now();
+  for (const o of odb.orders) {
+    if (
+      o.status === "shipped" &&
+      o.shippedAt &&
+      now - o.shippedAt > ORDER_AUTODELIVER_MS386
+    ) {
+      o.status = "delivered";
+      o.deliveredAt = now;
+      o.autoDelivered = true;
+      changed = true;
+    }
+  }
+  if (changed) writeOrders386(odb);
+}
 // [RP-V7.80] The client (rpWn) settle path — account auth only, and
 // the winner is ALWAYS the authenticated caller: a settle request
 // can spend the caller's own charms to pay a host, but it can never
@@ -22931,6 +23352,7 @@ app.post("/api/money/auction-settle", lockedHandler("auction-settle", (req, res)
     winningBid,
   });
   writeMoney(mdb);
+  if (result.ok) orderSyncPersist386(mdb, ctx.db); // [RP-V7.386] a settled win becomes an order
   if (result.ok) return res.json(result);
   const status =
     result.error === "teen-party"
@@ -24521,7 +24943,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.385", online: players.size })
+  res.json({ ok: true, version: "RP-V7.386", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
@@ -25504,6 +25926,7 @@ io.on("connection", (socket) => {
           winningBid: a.currentBid,
         });
         writeMoney(mdb);
+        if (r && r.ok) orderSyncPersist386(mdb, adb); // [RP-V7.386] a settled win becomes an order
         return r;
       })
         .then((r) => {
@@ -25962,6 +26385,19 @@ const showSweepTimer385 = setInterval(() => {
   } catch (e) {}
 }, SHOW_SWEEP_MS385);
 if (showSweepTimer385.unref) showSweepTimer385.unref();
+
+// [RP-V7.386] Orders sweep: once on boot, then on the ORDER_SWEEP_MS
+// cadence (60s default): settle backfill + refund flips + the
+// 14-day auto-deliver for shipped orders.
+try {
+  orderSweep386();
+} catch (e) {}
+const orderSweepTimer386 = setInterval(() => {
+  try {
+    orderSweep386();
+  } catch (e) {}
+}, ORDER_SWEEP_MS386);
+if (orderSweepTimer386.unref) orderSweepTimer386.unref();
 
 // [RP-V7.133] Share-in expiry sweep: once on boot (already run beside
 // the store load above), then every 10 minutes — a parked share and
