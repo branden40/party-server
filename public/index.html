@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.400" /> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.401" /> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -4803,6 +4803,23 @@
         if (toastTimer) clearTimeout(toastTimer);
         toastTimer = setTimeout(function () { t.classList.remove("show"); }, ms || 2600);
       }
+      /* [RP-V7.401] Copyright-scan notice (Branden, Nov 16, 2026 — the
+         Facebook-style heads-up): the server already scans every posted
+         video's own audio (RP-V7.286), but the uploader saw nothing.
+         Video-post flows call this right after their "posted" toast;
+         it cycles the SAME toast element to the scan notice once that
+         toast clears (afterMs ≈ the posted toast's duration + a beat).
+         Photo and text posts never call it. Display only — posting,
+         scanning, muting and notifications are untouched. (The inline
+         display reset guards the Workout module's own toast, which
+         pokes #toast's style.display directly and would otherwise
+         leave it "none".) */
+      function rpScanNotice401(afterMs) {
+        try {
+          setTimeout(function () { try { var tt401 = $("toast"); if (tt401) tt401.style.display = ""; toast("🔍 Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted.", 4600); } catch (e) { } }, afterMs || 3400);
+        } catch (e) { }
+      }
+      try { window.rpScanNotice401 = rpScanNotice401; } catch (e) { }
       function hearts(n) {
         var s = "";
         for (var i = 0; i < 5; i++) s += i < Math.round(n / 20) ? "♥" : "♡";
@@ -28920,6 +28937,7 @@
         toast("🎬 Your Reel is posted!", 3200);
         postMetaReset156(); // [RP-V7.156]
         reelTryUpload(meta.id);
+        try { var mm401 = reelMetaById(meta.id); if (!(mm401 && mm401.musicTrackId && mm401.origVol === 0)) rpScanNotice401(3400); } catch (e) { } // [RP-V7.401] scan notice cycles in after the posted toast — skipped only when a Plaza catalog track fully replaced the video's audio (the one case the server doesn't scan)
         try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
       }
       function reelSaveDraft() {
@@ -28990,6 +29008,7 @@
           setMomMode("reels");
           toast("🎬 Your Reel is posted!", 3200);
           reelTryUpload(meta.id);
+          try { var md401 = reelMetaById(meta.id); if (!(md401 && md401.musicTrackId && md401.origVol === 0)) rpScanNotice401(3400); } catch (e) { } // [RP-V7.401] same scan notice on the draft-post path
           try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
       }
       function reelDeleteDraft(id) {
@@ -43550,6 +43569,7 @@ button.rp72-chip{ cursor:pointer; }
     $("rpWoTitle").value = "";
     showView("browse"); renderShelves();
     toast("Posted to the Workout Room 💪");
+    try { if (window.rpScanNotice401) window.rpScanNotice401(3500); } catch (e) { } // [RP-V7.401] workout videos are scanned too (RP-V7.286) — notice cycles in after this module's own toast timer (3400ms) has run out
     uploadPost(meta, blob);
   }
   function uploadPost(meta, blob) {
@@ -44522,6 +44542,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     if (!q.failed) toastS("All " + q.files.length + " stories are up 🎬 — friends can see them for 24 hours.", 4200);
     else if (posted > 0) toastS("Posted " + posted + " of " + q.files.length + " stories — " + q.failed + " didn't post (" + q.failWhy + ").", 5200);
     else toastS("None of those posted — " + q.failWhy + ".", 5200);
+    if (q.sawVideo401) { try { if (window.rpScanNotice401) window.rpScanNotice401(q.failed ? 5400 : 4400); } catch (e) { } } // [RP-V7.401] a video in the queue gets the scan notice after the summary toast
   }
   function onStoryFile(file, inQ331) {
     if (!file) return;
@@ -44559,8 +44580,9 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) {
-            if (inQ331 && storyQ) { storyQNext(); return; } // [RP-V7.331] posted — advance to the next picked file
+            if (inQ331 && storyQ) { if (!isPhoto) storyQ.sawVideo401 = true; storyQNext(); return; } // [RP-V7.331] posted — advance to the next picked file // [RP-V7.401] remember a video rode this queue, for the finish notice
             toastS("Your story is up 🎬 — friends can see it for 24 hours.", 3600);
+            if (!isPhoto) { try { if (window.rpScanNotice401) window.rpScanNotice401(3800); } catch (e) { } } // [RP-V7.401] video stories are scanned too (RP-V7.286) — photo stories never show this
             window.closeSheet();
             loadTray();
           } else if (inQ331 && storyQ) { // [RP-V7.331] report it, count it, keep the queue moving
