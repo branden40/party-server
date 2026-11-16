@@ -6636,7 +6636,7 @@ app.get("/api/diag/wm316", async (req, res) => {
     steps.encode.ok &&
     steps.ffmpegPath.ok !== false
   );
-  res.json({ ok, version: "RP-V7.389", checkedAt, durationMs: Date.now() - started, steps });
+  res.json({ ok, version: "RP-V7.390", checkedAt, durationMs: Date.now() - started, steps });
 });
 // [RP-V7.316] The download itself. In-app playback never touches
 // this route — it exists only for the Download actions.
@@ -14992,7 +14992,7 @@ app.get("/api/members", (req, res) => {
 // in either direction. notifyActivity NEVER throws — a notification
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
-const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", // [RP-V7.386] order updates ride the "gifts" switch like tips, never SMS // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
+const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", // [RP-V7.390] offer + saved-search alerts ride the "gifts" switch like order, never SMS // [RP-V7.386] order updates ride the "gifts" switch like tips, never SMS // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
  like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups" }; // [RP-V7.307] owner signup alerts ride the "signups" switch // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true, signup: true }; // [RP-V7.307] signup alerts text too — the kind only ever targets the owner, and only once Twilio is configured (notifySmsReady)
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
@@ -23165,6 +23165,7 @@ app.post("/api/auction-items", (req, res) => {
   };
   db.items.push(it);
   writeAuctionItems384(db);
+  savedSearchMatch390(it.title, ctx.user.id, it.hostName); // [RP-V7.390] saved-search match ping
   res.json({ ok: true, item: auctionItemPublic384(it) });
 });
 app.get("/api/auction-items/mine", (req, res) => {
@@ -23387,6 +23388,7 @@ app.post("/api/shows", (req, res) => {
   };
   db.shows.push(sh);
   writeShows385(db);
+  savedSearchMatch390(sh.title, ctx.user.id, sh.hostName); // [RP-V7.390] saved-search match ping
   res.json({ ok: true, show: showPublic385(sh, showPhotoMap385(ctx.db), ctx.user.id) });
 });
 app.get("/api/shows", (req, res) => {
@@ -23695,6 +23697,7 @@ function orderSync386(odb, mdb, adb) {
         refundedAt: null,
         createdAt: new Date().toISOString(),
       };
+      if (auctionId.indexOf("offer-") === 0) o.via = "offer"; // [RP-V7.390] offer-accepted sale
       odb.orders.push(o);
       byId[auctionId] = o;
       changed = true;
@@ -23743,7 +23746,7 @@ function orderWeekKey386(tz, whenMs) {
 }
 function orderPublic386(o, settings) {
   const now = Date.now();
-  return {
+  const out390 = {
     id: o.id,
     hostId: o.hostId,
     hostName: o.hostName,
@@ -23763,6 +23766,8 @@ function orderPublic386(o, settings) {
     refundedAt: o.refundedAt || null,
     signatureRequired: settings ? !!settings.signatureRequired : false,
   };
+  if (o.via) out390.via = o.via; // [RP-V7.390] only offer orders carry it
+  return out390;
 }
 function orderCleanTracking386(v) {
   const t = String(v || "").replace(/[<>&"']/g, "").trim().slice(0, 64);
@@ -24397,6 +24402,432 @@ app.get("/api/seller-hub", (req, res) => {
     rating: reviewAgg387(readReviews387(), me),
     money: { cashableCents: (earn.availableCents || 0) + maturedCents, pendingCents },
   });
+});
+// ---------------------------------------------------------------------------
+// [RP-V7.390] ACTIVITY CENTER — buyer offers + saved searches (Whatnot
+// parity build 8; Branden, Nov 15, 2026: "everything whatnot has to
+// offer build it"). The client half is one "🧾 Activity" surface with
+// Purchases / Offers / Saved tabs; Purchases rides the EXISTING
+// /api/orders/buying untouched. This server block adds:
+//
+//   OFFERS on V7.384 pre-listed items (offers.json, hardened store).
+//   A signed-in adult (never the host) offers a dollar amount on a
+//   LISTED item — an offer may sit below the start bid; the host
+//   decides. One ACTIVE offer per member per item: re-offering
+//   replaces it. No money is held while an offer stands. ACCEPT is a
+//   binding sale settled NOW through settleAuctionMoney itself — the
+//   exact auction path (buyer debited offerDollars x 100 charms,
+//   host credited 90% via recordAuctionEarning, platform 10%;
+//   test-funds buyer settles charms-only, cents 0, like a promo
+//   auction win; insufficient charms fails cleanly and is never
+//   persisted, so a later accept can retry). The settlement id is
+//   minted in the settlement namespace as "offer-<offerId>", so the
+//   V7.383 buyer-protection layer (winner claim / host refund /
+//   owner board) finds it with no new code, and orderSync386 turns
+//   it into a V7.386 order stamped via:"offer" (see the orderSync386
+//   hook) whose title resolves through the items store (the item's
+//   auctionId is set to the settlement id at accept). Accepting
+//   flips the item to sold and auto-declines every other active
+//   offer on it (makers are notified). Decline is terminal for that
+//   offer; the member may offer again. Offers DIE when their item
+//   leaves "listed" (removed / sold / running / giveaway-staked):
+//   offerReconcile390 runs at the top of every offers read and
+//   action, so the death is observable on the very next call.
+//
+//   SAVED SEARCHES (saved-searches.json, hardened store): a member
+//   saves up to 10 queries (<=60 chars sanitized). When a V7.384
+//   item or a V7.385 show is CREATED whose title contains a saved
+//   query (case-insensitive), the saver gets ONE notifyActivity
+//   ping per object (kind "savedsearch", riding the "gifts" switch,
+//   never SMS) with a go-link to the Auctions screen. The creator's
+//   own objects never ping the creator. The two creation hooks are
+//   one line each in the existing POST handlers.
+//
+//   ITEM LOOKUP for the Saved tab: POST /api/auction-items/lookup
+//   resolves the client's localStorage bookmark ids (rp384.bookmarks)
+//   to public item shapes — additive only; removed items drop out.
+//
+// All offer/search notifications ride notifyActivity with the new
+// kinds "offer" / "savedsearch" (NOTIFY_SETTING_KEY maps both to
+// the member's "gifts" switch — the money-adjacent pattern from
+// V7.386's "order" kind; neither is in NOTIFY_SMS_KINDS, so neither
+// can ever text). Money math is never re-implemented here: the only
+// money call in this block is settleAuctionMoney.
+// ---------------------------------------------------------------------------
+const OFFERS_FILE390 =
+  process.env.OFFERS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "offers.json");
+const SAVED_SEARCHES_FILE390 =
+  process.env.SAVED_SEARCHES_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "saved-searches.json");
+const SAVED_SEARCH_MAX390 = 10;
+const OFFER_MAX_DOLLARS390 = 100000; // mirrors the item startBid cap
+function readOffers390() {
+  return storeReadJson(
+    OFFERS_FILE390,
+    (d) => !!(d && Array.isArray(d.offers)),
+    { offers: [] },
+    "offers"
+  );
+}
+function writeOffers390(db) {
+  storeWriteJson(OFFERS_FILE390, db);
+}
+function offerPublic390(o) {
+  return {
+    id: o.id,
+    itemId: o.itemId,
+    itemTitle: o.itemTitle,
+    hostId: o.hostId,
+    hostName: o.hostName,
+    buyerId: o.buyerId,
+    buyerName: o.buyerName,
+    dollars: o.dollars,
+    status: o.status,
+    autoDeclined: !!o.autoDeclined,
+    createdAt: o.createdAt,
+    updatedAt: o.updatedAt,
+    decidedAt: o.decidedAt || null,
+    settlementId: o.settlementId || null,
+  };
+}
+// Offers die with their item: any ACTIVE offer whose item is gone
+// or no longer "listed" (removed / sold / running / giveaway) is
+// marked dead. Returns true when the offers store changed.
+function offerReconcile390(odb, idb) {
+  const statusById = {};
+  for (const it of (idb && idb.items) || []) statusById[it.id] = it.status;
+  let changed = false;
+  const nowIso = new Date().toISOString();
+  for (const o of odb.offers) {
+    if (o.status !== "active") continue;
+    if (statusById[o.itemId] !== "listed") {
+      o.status = "dead";
+      o.decidedAt = o.decidedAt || nowIso;
+      o.updatedAt = nowIso;
+      changed = true;
+    }
+  }
+  return changed;
+}
+function offerNotify390(toId, actorId, actorName, text, emailSubject) {
+  notifyActivity({
+    toId,
+    kind: "offer",
+    actorId,
+    actorName,
+    text,
+    emailSubject,
+    emailText:
+      text +
+      "\n\nOpen Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    go: { screen: "auctions" },
+  });
+}
+app.post("/api/offers", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "adults-only" });
+  const b = req.body || {};
+  const itemId = String(b.itemId || "").trim();
+  if (!itemId) return res.status(400).json({ ok: false, error: "item-required" });
+  const dollars = Math.floor(Number(b.dollars));
+  if (!isFinite(dollars) || dollars < 1 || dollars > OFFER_MAX_DOLLARS390)
+    return res.status(400).json({ ok: false, error: "bad-amount" });
+  const idb = readAuctionItems384();
+  const it = idb.items.find((x) => x.id === itemId);
+  if (!it) return res.status(404).json({ ok: false, error: "item-not-found" });
+  if (it.hostId === ctx.user.id)
+    return res.status(403).json({ ok: false, error: "own-item" });
+  if (it.status !== "listed")
+    return res.status(409).json({ ok: false, error: "not-listed" });
+  const odb = readOffers390();
+  const nowIso = new Date().toISOString();
+  let offer = odb.offers.find(
+    (x) => x.itemId === itemId && x.buyerId === ctx.user.id && x.status === "active"
+  );
+  let replaced = false;
+  if (offer) {
+    offer.dollars = dollars;
+    offer.updatedAt = nowIso;
+    replaced = true;
+  } else {
+    offer = {
+      id: "off-" + crypto.randomBytes(8).toString("hex"),
+      itemId,
+      itemTitle: it.title,
+      hostId: it.hostId,
+      hostName: it.hostName,
+      buyerId: ctx.user.id,
+      buyerName: ctx.user.name || ctx.user.username || "Member",
+      dollars,
+      status: "active",
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      decidedAt: null,
+      settlementId: null,
+    };
+    odb.offers.push(offer);
+  }
+  writeOffers390(odb);
+  offerNotify390(
+    it.hostId,
+    ctx.user.id,
+    offer.buyerName,
+    replaced
+      ? "💵 " + offer.buyerName + " updated their offer to $" + dollars + " on your “" + it.title + "”"
+      : "💵 " + offer.buyerName + " offered $" + dollars + " on your “" + it.title + "”",
+    "You have an offer on Rizz Plaza"
+  );
+  res.json({ ok: true, offer: offerPublic390(offer), replaced });
+});
+app.get("/api/offers/mine", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const odb = readOffers390();
+  if (offerReconcile390(odb, readAuctionItems384())) writeOffers390(odb);
+  const byTimeDesc = (a, b2) =>
+    String(b2.updatedAt || b2.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""));
+  const sent = odb.offers
+    .filter((x) => x.buyerId === ctx.user.id)
+    .sort(byTimeDesc)
+    .slice(0, 100)
+    .map(offerPublic390);
+  const received = odb.offers
+    .filter((x) => x.hostId === ctx.user.id)
+    .sort((a, b2) => {
+      const ra = a.status === "active" ? 0 : 1, rb = b2.status === "active" ? 0 : 1;
+      return ra - rb || byTimeDesc(a, b2);
+    })
+    .slice(0, 100)
+    .map(offerPublic390);
+  res.json({ ok: true, sent, received });
+});
+app.post("/api/offers/:id/decline", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const odb = readOffers390();
+  const offer = odb.offers.find((x) => x.id === String(req.params.id || ""));
+  if (!offer) return res.status(404).json({ ok: false, error: "offer-not-found" });
+  if (offer.hostId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-host" });
+  if (offerReconcile390(odb, readAuctionItems384())) writeOffers390(odb);
+  if (offer.status !== "active")
+    return res.status(409).json({ ok: false, error: "offer-not-active", status: offer.status });
+  const nowIso = new Date().toISOString();
+  offer.status = "declined";
+  offer.decidedAt = nowIso;
+  offer.updatedAt = nowIso;
+  writeOffers390(odb);
+  offerNotify390(
+    offer.buyerId,
+    ctx.user.id,
+    offer.hostName,
+    "🚫 " + (offer.hostName || "The seller") + " declined your $" + offer.dollars + " offer on “" + offer.itemTitle + "” — you can offer again any time.",
+    "Your offer was declined on Rizz Plaza"
+  );
+  res.json({ ok: true, offer: offerPublic390(offer) });
+});
+app.post("/api/offers/:id/accept", lockedHandler("offer-accept", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const odb = readOffers390();
+  const offer = odb.offers.find((x) => x.id === String(req.params.id || ""));
+  if (!offer) return res.status(404).json({ ok: false, error: "offer-not-found" });
+  if (offer.hostId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-host" });
+  const idb = readAuctionItems384();
+  if (offerReconcile390(odb, idb)) writeOffers390(odb);
+  if (offer.status !== "active")
+    return res.status(409).json({ ok: false, error: "offer-not-active", status: offer.status });
+  const it = idb.items.find((x) => x.id === offer.itemId);
+  if (!it || it.status !== "listed")
+    return res.status(409).json({ ok: false, error: "item-not-available" });
+  // The binding sale: settleAuctionMoney IS the auction settle —
+  // same debit, same 90% earning, same test-funds mirror, and an
+  // insufficient-charms failure persists nothing, so this accept
+  // can simply be retried once the buyer tops up.
+  const settlementId = "offer-" + offer.id;
+  const mdb = readMoney();
+  const result = settleAuctionMoney(ctx.db, mdb, {
+    auctionId: settlementId,
+    winnerId: offer.buyerId,
+    hostId: offer.hostId,
+    winningBid: offer.dollars,
+  });
+  writeMoney(mdb);
+  if (!result.ok) {
+    const status =
+      result.error === "teen-party" ? 403 :
+      result.error === "account-not-found" ? 404 : 400;
+    return res.status(status).json({
+      ok: false,
+      error: result.error,
+      balance: result.balance,
+      needed: result.needed,
+    });
+  }
+  const nowIso = new Date().toISOString();
+  offer.status = "accepted";
+  offer.decidedAt = nowIso;
+  offer.updatedAt = nowIso;
+  offer.settlementId = settlementId;
+  const losers = [];
+  for (const o2 of odb.offers) {
+    if (o2.itemId === offer.itemId && o2.id !== offer.id && o2.status === "active") {
+      o2.status = "declined";
+      o2.autoDeclined = true;
+      o2.decidedAt = nowIso;
+      o2.updatedAt = nowIso;
+      losers.push(o2);
+    }
+  }
+  writeOffers390(odb);
+  it.status = "sold";
+  it.auctionId = settlementId;
+  it.soldTo = { name: offer.buyerName || null, amount: offer.dollars, at: nowIso };
+  writeAuctionItems384(idb);
+  orderSyncPersist386(mdb, ctx.db); // the V7.386 order (via:"offer" via the sync hook)
+  offerNotify390(
+    offer.buyerId,
+    ctx.user.id,
+    offer.hostName,
+    "🎉 " + (offer.hostName || "The seller") + " accepted your $" + offer.dollars + " offer on “" + offer.itemTitle + "” — it's yours! 📦 They ship within 3 days.",
+    "Your offer was accepted on Rizz Plaza"
+  );
+  for (const o2 of losers)
+    offerNotify390(
+      o2.buyerId,
+      ctx.user.id,
+      offer.hostName,
+      "“" + offer.itemTitle + "” just sold to another buyer — your $" + o2.dollars + " offer was closed.",
+      "An item you offered on sold on Rizz Plaza"
+    );
+  res.json({
+    ok: true,
+    offer: offerPublic390(offer),
+    orderId: settlementId,
+    hostShareCents: result.hostShareCents,
+    cutCents: result.cutCents,
+    promoFunds: !!result.promoFunds,
+  });
+}));
+// Resolve Saved-tab bookmark ids (client localStorage rp384.bookmarks)
+// to public item shapes. Additive; mirrors the public items read —
+// removed items simply drop out of the answer.
+app.post("/api/auction-items/lookup", (req, res) => {
+  const ids = Array.isArray((req.body || {}).ids)
+    ? (req.body || {}).ids.slice(0, 50).map((x) => String(x || ""))
+    : [];
+  const db = readAuctionItems384();
+  const byId = {};
+  for (const it of db.items) byId[it.id] = it;
+  const out = [];
+  for (const id of ids) {
+    const it = byId[id];
+    if (it && (it.status === "listed" || it.status === "running" || it.status === "sold"))
+      out.push(auctionItemPublic384(it));
+  }
+  res.json({ ok: true, items: out });
+});
+// ---------------- saved searches ----------------
+function readSavedSearches390() {
+  return storeReadJson(
+    SAVED_SEARCHES_FILE390,
+    (d) => !!(d && Array.isArray(d.searches)),
+    { searches: [] },
+    "saved-searches"
+  );
+}
+function writeSavedSearches390(db) {
+  storeWriteJson(SAVED_SEARCHES_FILE390, db);
+}
+function savedSearchPublic390(s) {
+  return { id: s.id, query: s.query, createdAt: s.createdAt };
+}
+// Called (one line each) from POST /api/auction-items and
+// POST /api/shows right after the object is stored: every saver
+// whose query appears in the new title gets exactly one ping for
+// that object. Never the creator; notifyActivity itself drops
+// self-notes and blocked pairs as a second line of defense.
+function savedSearchMatch390(title, creatorId, creatorName) {
+  try {
+    const t = String(title || "").toLowerCase();
+    if (!t) return;
+    const db = readSavedSearches390();
+    for (const s of db.searches) {
+      if (!s || s.userId === creatorId) continue;
+      const q = String(s.query || "").toLowerCase();
+      if (q && t.indexOf(q) >= 0) {
+        notifyActivity({
+          toId: s.userId,
+          kind: "savedsearch",
+          actorId: creatorId,
+          actorName: creatorName || "",
+          text: "🔎 New match for '" + s.query + "': " + title,
+          emailSubject: "New match for your saved search on Rizz Plaza",
+          emailText:
+            "🔎 New match for '" + s.query + "': " + title +
+            "\n\nOpen Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+          go: { screen: "auctions" },
+        });
+      }
+    }
+  } catch (e) { /* a match ping must never break a create */ }
+}
+app.post("/api/saved-searches", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const query = String((req.body || {}).query || "").replace(/[<>&"']/g, "").trim().slice(0, 60);
+  if (!query) return res.status(400).json({ ok: false, error: "query-required" });
+  const db = readSavedSearches390();
+  const mine = db.searches.filter((x) => x.userId === ctx.user.id);
+  const dupe = mine.find((x) => String(x.query).toLowerCase() === query.toLowerCase());
+  if (dupe) return res.json({ ok: true, search: savedSearchPublic390(dupe), deduped: true });
+  if (mine.length >= SAVED_SEARCH_MAX390)
+    return res.status(409).json({ ok: false, error: "too-many-searches", limit: SAVED_SEARCH_MAX390 });
+  const s = {
+    id: "srch-" + crypto.randomBytes(8).toString("hex"),
+    userId: ctx.user.id,
+    query,
+    createdAt: new Date().toISOString(),
+  };
+  db.searches.push(s);
+  writeSavedSearches390(db);
+  res.json({ ok: true, search: savedSearchPublic390(s) });
+});
+app.get("/api/saved-searches", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = readSavedSearches390();
+  const mine = db.searches
+    .filter((x) => x.userId === ctx.user.id)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .map(savedSearchPublic390);
+  res.json({ ok: true, searches: mine });
+});
+app.post("/api/saved-searches/:id/remove", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const db = readSavedSearches390();
+  const i = db.searches.findIndex(
+    (x) => x.id === String(req.params.id || "") && x.userId === ctx.user.id
+  );
+  if (i < 0) return res.status(404).json({ ok: false, error: "search-not-found" });
+  db.searches.splice(i, 1);
+  writeSavedSearches390(db);
+  res.json({ ok: true });
 });
 // [RP-V7.80] The client (rpWn) settle path — account auth only, and
 // the winner is ALWAYS the authenticated caller: a settle request
@@ -26019,7 +26450,7 @@ app.get("/", (req, res) =>
   res.send("Party server is running. Connect with the game client.")
 );
 app.get("/health", (req, res) =>
-  res.json({ ok: true, version: "RP-V7.389", online: players.size })
+  res.json({ ok: true, version: "RP-V7.390", online: players.size })
 );
 
 // [RP-V7.52] Server-side adult class (audit H1): Christian
