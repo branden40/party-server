@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.402" /> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.404" /> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -25375,14 +25375,82 @@
           .catch(function () { if (done) done(); });
       }
       /* Comment inputs on both surfaces get the picker's 😊 button —
-         same insert-at-cursor pattern as the room chat bars. */
+         same insert-at-cursor pattern as the room chat bars.
+         [RP-V7.404] Three phone visibility fixes ride this one wiring
+         point (Branden, Nov 16, 2026: the picker "don't pop up" and
+         "how do I know what I'm typing?"):
+         (1) NO SILENT NO-OP: if the picker global is somehow not
+         there yet, the tap says so (the reactions row's "warming up"
+         copy) and retries once — never a dead button.
+         (2) KEYBOARD LIFT: while a comment input is focused, the
+         sheet rides up by the on-screen keyboard's overlap
+         (visualViewport) so the composer is never under the
+         keyboard; the lift clears on blur and whenever the sheet
+         closes (one-time observer below).
+         (3) The emoji tap blurs the input first (keyboard swap), so
+         the picker itself never opens behind the keyboard. */
       function rxWireCommentEmoji(btn, input) {
         if (!btn || !input) return;
         btn.addEventListener("click", function () {
           var pk = rxPicker();
-          if (pk) pk.open(input);
+          if (!pk || !pk.open) {
+            toast("Emoji picker is warming up — try again in a second.");
+            setTimeout(function () { var pk2 = rxPicker(); if (pk2 && pk2.open) pk2.open(input); }, 600);
+            return;
+          }
+          try { input.blur(); } catch (e) { }
+          pk.open(input);
         });
+        input.addEventListener("focus", function () { rxCommentKbOn(input); });
+        input.addEventListener("blur", function () { rxCommentKbOff(); });
       }
+      /* [RP-V7.404] Scroll the comments sheet to its bottom — the
+         newest comments and the composer live there. Called when a
+         comments sheet opens and right after a comment posts, so a
+         long thread never opens with the composer below the fold. */
+      function rxCommentsToBottom() {
+        function go() { var sh = $("sheet"); if (sh) { try { sh.scrollTop = sh.scrollHeight; } catch (e) { } } }
+        if (window.requestAnimationFrame) requestAnimationFrame(go);
+        setTimeout(go, 80);
+      }
+      /* [RP-V7.404] Keyboard lift for the comment sheets (see the
+         wiring note above). visualViewport is the keyboard signal
+         iOS/Android web views expose; a desktop browser reports
+         zero overlap and the sheet stays exactly where it was. */
+      var rxKbInput404 = null;
+      function rxKbOverlap404() {
+        var vv = window.visualViewport;
+        if (!vv) return 0;
+        return Math.max(0, Math.round(window.innerHeight - vv.height - (vv.offsetTop || 0)));
+      }
+      function rxKbApply404() {
+        var ov = $("overlay");
+        if (!ov) return;
+        var kb = rxKbInput404 ? rxKbOverlap404() : 0;
+        ov.style.paddingBottom = kb >= 80 ? kb + "px" : "";
+        if (kb >= 80) rxCommentsToBottom();
+      }
+      function rxCommentKbOn(input) {
+        rxKbInput404 = input;
+        if (window.visualViewport) visualViewport.addEventListener("resize", rxKbApply404);
+        rxKbApply404();
+        rxCommentsToBottom();
+      }
+      function rxCommentKbOff() {
+        rxKbInput404 = null;
+        if (window.visualViewport) visualViewport.removeEventListener("resize", rxKbApply404);
+        var ov = $("overlay"); if (ov) ov.style.paddingBottom = "";
+      }
+      /* [RP-V7.404] Safety net: a sheet closed mid-focus must never
+         leave the lift behind for the next sheet — clear it whenever
+         the overlay loses its open class. One-time observer. */
+      (function () {
+        var ov = $("overlay");
+        if (!ov || !window.MutationObserver) return;
+        new MutationObserver(function () {
+          if (!ov.classList.contains("open")) rxCommentKbOff();
+        }).observe(ov, { attributes: true, attributeFilter: ["class"] });
+      })();
       /* The shared picker is reached through a computed name on
          purpose: several build probes locate its script block by its
          global name, and this earlier block must not win that race. */
@@ -25902,6 +25970,7 @@
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { Moments.openCommentsFor = null; closeSheet(); });
         rxWireCommentEmoji($("btnMomEmoji"), $("momCommentInput"));
+        rxCommentsToBottom(); // [RP-V7.404] open on the newest comments with the composer in view
         $("btnMomComment").addEventListener("click", function () {
           var inp = $("momCommentInput");
           var txt = (inp.value || "").trim();
@@ -25912,6 +25981,7 @@
             li.className = "mom-comment";
             li.innerHTML = "<b>" + escHtml(name) + "</b><span>" + rpLinkifyRaw259(text, "photos") + "</span>"; // [RP-V7.259] just-posted photo comments linkify on the RAW text too
             var box = $("momCommentList"); if (box) box.appendChild(li);
+            rxCommentsToBottom(); // [RP-V7.404] the just-posted comment + composer stay in view
             momCommentCountSync(p);
           }
           if (momToken()) {
@@ -28076,6 +28146,7 @@
         );
         $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         rxWireCommentEmoji($("btnReelEmoji"), $("reelCommentInput"));
+        rxCommentsToBottom(); // [RP-V7.404] open on the newest comments with the composer in view
         $("btnReelComment").addEventListener("click", function () {
           var inp = $("reelCommentInput");
           var txt = (inp.value || "").trim();
@@ -28086,6 +28157,7 @@
             li.className = "mom-comment";
             li.innerHTML = "<b>" + escHtml(name) + "</b><span>" + rpLinkifyRaw259(text, "reels") + "</span>"; // [RP-V7.259] just-posted reel comments linkify on the RAW text too
             var box = $("reelCommentList"); if (box) box.appendChild(li);
+            rxCommentsToBottom(); // [RP-V7.404] the just-posted comment + composer stay in view
             var card = $("reelFeed") && $("reelFeed").querySelector('[data-rid="' + item.key + '"]');
             if (card) card.querySelector(".cc").textContent = count;
           }
@@ -42714,6 +42786,13 @@ button.rp72-chip{ cursor:pointer; }
     target = input;
     try { selStart = input.selectionStart != null ? input.selectionStart : input.value.length; } catch (e) { selStart = (input.value || "").length; }
     try { selEnd = input.selectionEnd != null ? input.selectionEnd : selStart; } catch (e) { selEnd = selStart; }
+    /* [RP-V7.404] Keyboard swap: if a field still holds focus, its
+       on-screen keyboard covers this bottom sheet on a phone, so
+       the picker "doesn't pop up". Blur first — the picker fills
+       the bottom instead, and closePicker refocuses the target so
+       typing resumes where it left off. Selection was captured
+       above, before the blur. */
+    try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) { }
     sheet.classList.add("open");
     backdrop.classList.add("open");
   }
