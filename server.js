@@ -1732,7 +1732,10 @@ async function notifySendSms(toPhone, body) {
 // Account email (welcome today): really sends when Resend is
 // configured; otherwise the message lives in-app only, as before.
 // Fire-and-forget — a mail failure must never break sign-up.
-function sendAccountEmail(user, kind) {
+// [RP-V7.407] kind "reset" carries the one-time code in extra.code —
+// the code rides the email body ONLY; it is never logged or stored
+// in plaintext anywhere (the reset store keeps a salted hash).
+function sendAccountEmail(user, kind, extra) {
   if (!user || !user.email) return;
   if (!notifyEmailReady()) {
     console.log(
@@ -1740,11 +1743,19 @@ function sendAccountEmail(user, kind) {
     );
     return;
   }
-  const subjects = { welcome: "Welcome to Rizz Plaza 🎉" };
+  const subjects = {
+    welcome: "Welcome to Rizz Plaza 🎉",
+    reset: "Your Rizz Plaza reset code 🔑",
+  };
   const bodies = {
     welcome:
       "Hi " + (user.name || "there") + " — welcome to Rizz Plaza!\n\n" +
       "Your account is ready. Jump in: go live, meet people in the rooms, enter the Daily Pot (it bursts at a secret moment between 7 and 9 PM ET — be there!), and catch the holiday events all year.\n\n" +
+      "Open the Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    reset:
+      "Hi " + (user.name || "there") + " — you asked to reset your Rizz Plaza password.\n\n" +
+      "Your reset code is: " + (extra && extra.code ? extra.code : "") + "\n\n" +
+      "Enter it in the app within 10 minutes to set your new password. If you didn't ask for this, you can ignore this email — your password stays exactly as it is.\n\n" +
       "Open the Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
   };
   notifySendEmail(
@@ -2124,6 +2135,215 @@ app.post("/api/account/logout", (req, res) => {
     }
   }
   res.json({ ok: true });
+});
+/* ---------- [RP-V7.407] FORGOT PASSWORD — create a new password ----------
+   Branden, Nov 16, 2026: the app had NO password recovery at all —
+   a member who forgot their password was locked out for good.
+   Two doors, both unauthenticated (that is the point of them):
+     POST /api/account/password-reset/request { id }
+       Resolves the identifier EXACTLY like login (username OR
+       email first, then the phone pass) and, when the account is
+       reset-eligible, emails a 6-digit code to the email ON THE
+       ACCOUNT via the account-email machinery ("reset" kind). The
+       response is ALWAYS the same neutral 200 — unknown account,
+       ineligible account, rate-limited and success are
+       indistinguishable, so this door leaks nothing about who is
+       a member.
+     POST /api/account/password-reset/verify { id, code, newPassword }
+       Checks the code (salted scrypt hash, 10-minute expiry, max
+       5 guesses — then the code dies), applies signup's password
+       rule, rehashes with a fresh salt exactly like sign-up and
+       /api/account/password do, burns the code, revokes EVERY
+       existing session for the account (a reset is a security
+       event) and issues one fresh token so the member lands
+       signed in — login's response shape.
+   The code itself is never stored or logged in plaintext: the
+   store (password-resets.json beside accounts.json, same hardened
+   read/write) keeps only hash + salt per account, one active code
+   per account — a new request replaces the old code.
+   ELIGIBILITY mirrors login's state gates: locked-out accounts
+   (under-18 disabled, age-suspended) and deletion-pending
+   accounts (self-scheduled OR owner-scheduled) get NO code and a
+   verify against them changes nothing — a reset never resurrects
+   an account login itself would refuse or is holding for
+   deletion, and it never cancels a scheduled deletion. An account
+   with no email on file has nowhere to receive a code, so it is
+   ineligible too (its sign-in is untouched). No owner/test
+   special casing. */
+const PW_RESET_FILE =
+  process.env.PW_RESET_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "password-resets.json");
+const PW_RESET_NEUTRAL =
+  "If an account matches, we've emailed a 6-digit reset code — it expires in 10 minutes.";
+function emptyPwResets() {
+  return { codes: {} };
+}
+function readPwResets() {
+  return storeReadJson(
+    PW_RESET_FILE,
+    (d) => !!(d && d.codes && typeof d.codes === "object" && !Array.isArray(d.codes)),
+    emptyPwResets(),
+    "password-resets"
+  );
+}
+function writePwResets(db) {
+  storeWriteJson(PW_RESET_FILE, db);
+}
+// Per-IP request pacing for the two reset doors (in-memory, the
+// loginAttempts pattern): 10 requests / 10 min asks for a code,
+// 20 / 10 min submits one.
+const pwResetIpHits = new Map(); // ip -> [{ at, kind }]
+function pwResetIpLimited(ip, kind, cap) {
+  const now = Date.now();
+  const arr = (pwResetIpHits.get(ip) || []).filter((h) => now - h.at < 10 * 60 * 1000);
+  pwResetIpHits.set(ip, arr);
+  return arr.filter((h) => h.kind === kind).length >= cap;
+}
+function notePwResetIpHit(ip, kind) {
+  const arr = pwResetIpHits.get(ip) || [];
+  arr.push({ at: Date.now(), kind });
+  pwResetIpHits.set(ip, arr);
+}
+function findAccountByIdent(db, identRaw) {
+  // Login's identifier resolution, shared verbatim: email and
+  // username match first; only when neither hits and the
+  // identifier actually looks like a phone number does the
+  // normalized-phone pass run.
+  const ident = String(identRaw || "").trim().toLowerCase().slice(0, 120);
+  if (!ident) return null;
+  let user = db.users.find(
+    (u) => (u.email && u.email === ident) || usernameKey(u.username) === ident
+  );
+  if (!user && /^[+\d][\d\s().-]*$/.test(String(identRaw || "").trim())) {
+    const pk = normPhoneKey(identRaw);
+    if (pk)
+      user = db.users.find((u) => u.phone && normPhoneKey(u.phone) === pk);
+  }
+  return user || null;
+}
+function pwResetBlocked407(user) {
+  if (!user) return true;
+  if (accountLockedOut(user)) return true; // under-18 disabled / age-suspended
+  if (isPendingDeletion(user) || user.ownerDeletion) return true; // deletion pending either way
+  if (!user.email) return true; // nowhere to send the code
+  return false;
+}
+app.post("/api/account/password-reset/request", (req, res) => {
+  const ip = req.ip || "unknown";
+  const b = req.body || {};
+  const identRaw = String(b.id || b.username || b.email || "").trim().slice(0, 120);
+  // An empty identifier is a form error, not an existence signal.
+  if (!identRaw)
+    return res.status(400).json({ ok: false, error: "Enter your username, email or phone" });
+  // Same lazy finalization touches as login, so a past-due deletion
+  // is already final before anyone looks the account up.
+  try { sweepPendingDeletions(); } catch (e) {}
+  try { rpOwnerDeleteSweep377(); } catch (e) {}
+  const neutral = () => res.json({ ok: true, message: PW_RESET_NEUTRAL });
+  if (pwResetIpLimited(ip, "request", 10)) return neutral();
+  notePwResetIpHit(ip, "request");
+  const db = readAccounts();
+  const user = findAccountByIdent(db, identRaw);
+  if (pwResetBlocked407(user)) return neutral();
+  const now = Date.now();
+  const store = readPwResets();
+  const prev = store.codes[user.id] || null;
+  const sentLog = (prev && Array.isArray(prev.sentLog) ? prev.sentLog : []).filter(
+    (t) => now - t < 3600 * 1000
+  );
+  // Per-account pacing: at most one code a minute, five an hour. A
+  // paced-out request stays neutral and leaves any live code valid.
+  if (sentLog.length && now - sentLog[sentLog.length - 1] < 60 * 1000) return neutral();
+  if (sentLog.length >= 5) return neutral();
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+  const salt = crypto.randomBytes(16).toString("hex");
+  sentLog.push(now);
+  store.codes[user.id] = {
+    hash: hashPassword(code, salt),
+    salt,
+    expiresAt: now + 10 * 60 * 1000,
+    attempts: 0,
+    sentLog,
+  };
+  writePwResets(store);
+  sendAccountEmail(user, "reset", { code });
+  console.log("[accounts] password reset code requested for", user.email);
+  return neutral();
+});
+app.post("/api/account/password-reset/verify", (req, res) => {
+  const ip = req.ip || "unknown";
+  if (pwResetIpLimited(ip, "verify", 20))
+    return res.status(429).json({
+      ok: false,
+      error: "Too many attempts — try again in a few minutes",
+    });
+  notePwResetIpHit(ip, "verify");
+  const b = req.body || {};
+  const identRaw = String(b.id || b.username || b.email || "").trim().slice(0, 120);
+  const code = String(b.code || "").trim();
+  const newPw = String(b.newPassword || "");
+  // Signup's one password rule, checked before the code is touched
+  // (a too-short new password never burns a guess).
+  if (newPw.length < 8)
+    return res
+      .status(400)
+      .json({ ok: false, error: "Password must be at least 8 characters" });
+  const CODE_MISS = "That code doesn't match — check it and try again, or request a new one.";
+  const db = readAccounts();
+  const user = findAccountByIdent(db, identRaw);
+  const store = readPwResets();
+  const rec = user ? store.codes[user.id] : null;
+  if (!user || !rec)
+    return res.status(400).json({ ok: false, error: CODE_MISS });
+  if (pwResetBlocked407(user)) {
+    // The account's state changed after the code was issued (or it
+    // was never eligible): the code dies here and nothing changes.
+    delete store.codes[user.id];
+    writePwResets(store);
+    return res.status(400).json({ ok: false, error: CODE_MISS });
+  }
+  if (rec.expiresAt < Date.now()) {
+    delete store.codes[user.id];
+    writePwResets(store);
+    return res
+      .status(400)
+      .json({ ok: false, error: "That code has expired — request a new one." });
+  }
+  if (rec.attempts >= 5) {
+    delete store.codes[user.id];
+    writePwResets(store);
+    return res
+      .status(400)
+      .json({ ok: false, error: "Too many wrong tries — request a new code." });
+  }
+  let codeOk = false;
+  try {
+    const calc = Buffer.from(hashPassword(code, rec.salt), "hex");
+    const stored = Buffer.from(rec.hash, "hex");
+    codeOk = calc.length === stored.length && crypto.timingSafeEqual(calc, stored);
+  } catch (e) {}
+  if (!codeOk) {
+    rec.attempts = (rec.attempts || 0) + 1;
+    if (rec.attempts >= 5) delete store.codes[user.id];
+    else store.codes[user.id] = rec;
+    writePwResets(store);
+    return res.status(400).json({ ok: false, error: CODE_MISS });
+  }
+  // Correct code: burn it, rehash with a fresh salt (the sign-up /
+  // change-password way), revoke every other session, and land the
+  // member signed in on one fresh token — login's response shape.
+  delete store.codes[user.id];
+  writePwResets(store);
+  user.salt = crypto.randomBytes(16).toString("hex");
+  user.passHash = hashPassword(newPw, user.salt);
+  for (const k of Object.keys(db.tokens)) {
+    if (db.tokens[k] && db.tokens[k].userId === user.id) delete db.tokens[k];
+  }
+  user.lastLoginAt = new Date().toISOString();
+  const token = newAccountToken(db, user.id);
+  writeAccounts(db);
+  console.log("[accounts] password reset completed for", user.email || user.username);
+  res.json({ ok: true, token, user: publicAccount(user) });
 });
 app.post("/api/account/welcome-resend", (req, res) => {
   const ctx = requireAccount(req, res);
