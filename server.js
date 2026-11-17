@@ -1526,6 +1526,21 @@ function usernameTaken(db, username, exceptId) {
   if (!k) return false;
   return db.users.some((u) => u.id !== exceptId && usernameKey(u.username) === k);
 }
+// [RP-V7.408] Reserved username keys for the member username CHANGE
+// (POST /api/account/username): names that carry privileges or read
+// as the Plaza itself. No reserved list existed before this build.
+// "rp" is the owner's handle (the boot migration below claims it)
+// and "jesusisking" is the owner's test account — its key drives
+// the sign-in exemption (isOwnerTestAccount263), the test-funds lane
+// (TEST_FUNDS_USERNAME_KEYS_321) and the owner-delete refusal, so it
+// must never be grabbable. The rest are impersonation guards. The
+// account that ALREADY holds a reserved key keeps it (the change
+// route's same-key path answers before this list is consulted);
+// sign-up is untouched by this list, exactly as scoped.
+const RP_RESERVED_USERNAME_KEYS_408 = [
+  "rp", "jesusisking", "admin", "administrator", "support", "help",
+  "owner", "rizzplaza", "official", "staff", "moderator", "mod", "system",
+];
 // RP-V7.35: strong sign-up — one account per email and per phone number.
 // Email uniqueness compares the normalized form (trim + lowercase) on BOTH
 // sides, so a legacy row stored un-normalized still collides. Phone
@@ -2016,21 +2031,44 @@ app.post("/api/account/login", (req, res) => {
   // the identifier actually looks like a phone number does the
   // normalized-phone pass run — so a digits-y username can never be
   // shadowed by someone else's phone record.
-  let user = db.users.find(
-    (u) => (u.email && u.email === ident) || usernameKey(u.username) === ident
+  // [RP-V7.408] PASSWORD-MATCH RESOLUTION (Branden, Nov 16, 2026):
+  // legacy records can SHARE an identifier — the same email or phone
+  // sitting on two accounts (sign-up has refused new duplicates
+  // since RP-V7.35, but legacy rows remain, and the owner's own
+  // household hit it: his sign-in landed in his wife's account). The
+  // old rule took the FIRST record matching the identifier and
+  // checked the password against that one account only, so a shared
+  // identifier could mis-land a member in the wrong account or lock
+  // them out of their own. Now the identifier collects EVERY
+  // matching account and the password is checked against each in
+  // store order; the account whose password matches is the one that
+  // signs in. The precedence is unchanged (username/email pass
+  // first, phone pass only when neither hit), the attempt still
+  // counts ONCE against the rate limit, the generic 401 is unchanged
+  // when no candidate's password fits, and every post-login state
+  // gate below applies to the matched account exactly as before.
+  // Email matching compares the normalized form (normEmailKey, the
+  // sign-up discipline) so a legacy row stored un-normalized still
+  // resolves: a superset of the old raw comparison — every sign-in
+  // that worked before resolves the same account. An account with
+  // no stored password (e.g. a Google-only record) simply never
+  // password-matches instead of throwing on a missing hash.
+  const passMatches408 = (u) => {
+    if (!u || !u.salt || !u.passHash) return false;
+    const calc = Buffer.from(hashPassword(password, u.salt), "hex");
+    const stored = Buffer.from(u.passHash, "hex");
+    return calc.length === stored.length && crypto.timingSafeEqual(calc, stored);
+  };
+  let candidates408 = db.users.filter(
+    (u) => (u.email && normEmailKey(u.email) === ident) || usernameKey(u.username) === ident
   );
-  if (!user && identRaw && /^[+\d][\d\s().-]*$/.test(identRaw)) {
+  if (!candidates408.length && identRaw && /^[+\d][\d\s().-]*$/.test(identRaw)) {
     const pk = normPhoneKey(identRaw);
     if (pk)
-      user = db.users.find((u) => u.phone && normPhoneKey(u.phone) === pk);
+      candidates408 = db.users.filter((u) => u.phone && normPhoneKey(u.phone) === pk);
   }
-  let ok = false;
-  if (user) {
-    const calc = Buffer.from(hashPassword(password, user.salt), "hex");
-    const stored = Buffer.from(user.passHash, "hex");
-    ok = calc.length === stored.length && crypto.timingSafeEqual(calc, stored);
-  }
-  if (!ok) {
+  const user = candidates408.find(passMatches408) || null;
+  if (!user) {
     noteLoginAttempt(ip);
     return res.status(401).json({
       ok: false,
@@ -2538,6 +2576,59 @@ app.post("/api/account/profile", (req, res) => {
     ctx.user.likedPrivate = b.likedPrivate; changed = true;
   }
   if (changed) writeAccounts(ctx.db);
+  res.json({ ok: true, user: publicAccount(ctx.user) });
+});
+
+/* ---------- [RP-V7.408] USERNAME — see + change your @handle ----------
+   POST /api/account/username { username } — the Profile setup
+   Username field's server side. Before this build a member could
+   never see or change the username they were stuck with (the
+   owner's own account still carried its legacy handle, so signing
+   in with his name "RP" failed while the same password with his
+   email worked). Validation reuses sign-up's rules verbatim: the
+   USERNAME_RE format and the usernameTaken uniqueness check (409,
+   sign-up's wording), plus the reserved-key list above. A leading
+   @ is forgiven (the board shows @handles; the delete-target
+   resolver forgives it the same way). Keeping your own handle —
+   including a case-only restyle — always answers ok. The change is
+   a single field write on the account record: every store keys by
+   account ID and bylines resolve live (nameResolver313), so
+   content, balances, follows and sessions are untouched, and
+   sign-in by the new handle works immediately (login reads the
+   same record). */
+app.post("/api/account/username", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const raw = String(b.username || "").replace(/^@+/, "").trim();
+  if (!USERNAME_RE.test(raw))
+    return res.status(400).json({
+      ok: false,
+      error: "Pick a username — 3–20 characters, letters, numbers and underscores only",
+    });
+  const newKey = usernameKey(raw);
+  if (newKey === usernameKey(ctx.user.username)) {
+    // Same handle (maybe a case restyle): store the casing, done.
+    if (ctx.user.username !== raw) {
+      ctx.user.username = raw;
+      writeAccounts(ctx.db);
+    }
+    return res.json({ ok: true, user: publicAccount(ctx.user), unchanged: true });
+  }
+  if (usernameTaken(ctx.db, raw, ctx.user.id))
+    return res.status(409).json({
+      ok: false,
+      error: "That username is taken — try another",
+    });
+  if (RP_RESERVED_USERNAME_KEYS_408.indexOf(newKey) >= 0)
+    return res.status(400).json({
+      ok: false,
+      error: "That username is reserved — try another",
+    });
+  const oldName = ctx.user.username;
+  ctx.user.username = raw;
+  writeAccounts(ctx.db);
+  console.log("[RP-V7.408] username change @" + (oldName || "") + " -> @" + raw + " (id " + ctx.user.id + ")");
   res.json({ ok: true, user: publicAccount(ctx.user) });
 });
 
@@ -3202,6 +3293,13 @@ app.post("/api/account/delete", (req, res) => {
     let changed = false;
     for (const u of db.users) {
       const cur = String(u.username || "").trim();
+      // [RP-V7.408] The owner's migrated handle "RP" is 2 chars and
+      // fails USERNAME_RE by design — this sweep must never derive a
+      // replacement for it, or the owner's username would flap on
+      // every boot (rpOwnerUsername408 restores "RP" at the end of
+      // boot). The exemption is keyed on BOTH the "rp" key and the
+      // owner email, so it can only ever cover the migration target.
+      if (usernameKey(cur) === "rp" && String(u.email || "").trim().toLowerCase() === "brandenbryant25@gmail.com") continue;
       if (!USERNAME_RE.test(cur) || usernameTaken(db, cur, u.id)) {
         u.username = deriveUsername(db, u.name, u.email);
         changed = true;
@@ -30722,6 +30820,68 @@ function rpJesusiskingAdult403() {
   console.log("[RP-V7.403] @Jesusisking age class teen -> adult (dob set to 1984-03-14, id " + target.id + "); gift balance folded into main balance: " + folded + " charms");
 }
 try { rpJesusiskingAdult403(); } catch (e) { console.log("[RP-V7.403] age-class migration failed:", e && e.message); }
+
+// ---------------------------------------------------------------------------
+// [RP-V7.408] OWNER USERNAME -> RP (Branden, Nov 16, 2026: "Accept
+// user names build that to"): the owner's account was created under
+// a legacy username (his handle still rendered @Sean from that era)
+// while "RP" is his display name — so signing in as "RP" with the
+// CORRECT password was refused, and only the email fallback worked.
+// This one-time, idempotent boot migration finds the owner account
+// by its email (brandenbryant25@gmail.com — the identity the
+// account was verified under) and sets its username to "RP".
+// SAFETY, in the V7.396 pattern: (a) if several records carried the
+// email, only the one rpOwnerUserId resolves to is touched, and an
+// ambiguous set aborts untouched; (b) UNIQUENESS GATE — if a
+// DIFFERENT account already holds the "rp" key, the migration
+// ABORTS (logged, nothing written) rather than creating a duplicate
+// key or stomping a member's handle. After the rename no boot
+// matches the legacy condition again, so later boots are no-ops.
+// NOTHING else needs re-keying: the audit for this build found no
+// username-keyed reference to the owner's legacy handle anywhere —
+// owner identity resolves by account ID (rpOwnerUserId /
+// RP_OWNER_ID_195), the owner-delete refusal compares account IDs,
+// the test-funds seed flags the owner by ID, and every store keys
+// by account ID with bylines resolving live (nameResolver313).
+// Sign-in by email/phone is untouched; username sign-in follows the
+// stored username, so the legacy handle stops resolving and "rp"
+// resolves instead.
+// ---------------------------------------------------------------------------
+function rpOwnerUsername408() {
+  const adb = readAccounts();
+  if (!adb || !Array.isArray(adb.users)) return;
+  const matches = adb.users.filter((u) => u && String(u.email || "").trim().toLowerCase() === "brandenbryant25@gmail.com");
+  if (!matches.length) return; // owner account absent — no-op
+  let target = null;
+  if (matches.length === 1) {
+    target = matches[0];
+  } else {
+    const ownerId = rpOwnerUserId(adb);
+    target = matches.find((u) => u.id === ownerId) || null;
+    if (!target) {
+      console.log("[RP-V7.408] owner username migration ABORTED: " + matches.length + " accounts carry the owner email and none resolves as the owner; nothing changed.");
+      return;
+    }
+  }
+  if (usernameKey(target.username) === "rp") {
+    if (target.username !== "RP") {
+      target.username = "RP";
+      writeAccounts(adb);
+      console.log("[RP-V7.408] owner username casing normalized to @RP (id " + target.id + ")");
+    }
+    return; // already migrated — no-op
+  }
+  const clash = adb.users.find((u) => u && u.id !== target.id && usernameKey(u.username) === "rp");
+  if (clash) {
+    console.log("[RP-V7.408] owner username migration ABORTED: @RP is already held by another account (id " + (clash.id || "?") + "); owner account left unchanged.");
+    return;
+  }
+  const oldName = target.username;
+  target.username = "RP";
+  writeAccounts(adb);
+  console.log("[RP-V7.408] owner username @" + (oldName || "") + " -> @RP (id " + target.id + ")");
+}
+try { rpOwnerUsername408(); } catch (e) { console.log("[RP-V7.408] owner username migration failed:", e && e.message); }
 
 // [RP-V7.321] Test-funds guardrail: seed the account flags (owner +
 // @Jesusisking) once at boot — see testFundsSeed321 above.
