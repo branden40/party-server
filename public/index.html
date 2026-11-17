@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.406" /> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.407" /> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -35171,7 +35171,7 @@ function stageStreakBump(key, add) {
 </script>
 <style>
 /* ============ RP-V7.0: server accounts + reminders ============ */
-#suPass, #suDob, #liEmail, #liPass {
+#suPass, #suDob, #liEmail, #liPass, #rpResetPass, #rpResetPass2 {
   width: 100%; box-sizing: border-box; border: 2px solid var(--line); background: var(--bg); color: var(--ink);
   border-radius: 14px; padding: 12px 14px; font-weight: 700; font-size: 17px; font-family: inherit;
 }
@@ -35381,6 +35381,7 @@ function stageStreakBump(key, add) {
       '<div class="field"><label for="liPass">Password</label><input type="password" id="liPass" autocomplete="current-password" placeholder="Your password" /></div>' +
       '<p class="age-note su-err" id="liErr" hidden></p>' +
       '<button class="btn-primary" id="btnLoginGo" type="button" style="width:100%; padding:13px;">Log in</button>' +
+      '<button class="btn-mini" id="btnForgotPw" type="button" style="width:100%; padding:12px; margin-top:8px;">🔑 Forgot password?</button>' +
       '<button class="btn-mini" id="btnLoginBack" type="button" style="width:100%; padding:12px; margin-top:8px;">← Back to sign up</button>';
     card.appendChild(panel);
     // [RP-V7.118] Google finish panel: a first-time Google member
@@ -35398,6 +35399,35 @@ function stageStreakBump(key, add) {
     card.appendChild(gPanel);
     $("btnGoogleBack").addEventListener("click", function () { showGooglePanel(false); });
     $("btnGoogleComplete").addEventListener("click", doGoogleComplete);
+    // [RP-V7.407] Forgot-password panel: step 1 asks for the
+    // account identifier, step 2 takes the emailed 6-digit code +
+    // a new password. Same card, same field/button language as the
+    // login panel it hangs off.
+    var rPanel = document.createElement("div");
+    rPanel.id = "suResetPanel"; rPanel.hidden = true;
+    rPanel.innerHTML = '<h3 style="margin:14px 0 6px;">🔑 Reset your password</h3>' +
+      '<div id="rpResetStep1">' +
+      '<p class="age-note" style="margin:0 0 10px;">Enter your username, email or phone and we\'ll email a 6-digit code to the email on your account.</p>' +
+      '<div class="field"><label for="rpResetId">Username, email or phone</label><input type="text" id="rpResetId" autocomplete="username" placeholder="your username, email or phone" /></div>' +
+      '<p class="age-note su-err" id="rpResetErr1" hidden></p>' +
+      '<button class="btn-primary" id="btnResetSend" type="button" style="width:100%; padding:13px;">Email me a reset code</button>' +
+      '<button class="btn-mini" id="btnResetBack1" type="button" style="width:100%; padding:12px; margin-top:8px;">← Back to log in</button>' +
+      '</div>' +
+      '<div id="rpResetStep2" hidden>' +
+      '<p class="age-note" style="margin:0 0 10px;">If that account has an email on file, a 6-digit code is on its way — it expires in 10 minutes. Enter it with your new password:</p>' +
+      '<div class="field"><label for="rpResetCode">6-digit code</label><input type="text" id="rpResetCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" /></div>' +
+      '<div class="field"><label for="rpResetPass">New password</label><input type="password" id="rpResetPass" autocomplete="new-password" placeholder="8+ characters" /></div>' +
+      '<div class="field"><label for="rpResetPass2">New password again</label><input type="password" id="rpResetPass2" autocomplete="new-password" placeholder="Type it once more" /></div>' +
+      '<p class="age-note su-err" id="rpResetErr2" hidden></p>' +
+      '<button class="btn-primary" id="btnResetGo" type="button" style="width:100%; padding:13px;">Set my new password</button>' +
+      '<button class="btn-mini" id="btnResetBack2" type="button" style="width:100%; padding:12px; margin-top:8px;">← Start over</button>' +
+      '</div>';
+    card.appendChild(rPanel);
+    $("btnForgotPw").addEventListener("click", function () { showResetPanel(true); });
+    $("btnResetBack1").addEventListener("click", function () { showResetPanel(false); });
+    $("btnResetBack2").addEventListener("click", function () { showResetPanel(true); });
+    $("btnResetSend").addEventListener("click", doResetRequest);
+    $("btnResetGo").addEventListener("click", doResetVerify);
     $("suPass").addEventListener("input", gateSignupBtn);
     ["suEmail", "suPhone", "suUser"].forEach(function (id) {
       var el = $(id);
@@ -35434,6 +35464,7 @@ function stageStreakBump(key, add) {
     var panel = $("suLoginPanel");
     if (!card || !panel) return;
     panel.hidden = !on;
+    var rp407 = $("suResetPanel"); if (rp407) rp407.hidden = true; // [RP-V7.407] a mode switch always closes the reset panel
     ["btnGoogle", "btnApple", "btnSignupGo", "btnSignupSkip", "suLoginLink"].forEach(function (id) {
       var el = $(id); if (el) el.style.display = on ? "none" : "";
     });
@@ -35560,6 +35591,98 @@ function stageStreakBump(key, add) {
     setTimeout(function () { if (go && !go.disabled) go.click(); }, 80);
   }
 
+  /* ---------- [RP-V7.407] Forgot password: code by email, then reset ----------
+     Step 1 asks the server for a code (the answer is neutral either
+     way — the Plaza never confirms an account exists), step 2 sends
+     the code + a new password and lands signed in on the fresh
+     session the server returns (adoptSession, the Google door's
+     landing). The signed-in Settings change-password is separate
+     and untouched. */
+  var rpResetIdent = "";
+  function showResetPanel(on) {
+    var card = document.querySelector("#screen-signup .agegate-card");
+    var panel = $("suResetPanel");
+    if (!card || !panel) return;
+    if (!on) { panel.hidden = true; setLoginMode(true); return; }
+    panel.hidden = false;
+    var lp = $("suLoginPanel"); if (lp) lp.hidden = true;
+    var gp = $("suGooglePanel"); if (gp) gp.hidden = true;
+    ["btnGoogle", "btnApple", "btnSignupGo", "btnSignupSkip", "suLoginLink"].forEach(function (id) {
+      var el = $(id); if (el) el.style.display = "none";
+    });
+    var div = card.querySelector(".su-divider"); if (div) div.style.display = "none";
+    var cl = card.querySelector(".su-consent"); if (cl) cl.style.display = "none";
+    var md = $("suMode"); if (md) md.style.display = "none";
+    ["suEmail", "suPhone", "suPass", "suDob", "suUser"].forEach(function (id) {
+      var el = $(id); var f = el ? (el.closest(".field") || el) : null;
+      if (f) f.style.display = "none";
+    });
+    var h = card.querySelector("h2");
+    if (h) h.textContent = "🔑 Reset your password";
+    var s1 = $("rpResetStep1"), s2 = $("rpResetStep2");
+    if (s1) s1.hidden = false;
+    if (s2) s2.hidden = true;
+    var e1 = $("rpResetErr1"); if (e1) e1.hidden = true;
+    var e2 = $("rpResetErr2"); if (e2) e2.hidden = true;
+    var rid = $("rpResetId"), le = $("liEmail");
+    if (rid && le && !rid.value) rid.value = le.value;
+    syncDobWrap();
+  }
+  function doResetRequest() {
+    var er = $("rpResetErr1");
+    var idv = $("rpResetId") ? $("rpResetId").value.trim().toLowerCase() : "";
+    if (er) er.hidden = true;
+    if (!idv) { if (er) { er.textContent = "Enter your username, email or phone."; er.hidden = false; } return; }
+    if (acctBusy) return;
+    acctBusy = true;
+    api("/api/account/password-reset/request", "POST", { id: idv }).then(function (r) {
+      acctBusy = false;
+      if (r.json && r.json.ok) {
+        rpResetIdent = idv;
+        var s1 = $("rpResetStep1"), s2 = $("rpResetStep2");
+        if (s1) s1.hidden = true;
+        if (s2) s2.hidden = false;
+        var c = $("rpResetCode"); if (c) { c.value = ""; try { c.focus(); } catch (e) { } }
+      } else if (r.reachable && r.json) {
+        if (er) { er.textContent = r.json.error || "That didn't go through — try again."; er.hidden = false; }
+      } else {
+        if (er) { er.textContent = "Can't reach the Plaza right now — check your connection and try again."; er.hidden = false; }
+      }
+    });
+  }
+  function doResetVerify() {
+    var er = $("rpResetErr2");
+    var code = $("rpResetCode") ? $("rpResetCode").value.trim() : "";
+    var p1 = $("rpResetPass") ? $("rpResetPass").value : "";
+    var p2 = $("rpResetPass2") ? $("rpResetPass2").value : "";
+    if (er) er.hidden = true;
+    if (!/^\d{6}$/.test(code)) { if (er) { er.textContent = "Enter the 6-digit code from your email."; er.hidden = false; } return; }
+    if (p1.length < 8) { if (er) { er.textContent = "Password needs at least 8 characters."; er.hidden = false; } return; }
+    if (p1 !== p2) { if (er) { er.textContent = "The two passwords don't match — type the same one twice."; er.hidden = false; } return; }
+    if (acctBusy) return;
+    acctBusy = true;
+    api("/api/account/password-reset/verify", "POST", { id: rpResetIdent, code: code, newPassword: p1 }).then(function (r) {
+      acctBusy = false;
+      if (r.json && r.json.ok && r.json.token) {
+        showResetPanel(false);
+        toast2("✅ Password updated — you're signed in with your new password", 4200);
+        adoptSession(r.json, false);
+      } else if (r.reachable && r.json) {
+        if (er) { er.textContent = r.json.error || "That didn't go through — try again."; er.hidden = false; }
+      } else {
+        if (er) { er.textContent = "Can't reach the Plaza right now — check your connection and try again."; er.hidden = false; }
+      }
+    });
+  }
+  // The Profile-page login form's Forgot button lands here too:
+  // open the wall, switch it to log-in mode, show the reset panel.
+  window.rpOpenForgotPw407 = function () {
+    try { if (window.rpOpenSignup) window.rpOpenSignup(); } catch (e) { }
+    buildSignupUI();
+    setLoginMode(true);
+    showResetPanel(true);
+  };
+
   /* ---------- [RP-V7.118] Google return: exchange / complete ---------- */
   // The server's Google callback now returns /?auth=google&g=<code>.
   // A known account exchanges the code for a session right here; a
@@ -35586,6 +35709,7 @@ function stageStreakBump(key, add) {
       var el = $(id); if (el) el.style.display = on ? "none" : "";
     });
     var lp = $("suLoginPanel"); if (lp) lp.hidden = true;
+    var rp407 = $("suResetPanel"); if (rp407) rp407.hidden = true; // [RP-V7.407] the Google door closes the reset panel too
     var div = card.querySelector(".su-divider"); if (div) div.style.display = on ? "none" : "";
     var cl = card.querySelector(".su-consent"); if (cl) cl.style.display = on ? "none" : "";
     var md = $("suMode"); if (md) md.style.display = on ? "none" : "";
@@ -35929,6 +36053,7 @@ function stageStreakBump(key, add) {
         '<div class="field"><label for="pfLiPass">Password</label><input type="password" id="pfLiPass" autocomplete="current-password" placeholder="Your password" /></div>' +
         '<p class="age-note su-err" id="pfLiErr" hidden></p>' +
         '<button class="btn-primary" id="pfLoginGo" type="button" style="width:100%; padding:13px;">Log in</button>' +
+        '<button class="btn-mini" id="pfForgotPw" type="button" style="width:100%; padding:12px; margin-top:8px;">🔑 Forgot password?</button>' +
         '<p class="age-note" style="margin:10px 0 4px;">New to the Plaza?</p>' +
         '<button class="btn-mini" id="pfSignupGo" type="button" style="width:100%; padding:12px;">📝 Create account</button>';
       var pfGo = $("pfLoginGo");
@@ -35938,6 +36063,8 @@ function stageStreakBump(key, add) {
         submitLogin(em, pw, $("pfLiErr"), null);
       }
       if (pfGo) pfGo.addEventListener("click", pfSubmit);
+      var pfFg = $("pfForgotPw"); // [RP-V7.407] same reset flow as the wall's login panel
+      if (pfFg) pfFg.addEventListener("click", function () { if (window.rpOpenForgotPw407) window.rpOpenForgotPw407(); });
       ["pfLiEmail", "pfLiPass"].forEach(function (id) {
         var inp = $(id);
         if (inp) inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); pfSubmit(); } });
