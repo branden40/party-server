@@ -4803,6 +4803,61 @@ app.get("/post/:id", (req, res) => {
   }
   return rpShareGeneric269(req, res, "post", id || raw);
 });
+// [RP-V7.409] Story share page: a LIVE story gets its own card
+// (its photo, or its video) and bounces humans to /?story=<authorId>,
+// which the client's share-link stash turns into the story viewer
+// opened on the author's tray group. A gone story (expired or
+// author-deleted — the sweep has already dropped the record)
+// serves the generic card: a share link can never resurrect a
+// story past its 24h.
+app.get("/story/:id", (req, res) => {
+  const id = reelCleanId(req.params.id);
+  try {
+    if (id) {
+      sweepStories();
+      const st = (readStories().stories || {})[id];
+      if (st && Date.parse(st.expiresAt) > Date.now() && st.file) {
+        const origin = siteOrigin(req);
+        let author = st.authorName || "Someone";
+        try { author = byline313(readAccounts(), st.authorId, st.authorName) || author; } catch (e) {}
+        const target = origin + "/?story=" + encodeURIComponent(st.authorId);
+        if (st.kind === "photo") {
+          return rpSharePage269(res, {
+            type: "article",
+            title: author + "'s story on Rizz Plaza",
+            description: RP_SHARE_DESC269,
+            image: origin + "/photos/stories/" + st.file,
+            url: origin + "/story/" + id,
+            target,
+          });
+        }
+        const ext = String(st.file.split(".").pop() || "mp4").toLowerCase();
+        return rpSharePage269(res, {
+          type: "video.other",
+          title: author + "'s story on Rizz Plaza",
+          description: RP_SHARE_DESC269,
+          image: origin + "/logo-poster.jpg",
+          video: origin + "/photos/stories/" + st.file,
+          videoType: ext === "webm" ? "video/webm" : ext === "mov" ? "video/quicktime" : "video/mp4",
+          url: origin + "/story/" + id,
+          target,
+        });
+      }
+    }
+  } catch (e) {
+    /* any lookup failure serves the generic card below */
+  }
+  const origin = siteOrigin(req);
+  return rpSharePage269(res, {
+    generic: true,
+    type: "website",
+    title: "Rizz Plaza",
+    description: RP_SHARE_DESC269,
+    image: origin + "/logo-poster.jpg",
+    url: origin + "/story/" + (id || ""),
+    target: origin + "/",
+  });
+});
 // [RP-V7.89] Hashtag view (owner: "Hashtags help a lot to see what a
 // person likes"): GET /api/tag/<tag> lists reels + photo posts whose
 // captions carry that hashtag, newest first. Public counts; the
@@ -13108,6 +13163,7 @@ app.get("/api/social/profile", (req, res) => {
   // already uses for feed posts.
   let feedPosts = [];
   try {
+    const pgFeed409 = (readMoney() || {}).postGifts || {}; // [RP-V7.409] Feed-post gift counts for the profile payload
     const fdb109 = readFeed();
     const canSeeSubsFeed296 = ctx.user.id === target.id || fanSubAccess296(readMoney(), ctx.user.id, target.id); // [RP-V7.296]
     const canSeeClubFeed298 = ctx.user.id === target.id || fanClubAccess298(readMoney(), ctx.user.id, target.id); // [RP-V7.298]
@@ -13115,7 +13171,7 @@ app.get("/api/social/profile", (req, res) => {
       .filter((fp) => fp && fp.authorId === target.id && fp.file)
       .map((fp) => ((fp.subsOnly && !canSeeSubsFeed296) || (fp.clubOnly && !canSeeClubFeed298))
         ? { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: null, views: 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: null, allowDownloads: false, ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.clubOnly ? { clubOnly: true } : {}), locked: true, authorId: target.id } // [RP-V7.296] locked feed tile: no media URL rides the payload // [RP-V7.298] // [RP-V7.316] allowDownloads
-        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}) }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
+        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}), text: fp.text || "", likedByMe: Array.isArray(fp.likes) ? fp.likes.includes(ctx.user.id) : false, comments: reelPublicComments({ comments: Array.isArray(fp.comments) ? fp.comments : [] }, nameResolver313(ctx.db)), commentCount: Array.isArray(fp.comments) ? fp.comments.length : 0, reposts: Array.isArray(fp.reposts) ? fp.reposts.length : 0, myReposted: (Array.isArray(fp.reposts) && fp.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(fp.reshares) && fp.reshares.some((x) => x && x.u === ctx.user.id)), giftCount: pgFeed409["feed:" + fp.id] || 0 /* [RP-V7.409] the profile Feed rail paints the full canonical row */ }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 60);
   } catch (e) { }
@@ -13735,9 +13791,11 @@ function storyCanPost(user) {
 function storyCanGift(user) {
   return !STORY_GIFT_ADULT_ONLY || storyIsAdult(user);
 }
-function storyPublic(s, vdb, meId) {
+function storyPublic(s, vdb, meId, pg409) {
   const likes = Array.isArray(s.likes) ? s.likes : [];
   const viewedBy = Array.isArray(s.viewedBy) ? s.viewedBy : [];
+  const reps409 = Array.isArray(s.reposts) ? s.reposts : [];
+  const reshs409 = Array.isArray(s.reshares) ? s.reshares : [];
   return {
     id: s.id,
     kind: s.kind === "photo" ? "photo" : "video",
@@ -13749,6 +13807,17 @@ function storyPublic(s, vdb, meId) {
     likedByMe: meId ? likes.includes(meId) : false,
     viewedByMe: meId ? viewedBy.includes(meId) : false,
     crMuted: s.crMuted || null, // [RP-V7.286]
+    // [RP-V7.409] Icon parity: the story viewer paints the same
+    // counts as every other surface — gifts received on THIS story
+    // (postGifts "story:<id>", recorded by the gift handler under
+    // the story's own id) and reposts (the public count; the
+    // caller's own state also counts a reshare of their own story,
+    // the V7.101 rule).
+    giftCount: pg409 ? pg409["story:" + s.id] || 0 : 0,
+    reposts: reps409.length,
+    myReposted: meId
+      ? reps409.some((x) => x && x.u === meId) || reshs409.some((x) => x && x.u === meId)
+      : false,
   };
 }
 const storyUpload = multer({
@@ -13838,6 +13907,7 @@ app.get("/api/story/tray", (req, res) => {
   const urec = fyUserRec(sig, ctx.user.id, false);
   const aff = (urec && urec.authorAff) || {};
   const now = Date.now();
+  const pgTray409 = (readMoney() || {}).postGifts || {}; // [RP-V7.409] story gift counts ride the tray
   const byAuthor = new Map();
   for (const s of Object.values(db.stories)) {
     if (!s || !s.authorId) continue;
@@ -13852,7 +13922,7 @@ app.get("/api/story/tray", (req, res) => {
     const acct = ctx.db.users.find((u) => u.id === authorId);
     const photos = acct ? accountPhotos(acct) : [];
     list.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
-    const stories = list.map((s) => storyPublic(s, vdb, ctx.user.id));
+    const stories = list.map((s) => storyPublic(s, vdb, ctx.user.id, pgTray409));
     authors.push({
       author: { id: authorId, name: brief.name, photo: (acct && acct.photo) || photos[0] || null }, // [RP-V7.89] the FACE is user.photo — gallery[0] showed the old photo after an avatar pick
       iFollow: following.has(authorId),
@@ -13864,6 +13934,65 @@ app.get("/api/story/tray", (req, res) => {
         (following.has(authorId) ? 1000 : 0) +
         2.5 * fyDecayed(aff[authorId], now),
     });
+  }
+  /* [RP-V7.409] REPOSTED STORIES ride the tray BY REFERENCE
+     (Branden delegated the story calls Nov 16, 2026 — "do what's
+     best"): a member the viewer follows (or the viewer themself)
+     who reposted a live story carries it in their own tray group
+     with repostOf attribution. The item is the ORIGINAL
+     storyPublic — same id, same expiresAt: the repost keeps the
+     original's remaining lifetime, never a fresh 24h — and it
+     vanishes with the original, because sweepStories has already
+     dropped expired records from db.stories before this pass
+     reads them. No media is ever copied. */
+  const groupById409 = new Map(authors.map((a) => [a.author.id, a]));
+  for (const [authorId, list] of byAuthor) {
+    if (hidden99.has(authorId)) continue;
+    for (const s of list) {
+      const reps = Array.isArray(s.reposts) ? s.reposts : [];
+      for (const e of reps) {
+        if (!e || !e.u || e.u === authorId) continue;
+        if (e.u !== ctx.user.id && !following.has(e.u)) continue;
+        if (hidden99.has(e.u)) continue;
+        let g = groupById409.get(e.u);
+        if (!g) {
+          const rb = socialBrief(ctx.db, e.u);
+          if (!rb) continue;
+          const racct = ctx.db.users.find((u) => u.id === e.u);
+          const rphotos = racct ? accountPhotos(racct) : [];
+          g = {
+            author: { id: e.u, name: rb.name, photo: (racct && racct.photo) || rphotos[0] || null },
+            iFollow: following.has(e.u),
+            isSelf: e.u === ctx.user.id,
+            allViewed: false,
+            latestAt: "",
+            stories: [],
+            _score: (following.has(e.u) ? 1000 : 0) + 2.5 * fyDecayed(aff[e.u], now),
+          };
+          authors.push(g);
+          groupById409.set(e.u, g);
+        }
+        if (g.stories.some((x) => x.id === s.id)) continue;
+        const pub = storyPublic(s, vdb, ctx.user.id, pgTray409);
+        const ab = socialBrief(ctx.db, authorId);
+        pub.repostOf = { authorId, authorName: (ab && ab.name) || s.authorName || "" };
+        pub.repostedAt = e.at || 0;
+        g.stories.push(pub);
+        const when409 = new Date(e.at || 0).toISOString();
+        if (String(when409).localeCompare(String(g.latestAt || "")) > 0) g.latestAt = when409;
+      }
+    }
+  }
+  /* Repost items order inside their group by when they were
+     reposted; authored items keep their createdAt order (the same
+     ascending arrangement the groups were built with). */
+  for (const a of authors) {
+    a.stories.sort((x, y) => {
+      const tx = x.repostedAt ? x.repostedAt : Date.parse(x.createdAt) || 0;
+      const ty = y.repostedAt ? y.repostedAt : Date.parse(y.createdAt) || 0;
+      return tx - ty;
+    });
+    a.allViewed = a.stories.every((s) => s.viewedByMe);
   }
   authors.sort(
     (a, b) =>
@@ -13969,6 +14098,40 @@ app.post("/api/story/like", (req, res) => {
   res.json({ ok: true, likes: s.likes.length, likedByMe: liked });
 });
 // Delete one of my own stories (and its file).
+/* [RP-V7.409] Repost a story — BY REFERENCE, the settled story
+   rules: the repost is a { u, at } entry on the ORIGINAL story
+   record, so the reposted story keeps the original's remaining
+   lifetime (its own expiresAt — no fresh 24h clock), carries the
+   original author's attribution in the tray, and dies with the
+   original (expiry sweep or the author's Delete). No media is
+   copied, ever. Someone else's story reposts onto the public
+   count (s.reposts); your OWN story reshares off it (s.reshares),
+   the V7.101 own-content rule the Feed and reels already keep.
+   Gated like posting: a repost is a tray appearance under your
+   name, so storyCanPost applies. */
+app.post("/api/story/repost", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account_scheduled_deletion" });
+  if (!storyCanPost(ctx.user))
+    return res.status(403).json({ ok: false, error: "Reposting stories is 18+" });
+  const storyId = String((req.body || {}).storyId || "");
+  const want = !!(req.body || {}).reposted;
+  const data = readStories();
+  const st = (data.stories || {})[storyId];
+  if (!st || !(Date.parse(st.expiresAt) > Date.now()))
+    return res.status(404).json({ ok: false, error: "story_not_found" });
+  st.reposts = Array.isArray(st.reposts) ? st.reposts : [];
+  st.reshares = Array.isArray(st.reshares) ? st.reshares : [];
+  const mine409 = st.authorId === ctx.user.id;
+  const lane = mine409 ? st.reshares : st.reposts;
+  const ix = lane.findIndex((x) => x && x.u === ctx.user.id);
+  if (want && ix < 0) lane.push({ u: ctx.user.id, at: Date.now() });
+  if (!want && ix >= 0) lane.splice(ix, 1);
+  writeStories(data);
+  return res.json({ ok: true, id: st.id, reposted: want, reposts: st.reposts.length, reshare: mine409 });
+});
 app.delete("/api/story/:id", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -14081,7 +14244,7 @@ function feedRatePct(count, views) {
   if (!views || views <= 0) return 0;
   return Math.round((count / views) * 10000) / 100;
 }
-function feedPublic(ctx, p, following, fanAccess296, clubAccess298) { // [RP-V7.298] clubAccess298 mirrors fanAccess296
+function feedPublic(ctx, p, following, fanAccess296, clubAccess298, pg409) { // [RP-V7.298] clubAccess298 mirrors fanAccess296 // [RP-V7.409] pg409 (optional) carries the gift counts
   const brief = socialBrief(ctx.db, p.authorId);
   if (!brief) return null; // pending-deletion / gone authors don't show
   const acct = ctx.db.users.find((u) => u.id === p.authorId);
@@ -14129,6 +14292,7 @@ function feedPublic(ctx, p, following, fanAccess296, clubAccess298) { // [RP-V7.
     commentCount: Array.isArray(p.comments) ? p.comments.length : 0,
     reposts: Array.isArray(p.reposts) ? p.reposts.length : 0,
     myReposted: (Array.isArray(p.reposts) && p.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(p.reshares) && p.reshares.some((x) => x && x.u === ctx.user.id)), // [RP-V7.101] own reshare shows as my repost state; the public count above stays reposts-only
+    ...(pg409 ? { giftCount: pg409["feed:" + p.id] || 0 } : {}), // [RP-V7.409] counted gifts on Feed posts, like every other surface
     shares: typeof p.shares === "number" ? p.shares : 0,
     views: typeof p.views === "number" ? p.views : 0,
     allowDownloads: p.allowDownloads !== false, // [RP-V7.316]
@@ -19794,6 +19958,15 @@ function writeSaved349(db) {
   storeWriteJson(SAVED349_FILE, db);
 }
 function saved349Find(kind, id) {
+  if (kind === "story") {
+    // [RP-V7.409] A saved story is a live REFERENCE into the swept
+    // stories store — never a copy of its media. An expired or
+    // author-deleted story is simply not found: the save 404s, and
+    // any existing row prunes itself on the next GET /api/saved.
+    const sd = sweepStories();
+    const st = (sd.stories || {})[id];
+    return st ? { store: "story", rec: st } : null;
+  }
   if (kind === "reel") {
     const r = listReels().find((x) => x && x.id === id && x.file);
     if (r) return { store: "reel", rec: r };
@@ -19929,11 +20102,39 @@ function saved349ResolveFeed(p, c, ctx) {
       : {}),
     crMuted: pub.crMuted || null,
     allowDownloads: pub.allowDownloads !== false,
+    // [RP-V7.409] the lightbox Feed rail paints the full canonical
+    // row for saved Feed posts too — the engagement rides along.
+    myLiked: !!pub.likedByMe, comments: pub.comments || [], commentCount: pub.commentCount || 0,
+    reposts: pub.reposts || 0, myReposted: !!pub.myReposted,
+    giftCount: postGiftCountOf262(c.pg, "feed", p.id),
+  };
+}
+// [RP-V7.409] Tile-shaped item for a saved STORY — a live
+// reference, resolved from the swept store at read time. A story
+// that has expired or been deleted by its author, a block-hidden
+// author, or an author with no brief resolves to null, and
+// GET /api/saved prunes the row: the Saved surface never shows a
+// broken tile for a story that no longer exists, and no story
+// media is ever copied into the saves store.
+function saved349ResolveStory(st, c) {
+  if (!st || !st.file || !(Date.parse(st.expiresAt) > Date.now())) return null;
+  if (st.authorId && c.hidden.has(st.authorId)) return null;
+  const b = socialBrief(c.adb, st.authorId);
+  if (!b) return null;
+  return {
+    kind: st.kind === "video" ? "reel" : "photo", story: true, storyId: st.id, id: st.id,
+    owner: st.authorId, ownerName: b.name || st.authorName || "",
+    src: "/photos/stories/" + st.file,
+    views: mediaViewCount(c.vdb, "story:" + st.id),
+    likes: Array.isArray(st.likes) ? st.likes.length : 0,
+    giftCount: postGiftCountOf262(c.pg, "story", st.id),
+    expiresAt: st.expiresAt, caption: "",
   };
 }
 function saved349Resolve(store, rec, c, ctx) {
   if (store === "reel") return saved349ResolveReel(rec, c);
   if (store === "photo") return saved349ResolvePhoto(rec, c);
+  if (store === "story") return saved349ResolveStory(rec, c);
   return saved349ResolveFeed(rec, c, ctx);
 }
 app.post("/api/save", (req, res) => {
@@ -19942,7 +20143,7 @@ app.post("/api/save", (req, res) => {
   const b = req.body || {};
   const kind = String(b.kind || "");
   const id = reelCleanId(b.id);
-  if ((kind !== "reel" && kind !== "photo") || !id)
+  if ((kind !== "reel" && kind !== "photo" && kind !== "story") || !id) // [RP-V7.409] stories save by reference
     return res.status(400).json({ ok: false, error: "Save needs a post kind and id" });
   const found = saved349Find(kind, id);
   if (!found) return res.status(404).json({ ok: false, error: "Post not found" });
@@ -19972,7 +20173,7 @@ app.post("/api/unsave", (req, res) => {
   const b = req.body || {};
   const kind = String(b.kind || "");
   const id = reelCleanId(b.id);
-  if ((kind !== "reel" && kind !== "photo") || !id)
+  if ((kind !== "reel" && kind !== "photo" && kind !== "story") || !id) // [RP-V7.409]
     return res.status(400).json({ ok: false, error: "Unsave needs a post kind and id" });
   const db = readSaved349();
   const before = db.rows.length;
@@ -20015,6 +20216,8 @@ app.get("/api/saved", (req, res) => {
   const photoIdx = new Map();
   for (const p of readPhotoPosts().posts) if (p && p.id) photoIdx.set(p.id, p);
   const feedPosts = readFeed().posts || {};
+  const storyIdx409 = new Map(); // [RP-V7.409] saved stories resolve from the swept store — an expired/deleted story is absent here, so its row prunes below
+  for (const s of Object.values(sweepStories().stories || {})) if (s && s.id) storyIdx409.set(s.id, s);
   const rowKey = (r) => r.kind + ":" + r.store + ":" + r.id;
   const goneKeys = new Set();
   const items = [];
@@ -20025,6 +20228,9 @@ app.get("/api/saved", (req, res) => {
     else if (row.store === "feed") {
       const fp = feedPosts[row.id];
       rec = fp && fp.file ? fp : null;
+    }
+    else if (row.store === "story") {
+      rec = storyIdx409.get(row.id) || null; // [RP-V7.409]
     }
     if (!rec) {
       goneKeys.add(rowKey(row)); // the post is gone for good — drop + prune
@@ -20382,28 +20588,39 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
       .status(404)
       .json({ ok: false, resolved: false, error: "recipient-not-found" });
   // [RP-V7.262] GIFT COUNT ON POSTS: the client tags a post gift
-  // with the post it was sent from ({ kind: "reel"|"photo", id }).
+  // with the post it was sent from ({ kind: "reel"|"photo"|"feed"|"story", id }).
   // The tag is honored ONLY when the post exists AND belongs to
   // the resolved recipient — a stale or mismatched tag is dropped
   // silently and the gift settles exactly as before (bookkeeping
   // must never break a gift; the handler's established pattern).
-  // Gallery photos have no post record and Feed posts live in the
-  // Feed store, so nothing is ever recorded for them — no count
-  // can exist for a surface the server does not record against.
+  // Gallery photos have no post record, so nothing is ever
+  // recorded for them. [RP-V7.409] Feed posts and stories DO
+  // record now (keys "feed:<id>" / "story:<id>"), under the same
+  // exists-and-belongs-to-the-recipient rule — a story count dies
+  // with its record, exactly like the story itself.
   let postKey262 = null;
   let postIsText262 = false; // [RP-V7.278]
   try {
     const bp262 = b.post;
-    if (bp262 && (bp262.kind === "reel" || bp262.kind === "photo") && typeof bp262.id === "string" && bp262.id) {
+    if (bp262 && (bp262.kind === "reel" || bp262.kind === "photo" || bp262.kind === "feed" || bp262.kind === "story") && typeof bp262.id === "string" && bp262.id) {
       if (bp262.kind === "reel") {
         const rr262 = listReels().find((x) => x && x.id === bp262.id);
         if (rr262 && reelAuthorKeyFor(ctx.db, rr262) === recipient.id) postKey262 = "reel:" + bp262.id;
-      } else {
+      } else if (bp262.kind === "photo") {
         const pp262 = readPhotoPosts().posts.find((x) => x && x.id === bp262.id);
         if (pp262 && pp262.owner === recipient.id) {
           postKey262 = "photo:" + bp262.id;
           if (pp262.kind === "text") postIsText262 = true; // [RP-V7.278] a gift on a text post lands on Home, where text posts live
         }
+      } else if (bp262.kind === "feed") {
+        // [RP-V7.409] Feed posts record against the Feed store.
+        const fp409 = (readFeed().posts || {})[bp262.id];
+        if (fp409 && fp409.authorId === recipient.id) postKey262 = "feed:" + bp262.id;
+      } else {
+        // [RP-V7.409] Stories record against the story id — and an
+        // expired story takes no new attributions.
+        const sp409 = (readStories().stories || {})[bp262.id];
+        if (sp409 && sp409.authorId === recipient.id && Date.parse(sp409.expiresAt) > Date.now()) postKey262 = "story:" + bp262.id;
       }
     }
   } catch (e) { postKey262 = null; }
@@ -21971,7 +22188,7 @@ app.get("/api/fanclub/club", (req, res) => {
       .filter((fp) => fp && fp.authorId === recipient.id && fp.clubOnly)
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 60)
-      .map((fp) => feedPublic(fakeCtx, fp, following, fanSet, clubSet))
+      .map((fp) => feedPublic(fakeCtx, fp, following, fanSet, clubSet, pg298)) // [RP-V7.409] gift counts ride the club payload too
       .filter(Boolean);
   } catch (e) { }
   const members = fanClubMembersList298(db, recipient.id, ctx.db);
