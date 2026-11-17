@@ -15174,6 +15174,33 @@ function notifyActivity(o) {
       writeAccounts(adb);
     }
     if (o.inAppOnly) return;
+    // [RP-V7.405] 1b) PHONE PUSH — every kind that reaches this line
+    // also rides the V7.328 push door, so the phone hears about
+    // comments, likes, follows, reposts, new posts, live invites and
+    // Daily Pot wins the way TikTok-style apps do — not just by
+    // email. Reaching this line already proves: not the member's own
+    // action, not a blocked pair, account live (no pending deletion),
+    // the per-kind switch ON, and NOT inAppOnly (the copyright-style
+    // notices returned above and never push). pushToUser328 then
+    // re-checks the per-kind switch + the push channel switch and
+    // no-ops when the member has no subscribed device.
+    // Kinds "dm" and "gift" are deliberately NOT pushed here: each
+    // already fires its own dedicated pushToUser328 at its call site
+    // (DMs with the message preview, gifts with the composed gift
+    // line), so a funnel push would double-notify. (A giveaway's
+    // charms win also reports kind "gift" — it keeps its previous
+    // bell/email behaviour rather than opening a second door for the
+    // gift kind; its item-prize sibling reports "order" and pushes.)
+    if (o.kind !== "dm" && o.kind !== "gift") {
+      try {
+        pushToUser328(o.toId, o.kind, {
+          title: pushTitle405(o),
+          body: o.text,
+          url: pushUrl405(o, adb),
+          tag: o.kind + ":" + (o.actorId || "rp"),
+        });
+      } catch (e) { /* push must never break the funnel */ }
+    }
     // 2) + 3) EMAIL / SMS — queued for the outbox drain, with the
     // member's channel wishes snapshotted (the drain re-checks the
     // live settings too, so turning a switch off also silences
@@ -15200,6 +15227,43 @@ function notifyActivity(o) {
   } catch (e) {
     /* a notification must never break the action that caused it */
   }
+}
+// [RP-V7.405] Push payload shaping for the funnel hook above. Title:
+// the actor's name where the activity has one (the composed activity
+// text already starts with it on most kinds, and a name-led title is
+// what other platforms show); system events fall back to a
+// kind-appropriate label. Body: the activity's own text, unchanged —
+// the same line the bell row shows.
+function pushTitle405(o) {
+  if (o.kind === "potwin") return "\uD83E\uDE99 Daily Pot";
+  const name = o.actorName ? String(o.actorName).slice(0, 60) : "";
+  return name || "Rizz Plaza";
+}
+// [RP-V7.405] The push tap lands where the bell row's tap lands: the
+// reminder's `go` target translated into the share/invite deep-link
+// params the client already consumes at boot (/?reel= and /?photo=
+// open the post, /?live= opens the room, /?creator=<username> opens
+// a profile, /?dm= opens the thread). Anything without a param form
+// (own profile, Plaza, Earn, Auctions, Home) opens the app root,
+// where the bell row carries the detail — the same fallback the
+// V7.328 gift push uses for live/gallery gifts.
+function pushUrl405(o, adb) {
+  const go = o && o.go && typeof o.go === "object" ? o.go : null;
+  if (!go) return "/";
+  const idOk = (v) => typeof v === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(v);
+  if (go.screen === "moments" && idOk(go.reelId)) return "/?reel=" + go.reelId;
+  if (go.screen === "moments" && idOk(go.photoId)) return "/?photo=" + go.photoId;
+  if (go.screen === "dm" && idOk(go.id)) return "/?dm=" + go.id;
+  if (go.screen === "live" && typeof go.room === "string" && go.room)
+    return "/?live=" + encodeURIComponent(go.room.slice(0, 120));
+  if (go.screen === "profile" && o.actorId) {
+    try {
+      const au = (adb.users || []).find((x) => x && x.id === o.actorId);
+      if (au && au.username && /^[A-Za-z0-9_]{3,20}$/.test(au.username))
+        return "/?creator=" + au.username;
+    } catch (e) { /* fall through to the app root */ }
+  }
+  return "/";
 }
 // [RP-V7.307] OWNER SIGNUP ALERT (Branden, Nov 9: "I'm not getting
 // notifications to my phone number when someone signs up"). Fired from
@@ -15273,11 +15337,21 @@ function notifyOwnerOfSignup307(newUser, totalMembers) {
 // Wired triggers in this build: (1) DM received, (2) gift received
 // (post or live). The helper takes a `kind`, so live-start / pot
 // events are one-line additions later — deliberately NOT wired here.
+// [RP-V7.405] Those additions landed: notifyActivity now routes every
+// non-inAppOnly kind except dm/gift (which keep their dedicated calls
+// above) through this door — see the funnel hook in notifyActivity
+// and the extended PUSH328_KIND_KEY below.
 // ---------------------------------------------------------------------------
 const PUSH328_FILE =
   process.env.PUSH_FILE ||
   path.join(path.dirname(PHOTO_DIR), "push328.json");
-const PUSH328_KIND_KEY = { dm: "messages", gift: "gifts" };
+// [RP-V7.405] The door now accepts every notifyActivity kind, each
+// mapped to the SAME settings switch the bell and email already obey
+// (this mirrors NOTIFY_SETTING_KEY exactly). V7.328 wired only dm +
+// gift through the door, so the Likes / Comments / Reposts / New
+// posts / Live invites / Daily Pot toggles the Settings screen shows
+// never produced a phone push — members got those by email only.
+const PUSH328_KIND_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", rewards: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups" };
 const PUSH328_SUBJECT = "mailto:support@rizzplaza.com";
 function emptyPush328() {
   return { vapid: null, subs: {} };
@@ -15383,7 +15457,9 @@ function push328Prune(userId, deadEndpoints) {
     }
   } catch (e) { /* pruning must never break anything */ }
 }
-// The one delivery door. kind: "dm" | "gift" (see PUSH328_KIND_KEY).
+// The one delivery door. kind: any PUSH328_KIND_KEY kind — "dm" and
+// "gift" arrive from their dedicated call sites; every other kind
+// arrives from the notifyActivity funnel [RP-V7.405].
 function pushToUser328(userId, kind, opts) {
   try {
     if (!userId || !opts) return;
@@ -15419,7 +15495,13 @@ function pushToUser328(userId, kind, opts) {
           else if (status < 200 || status >= 300)
             console.log("[push328] send to " + new URL(sub.endpoint).host + " answered HTTP " + status);
         } catch (e) {
-          console.log("[push328] send failed: " + (e && e.message ? e.message.slice(0, 120) : "unknown"));
+          // [RP-V7.405] name the endpoint host on a network-level
+          // failure too (the HTTP-status line above already does), so
+          // a push-service rejection is diagnosable from the deploy
+          // log. Host only — never endpoints, keys or payloads.
+          let failHost = "?";
+          try { failHost = new URL(sub.endpoint).host; } catch (e2) { /* keep "?" */ }
+          console.log("[push328] send to " + failHost + " failed: " + (e && e.message ? e.message.slice(0, 120) : "unknown"));
         }
       }
       if (dead.length) push328Prune(userId, dead);
