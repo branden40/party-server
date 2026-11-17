@@ -30366,6 +30366,61 @@ function rpRenamePopstar396() {
 // key ("jesusisking") resolves the renamed account on the same boot.
 try { rpRenamePopstar396(); } catch (e) { console.log("[RP-V7.396] rename failed:", e && e.message); }
 
+// ---------------------------------------------------------------------------
+// [RP-V7.403] JESUSISKING AGE CLASS (Branden, Nov 16, 2026): the owner's
+// test account @Jesusisking was created with an under-18 DOB, so the
+// server classed it "teen" (accountAgeClass reads the stored dob) and
+// the audit-H1 socket gate refused it from every 18+ room — Love
+// Lounge, Serious Singles, the state rooms — even though Branden
+// operates the account himself. At his order the account becomes
+// 18+: this one-time, idempotent boot migration finds it by the SAME
+// identity pair the V7.396 rename used (username key "jesusisking"
+// AND email magniphiscents@gmail.com — both must match, so no other
+// account can ever be swept in) and, only while the stored record
+// still classes teen, sets its dob to Branden's own birthdate
+// (1984-03-14). After the write no boot matches the teen condition
+// again, so later boots are no-ops. NOTHING else about the account
+// changes: the test-funds flag and TEST_FUNDS_USERNAME_KEYS_321 are
+// untouched (test charms stay test charms), the sign-in exemption and
+// the owner-delete guard key on identity, not age, and stay as they
+// are.
+// BALANCE FOLD: a teen's gift sends debit ONLY the earned/won gift
+// balance (giftBals — see the RP-V7.74 spend-source rule in
+// /api/money/gift), while an adult's sends debit ONLY the main
+// balance (balances) and no adult path ever reads giftBals. Any
+// charms left sitting in this account's giftBals at the flip would
+// therefore be stranded — invisible to the gift panel's balance and
+// unspendable. So in the same migration a positive giftBals entry is
+// folded into the main balance and the gift entry removed, with the
+// move recorded in the money ledger (type "age-class-fold", cents 0
+// — charms only, no money figure moves). Total charms across both
+// lanes are identical before and after; only the lane changes.
+// ---------------------------------------------------------------------------
+function rpJesusiskingAdult403() {
+  const adb = readAccounts();
+  if (!adb || !Array.isArray(adb.users)) return;
+  const target = adb.users.find((u) => u && usernameKey(u.username) === "jesusisking" && String(u.email || "").trim().toLowerCase() === "magniphiscents@gmail.com");
+  if (!target) return; // account absent — no-op
+  if (accountAgeClass(target) !== "teen") return; // already adult — no-op (idempotent)
+  target.dob = "1984-03-14";
+  writeAccounts(adb);
+  let folded = 0;
+  const mdb = readMoney();
+  const giftBal = (mdb.giftBals && mdb.giftBals[target.id]) || 0;
+  if (giftBal > 0) {
+    mdb.balances[target.id] = (mdb.balances[target.id] || 0) + giftBal;
+    delete mdb.giftBals[target.id];
+    moneyTx(mdb, {
+      type: "age-class-fold", from: target.id, to: target.id,
+      charms: giftBal, cents: 0, cut: 0, ref: "RP-V7.403",
+    });
+    writeMoney(mdb);
+    folded = giftBal;
+  }
+  console.log("[RP-V7.403] @Jesusisking age class teen -> adult (dob set to 1984-03-14, id " + target.id + "); gift balance folded into main balance: " + folded + " charms");
+}
+try { rpJesusiskingAdult403(); } catch (e) { console.log("[RP-V7.403] age-class migration failed:", e && e.message); }
+
 // [RP-V7.321] Test-funds guardrail: seed the account flags (owner +
 // @Jesusisking) once at boot — see testFundsSeed321 above.
 try { testFundsSeed321(); } catch (e) {}
