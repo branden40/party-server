@@ -3902,6 +3902,10 @@
                         <div class="field" id="pfSecBasics" style="margin-top:18px;">
               <label for="nameInput">Your name</label>
               <input type="text" id="nameInput" maxlength="16" placeholder="e.g. Alex" autocomplete="off" />
+              <label for="pfUsernameInput" style="margin-top:14px;">Username</label>
+              <input type="text" id="pfUsernameInput" maxlength="20" placeholder="e.g. plaza_star_23" autocomplete="username" autocapitalize="none" spellcheck="false" />
+              <p class="age-note">Your @handle — members find you by it, and you can sign in with it. 3–20 characters: letters, numbers and underscores.</p>
+              <p class="age-note su-err" id="pfUsernameErr" hidden></p>
               <label style="margin-top:14px;">Gender</label>
               <div class="chips" id="pfGender"></div>
               <p class="age-note">This is how you'll show up — your name.</p>
@@ -8073,6 +8077,20 @@
           if (window.rpSaveAccountProfile) window.rpSaveAccountProfile(me.name, me.bio, lkEl86 ? lkEl86.value.trim() : undefined, { gender: (me.gender === "male" || me.gender === "female") ? me.gender : null, ageRange: me.ageRange || null, lookingFor: me.lookingFor || null, relStatus: me.relStatus || null, vibe: me.vibe || null }).then(function (ok86) {
             if (ok86 === false && lkEl86 && lkEl86.value.trim()) toast("Profile save hit a snag — check the link address and your connection, then save again.");
           });
+        } catch (e) { }
+        try { // [RP-V7.408] a changed @handle saves too — only when the field's handle actually differs from the account's current one
+          var unEl408 = $("pfUsernameInput");
+          var curUn408 = (window.rpAccountProfile && window.rpAccountProfile.username) || "";
+          if (unEl408 && window.rpSaveAccountUsername) {
+            var wantUn408 = (unEl408.value || "").replace(/^@+/, "").trim();
+            if (wantUn408 && wantUn408.toLowerCase() !== String(curUn408).toLowerCase()) {
+              window.rpSaveAccountUsername(wantUn408).then(function (res408) {
+                var unErr408 = $("pfUsernameErr");
+                if (res408 === true) { if (unErr408) unErr408.hidden = true; toast("Username updated — you're @" + wantUn408 + " now ✓"); }
+                else if (typeof res408 === "string") { if (unErr408) { unErr408.textContent = res408; unErr408.hidden = false; } toast(res408); }
+              });
+            }
+          }
         } catch (e) { }
         updatePfMeter();
         renderCardPreview();
@@ -21095,6 +21113,7 @@
       window.rpApplyAccountProfile = function (u) {
         if (!u || typeof u !== "object") return;
         if (typeof u.username === "string" && u.username) { acctUsername61 = u.username; window.rpAccountProfile.username = u.username; try { localStorage.setItem("rpAcctUsername.v1", u.username); } catch (e) { } }
+        var un408 = $("pfUsernameInput"); if (un408 && document.activeElement !== un408 && typeof u.username === "string" && u.username) un408.value = u.username; // [RP-V7.408] the setup form shows the member their current @handle
         var nm = (typeof u.name === "string" && u.name.trim()) ? cleanOnlineName(u.name) : "";
         if (nm) {
           me.name = nm;
@@ -35235,6 +35254,17 @@ function stageStreakBump(key, add) {
      module's one restore path too, so the saved session copy
      (acct.photo) can never drift behind the member's current face. */
   window.rpAcctSyncUser = function (u) { try { if (acct && u) applyAccountUser(u); } catch (e) { } };
+  /* [RP-V7.408] Username change rides the same Save profile button
+     through its own door, so a taken or reserved handle gets its own
+     clear message: resolves true on success, the server's error
+     string on refusal, false when signed out. */
+  window.rpSaveAccountUsername = function (username) {
+    if (!acct || !acct.token) return Promise.resolve(false);
+    return api("/api/account/username", "POST", { username: username }).then(function (r) {
+      if (r.json && r.json.ok && r.json.user) { applyAccountUser(r.json.user); acctBoxSig = ""; renderAcctBox(); return true; }
+      return (r.json && r.json.error) || false;
+    });
+  };
   window.rpSaveAccountProfile = function (name, bio, link, ext) {
     if (!acct || !acct.token) return Promise.resolve(false);
     var body86 = { name: name, bio: bio };
