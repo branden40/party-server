@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.404" /> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.406" /> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -24706,6 +24706,88 @@
           el.style.maskComposite = "intersect";
         } catch (e) { }
       }
+      /* [RP-V7.406] THE BORDER MELT, SECOND PASS — the Nov 16, 2026
+         all-gifts audit (86 gifts x bright + dark backdrops, difference
+         imaging against backdrop-only references) found 14 gifts still
+         tracing a frame edge, in three causes. One profile fixes all
+         three: mask alpha is EXACTLY 0 for the first 3px inside the
+         film's real frame (a dead zone — V7.382's ramp still held
+         ~3.4% alpha in the audit's 1-3px border strips, enough for
+         Key Cascade's bright bottom rows to step +6.3 on a dark
+         backdrop), then a ramp through 0.35 to full at ~14-18% of the
+         frame — the same depth V7.382 already faded, so the subject
+         treatment is unchanged; only the border itself goes to zero.
+         rpMelt406: float/burst film heroes + the freeze-gate hold
+         (rpMelt382's three call sites — same contain-rect maths).
+         rpMeltCanvas406: the big stage's WebGL-keyed canvas, whose
+         box IS the film frame — the outer rows go fully transparent,
+         killing the 5.6-12.1 gray-level hairline the element-relative
+         V7.337 feather leaked on 10 stage gifts (Rocket, Moon
+         Unicorn, Dragon Throne, Rizz Supernova, Plaza Diamond,
+         Celestial Stag, Star Surge, Volcano, Star Cruiser, Golden
+         Yacht). rpSceneMelt406: the dedicated scene stages (Golden
+         Goal / Whale Dive / T-Rex portrait), whose films sit
+         letterboxed inside a full-screen element — the melt hugs the
+         film's RENDERED frame instead of the element, and the stages'
+         black letterbox backgrounds are removed (CSS), so the bands
+         vanish with the frame. No geometry changes anywhere. */
+      function rpMeltStops406(a0, a1, f) {
+        var DZ = 3;
+        if (f * 2 + DZ * 2 > (a1 - a0)) f = Math.max(4, Math.floor((a1 - a0) / 2) - DZ);
+        return "rgba(0,0,0,0) " + a0.toFixed(1) + "px, rgba(0,0,0,0) " + (a0 + DZ).toFixed(1) + "px, rgba(0,0,0,0.35) " + (a0 + DZ + f * 0.5).toFixed(1) + "px, rgb(0,0,0) " + (a0 + DZ + f).toFixed(1) + "px, rgb(0,0,0) " + (a1 - DZ - f).toFixed(1) + "px, rgba(0,0,0,0.35) " + (a1 - DZ - f * 0.5).toFixed(1) + "px, rgba(0,0,0,0) " + (a1 - DZ).toFixed(1) + "px, rgba(0,0,0,0) " + a1.toFixed(1) + "px";
+      }
+      function rpApplyMelt406(el, x0, y0, x1, y1, fx, fy) {
+        var gx406 = "linear-gradient(to right, " + rpMeltStops406(x0, x1, fx) + ")";
+        var gy406 = "linear-gradient(to bottom, " + rpMeltStops406(y0, y1, fy) + ")";
+        el.style.webkitMaskImage = gx406 + ", " + gy406;
+        el.style.maskImage = gx406 + ", " + gy406;
+        el.style.webkitMaskComposite = "source-in";
+        el.style.maskComposite = "intersect";
+      }
+      function rpMelt406(el) {
+        try {
+          if (!el || (el.tagName !== "VIDEO" && el.tagName !== "IMG")) return;
+          if (document.body && document.body.classList.contains("live-fs")) return;
+          var iw = el.videoWidth || el.naturalWidth || 0, ih = el.videoHeight || el.naturalHeight || 0;
+          if (!iw || !ih) { var f406 = function () { rpMelt406(el); }; if (el.tagName === "VIDEO") el.addEventListener("loadedmetadata", f406, { once: true }); else el.addEventListener("load", f406, { once: true }); return; }
+          var W = el.clientWidth || window.innerWidth || 0, H = el.clientHeight || window.innerHeight || 0;
+          if (!W || !H) return;
+          var ar406 = iw / ih, fw = W, fh = fw / ar406; if (fh > H) { fh = H; fw = fh * ar406; }
+          var x0 = (W - fw) / 2, y0 = (H - fh) / 2, x1 = x0 + fw, y1 = y0 + fh;
+          rpApplyMelt406(el, x0, y0, x1, y1, Math.max(10, Math.round(fw * 0.14)), Math.max(10, Math.round(fh * 0.18)));
+        } catch (e) { }
+      }
+      function rpMeltCanvas406(cv) {
+        if (!cv || cv.tagName !== "CANVAS") return;
+        var tryC406 = function () {
+          try {
+            var W = cv.clientWidth || 0, H = cv.clientHeight || 0;
+            if (!W || !H) return false;
+            rpApplyMelt406(cv, 0, 0, W, H, Math.max(10, Math.round(W * 0.14)), Math.max(10, Math.round(H * 0.18)));
+            return true;
+          } catch (e) { return false; }
+        };
+        if (!tryC406()) { try { requestAnimationFrame(tryC406); } catch (e) { } setTimeout(tryC406, 120); }
+        setTimeout(tryC406, 350); setTimeout(tryC406, 900); /* the portrait stage seat settles its aspect from the film's metadata after attach — re-aim the melt once the box lands */
+        if (window.ResizeObserver) { try { var ro406 = new ResizeObserver(function () { tryC406(); }); ro406.observe(cv); setTimeout(function () { try { ro406.disconnect(); } catch (e) { } }, 10000); } catch (e) { } } /* the seat can settle later than any fixed retry under load — re-aim on EVERY box change while the show runs */
+      }
+      function rpSceneMelt406(el) {
+        if (!el || el.tagName !== "VIDEO") return;
+        var tryS406 = function () {
+          try {
+            var iw = el.videoWidth || 0, ih = el.videoHeight || 0;
+            var W = el.clientWidth || window.innerWidth || 0, H = el.clientHeight || window.innerHeight || 0;
+            if (!iw || !ih || !W || !H) return false;
+            var ar406 = iw / ih, fw = W, fh = fw / ar406; if (fh > H) { fh = H; fw = fh * ar406; }
+            var x0 = (W - fw) / 2, y0 = (H - fh) / 2, x1 = x0 + fw, y1 = y0 + fh;
+            rpApplyMelt406(el, x0, y0, x1, y1, Math.max(12, Math.round(fw * 0.14)), Math.max(16, Math.round(fh * 0.16)));
+            return true;
+          } catch (e) { return false; }
+        };
+        if (!tryS406()) { el.addEventListener("loadedmetadata", function () { tryS406(); }, { once: true }); try { requestAnimationFrame(tryS406); } catch (e) { } setTimeout(tryS406, 350); }
+        setTimeout(tryS406, 900);
+      }
+      window.rpMelt406 = rpMelt406; window.rpMeltCanvas406 = rpMeltCanvas406; window.rpSceneMelt406 = rpSceneMelt406;
       /* [RP-V7.398] THE FREEZE GATE (Branden, Nov 16, 2026 — his
          Heart/Rose/Coffee shows sat on the film's first frame for
          ~2 s of their 5.2 s window, then played only the tail):
@@ -24767,7 +24849,7 @@
             hold.alt = ""; hold.src = art398;
             hold.onerror = function () { if (hold && hold.parentNode) { var sp = document.createElement("span"); sp.textContent = (g && g.icon) || "🎁"; sp.style.cssText = hold.style.cssText; sp.style.fontSize = "110px"; hold.parentNode.replaceChild(sp, hold); hold = sp; } };
             stage.appendChild(hold);
-            rpMelt382(hold); // the same frame-edge melt the film hero gets off-live; self-guards in lives
+            rpMelt406(hold); // [RP-V7.406] the 406 border melt (dead zone + ramp; same frame maths as V7.382) — the hold can BECOME the show (takeArt), so its frame melts exactly like the film hero's; self-guards in lives
             if (cv) { var syncHold398 = function () { try { if (hold && hold.parentNode && cv.style.height) { hold.style.height = cv.style.height; hold.style.width = cv.style.width; } } catch (e) { } }; vid.addEventListener("loadedmetadata", syncHold398); requestAnimationFrame(syncHold398); setTimeout(syncHold398, 350); } // the keyer's fixAspect settles the canvas box from the film's raster after metadata — the hold art takes the same box, so the film's takeover never shifts the seat
           }
         } catch (e) { hold = null; }
@@ -24849,7 +24931,7 @@
         stage.appendChild(s);
         if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g, undefined); } /* [RP-V7.334] no cover/keepBox on either path now — identity window + fixAspect (the band path always keyed this way) */
         if (s.classList && s.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the band seat centres their square at 72% and pokes it above the midline */          if (document.body && document.body.classList.contains("live-fs")) { s.style.left = "var(--gfx-x, 0px)"; s.style.top = "auto"; s.style.bottom = "0px"; s.style.width = "min(100vw, var(--gfx-w, 100vw))"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { s.style.left = "0px"; s.style.top = "0px"; s.style.bottom = "auto"; s.style.width = "100vw"; s.style.height = "100dvh"; s.style.maxHeight = "none"; } s.style.transform = "none"; s.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
-          rpMelt382(s); // [BOX-FIX] RP-V7.382
+          rpMelt406(s); // [RP-V7.406] border melt with the 3px dead zone (was rpMelt382 — its ramp still held ~3.4% alpha in the audit's border strips)
           s.style.animation = "gfxFade337 600ms ease-out both"; }
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
@@ -24887,7 +24969,7 @@
         stage.appendChild(hero);
         if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined); // [RP-V7.217] hero keyed live — no box — [RP-V7.334] identity window + fixAspect on both paths (see the giftFxFloat note)
         if (hero.classList && hero.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the burst's centred seat pokes their square above the midline */          if (document.body && document.body.classList.contains("live-fs")) { hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { hero.style.left = "0px"; hero.style.top = "0px"; hero.style.bottom = "auto"; hero.style.width = "100vw"; hero.style.height = "100dvh"; hero.style.maxHeight = "none"; } hero.style.transform = "none"; hero.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
-          rpMelt382(hero); // [BOX-FIX] RP-V7.382
+          rpMelt406(hero); // [RP-V7.406] border melt with the 3px dead zone (was rpMelt382)
           hero.style.animation = "gfxFade337 600ms ease-out both"; }
         /* [RP-V7.360] the burst particle scatter is REMOVED (Branden, Nov 12, 2026: "these small little pictures pop up before the gift — it need to be erased"): the 18 .gfx-p spans (the firework-burst glyph tiles, gift-icon stickers and sparkles that scattered across the post BEFORE the hero) are gone for every gift on both surfaces. The show now starts directly with the gift itself; hero, caption and the send toast/banner are untouched. */
         var cap = document.createElement("div");
@@ -30965,7 +31047,7 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
    keeps the V7.81 cover melt exactly as before. The letterbox bands
    are true black on the element itself; the melt mask above is
    unchanged and applies to both orientations alike. */
-.rp-trex-video.rp-trex-portrait367{ object-fit:contain; background:#000; }
+.rp-trex-video.rp-trex-portrait367{ object-fit:contain; } /* [RP-V7.406] no black letterbox background — the portrait film's frame is melted at its rendered position by rpSceneMelt406 (the element-relative radial mask landed its feather in the wrong place: the film sits 5.6% inside the element) */
 .rp-trex-melt{ position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(ellipse at center, transparent 52%, rgba(5,5,10,.55) 82%, #05050a 100%); }
 /* [RP-V7.362] SKY STEPPER FULL-SCENE SHOW — the prestige
@@ -31000,13 +31082,13 @@ img.gfx-artimg{ object-fit:cover; border-radius:0; }
    exception): the stage video is created unmuted (see pumpStage). */
 #rpStage.goal370{ mix-blend-mode:normal !important; }
 #rpStage.goal370 .rp-stage-art{ position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; }
-.rp-goal-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; display:block; } /* [RP-V7.371] whole scene, never cropped (Branden, Nov 14, 2026: the video-post show cut the scene under cover) — contain, the V7.367 T-Rex pattern */
+.rp-goal-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; } /* [RP-V7.406] no black letterbox background — the bands around the contained scene were half the rectangle the audit measured; rpSceneMelt406 melts the film at its rendered frame and the stage behind shows through the bands */ /* [RP-V7.371] whole scene, never cropped (Branden, Nov 14, 2026: the video-post show cut the scene under cover) — contain, the V7.367 T-Rex pattern */
 #rpStage.goal370 .rp-stage-art img.rp-gift-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; display:block; mix-blend-mode:normal; } /* [RP-V7.371] fallback art follows the same whole-scene rule */
 #rpStage.goal370 .rp-stage-art:has(> img.rp-gift-img){ width:100%; height:100%; max-width:none; max-height:none; }
 /* [WHALE-FIX] RP-V7.380 WHALE DIVE FULL-SCENE SHOW (posts/reels only) — the goal-stage pattern for the whale film: a full-color ocean scene whose dark body and mid-tone water fall below the luma band-key threshold and get discarded by it, so off-live the film plays WHOLE and unblended on its own stage (contain on black, normal compositing — nothing keyed away). Lives never add this class: in a live the whale keeps its keyed band path exactly as before. */
 #rpStage.whale380{ mix-blend-mode:normal !important; }
 #rpStage.whale380 .rp-stage-art{ position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; }
-.rp-whale-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; display:block; }
+.rp-whale-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; } /* [RP-V7.406] no black letterbox background (see .rp-goal-video) — rpSceneMelt406 melts the film at its rendered frame */
 #rpStage.whale380 .rp-stage-art img.rp-gift-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; display:block; mix-blend-mode:normal; }
 #rpStage.whale380 .rp-stage-art:has(> img.rp-gift-img){ width:100%; height:100%; max-width:none; max-height:none; }
 
@@ -32276,6 +32358,7 @@ function rpStageMedia(div, gid, icon) {
         ctl.h = h;
         h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
         div.appendChild(h.canvas);
+        rpMeltCanvas406(h.canvas); /* [RP-V7.406] border-accurate melt on the keyed canvas: its box IS the film frame, and the V7.337 element feather still leaked 3-9% of the film in the outer 1-3px — the hairline the audit measured on 10 stage gifts. The 406 profile takes the outer rows to exactly transparent. */
         v.classList.add("rp-key-src");
         div.appendChild(v);
         markKeyed();
@@ -32293,6 +32376,7 @@ function rpStageMedia(div, gid, icon) {
         }, 2800);
         v.addEventListener("loadedmetadata", function () { // [RP-V7.360] portrait stage seat: the .portrait CSS box hardcodes 720/1280 — hand the box the film's OWN aspect so 1440x2160 films (Fox Shot, UFO Beam) show whole AND undistorted
           try { if (v.videoWidth && v.videoHeight && v.videoHeight > v.videoWidth) div.style.aspectRatio = v.videoWidth + " / " + v.videoHeight; } catch (e) { }
+          try { rpMeltCanvas406(h.canvas); } catch (e) { } /* [RP-V7.406] re-aim the canvas melt at the settled box */
         });
         v.src = window.rpGiftFilmUrl(aid);
         return;
@@ -32402,7 +32486,7 @@ function stageStreakBump(key, add) {
         /* [RP-V7.367] portrait source -> whole-frame contain (see
            the CSS note): decided from the film's own metadata, so
            whichever file answers the slot renders correctly. */
-        var rpTrexFit367 = function () { try { if (tv353.videoWidth && tv353.videoHeight) tv353.classList.toggle("rp-trex-portrait367", tv353.videoWidth < tv353.videoHeight); } catch (e) { } };
+        var rpTrexFit367 = function () { try { if (tv353.videoWidth && tv353.videoHeight) { var isPort367 = tv353.videoWidth < tv353.videoHeight; tv353.classList.toggle("rp-trex-portrait367", isPort367); if (isPort367) rpSceneMelt406(tv353); } } catch (e) { } }; /* [RP-V7.406] a portrait T-Rex film melts at its RENDERED frame (the element-relative radial mask feathered the wrong place — the frame sits 5.6% inside the element); landscape keeps the V7.81 radial melt untouched */
         tv353.addEventListener("loadedmetadata", rpTrexFit367);
         if (tv353.readyState >= 1) rpTrexFit367();
         setTimeout(function () { var o353 = document.getElementById("rpStage"); if (o353 && o353.classList.contains("trex") && !tv353.getAttribute("data-playing353")) window.rpTrexErr353(tv353); }, 1800);
@@ -32468,6 +32552,7 @@ function stageStreakBump(key, add) {
           var pp370 = gv370.play();
           if (pp370 && pp370.catch) pp370.catch(function () { try { gv370.muted = true; var p2370 = gv370.play(); if (p2370 && p2370.catch) p2370.catch(function () { }); } catch (e) { } });
         } catch (e) { }
+        rpSceneMelt406(gv370); /* [RP-V7.406] melt the stadium film at its rendered frame — no rectangle, no letterbox edge on any backdrop */
         setTimeout(function () { var o370 = document.getElementById("rpStage"); if (o370 && o370.classList.contains("goal370") && !gv370.getAttribute("data-playing370")) window.rpGoalErr370(gv370); }, 1800);
       }
     } else if (isWhale380) {
@@ -32495,6 +32580,7 @@ function stageStreakBump(key, add) {
       var wv380 = artDiv.querySelector("video.rp-whale-video");
       if (wv380) {
         wv380.addEventListener("playing", function () { wv380.setAttribute("data-playing380", "1"); });
+        rpSceneMelt406(wv380); /* [RP-V7.406] melt the ocean film at its rendered frame — no rectangle, no letterbox edge on any backdrop */
         setTimeout(function () { var o380 = document.getElementById("rpStage"); if (o380 && o380.classList.contains("whale380") && !wv380.getAttribute("data-playing380")) window.rpWhaleErr380(wv380); }, 1800);
       }
     } else if (isScene) {
