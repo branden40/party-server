@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.426" /> <!-- [RP-V7.426] account-switch reel glitch fix (Branden, Nov 18, 2026, "Fix that glitch"): (1) reelMyName asked the socket presence name first — Online.name is set once at connect and the account bridges only wrote it while empty, so after signing in as a different account in the same page session, reels posted by the new account were stamped locally with the PREVIOUS account's name (feed author + "Original sound" line; the server record was always right). reelMyName now takes the signed-in rpAcct record first, and rpApplyAccountName / rpApplyAccountProfile correct Online.name on sign-in instead of only filling it when empty. (2) Profile grids showed a member's OLDEST 12 reels: GET /api/social/profile slices the server's insertion-ordered store, so anyone with over 12 reels never saw their newest reel in the grid. The client now tops the payload's reel list up from GET /api/reels whenever the payload's reelsCount says more exist (own grid, member sheet, profile page, V7.417 screen), sorted newest-first. Client-only; no server, layout or settled-behavior changes. --> <!-- [RP-V7.424] profile header centered + overlay safe-area (Branden, Nov 18, 2026 — two circled screenshots): (1) the V7.417 profile head is now a centered column — the big avatar sits IN THE MIDDLE with the name + @username centered under it, on the own-profile screen and the member/profile sheets alike (his words: "It should be in the middle"); the + badge, live badge, avatar tap, stats, actions, tabs and grids are untouched. (2) The V7.422 Profile views / Find friends overlay head sat at the very top of the screen under the phone status bar, so its Back button and settings gear were too high to tap — the head (and the V7.421 drawer panel) now add env(safe-area-inset-top) to their top padding, the same convention 14 other places in the app already use. Presentation only — no handler, count or data flow changes. --> <!-- [RP-V7.422] profile views + find friends (Branden, Nov 17, 2026, TikTok's model): viewer history — a settings-record field, default off — with a who-viewed-your-profile page (30 days, Follow/Message rows, gear to turn it back off) behind an eye button on your own profile top bar; views are recorded server-side once per real profile open into a small pruned store, and the mutual rule is enforced at read (you see the list only while yours is on, and you appear only while yours is on). The profile header's add-friend icon now opens a Find friends page: search real members by name or username, Use QR code (your own branded code sheet), Invite friends (system share of your profile link), Suggested accounts from the app's existing suggestions. Server: POST /api/profile-views/view, GET /api/profile-views/mine, GET /api/social/search, viewerHistory on POST /api/account/settings. --> <!-- [RP-V7.421] profile drawer tools (Branden, Nov 17, 2026 — "Add these to the profile under balance" + "put RP on the QR code somewhere to show it come from us"): the V7.417 drawer gains Personal tools (Activity center — the real /api/money/history ledger + the profile Liked tab; Your QR code — generated on open from the current username, encodes the /?creator=<username> profile link, RP logo centered, EC level H) and Creation & business tools (Business Suite — Business Ads / My store / Earn hub; Promote — the V7.394 Community Boost sheet through its own chip). One self-contained module at the V7.420 module; the QR encoder is built in, no CDN. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.428" /> <!-- [RP-V7.426] account-switch reel glitch fix (Branden, Nov 18, 2026, "Fix that glitch"): (1) reelMyName asked the socket presence name first — Online.name is set once at connect and the account bridges only wrote it while empty, so after signing in as a different account in the same page session, reels posted by the new account were stamped locally with the PREVIOUS account's name (feed author + "Original sound" line; the server record was always right). reelMyName now takes the signed-in rpAcct record first, and rpApplyAccountName / rpApplyAccountProfile correct Online.name on sign-in instead of only filling it when empty. (2) Profile grids showed a member's OLDEST 12 reels: GET /api/social/profile slices the server's insertion-ordered store, so anyone with over 12 reels never saw their newest reel in the grid. The client now tops the payload's reel list up from GET /api/reels whenever the payload's reelsCount says more exist (own grid, member sheet, profile page, V7.417 screen), sorted newest-first. Client-only; no server, layout or settled-behavior changes. --> <!-- [RP-V7.424] profile header centered + overlay safe-area (Branden, Nov 18, 2026 — two circled screenshots): (1) the V7.417 profile head is now a centered column — the big avatar sits IN THE MIDDLE with the name + @username centered under it, on the own-profile screen and the member/profile sheets alike (his words: "It should be in the middle"); the + badge, live badge, avatar tap, stats, actions, tabs and grids are untouched. (2) The V7.422 Profile views / Find friends overlay head sat at the very top of the screen under the phone status bar, so its Back button and settings gear were too high to tap — the head (and the V7.421 drawer panel) now add env(safe-area-inset-top) to their top padding, the same convention 14 other places in the app already use. Presentation only — no handler, count or data flow changes. --> <!-- [RP-V7.422] profile views + find friends (Branden, Nov 17, 2026, TikTok's model): viewer history — a settings-record field, default off — with a who-viewed-your-profile page (30 days, Follow/Message rows, gear to turn it back off) behind an eye button on your own profile top bar; views are recorded server-side once per real profile open into a small pruned store, and the mutual rule is enforced at read (you see the list only while yours is on, and you appear only while yours is on). The profile header's add-friend icon now opens a Find friends page: search real members by name or username, Use QR code (your own branded code sheet), Invite friends (system share of your profile link), Suggested accounts from the app's existing suggestions. Server: POST /api/profile-views/view, GET /api/profile-views/mine, GET /api/social/search, viewerHistory on POST /api/account/settings. --> <!-- [RP-V7.421] profile drawer tools (Branden, Nov 17, 2026 — "Add these to the profile under balance" + "put RP on the QR code somewhere to show it come from us"): the V7.417 drawer gains Personal tools (Activity center — the real /api/money/history ledger + the profile Liked tab; Your QR code — generated on open from the current username, encodes the /?creator=<username> profile link, RP logo centered, EC level H) and Creation & business tools (Business Suite — Business Ads / My store / Earn hub; Promote — the V7.394 Community Boost sheet through its own chip). One self-contained module at the V7.420 module; the QR encoder is built in, no CDN. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -821,6 +821,22 @@
       #screen-moments.rpfs254 .mom-wrap { max-width: none; margin: 0; padding: 0 !important; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
       #screen-moments.rpfs254 #reelFeed { flex: 1 1 auto; min-height: 0; max-height: none; height: auto; padding: 0; gap: 0; }
       #screen-moments.rpfs254 #reelFeed .reel-card { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; border: none; border-radius: 0; box-shadow: none; }
+      /* ---------- [RP-GAMING] the Gaming page: its own full-screen pager page — clip cards take the EXACT Reels presentation size (the rpfs254 rules above, mirrored for #gameFeed); no tiles, no grid ---------- */
+      #screen-gaming.active { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+      #screen-gaming .game-wrap { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; width: 100%; }
+      /* the head + Live-now section OVERLAY the pager (the Reels pager's own chrome floats the same way), so a gaming clip's video area is the full screen — measured identical to Reels */
+      #screen-gaming .game-head { position: absolute; top: 0; left: 0; right: 0; z-index: 30; display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 14px; background: linear-gradient(180deg, rgba(0,0,0,.52), rgba(0,0,0,0)); }
+      #screen-gaming .game-head h2 { margin: 0; font-size: 20px; flex: 1 1 auto; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+      #gameLiveSec { position: absolute; top: calc(62px + env(safe-area-inset-top, 0px)); left: 0; right: 0; z-index: 30; padding: 2px 12px 8px; }
+      #gameFeed > .mom-empty:first-of-type { padding-top: 118px; }
+      #gameLiveSec h3 { margin: 4px 2px 8px; font-size: 16px; }
+      #gameLiveSec .live-now-row { width: 100%; margin: 0 0 8px; }
+      #gameFeed { flex: 1 1 auto; min-height: 0; overflow-y: auto; scroll-snap-type: y mandatory; padding: 0; scrollbar-width: thin; }
+      #gameFeed .reel-card { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; border: none; border-radius: 0; box-shadow: none; scroll-snap-align: start; scroll-snap-stop: always; }
+      /* [RP-GAMING] the Reels screen's Gaming door: a floating pill over the full-screen pager (the head is erased in rpfs254 mode), mirroring #momSearchBtn255 on the opposite corner */
+      #momGamingBtn { display: none; }
+      #screen-moments.rpfs254 #momGamingBtn { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 12px; z-index: 40; display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: rgba(8,8,13,.55); color: #fff; font-weight: 800; font-size: 13.5px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+      #screen-moments.rpfs254 #momGamingBtn:active { transform: scale(.95); }
       /* ---------- [RP-V7.113] Home in the TikTok layout (Branden) ---------- */
       #screen-plaza.home-feedmode > .home-classic { display: none !important; }
       #screen-plaza:not(.home-feedmode) #homePager { display: none; }
@@ -3300,6 +3316,11 @@
             <button class="fb-goto243" id="btnFbReelsMore243" type="button">Go to Reels&nbsp;›</button>
             <p class="rp-rail242-empty" id="fbRailEmpty243" hidden>No reels yet — be the first to post one 🎬</p>
           </div>
+          <div class="fb-rail243-block" id="fbGamingUnit243">
+            <h3 class="fb-rail243-head">🎮 Gaming</h3>
+            <p class="rp-rail242-note" style="margin:0 2px 10px;">A feed just for gaming clips — post your best plays, watch gamers live.</p>
+            <button class="fb-goto243" id="btnFbGamingMore243" type="button">Go to Gaming&nbsp;›</button>
+          </div>
           <p class="fbfeed243-empty" id="fbFeedEmpty243" hidden>No photos yet — be the first to post one 📸</p>
         </div>
       </section>
@@ -3795,6 +3816,7 @@
             <input type="file" id="momPhotoInput" accept="image/*" multiple hidden /> <!-- [RP-V7.123] multi-pick -->
             <button class="btn-primary" style="width:auto; padding:10px 18px; display:none;" id="btnReelPost" type="button">＋ Reel</button>
             <input type="file" id="reelVideoInput" accept="video/*" hidden />
+            <button class="btn-primary" style="width:auto; padding:10px 18px;" id="btnGamingMom" type="button">🎮 Gaming</button> <!-- [RP-GAMING] the Reels screen header's door to the Gaming page -->
           </div>
           <!-- [RP-V7.70] Plaza Stories tray (same tray as Home). -->
           <div class="story-tray" id="storyTrayReels" hidden></div>
@@ -3814,11 +3836,23 @@
             <div class="rpsearch-row">
               <button type="button" id="rpSearchBack" aria-label="Back to the feed"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5 8 12l6.5 7"/></svg></button> <!-- [RP-V7.332] the search surface's back: house chevron, wired to the surface's own exit (onClear) -->
               <span class="rpsearch-ico" aria-hidden="true"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></span>
-              <input id="rpSearchInput" type="text" placeholder="Search videos and pictures…" autocomplete="off" />
+              <input id="rpSearchInput" type="text" placeholder="Search Rizz Plaza…" autocomplete="off" /> <!-- [RP-SEARCH] unified search (Branden, Nov 18, 2026): one bar for people, lives, videos and pictures -->
               <button type="button" id="rpSearchClear" aria-label="Clear search" style="display:none;"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
             </div>
           </div>
           <div id="rpSearchWrap" style="display:none;">
+            <!-- [RP-SEARCH] unified sections: People, then Lives, then
+                 the Videos & Pictures grid below (the V7.65 label +
+                 grid + empty line keep their ids and behavior). Each
+                 section renders only while it has results. -->
+            <div id="rpSearchPeople" style="display:none;">
+              <p class="rpsearch-label rpsearch-sechead">People</p>
+              <div id="rpSearchPeopleList"></div>
+            </div>
+            <div id="rpSearchLives" style="display:none;">
+              <p class="rpsearch-label rpsearch-sechead">Lives</p>
+              <div id="rpSearchLivesList"></div>
+            </div>
             <p id="rpSearchLabel" class="rpsearch-label"></p>
             <div class="rpmedia-grid" id="rpSearchGrid"></div>
             <p id="rpSearchEmpty" class="rpsearch-empty" style="display:none;"></p>
@@ -3833,6 +3867,23 @@
              the header row in Photos mode; the tap opens the
              existing rpMediaSearch surface via the module's init. -->
         <button type="button" id="momSearchBtn255" aria-label="Search reels and photos"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
+        <button type="button" id="momGamingBtn" aria-label="Open the Gaming page">🎮 Gaming</button> <!-- [RP-GAMING] floats over the full-screen Reels pager, where the head is erased -->
+      </section>
+      <!-- SCREEN: GAMING [RP-GAMING] — a page of its own in the
+           V7.420 swipe order (…Reels → Gaming → Inbox…): a 🔴 Live
+           now section for gaming lives on top, then the gaming-clips
+           pager at full Reels size. Everything inside renders from
+           the [RP-GAMING] module at the end of the body. -->
+      <section class="screen" id="screen-gaming">
+        <div class="game-wrap">
+          <div class="game-head">
+            <button class="btn-mini plaza-glow" id="btnGameBack" type="button"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5 8 12l6.5 7"/></svg> Back</button>
+            <h2>🎮 Gaming</h2>
+            <button class="btn-primary" style="width:auto; padding:10px 18px;" id="btnGamePost" type="button">＋ Post a clip</button>
+          </div>
+          <div id="gameLiveSec" hidden></div>
+          <div id="gameFeed"></div>
+        </div>
       </section>
       <!-- [RP-V7.247] SCREEN: PLAZA FEED removed (Branden, Nov 5, 2026). Surface removal only — the posts are NOT deleted: they still live on their authors' profiles and the server feed store is untouched. -->
       <!-- SCREEN: LIVE AUCTIONS -->
@@ -11836,11 +11887,13 @@
         requests: {},          // host-side join requests: id -> name
         invited: {},           // host-side: requester ids already invited
         privOn: false,         // [RP-V7.138] this live is a private room (host-side; the server is authoritative and pushes it back via live-access)
+        gamingOn: false,       // [RP-GAMING] this live is ALSO listed on the Gaming page (host-side; the server registry is authoritative and the snapshot pushes it back)
         privInvited: [],       // [RP-V7.138] account ids invited to my private live
         privInvitedNames: {},  // [RP-V7.138] account id -> display name, for the invited list
         privToken: null,       // [RP-V7.138] my private-link token (server-minted, never chosen here)
         privSig: "",           // [RP-V7.138] last live-access payload signature (change detection)
         setupPriv: false,      // [RP-V7.138] the go-live setup's Private room toggle
+        setupGaming: false,    // [RP-GAMING] the go-live setup's Gaming toggle
         setupTicket: 0,        // [RP-V7.299] the go-live setup's ticket price in charms (0 = free at the door)
         ticketPrice: 0,        // [RP-V7.299] the ticket price of the live I'm hosting (locked by the server at start), 0 = free
         ticketDenied: null,    // [RP-V7.299] the server's denial reason when a ticket price didn't take (church/private/auction/battle/no-account)
@@ -11903,7 +11956,7 @@
         });
         var list = Object.keys(Live.directory).map(function (id) {
           var e = Live.directory[id];
-          var o = { hostId: id, room: e.room, name: e.name || "Host", title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0, regKey: e.regKey || "", hostAccountId: e.hostAccountId || null, priv: !!e.priv, pot: e.pot || null, poll: e.poll || null, startedAt: e.startedAt || 0, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0, boost: e.boost || 0 }; // [RP-V7.299] registry fields ride the render object // [RP-V7.394] + the boost pool — the ticket badge/door (and the priv/pot lines liveRowHTML already draws) read them from here
+          var o = { hostId: id, room: e.room, name: e.name || "Host", title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0, regKey: e.regKey || "", hostAccountId: e.hostAccountId || null, priv: !!e.priv, gaming: !!e.gaming /* [RP-GAMING] */, pot: e.pot || null, poll: e.poll || null, startedAt: e.startedAt || 0, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0, boost: e.boost || 0 }; // [RP-V7.299] registry fields ride the render object // [RP-V7.394] + the boost pool — the ticket badge/door (and the priv/pot lines liveRowHTML already draws) read them from here
           // the host's own announced home + interests win over any
           // fallback location guessed from the room they announced in
           var hm = Live.hostMeta[id];
@@ -11991,6 +12044,7 @@
             if (lv.photo) e.photo = lv.photo;
             if (lv.hostAccountId) e.hostAccountId = lv.hostAccountId; // [RP-V7.40]
             if (lv.priv != null) e.priv = !!lv.priv; // [RP-V7.138] private lives are badged for the people allowed to see them
+            if (lv.gaming != null) e.gaming = !!lv.gaming; // [RP-GAMING] the Gaming page's Live-now section filters directory entries on this
             e.pot = lv.pot || null; // [RP-V7.41] Plaza Pot state rides the snapshot
             e.poll = lv.poll || null; // [RP-V7.319] Live Poll state rides the snapshot
             if (typeof lv.watchers === "number") e.watchers = lv.watchers; // [RP-V7.63] carried for the signup invite's busiest-live pick
@@ -12001,7 +12055,7 @@
             e.seen = now; e.reg = true; e.regKey = lv.key || e.regKey || "";
             if (foundId !== key && lv.hostId) { Live.directory[key] = e; delete Live.directory[foundId]; }
           } else {
-            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, pot: lv.pot || null, poll: lv.poll || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0, boost: lv.boost || 0 }; // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.394] + boost pool // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
+            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, gaming: !!lv.gaming /* [RP-GAMING] */, pot: lv.pot || null, poll: lv.poll || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0, boost: lv.boost || 0 }; // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.394] + boost pool // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
           }
         });
         Live.regRooms = rooms;
@@ -12210,7 +12264,7 @@
          20s registry heartbeat, independent of the 8s in-room state. */
       function liveRegistrySyncHost() {
         if (!Online.socket || !Live.active || !Live.hostWasMe) return;
-        try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn, ticketPrice: Live.setupTicket || 0, org: String(Live.originRoom || "") }); } catch (e) { } // [RP-V7.138] priv: my Private room toggle — the server mints the link token
+        try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn, gaming: !!Live.gamingOn, ticketPrice: Live.setupTicket || 0, org: String(Live.originRoom || "") }); } catch (e) { } // [RP-V7.138] priv: my Private room toggle — the server mints the link token
         startRegBeat();
       }
       function startRegBeat() {
@@ -12222,7 +12276,7 @@
           // deferred room switch, player record not ready), the live used to
           // stay invisible forever — live-register is idempotent and also
           // refreshes lastBeat server-side, so the entry self-heals in ≤20s.
-          try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn, ticketPrice: Live.setupTicket || 0, org: String(Live.originRoom || "") }); } catch (e) { } // [RP-V7.138] priv rides every re-assert too
+          try { Online.socket.emit("live-register", { title: (Live.title || "").slice(0, 60), topic: Live.topic || "Chatting", priv: !!Live.privOn, gaming: !!Live.gamingOn, ticketPrice: Live.setupTicket || 0, org: String(Live.originRoom || "") }); } catch (e) { } // [RP-V7.138] priv rides every re-assert too
         }, 20000);
       }
       function stopRegBeat() { if (Live.regBeat) { clearInterval(Live.regBeat); Live.regBeat = null; } }
@@ -17601,6 +17655,8 @@
       function openLiveSetup() {
         if (Live.active && typeof iAmHost === "function" && iAmHost()) Live.setupPriv = !!Live.privOn; // [RP-V7.138] editing my running live: the toggle starts from its real state
         else Live.setupPriv = false; // [RP-V7.172] a NEW live always starts Public (Branden: "soon as a person goes live it should show public") — private is a fresh choice for that one live, never a leftover from the last one
+        if (Live.active && typeof iAmHost === "function" && iAmHost()) Live.setupGaming = !!Live.gamingOn; // [RP-GAMING] editing my running live: the toggle starts from its real state
+        else Live.setupGaming = false; // [RP-GAMING] a NEW live starts with Gaming OFF — a fresh choice for that one live, the V7.172 rule applied to the gaming flag
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
           '<div class="game-box"><h3 style="text-align:center;">🔴 Set up your live</h3>' +
@@ -17615,6 +17671,10 @@
             '<button type="button" class="lv-topic' + (Live.setupPriv ? " sel" : "") + '" data-priv="1"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"5\" y=\"10.5\" width=\"14\" height=\"9.5\" rx=\"2.5\"/><path d=\"M8 10.5V8a4 4 0 0 1 8 0v2.5\"/><circle cx=\"12\" cy=\"15.2\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg> Private room</button>' +
             '</div><p class="age-note" id="lvPrivNote">' + (Live.setupPriv ? "Only people you invite — or anyone with your private link — can join. Your live stays hidden from 🔴 Live Now for everyone else." : "Anyone can find and join your live from 🔴 Live Now.") + '</p>' +
             '<button class="btn-mini" id="lvSetupInvite" type="button" style="display:' + (Live.setupPriv ? "" : "none") + ';">👥 Invite people' + (Live.setupInviteIds.length ? " · " + Live.setupInviteIds.length + " picked" : "") + '</button></div>' +
+          '<div class="field"><label>Gaming 🎮</label><div class="lv-topics" id="lvGamingTopics">' +
+            '<button type="button" class="lv-topic' + (Live.setupGaming ? "" : " sel") + '" data-gaming="0">Off</button>' +
+            '<button type="button" class="lv-topic' + (Live.setupGaming ? " sel" : "") + '" data-gaming="1">🎮 Gaming</button>' +
+            '</div><p class="age-note">On: this live also shows on the 🎮 Gaming page under 🔴 Live now. It stays in 🔴 Live Now either way.</p></div>' +
           (function () { // [RP-V7.299] the ticket field: price chips for a fresh live, a locked line for a running one, a church note in Fellowship
             var editing299 = !!(Live.active && typeof iAmHost === "function" && iAmHost());
             if (editing299) return '<div class="field"><label>\uD83C\uDF9F\uFE0F Tickets</label><p class="age-note" style="margin:0;">' + (Live.ticketPrice > 0 ? "This live charges <b>" + Number(Live.ticketPrice).toLocaleString("en-US") + " charms</b> at the door \u2014 the price is locked once a live starts." : "This live is <b>free</b> at the door \u2014 tickets are chosen when a live starts and can\u2019t be added mid-live.") + "</p></div>";
@@ -17661,6 +17721,15 @@
             if (ib) ib.style.display = Live.setupPriv ? "" : "none";
           });
         });
+        // [RP-GAMING] Gaming toggle — parallel to Private, but with no
+        // exclusions: a gaming live can also be private or ticketed;
+        // the flag only ADDS the Gaming page's Live-now section.
+        sheet.querySelectorAll("[data-gaming]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            Live.setupGaming = b.getAttribute("data-gaming") === "1";
+            sheet.querySelectorAll("[data-gaming]").forEach(function (x) { x.classList.toggle("sel", x === b); });
+          });
+        });
         // [RP-V7.299] Ticket chips: picking a price and picking
         // Private are mutually exclusive — each clears the other.
         sheet.querySelectorAll("[data-ticket]").forEach(function (b) {
@@ -17698,6 +17767,7 @@
           closeSheet();
           if (Live.active && iAmHost()) {
             Live.privOn = !!Live.setupPriv; // [RP-V7.138] the register below carries the new privacy state to the server
+            Live.gamingOn = !!Live.setupGaming; // [RP-GAMING] the register below carries the new gaming state too
             // [RP-V7.63] editing mid-live: re-announce the new
             // title/topic — never restart a running broadcast.
             try { liveRegistrySyncHost(); } catch (e) { }
@@ -17744,7 +17814,7 @@
           Live.roomId = myRoom;
           Live.stage = [Online.myId];
           Live.hearts = 0; Live.requests = {}; Live.invited = {}; Live.myPendingReq = false;
-          Live.privOn = !!Live.setupPriv; Live.privInvited = []; Live.privToken = null; Live.privSig = ""; // [RP-V7.138] fresh session: privacy from the setup toggle; invites + token come from the server
+          Live.privOn = !!Live.setupPriv; Live.gamingOn = !!Live.setupGaming; Live.privInvited = []; Live.privToken = null; /* [RP-GAMING] fresh session: gaming from the setup toggle, like privacy */ Live.privSig = ""; // [RP-V7.138] fresh session: privacy from the setup toggle; invites + token come from the server
           Live.ticketPrice = Live.setupTicket || 0; Live.ticketDenied = null; // [RP-V7.299] the door price I asked for; the server's live-ticket-state verdict is authoritative
           EngLog[Online.myId] = []; // a fresh broadcast starts with a clean engagement score
           Live.directory[Online.myId] = { room: myRoom, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: Online.myPhotoUrl || null, n: 1, seen: Date.now(), city: me.city || "", state: me.state || "", ints: (me.interests || []).slice(0, 8) };
@@ -21410,7 +21480,7 @@
         Live.roomId = null; Live.pendingMeta = null; Live.pendingStage = null; Live.stageAsm = null;
         Live.wantSetup = false;
         Live.requests = {}; Live.invited = {}; Live.myPendingReq = false;
-        Live.privOn = false; Live.privInvited = []; Live.privToken = null; Live.privSig = ""; // [RP-V7.138] the session's privacy state ends with the live
+        Live.privOn = false; Live.gamingOn = false; Live.setupGaming = false; Live.privInvited = []; Live.privToken = null; Live.privSig = ""; // [RP-V7.138] the session's privacy state ends with the live // [RP-GAMING] and the gaming state with it
         Live.camOn = true; Live.micOn = true; Live.hearts = 0; Live.watchKey = "";
         liveDirectoryList(); // refreshes broadcastKnown from what remains listed
         if (typeof renderLiveNow === "function") renderLiveNow();
@@ -26585,9 +26655,9 @@
          location + link, and the audience is enforced server-side. Back
          rule (Branden): the X exit lives only on the FIRST page; every
          later page gets a back arrow. */
-      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, shoutoutId: "", shoutoutBuyer: "" }; // [RP-V7.296] subsOnly: the Fan Subscriptions composer toggle // [RP-V7.298] clubOnly: the Fan Clubs composer toggle // [RP-V7.300] shoutoutId: an armed shoutout fulfill link (set from the Earn inbox; rides creation, settles the escrow server-side) // [RP-V7.316] downloads: the TikTok-style downloads switch, starting from the account default
+      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, shoutoutId: "", shoutoutBuyer: "" }; // [RP-GAMING] gaming: the Gaming page toggle (rides reel creation as category "gaming") // [RP-V7.296] subsOnly: the Fan Subscriptions composer toggle // [RP-V7.298] clubOnly: the Fan Clubs composer toggle // [RP-V7.300] shoutoutId: an armed shoutout fulfill link (set from the Earn inbox; rides creation, settles the escrow server-side) // [RP-V7.316] downloads: the TikTok-style downloads switch, starting from the account default
       function postDlDefault156() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return !(a && a.settings && a.settings.dlDefault === false); } catch (e) { return true; } } // [RP-V7.316] the account default (Profile settings) pre-sets the composer toggle; absent = ON, TikTok's default
-      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, shoutoutId: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().id || "") : ""), shoutoutBuyer: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().buyerName || "") : "") }; } // [RP-V7.298] // [RP-V7.300] a reset re-arms from the pending fulfill link, so opening any composer keeps the link until a post settles it or the creator unlinks it // [RP-V7.316] downloads re-arms from the account default
+      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, shoutoutId: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().id || "") : ""), shoutoutBuyer: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().buyerName || "") : "") }; } // [RP-V7.298] // [RP-V7.300] a reset re-arms from the pending fulfill link, so opening any composer keeps the link until a post settles it or the creator unlinks it // [RP-V7.316] downloads re-arms from the account default
       function postToken156() { try { var r = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (r && r.token) || ""; } catch (e) { return ""; } }
       function postAudText156() { return postMeta156.audience === "followers" ? "Followers can view this post" : postMeta156.audience === "onlyme" ? "Only you can view this post" : "Everyone can view this post"; }
       function postDetailsSync156(k) {
@@ -26611,6 +26681,7 @@
           (opts.remix ? '<div class="pd-row" style="cursor:default;"><span class="pd-ic">⚙</span><span class="pd-lb">More options</span></div><div class="pd-sub"><span style="flex:1; font-weight:700;">Allow duet, stitch & remix</span><button type="button" class="pd-aud' + (postMeta156.remix ? " on" : "") + '" id="' + k + 'RemixBtn">' + (postMeta156.remix ? "On" : "Off") + '</button></div><div class="pd-sub"><span style="flex:1; font-weight:700;">Allow downloads — members can save this video</span><button type="button" class="pd-aud' + (postMeta156.downloads ? " on" : "") + '" id="' + k + 'DlBtn316">' + (postMeta156.downloads ? "On" : "Off") + '</button></div>' : "") + /* [RP-V7.316] the Sharing area: both TikTok-style switches together under More options */
           '<div class="pd-sub"><span style="flex:1; font-weight:700;">🔒 Subscribers only — only your subscribers can watch this post</span><button type="button" class="pd-aud' + (postMeta156.subsOnly ? " on" : "") + '" id="' + k + 'SubsBtn296">' + (postMeta156.subsOnly ? "On" : "Off") + '</button></div>' + /* [RP-V7.296] the fan-subscriptions toggle: set at creation, the server gates every payload */
           '<div class="pd-sub"><span style="flex:1; font-weight:700;">🔒 Fan club — only your Fan Club members can watch this post</span><button type="button" class="pd-aud' + (postMeta156.clubOnly ? " on" : "") + '" id="' + k + 'ClubBtn298">' + (postMeta156.clubOnly ? "On" : "Off") + '</button></div>' + /* [RP-V7.298] the fan-clubs toggle: same pattern, the server gates every payload */
+          (opts.gaming ? '<div class="pd-sub"><span style="flex:1; font-weight:700;">🎮 Gaming — also post this clip to the Gaming page</span><button type="button" class="pd-aud' + (postMeta156.gaming ? " on" : "") + '" id="' + k + 'GamingBtn">' + (postMeta156.gaming ? "On" : "Off") + '</button></div>' : "") + /* [RP-GAMING] the Gaming toggle: reel composer only (the photo composer never passes opts.gaming); set at creation, the server stores category "gaming" */
           (postMeta156.shoutoutId ? '<div class="pd-sub"><span style="flex:1; font-weight:700;">📣 Shoutout for ' + escHtml("@" + (postMeta156.shoutoutBuyer || "a member")) + ' — posting this fulfills their request and pays you</span><button type="button" class="pd-aud" id="' + k + 'ShoutUnlink300">Unlink</button></div>' : "") + /* [RP-V7.300] the armed fulfill link, set from the Earn inbox */
           '<button type="button" class="pd-row" id="' + k + 'ShareRow"><span class="pd-ic">↗</span><span class="pd-lb">Share to</span><span class="pd-val">Invite friends</span><span class="pd-chv">›</span></button>' +
           '</div>';
@@ -26627,6 +26698,7 @@
         var dl316 = $(k + "DlBtn316"); if (dl316) dl316.addEventListener("click", function () { postMeta156.downloads = !postMeta156.downloads; dl316.textContent = postMeta156.downloads ? "On" : "Off"; dl316.classList.toggle("on", postMeta156.downloads); }); // [RP-V7.316]
         var sb296 = $(k + "SubsBtn296"); if (sb296) sb296.addEventListener("click", function () { postMeta156.subsOnly = !postMeta156.subsOnly; sb296.textContent = postMeta156.subsOnly ? "On" : "Off"; sb296.classList.toggle("on", postMeta156.subsOnly); }); // [RP-V7.296]
         var cb298 = $(k + "ClubBtn298"); if (cb298) cb298.addEventListener("click", function () { postMeta156.clubOnly = !postMeta156.clubOnly; cb298.textContent = postMeta156.clubOnly ? "On" : "Off"; cb298.classList.toggle("on", postMeta156.clubOnly); }); // [RP-V7.298]
+        var gbGam = $(k + "GamingBtn"); if (gbGam) gbGam.addEventListener("click", function () { postMeta156.gaming = !postMeta156.gaming; gbGam.textContent = postMeta156.gaming ? "On" : "Off"; gbGam.classList.toggle("on", postMeta156.gaming); }); // [RP-GAMING]
         var ub300 = $(k + "ShoutUnlink300"); if (ub300) ub300.addEventListener("click", function () { postMeta156.shoutoutId = ""; postMeta156.shoutoutBuyer = ""; if (window.rpShoutoutClear300) window.rpShoutoutClear300(); var row300 = ub300.parentElement; if (row300) row300.hidden = true; toast("Shoutout unlinked — this post won't fulfill the request."); }); // [RP-V7.300]
         var sh = $(k + "ShareRow"); if (sh) sh.addEventListener("click", function () {
           var url = "https://rizzplaza.com";
@@ -26688,7 +26760,7 @@
           var d = momDraftsLoad156().filter(function (x) { return x.id === b.getAttribute("data-mdresume"); })[0]; if (!d) return;
           Moments.pendingPhotos = (d.photos || []).slice(); momSyncPicks123(); momCapDraft123 = d.caption || "";
           Moments.resumedDraft156 = d.id;
-          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false }; // [RP-V7.298] // [RP-V7.316]
+          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false }; // [RP-GAMING] // [RP-V7.298] // [RP-V7.316]
           openMomComposer();
         }); });
         sheet.querySelectorAll("[data-mddel]").forEach(function (b) { b.addEventListener("click", function () {
@@ -27534,6 +27606,7 @@
           if (meta.location) fd.append("location", meta.location); // [RP-V7.156]
           if (meta.subsOnly) fd.append("subsOnly", "1"); // [RP-V7.296]
           if (meta.clubOnly) fd.append("clubOnly", "1"); // [RP-V7.298]
+          if (meta.gaming) fd.append("category", "gaming"); // [RP-GAMING]
           if (meta.shoutoutId) fd.append("shoutoutId", meta.shoutoutId); // [RP-V7.300]
           if (meta.link) fd.append("link", meta.link);
           if (meta.audience && meta.audience !== "everyone") fd.append("audience", meta.audience);
@@ -27559,12 +27632,12 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ /* [RP-V7.335] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.300] */ });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ /* [RP-V7.335] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.300] */ /* [RP-GAMING] */ });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
           if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
-          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, /* [RP-V7.198] own posted reel keeps its server link so the rail can repost it */ likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, /* [RP-V7.316] */ musicTrackId: m.musicTrackId || null, origSoundId: m.origSoundId || null, soundId: null, soundName: null, soundOwnerName: null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol /* [RP-V7.90] */ /* [RP-V7.335] a local pending item resolves its credit from the server copy after posting */ });
+          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, /* [RP-V7.198] own posted reel keeps its server link so the rail can repost it */ likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, /* [RP-V7.316] */ musicTrackId: m.musicTrackId || null, origSoundId: m.origSoundId || null, soundId: null, soundName: null, soundOwnerName: null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol, category: m.gaming ? "gaming" : null /* [RP-V7.90] */ /* [RP-V7.335] a local pending item resolves its credit from the server copy after posting */ /* [RP-GAMING] */ });
         });
         if (Reels.ranked) {
           // [RP-V7.40] the server already ordered its reels For You —
@@ -29303,7 +29376,7 @@
               '<textarea class="pd-desc" id="reelCapInput" maxlength="140" rows="3" placeholder="Add description…" autocomplete="off"></textarea>' +
               '<span class="pd-thumb pd-thumb-empty">🎬</span>' +
             '</div>' +
-            postDetailsHtml156("reel", { remix: true }) +
+            postDetailsHtml156("reel", { remix: true, gaming: true }) /* [RP-GAMING] the reel composer carries the Gaming toggle */ +
             '<div class="pd-bar"><button type="button" class="pd-drafts" id="btnReelDraft">Drafts</button><button type="button" class="pd-post" id="btnReelPublish">Post</button></div>' +
             '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" id="btnReelBackPrev" type="button">← Preview</button></div>';
         }
@@ -29572,7 +29645,7 @@
         var draftId = Reels.editingDraftId;
         var meta = reelPublishBlob(blob, cap);
         postDetailsSync156("reel"); // [RP-V7.156]
-        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, shoutoutId: postMeta156.shoutoutId || "" }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload // [RP-V7.316] allowDownloads rides too
+        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, shoutoutId: postMeta156.shoutoutId || "" }); // [RP-GAMING] gaming rides the reel meta into the upload // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload // [RP-V7.316] allowDownloads rides too
         reelTrimMeta169(meta.id); // [RP-V7.169]
         if (Reels.pendingSound && Reels.pendingSound.trackId) {
           reelUpdateMeta(meta.id, window.rpSndMeta335 ? window.rpSndMeta335(Reels.pendingSound) : { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }) /* [RP-V7.335] */;
@@ -29599,7 +29672,7 @@
         var cap = capEl ? (capEl.value || "").trim() : (Reels.pendingCaption || "");
         postDetailsSync156("reel"); // [RP-V7.156]
         if (Reels.editingDraftId) {
-          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316]
+          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316] // [RP-GAMING]
           if (Reels.remix) { reelUpdateMeta(Reels.editingDraftId, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
           reelTrimMeta169(Reels.editingDraftId); // [RP-V7.169]
           Reels.editingDraftId = null;
@@ -29608,7 +29681,7 @@
             id: "draft" + Date.now() + Math.floor(Math.random() * 100000),
             draft: true,
             author: reelMyName(), caption: cap,
-            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.316] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
+            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.316] */ /* [RP-GAMING] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
           };
           var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
           if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, window.rpSndMeta335 ? window.rpSndMeta335(Reels.pendingSound) : { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }) /* [RP-V7.335] */; }
@@ -29634,7 +29707,7 @@
           Reels.pendingSound = m.musicTrackId ? { trackId: m.musicTrackId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : (m.origSoundId ? { trackId: m.origSoundId, start: m.musicStart || 0, musicVol: (m.musicVol != null ? m.musicVol : 0.8), origVol: (m.origVol != null ? m.origVol : 1) } : null); /* [RP-V7.90] */ /* [RP-V7.335] */
           Reels.trimStart = (typeof m.trimStart === "number") ? m.trimStart : null; Reels.trimEnd = (typeof m.trimEnd === "number") ? m.trimEnd : null; Reels.trimOpen = Reels.trimStart != null; Reels.mustTrim = false; /* [RP-V7.169] */
           Reels.pendingCaption = m.caption || "";
-          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, downloads: m.allowDownloads !== false, subsOnly: !!m.subsOnly, clubOnly: !!m.clubOnly }; // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316]
+          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, downloads: m.allowDownloads !== false, subsOnly: !!m.subsOnly, clubOnly: !!m.clubOnly, gaming: !!m.gaming }; // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316] // [RP-GAMING]
           Reels.remix = m.kind ? { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur } : null;
           Reels.editingDraftId = id;
           Reels.stage = "preview";
@@ -41186,6 +41259,21 @@ button.rp72-chip{ cursor:pointer; }
 #rpSearchWrap { margin-bottom: 14px; }
 .rpsearch-label { margin: 0 2px 10px; font-size: 13.5px; font-weight: 900; color: var(--ink-soft); }
 .rpsearch-empty { margin: 10px 2px; color: var(--ink-soft); font-weight: 700; font-size: 14px; }
+/* ================= [RP-SEARCH] unified search sections =================
+   People / Lives rows above the media grid: the app's row idiom
+   (44px round avatar or initial, bold name, soft sub-line), black
+   theme, true-red LIVE badge. No new glow behavior. */
+.rpsearch-sechead { margin-top: 4px; }
+#rpSearchPeople, #rpSearchLives { margin-bottom: 14px; }
+.rpsearch-prow { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line); padding: 9px 4px; cursor: pointer; color: var(--ink); font: inherit; }
+.rpsearch-prow:last-child { border-bottom: 0; }
+.rpsearch-ava { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: none; background: var(--panel); }
+.rpsearch-avinit { width: 44px; height: 44px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; background: var(--panel); color: var(--ink); font-weight: 900; font-size: 17px; }
+.rpsearch-pmain { flex: 1; min-width: 0; }
+.rpsearch-pname { display: block; font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rpsearch-psub { display: block; color: var(--ink-soft); font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rpsearch-livebadge { flex: none; color: #ff2020; font-weight: 900; font-size: 12.5px; letter-spacing: .3px; }
+.rpsearch-watch { flex: none; color: var(--ink-soft); font-weight: 700; font-size: 12.5px; }
 </style>
 <script>
 /* ================= RP-V7.65: media search =================
@@ -41204,6 +41292,7 @@ button.rp72-chip{ cursor:pointer; }
   "use strict";
   var bar = null, input = null, clearBtn = null, backBtn = null, wrap = null, /* [RP-V7.332] backBtn */
       label = null, grid = null, emptyEl = null, feed = null;
+  var peopleBox = null, peopleList = null, livesBox = null, livesList = null; /* [RP-SEARCH] unified sections */
   var engaged = false, seq = 0, timer = null, inited = false;
   function $(id) { return document.getElementById(id); }
   function reelsMode() { var rf = $("reelFeed"); return !!rf && rf.style.display !== "none"; }
@@ -41236,24 +41325,109 @@ button.rp72-chip{ cursor:pointer; }
     });
     return items;
   }
-  function render(items, q) {
+  /* ================= [RP-SEARCH] unified search =================
+     Branden (Nov 18, 2026): one search bar that looks up anything.
+     The V7.65 media search is now the unified search: the same
+     input also asks GET /api/social/search (the Find friends
+     people search — signed-in only, under exactly the directory
+     rules that endpoint enforces) and matches the client's own
+     Live Now directory (window.rpDirectory — the same entries the
+     Live Now strip renders) by host name or live title. Sections
+     paint in order — People, Lives, Videos & Pictures — each only
+     while it has results. The media section underneath keeps the
+     old behavior (V7.253 mode separation included); with a query
+     its label becomes the section heading. One clean empty state
+     when NOTHING matches anywhere; no filler results, ever. Taps
+     take the app's own doors: people -> rpDm.openProfile (the
+     door Find friends' rows take), lives ->
+     rpOpenLiveFromList138 (the Live Now tap path, private /
+     ticket guards included). */
+  function escS(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function avaS(photo, name) {
+    if (photo) return '<img class="rpsearch-ava" src="' + escS(photo) + '" alt=""/>';
+    var ini = (String(name || "?").trim().charAt(0) || "?").toUpperCase();
+    return '<div class="rpsearch-avinit">' + escS(ini) + "</div>";
+  }
+  function matchLives(q) {
+    var dir = [];
+    try { dir = window.rpDirectory ? (window.rpDirectory() || []) : []; } catch (e) { dir = []; }
+    var needle = String(q || "").trim().toLowerCase().replace(/^@+/, "");
+    if (!needle) return [];
+    return dir.filter(function (e) {
+      if (!e || !e.room) return false;
+      if (!e.mine && window.rpBlockNameHidden && window.rpBlockNameHidden(e.name)) return false; /* mirror Live Now's blocked-host filter */
+      var nm = String(e.name || "").toLowerCase();
+      var ti = String(e.title || "").toLowerCase();
+      var tp = String(e.topic || "").toLowerCase(); /* the title line Live Now shows when the host set no title */
+      return nm.indexOf(needle) >= 0 || ti.indexOf(needle) >= 0 || tp.indexOf(needle) >= 0;
+    }).slice(0, 10);
+  }
+  function renderPeople(people, q) {
+    if (!peopleBox || !peopleList) return;
+    peopleList.innerHTML = "";
+    if (!q || !people.length) { peopleBox.style.display = "none"; return; }
+    people.forEach(function (p) {
+      if (!p || !p.id) return;
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "rpsearch-prow";
+      row.innerHTML = avaS(p.photo, p.name) +
+        '<span class="rpsearch-pmain"><span class="rpsearch-pname">' + escS(p.name || "") + "</span>" +
+        (p.username ? '<span class="rpsearch-psub">@' + escS(p.username) + "</span>" : "") + "</span>";
+      row.addEventListener("click", function () {
+        disengage(true);
+        try { if (window.rpDm && window.rpDm.openProfile) window.rpDm.openProfile(p.id, p.name || ""); } catch (e) { }
+      });
+      peopleList.appendChild(row);
+    });
+    peopleBox.style.display = peopleList.children.length ? "" : "none";
+  }
+  function renderLives(lives, q) {
+    if (!livesBox || !livesList) return;
+    livesList.innerHTML = "";
+    if (!q || !lives.length) { livesBox.style.display = "none"; return; }
+    lives.forEach(function (e) {
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "rpsearch-prow";
+      row.innerHTML = avaS(e.photo, e.name) +
+        '<span class="rpsearch-pmain"><span class="rpsearch-pname">' + escS(e.name || "Host") + (e.mine ? " · You" : "") + "</span>" +
+        '<span class="rpsearch-psub">' + escS(e.title || e.topic || "Live") + "</span></span>" +
+        '<span class="rpsearch-livebadge">🔴 LIVE</span>' +
+        '<span class="rpsearch-watch">👁 ' + (e.n || 1) + "</span>";
+      row.addEventListener("click", function () {
+        var room = e.room;
+        disengage(true);
+        try { if (window.rpOpenLiveFromList138) window.rpOpenLiveFromList138(room); } catch (err) { }
+      });
+      livesList.appendChild(row);
+    });
+    livesBox.style.display = livesList.children.length ? "" : "none";
+  }
+  function renderAll(items, people, lives, q) {
     if (!grid) return;
+    renderPeople(people, q);
+    renderLives(lives, q);
     if (!items.length) {
       if (window.rpViewsFillGrid) window.rpViewsFillGrid(grid, [], {});
       if (label) label.style.display = "none";
       if (emptyEl) {
-        emptyEl.style.display = "";
-        var mk253 = modeNow253(); // [RP-V7.253] the empty line names the active mode's kind, like the results do
-        emptyEl.textContent = q
-          ? (mk253 === "reel" ? "No reels matched \u201C" + q + "\u201D yet." : "No photos matched \u201C" + q + "\u201D yet.")
-          : (mk253 === "reel" ? "No reels yet" : "No photos yet");
+        if (q && (people.length || lives.length)) {
+          emptyEl.style.display = "none"; /* [RP-SEARCH] another section hit — no empty line at all */
+        } else {
+          emptyEl.style.display = "";
+          var mk253 = modeNow253(); // [RP-V7.253] the no-query discovery line still names the active mode's kind
+          emptyEl.textContent = q
+            ? "Nothing found for \u201C" + q + "\u201D" /* [RP-SEARCH] the unified search's one clean empty state */
+            : (mk253 === "reel" ? "No reels yet" : "No photos yet");
+        }
       }
       return;
     }
     if (emptyEl) emptyEl.style.display = "none";
     if (label) {
-      label.textContent = q ? "" : "🔥 Most viewed";
-      label.style.display = q ? "none" : "";
+      label.textContent = q ? "Videos & Pictures" : "🔥 Most viewed"; /* [RP-SEARCH] with a query the label is the media section's heading */
+      label.style.display = "";
     }
     if (window.rpViewsFillGrid) window.rpViewsFillGrid(grid, items, {});
   }
@@ -41267,13 +41441,27 @@ button.rp72-chip{ cursor:pointer; }
     // rail (guests search exactly as before).
     var tok65 = "";
     try { var a65 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); tok65 = (a65 && a65.token) || ""; } catch (e) { }
-    fetch(url, tok65 ? { headers: { "Authorization": "Bearer " + tok65 } } : undefined)
+    var mediaP = fetch(url, tok65 ? { headers: { "Authorization": "Bearer " + tok65 } } : undefined)
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) {
-        if (!engaged || my !== seq) return;
-        render(j && j.ok ? mix(j).filter(function (it) { return it.kind === modeNow253(); }) : [], q); // [RP-V7.253] active mode's kind only — the mix still orders within the filtered set (views desc)
-      })
-      .catch(function () { if (engaged && my === seq) render([], q); });
+      .catch(function () { return null; });
+    // [RP-SEARCH] people ride the Find friends endpoint (signed-in
+    // only — the server requires the token and applies the
+    // directory rules itself); lives match on-device against the
+    // Live Now directory. Both settle alongside the media fetch so
+    // the sections paint together, once, under the same seq guard.
+    var peopleP = (q && tok65)
+      ? fetch("/api/social/search?q=" + encodeURIComponent(q), { headers: { "Authorization": "Bearer " + tok65 } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .catch(function () { return null; })
+      : Promise.resolve(null);
+    var lives = q ? matchLives(q) : [];
+    Promise.all([mediaP, peopleP]).then(function (rs) {
+      if (!engaged || my !== seq) return;
+      var mj = rs[0], pj = rs[1];
+      var items = (mj && mj.ok) ? mix(mj).filter(function (it) { return it.kind === modeNow253(); }) : []; // [RP-V7.253] active mode's kind only — the mix still orders within the filtered set (views desc)
+      var people = (pj && pj.ok && Array.isArray(pj.people)) ? pj.people : [];
+      renderAll(items, people, lives, q);
+    });
   }
   function engage() {
     if (engaged || !wrap) return;
@@ -41291,6 +41479,13 @@ button.rp72-chip{ cursor:pointer; }
     seq++;
     if (timer) { clearTimeout(timer); timer = null; }
     if (wrap) wrap.style.display = "none";
+    /* [RP-SEARCH] clear the unified sections too, so a re-open
+       never flashes the last query's people / lives while the
+       fresh discovery load is in flight. */
+    if (peopleBox) peopleBox.style.display = "none";
+    if (peopleList) peopleList.innerHTML = "";
+    if (livesBox) livesBox.style.display = "none";
+    if (livesList) livesList.innerHTML = "";
     if (bar) bar.style.display = "none"; /* [RP-V7.255] the bar leaves with the search surface */
     var scr255 = $("screen-moments"); if (scr255 && scr255.classList.contains("rpsearch-on255")) scr255.classList.remove("rpsearch-on255");
     if (restoreFeed) {
@@ -41309,7 +41504,7 @@ button.rp72-chip{ cursor:pointer; }
        ANY mode — it shows only while a search is open, in whichever
        mode the search was opened from. */
     bar.style.display = engaged ? "" : "none";
-    if (input) input.placeholder = modeNow253() === "reel" ? "Search reels\u2026" : "Search photos\u2026"; // [RP-V7.253] the placeholder names what the active mode actually searches
+    if (input) input.placeholder = "Search Rizz Plaza\u2026"; // [RP-SEARCH] one bar for everything (Branden, Nov 18) — supersedes the V7.253 per-mode placeholder TEXT only; the V7.253 mode separation of the media results is unchanged
   }
   function onInput() {
     if (clearBtn) clearBtn.style.display = input.value ? "" : "none";
@@ -41341,6 +41536,8 @@ button.rp72-chip{ cursor:pointer; }
     bar = $("rpSearchBar"); input = $("rpSearchInput"); clearBtn = $("rpSearchClear"); backBtn = $("rpSearchBack"); /* [RP-V7.332] */
     wrap = $("rpSearchWrap"); label = $("rpSearchLabel"); grid = $("rpSearchGrid");
     emptyEl = $("rpSearchEmpty"); feed = $("reelFeed");
+    peopleBox = $("rpSearchPeople"); peopleList = $("rpSearchPeopleList"); /* [RP-SEARCH] */
+    livesBox = $("rpSearchLives"); livesList = $("rpSearchLivesList"); /* [RP-SEARCH] */
     if (!bar || !input || !grid) return;
     inited = true;
     input.addEventListener("focus", engage);
@@ -50771,7 +50968,7 @@ html, body { overflow-x: clip; }
      sections, the home strip's trio in tab order right after Home,
      since the strip rides on screen-plaza, the Home tab's own screen):
        Home → Plaza → Following → For You → Friends → Live →
-       Auctions → Reels → Inbox → Profile
+       Auctions → Reels → Gaming → Inbox → Profile
      Swipe LEFT = next page, RIGHT = previous (the app's standing
      convention). No wrap at the ends: swiping past either end does
      nothing, like the strip tabs and the bottom bar, which have no
@@ -50854,8 +51051,8 @@ html, body { overflow-x: clip; }
   (function () {
     "use strict";
     var THRESH = 72, DOM = 1.7;
-    var ORDER = ["home", "plaza", "following", "foryou", "friends", "live", "auctions", "reels", "inbox", "profile"];
-    var LABEL = { home: "Home", plaza: "Plaza", following: "Following", foryou: "For You", friends: "Friends", live: "Live", auctions: "Auctions", reels: "Reels", inbox: "Inbox", profile: "Profile" };
+    var ORDER = ["home", "plaza", "following", "foryou", "friends", "live", "auctions", "reels", "gaming", "inbox", "profile"]; // [RP-GAMING] the Gaming page is a page of its own, between Reels and Inbox
+    var LABEL = { home: "Home", plaza: "Plaza", following: "Following", foryou: "For You", friends: "Friends", live: "Live", auctions: "Auctions", reels: "Reels", gaming: "Gaming", inbox: "Inbox" /* [RP-GAMING] */, profile: "Profile" };
     window.__rpSwipe420 = { threshold: THRESH, dominance: DOM, fires: 0, last: null, order: ORDER.slice(), stop: null };
 
     function $(id) { return document.getElementById(id); }
@@ -50887,6 +51084,7 @@ html, body { overflow-x: clip; }
           return s.classList.contains("home-feedmode") ? "foryou" : "plaza";
         }
         case "screen-moments": return window.__rpFriendsMode ? "friends" : "reels";
+        case "screen-gaming": return "gaming"; // [RP-GAMING]
         case "screen-online": return inLiveFs() ? null : "live";
         case "screen-auctions": return "auctions";
         case "screen-profile": return "profile";
@@ -50903,6 +51101,11 @@ html, body { overflow-x: clip; }
       if (b) { b.click(); return true; }
       return !!sec;
     }
+    function goGaming() {
+      if (typeof window.rpGamingOpen === "function") { window.rpGamingOpen(); return true; }
+      if (typeof window.show === "function") { window.show("screen-gaming"); return true; }
+      return false;
+    }
     function go(stop) {
       switch (stop) {
         case "home": return clickTab("home");
@@ -50911,6 +51114,7 @@ html, body { overflow-x: clip; }
         case "live": return clickTab("live");
         case "auctions": return clickTab("auctions");
         case "reels": return clickTab("moments");
+        case "gaming": return goGaming(); // [RP-GAMING]
         case "inbox": return clickTab("inbox");
         case "profile": return clickTab("profile");
       }
@@ -50943,7 +51147,7 @@ html, body { overflow-x: clip; }
     /* ---------- indication markers ---------- */
     var sty = document.createElement("style");
     sty.textContent =
-      "#screen-home243, #screen-plaza, #screen-moments, #screen-auctions, #screen-profile { touch-action: pan-y; }" +
+      "#screen-home243, #screen-plaza, #screen-moments, #screen-gaming, #screen-auctions, #screen-profile { touch-action: pan-y; }" + /* [RP-GAMING] the Gaming page swipes like every other page */
       "#screen-online.rp420-lobby { touch-action: pan-y; }" +
       ".rp420-mark { position: fixed; top: 44%; z-index: 60; transform: translateY(-50%); padding: 8px 10px; background: rgba(8,8,12,.62); border: 1px solid rgba(254,44,44,.55); color: #fff; font: 800 11px/1.15 -apple-system, 'Segoe UI', Roboto, sans-serif; letter-spacing: .02em; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }" +
       ".rp420-prev { left: 0; border-left: none; border-radius: 0 999px 999px 0; padding-left: 6px; }" +
@@ -50967,7 +51171,7 @@ html, body { overflow-x: clip; }
       window.__rpSwipe420.stop = cur;
       var onl = $("screen-online");
       if (onl) onl.classList.toggle("rp420-lobby", !inLiveFs());
-      mkNext.classList.toggle("rp420-next-reels", cur === "reels" && reelsFull());
+      mkNext.classList.toggle("rp420-next-reels", cur === "gaming" || (cur === "reels" && reelsFull())); // [RP-GAMING] the Gaming page's pager is full-screen too, so its next pill insets the same way
       var i = cur ? ORDER.indexOf(cur) : -1;
       if (i < 0) { mkPrev.hidden = true; mkNext.hidden = true; return; }
       if (i > 0) { mkPrev.innerHTML = "‹&thinsp;" + LABEL[ORDER[i - 1]]; mkPrev.hidden = false; } else mkPrev.hidden = true;
@@ -51022,12 +51226,210 @@ html, body { overflow-x: clip; }
         if (goRel(dx < 0 ? 1 : -1)) swallow();
       }, { passive: true });
     }
-    ["screen-home243", "screen-plaza", "screen-moments", "screen-auctions", "screen-online", "screen-profile"].forEach(function (id) {
+    ["screen-home243", "screen-plaza", "screen-moments", "screen-gaming", "screen-auctions", "screen-online", "screen-profile"].forEach(function (id) { /* [RP-GAMING] screen-gaming joins the swipe attach list */
       attach($(id), function () { var el = $(id); return !!(el && el.classList.contains("active")); });
     });
     attach($("overlay"), function () { return inboxOpen(); });
   })();
   </script>
+
+  <script>
+  /* ============ [RP-GAMING] The Gaming page ============
+     Branden (Nov 18, 2026): "A Gaming page — a feed just for gaming
+     clips" + "Make that a page of its own and the title" + "With
+     enough space?" + gaming lives. The Gaming page is a first-class
+     page of the app: its own screen (#screen-gaming), registered in
+     the V7.420 swipe order between Reels and Inbox (that module's
+     ORDER/LABEL/currentStop/go edits ride with this build), titled
+     "🎮 Gaming". Clips render FULL-SIZE through the Reels pager's own
+     card builder (reelCard) in a snap pager styled exactly like the
+     full-screen Reels pager (#screen-moments.rpfs254 #reelFeed), so a
+     gaming clip's video area IS the Reels presentation size — no
+     tiles, no grid. The rail on every card is the real Reels rail
+     (Like / Comment / Share / Save / Gift / Repost / Delete-own),
+     wired by reelCard itself and the delegated RpSave349 handler, so
+     every action works from this surface exactly as on Reels.
+     The feed is GET /api/reels?category=gaming (server: only reels
+     stored with category "gaming", newest first) plus my own
+     on-device gaming posts still uploading. Gaming reels ALSO live
+     in the normal Reels feed — this page is an extra home, never a
+     move. An empty category shows the honest empty state (no filler,
+     ever) with a door into the composer with the Gaming toggle ON.
+     🔴 Live now: registry lives whose host set the go-live Gaming
+     toggle (Live.directory entries carrying gaming) render at the
+     TOP of the page with the directory's own row builder
+     (liveRowHTML) and open through the normal live path
+     (openLiveFromList — tap to watch; stage join stays
+     request/invite-only, untouched). Lives without the toggle never
+     appear here; gaming lives still appear in Live Now as normal. */
+  (function () {
+    "use strict";
+    function $(id) { return document.getElementById(id); }
+    function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) || ""; } catch (e) { return ""; } }
+    var G = { server: null, loading: false, from: "reels", liveTimer: null, obs: null };
+
+    /* Item mapping: byte-for-byte the shape reelFeedItems() builds
+       (the server branch and the on-device branch), so reelCard and
+       every rail handler read exactly what they read on Reels. */
+    function gameServerItem(r, myServerIds) {
+      return { key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, crMuted: r.crMuted || null, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null };
+    }
+    function gameLocalItem(m) {
+      return { key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || (typeof reelMyName === "function" ? reelMyName() : "You"), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, musicTrackId: m.musicTrackId || null, origSoundId: m.origSoundId || null, soundId: null, soundName: null, soundOwnerName: null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol, category: m.gaming ? "gaming" : null };
+    }
+    function gameItems() {
+      var items = [], haveSrv = {}, myServerIds = {};
+      var metas = (typeof reelLoadMeta === "function") ? reelLoadMeta() : [];
+      metas.forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
+      (G.server || []).forEach(function (r) { haveSrv[r.id] = true; items.push(gameServerItem(r, myServerIds)); });
+      var loc = [];
+      metas.forEach(function (m) {
+        if (m.draft || !m.gaming) return;
+        if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
+        loc.push(gameLocalItem(m));
+      });
+      loc.sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+      return loc.concat(items); // my own fresh posts ride on top, newest first (the reelFeedItems ranked rule)
+    }
+
+    function gameSpyBind() {
+      var feed = $("gameFeed"); if (!feed || !("IntersectionObserver" in window)) return;
+      if (G.obs) { try { G.obs.disconnect(); } catch (e) { } G.obs = null; }
+      G.obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          var card = en.target;
+          if (en.intersectionRatio >= 0.6) { if (card._rpPlay) card._rpPlay(); }
+          else if (card._rpPause) card._rpPause();
+        });
+      }, { root: feed, threshold: [0, 0.6, 1] });
+      var cards = feed.querySelectorAll(".reel-card");
+      for (var i = 0; i < cards.length; i++) { try { G.obs.observe(cards[i]); } catch (e) { } }
+    }
+    function gamePauseAll() {
+      var feed = $("gameFeed"); if (!feed) return;
+      var vs = feed.querySelectorAll("video");
+      for (var i = 0; i < vs.length; i++) { try { vs[i].pause(); } catch (e) { } }
+      var cards = feed.querySelectorAll(".reel-card");
+      for (var j = 0; j < cards.length; j++) { if (cards[j]._rpPause) { try { cards[j]._rpPause(); } catch (e) { } } }
+    }
+
+    function renderGameFeed() {
+      var feed = $("gameFeed"); if (!feed) return;
+      if (G.server === null) {
+        feed.innerHTML = '<div class="mom-empty">Loading gaming clips… 🎮</div>';
+        return;
+      }
+      var items = gameItems();
+      feed.innerHTML = "";
+      if (!items.length) {
+        feed.innerHTML = '<div class="mom-empty">🎮 No gaming clips yet — be the first to post one!</div>' +
+          '<div class="mom-empty" style="padding-top:0;"><button type="button" class="btn-primary" style="width:auto; padding:11px 22px;" id="btnGameEmptyPost">＋ Post a gaming clip</button></div>';
+        var eb = $("btnGameEmptyPost");
+        if (eb) eb.addEventListener("click", gamePostClip);
+        return;
+      }
+      items.forEach(function (item) { feed.appendChild(reelCard(item)); });
+      gameSpyBind();
+    }
+
+    /* ---------- 🔴 Live now (gaming lives only) ---------- */
+    function renderGameLives() {
+      var sec = $("gameLiveSec"); if (!sec) return;
+      var lives = [];
+      try {
+        var dir = (typeof Live !== "undefined" && Live.directory) || {};
+        Object.keys(dir).forEach(function (id) {
+          var e = dir[id];
+          if (!e || !e.reg || !e.gaming || !e.room) return;
+          var row = { room: e.room, name: e.name || "Host", title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: (typeof e.watchers === "number" && e.watchers > 0) ? e.watchers : (e.n || 1), mine: (typeof Online !== "undefined" && id === Online.myId), priv: !!e.priv, forYou: !!e.forYou, rising: !!e.rising, testPush: !!e.testPush, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0, pot: e.pot || null, boost: e.boost || 0 };
+          lives.push(row);
+        });
+      } catch (e) { lives = []; }
+      if (!lives.length) { if (!sec.hidden) { sec.hidden = true; sec.innerHTML = ""; } return; }
+      var html = "<h3>🔴 Live now</h3>" + lives.map(function (e) { return liveRowHTML(e); }).join("");
+      if (sec.innerHTML !== html) {
+        sec.innerHTML = html;
+        sec.querySelectorAll("[data-lnroom]").forEach(function (b) {
+          b.addEventListener("click", function () { openLiveFromList(b.getAttribute("data-lnroom")); });
+        });
+      }
+      sec.hidden = false;
+    }
+
+    function fetchGaming() {
+      if (G.loading) return;
+      G.loading = true;
+      var h = { "Accept": "application/json" };
+      var t = tok(); if (t) h["Authorization"] = "Bearer " + t;
+      fetch("/api/reels?category=gaming", { headers: h })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          G.loading = false;
+          if (j && j.ok && Array.isArray(j.reels)) G.server = j.reels;
+          else if (G.server === null) G.server = [];
+          renderGameFeed();
+        })
+        .catch(function () { G.loading = false; if (G.server === null) G.server = []; renderGameFeed(); });
+    }
+
+    /* Post a clip with the Gaming toggle ON: arm the shared composer
+       state (the details sheet renders the toggle from it), then open
+       the reel composer through its own door. */
+    function gamePostClip() {
+      try { if (window.postMeta156) window.postMeta156.gaming = true; } catch (e) { }
+      if (typeof window.openReelComposer === "function") window.openReelComposer();
+    }
+
+    function gameBack() {
+      if (G.from === "home") {
+        var hb = document.querySelector('#tabbar .tab-btn[data-tab="home"]');
+        if (hb) { hb.click(); return; }
+      }
+      if (typeof window.rpReelsOpen === "function") { window.rpReelsOpen(); return; }
+      if (typeof window.show === "function") window.show("screen-moments");
+    }
+
+    window.rpGamingOpen = function (from) {
+      if (from) G.from = from;
+      try { if (typeof reelPauseAll === "function") reelPauseAll(); } catch (e) { }
+      if (typeof window.show === "function") window.show("screen-gaming");
+      renderGameLives();
+      fetchGaming();
+      if (G.liveTimer) clearInterval(G.liveTimer);
+      G.liveTimer = setInterval(function () {
+        var scr = $("screen-gaming");
+        if (!scr || !scr.classList.contains("active")) { clearInterval(G.liveTimer); G.liveTimer = null; return; }
+        renderGameLives();
+      }, 4000);
+    };
+    window.rpGaming = { open: window.rpGamingOpen, refresh: fetchGaming, state: G };
+
+    /* Leaving the page stops its videos (the Reels pager gets the
+       same discipline from its own observer + screen checks). */
+    var scr0 = $("screen-gaming");
+    if (scr0 && "MutationObserver" in window) {
+      new MutationObserver(function () {
+        if (!scr0.classList.contains("active")) gamePauseAll();
+      }).observe(scr0, { attributes: true, attributeFilter: ["class"] });
+    }
+
+    /* Entry points + page chrome wiring (guarded: every element is
+       static HTML in this build, but a re-base must never throw). */
+    var bp = $("btnGamePost"); if (bp) bp.addEventListener("click", gamePostClip);
+    var bb = $("btnGameBack"); if (bb) bb.addEventListener("click", gameBack);
+    var hm = $("btnFbGamingMore243"); if (hm) hm.addEventListener("click", function () { window.rpGamingOpen("home"); });
+    var mh = $("btnGamingMom"); if (mh) mh.addEventListener("click", function () { window.rpGamingOpen("reels"); });
+    var mp = $("momGamingBtn"); if (mp) mp.addEventListener("click", function () { window.rpGamingOpen("reels"); });
+    /* A delete from a Gaming card refreshes this feed too (reelCard's
+       own handler refreshes the Reels feed). */
+    var gf = $("gameFeed");
+    if (gf) gf.addEventListener("click", function (e) {
+      var t = e.target;
+      if (t && t.closest && t.closest(".pp-del243")) setTimeout(fetchGaming, 1400);
+    });
+  })();
+  </script>
+
 <style>
 /* ============ [RP-V7.421] Profile drawer tools — Activity center · Your QR code · Business Suite · Promote ============ */
 .rp421-grp { display: contents; }
