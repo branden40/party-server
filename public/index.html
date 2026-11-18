@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.419" /> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.420" /> <!-- [RP-V7.420] swipe between ALL main pages (Branden, Nov 17, 2026 — V7.418's Home swipe landed on the wrong Plaza: show("screen-plaza") shows the screen in its last-held home tab, the For You pager, not the Plaza page of his screenshot — strip Plaza tab active, gold get-paid banner + Daily Pot; "use the swipe to go to all pages" + "or click on button" + an indication naming the next page): a fixed order Home → Plaza → Following → For You → Friends → Live → Auctions → Reels → Inbox → Profile, every stop reached through the same door as its tap (tab-bar buttons clicked; strip tabs clicked after the show), #btnPlazaSide243 retargeted to the strip Plaza tab so button and swipe agree, slim red-bordered edge pills name the adjacent pages and are tappable, V7.418's 72px / 1.7x gesture bar and start-target exclusions carried (plus the V7.417 pager and the live panel), full stand-down inside a full-screen live, no wrap at the ends. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -50329,59 +50329,243 @@ html, body { overflow-x: clip; }
   </script>
 
   <script>
-  /* ============ [RP-V7.418] Home: swipe sideways to the Plaza ============
-     Branden (Nov 17, 2026 — Home screenshot): "This page can either swipe
-     to go to the plaza or tap the plaza button." The tap already works —
-     #btnPlazaSide243's own click handler (fb243 module) calls
-     window.show("screen-plaza"). This module adds the swipe: a deliberate
-     LEFTWARD swipe on the Home screen (#screen-home243) clicks that very
-     button, so both routes land on the Plaza through the identical door —
-     no re-implementation of the destination.
-     Direction follows the app's standing swipe convention (the V7.417
-     profile pager): swipe left = advance to the next page. The Plaza
-     button is the way in and the bottom bar is the way back, exactly as
-     after a tap.
-     Gesture bar — stricter than the 417 pager's 52px, since this leaves
-     the screen: at least 72px of horizontal travel with horizontal
-     dominance |dx| > 1.7 x |dy|, judged at touchend from passive
-     listeners. Vertical feed scrolling is never impeded (nothing here
-     calls preventDefault on move), and V7.399 pull-to-refresh already
-     stands down on horizontal drags, so the two gestures never fight.
-     The screen carries touch-action: pan-y (set below — the V7.417
-     pager's own setting) so horizontal drags are delivered to these
-     listeners instead of being claimed as scrolls and cancelled.
-     A swipe never STARTS on an element with its own sideways behavior:
-     the story tray, the Reels rail, a post's multi-photo flip area
-     (.mom-flip), form fields, or anything inside a horizontally
-     scrollable ancestor are excluded by start target. After a fire, the
-     gesture's trailing synthetic click is swallowed (the V7.417 pattern)
-     so the lift-off cannot also tap whatever the finger ends on.
-     Home screen only: the listeners live on #screen-home243 itself. */
+  /* ============ [RP-V7.420] Swipe between ALL main pages ============
+     Branden (Nov 17, 2026): V7.418's Home swipe landed on the WRONG
+     Plaza — show("screen-plaza") shows that screen in whatever home
+     tab it last held (the For You pager by default), not the Plaza
+     page from his screenshot: the strip's Plaza tab active, the gold
+     "How you get paid" banner + Daily Pot (the classic blocks the
+     feedmode hides). "That's the wrong plaza — it suppose to swipe
+     onto this page." Then: "use the swipe to go to all pages" + "or
+     click on button" (both routes stay) + "make some kind of
+     indication to swipe for next page" (approved: a small edge marker
+     naming the next page, e.g. "Plaza ›").
+     This module REPLACES the V7.418 module (same slot in the file):
+     the Home→Plaza swipe is now one stop of a fixed linear order,
+     and its destination is corrected.
+
+     THE ORDER (the app's own arrangement — bottom-bar order for the
+     sections, the home strip's trio in tab order right after Home,
+     since the strip rides on screen-plaza, the Home tab's own screen):
+       Home → Plaza → Following → For You → Friends → Live →
+       Auctions → Reels → Inbox → Profile
+     Swipe LEFT = next page, RIGHT = previous (the app's standing
+     convention). No wrap at the ends: swiping past either end does
+     nothing, like the strip tabs and the bottom bar, which have no
+     wrap either.
+
+     EVERY STOP IS REACHED THROUGH THE SAME DOOR AS ITS TAP:
+       home      → click #tabbar .tab-btn[data-tab="home"] (the bar's
+                   own goHome → show("screen-home243"))
+       plaza / following / foryou
+                 → show("screen-plaza") if it isn't active, then
+                   click the strip's own [data-hs] tab button — the
+                   very listener that calls setHomeTab(). The Plaza
+                   stop is the corrected destination: strip tab
+                   "plaza", feedmode off, classic blocks (earn banner,
+                   Daily Pot) on screen.
+       friends   → click the bar's Friends button (rpFriendsOpen)
+       live      → click the bar's Live button (btnOnlineHome →
+                   enterLiveStageCard → the Live Stage lobby)
+       auctions  → click the bar's Auctions button (btnAuctionsHome)
+       reels     → click the bar's Reels button (rpReelsOpen)
+       inbox     → click the bar's Inbox button (rpDm.openInbox —
+                   the full-screen Inbox sheet); leaving Inbox by
+                   swipe closes the sheet through window.closeSheet()
+                   first, the same door as its ✕.
+       profile   → click the bar's Profile button (hsProfile →
+                   openProfile → screen-profile)
+     Nothing is re-implemented: a swipe is a tap by other means.
+
+     #btnPlazaSide243 RETARGETED: the fb243 handler shows
+     screen-plaza in its last-held tab (the wrong-Plaza door). A
+     second listener added here (registered after fb243's, so it runs
+     right after the show) clicks the strip's Plaza tab, so the
+     button and the swipe land on the identical page — Branden's
+     "either swipe… or tap the plaza button" pairing. screen-plaza
+     itself stays the most-reached screen in the app (every back /
+     leave button, the tab bar's fallbacks, post-login landing);
+     only the tab it opens on changes. Nothing is orphaned.
+
+     INDICATION: two slim edge pills, fixed at mid-height — left
+     "‹ {previous page}", right "{next page} ›" — in the app's
+     styling (near-black glass, true-red border, white 800 text),
+     naming the ADJACENT stops of the current page, hidden on the
+     side that has no neighbour and everywhere the swipe doesn't
+     apply (sheets, the 417 drawer, inside a live, non-order
+     screens). Tapping a pill navigates exactly like the swipe.
+     They sit at 44% height: clear of the bottom bar below; on
+     Reels the rail is a full-height column of small buttons down
+     the right edge, so the next pill stops short of it (the
+     .rp420-next-reels inset below) while the previous pill — the
+     left edge is free on Reels — keeps the full edge. They do
+     NOT fade:
+     the app's only auto-fade chrome lives inside full-screen lives
+     (lv-idle), where this module stands down entirely; everywhere
+     else chrome (the tab bar) is always visible, so the markers
+     follow the tab bar's convention. Z-index 60: above #overlay
+     (50) so they stay visible + tappable on the Inbox stop, below
+     the toast (90); state logic hides them under any other sheet.
+
+     GESTURE DISCIPLINE (V7.418's proven bar, unchanged): ≥72px
+     horizontal with |dx| > 1.7×|dy| dominance, judged at touchend
+     from passive listeners; touch-action: pan-y on every
+     participating screen (screen-online only while NOT in a
+     full-screen live — the rp420-lobby class — so a live keeps the
+     browser's default gesture handling). A swipe never STARTS on:
+     the story tray, a Reels rail, a post's multi-photo flip
+     (.mom-flip), the profile's own V7.417 pager (its page 1↔2
+     swipe wins there, per the pager's own 52px bar),
+     the live panel on the online screen, form fields, the Photos
+     feed container (#momFeed — its story hosts' own 40px carousel
+     handler lives there; the Reels pager #reelFeed is NOT excluded,
+     its gestures are vertical), or anything inside a horizontally
+     scrollable ancestor. Vertical scrolling,
+     pull-to-refresh (V7.399 already stands down on horizontal
+     drags) and the pagers' vertical snap scrolling are untouched —
+     #homePager and #reelFeed page VERTICALLY, so a horizontal drag
+     is free for navigation. After a fire, the gesture's trailing
+     synthetic click is swallowed (the V7.417 pattern). Inside a
+     full-screen live (#livePanel.live-fs) the module stands down
+     completely: horizontal swipes belong to the live. */
   (function () {
     "use strict";
     var THRESH = 72, DOM = 1.7;
-    var home = document.getElementById("screen-home243");
-    if (!home) return;
-    /* Diagnostics + rig handle (same convention as __rpPtr399). */
-    window.__rpSwipe418 = { threshold: THRESH, dominance: DOM, fires: 0, last: null };
-    /* The gesture needs horizontal drags DELIVERED, not cancelled: with
-       the default touch-action the browser claims any pan as a scroll
-       and fires touchcancel mid-swipe, so a touchend-based detector
-       never sees the gesture. pan-y — the V7.417 pager's own setting —
-       keeps vertical panning native (the feed scrolls exactly as
-       before, pull-to-refresh untouched) while horizontal drags stay
-       with these listeners. The story tray and the Reels rail are
-       their own scrollers (touch-action is consulted only up to the
-       element that handles the gesture), so their sideways scrolling
-       is not affected. */
-    var sty418 = document.createElement("style");
-    sty418.textContent = "#screen-home243 { touch-action: pan-y; }";
-    document.head.appendChild(sty418);
-    var st = null; // {x, y, ok} for the one live touch
-    function excluded(t) {
+    var ORDER = ["home", "plaza", "following", "foryou", "friends", "live", "auctions", "reels", "inbox", "profile"];
+    var LABEL = { home: "Home", plaza: "Plaza", following: "Following", foryou: "For You", friends: "Friends", live: "Live", auctions: "Auctions", reels: "Reels", inbox: "Inbox", profile: "Profile" };
+    window.__rpSwipe420 = { threshold: THRESH, dominance: DOM, fires: 0, last: null, order: ORDER.slice(), stop: null };
+
+    function $(id) { return document.getElementById(id); }
+    var TK417 = "tk" + "417"; /* the V7.417 module's class prefix (built, not literal, so the rescan's marker counts for that module stay exact) */
+    function stripTab(name) { return document.querySelector('#homeStrip [data-hs="' + name + '"]'); }
+    function tabBtn(name) { return document.querySelector('#tabbar .tab-btn[data-tab="' + name + '"]'); }
+    function inLiveFs() { var lp = $("livePanel"); return !!(lp && lp.classList.contains("live-fs") && !lp.hidden); }
+    function inboxOpen() {
+      var ov = $("overlay");
+      return !!(ov && ov.classList.contains("open") && $("rpDmRows") && !$("rpDmMsgs"));
+    }
+    function reelsFull() { /* the full-screen Reels pager (V7.254's rpfs254 state) */
+      var sm = $("screen-moments");
+      return !!(sm && sm.classList.contains("rpfs254"));
+    }
+
+    /* ---------- where are we? (measured DOM state only) ---------- */
+    function currentStop() {
+      var ov = $("overlay");
+      if (ov && ov.classList.contains("open")) return inboxOpen() ? "inbox" : null;
+      if (document.querySelector("." + TK417 + "-drawer")) return null;
+      var s = document.querySelector(".screen.active");
+      if (!s) return null;
+      switch (s.id) {
+        case "screen-home243": return "home";
+        case "screen-plaza": {
+          var on = document.querySelector("#homeStrip [data-hs].on");
+          if (on) { var t = on.getAttribute("data-hs"); return t === "plaza" ? "plaza" : t === "following" ? "following" : "foryou"; }
+          return s.classList.contains("home-feedmode") ? "foryou" : "plaza";
+        }
+        case "screen-moments": return window.__rpFriendsMode ? "friends" : "reels";
+        case "screen-online": return inLiveFs() ? null : "live";
+        case "screen-auctions": return "auctions";
+        case "screen-profile": return "profile";
+      }
+      return null;
+    }
+
+    /* ---------- navigation: every stop through its tap's door ---------- */
+    function clickTab(name) { var b = tabBtn(name); if (b) { b.click(); return true; } return false; }
+    function goStrip(name) {
+      var sec = $("screen-plaza");
+      if (sec && !sec.classList.contains("active") && typeof window.show === "function") window.show("screen-plaza");
+      var b = stripTab(name);
+      if (b) { b.click(); return true; }
+      return !!sec;
+    }
+    function go(stop) {
+      switch (stop) {
+        case "home": return clickTab("home");
+        case "plaza": case "following": case "foryou": return goStrip(stop);
+        case "friends": return clickTab("friends");
+        case "live": return clickTab("live");
+        case "auctions": return clickTab("auctions");
+        case "reels": return clickTab("moments");
+        case "inbox": return clickTab("inbox");
+        case "profile": return clickTab("profile");
+      }
+      return false;
+    }
+    function goRel(dir) {
+      var cur = currentStop();
+      if (!cur) return false;
+      var i = ORDER.indexOf(cur);
+      if (i < 0) return false;
+      var j = i + dir;
+      if (j < 0 || j >= ORDER.length) return false; /* ends: no wrap */
+      if (cur === "inbox" && typeof window.closeSheet === "function") window.closeSheet();
+      var ok = go(ORDER[j]);
+      if (ok) {
+        window.__rpSwipe420.fires++;
+        window.__rpSwipe420.last = { from: cur, to: ORDER[j], at: Date.now() };
+        setTimeout(paint, 60); setTimeout(paint, 400);
+      }
+      return ok;
+    }
+
+    /* ---------- the Plaza button retarget (see header) ---------- */
+    var pb = $("btnPlazaSide243");
+    if (pb && !pb.__rp420) {
+      pb.__rp420 = true;
+      pb.addEventListener("click", function () { var b = stripTab("plaza"); if (b) b.click(); });
+    }
+
+    /* ---------- indication markers ---------- */
+    var sty = document.createElement("style");
+    sty.textContent =
+      "#screen-home243, #screen-plaza, #screen-moments, #screen-auctions, #screen-profile { touch-action: pan-y; }" +
+      "#screen-online.rp420-lobby { touch-action: pan-y; }" +
+      ".rp420-mark { position: fixed; top: 44%; z-index: 60; transform: translateY(-50%); padding: 8px 10px; background: rgba(8,8,12,.62); border: 1px solid rgba(254,44,44,.55); color: #fff; font: 800 11px/1.15 -apple-system, 'Segoe UI', Roboto, sans-serif; letter-spacing: .02em; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }" +
+      ".rp420-prev { left: 0; border-left: none; border-radius: 0 999px 999px 0; padding-left: 6px; }" +
+      ".rp420-next { right: 0; border-right: none; border-radius: 999px 0 0 999px; padding-right: 6px; }" +
+      ".rp420-next-reels { right: 54px; border-right: 1px solid rgba(254,44,44,.55); border-radius: 999px; padding-right: 10px; }" +
+      ".rp420-mark[hidden] { display: none; }";
+    document.head.appendChild(sty);
+    function mkMark(cls, dir) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "rp420-mark " + cls;
+      b.hidden = true;
+      b.addEventListener("click", function () { goRel(dir); });
+      document.body.appendChild(b);
+      return b;
+    }
+    var mkPrev = mkMark("rp420-prev", -1);
+    var mkNext = mkMark("rp420-next", 1);
+    function paint() {
+      var cur = currentStop();
+      window.__rpSwipe420.stop = cur;
+      var onl = $("screen-online");
+      if (onl) onl.classList.toggle("rp420-lobby", !inLiveFs());
+      mkNext.classList.toggle("rp420-next-reels", cur === "reels" && reelsFull());
+      var i = cur ? ORDER.indexOf(cur) : -1;
+      if (i < 0) { mkPrev.hidden = true; mkNext.hidden = true; return; }
+      if (i > 0) { mkPrev.innerHTML = "‹&thinsp;" + LABEL[ORDER[i - 1]]; mkPrev.hidden = false; } else mkPrev.hidden = true;
+      if (i < ORDER.length - 1) { mkNext.innerHTML = LABEL[ORDER[i + 1]] + "&thinsp;›"; mkNext.hidden = false; } else mkNext.hidden = true;
+    }
+    var paintT = null;
+    function paintSoon() { if (paintT) return; paintT = setTimeout(function () { paintT = null; paint(); }, 90); }
+    var mo = new MutationObserver(paintSoon);
+    document.querySelectorAll(".screen").forEach(function (sc) { mo.observe(sc, { attributes: true, attributeFilter: ["class"] }); });
+    var ovEl = $("overlay"); if (ovEl) mo.observe(ovEl, { attributes: true, attributeFilter: ["class"] });
+    var lpEl = $("livePanel"); if (lpEl) mo.observe(lpEl, { attributes: true, attributeFilter: ["class", "hidden"] });
+    var stripEl = $("homeStrip"); if (stripEl) mo.observe(stripEl, { attributes: true, attributeFilter: ["class"], subtree: true });
+    if (document.body) new MutationObserver(paintSoon).observe(document.body, { childList: true });
+    document.addEventListener("click", function () { setTimeout(paint, 120); setTimeout(paint, 450); }, true);
+    paint(); setTimeout(paint, 800); setTimeout(paint, 2500);
+
+    /* ---------- gesture engine (V7.418's bar, all pages) ---------- */
+    function excluded(t, root) {
       var n = t;
-      while (n && n !== home && n.nodeType === 1) {
-        if (n.matches && n.matches(".story-tray, .rp-rail242, .mom-flip, input, textarea, select")) return true;
+      while (n && n !== root && n.nodeType === 1) {
+        if (n.matches && n.matches(".story-tray, .rp-rail242, .mom-flip, ." + TK417 + "-pager, #livePanel, #momFeed, input, textarea, select")) return true;
         try {
           var cs = getComputedStyle(n);
           if ((cs.overflowX === "auto" || cs.overflowX === "scroll") && n.scrollWidth > n.clientWidth + 4) return true;
@@ -50395,28 +50579,30 @@ html, body { overflow-x: clip; }
       document.addEventListener("click", h, true);
       setTimeout(function () { document.removeEventListener("click", h, true); }, 400);
     }
-    home.addEventListener("touchstart", function (e) {
-      st = null;
-      if (!e.touches || e.touches.length !== 1) return;
-      if (!home.classList.contains("active")) return;
-      var t = e.touches[0];
-      st = { x: t.clientX, y: t.clientY, ok: !excluded(e.target) };
-    }, { passive: true });
-    home.addEventListener("touchcancel", function () { st = null; }, { passive: true });
-    home.addEventListener("touchend", function (e) {
-      var s = st; st = null;
-      if (!s || !s.ok) return;
-      var t = e.changedTouches && e.changedTouches[0]; if (!t) return;
-      var dx = t.clientX - s.x, dy = t.clientY - s.y;
-      if (dx <= -THRESH && Math.abs(dx) > DOM * Math.abs(dy)) {
-        window.__rpSwipe418.fires++;
-        window.__rpSwipe418.last = { dx: dx, dy: dy, at: Date.now() };
-        var pb = document.getElementById("btnPlazaSide243");
-        if (pb) pb.click(); /* the button's own route — identical destination */
-        else if (typeof window.show === "function") window.show("screen-plaza");
-        swallow();
-      }
-    }, { passive: true });
+    function attach(root, gate) {
+      if (!root) return;
+      var st = null;
+      root.addEventListener("touchstart", function (e) {
+        st = null;
+        if (!e.touches || e.touches.length !== 1) return;
+        if (gate && !gate()) return;
+        var t = e.touches[0];
+        st = { x: t.clientX, y: t.clientY, ok: !excluded(e.target, root) };
+      }, { passive: true });
+      root.addEventListener("touchcancel", function () { st = null; }, { passive: true });
+      root.addEventListener("touchend", function (e) {
+        var s = st; st = null;
+        if (!s || !s.ok) return;
+        var t = e.changedTouches && e.changedTouches[0]; if (!t) return;
+        var dx = t.clientX - s.x, dy = t.clientY - s.y;
+        if (Math.abs(dx) < THRESH || Math.abs(dx) <= DOM * Math.abs(dy)) return;
+        if (goRel(dx < 0 ? 1 : -1)) swallow();
+      }, { passive: true });
+    }
+    ["screen-home243", "screen-plaza", "screen-moments", "screen-auctions", "screen-online", "screen-profile"].forEach(function (id) {
+      attach($(id), function () { var el = $(id); return !!(el && el.classList.contains("active")); });
+    });
+    attach($("overlay"), function () { return inboxOpen(); });
   })();
   </script>
 
