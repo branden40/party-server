@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.420" /> <!-- [RP-V7.420] swipe between ALL main pages (Branden, Nov 17, 2026 — V7.418's Home swipe landed on the wrong Plaza: show("screen-plaza") shows the screen in its last-held home tab, the For You pager, not the Plaza page of his screenshot — strip Plaza tab active, gold get-paid banner + Daily Pot; "use the swipe to go to all pages" + "or click on button" + an indication naming the next page): a fixed order Home → Plaza → Following → For You → Friends → Live → Auctions → Reels → Inbox → Profile, every stop reached through the same door as its tap (tab-bar buttons clicked; strip tabs clicked after the show), #btnPlazaSide243 retargeted to the strip Plaza tab so button and swipe agree, slim red-bordered edge pills name the adjacent pages and are tappable, V7.418's 72px / 1.7x gesture bar and start-target exclusions carried (plus the V7.417 pager and the live panel), full stand-down inside a full-screen live, no wrap at the ends. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.421" /> <!-- [RP-V7.421] profile drawer tools (Branden, Nov 17, 2026 — "Add these to the profile under balance" + "put RP on the QR code somewhere to show it come from us"): the V7.417 drawer gains Personal tools (Activity center — the real /api/money/history ledger + the profile Liked tab; Your QR code — generated on open from the current username, encodes the /?creator=<username> profile link, RP logo centered, EC level H) and Creation & business tools (Business Suite — Business Ads / My store / Earn hub; Promote — the V7.394 Community Boost sheet through its own chip). One self-contained module at the V7.420 module; the QR encoder is built in, no CDN. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -50605,6 +50605,477 @@ html, body { overflow-x: clip; }
     attach($("overlay"), function () { return inboxOpen(); });
   })();
   </script>
+<style>
+/* ============ [RP-V7.421] Profile drawer tools — Activity center · Your QR code · Business Suite · Promote ============ */
+.rp421-grp { display: contents; }
+.rp421-overlay { position: fixed; inset: 0; background: #0b0b0d; z-index: 3300; display: none; flex-direction: column; }
+.rp421-overlay.open { display: flex; }
+.rp421-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.rp421-head h3 { margin: 0; font-size: 18px; color: #f2f2f5; }
+.rp421-back { background: #1a1a20; color: #f2f2f5; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; padding: 7px 12px; font-weight: 700; cursor: pointer; }
+.rp421-body { flex: 1; overflow-y: auto; padding: 14px 16px 28px; color: #f2f2f5; }
+.rp421-h { font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: #8a8f9c; margin: 18px 0 6px; }
+.rp421-muted { color: #a7a7b3; font-size: 13px; line-height: 1.45; }
+.rp421-rowlink { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: #141419; border: 1px solid #23232c; border-radius: 12px; padding: 13px 14px; margin: 0 0 8px; color: #f2f2f5; font-size: 15px; font-weight: 600; cursor: pointer; text-align: left; }
+.rp421-rowlink small { display: block; color: #a7a7b3; font-weight: 400; font-size: 12.5px; margin-top: 2px; }
+.rp421-chev { color: #8a8f9c; font-size: 18px; flex: none; }
+.rp421-txrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 9px 2px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.rp421-txmain { font-size: 14px; min-width: 0; }
+.rp421-txdate { color: #8a8f9c; font-size: 12px; white-space: nowrap; }
+.rp421-txamt { font-weight: 800; white-space: nowrap; font-size: 14px; }
+.rp421-qrwrap { position: relative; width: min(264px, 74vw); margin: 18px auto 6px; aspect-ratio: 1 / 1; }
+.rp421-qrwrap canvas { width: 100%; height: 100%; display: block; border-radius: 12px; }
+.rp421-qrlogo { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 24%; aspect-ratio: 1 / 1; background: #fff; border-radius: 20%; padding: 4.5%; box-sizing: border-box; }
+.rp421-qrlogo img { width: 100%; height: 100%; display: block; border-radius: 14%; }
+.rp421-qruser { text-align: center; font-size: 17px; font-weight: 800; margin-top: 8px; color: #f2f2f5; }
+.rp421-btnrow { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.rp421-btn { background: #1a1a20; color: #f2f2f5; border: 1px solid rgba(255,255,255,.16); border-radius: 12px; padding: 11px 18px; font-size: 14.5px; font-weight: 700; cursor: pointer; }
+.rp421-btn-red { background: #fe2c2c; border-color: #fe2c2c; color: #fff; }
+.rp421-toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); background: #1d1d24; color: #fff; border: 1px solid rgba(254,44,44,.5); padding: 10px 16px; border-radius: 999px; font-size: 14px; z-index: 3400; white-space: nowrap; }
+
+</style>
+<script>
+/* ============ [RP-V7.421] Profile drawer tools ============
+   Branden (Nov 17, 2026): TikTok's profile-drawer tools join the
+   V7.417 drawer's own structure, under Balance — "Personal tools"
+   (Activity center, Your QR code) and "Creation & business tools"
+   (Business Suite, Promote) — each wired to the Plaza's REAL
+   equivalent, no new logic of its own:
+   - Activity center: the member's real ledger (GET /api/money/history,
+     the same payload the Earn sheet renders, same label conventions)
+     plus a door to the profile's Liked tab (the server-fed liked list).
+     Comments are NOT listed: no per-member comment history exists
+     anywhere in the app (comments live on the posts), so nothing is
+     invented. No "views" numbers anywhere.
+   - Your QR code: generated on open from the member's CURRENT
+     username; encodes the app's per-member profile link
+     (/?creator=<username> — the V7.312 deep link the server itself
+     hands Stripe as each creator's profile URL; it lands on the
+     profile). The RP logo (/icon-192.png, the app's own mark) sits
+     centered on the code; error-correction level H keeps it
+     scannable (decode-verified in the rig with the logo in place).
+     The QR encoder below is self-contained — no CDN, no library.
+   - Business Suite: a hub whose rows open the EXISTING surfaces —
+     Business Ads via the Earn sheet's own Business Ads button (the
+     app's manage/subscribe fork), My store via rpStoreOpen("mine"),
+     Earn via openEarnings.
+   - Promote: opens the existing Community Boost sheet (V7.394) by
+     tapping its own in-room chip — the sheet's only wired door.
+   The V7.417 prefix is built as "tk" + "417" throughout so the 417
+   marker count in this file stays exact. */
+(function () {
+  "use strict";
+  var TK = "tk" + "417";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function jget(u) {
+    var h = {}; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(u, { headers: h, credentials: "same-origin" }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
+  }
+  function toast421(msg) {
+    try { if (typeof window.showToast === "function") { window.showToast(msg); return; } } catch (e) { }
+    var d = document.createElement("div"); d.className = "rp421-toast"; d.textContent = msg;
+    document.body.appendChild(d); setTimeout(function () { d.remove(); }, 2600);
+  }
+  function myUsername() {
+    try { var p = window.rpAccountProfile; if (p && p.username) return String(p.username); } catch (e) { }
+    try { return localStorage.getItem("rpAcctUsername.v1") || ""; } catch (e) { return ""; }
+  }
+  function myName() {
+    try { var p = window.rpAccountProfile; if (p && p.name) return String(p.name); } catch (e) { }
+    try { if (typeof window.rpMyName === "function") return String(window.rpMyName() || ""); } catch (e) { }
+    try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.name) || ""; } catch (e) { return ""; }
+  }
+  function fmt$(c) { return "$" + (Number(c || 0) / 100).toFixed(2); }
+  function fmtDate(iso) { try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch (e) { return ""; } }
+  function fmtN(n) { return Number(n || 0).toLocaleString("en-US"); }
+
+  /* ---------------- drawer injection ---------------- */
+  function closeDrawer421() {
+    document.querySelectorAll("." + TK + "-drawer").forEach(function (d) { d.remove(); });
+  }
+  function drRow(key, label) {
+    return '<button type="button" class="' + TK + '-dr-row rp421-row" data-rp421="' + key + '"><span>' + label + '</span><span class="' + TK + '-dr-chev">›</span></button>';
+  }
+  function injectDrawer421() {
+    var panel = document.querySelector("." + TK + "-dr-panel");
+    if (!panel || panel.querySelector(".rp421-grp")) return;
+    var bal = panel.querySelector('[data-dr="balance"]');
+    if (!bal) return;
+    var wrap = document.createElement("div");
+    wrap.className = "rp421-grp";
+    wrap.innerHTML =
+      '<div class="' + TK + '-dr-h">Personal tools</div>' +
+      drRow("activity", "📊 Activity center") +
+      drRow("qr", "🔳 Your QR code") +
+      '<div class="' + TK + '-dr-h">Creation &amp; business tools</div>' +
+      drRow("biz", "💼 Business Suite") +
+      drRow("promote", "🚀 Promote");
+    bal.parentNode.insertBefore(wrap, bal.nextSibling);
+    wrap.querySelector('[data-rp421="activity"]').addEventListener("click", function () { closeDrawer421(); openActivity421(); });
+    wrap.querySelector('[data-rp421="qr"]').addEventListener("click", function () { closeDrawer421(); openQr421(); });
+    wrap.querySelector('[data-rp421="biz"]').addEventListener("click", function () { closeDrawer421(); openBiz421(); });
+    wrap.querySelector('[data-rp421="promote"]').addEventListener("click", function () { openPromote421(); });
+  }
+  var mo421 = new MutationObserver(function () { injectDrawer421(); });
+  if (document.body) mo421.observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("click", function () { setTimeout(injectDrawer421, 60); }, true);
+
+  /* ---------------- sheet shell ---------------- */
+  function closeSheet421() { var d = $("rp421Overlay"); if (d) d.remove(); }
+  function openSheet421(title, bodyHtml) {
+    closeSheet421();
+    var d = document.createElement("div");
+    d.className = "rp421-overlay"; d.id = "rp421Overlay";
+    d.innerHTML = '<div class="rp421-head"><button type="button" class="rp421-back" id="rp421Back">← Back</button><h3>' + title + '</h3></div><div class="rp421-body" id="rp421Body">' + bodyHtml + "</div>";
+    document.body.appendChild(d);
+    d.classList.add("open");
+    $("rp421Back").addEventListener("click", closeSheet421);
+    return $("rp421Body");
+  }
+  function rowLink(id, main, sub) {
+    return '<button type="button" class="rp421-rowlink" id="' + id + '"><span>' + main + (sub ? "<small>" + sub + "</small>" : "") + '</span><span class="rp421-chev">›</span></button>';
+  }
+
+  /* ---------------- Activity center ---------------- */
+  function txLabelAmt(t) {
+    var srcTag = t.src === "picture" ? " · 📷 picture" : t.src === "video" ? " · 🎥 video" : t.src === "live" ? " · 🔴 live" : "";
+    var label = "", amt = "";
+    if (t.refund) { label = "↩️ Refund — " + (t.type === "purchase" ? "charm pack" : "Premium"); amt = fmt$(t.cents); }
+    else if (t.type === "gift-received") { label = "🎁 Gift received" + (t.fromName ? " — from " + esc(t.fromName) : "") + srcTag + (t.promo ? " · promo charms" : t.charmsOnly ? " · charms-only" : ""); amt = (t.charmsOnly || t.promo) ? "+" + fmtN(t.charms) + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + fmtN(t.charms) + " charms"); }
+    else if (t.type === "gift-sent") { label = "🎁 Gift sent" + (t.toName ? " — to " + esc(t.toName) : "") + srcTag; amt = "-" + fmtN(t.charms) + " charms"; }
+    else if (t.type === "purchase") { label = "⭐ Charm pack"; amt = "+" + fmtN(t.charms) + " charms"; }
+    else if (t.type === "auction") { label = "🔨 Auction sale" + (t.promo ? " · promo charms" : ""); amt = t.promo ? "+" + fmtN(t.charms) + " charms" : "+" + fmt$(Number(t.cents || 0) - Number(t.cut || 0)); }
+    else if (t.type === "auction-paid") { label = "🔨 Auction win" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.promo ? " · promo charms" : ""); amt = "-" + fmtN(t.charms) + " charms"; }
+    else if (t.type === "auction-refund") { label = "↩️ Auction refund"; amt = "+" + fmtN(t.charms) + " charms"; }
+    else if (t.type === "tip") { label = "💝 Tip" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.promo ? " · promo charms" : t.charmsOnly ? " · charms-only" : ""); amt = (t.charmsOnly || t.promo) ? "+" + fmtN(t.charms) + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + fmtN(t.charms) + " charms"); }
+    else if (t.type === "tip-sent") { label = "💝 Tip sent" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + fmtN(t.charms) + " charms"; }
+    else if (t.type === "club") { label = "👑 Fan Club" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.promo ? " · promo charms" : t.charmsOnly ? " · charms-only" : ""); amt = (t.charmsOnly || t.promo) ? "+" + fmtN(t.charms) + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + fmtN(t.charms) + " charms"); }
+    else if (t.type === "club-sent") { label = "👑 Fan Club" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + fmtN(t.charms) + " charms"; }
+    else if (t.type === "live-ticket") { label = "🎟️ Ticketed live" + (t.fromName ? " — from " + esc(t.fromName) : ""); amt = (t.charmsOnly || t.promo) ? "+" + fmtN(t.charms) + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + fmtN(t.charms) + " charms"); }
+    else if (t.type === "ticket-sent") { label = "🎟️ Live ticket" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + fmtN(Math.abs(Number(t.charms || 0))) + " charms"; }
+    else if (t.type === "shoutout") { label = "📣 Shoutout" + (t.fromName ? " — from " + esc(t.fromName) : "") + (t.promo ? " · promo charms" : t.charmsOnly ? " · charms-only" : ""); amt = (t.charmsOnly || t.promo) ? "+" + fmtN(t.charms) + " charms" : (t.cents ? "+" + fmt$(t.cents) : "+" + fmtN(t.charms) + " charms"); }
+    else if (t.type === "shoutout-sent") { label = "📣 Shoutout request" + (t.toName ? " — to " + esc(t.toName) : ""); amt = "-" + fmtN(Math.abs(Number(t.charms || 0))) + " charms"; }
+    else if (t.type === "premium" || t.type === "premium-renew") { label = "⭐ Premium"; amt = fmt$(t.cents); }
+    else if (t.type === "bizads" || t.type === "bizads-renew") { label = "📣 Business Ads"; amt = fmt$(t.cents); }
+    else if (t.type === "cashout") { label = "💸 Cash-out requested"; amt = fmt$(t.cents); }
+    else if (t.type === "dailypot-win" || t.type === "pot-win" || t.type === "pot-remainder" || t.type === "pot-refund" || t.type === "daily-claim" || t.type === "owner-grant") { label = esc(t.type); amt = t.charms ? "+" + fmtN(Math.abs(Number(t.charms))) + " charms" : ""; }
+    else if (t.type === "pot-seed" || t.type === "pot-topup") { label = esc(t.type); amt = t.charms ? "-" + fmtN(Math.abs(Number(t.charms))) + " charms" : ""; }
+    else {
+      label = esc(t.type || "Activity") + (t.fromName ? " — from " + esc(t.fromName) : t.toName ? " — to " + esc(t.toName) : "");
+      amt = t.cents ? fmt$(t.cents) : (t.charms && ((t.from && !t.to) || (!t.from && t.to)) ? (t.from ? "-" : "+") + fmtN(Math.abs(Number(t.charms))) + " charms" : "");
+    }
+    return { label: label, amt: amt };
+  }
+  function openActivity421() {
+    var body = openSheet421("📊 Activity center",
+      rowLink("rp421LikedRow", "❤️ Liked posts", "The posts you've liked — on your profile") +
+      '<h4 class="rp421-h">Gifts &amp; money</h4><div id="rp421Tx"><p class="rp421-muted">Loading your activity…</p></div>' +
+      '<div style="margin-top:14px">' + rowLink("rp421EarnRow", "💰 Full history in Earn", "Balance, earnings and cash-out") + "</div>");
+    $("rp421LikedRow").addEventListener("click", function () { closeSheet421(); openLiked421(); });
+    $("rp421EarnRow").addEventListener("click", function () { closeSheet421(); try { if (window.openEarnings) window.openEarnings(); } catch (e) { } });
+    jget("/api/money/history").then(function (h) {
+      var box = $("rp421Tx"); if (!box) return;
+      if (!h || !h.ok) { box.innerHTML = '<p class="rp421-muted">Couldn\'t load your activity — check your connection and try again.</p>'; return; }
+      var tx = h.tx || [], co = h.cashouts || [];
+      if (!tx.length && !co.length) {
+        box.innerHTML = '<p class="rp421-muted">No gifts or money activity yet. Gifts you send and receive, purchases and cash-outs will appear here.</p>';
+        return;
+      }
+      var html = "";
+      co.slice(0, 3).forEach(function (c) {
+        html += '<div class="rp421-txrow"><span class="rp421-txmain">💸 Cash-out <span class="rp421-txdate">· ' + esc(fmtDate(c.at || c.createdAt)) + '</span></span><span class="rp421-txamt">' + fmt$(c.netCents) + "</span></div>";
+      });
+      tx.slice(0, 30).forEach(function (t) {
+        var la = txLabelAmt(t);
+        html += '<div class="rp421-txrow"><span class="rp421-txmain">' + la.label + ' <span class="rp421-txdate">· ' + esc(fmtDate(t.at)) + '</span></span><span class="rp421-txamt">' + la.amt + "</span></div>";
+      });
+      box.innerHTML = html;
+    });
+  }
+  function openLiked421() {
+    var name = myName();
+    if (window.rpOpenProfilePage417 && name) {
+      window.rpOpenProfilePage417({ name: name });
+      var tries = 0;
+      var iv = setInterval(function () {
+        tries++;
+        var tab = $("pprofTabLiked");
+        if (tab) { clearInterval(iv); tab.click(); }
+        else if (tries > 25) clearInterval(iv);
+      }, 200);
+    } else {
+      toast421("Your liked posts live on your profile's Liked tab");
+    }
+  }
+
+  /* ---------------- Your QR code ---------------- */
+  function profileUrl421() {
+    var un = myUsername();
+    return location.origin + "/?creator=" + encodeURIComponent(un);
+  }
+  function openQr421() {
+    var un = myUsername();
+    if (!un) { toast421("Your QR code appears once your account has a username"); return; }
+    var url = profileUrl421();
+    var body = openSheet421("🔳 Your QR code",
+      '<div class="rp421-qrwrap"><canvas id="rp421QrCanvas"></canvas><div class="rp421-qrlogo"><img src="/icon-192.png" alt="RP" /></div></div>' +
+      '<div class="rp421-qruser">@' + esc(un) + "</div>" +
+      '<p class="rp421-muted" style="text-align:center">Anyone who scans this lands on your Rizz Plaza profile.</p>' +
+      '<div class="rp421-btnrow"><button type="button" class="rp421-btn" id="rp421Copy">Copy link</button><button type="button" class="rp421-btn rp421-btn-red" id="rp421Share">Share profile</button></div>');
+    var cv = $("rp421QrCanvas");
+    if (cv && !drawQr421(cv, url)) cv.parentNode.innerHTML = '<p class="rp421-muted" style="text-align:center">Couldn\'t draw your code — your link is the Copy button below.</p><div class="rp421-qrlogo"><img src="/icon-192.png" alt="RP" /></div>';
+    $("rp421Copy").addEventListener("click", function () {
+      function done() { toast421("Profile link copied — share it anywhere."); }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(url).then(done, done); return; }
+      } catch (e) { }
+      var ta = document.createElement("textarea"); ta.value = url; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) { }
+      ta.remove(); done();
+    });
+    $("rp421Share").addEventListener("click", function () {
+      var name = myName();
+      try { if (navigator.share) { navigator.share({ title: (name || "My profile") + " on Rizz Plaza", url: url }).catch(function () { }); return; } } catch (e) { }
+      $("rp421Copy").click();
+    });
+  }
+  function drawQr421(canvas, text) {
+    var qr = makeQr421(text);
+    if (!qr) return false;
+    var scale = 8, quiet = 4, dim = (qr.size + quiet * 2) * scale;
+    canvas.width = dim; canvas.height = dim;
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return false;
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, dim, dim);
+    ctx.fillStyle = "#000000";
+    for (var y = 0; y < qr.size; y++) for (var x = 0; x < qr.size; x++)
+      if (qr.modules[y][x]) ctx.fillRect((x + quiet) * scale, (y + quiet) * scale, scale, scale);
+    return true;
+  }
+  /* Compact self-contained QR encoder: byte mode, EC level H,
+     versions 1-10, mask chosen by the spec penalty rules. */
+  function makeQr421(text) {
+    var EXP = new Array(512), LOG = new Array(256);
+    (function () { var x = 1; for (var i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11d; } for (var j = 255; j < 512; j++) EXP[j] = EXP[j - 255]; })();
+    function gfMul(a, b) { return (a && b) ? EXP[LOG[a] + LOG[b]] : 0; }
+    function rsGen(deg) {
+      var poly = [1];
+      for (var i = 0; i < deg; i++) {
+        var nxt = new Array(poly.length + 1).fill(0);
+        nxt[0] = poly[0];
+        for (var j = 1; j < poly.length; j++) nxt[j] = poly[j] ^ gfMul(poly[j - 1], EXP[i]);
+        nxt[poly.length] = gfMul(poly[poly.length - 1], EXP[i]);
+        poly = nxt;
+      }
+      return poly;
+    }
+    function rsRem(data, gen) {
+      var deg = gen.length - 1, res = new Array(deg).fill(0);
+      for (var i = 0; i < data.length; i++) {
+        var coef = data[i] ^ res.shift(); res.push(0);
+        if (coef) for (var j = 0; j < deg; j++) res[j] ^= gfMul(gen[j + 1], coef);
+      }
+      return res;
+    }
+    var ECT = { 1: [17, [[1, 9]]], 2: [28, [[1, 16]]], 3: [22, [[2, 13]]], 4: [16, [[4, 9]]], 5: [22, [[2, 11], [2, 12]]], 6: [28, [[4, 15]]], 7: [26, [[4, 13], [1, 14]]], 8: [26, [[4, 14], [2, 15]]], 9: [24, [[4, 12], [4, 13]]], 10: [28, [[6, 15], [2, 16]]] };
+    var ALIGN = { 1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34], 7: [6, 22, 38], 8: [6, 24, 42], 9: [6, 26, 46], 10: [6, 28, 50] };
+    var REM = { 1: 0, 2: 7, 3: 7, 4: 7, 5: 7, 6: 7, 7: 0, 8: 0, 9: 0, 10: 0 };
+    var bytes = [];
+    for (var ci = 0; ci < text.length; ci++) {
+      var code = text.charCodeAt(ci);
+      if (code < 0x80) bytes.push(code);
+      else if (code < 0x800) { bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f)); }
+      else { bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f)); }
+    }
+    var version = 0, dataCwTotal = 0;
+    for (var v = 1; v <= 10; v++) {
+      var tot = 0; ECT[v][1].forEach(function (g) { tot += g[0] * g[1]; });
+      if (bytes.length * 8 <= tot * 8 - (4 + (v >= 10 ? 16 : 8))) { version = v; dataCwTotal = tot; break; }
+    }
+    if (!version) return null;
+    var bits = [];
+    function put(val, len) { for (var i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1); }
+    put(0x4, 4); put(bytes.length, version >= 10 ? 16 : 8);
+    bytes.forEach(function (b) { put(b, 8); });
+    var capTotal = dataCwTotal * 8;
+    var term = Math.min(4, capTotal - bits.length);
+    for (var t = 0; t < term; t++) bits.push(0);
+    while (bits.length % 8) bits.push(0);
+    var dataCw = [];
+    for (var i2 = 0; i2 < bits.length; i2 += 8) { var b2 = 0; for (var k = 0; k < 8; k++) b2 = (b2 << 1) | bits[i2 + k]; dataCw.push(b2); }
+    var pads = [0xec, 0x11], pi = 0;
+    while (dataCw.length < dataCwTotal) dataCw.push(pads[pi++ % 2]);
+    var ecLen = ECT[version][0], gen = rsGen(ecLen);
+    var blocks = [], pos = 0;
+    ECT[version][1].forEach(function (g) {
+      for (var n = 0; n < g[0]; n++) { var d = dataCw.slice(pos, pos + g[1]); pos += g[1]; blocks.push({ data: d, ec: rsRem(d, gen) }); }
+    });
+    var final = [];
+    var maxD = Math.max.apply(null, blocks.map(function (b) { return b.data.length; }));
+    for (var c1 = 0; c1 < maxD; c1++) blocks.forEach(function (b) { if (c1 < b.data.length) final.push(b.data[c1]); });
+    for (var c2 = 0; c2 < ecLen; c2++) blocks.forEach(function (b) { final.push(b.ec[c2]); });
+    var fbits = [];
+    final.forEach(function (b3) { for (var k2 = 7; k2 >= 0; k2--) fbits.push((b3 >>> k2) & 1); });
+    for (var r = 0; r < REM[version]; r++) fbits.push(0);
+    var size = version * 4 + 17;
+    var mod = [], fn = [];
+    for (var y0 = 0; y0 < size; y0++) { mod.push(new Array(size).fill(0)); fn.push(new Array(size).fill(false)); }
+    function setF(x, y, val) { if (x >= 0 && x < size && y >= 0 && y < size) { mod[y][x] = val; fn[y][x] = true; } }
+    function finder(cx, cy) {
+      for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) {
+        var xx = cx + dx, yy = cy + dy;
+        if (xx < 0 || xx >= size || yy < 0 || yy >= size) continue;
+        var dist = Math.max(Math.abs(dx), Math.abs(dy));
+        setF(xx, yy, (dist !== 2 && dist !== 4) ? 1 : 0);
+      }
+    }
+    finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+    for (var i3 = 0; i3 < size; i3++) {
+      if (!fn[6][i3]) setF(i3, 6, i3 % 2 === 0 ? 1 : 0);
+      if (!fn[i3][6]) setF(6, i3, i3 % 2 === 0 ? 1 : 0);
+    }
+    var ac = ALIGN[version];
+    for (var a1 = 0; a1 < ac.length; a1++) for (var a2 = 0; a2 < ac.length; a2++) {
+      var ax = ac[a1], ay = ac[a2];
+      if ((ax === 6 && ay === 6) || (ax === 6 && ay === size - 7) || (ax === size - 7 && ay === 6)) continue;
+      for (var dy2 = -2; dy2 <= 2; dy2++) for (var dx2 = -2; dx2 <= 2; dx2++) {
+        var d2 = Math.max(Math.abs(dx2), Math.abs(dy2));
+        setF(ax + dx2, ay + dy2, d2 !== 1 ? 1 : 0);
+      }
+    }
+    setF(8, size - 8, 1);
+    for (var f1 = 0; f1 < 9; f1++) { if (!fn[8][f1]) setF(f1, 8, 0); if (!fn[f1][8]) setF(8, f1, 0); }
+    for (var f2 = 0; f2 < 8; f2++) { if (!fn[8][size - 1 - f2]) setF(size - 1 - f2, 8, 0); if (!fn[size - 1 - f2][8]) setF(8, size - 1 - f2, 0); }
+    if (version >= 7) for (var vy = 0; vy < 6; vy++) for (var vx = 0; vx < 3; vx++) { setF(size - 11 + vx, vy, 0); setF(vy, size - 11 + vx, 0); }
+    var bi = 0, upward = true;
+    for (var col = size - 1; col > 0; col -= 2) {
+      if (col === 6) col = 5;
+      for (var vert = 0; vert < size; vert++) {
+        var row = upward ? size - 1 - vert : vert;
+        for (var c3 = 0; c3 < 2; c3++) {
+          var x3 = col - c3;
+          if (!fn[row][x3]) { mod[row][x3] = bi < fbits.length ? fbits[bi] : 0; bi++; }
+        }
+      }
+      upward = !upward;
+    }
+    var MASKS = [
+      function (x, y) { return (x + y) % 2 === 0; },
+      function (x, y) { return y % 2 === 0; },
+      function (x, y) { return x % 3 === 0; },
+      function (x, y) { return (x + y) % 3 === 0; },
+      function (x, y) { return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; },
+      function (x, y) { return (x * y) % 2 + (x * y) % 3 === 0; },
+      function (x, y) { return ((x * y) % 2 + (x * y) % 3) % 2 === 0; },
+      function (x, y) { return ((x + y) % 2 + (x * y) % 3) % 2 === 0; }
+    ];
+    function formatBits(mask) {
+      var data = (0x2 << 3) | mask, d = data << 10, g = 0x537;
+      for (var i = 14; i >= 10; i--) if ((d >>> i) & 1) d ^= g << (i - 10);
+      return ((data << 10) | (d & 0x3ff)) ^ 0x5412;
+    }
+    function applyMask(m, mask) {
+      var out = m.map(function (rowArr) { return rowArr.slice(); });
+      for (var y = 0; y < size; y++) for (var x = 0; x < size; x++) if (!fn[y][x] && MASKS[mask](x, y)) out[y][x] ^= 1;
+      var fb = formatBits(mask);
+      var posA = [[8, 0], [8, 1], [8, 2], [8, 3], [8, 4], [8, 5], [8, 7], [8, 8], [7, 8], [5, 8], [4, 8], [3, 8], [2, 8], [1, 8], [0, 8]];
+      var posB = [[size - 1, 8], [size - 2, 8], [size - 3, 8], [size - 4, 8], [size - 5, 8], [size - 6, 8], [size - 7, 8], [size - 8, 8], [8, size - 7], [8, size - 6], [8, size - 5], [8, size - 4], [8, size - 3], [8, size - 2], [8, size - 1]];
+      for (var i = 0; i < 15; i++) {
+        var bit = (fb >>> i) & 1;
+        out[posA[i][1]][posA[i][0]] = bit;
+        out[posB[i][1]][posB[i][0]] = bit;
+      }
+      if (version >= 7) {
+        var dv = version << 12, gv = 0x1f25;
+        for (var i4 = 17; i4 >= 12; i4--) if ((dv >>> i4) & 1) dv ^= gv << (i4 - 12);
+        var vb = (version << 12) | (dv & 0xfff);
+        for (var vi = 0; vi < 18; vi++) {
+          var bb = (vb >>> vi) & 1;
+          out[Math.floor(vi / 3)][size - 11 + (vi % 3)] = bb;
+          out[size - 11 + (vi % 3)][Math.floor(vi / 3)] = bb;
+        }
+      }
+      return out;
+    }
+    function penalty(m) {
+      var p = 0, x, y, i, run, c;
+      for (y = 0; y < size; y++) {
+        run = 1;
+        for (x = 1; x <= size; x++) { if (x < size && m[y][x] === m[y][x - 1]) run++; else { if (run >= 5) p += 3 + (run - 5); run = 1; } }
+        run = 1;
+        for (x = 1; x <= size; x++) { if (x < size && m[x][y] === m[x - 1][y]) run++; else { if (run >= 5) p += 3 + (run - 5); run = 1; } }
+      }
+      for (y = 0; y < size - 1; y++) for (x = 0; x < size - 1; x++) { c = m[y][x]; if (m[y][x + 1] === c && m[y + 1][x] === c && m[y + 1][x + 1] === c) p += 3; }
+      var pat1 = [1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0], pat2 = [0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1];
+      function scanLine(line) {
+        var sc = 0;
+        for (var i = 0; i + 11 <= line.length; i++) {
+          var m1 = true, m2 = true;
+          for (var k = 0; k < 11; k++) { if (line[i + k] !== pat1[k]) m1 = false; if (line[i + k] !== pat2[k]) m2 = false; }
+          if (m1 || m2) sc += 40;
+        }
+        return sc;
+      }
+      for (i = 0; i < size; i++) { p += scanLine(m[i]); p += scanLine(m.map(function (r) { return r[i]; })); }
+      var dark = 0;
+      for (y = 0; y < size; y++) for (x = 0; x < size; x++) dark += m[y][x];
+      p += Math.floor(Math.abs(dark * 100 / (size * size) - 50) / 5) * 10;
+      return p;
+    }
+    var best = null, bestScore = Infinity;
+    for (var mk = 0; mk < 8; mk++) {
+      var cand = applyMask(mod, mk), sc = penalty(cand);
+      if (sc < bestScore) { bestScore = sc; best = cand; }
+    }
+    return { version: version, size: size, modules: best };
+  }
+
+  /* ---------------- Business Suite ---------------- */
+  function openBiz421() {
+    var body = openSheet421("💼 Business Suite",
+      rowLink("rp421BizAds", "📣 Business Ads", "Your ad on the Plaza home and in the Home stream · $19.99/mo") +
+      rowLink("rp421BizStore", "🏪 My store", "Your Plaza Store listings and sales") +
+      rowLink("rp421BizEarn", "💰 Earn", "Balance, earnings and cash-out"));
+    $("rp421BizAds").addEventListener("click", function () {
+      closeSheet421();
+      try { if (window.openEarnings) window.openEarnings(); } catch (e) { }
+      var tries = 0;
+      var iv = setInterval(function () {
+        tries++;
+        var bz = $("rpMBizBtn");
+        if (bz) { clearInterval(iv); bz.click(); }
+        else if (tries > 20) {
+          clearInterval(iv);
+          try { if (window.rpMoney && window.rpMoney.openPremium) window.rpMoney.openPremium(); } catch (e) { }
+        }
+      }, 150);
+    });
+    $("rp421BizStore").addEventListener("click", function () {
+      closeSheet421();
+      try { if (window.rpStoreOpen) window.rpStoreOpen("mine"); } catch (e) { }
+    });
+    $("rp421BizEarn").addEventListener("click", function () {
+      closeSheet421();
+      try { if (window.openEarnings) window.openEarnings(); } catch (e) { }
+    });
+  }
+
+  /* ---------------- Promote (Community Boost) ---------------- */
+  function openPromote421() {
+    closeDrawer421();
+    var chip = $("bstChip394");
+    if (chip) chip.click();
+    setTimeout(function () {
+      if (!$("bstOverlay394")) toast421("Boost opens from the 🚀 Boost chip inside a live room.");
+    }, 700);
+  }
+
+  window.rp421 = { injectDrawer: injectDrawer421, openActivity: openActivity421, openQr: openQr421, openBiz: openBiz421, openPromote: openPromote421, makeQr: makeQr421, profileUrl: profileUrl421 };
+})();
+
+</script>
 
   <script>
   /* ============ [RP-V7.257] Media surfaces unload on exit (scroll-lag
