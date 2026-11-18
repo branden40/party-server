@@ -95,6 +95,10 @@ function livesSnapshot() {
   // since V7.52 (audit C4) — yet it cost a full synchronous read+parse
   // of accounts.json on EVERY snapshot computation. Gone.
   const potsDb = readPots(); // [RP-V7.41] Plaza Pot state rides the snapshot
+  // [RP-LEAGUE] league standings are computed ONCE per snapshot and
+  // shared by every entry (the badge view itself is leagueView).
+  let leagueDb = null, leagueStand = null;
+  try { leagueDb = readLeague(); leagueStand = leagueStandings(leagueDb.weeks[leagueWeekKey(Date.now())] || {}); } catch (e) { leagueDb = null; leagueStand = null; }
   return [...liveRegistry.values()].map((e) => {
     const sid = byKey.get(e.key) || null;
     // [RP-V7.52] Resolve the host's ACCOUNT id ONLY from the host
@@ -123,6 +127,7 @@ function livesSnapshot() {
       watchers,
       priv: !!e.priv, // [RP-V7.138] private lives are badged for the people allowed to see them
       gaming: !!e.gaming, // [RP-GAMING] the host's Gaming toggle — the Gaming page's Live-now section filters on it
+      league: hostAccountId && leagueDb ? leagueView(leagueDb, hostAccountId, leagueStand) : null, // [RP-LEAGUE] the host's WIN streak + league badge, server-computed
       ticketPrice: e.ticketPrice || 0, // [RP-V7.299] ticketed lives still SHOW in discovery — badge + price ride the snapshot
       ticketSold: liveTicketSold299(e.key, e.startedAt), // [RP-V7.299] gross tickets sold for this live instance
       pot: potSnapshotFrom(potsDb, e.key, e.startedAt), // [RP-V7.41] null unless a pot is open/drawn here; [RP-V7.49] terminal pots from a previous live are scoped out
@@ -17263,6 +17268,214 @@ const MONEY_FILE =
 // Battles are regular lives only (the existing ticket gate already
 // refuses battles on ticketed lives; auction lives never battle).
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// [RP-LEAGUE] BATTLE WIN STREAKS + LIVE LEAGUE (Branden, Nov 18, 2026 —
+// modeled on the TikTok battle screen he sent: a "WIN xN" pill for each
+// host during a battle and a "League C1 No. 13" pill under the host's
+// name). Branden's ruling: league standing is driven by BOTH battle
+// wins AND gift charms earned in lives.
+//
+// STREAKS: per account, consecutive battle wins, persisted in
+// league.json. Settled ONLY in battle306End (which is guarded by
+// b.ended, so settlement lands exactly once per battle): every host
+// on a winning side +1; when a battle HAS a winner, every host not on
+// a winning side resets to 0; a DRAW (tie at the top, winnerSides
+// empty) leaves every streak untouched and pays nothing. Streaks do
+// NOT reset weekly — the WIN pill is a running streak, like TikTok's.
+//
+// LEAGUE POINTS (LP): earned two ways, both settled server-side only:
+//   - a battle win pays LEAGUE_WIN_LP (100) to EACH host on the
+//     winning side (1v1 winner; both 2v2 teammates; the FFA winner).
+//   - gifts received while LIVE pay 1 LP per charm of settled gift
+//     value (the batch total), via leagueOnLiveGift beside the
+//     battle hook in /api/money/gift. "While live" = hosting a
+//     registered live (the same token-verified socket binding the
+//     directory snapshot uses) or fighting in a live battle.
+//   EXCLUDED, always: test-funds (promo321) sends — test charms earn
+//   nothing, the pots rule — and charms-only settles (a teen on
+//   either side: charms move but NO earnings are created, so nothing
+//   was "earned"). Gifts on posts/reels/stories NEVER earn LP: the
+//   hook requires a LIVE surface (Branden's spec — lives only): a
+//   post gift sent while the host happens to be on air still earns
+//   0, and off-air gifts earn 0.
+//
+// WEEKS: the league week is the Plaza's existing ET calendar week —
+// Monday 00:00 -> Sunday 23:59 America/New_York — reusing the Creator
+// Pool's Intl-only week math (rpCpDayKey/rpCpMondayKey). LP is stored
+// per week key (the Monday's ET day key); a new week starts every
+// account at 0 LP by construction. Old weeks are pruned on write
+// (current + previous kept). Boundary: an event settles into the
+// week containing its settle instant (battle end / gift settle) —
+// a battle that ENDS after Monday 00:00 ET pays into the new week.
+//
+// DIVISIONS (weekly LP thresholds; a host's division is the highest
+// whose threshold their LP meets):
+//   D3 0 - D2 100 - D1 250 - C3 500 - C2 900 - C1 1400 -
+//   B3 2000 - B2 2800 - B1 3800 - A3 5000 - A2 6500 - A1 8500 -
+//   S3 11000 - S2 14000 - S1 18000 - SS 25000.
+// RANK: "No. N" = position inside the division this week, LP desc.
+// Ties: whoever REACHED the tied total first ranks higher (the
+// reachedAt stamp of their last LP credit), then account id — fully
+// deterministic. A host with 0 LP this week is in the starter
+// division (D3) with NO rank: the badge reads "League D3", never an
+// invented number. The badge view { streak, div, rank, lp, label }
+// is computed HERE and rides the lives snapshot, both battle
+// payloads — clients render it, never compute it.
+// ---------------------------------------------------------------------------
+const LEAGUE_FILE =
+  process.env.LEAGUE_FILE || path.join(path.dirname(PHOTO_DIR), "league.json");
+const LEAGUE_WIN_LP = 100; // LP per battle win, per winning host
+const LEAGUE_GIFT_LP_PER_CHARM = 1; // LP per charm of live-gift value received
+const LEAGUE_DIVISIONS = [
+  ["D3", 0], ["D2", 100], ["D1", 250],
+  ["C3", 500], ["C2", 900], ["C1", 1400],
+  ["B3", 2000], ["B2", 2800], ["B1", 3800],
+  ["A3", 5000], ["A2", 6500], ["A1", 8500],
+  ["S3", 11000], ["S2", 14000], ["S1", 18000], ["SS", 25000],
+];
+function leagueEmpty() { return { streaks: {}, weeks: {} }; }
+function readLeague() {
+  const d = storeReadJson(LEAGUE_FILE, (x) => !!(x && typeof x === "object" && x.streaks && typeof x.streaks === "object" && !Array.isArray(x.streaks) && x.weeks && typeof x.weeks === "object" && !Array.isArray(x.weeks)), leagueEmpty(), "league");
+  if (!d.streaks || typeof d.streaks !== "object" || Array.isArray(d.streaks)) d.streaks = {};
+  if (!d.weeks || typeof d.weeks !== "object" || Array.isArray(d.weeks)) d.weeks = {};
+  return d;
+}
+function writeLeague(db) {
+  try { // prune: only the current and previous league weeks are kept
+    const cur = leagueWeekKey(Date.now());
+    const prev = rpCpAddDays(cur, -7);
+    for (const k of Object.keys(db.weeks)) if (k !== cur && k !== prev) delete db.weeks[k];
+  } catch (e) { }
+  storeWriteJson(LEAGUE_FILE, db);
+}
+function leagueWeekKey(ms) { return rpCpMondayKey(rpCpDayKey(ms)); }
+function leagueWeekRec(db, weekKey) {
+  let w = db.weeks[weekKey];
+  if (!w || typeof w !== "object" || Array.isArray(w)) w = db.weeks[weekKey] = {};
+  return w;
+}
+function leagueRecOf(w, acctId) {
+  let r = w[acctId];
+  if (!r || typeof r !== "object" || Array.isArray(r)) r = w[acctId] = { lp: 0, reachedAt: 0 };
+  if (typeof r.lp !== "number" || !(r.lp >= 0)) r.lp = 0;
+  if (typeof r.reachedAt !== "number" || !(r.reachedAt >= 0)) r.reachedAt = 0;
+  return r;
+}
+function leagueDivisionFor(lp) {
+  let div = LEAGUE_DIVISIONS[0][0];
+  for (const pair of LEAGUE_DIVISIONS) if (lp >= pair[1]) div = pair[0];
+  return div;
+}
+// Standings for one week record: acctId -> { div, rank, lp } for
+// every account with LP > 0 this week (rank inside the division).
+function leagueStandings(w) {
+  const byDiv = {};
+  for (const acctId of Object.keys(w || {})) {
+    const r = w[acctId];
+    if (!r || typeof r.lp !== "number" || !(r.lp > 0)) continue;
+    const div = leagueDivisionFor(r.lp);
+    (byDiv[div] = byDiv[div] || []).push({ acctId, lp: Math.floor(r.lp), reachedAt: r.reachedAt || 0 });
+  }
+  const out = new Map();
+  for (const div of Object.keys(byDiv)) {
+    const arr = byDiv[div].sort((x, y) => (y.lp - x.lp) || (x.reachedAt - y.reachedAt) || String(x.acctId).localeCompare(String(y.acctId)));
+    arr.forEach((e, i) => out.set(e.acctId, { div, rank: i + 1, lp: e.lp }));
+  }
+  return out;
+}
+// The badge view for one account from an already-read store.
+function leagueView(db, acctId, standings) {
+  const div0 = LEAGUE_DIVISIONS[0][0];
+  const streak = (acctId && typeof db.streaks[acctId] === "number" && db.streaks[acctId] > 0) ? Math.floor(db.streaks[acctId]) : 0;
+  if (!acctId) return { streak: 0, div: div0, rank: null, lp: 0, label: "League " + div0 };
+  const st = standings ? standings.get(acctId) : null;
+  if (st) return { streak, div: st.div, rank: st.rank, lp: st.lp, label: "League " + st.div + " No. " + st.rank };
+  const rec = (db.weeks[leagueWeekKey(Date.now())] || {})[acctId];
+  const lp = rec && typeof rec.lp === "number" && rec.lp > 0 ? Math.floor(rec.lp) : 0;
+  return { streak, div: leagueDivisionFor(lp), rank: null, lp, label: "League " + leagueDivisionFor(lp) };
+}
+function leagueViewFor(acctId) { // fresh read, single account (battle payloads)
+  if (!acctId) return leagueView(leagueEmpty(), null, null);
+  const db = readLeague();
+  return leagueView(db, acctId, leagueStandings(db.weeks[leagueWeekKey(Date.now())] || {}));
+}
+function leagueCreditLp(db, acctId, lp, now) {
+  if (!acctId || !(lp > 0)) return;
+  const r = leagueRecOf(leagueWeekRec(db, leagueWeekKey(now)), acctId);
+  r.lp += Math.floor(lp);
+  r.reachedAt = now;
+}
+// Streaks + win LP, settled at battle end — called from battle306End
+// exactly once per battle (that function is b.ended-guarded).
+function leagueSettleBattle(b) {
+  try {
+    if (!b || !b.winnerSides || !b.winnerSides.length) return; // draw: nothing moves
+    const db = readLeague();
+    const now = Date.now();
+    let dirty = false;
+    for (const pt of b.parts) {
+      if (!pt.acct) continue;
+      if (b.winnerSides.includes(pt.side)) {
+        db.streaks[pt.acct] = (typeof db.streaks[pt.acct] === "number" && db.streaks[pt.acct] > 0 ? Math.floor(db.streaks[pt.acct]) : 0) + 1;
+        leagueCreditLp(db, pt.acct, LEAGUE_WIN_LP, now);
+      } else {
+        db.streaks[pt.acct] = 0;
+      }
+      dirty = true;
+    }
+    if (dirty) writeLeague(db);
+  } catch (e) { /* league bookkeeping must never break a battle end */ }
+}
+// Is this account hosting a registered live right now? The same
+// token-verified socket binding livesSnapshot uses — never names.
+function leagueHostIsLive(acctId) {
+  if (!acctId) return false;
+  try {
+    const byKey = new Map();
+    for (const [sid, k] of clientKeys) byKey.set(k, sid);
+    for (const e of liveRegistry.values()) {
+      const sid = byKey.get(e.key);
+      if (!sid) continue;
+      const hs = io.sockets.sockets.get(sid);
+      if (hs && hs.data && hs.data.accountId === acctId) return true;
+    }
+  } catch (e) { }
+  return false;
+}
+// LP for gifts received in a live — called from /api/money/gift
+// beside the battle hook with the settled batch. Test-funds (promo)
+// and charms-only settles earn NOTHING (see the header). The gift
+// must have been sent ON A LIVE SURFACE (Branden's spec: post/reel
+// gifts do NOT count — lives only): either a battle gift (the
+// recipient is fighting in that live battle) or a live-room send —
+// every live-room entry point tags its sends src "live" (RP-V7.233)
+// and the recipient must be on air. A gift carrying a validated
+// post tag (reel/photo/feed/story) or a picture/video surface tag
+// is a post gift and earns NOTHING, even when the recipient happens
+// to be live at that moment; an untagged send is never a live-room
+// send, so it earns nothing either.
+function leagueOnLiveGift(info) {
+  try {
+    if (!info || info.promo || info.charmsOnly) return;
+    if (info.postKey) return; // settled on a post/reel/feed/story — not a live gift
+    if (info.src === "picture" || info.src === "video") return; // post-surface tag — not a live gift
+    const recipientId = info.recipient && info.recipient.id;
+    const senderId = info.sender && info.sender.id;
+    if (!recipientId || !senderId || recipientId === senderId) return;
+    const total = Math.max(0, Math.floor(Number(info.totalCharms) || 0));
+    if (total <= 0) return;
+    let live = false;
+    if (info.battleId) {
+      const bb = battles306.get(String(info.battleId));
+      if (bb && !bb.ended && battle306PartByAcct(bb, recipientId)) live = true;
+    }
+    if (!live && info.src === "live") live = leagueHostIsLive(recipientId);
+    if (!live) return;
+    const db = readLeague();
+    leagueCreditLp(db, recipientId, total * LEAGUE_GIFT_LP_PER_CHARM, Date.now());
+    writeLeague(db);
+  } catch (e) { /* league bookkeeping must never break a gift */ }
+}
 const BOOSTERS_FILE306 =
   process.env.BOOSTERS_FILE || path.join(path.dirname(PHOTO_DIR), "boosters.json");
 const BOOSTER_ITEMS306 = ["mist", "gloves", "boost2", "boost3", "hammer", "timer"];
@@ -17369,6 +17582,14 @@ function battle306Payload(b, forSide, forHostAcct, ev) {
     mission: b.mission ? { active: now >= b.mission.startsAt && now < b.mission.endsAt, opensAt: b.mission.startsAt, endsAt: b.mission.endsAt } : null,
     ev: ev || null,
   };
+  // [RP-LEAGUE] WIN streaks + league badges for both hosts, from the
+  // server's league store — clients render these, never compute them.
+  try {
+    const lgDb = readLeague();
+    const lgSt = leagueStandings(lgDb.weeks[leagueWeekKey(Date.now())] || {});
+    const va = leagueView(lgDb, pa.acct, lgSt), vb = leagueView(lgDb, pb.acct, lgSt);
+    p.aStreak = va.streak; p.bStreak = vb.streak; p.aLeague = va; p.bLeague = vb;
+  } catch (e) { }
   if (forHostAcct) {
     const db = readBoosters306();
     p.stock = Object.assign({}, boosterStockOf306(db, forHostAcct));
@@ -17393,9 +17614,13 @@ function battle306Emit(b, ev) {
 function battle336Payload(b, forSide, forHostAcct, ev) {
   const now = Date.now();
   const maskedFor = (side) => side !== forSide && (b.effects[side].mistUntil || 0) > now;
+  // [RP-LEAGUE] per-part WIN streak + league badge, server-computed.
+  let lgDb336 = null, lgSt336 = null;
+  try { lgDb336 = readLeague(); lgSt336 = leagueStandings(lgDb336.weeks[leagueWeekKey(Date.now())] || {}); } catch (e) { lgDb336 = null; lgSt336 = null; }
   const parts = b.parts.map((pt) => {
     const masked = maskedFor(pt.side);
-    return { id: pt.sock, name: pt.name, side: pt.side, pts: masked ? null : pt.pts, masked };
+    const v = lgDb336 ? leagueView(lgDb336, pt.acct, lgSt336) : { streak: 0, div: LEAGUE_DIVISIONS[0][0], rank: null, lp: 0, label: "League " + LEAGUE_DIVISIONS[0][0] };
+    return { id: pt.sock, name: pt.name, side: pt.side, pts: masked ? null : pt.pts, masked, streak: v.streak, league: v };
   });
   const sides = battle336Sides(b).map((side) => {
     const masked = maskedFor(side);
@@ -17498,6 +17723,11 @@ function battle306End(b, reason) {
   const tops = battle336Sides(b).filter((s) => (b.sidePts[s] || 0) === top);
   b.winnerSides = tops.length === 1 ? tops : [];
   b.winnerSide = b.winnerSides[0] || null;
+  // [RP-LEAGUE] streaks + win LP settle HERE — this function is
+  // b.ended-guarded above, so settlement lands exactly once per
+  // battle, and it runs BEFORE the end payloads below are built, so
+  // both battle screens show the settled streaks on the end state.
+  leagueSettleBattle(b);
   // Win award: EVERY host on the winning side earns one (2v2 pays
   // both teammates; FFA pays the single winner; 1v1 is unchanged).
   const awards = {};
@@ -21114,6 +21344,15 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // id scores HERE — server-side, from the settled batch total — and
   // can drop a booster for the receiving host. Wrapped so battle
   // bookkeeping can never fail a gift that already moved money.
+  // [RP-LEAGUE] League Points for gifts received in a live — same
+  // settled batch, its own try/catch (leagueOnLiveGift also refuses
+  // promo / charms-only / off-air settles internally). The send's
+  // surface rides along (src tag + validated post key): the hook
+  // pays ONLY live-surface gifts — a post/reel gift earns nothing
+  // even when the recipient is on air (Branden's spec). It runs BEFORE
+  // the battle hook so the payloads that hook emits for this gift
+  // already carry the LP it just earned.
+  try { leagueOnLiveGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, promo: promo321, charmsOnly, src: giftSrc233, postKey: postKey262 }); } catch (e) { }
   try { battle306OnGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, giftName: (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId }); } catch (e) { }
   // [RP-V7.219] the daily-rank credit is per unit, exactly as if the
   // sender had tapped N times (rankCreditDaily counts gifts +1 each).
