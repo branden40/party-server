@@ -5870,8 +5870,36 @@ app.post("/api/sounds/orig/:id/rename", (req, res) => {
   res.json({ ok: true, id: snd.id, name: snd.name });
 });
 
+// ---------------------------------------------------------------------------
+// [RP-TRIM] Trim-to-fit (Branden, Nov 18, 2026): a picked video longer
+// than the 180s reel fit is no longer a dead end — the composer lets
+// the poster pick where the clip starts and sends cutStart with the
+// upload; the server cuts [cutStart, cutStart+180] BEFORE anything
+// else reads the file, using the SAME ffmpeg the copyright module
+// resolved (crFfmpeg286 — the ffmpeg-static binary; a system ffmpeg
+// is never assumed) and the SAME execFile runner (crExecFile286). The
+// encode mirrors the V7.316 watermark stamp's resource bounds
+// (threads 2, veryfast, crf 21, aac 160k, faststart) — unbounded x264
+// threading was kernel-killed on the 512 MB instance. Only the cut is
+// stored: the record, the duration probes, the original-sound mint
+// and the copyright scan all read req.file.path downstream of the
+// cut, so every one of them operates on the trimmed file. The V7.169
+// trimStart/trimEnd metadata window is a different feature and never
+// rides with a fit-cut (the client clears it when fitStart is set).
+// ---------------------------------------------------------------------------
+const REEL_FIT_MAX_TRIM = 300; // seconds — the 5-minute cap (Branden's call Nov 18)
+function rpTrimCutFileTrim(srcPath, startSec, lenSec, outPath) {
+  return new Promise((resolve) => {
+    const args = ["-y", "-v", "error", "-ss", String(startSec), "-i", srcPath, "-t", String(lenSec), "-threads", "2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", outPath];
+    crExecFile286(crFfmpeg286, args, { timeout: 10 * 60 * 1000, maxBuffer: 8 * 1024 * 1024 }, (e) => {
+      if (e) { console.log("[reels] [RP-TRIM] cut failed:", e.message); return resolve(false); }
+      try { resolve(fs.existsSync(outPath) && fs.statSync(outPath).size > 10240); } catch (e2) { resolve(false); }
+    });
+  });
+}
+
 app.post("/api/reel", (req, res) => {
-  reelUpload.single("video")(req, res, (err) => {
+  reelUpload.single("video")(req, res, async (err) => { // [RP-TRIM] async: the trim-to-fit cut is awaited before the record is built
     if (err) {
       const tooBig = err.code === "LIMIT_FILE_SIZE";
       return res.status(tooBig ? 413 : 400).json({
@@ -5883,6 +5911,52 @@ app.post("/api/reel", (req, res) => {
       return res
         .status(400)
         .json({ ok: false, error: "No video file received" });
+    // [RP-TRIM] Trim-to-fit: when the composer sends cutStart, cut the
+    // stored file to [cutStart, cutStart+180] before the record is
+    // built — everything downstream (entry, probes, copyright scan)
+    // then sees only the trimmed file. A cut that cannot be made is an
+    // honest error and the untrimmed file never posts. Uploads with
+    // no cutStart keep the exact legacy behaviour, and a file already
+    // within the fit is left byte-for-byte untouched.
+    const cutStartTrim = reelNum((req.body || {}).cutStart, 0, 86400);
+    if (cutStartTrim !== null) {
+      const srcPathTrim = req.file.path;
+      const durTrim = await crDuration286(srcPathTrim);
+      if (durTrim === null) {
+        try { fs.unlink(srcPathTrim, () => {}); } catch (e) { }
+        return res.status(400).json({ ok: false, error: "That video couldn't be read — please try a different file." });
+      }
+      if (durTrim > REEL_FIT_MAX_TRIM + 0.6) {
+        const startTrim = Math.min(cutStartTrim, Math.max(0, durTrim - 1));
+        const lenTrim = Math.min(REEL_FIT_MAX_TRIM, durTrim - startTrim);
+        if (!(lenTrim >= 1)) {
+          try { fs.unlink(srcPathTrim, () => {}); } catch (e) { }
+          return res.status(400).json({ ok: false, error: "That start point leaves less than a second of video — pick an earlier start." });
+        }
+        const tmpTrim = srcPathTrim + ".trim.mp4";
+        const okTrim = await rpTrimCutFileTrim(srcPathTrim, Math.round(startTrim * 100) / 100, Math.round(lenTrim * 100) / 100, tmpTrim);
+        if (!okTrim) {
+          try { fs.unlink(srcPathTrim, () => {}); } catch (e) { }
+          try { fs.unlink(tmpTrim, () => {}); } catch (e) { }
+          return res.status(400).json({ ok: false, error: "We couldn't trim that video — please try a different start point." });
+        }
+        const finalNameTrim = path.basename(srcPathTrim, path.extname(srcPathTrim)) + ".mp4";
+        const finalPathTrim = path.join(REELS_DIR, finalNameTrim);
+        let movedTrim = false;
+        try { fs.renameSync(tmpTrim, finalPathTrim); movedTrim = true; } catch (e) { }
+        if (!movedTrim) {
+          try { fs.unlink(srcPathTrim, () => {}); } catch (e) { }
+          try { fs.unlink(tmpTrim, () => {}); } catch (e) { }
+          return res.status(500).json({ ok: false, error: "We couldn't save the trimmed video — please try again." });
+        }
+        if (finalPathTrim !== srcPathTrim) { try { fs.unlinkSync(srcPathTrim); } catch (e) { } }
+        req.file.path = finalPathTrim;
+        req.file.filename = finalNameTrim;
+        req.file.mimetype = "video/mp4";
+        try { req.file.size = fs.statSync(finalPathTrim).size; } catch (e) { }
+        console.log("[reels] [RP-TRIM] cut", durTrim.toFixed(1) + "s ->", lenTrim.toFixed(1) + "s @", startTrim.toFixed(1) + "s", finalNameTrim);
+      }
+    }
     // Author: the signed-in account's name when a valid v7.0 token rides
     // along; otherwise the name the client sent (guest) — same trust level
     // as the photo upload / support endpoints.
