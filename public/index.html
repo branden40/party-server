@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.424" /> <!-- [RP-V7.424] profile header centered + overlay safe-area (Branden, Nov 18, 2026 — two circled screenshots): (1) the V7.417 profile head is now a centered column — the big avatar sits IN THE MIDDLE with the name + @username centered under it, on the own-profile screen and the member/profile sheets alike (his words: "It should be in the middle"); the + badge, live badge, avatar tap, stats, actions, tabs and grids are untouched. (2) The V7.422 Profile views / Find friends overlay head sat at the very top of the screen under the phone status bar, so its Back button and settings gear were too high to tap — the head (and the V7.421 drawer panel) now add env(safe-area-inset-top) to their top padding, the same convention 14 other places in the app already use. Presentation only — no handler, count or data flow changes. --> <!-- [RP-V7.422] profile views + find friends (Branden, Nov 17, 2026, TikTok's model): viewer history — a settings-record field, default off — with a who-viewed-your-profile page (30 days, Follow/Message rows, gear to turn it back off) behind an eye button on your own profile top bar; views are recorded server-side once per real profile open into a small pruned store, and the mutual rule is enforced at read (you see the list only while yours is on, and you appear only while yours is on). The profile header's add-friend icon now opens a Find friends page: search real members by name or username, Use QR code (your own branded code sheet), Invite friends (system share of your profile link), Suggested accounts from the app's existing suggestions. Server: POST /api/profile-views/view, GET /api/profile-views/mine, GET /api/social/search, viewerHistory on POST /api/account/settings. --> <!-- [RP-V7.421] profile drawer tools (Branden, Nov 17, 2026 — "Add these to the profile under balance" + "put RP on the QR code somewhere to show it come from us"): the V7.417 drawer gains Personal tools (Activity center — the real /api/money/history ledger + the profile Liked tab; Your QR code — generated on open from the current username, encodes the /?creator=<username> profile link, RP logo centered, EC level H) and Creation & business tools (Business Suite — Business Ads / My store / Earn hub; Promote — the V7.394 Community Boost sheet through its own chip). One self-contained module at the V7.420 module; the QR encoder is built in, no CDN. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.425" /> <!-- [RP-V7.424] profile header centered + overlay safe-area (Branden, Nov 18, 2026 — two circled screenshots): (1) the V7.417 profile head is now a centered column — the big avatar sits IN THE MIDDLE with the name + @username centered under it, on the own-profile screen and the member/profile sheets alike (his words: "It should be in the middle"); the + badge, live badge, avatar tap, stats, actions, tabs and grids are untouched. (2) The V7.422 Profile views / Find friends overlay head sat at the very top of the screen under the phone status bar, so its Back button and settings gear were too high to tap — the head (and the V7.421 drawer panel) now add env(safe-area-inset-top) to their top padding, the same convention 14 other places in the app already use. Presentation only — no handler, count or data flow changes. --> <!-- [RP-V7.422] profile views + find friends (Branden, Nov 17, 2026, TikTok's model): viewer history — a settings-record field, default off — with a who-viewed-your-profile page (30 days, Follow/Message rows, gear to turn it back off) behind an eye button on your own profile top bar; views are recorded server-side once per real profile open into a small pruned store, and the mutual rule is enforced at read (you see the list only while yours is on, and you appear only while yours is on). The profile header's add-friend icon now opens a Find friends page: search real members by name or username, Use QR code (your own branded code sheet), Invite friends (system share of your profile link), Suggested accounts from the app's existing suggestions. Server: POST /api/profile-views/view, GET /api/profile-views/mine, GET /api/social/search, viewerHistory on POST /api/account/settings. --> <!-- [RP-V7.421] profile drawer tools (Branden, Nov 17, 2026 — "Add these to the profile under balance" + "put RP on the QR code somewhere to show it come from us"): the V7.417 drawer gains Personal tools (Activity center — the real /api/money/history ledger + the profile Liked tab; Your QR code — generated on open from the current username, encodes the /?creator=<username> profile link, RP logo centered, EC level H) and Creation & business tools (Business Suite — Business Ads / My store / Earn hub; Promote — the V7.394 Community Boost sheet through its own chip). One self-contained module at the V7.420 module; the QR encoder is built in, no CDN. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -12762,6 +12762,16 @@
         { id: "leopardpaint", name: "Leopard Paint", group: "Fun", fun: true, icon: "🐆" },
         { id: "skigoggles", name: "Ski Goggles", group: "Fun", fun: true, icon: "🎿" },
         { id: "tophat", name: "Top Hat", group: "Fun", fun: true, icon: "🎩" }
+        ,{ id: "beard", name: "Beard", group: "Fun", fun: true, icon: "🧔" },
+        { id: "butterfly", name: "Butterfly Paint", group: "Fun", fun: true, icon: "🦋" },
+        { id: "deer", name: "Deer", group: "Fun", fun: true, icon: "🦌" },
+        { id: "rainbowmouth", name: "Rainbow Mouth", group: "Fun", fun: true, icon: "🌈" },
+        { id: "partyhat", name: "Party Hat", group: "Fun", fun: true, icon: "🎩" },
+        { id: "reindeer", name: "Reindeer", group: "Fun", fun: true, icon: "🦌" },
+        { id: "icecrown", name: "Ice Crown", group: "Fun", fun: true, icon: "❄️" },
+        { id: "cakehat", name: "Birthday Cake Hat", group: "Fun", fun: true, icon: "🎂" },
+        { id: "donutshades", name: "Donut Shades", group: "Fun", fun: true, icon: "🍩" },
+        { id: "galaxypaint", name: "Galaxy Paint", group: "Fun", fun: true, icon: "🌌" }
       ];
       function fxRecipe(id) {
         for (var i = 0; i < LIVE_FILTERS.length; i++) if (LIVE_FILTERS[i].id === id) return LIVE_FILTERS[i];
@@ -16859,6 +16869,368 @@
             ctx.beginPath(); ctx.arc(cxp, cyp, 0.0075 * w, 0, Math.PI * 2); ctx.fill();
           }
           ctx.restore();
+        },
+        /* [RP-V7.425] Reindeer — velvet branching antlers with shaded
+           strokes, soft brown ears, and a glossy red nose. December
+           seasonal (Snapchat November top-lens reindeer category).
+           Original art. */
+        reindeer: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          [-1, 1].forEach(function (sd) {
+            /* ear under the antler */
+            fxContact(ctx, sd * 0.44 * w, 0.10 * h, 0.12 * w, 0.04 * h, 0.20);
+            ctx.save();
+            ctx.shadowColor = "rgba(35,18,4,.32)"; ctx.shadowBlur = Math.min(11, 0.03 * w); ctx.shadowOffsetY = 0.016 * h;
+            ctx.beginPath(); ctx.ellipse(sd * 0.44 * w, 0.02 * h, 0.115 * w, 0.052 * h, sd * 0.5, 0, Math.PI * 2);
+            var eg = ctx.createRadialGradient(sd * 0.42 * w, 0.0, 0.02 * w, sd * 0.44 * w, 0.02 * h, 0.12 * w);
+            eg.addColorStop(0, "#c49a68"); eg.addColorStop(0.6, "#9a6f3e"); eg.addColorStop(1, "#6f4a24");
+            ctx.fillStyle = eg; ctx.fill();
+            ctx.restore();
+            ctx.beginPath(); ctx.ellipse(sd * 0.44 * w, 0.02 * h, 0.062 * w, 0.026 * h, sd * 0.5, 0, Math.PI * 2);
+            ctx.fillStyle = "#e8c9a0"; ctx.fill();
+            /* antler: main beam + three tines, velvet-shaded strokes */
+            function beam(scale, alpha, lw, col) {
+              ctx.save();
+              ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = "round";
+              ctx.beginPath();
+              ctx.moveTo(sd * 0.26 * w, 0.02 * h);
+              ctx.quadraticCurveTo(sd * 0.34 * w, -0.22 * h, sd * 0.30 * w, -0.46 * h);
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(sd * 0.315 * w, -0.16 * h);
+              ctx.quadraticCurveTo(sd * 0.42 * w, -0.22 * h, sd * 0.47 * w, -0.33 * h);
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(sd * 0.315 * w, -0.30 * h);
+              ctx.quadraticCurveTo(sd * 0.44 * w, -0.36 * h, sd * 0.50 * w, -0.50 * h);
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(sd * 0.275 * w, -0.05 * h);
+              ctx.quadraticCurveTo(sd * 0.36 * w, -0.08 * h, sd * 0.40 * w, -0.16 * h);
+              ctx.stroke();
+              ctx.restore();
+            }
+            ctx.save();
+            ctx.shadowColor = "rgba(40,22,4,.35)"; ctx.shadowBlur = Math.min(10, 0.028 * w); ctx.shadowOffsetY = 0.014 * h;
+            beam(1, 1, 0.052 * w, "#7d5a30");
+            ctx.restore();
+            beam(1, 0.55, 0.026 * w, "#a97f4c");
+            beam(1, 0.5, 0.010 * w, "#d9b57e");
+            fxStrands(ctx, sd * 0.24 * w, sd * 0.34 * w, -0.44 * h, -0.02 * h, 7, 0.07 * h, "rgba(70,45,16,.30)", "rgba(235,205,150,.30)", 0.006 * w);
+          });
+          ctx.restore();
+          /* glossy red nose on the real nose anchor */
+          var nx = G.nose.x, ny = G.nose.y + 0.004 * h;
+          ctx.save();
+          ctx.shadowColor = "rgba(70,6,4,.45)"; ctx.shadowBlur = Math.min(12, 0.032 * w); ctx.shadowOffsetY = 0.010 * h;
+          ctx.beginPath(); ctx.ellipse(nx, ny, 0.062 * w, 0.044 * h, 0, 0, Math.PI * 2);
+          var ng = ctx.createRadialGradient(nx - 0.02 * w, ny - 0.016 * h, 0.008 * w, nx, ny, 0.065 * w);
+          ng.addColorStop(0, "#ff9a8a"); ng.addColorStop(0.35, "#f43a2a"); ng.addColorStop(0.75, "#c01608"); ng.addColorStop(1, "#7e0a02");
+          ctx.fillStyle = ng; ctx.fill();
+          ctx.restore();
+          ctx.beginPath(); ctx.ellipse(nx - 0.02 * w, ny - 0.017 * h, 0.018 * w, 0.011 * h, -0.5, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.fill();
+          fxSparkle(ctx, nx + 0.045 * w, ny - 0.03 * h, 0.016 * w, 0.8);
+        },
+        /* [RP-V7.425] Ice Crown — pale-blue crystal spikes with facet
+           shading over a frosted band, ice gems and sparkles. Winter
+           crown category. Original art. */
+        icecrown: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          fxContact(ctx, 0, 0.085 * h, 0.42 * w, 0.07 * h, 0.24);
+          /* frosted band */
+          ctx.save();
+          ctx.shadowColor = "rgba(20,50,80,.35)"; ctx.shadowBlur = Math.min(12, 0.034 * w); ctx.shadowOffsetY = 0.018 * h;
+          ctx.beginPath();
+          ctx.moveTo(-0.40 * w, 0.055 * h);
+          ctx.quadraticCurveTo(0, 0.105 * h, 0.40 * w, 0.055 * h);
+          ctx.lineTo(0.385 * w, -0.015 * h);
+          ctx.quadraticCurveTo(0, 0.03 * h, -0.385 * w, -0.015 * h);
+          ctx.closePath();
+          var bg = ctx.createLinearGradient(-0.4 * w, 0, 0.4 * w, 0);
+          bg.addColorStop(0, "#7fb8d9"); bg.addColorStop(0.3, "#d8f2fd"); bg.addColorStop(0.55, "#a5d8f2"); bg.addColorStop(1, "#5f97bd");
+          ctx.fillStyle = bg; ctx.fill();
+          ctx.restore();
+          /* crystal spikes */
+          var spikes = [[-0.335, 0.30, 0.052], [-0.20, 0.44, 0.062], [-0.065, 0.36, 0.055], [0.075, 0.52, 0.07], [0.215, 0.40, 0.058], [0.34, 0.27, 0.048]];
+          spikes.forEach(function (sp) {
+            var bx = sp[0] * w, tipY = -sp[1] * h, hw = sp[2] * w;
+            function tri() {
+              ctx.beginPath();
+              ctx.moveTo(bx - hw, 0.0);
+              ctx.lineTo(bx, tipY);
+              ctx.lineTo(bx + hw, 0.0);
+              ctx.closePath();
+            }
+            ctx.save();
+            ctx.shadowColor = "rgba(25,60,95,.30)"; ctx.shadowBlur = Math.min(9, 0.024 * w); ctx.shadowOffsetY = 0.010 * h;
+            tri();
+            var sg = ctx.createLinearGradient(bx - hw, 0, bx + hw, 0);
+            sg.addColorStop(0, "#8fc3e2"); sg.addColorStop(0.45, "#eaf8ff"); sg.addColorStop(0.58, "#bfe6f8"); sg.addColorStop(1, "#6ea8cc");
+            ctx.fillStyle = sg; ctx.fill();
+            ctx.restore();
+            ctx.save(); tri(); ctx.clip();
+            ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 0.007 * w;
+            ctx.beginPath(); ctx.moveTo(bx, tipY + 0.02 * h); ctx.lineTo(bx - hw * 0.3, 0.0); ctx.stroke();
+            ctx.strokeStyle = "rgba(90,150,195,.45)";
+            ctx.beginPath(); ctx.moveTo(bx, tipY + 0.02 * h); ctx.lineTo(bx + hw * 0.35, 0.0); ctx.stroke();
+            ctx.restore();
+            tri(); ctx.strokeStyle = "rgba(70,130,175,.5)"; ctx.lineWidth = 0.006 * w; ctx.stroke();
+          });
+          /* gems on the band */
+          [-0.24, 0, 0.24].forEach(function (gx) {
+            ctx.save();
+            ctx.translate(gx * w, 0.028 * h); ctx.rotate(Math.PI / 4);
+            var gs = 0.030 * w;
+            var gg = ctx.createLinearGradient(-gs, -gs, gs, gs);
+            gg.addColorStop(0, "#eafcff"); gg.addColorStop(0.5, "#7fd4f2"); gg.addColorStop(1, "#2f8fc4");
+            ctx.fillStyle = gg; ctx.fillRect(-gs / 1.6, -gs / 1.6, gs * 1.25, gs * 1.25);
+            ctx.strokeStyle = "rgba(230,250,255,.8)"; ctx.lineWidth = 0.005 * w; ctx.strokeRect(-gs / 1.6, -gs / 1.6, gs * 1.25, gs * 1.25);
+            ctx.restore();
+          });
+          fxSparkle(ctx, -0.30 * w, -0.36 * h, 0.024 * w, 0.9);
+          fxSparkle(ctx, 0.10 * w, -0.56 * h, 0.028 * w, 0.95);
+          fxSparkle(ctx, 0.36 * w, -0.30 * h, 0.020 * w, 0.8);
+          ctx.restore();
+        },
+        /* [RP-V7.425] Birthday Cake Hat — a two-tier cake worn on the
+           head: shaded plate, frosting drips, sprinkles and three lit
+           candles. Celebration-hat category. Original art. */
+        cakehat: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxHeadFrame(ctx, G.top, G.ang);
+          fxContact(ctx, 0, 0.075 * h, 0.40 * w, 0.065 * h, 0.26);
+          /* plate */
+          ctx.save();
+          ctx.shadowColor = "rgba(30,20,40,.35)"; ctx.shadowBlur = Math.min(12, 0.034 * w); ctx.shadowOffsetY = 0.018 * h;
+          ctx.beginPath(); ctx.ellipse(0, 0.045 * h, 0.40 * w, 0.055 * h, 0, 0, Math.PI * 2);
+          var pg = ctx.createRadialGradient(-0.1 * w, 0.02 * h, 0.05 * w, 0, 0.045 * h, 0.41 * w);
+          pg.addColorStop(0, "#fdfdff"); pg.addColorStop(0.7, "#d9dee8"); pg.addColorStop(1, "#a7b0c0");
+          ctx.fillStyle = pg; ctx.fill();
+          ctx.restore();
+          function tier(cx, baseY, tw, th, c0, c1, frost) {
+            ctx.save();
+            ctx.shadowColor = "rgba(40,16,30,.30)"; ctx.shadowBlur = Math.min(10, 0.028 * w); ctx.shadowOffsetY = 0.012 * h;
+            ctx.beginPath();
+            ctx.moveTo(cx - tw / 2, baseY); ctx.lineTo(cx - tw / 2, baseY - th);
+            ctx.quadraticCurveTo(cx, baseY - th - 0.02 * h, cx + tw / 2, baseY - th);
+            ctx.lineTo(cx + tw / 2, baseY);
+            ctx.quadraticCurveTo(cx, baseY + 0.018 * h, cx - tw / 2, baseY);
+            ctx.closePath();
+            var tg = ctx.createLinearGradient(cx - tw / 2, 0, cx + tw / 2, 0);
+            tg.addColorStop(0, c1); tg.addColorStop(0.3, c0); tg.addColorStop(1, c1);
+            ctx.fillStyle = tg; ctx.fill();
+            ctx.restore();
+            /* frosting cap with drips */
+            ctx.beginPath();
+            ctx.moveTo(cx - tw / 2, baseY - th);
+            var n = 7;
+            for (var i = 0; i <= n; i++) {
+              var dx = cx - tw / 2 + (tw * i) / n;
+              var dl = (i % 2 ? 0.030 : 0.016) * h;
+              ctx.quadraticCurveTo(dx - tw / (n * 4), baseY - th + dl, dx, baseY - th + (i % 2 ? 0.030 : 0.014) * h);
+            }
+            ctx.lineTo(cx + tw / 2, baseY - th - 0.028 * h);
+            ctx.quadraticCurveTo(cx, baseY - th - 0.045 * h, cx - tw / 2, baseY - th - 0.028 * h);
+            ctx.closePath();
+            var fg = ctx.createLinearGradient(cx - tw / 2, 0, cx + tw / 2, 0);
+            fg.addColorStop(0, frost[1]); fg.addColorStop(0.4, frost[0]); fg.addColorStop(1, frost[1]);
+            ctx.fillStyle = fg; ctx.fill();
+          }
+          tier(0, 0.035 * h, 0.62 * w, 0.16 * h, "#ffb3cd", "#e87fa5", ["#fff6ec", "#f2ddc4"]);
+          tier(0, -0.125 * h, 0.44 * w, 0.135 * h, "#bfe3ff", "#7fb2e0", ["#fff6ec", "#f2ddc4"]);
+          /* sprinkles */
+          var spr = [[-0.22, -0.06, "#f43a2a"], [-0.10, -0.10, "#2f8fc4"], [0.05, -0.055, "#f7b731"], [0.18, -0.095, "#3fbf6f"], [-0.16, -0.20, "#8b5cf6"], [0.0, -0.235, "#f43a2a"], [0.13, -0.19, "#ff7bac"]];
+          spr.forEach(function (sp, i2) {
+            ctx.save();
+            ctx.translate(sp[0] * w, sp[1] * h); ctx.rotate(i2 * 1.1 + 0.4);
+            ctx.fillStyle = sp[2];
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(-0.016 * w, -0.005 * w, 0.032 * w, 0.010 * w, 0.005 * w);
+            else ctx.rect(-0.016 * w, -0.005 * w, 0.032 * w, 0.010 * w);
+            ctx.fill();
+            ctx.restore();
+          });
+          /* candles */
+          [-0.13, 0, 0.13].forEach(function (cxp, ci) {
+            var cxx = cxp * w, topY = -0.40 * h;
+            ctx.save();
+            ctx.shadowColor = "rgba(40,20,0,.25)"; ctx.shadowBlur = Math.min(6, 0.016 * w);
+            ctx.beginPath(); ctx.rect(cxx - 0.016 * w, topY, 0.032 * w, 0.115 * h);
+            var cg = ctx.createLinearGradient(cxx - 0.016 * w, 0, cxx + 0.016 * w, 0);
+            cg.addColorStop(0, "#e8e2f5"); cg.addColorStop(0.5, "#ffffff"); cg.addColorStop(1, "#c9bfe0");
+            ctx.fillStyle = cg; ctx.fill();
+            ctx.restore();
+            ctx.strokeStyle = ["#f43a2a", "#2f8fc4", "#f43a2a"][ci]; ctx.lineWidth = 0.007 * w;
+            ctx.beginPath(); ctx.moveTo(cxx - 0.016 * w, topY + 0.085 * h); ctx.lineTo(cxx + 0.016 * w, topY + 0.055 * h); ctx.stroke();
+            /* flame */
+            ctx.save();
+            ctx.shadowColor = "rgba(255,160,30,.85)"; ctx.shadowBlur = Math.min(14, 0.04 * w);
+            ctx.beginPath();
+            ctx.moveTo(cxx, topY - 0.062 * h);
+            ctx.quadraticCurveTo(cxx + 0.017 * w, topY - 0.028 * h, cxx + 0.008 * w, topY - 0.006 * h);
+            ctx.quadraticCurveTo(cxx, topY + 0.002 * h, cxx - 0.008 * w, topY - 0.006 * h);
+            ctx.quadraticCurveTo(cxx - 0.017 * w, topY - 0.028 * h, cxx, topY - 0.062 * h);
+            ctx.closePath();
+            var flg = ctx.createRadialGradient(cxx, topY - 0.02 * h, 0.002 * w, cxx, topY - 0.02 * h, 0.02 * w);
+            flg.addColorStop(0, "#fff7c4"); flg.addColorStop(0.5, "#ffbe3c"); flg.addColorStop(1, "#f07d12");
+            ctx.fillStyle = flg; ctx.fill();
+            ctx.restore();
+          });
+          ctx.restore();
+        },
+        /* [RP-V7.425] Donut Shades — two frosted donut rings worn as
+           glasses: shaded dough, wavy pink frosting, sprinkles, gloss,
+           a dough bridge and temple arms. Food-eyewear trend.
+           Original art. */
+        donutshades: function (ctx, G) {
+          var w = G.fw, h = G.fh, d = G.eyeDist;
+          ctx.save();
+          fxHeadFrame(ctx, G.eyeMid, G.ang);
+          /* temple arms */
+          ctx.strokeStyle = "#8a5a26"; ctx.lineWidth = 0.030 * w; ctx.lineCap = "round";
+          ctx.beginPath(); ctx.moveTo(-d / 2 - 0.16 * w, -0.01 * h); ctx.lineTo(-0.56 * w, -0.045 * h); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(d / 2 + 0.16 * w, -0.01 * h); ctx.lineTo(0.56 * w, -0.045 * h); ctx.stroke();
+          ctx.strokeStyle = "rgba(230,190,130,.6)"; ctx.lineWidth = 0.010 * w;
+          ctx.beginPath(); ctx.moveTo(-d / 2 - 0.16 * w, -0.018 * h); ctx.lineTo(-0.56 * w, -0.052 * h); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(d / 2 + 0.16 * w, -0.018 * h); ctx.lineTo(0.56 * w, -0.052 * h); ctx.stroke();
+          [-1, 1].forEach(function (sd) {
+            var cx = sd * d / 2, cy = 0;
+            fxContact(ctx, cx, 0.10 * h, 0.19 * w, 0.10 * h, 0.20);
+            /* dough ring */
+            ctx.save();
+            ctx.shadowColor = "rgba(45,22,2,.40)"; ctx.shadowBlur = Math.min(13, 0.036 * w); ctx.shadowOffsetY = 0.018 * h;
+            ctx.beginPath(); ctx.arc(cx, cy, 0.175 * w, 0, Math.PI * 2);
+            var dg = ctx.createRadialGradient(cx - 0.05 * w, cy - 0.05 * w, 0.03 * w, cx, cy, 0.18 * w);
+            dg.addColorStop(0, "#f2cd8d"); dg.addColorStop(0.6, "#dda452"); dg.addColorStop(1, "#a96f27");
+            ctx.fillStyle = dg; ctx.fill();
+            ctx.restore();
+            /* frosting: wavy blob clipped inside the ring */
+            ctx.save();
+            ctx.beginPath(); ctx.arc(cx, cy, 0.168 * w, 0, Math.PI * 2); ctx.clip();
+            ctx.beginPath();
+            var fw2 = 0.150 * w;
+            ctx.moveTo(cx - fw2, cy - 0.02 * h);
+            for (var i = 0; i <= 8; i++) {
+              var a = (i / 8) * Math.PI * 2;
+              var rr = fw2 * (0.82 + 0.18 * Math.sin(a * 3 + sd));
+              var px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr * 0.92;
+              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            var fg2 = ctx.createRadialGradient(cx - 0.04 * w, cy - 0.04 * w, 0.02 * w, cx, cy, 0.16 * w);
+            fg2.addColorStop(0, "#ffc7dd"); fg2.addColorStop(0.55, "#ff8fb8"); fg2.addColorStop(1, "#e85d94");
+            ctx.fillStyle = fg2; ctx.fill();
+            /* sprinkles */
+            var cols = ["#ffffff", "#2f8fc4", "#f7b731", "#3fbf6f", "#8b5cf6"];
+            [[-0.07, -0.045], [0.03, -0.075], [0.085, 0.01], [-0.02, 0.055], [-0.095, 0.035], [0.06, 0.07]].forEach(function (sp2, i3) {
+              ctx.save();
+              ctx.translate(cx + sp2[0] * w, cy + sp2[1] * h); ctx.rotate(i3 * 0.9 + sd);
+              ctx.fillStyle = cols[(i3 + (sd > 0 ? 2 : 0)) % cols.length];
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(-0.015 * w, -0.0045 * w, 0.030 * w, 0.009 * w, 0.0045 * w);
+              else ctx.rect(-0.015 * w, -0.0045 * w, 0.030 * w, 0.009 * w);
+              ctx.fill();
+              ctx.restore();
+            });
+            ctx.restore();
+            /* eye hole: dark lens centre with gloss */
+            ctx.save();
+            ctx.shadowColor = "rgba(60,30,5,.35)"; ctx.shadowBlur = Math.min(7, 0.018 * w);
+            ctx.beginPath(); ctx.arc(cx, cy, 0.082 * w, 0, Math.PI * 2);
+            var hg = ctx.createRadialGradient(cx - 0.025 * w, cy - 0.03 * w, 0.01 * w, cx, cy, 0.085 * w);
+            hg.addColorStop(0, "#6b4423"); hg.addColorStop(0.6, "#42260e"); hg.addColorStop(1, "#241304");
+            ctx.fillStyle = hg; ctx.fill();
+            ctx.restore();
+            fxGloss(ctx, cx - 0.01 * w, cy - 0.01 * h, 0.11 * w, 0.13 * w, 0.30);
+            ctx.beginPath(); ctx.arc(cx, cy, 0.175 * w, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(120,72,20,.55)"; ctx.lineWidth = 0.008 * w; ctx.stroke();
+          });
+          /* dough bridge */
+          ctx.save();
+          ctx.shadowColor = "rgba(45,22,2,.35)"; ctx.shadowBlur = Math.min(8, 0.02 * w); ctx.shadowOffsetY = 0.008 * h;
+          ctx.beginPath(); ctx.ellipse(0, -0.028 * h, 0.075 * w, 0.030 * h, 0, 0, Math.PI * 2);
+          var brg2 = ctx.createLinearGradient(-0.075 * w, 0, 0.075 * w, 0);
+          brg2.addColorStop(0, "#c98d3e"); brg2.addColorStop(0.5, "#eebd76"); brg2.addColorStop(1, "#b57a2c");
+          ctx.fillStyle = brg2; ctx.fill();
+          ctx.restore();
+          ctx.restore();
+        },
+        /* [RP-V7.425] Galaxy Paint — deep-space face paint: indigo-to-
+           violet oval fill, a spiral galaxy swirl on the forehead,
+           scattered stars and a ringed planet on one cheek. Skin is
+           painted, never retouched. Original art. */
+        galaxypaint: function (ctx, G) {
+          var w = G.fw, h = G.fh;
+          ctx.save();
+          fxOvalPath(ctx, G);
+          var og = ctx.createLinearGradient(G.top.x, G.top.y, G.chin.x, G.chin.y);
+          og.addColorStop(0, "#2b1a5e"); og.addColorStop(0.45, "#1b1040"); og.addColorStop(1, "#0a0620");
+          ctx.fillStyle = og; ctx.fill();
+          ctx.clip();
+          /* nebula washes */
+          [[-0.22, 0.28, 0.30, "rgba(139,92,246,.34)"], [0.26, 0.52, 0.34, "rgba(47,143,196,.30)"], [0.02, 0.78, 0.28, "rgba(232,93,148,.22)"]].forEach(function (nb) {
+            var ng2 = ctx.createRadialGradient(G.eyeMid.x + nb[0] * w, G.top.y + nb[1] * h, 0.01 * w, G.eyeMid.x + nb[0] * w, G.top.y + nb[1] * h, nb[2] * w);
+            ng2.addColorStop(0, nb[3]); ng2.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = ng2;
+            ctx.fillRect(G.eyeMid.x - 0.65 * w, G.top.y - 0.05 * h, 1.3 * w, 1.15 * h);
+          });
+          /* spiral galaxy on the forehead */
+          var gx = G.eyeMid.x, gy = G.top.y + 0.16 * h;
+          ctx.save();
+          ctx.translate(gx, gy); ctx.rotate(-0.35);
+          for (var arm = 0; arm < 2; arm++) {
+            ctx.save(); ctx.rotate(arm * Math.PI);
+            ctx.strokeStyle = "rgba(190,170,255,.75)"; ctx.lineWidth = 0.016 * w; ctx.lineCap = "round";
+            ctx.beginPath();
+            for (var t2 = 0; t2 <= 20; t2++) {
+              var th = t2 / 20 * Math.PI * 1.5, rr2 = 0.012 * w + t2 / 20 * 0.115 * w;
+              var px2 = Math.cos(th) * rr2, py2 = Math.sin(th) * rr2 * 0.55;
+              if (t2 === 0) ctx.moveTo(px2, py2); else ctx.lineTo(px2, py2);
+            }
+            ctx.stroke();
+            ctx.restore();
+          }
+          var core = ctx.createRadialGradient(0, 0, 0.002 * w, 0, 0, 0.045 * w);
+          core.addColorStop(0, "rgba(255,250,220,.95)"); core.addColorStop(0.5, "rgba(200,170,255,.55)"); core.addColorStop(1, "rgba(140,110,255,0)");
+          ctx.fillStyle = core;
+          ctx.beginPath(); ctx.arc(0, 0, 0.045 * w, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+          /* stars: dots + sparkles at fixed sky positions */
+          var stars = [[-0.38, 0.10], [-0.15, 0.05], [0.33, 0.08], [0.42, 0.30], [-0.44, 0.42], [0.18, 0.30], [-0.30, 0.62], [0.40, 0.66], [-0.12, 0.88], [0.28, 0.90], [0.05, 0.55], [-0.05, 0.38]];
+          stars.forEach(function (st, i4) {
+            var sx = G.eyeMid.x + st[0] * w, sy = G.top.y + st[1] * h;
+            ctx.beginPath(); ctx.arc(sx, sy, (i4 % 3 === 0 ? 0.009 : 0.006) * w, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.fill();
+            if (i4 % 4 === 1) fxSparkle(ctx, sx, sy, 0.020 * w, 0.85);
+          });
+          /* ringed planet on the left cheek */
+          var plx = G.P(234).x + 0.10 * w, ply = G.P(234).y + 0.16 * h;
+          ctx.save();
+          ctx.translate(plx, ply); ctx.rotate(-0.28);
+          ctx.beginPath(); ctx.ellipse(0, 0, 0.085 * w, 0.026 * h, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(240,200,120,.85)"; ctx.lineWidth = 0.010 * w; ctx.stroke();
+          ctx.restore();
+          ctx.save();
+          ctx.shadowColor = "rgba(120,60,180,.5)"; ctx.shadowBlur = Math.min(10, 0.026 * w);
+          ctx.beginPath(); ctx.arc(plx, ply, 0.048 * w, 0, Math.PI * 2);
+          var plg = ctx.createRadialGradient(plx - 0.016 * w, ply - 0.016 * w, 0.006 * w, plx, ply, 0.05 * w);
+          plg.addColorStop(0, "#ffd9a0"); plg.addColorStop(0.55, "#e88bb0"); plg.addColorStop(1, "#8b3f8f");
+          ctx.fillStyle = plg; ctx.fill();
+          ctx.restore();
+          ctx.save();
+          ctx.translate(plx, ply); ctx.rotate(-0.28);
+          ctx.beginPath(); ctx.ellipse(0, 0, 0.085 * w, 0.026 * h, 0, 0.15 * Math.PI, 0.85 * Math.PI);
+          ctx.strokeStyle = "rgba(255,220,150,.95)"; ctx.lineWidth = 0.010 * w; ctx.stroke();
+          ctx.restore();
+          ctx.restore();
+          fxSparkle(ctx, G.eyeMid.x + 0.30 * w, G.top.y + 0.20 * h, 0.022 * w, 0.9);
+          fxSparkle(ctx, G.eyeMid.x - 0.34 * w, G.top.y + 0.52 * h, 0.018 * w, 0.8);
         }
       };
       /* Landmarks that get smoothed: the face anchors + the beard outline.
@@ -46992,7 +47364,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
          runs at the highest bitrates offered (12 Mbps video / 256 kbps
          audio), photos are full-frame (ImageCapture / native-size
          canvas, JPEG 0.92) — nothing is downscaled anywhere.
-       - Lenses are the Plaza's OWN 60 fun face effects (LIVE_FILTERS):
+       - Lenses are the Plaza's OWN 70 fun face effects (LIVE_FILTERS):
          the carousel + the full lens sheet render the engine's own
          swatches and a pick goes through setLiveFilter, so the preview
          and the recording run the engine's own fx pipeline.
