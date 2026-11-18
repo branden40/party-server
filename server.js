@@ -13054,6 +13054,7 @@ app.get("/api/social/profile", (req, res) => {
   // Money txlog: lifetime charms sent / received + gift gallery.
   let sentCharms = 0, receivedCharms = 0;
   const galleryRefs = {};
+  const gallerySender415 = {}; // [RP-V7.415] ref -> most recent sender account id (the txlog is append-ordered, so the last gift-received row for a ref names its latest sender)
   try {
     const mdb = readMoney();
     for (const t of mdb.txlog || []) {
@@ -13061,7 +13062,10 @@ app.get("/api/social/profile", (req, res) => {
       if (t.type === "gift-sent" && t.from === target.id) sentCharms += t.charms || 0;
       if (t.type === "gift-received" && t.to === target.id) {
         receivedCharms += t.charms || 0;
-        if (t.ref) galleryRefs[t.ref] = true;
+        if (t.ref) {
+          galleryRefs[t.ref] = true;
+          if (t.from) gallerySender415[t.ref] = t.from;
+        }
       }
     }
   } catch (e) { }
@@ -13265,7 +13269,14 @@ app.get("/api/social/profile", (req, res) => {
     dailyRank, dailyCharms,
     gifter: { level: rpLevelFor(sentCharms), charms: sentCharms },
     host: { level: rpLevelFor(receivedCharms), charms: receivedCharms },
-    gallery: { got: Object.keys(galleryRefs).length, total: Object.keys(MONEY_GIFT_TABLE).length },
+    // [RP-V7.415] gallery.items: the per-gift detail behind the full
+    // tile view — one entry per CATALOG gift this member really
+    // received, computed in the same txlog pass as got/total above, so
+    // the full view's header count is the card's count by construction.
+    // lastSender is the most recent sender's display name (@username
+    // fallback; null when that account no longer exists — a name is
+    // never invented).
+    gallery: { got: Object.keys(galleryRefs).length, total: Object.keys(MONEY_GIFT_TABLE).length, items: Object.keys(MONEY_GIFT_TABLE).filter((gid415) => galleryRefs[gid415]).map((gid415) => { const su415 = gallerySender415[gid415] ? ctx.db.users.find((u) => u.id === gallerySender415[gid415]) : null; return { giftId: gid415, lastSender: su415 ? (su415.name || (su415.username ? "@" + su415.username : null)) : null }; }) },
     // [RP-V7.64] the member's gallery photos + their server-owned
     // view counts, so profile pages can render the tile grid.
     photos: accountPhotos(target),
