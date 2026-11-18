@@ -1452,6 +1452,7 @@ function settingsOf(u) {
     dmPrivacy: DM_PRIVACY_VALUES.indexOf(s.dmPrivacy) >= 0 ? s.dmPrivacy : "everyone",
     dlDefault: s.dlDefault !== false, // [RP-V7.316] TikTok-style downloads switch: the account default for new video posts (default ON, like TikTok); each post carries its own allowDownloads flag
     pushAsk: PUSH_ASK351_VALUES.indexOf(s.pushAsk) >= 0 ? s.pushAsk : "", // [RP-V7.351] the one-time push ask's recorded answer: "" = never asked, "granted", "declined", or "pending-install" (told in an iOS browser tab; the first Home-Screen launch asks for real). An account fact, so it follows the member across devices
+    viewerHistory: s.viewerHistory === true, // [RP-V7.422] profile viewer history opt-in: DEFAULT OFF (TikTok parity) until the member turns it on from the Profile views page; rides the settings record so it follows the member across devices
     notify: {
       messages: n.messages !== false,
       follows: n.follows !== false,
@@ -2739,8 +2740,9 @@ app.post("/api/account/settings", (req, res) => {
   if (!ctx) return;
   const b = req.body || {};
   const cur = settingsOf(ctx.user);
-  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, pushAsk: cur.pushAsk, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push } } }; // [RP-V7.328] push channel rides the same settings record
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, pushAsk: cur.pushAsk, viewerHistory: cur.viewerHistory, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push } } }; // [RP-V7.328] push channel rides the same settings record
   if ("dlDefault" in b && typeof b.dlDefault === "boolean") nx.dlDefault = b.dlDefault; // [RP-V7.316] downloads default for new video posts
+  if ("viewerHistory" in b && typeof b.viewerHistory === "boolean") nx.viewerHistory = b.viewerHistory; // [RP-V7.422] viewer-history toggle rides the same record
   if ("pushAsk" in b) { // [RP-V7.351] the one-time push-prompt decision rides the same record
     if (PUSH_ASK351_VALUES.indexOf(b.pushAsk) < 0)
       return res.status(400).json({ ok: false, error: "That notification answer isn't one of the Plaza's choices" });
@@ -13593,6 +13595,179 @@ app.post("/api/social/suggestions/dismiss", (req, res) => {
     writeAccounts(ctx.db);
   }
   res.json({ ok: true, dismissed: targetId });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.422] PROFILE VIEWS + PEOPLE SEARCH (Branden, Nov 17, 2026 —
+// TikTok's model): a member can turn on "viewer history" (a settings
+// record field, settingsOf().viewerHistory, DEFAULT OFF like TikTok —
+// nothing is shown to or about anyone until they opt in) and then see
+// who viewed their profile in the past 30 days.
+//
+// The mutual rule is enforced ENTIRELY at read time, from the same
+// settings record on both sides:
+//   - the profile owner sees the list only when THEIR setting is on;
+//   - a viewer appears in the list only when THE VIEWER's setting is
+//     on at the moment of the read — turning it off removes them from
+//     everyone's lists going forward without touching stored rows.
+// Views are recorded for every signed-in open of another member's
+// profile (the client fires POST /api/profile-views/view once per
+// open; guests and own-profile opens never record). Recording does
+// NOT depend on either side's setting: the read filters decide all
+// visibility, so a member who turns the setting on starts from the
+// views recorded while it was off only insofar as those viewers also
+// have it on — rows are never retroactively hidden or revealed by
+// anything but the two settings at read time.
+//
+// Store: ONE small file, profile-views.json beside accounts.json,
+// shaped { views: [ { v, p, at }, ... ] } — v = viewer account id,
+// p = profile account id, at = epoch ms. Dedupe: at most ONE row per
+// (viewer, profile) per America/New_York calendar day (the same Intl
+// day key the media-views store uses) — a repeat view the same day
+// refreshes that row's timestamp, so "latest view" ordering is true.
+// Retention: rows older than 30 days are pruned on every write and
+// filtered on every read, so the file stays tiny (one short line per
+// member pair per day, 30 days deep at most).
+// ---------------------------------------------------------------------------
+const PROFILE_VIEWS_FILE =
+  process.env.PROFILE_VIEWS_FILE || path.join(path.dirname(PHOTO_DIR), "profile-views.json");
+const PROFILE_VIEWS_WINDOW_MS = 30 * 24 * 3600 * 1000;
+function readProfileViews422() {
+  return storeReadJson(
+    PROFILE_VIEWS_FILE,
+    (d) => !!(d && Array.isArray(d.views)),
+    { views: [] },
+    "profile-views"
+  );
+}
+function writeProfileViews422(db) {
+  storeWriteJson(PROFILE_VIEWS_FILE, db);
+}
+function pruneProfileViews422(db, now) {
+  const cut = now - PROFILE_VIEWS_WINDOW_MS;
+  db.views = db.views.filter((r) => r && typeof r.at === "number" && r.at >= cut && r.v && r.p);
+  return db;
+}
+console.log("[RP-V7.422] profile views store:", PROFILE_VIEWS_FILE);
+function etDayKey422(ms) {
+  // America/New_York calendar day ("YYYY-MM-DD"), Intl only — the
+  // same construction as viewDayKey() for the media-views store.
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(ms));
+  } catch (e) {
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+}
+
+app.post("/api/profile-views/view", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const targetId = String((req.body || {}).accountId || "");
+  if (!targetId) return res.status(400).json({ ok: false, error: "Missing accountId" });
+  if (targetId === ctx.user.id) return res.json({ ok: true, recorded: false }); // own profile never counts
+  const target = ctx.db.users.find((u) => u.id === targetId);
+  if (!target || target.deletionAt || accountLockedOut(target))
+    return res.status(404).json({ ok: false, error: "Account not found" });
+  const now = Date.now();
+  const today = etDayKey422(now);
+  const db = pruneProfileViews422(readProfileViews422(), now);
+  // One row per (viewer, profile) per ET day: a same-day repeat view
+  // refreshes the row instead of stacking a new one.
+  db.views = db.views.filter(
+    (r) => !(r.v === ctx.user.id && r.p === targetId && etDayKey422(r.at) === today)
+  );
+  db.views.push({ v: ctx.user.id, p: targetId, at: now });
+  writeProfileViews422(db);
+  res.json({ ok: true, recorded: true });
+});
+
+app.get("/api/profile-views/mine", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  // TikTok's rule: with my own viewer history OFF I don't get the
+  // list at all — the client shows the turn-on explainer instead.
+  if (!settingsOf(ctx.user).viewerHistory)
+    return res.json({ ok: true, enabled: false, viewers: [], count: 0 });
+  const now = Date.now();
+  const db = pruneProfileViews422(readProfileViews422(), now);
+  const hidden = blockHiddenIds(ctx.user.id); // [RP-V7.99] blocked pairs stay invisible both ways
+  const sdb = readSocial();
+  const iFollowSet = new Set(socialFollowingIds(sdb, ctx.user.id));
+  const followsMeSet = new Set(socialFollowerIds(sdb, ctx.user.id));
+  const latest = new Map(); // viewerId -> latest at
+  for (const r of db.views) {
+    if (r.p !== ctx.user.id || r.v === ctx.user.id) continue;
+    if (!latest.has(r.v) || latest.get(r.v) < r.at) latest.set(r.v, r.at);
+  }
+  const viewers = [];
+  for (const [vid, at] of latest) {
+    if (hidden.has(vid)) continue;
+    const u = ctx.db.users.find((x) => x.id === vid);
+    if (!u || u.deletionAt || accountLockedOut(u)) continue;
+    // The mutual rule: a viewer is listed only while THEIR OWN
+    // viewer history is on. Off -> they vanish from the list (and
+    // from everyone's) until they turn it back on.
+    if (!settingsOf(u).viewerHistory) continue;
+    let photo = u.photo || null;
+    if (!photo) { try { const ph = accountPhotos(u); if (ph && ph[0]) photo = ph[0]; } catch (e) { } }
+    if (!photo) { try { photo = livePhotoForAccount(u); } catch (e) { } }
+    viewers.push({
+      id: u.id,
+      name: u.name,
+      username: u.username || "",
+      photo: photo || null,
+      at: new Date(at).toISOString(),
+      iFollow: iFollowSet.has(u.id),
+      followsMe: followsMeSet.has(u.id),
+    });
+  }
+  viewers.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  const capped = viewers.slice(0, 200);
+  res.json({ ok: true, enabled: true, viewers: capped, count: capped.length });
+});
+
+// [RP-V7.422] PEOPLE SEARCH for Find friends: match by display name
+// OR @username (the existing /api/social/directory carries names
+// only and no usernames, and the DM people picker filters that list
+// client-side — neither can find a member by handle, so this route
+// exists). Real members only: self, pending-deletion, locked-out and
+// blocked-pair accounts never surface. Order: exact username, then
+// username prefix, then name prefix, then other matches by follower
+// count — the people a searcher most likely means first.
+app.get("/api/social/search", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const q = String(req.query.q || "").trim().replace(/^@+/, "").toLowerCase();
+  if (!q) return res.json({ ok: true, people: [] });
+  const hidden = blockHiddenIds(ctx.user.id);
+  const sdb = readSocial();
+  const iFollowSet = new Set(socialFollowingIds(sdb, ctx.user.id));
+  const rows = [];
+  for (const u of ctx.db.users) {
+    if (!u || u.id === ctx.user.id || u.deletionAt || accountLockedOut(u) || hidden.has(u.id)) continue;
+    const nm = String(u.name || "").toLowerCase();
+    const un = String(u.username || "").toLowerCase();
+    let rank = -1;
+    if (un && un === q) rank = 0;
+    else if (un && un.indexOf(q) === 0) rank = 1;
+    else if (nm.indexOf(q) === 0) rank = 2;
+    else if (un && un.indexOf(q) >= 0) rank = 3;
+    else if (nm.indexOf(q) >= 0) rank = 4;
+    if (rank < 0) continue;
+    rows.push({ u, rank, fol: socialFollowerIds(sdb, u.id).length });
+  }
+  rows.sort((a, b) => a.rank - b.rank || b.fol - a.fol);
+  const people = rows.slice(0, 30).map(({ u }) => {
+    const p = ffPerson144(u, "");
+    p.iFollow = iFollowSet.has(u.id);
+    return p;
+  });
+  res.json({ ok: true, people });
 });
 
 
