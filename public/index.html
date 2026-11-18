@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.418" /> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.419" /> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -52891,6 +52891,335 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
   };
 })();
 
+
+
+/* =====================================================================
+   [RP-V7.419] PUSH RE-ASK FOR EXISTING MEMBERS — ask until on.
+   Branden (Nov 17, 2026), found testing on Sharlene's phone: V7.414
+   turns push on automatically only at brand-new SIGNUP, and V7.351's
+   ask is once-ever per ACCOUNT — its record (settings.pushAsk) reads
+   "declined" forever after any dismissal, on any device. So an
+   existing member whose record was settled long ago (or on another
+   phone, or by an accidental swipe-away) has NO door back: logging
+   out and in shows nothing, and no button in the app asks again.
+   This module is that door, on Branden's approved design — "ask
+   until on, not ask forever":
+   • At login / session restore, when the account's V7.351 record is
+     already terminal (granted/declined) BEFORE this page load, but
+     THIS device's truth is: no push subscription, permission still
+     "default", and no "Not now" remembered on this device — the
+     V7.351-style sheet shows once for that login. Turn on runs
+     V7.328's enable() (the app's only subscribe path); once the
+     subscription lands it never asks again on this phone.
+   • "Not now" (or a backdrop dismissal, V7.351's convention) is
+     remembered ON THIS DEVICE (localStorage rpPush419.v1, per
+     account) and stops the login asks for that account on that
+     phone; the account record still gets V7.351's own pushAsk
+     write through rpPushAsk351.record(), so the two modules never
+     disagree about the account.
+   • Permission "denied" never sheets (the browser won't re-prompt);
+     the Settings row below is the path there.
+   • Accounts V7.351 still owns — pushAsk "" (never decided) or
+     "pending-install" — are left to V7.351 exactly as before, and a
+     decision recorded DURING this page load (by V7.351's sheet or
+     V7.414's signup flow) stands this module down for the load: it
+     only re-asks for decisions that predate the load. Fresh signups
+     are V7.414's moment (its rpPush414.v1 session marker is checked
+     first). A member who switched the push channel off in Settings
+     is never asked (that was a decision too).
+   • Settings gains a permanent "🔔 Turn on notifications" row
+     (rpPush419Row, injected beside the V7.328 row in the settings
+     sheet's Reach me by section, same rp-set-row styling): state
+     comes from V7.328's state() — tap runs enable() while it can
+     (permission default, or granted-but-unsubscribed, which
+     re-subscribes silently), the row reads "Notifications on ✓"
+     while subscribed (tap turns off through V7.328's disable(),
+     the existing unsubscribe flow), and in the denied state the
+     tap opens the phone-settings steps, since the app cannot
+     undo a block from inside.
+   ===================================================================== */
+(function () {
+  "use strict";
+  var LS419 = "rpPush419.v1"; // this device's memory: { [uid]: "no" | "told" }
+  var evaluated419 = {};   // uid -> true once this page load has settled the question
+  var firstAsk419 = {};    // uid -> the pushAsk this page load FIRST saw (pre-load decisions only are re-asked)
+  var fetchTried419 = {};  // uid -> true once /api/account/me has been consulted this load
+  var sheetUid419 = null;  // the account whose 419 ask sheet is up right now
+  var sheetMode419 = null; // "real" | "install"
+  var decided419 = false;  // a button on the live sheet already recorded the decision
+  var waitTimer419 = null; // a gated retry is already pending
+
+  function acctRec419() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a : null; } catch (e) { return null; } }
+  function api419(path, method, body) {
+    return new Promise(function (resolve) {
+      var a = acctRec419();
+      if (!a) { resolve({ status: 0, json: null }); return; }
+      fetch(path, { method: method || "GET", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.token }, body: body ? JSON.stringify(body) : undefined })
+        .then(function (r) { return r.text().then(function (txt) { var j = null; try { j = JSON.parse(txt); } catch (e) { } resolve({ status: r.status, json: j }); }); })
+        .catch(function () { resolve({ status: 0, json: null }); });
+    });
+  }
+  function supported419() { return ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window); }
+  function isIos419() { var ua = navigator.userAgent || ""; return /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1); }
+  function standalone419() {
+    try { if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true; } catch (e) { }
+    return navigator.standalone === true;
+  }
+  function askOf419(a) {
+    var s = a && a.settings;
+    return (s && typeof s.pushAsk === "string") ? s.pushAsk : null; // null = this device hasn't heard the account's answer yet
+  }
+  function pushChannelOff419(a) {
+    var n = a && a.settings && a.settings.notify;
+    return !!(n && n.channels && n.channels.push === false);
+  }
+  function markOf419(uid) {
+    try { var m = JSON.parse(localStorage.getItem(LS419) || "{}"); return (m && typeof m === "object" && typeof m[uid] === "string") ? m[uid] : null; } catch (e) { return null; }
+  }
+  function setMark419(uid, v) {
+    try {
+      var m = JSON.parse(localStorage.getItem(LS419) || "{}");
+      if (!m || typeof m !== "object") m = {};
+      if (v) m[uid] = v; else delete m[uid];
+      localStorage.setItem(LS419, JSON.stringify(m));
+    } catch (e) { }
+  }
+  function record419(state) {
+    // The account write is V7.351's own (its public record()), so the
+    // account record, the local rpAcct.v1 stamp and this module can
+    // never disagree. The fallback repeats record351's write verbatim
+    // for the load-race case only (the module ships in this file).
+    try { if (window.rpPushAsk351 && typeof window.rpPushAsk351.record === "function") return window.rpPushAsk351.record(state); } catch (e) { }
+    return api419("/api/account/settings", "POST", { pushAsk: state }).then(function (r) {
+      if (r.json && r.json.ok) {
+        try { if (r.json.user && window.rpAcctSyncUser) window.rpAcctSyncUser(r.json.user); } catch (e) { }
+        try { var a = acctRec419(); if (a) { a.settings = (a.settings && typeof a.settings === "object") ? a.settings : {}; a.settings.pushAsk = state; localStorage.setItem("rpAcct.v1", JSON.stringify(a)); } } catch (e) { }
+        return true;
+      }
+      return false;
+    });
+  }
+  function sheetBusy419() {
+    var ov = document.getElementById("overlay");
+    return !!(ov && ov.classList.contains("open"));
+  }
+  function homeActive419() {
+    var h = document.getElementById("screen-home243");
+    return !!(h && h.classList.contains("active"));
+  }
+  function closeSheet419() { try { if (window.closeSheet) window.closeSheet(); } catch (e) { } }
+
+  function showSheet419(uid, mode) {
+    if (typeof window.openSheet !== "function") return;
+    sheetUid419 = uid; sheetMode419 = mode; decided419 = false;
+    if (mode === "install") {
+      window.openSheet(
+        '<h3 style="margin:4px 0">🔔 Turn on notifications</h3>' +
+        '<p class="age-note">Get pinged the moment you get a DM or a gift. On iPhone, notifications need Rizz Plaza on your Home Screen first:</p>' +
+        '<p class="age-note">Tap <b>Share</b> → <b>Add to Home Screen</b>, then open Rizz Plaza from the new icon — we\'ll finish turning them on there with one tap.</p>' +
+        '<button class="btn-primary" id="rpPushAsk419Ok" style="width:100%;padding:13px">Got it</button>'
+      );
+      var ok = document.getElementById("rpPushAsk419Ok");
+      if (ok) ok.addEventListener("click", function () {
+        decided419 = true; sheetUid419 = null;
+        closeSheet419();
+        setMark419(uid, "told");
+        record419("pending-install");
+      });
+      return;
+    }
+    window.openSheet(
+      '<h3 style="margin:4px 0">🔔 Turn on notifications</h3>' +
+      '<p class="age-note">Get pinged the moment you get a DM or a gift — even with the app closed.</p>' +
+      '<button class="btn-primary" id="rpPushAsk419On" style="width:100%;padding:13px">Turn on</button>' +
+      '<button class="btn-mini" id="rpPushAsk419No" style="width:100%;padding:11px;margin-top:8px">Not now</button>'
+    );
+    var on = document.getElementById("rpPushAsk419On");
+    if (on) on.addEventListener("click", function () {
+      decided419 = true; sheetUid419 = null;
+      closeSheet419();
+      var en = (window.rpPush328 && typeof window.rpPush328.enable === "function") ? window.rpPush328.enable() : Promise.resolve(false);
+      en.then(function (ok2) {
+        // Granted + subscribed: this phone is on — never ask again.
+        // Anything else (prompt dismissed or blocked): the ask has
+        // happened on this device; remember it here as well as in
+        // the account record, exactly as V7.351 treats a dismissal.
+        if (ok2) { setMark419(uid, null); record419("granted"); }
+        else { setMark419(uid, "no"); record419("declined"); }
+      }, function () { setMark419(uid, "no"); record419("declined"); });
+    });
+    var no = document.getElementById("rpPushAsk419No");
+    if (no) no.addEventListener("click", function () {
+      decided419 = true; sheetUid419 = null;
+      closeSheet419();
+      setMark419(uid, "no");
+      record419("declined");
+    });
+  }
+
+  function maybeShow419(uid, mode, tries) {
+    if (sheetUid419) return;
+    if (homeActive419() && !sheetBusy419() && typeof window.openSheet === "function") { showSheet419(uid, mode); return; }
+    if (tries >= 40 || waitTimer419) return; // ~100s of patience, same as V7.351; the next sign-in asks again
+    waitTimer419 = setTimeout(function () { waitTimer419 = null; maybeShow419(uid, mode, tries + 1); }, 2500);
+  }
+
+  function evaluate419() {
+    // A sheet dismissed without a button (backdrop tap, swipe-down)
+    // counts as answered on this device — record it and never nag.
+    if (sheetUid419 && !decided419) {
+      var ov0 = document.getElementById("overlay");
+      if (!ov0 || !ov0.classList.contains("open")) {
+        var u0 = sheetUid419, m0 = sheetMode419; sheetUid419 = null;
+        if (m0 === "install") { setMark419(u0, "told"); record419("pending-install"); }
+        else { setMark419(u0, "no"); record419("declined"); }
+      }
+    }
+    var a = acctRec419();
+    if (!a) return;
+    var uid = a.userId || a.email || "acct";
+    if (evaluated419[uid] || sheetUid419) return;
+    // [RP-V7.414] A fresh signup handled by the automatic flow stands
+    // this module down — V7.414 records the account's decision itself.
+    try { var m414 = sessionStorage.getItem("rpPush414.v1"); if (m414 && m414 === uid) { evaluated419[uid] = true; return; } } catch (e) { }
+    var ask = askOf419(a);
+    if (ask === null) {
+      // The session record may not carry settings yet — ask the
+      // account itself, once per page load (V7.351's own pattern).
+      if (!fetchTried419[uid]) {
+        fetchTried419[uid] = true;
+        api419("/api/account/me", "GET").then(function (r) {
+          if (r.json && r.json.user) { try { if (window.rpAcctSyncUser) window.rpAcctSyncUser(r.json.user); } catch (e) { } }
+          evaluate419();
+        });
+      }
+      return;
+    }
+    if (!(uid in firstAsk419)) firstAsk419[uid] = ask;
+    // V7.351 owns accounts that never decided, the pending-install
+    // path, and anything decided during THIS page load (its sheet or
+    // V7.414 may have just settled it) — never double-ask.
+    if (firstAsk419[uid] === "" || firstAsk419[uid] === "pending-install") { evaluated419[uid] = true; return; }
+    // From here: the account record was already terminal (granted /
+    // declined) when this page load began — V7.351 will never ask
+    // again, which is exactly the gap. This device's truth decides.
+    if (markOf419(uid)) { evaluated419[uid] = true; return; } // "Not now" / told, on THIS device
+    if (pushChannelOff419(a)) { evaluated419[uid] = true; return; } // switched off in Settings — a decision
+    if (!supported419()) {
+      if (isIos419() && !standalone419()) { evaluated419[uid] = true; maybeShow419(uid, "install", 0); return; }
+      evaluated419[uid] = true; // a browser with no web push at all: nothing to ask
+      return;
+    }
+    if (Notification.permission === "denied") { evaluated419[uid] = true; return; } // blocked: no sheet can help; the Settings row explains unblocking
+    if (Notification.permission === "granted") {
+      // The tap already happened on this device — nothing to ask.
+      // V7.328's boot reconcile keeps the subscription fresh.
+      evaluated419[uid] = true; return;
+    }
+    // Permission still "default": ask only if this device holds no
+    // active subscription (a live one means this phone is on).
+    evaluated419[uid] = true;
+    try {
+      navigator.serviceWorker.ready.then(function (reg) {
+        reg.pushManager.getSubscription().then(function (sub) {
+          if (!sub) maybeShow419(uid, "real", 0);
+        }).catch(function () { maybeShow419(uid, "real", 0); });
+      }).catch(function () { });
+    } catch (e) { }
+  }
+
+  function tick419() { if (document.hidden) return; try { evaluate419(); } catch (e) { } }
+  setTimeout(tick419, 3400);
+  setInterval(tick419, 2500);
+  try { document.addEventListener("visibilitychange", function () { if (!document.hidden) tick419(); }); } catch (e) { }
+
+  /* ---------- the permanent Settings row ---------- */
+  var rowBusy419 = false;
+  function toast419(m, t) { try { if (window.toast) window.toast(m, t || 3200); } catch (e) { } }
+  function helpSheet419(mode) {
+    if (typeof window.openSheet !== "function") return;
+    var body;
+    if (mode === "ioshint") {
+      body = '<h3 style="margin:4px 0">🔔 Turn on notifications</h3>' +
+        '<p class="age-note">On iPhone, notifications need Rizz Plaza on your Home Screen first:</p>' +
+        '<p class="age-note">Tap <b>Share</b> → <b>Add to Home Screen</b>, then open Rizz Plaza from the new icon and tap <b>Turn on notifications</b> here in Settings.</p>';
+    } else {
+      body = '<h3 style="margin:4px 0">🔔 Notifications are off in this phone\'s settings</h3>' +
+        '<p class="age-note">Rizz Plaza is blocked from sending notifications, and the app can\'t undo that from here. To turn them on:</p>' +
+        '<p class="age-note"><b>iPhone:</b> Settings → Notifications → Rizz Plaza → turn on <b>Allow Notifications</b>.</p>' +
+        '<p class="age-note"><b>Android:</b> Settings → Apps → Rizz Plaza (or your browser) → Notifications → turn on.</p>' +
+        '<p class="age-note">Then come back here and tap <b>Turn on notifications</b> to finish.</p>';
+    }
+    window.openSheet(body + '<button class="btn-primary" id="rpPush419HelpOk" style="width:100%;padding:13px;margin-top:6px">Got it</button>');
+    var ok = document.getElementById("rpPush419HelpOk");
+    if (ok) ok.addEventListener("click", function () { closeSheet419(); });
+  }
+  function paintRow419(row) {
+    if (!window.rpPush328 || typeof window.rpPush328.state !== "function") return;
+    window.rpPush328.state().then(function (st) {
+      var label, sub;
+      if (st.mode === "on") { label = "Notifications on ✓"; sub = "Messages and gifts reach this phone, even with the app closed. Tap to turn off."; }
+      else if (st.mode === "denied") { label = "Turn on notifications"; sub = "Blocked in this phone's settings — tap to see how to turn them on."; }
+      else { label = "Turn on notifications"; sub = st.sub; }
+      var key = st.mode + "|" + label + "|" + sub;
+      if (row.getAttribute("data-state419") === key) return; // guarded write: only touch the DOM when the state actually changed
+      row.setAttribute("data-state419", key);
+      row.setAttribute("data-mode419", st.mode);
+      var lb = document.getElementById("rpPush419Label");
+      if (lb && lb.textContent !== label) lb.textContent = label;
+      var sb = document.getElementById("rpPush419Sub");
+      if (sb && sb.textContent !== sub) sb.textContent = sub;
+      var tg = document.getElementById("rpPush419Tog");
+      if (tg) { var want = st.on ? "rp-set-tog on" : "rp-set-tog"; if (tg.className !== want) tg.className = want; }
+    });
+  }
+  function renderRow419() {
+    var smsRow = document.querySelector('[data-chan="sms"]');
+    if (!smsRow || !smsRow.parentNode) return;
+    var row = document.getElementById("rpPush419Row");
+    if (!row) {
+      row = document.createElement("button");
+      row.type = "button";
+      row.className = "rp-set-row";
+      row.id = "rpPush419Row";
+      row.innerHTML = '<span>🔔 <span id="rpPush419Label">Turn on notifications</span><span class="rp-set-sub" id="rpPush419Sub">Checking this device…</span></span><span class="rp-set-tog" id="rpPush419Tog"></span>';
+      var anchor = document.getElementById("rpPush328Row") || smsRow;
+      if (!anchor.parentNode) return;
+      anchor.parentNode.insertBefore(row, anchor.nextSibling);
+      row.addEventListener("click", function () {
+        if (rowBusy419) return;
+        var mode = row.getAttribute("data-mode419") || "off";
+        if (mode === "ioshint") { helpSheet419("ioshint"); return; }
+        if (mode === "unsupported") { toast419("This browser can't do push notifications.", 3600); return; }
+        if (mode === "denied") { helpSheet419("denied"); return; }
+        if (!window.rpPush328) return;
+        rowBusy419 = true;
+        var act = (mode === "on") ? window.rpPush328.disable() : window.rpPush328.enable();
+        Promise.resolve(act).then(function () { rowBusy419 = false; paintRow419(row); }, function () { rowBusy419 = false; paintRow419(row); });
+      });
+    }
+    paintRow419(row);
+  }
+  var sched419 = false;
+  function scheduleRow419() {
+    if (sched419) return;
+    sched419 = true;
+    setTimeout(function () { sched419 = false; try { renderRow419(); } catch (e) { } }, 90);
+  }
+  (function watchSheet419() {
+    var sheet = document.getElementById("sheet");
+    if (!sheet || !window.MutationObserver) { setTimeout(watchSheet419, 1500); return; }
+    try {
+      new MutationObserver(function () {
+        // Only act when the settings sheet is what's on screen, and
+        // renderRow419 itself guards every DOM write by state.
+        if (document.querySelector('[data-chan="sms"]')) scheduleRow419();
+      }).observe(sheet, { childList: true, subtree: true });
+    } catch (e) { }
+  })();
+
+  window.rpPush419 = { evaluate: evaluate419, renderRow: renderRow419 };
+})();
 
 
 /* =====================================================================
