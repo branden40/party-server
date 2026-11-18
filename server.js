@@ -17204,8 +17204,29 @@ function siteOrigin(req) {
   const proto = String(req.headers["x-forwarded-proto"] || "https").split(",")[0].trim();
   return proto + "://" + req.headers.host;
 }
+// [RP-GFIX] Google env hygiene + diagnostics (Nov 18, 2026). The
+// callback used to fail SILENTLY at every branch — a missing or
+// wrong GOOGLE_CLIENT_SECRET on the host produced the member-facing
+// "didn't finish" toast with nothing in the server log, which is
+// why the break went undiagnosed from Nov 1. Two changes: (1) the
+// env values are trimmed — a secret pasted into a host dashboard
+// with a trailing newline or space is the classic invalid_client
+// cause, and Google rejects it forever; (2) every failure branch
+// logs Google's own error (never the secret, never a full token),
+// so one real sign-in attempt names the cause in the host log.
+let googleEnvWarned = false;
+function googleCreds() {
+  const cidRaw = String(process.env.GOOGLE_CLIENT_ID || "");
+  const secRaw = String(process.env.GOOGLE_CLIENT_SECRET || "");
+  const cid = cidRaw.trim(), sec = secRaw.trim();
+  if (!googleEnvWarned && (cid !== cidRaw || sec !== secRaw)) {
+    googleEnvWarned = true;
+    console.warn("[google] GOOGLE_CLIENT_ID/SECRET had surrounding whitespace - trimmed [RP-GFIX]");
+  }
+  return { cid, sec };
+}
 app.get("/auth/google", (req, res) => {
-  const cid = process.env.GOOGLE_CLIENT_ID;
+  const cid = googleCreds().cid;
   if (!cid) return res.redirect("/?auth=off");
   const ru = siteOrigin(req) + "/auth/google/callback";
   res.redirect("https://accounts.google.com/o/oauth2/v2/auth?client_id=" + encodeURIComponent(cid) +
@@ -17214,17 +17235,30 @@ app.get("/auth/google", (req, res) => {
 });
 app.get("/auth/google/callback", async (req, res) => {
   try {
-    const cid = process.env.GOOGLE_CLIENT_ID, sec = process.env.GOOGLE_CLIENT_SECRET;
-    if (!cid || !sec || !req.query.code) return res.redirect("/?auth=err");
+    const { cid, sec } = googleCreds();
+    if (!cid || !sec) {
+      console.error("[google] callback: " + (!cid ? "GOOGLE_CLIENT_ID" : "GOOGLE_CLIENT_SECRET") + " is not set on the server - Google sign-in cannot complete [RP-GFIX]");
+      return res.redirect("/?auth=off");
+    }
+    if (!req.query.code) {
+      console.error("[google] callback: Google returned no code" + (req.query.error ? " (error=" + String(req.query.error).slice(0, 60) + ")" : "") + " [RP-GFIX]");
+      return res.redirect("/?auth=err");
+    }
     const ru = siteOrigin(req) + "/auth/google/callback";
     const tokRes = await fetch("https://oauth2.googleapis.com/token", { method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ code: String(req.query.code), client_id: cid, client_secret: sec, redirect_uri: ru, grant_type: "authorization_code" }) });
     const tok = await tokRes.json();
-    if (!tok.id_token) return res.redirect("/?auth=err");
+    if (!tok.id_token) {
+      console.error("[google] token exchange failed: " + (tok && tok.error ? String(tok.error) : "no id_token in response") + (tok && tok.error_description ? " - " + String(tok.error_description).slice(0, 160) : "") + " [RP-GFIX]");
+      return res.redirect("/?auth=err");
+    }
     const infoRes = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(tok.id_token));
     const info = await infoRes.json();
-    if (!info || info.aud !== cid || !info.email) return res.redirect("/?auth=err");
+    if (!info || info.aud !== cid || !info.email) {
+      console.error("[google] id_token check failed: " + (!info ? "empty tokeninfo response" : info.aud !== cid ? "aud mismatch (expected this app client id, got " + String(info.aud || "none").slice(0, 80) + ")" : "no email on the Google profile") + " [RP-GFIX]");
+      return res.redirect("/?auth=err");
+    }
     // [RP-V7.117] Verified Google identity → one-time handoff code.
     // The account is matched by the verified (normalized) email, so
     // an existing member who signed up with that email signs straight
@@ -17240,7 +17274,10 @@ app.get("/auth/google/callback", async (req, res) => {
     }
     const gCode = googleHandoffPut({ email: gEmail, name: gName, userId: gUser ? gUser.id : null });
     res.redirect("/?auth=google&g=" + encodeURIComponent(gCode));
-  } catch (e) { res.redirect("/?auth=err"); }
+  } catch (e) {
+    console.error("[google] callback exception: " + (e && e.message ? e.message : String(e)) + " [RP-GFIX]");
+    res.redirect("/?auth=err");
+  }
 });
 // [RP-V7.117] Google handoff store: code → { email, name, userId|null,
 // exp }. In-memory only (10-minute life) — a server restart simply
