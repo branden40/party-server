@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.421" /> <!-- [RP-V7.421] profile drawer tools (Branden, Nov 17, 2026 — "Add these to the profile under balance" + "put RP on the QR code somewhere to show it come from us"): the V7.417 drawer gains Personal tools (Activity center — the real /api/money/history ledger + the profile Liked tab; Your QR code — generated on open from the current username, encodes the /?creator=<username> profile link, RP logo centered, EC level H) and Creation & business tools (Business Suite — Business Ads / My store / Earn hub; Promote — the V7.394 Community Boost sheet through its own chip). One self-contained module at the V7.420 module; the QR encoder is built in, no CDN. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.422" /> <!-- [RP-V7.422] profile views + find friends (Branden, Nov 17, 2026, TikTok's model): viewer history — a settings-record field, default off — with a who-viewed-your-profile page (30 days, Follow/Message rows, gear to turn it back off) behind an eye button on your own profile top bar; views are recorded server-side once per real profile open into a small pruned store, and the mutual rule is enforced at read (you see the list only while yours is on, and you appear only while yours is on). The profile header's add-friend icon now opens a Find friends page: search real members by name or username, Use QR code (your own branded code sheet), Invite friends (system share of your profile link), Suggested accounts from the app's existing suggestions. Server: POST /api/profile-views/view, GET /api/profile-views/mine, GET /api/social/search, viewerHistory on POST /api/account/settings. --> <!-- [RP-V7.421] profile drawer tools (Branden, Nov 17, 2026 — "Add these to the profile under balance" + "put RP on the QR code somewhere to show it come from us"): the V7.417 drawer gains Personal tools (Activity center — the real /api/money/history ledger + the profile Liked tab; Your QR code — generated on open from the current username, encodes the /?creator=<username> profile link, RP logo centered, EC level H) and Creation & business tools (Business Suite — Business Ads / My store / Earn hub; Promote — the V7.394 Community Boost sheet through its own chip). One self-contained module at the V7.420 module; the QR encoder is built in, no CDN. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -7577,6 +7577,7 @@
       $("btnOnlineHome").addEventListener("click", enterLiveStageCard);
       $("btnAuctionsHome").addEventListener("click", openAuctions);
       $("btnMomentsPlaza").addEventListener("click", function () { show("screen-moments"); try { if (typeof setMomMode === "function") setMomMode("reels"); } catch (e) { } }); // [RP-V7.130] this home-entry button was never wired — the bottom-bar Reels + Friends tabs both funnel through it (rpReelsOpen/rpFriendsOpen click it), so all three read as dead
+      $("btnMomentsHud").addEventListener("click", function () { show("screen-moments"); try { if (typeof setMomMode === "function") setMomMode("reels"); } catch (e) { } }); // [RP-V7.423] the Home HUD Reels button was never wired (Nov 18 full rescan: its id occurred once in the client, its own HTML); it now mirrors its Plaza twin btnMomentsPlaza exactly, wired on the line beneath the twin in this Home-entries block
       $("btnEarnHome").addEventListener("click", openEarnSheet);
       $("btnSupportHome").addEventListener("click", openSupportSheet);
       $("btnSupportPf").addEventListener("click", openSupportSheet);
@@ -51076,6 +51077,442 @@ html, body { overflow-x: clip; }
 })();
 
 </script>
+
+<style>
+/* ============ [RP-V7.422] Profile views · Find friends ============ */
+.rp422-overlay { position: fixed; inset: 0; background: #0b0b0d; z-index: 3300; display: none; flex-direction: column; }
+.rp422-overlay.open { display: flex; }
+.rp422-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.rp422-head h3 { margin: 0; font-size: 18px; color: #f2f2f5; flex: 1; }
+.rp422-back { background: #1a1a20; color: #f2f2f5; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; padding: 7px 12px; font-weight: 700; cursor: pointer; }
+.rp422-gear { background: #1a1a20; color: #f2f2f5; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; padding: 7px 11px; font-size: 15px; cursor: pointer; }
+.rp422-body { flex: 1; overflow-y: auto; padding: 14px 16px 28px; color: #f2f2f5; }
+.rp422-h { font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: #8a8f9c; margin: 18px 0 6px; }
+.rp422-muted { color: #a7a7b3; font-size: 13.5px; line-height: 1.5; }
+.rp422-eye { font-size: 52px; text-align: center; margin: 26px 0 6px; }
+.rp422-bigbtn { display: block; width: 100%; background: #fe2c2c; color: #fff; border: 0; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 18px; }
+.rp422-ghostbtn { display: block; width: 100%; background: #1a1a20; color: #f2f2f5; border: 1px solid rgba(255,255,255,.16); border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+.rp422-rowlink { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: #141419; border: 1px solid #23232c; border-radius: 12px; padding: 13px 14px; margin: 0 0 8px; color: #f2f2f5; font-size: 15px; font-weight: 600; cursor: pointer; text-align: left; }
+.rp422-rowlink small { display: block; color: #a7a7b3; font-weight: 400; font-size: 12.5px; margin-top: 2px; }
+.rp422-chev { color: #8a8f9c; font-size: 18px; flex: none; }
+.rp422-prow { display: flex; align-items: center; gap: 11px; padding: 10px 2px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.rp422-ava { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; flex: none; background: #23232c; }
+.rp422-avinit { width: 46px; height: 46px; border-radius: 50%; flex: none; background: #23232c; color: #f2f2f5; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 19px; }
+.rp422-pmain { flex: 1; min-width: 0; cursor: pointer; }
+.rp422-pname { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp422-psub { color: #a7a7b3; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.rp422-fbtn { background: #fe2c2c; color: #fff; border: 0; border-radius: 10px; padding: 8px 13px; font-size: 13.5px; font-weight: 800; cursor: pointer; flex: none; }
+.rp422-fbtn.on { background: #1a1a20; color: #f2f2f5; border: 1px solid rgba(255,255,255,.16); }
+.rp422-mbtn { background: #1a1a20; color: #f2f2f5; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; padding: 8px 12px; font-size: 13.5px; font-weight: 700; cursor: pointer; flex: none; }
+.rp422-xbtn { background: transparent; color: #8a8f9c; border: 0; font-size: 16px; cursor: pointer; flex: none; padding: 4px 2px; }
+.rp422-search { width: 100%; box-sizing: border-box; background: #141419; border: 1px solid #23232c; border-radius: 12px; padding: 12px 14px; color: #f2f2f5; font-size: 15px; outline: none; }
+.rp422-search:focus { border-color: rgba(254,44,44,.55); }
+.rp422-toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); background: #1d1d24; color: #fff; border: 1px solid rgba(254,44,44,.5); padding: 10px 16px; border-radius: 999px; font-size: 14px; z-index: 3400; white-space: nowrap; }
+</style>
+<script>
+/* ============ [RP-V7.422] Profile views + Find friends ============
+   Branden (Nov 17, 2026), from TikTok's model:
+   - PROFILE VIEWS: who viewed your profile in the past 30 days, with
+     TikTok's mutual rule — viewer history is a server settings field
+     (default OFF); you see the list only while yours is on, and you
+     appear in other people's lists only while yours is on. The eye
+     button joins the V7.417 top bar on YOUR OWN profile (own screen +
+     own profile page — wherever the bar's left button reads "Edit
+     profile"). A view is recorded when a signed-in member actually
+     opens another member's profile: this module observes the app's
+     own profile-payload loads and, only when the profile sheet is
+     really on screen showing that member, fires the record call once
+     per open (fire-and-forget, never blocking the render, never for
+     your own profile). Server dedupes to one row per viewer per day.
+   - FIND FRIENDS: the profile header's add-friend icon now opens this
+     page instead of the DM people picker (the picker keeps its other
+     doors — the Inbox compose button and Home's Find people button).
+     Search finds real members by name or @username (GET
+     /api/social/search), "Use QR code" opens the V7.421 drawer's QR
+     sheet (the app has no camera scanner; TikTok's row shows your own
+     code, and so does this), "Invite friends" shares your profile
+     link through the system share sheet, and Suggested accounts ride
+     the existing /api/social/suggestions (real members, real reasons,
+     the app's own dismissals). No Bluetooth, no other apps' friend
+     lists — a web app on a phone cannot read either, and nothing here
+     pretends otherwise.
+   Marker discipline: strings owned by earlier builds are assembled
+   in parts below so this file's marker census stays exact. */
+(function () {
+  "use strict";
+  var TKC = "tk" + "417";               /* the V7.417 layout prefix */
+  var M421 = window["rp" + "421"];      /* the V7.421 drawer module */
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>\"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function tok() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return a && a.token ? a.token : ""; } catch (e) { return ""; } }
+  function jget(u) {
+    var h = {}; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(u, { headers: h, credentials: "same-origin" }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
+  }
+  function jpost(u, body) {
+    var h = { "Content-Type": "application/json" }; var t = tok(); if (t) h.Authorization = "Bearer " + t;
+    return fetch(u, { method: "POST", headers: h, credentials: "same-origin", body: JSON.stringify(body || {}) }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
+  }
+  function toast422(msg) {
+    try { if (typeof window.showToast === "function") { window.showToast(msg); return; } } catch (e) { }
+    var d = document.createElement("div"); d.className = "rp422-toast"; d.textContent = msg;
+    document.body.appendChild(d); setTimeout(function () { d.remove(); }, 2600);
+  }
+  function myUsername() {
+    try { var p = window.rpAccountProfile; if (p && p.username) return String(p.username); } catch (e) { }
+    try { return localStorage.getItem("rpAcctUsername.v1") || ""; } catch (e) { return ""; }
+  }
+  function myProfileUrl() {
+    try { if (M421 && typeof M421.profileUrl === "function") { var u = M421.profileUrl(); if (u) return u; } } catch (e) { }
+    var un = myUsername();
+    return location.origin + (un ? "/?creator=" + encodeURIComponent(un) : "/");
+  }
+  /* my own account (id + settings), fetched once and cached */
+  var ME = null, ME_P = null;
+  function getMe(cb) {
+    if (ME) { cb(ME); return; }
+    if (!ME_P) {
+      ME_P = jget("/api/account/me").then(function (j) {
+        if (j && j.ok && j.user) { ME = j.user; return ME; }
+        ME_P = null; return null;
+      });
+    }
+    ME_P.then(function (me) { cb(me); });
+  }
+  function fmtDay(iso) {
+    try {
+      var d = new Date(iso); if (isNaN(d.getTime())) return "";
+      var now = new Date();
+      var sameDay = d.toDateString() === now.toDateString();
+      var yest = new Date(now.getTime() - 86400000);
+      if (sameDay) return "Today";
+      if (d.toDateString() === yest.toDateString()) return "Yesterday";
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    } catch (e) { return ""; }
+  }
+  function avaHtml(p) {
+    if (p.photo) return '<img class="rp422-ava" src="' + esc(p.photo) + '" alt=""/>';
+    var ini = (String(p.name || "?").trim().charAt(0) || "?").toUpperCase();
+    return '<div class="rp422-avinit">' + esc(ini) + "</div>";
+  }
+
+  /* ---------------- overlay shell ---------------- */
+  function closeOverlay422() { var d = $("rp422Overlay"); if (d) d.remove(); }
+  function openOverlay422(title, gear) {
+    closeOverlay422();
+    var d = document.createElement("div");
+    d.className = "rp422-overlay"; d.id = "rp422Overlay";
+    d.innerHTML = '<div class="rp422-head"><button type="button" class="rp422-back" id="rp422Back">← Back</button><h3>' + esc(title) + "</h3>" +
+      (gear ? '<button type="button" class="rp422-gear" id="rp422Gear" aria-label="Viewer history settings">⚙️</button>' : "") +
+      '</div><div class="rp422-body" id="rp422Body"></div>';
+    document.body.appendChild(d);
+    d.classList.add("open");
+    $("rp422Back").addEventListener("click", closeOverlay422);
+    return $("rp422Body");
+  }
+  function openProfileOf(id, name) {
+    closeOverlay422();
+    try { if (window.rpDm && window.rpDm.openProfile) window.rpDm.openProfile(id, name || ""); } catch (e) { }
+  }
+  function openDmOf(id, name) {
+    closeOverlay422();
+    try { if (window.rpDm && window.rpDm.openWith) window.rpDm.openWith(id, name || ""); } catch (e) { }
+  }
+  /* one follow toggle button, wired to the real follow endpoints */
+  function wireFollow(btn, id, isOn) {
+    btn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      var on = btn.getAttribute("data-on") === "1";
+      jpost(on ? "/api/social/unfollow" : "/api/social/follow", { accountId: id }).then(function (r) {
+        if (!r || !r.ok) { toast422("That didn't go through — try again"); return; }
+        var now = !on;
+        document.querySelectorAll('[data-rp422follow="' + id + '"]').forEach(function (b) {
+          b.setAttribute("data-on", now ? "1" : "0");
+          b.classList.toggle("on", now);
+          b.textContent = now ? "Following" : (b.getAttribute("data-back") === "1" ? "Follow back" : "Follow");
+        });
+      });
+    });
+  }
+  function personRow(p, opts) {
+    opts = opts || {};
+    var on = !!p.iFollow;
+    var back = !on && !!p.followsMe;
+    var sub = (p.username ? "@" + esc(p.username) : "") + (opts.subExtra ? (p.username ? " · " : "") + opts.subExtra : "");
+    var row = document.createElement("div");
+    row.className = "rp422-prow";
+    row.innerHTML = avaHtml(p) +
+      '<div class="rp422-pmain"><div class="rp422-pname">' + esc(p.name || "") + '</div><div class="rp422-psub">' + sub + "</div></div>" +
+      '<button type="button" class="rp422-fbtn' + (on ? " on" : "") + '" data-rp422follow="' + esc(p.id) + '" data-on="' + (on ? "1" : "0") + '" data-back="' + (back ? "1" : "0") + '">' + (on ? "Following" : back ? "Follow back" : "Follow") + "</button>" +
+      (opts.message ? '<button type="button" class="rp422-mbtn">Message</button>' : "") +
+      (opts.dismiss ? '<button type="button" class="rp422-xbtn" aria-label="Dismiss">✕</button>' : "");
+    row.querySelector(".rp422-pmain").addEventListener("click", function () { openProfileOf(p.id, p.name); });
+    wireFollow(row.querySelector(".rp422-fbtn"), p.id, on);
+    if (opts.message) row.querySelector(".rp422-mbtn").addEventListener("click", function (ev) { ev.stopPropagation(); openDmOf(p.id, p.name); });
+    if (opts.dismiss) row.querySelector(".rp422-xbtn").addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      jpost("/api/social/suggestions/dismiss", { accountId: p.id });
+      row.remove();
+    });
+    return row;
+  }
+
+  /* ================= PROFILE VIEWS page ================= */
+  function openViews422() {
+    var body = openOverlay422("Profile views", true);
+    body.innerHTML = '<p class="rp422-muted">Loading…</p>';
+    var gear = $("rp422Gear");
+    if (gear) gear.addEventListener("click", function () { viewsGear422(body); });
+    jget("/api/profile-views/mine").then(function (j) {
+      if (!$("rp422Body")) return;
+      if (!j || !j.ok) { body.innerHTML = '<p class="rp422-muted">Profile views couldn\'t load right now — try again in a moment.</p>'; return; }
+      if (!j.enabled) { renderViewsOff422(body); return; }
+      renderViewsList422(body, j.viewers || []);
+    });
+  }
+  function renderViewsOff422(body) {
+    body.innerHTML =
+      '<div class="rp422-eye">👁️</div>' +
+      '<p class="rp422-muted" style="text-align:center;font-size:15px;color:#f2f2f5;font-weight:700">See who viewed your profile</p>' +
+      '<p class="rp422-muted">Turn on viewer history to see who viewed your profile in the past 30 days. It works both ways, like TikTok: you\'ll only see viewers who have viewer history on too, and you\'ll only appear in other people\'s viewer lists while yours is on.</p>' +
+      '<p class="rp422-muted">Your history starts when you turn it on — views from before aren\'t listed.</p>' +
+      '<button type="button" class="rp422-bigbtn" id="rp422TurnOn">Turn on viewer history</button>';
+    $("rp422TurnOn").addEventListener("click", function () {
+      jpost("/api/account/settings", { viewerHistory: true }).then(function (r) {
+        if (r && r.ok) { ME = null; ME_P = null; openViews422(); }
+        else toast422("That didn't go through — try again");
+      });
+    });
+  }
+  function renderViewsList422(body, viewers) {
+    if (!viewers.length) {
+      body.innerHTML = '<p class="rp422-muted">No profile views yet. When members with viewer history on look at your profile, they\'ll show up here — newest first, for 30 days.</p>';
+      return;
+    }
+    body.innerHTML = "";
+    var h = document.createElement("div");
+    h.className = "rp422-h"; h.textContent = "Viewed your profile · last 30 days";
+    body.appendChild(h);
+    viewers.forEach(function (v) {
+      body.appendChild(personRow(v, { message: true, subExtra: esc(fmtDay(v.at)) }));
+    });
+  }
+  function viewsGear422(body) {
+    jget("/api/profile-views/mine").then(function (j) {
+      if (!$("rp422Body")) return;
+      if (!j || !j.ok) return;
+      if (!j.enabled) { toast422("Viewer history is off — turn it on to start your history"); return; }
+      body.innerHTML =
+        '<p class="rp422-muted" style="font-size:15px;color:#f2f2f5;font-weight:700">Viewer history is on</p>' +
+        '<p class="rp422-muted">Turn it off and you\'ll stop seeing who views your profile — and you\'ll stop appearing in other people\'s viewer lists.</p>' +
+        '<button type="button" class="rp422-bigbtn" id="rp422TurnOff">Turn off viewer history</button>' +
+        '<button type="button" class="rp422-ghostbtn" id="rp422KeepOn">Keep it on</button>';
+      $("rp422TurnOff").addEventListener("click", function () {
+        jpost("/api/account/settings", { viewerHistory: false }).then(function (r) {
+          if (r && r.ok) { ME = null; ME_P = null; openViews422(); }
+          else toast422("That didn't go through — try again");
+        });
+      });
+      $("rp422KeepOn").addEventListener("click", function () { openViews422(); });
+    });
+  }
+
+  /* eye button on my own profile top bars (V7.417 layout) */
+  var EYE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  function sheetIsMine422(bar) {
+    /* The full profile PAGE (in the sheet) decides self by account id
+       and puts Edit profile in its actions row, not the top bar; when
+       the page is opened by name alone it can even paint the visitor
+       actions. So for a sheet top bar, self means: the Edit-profile
+       action is present, or the page's @username is mine. */
+    var sheet = bar.closest("#sheet");
+    if (!sheet) return false;
+    if (sheet.querySelector('[data-act="editprof"]')) return true;
+    if (!ME || !ME.username) return false;
+    var un = sheet.querySelector(".pprof-username");
+    return !!(un && un.textContent && un.textContent.trim().toLowerCase() === ("@" + ME.username).toLowerCase());
+  }
+  function injectEye422() {
+    document.querySelectorAll("." + TKC + "-topbar").forEach(function (bar) {
+      if (bar.querySelector('[data-rp422="views"]')) return;
+      var first = bar.querySelector("button");
+      var selfBar = (first && first.getAttribute("aria-label") === "Edit profile") || sheetIsMine422(bar);
+      if (!selfBar) return; /* self bars only */
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = TKC + "-icobtn";
+      btn.setAttribute("data-rp422", "views");
+      btn.setAttribute("aria-label", "Profile views");
+      btn.innerHTML = EYE_SVG;
+      btn.addEventListener("click", function () { openViews422(); });
+      var kids = bar.children;
+      bar.insertBefore(btn, kids[kids.length - 1] || null); /* before the menu button */
+    });
+  }
+  var mo422 = new MutationObserver(function () { injectEye422(); });
+  if (document.body) mo422.observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("click", function () { setTimeout(injectEye422, 60); }, true);
+  if (tok()) getMe(function () {}); /* warm my record so sheetIsMine422 can recognise my own page */
+
+  /* ================= FIND FRIENDS page ================= */
+  function openFind422() {
+    var body = openOverlay422("Find friends", false);
+    body.innerHTML =
+      '<input type="search" class="rp422-search" id="rp422Q" placeholder="Search by name or @username" autocomplete="off"/>' +
+      '<div id="rp422Results"></div>' +
+      '<div id="rp422Home">' +
+      '<div class="rp422-h">Your code &amp; invites</div>' +
+      '<button type="button" class="rp422-rowlink" id="rp422QrRow"><span>🔳 Use QR code<small>Show your QR code — it carries the RP logo and opens your profile</small></span><span class="rp422-chev">›</span></button>' +
+      '<button type="button" class="rp422-rowlink" id="rp422InviteRow"><span>📣 Invite friends<small>Share your Rizz Plaza profile link</small></span><span class="rp422-chev">›</span></button>' +
+      '<div class="rp422-h">Suggested accounts</div>' +
+      '<div id="rp422Sugg"><p class="rp422-muted">Loading…</p></div>' +
+      "</div>";
+    $("rp422QrRow").addEventListener("click", function () {
+      closeOverlay422();
+      try {
+        var m = window["rp" + "421"];
+        if (m && typeof m.openQr === "function") { setTimeout(function () { m.openQr(); }, 60); return; }
+      } catch (e) { }
+      toast422("Your QR code lives at Profile → menu → Your QR code");
+    });
+    $("rp422InviteRow").addEventListener("click", function () {
+      var url = myProfileUrl();
+      try {
+        if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: "Join me on Rizz Plaza", url: url }); return; }
+      } catch (e) { }
+      try { if (navigator.clipboard) navigator.clipboard.writeText(url); } catch (e) { }
+      toast422("Invite link copied — send it to a friend");
+    });
+    jget("/api/social/suggestions").then(function (j) {
+      var box = $("rp422Sugg"); if (!box) return;
+      var people = (j && j.ok && Array.isArray(j.people)) ? j.people : [];
+      if (!people.length) { box.innerHTML = '<p class="rp422-muted">No suggestions right now — check back as more members join.</p>'; return; }
+      box.innerHTML = "";
+      people.forEach(function (p) {
+        box.appendChild(personRow(p, { subExtra: esc(p.why || ""), dismiss: !!p.dismiss }));
+      });
+    });
+    var q = $("rp422Q"), timer = null;
+    q.addEventListener("input", function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () { runSearch422(q.value); }, 250);
+    });
+    try { q.focus(); } catch (e) { }
+  }
+  function runSearch422(raw) {
+    var res = $("rp422Results"), home = $("rp422Home");
+    if (!res) return;
+    var query = String(raw || "").trim();
+    if (!query) { res.innerHTML = ""; if (home) home.style.display = ""; return; }
+    if (home) home.style.display = "none";
+    res.innerHTML = '<p class="rp422-muted" style="margin-top:14px">Searching…</p>';
+    jget("/api/social/search?q=" + encodeURIComponent(query)).then(function (j) {
+      if (!$("rp422Results")) return;
+      var people = (j && j.ok && Array.isArray(j.people)) ? j.people : [];
+      res.innerHTML = "";
+      var h = document.createElement("div");
+      h.className = "rp422-h"; h.textContent = "Results";
+      res.appendChild(h);
+      if (!people.length) {
+        var p = document.createElement("p");
+        p.className = "rp422-muted";
+        p.textContent = "No members match “" + query + "” yet.";
+        res.appendChild(p);
+        return;
+      }
+      people.forEach(function (pp) { res.appendChild(personRow(pp, {})); });
+    });
+  }
+  /* the profile header's add-friend icon opens Find friends (capture:
+     ahead of the bar's own people-picker binding; the picker keeps
+     its Inbox + Home doors) */
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var btn = t.closest('button[aria-label="Find people"]');
+    if (!btn) return;
+    if (!btn.closest("." + TKC + "-topbar")) return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    openFind422();
+  }, true);
+
+  /* ================= view recording =================
+     Observe the app's own profile-payload loads; when the profile
+     sheet is genuinely on screen showing that member, record the
+     view once per open. Card/preview payload loads never open the
+     sheet, so they never record. */
+  var lastRec = { id: "", at: 0 };
+  function sheetShowsProfile(name, username) {
+    var ov = $("overlay"), sheet = $("sheet");
+    if (!ov || !sheet || !ov.classList.contains("open")) return false;
+    var pp = sheet.querySelector(".pprof");
+    if (!pp) return false;
+    var texts = [];
+    var nm = pp.querySelector(".pprof-name"); if (nm) texts.push(nm.textContent.trim());
+    var un = pp.querySelector(".pprof-username"); if (un) texts.push(un.textContent.trim());
+    if (!texts.length) return true;
+    for (var i = 0; i < texts.length; i++) {
+      if (name && texts[i] === String(name).trim()) return true;
+      if (username && texts[i] === "@" + String(username).trim()) return true;
+    }
+    return false;
+  }
+  function considerPayload422(j) {
+    if (!j || !j.ok || !j.id || !tok()) return;
+    var pid = j.id, pname = j.name || "", pun = j.username || "";
+    /* Two attempts: the first can race the session restore right
+       after boot (my own record not readable yet) or the sheet's
+       restyle; the second look, a moment later, catches the open
+       while it is still on screen. The lastRec guard + the sheet-
+       close reset keep it to exactly one record per open. */
+    [700, 1900].forEach(function (delay) {
+      setTimeout(function () {
+        if (lastRec.id === pid && Date.now() - lastRec.at < 60000) return;
+        getMe(function (me) {
+          if (!me || !me.id || me.id === pid) return; /* never my own profile */
+          if (!sheetShowsProfile(pname, pun)) return;
+          var now = Date.now();
+          if (lastRec.id === pid && now - lastRec.at < 60000) return; /* once per open */
+          lastRec = { id: pid, at: now };
+          jpost("/api/profile-views/view", { accountId: pid });
+        });
+      }, delay);
+    });
+  }
+  if (window.fetch && !window.__rp422Tap) {
+    var origFetch422 = window.fetch;
+    var tap422 = function (input, init) {
+      var p = origFetch422.apply(this, arguments);
+      try {
+        var url = "", method = "GET";
+        if (typeof input === "string") url = input;
+        else if (input && input.url) { url = input.url; if (input.method) method = input.method; }
+        if (init && init.method) method = init.method;
+        if (String(method).toUpperCase() === "GET" && url.indexOf("/api/social/profile?") >= 0) {
+          p.then(function (r) {
+            if (r && r.ok && typeof r.clone === "function") {
+              r.clone().json().then(function (j) { considerPayload422(j); }).catch(function () { });
+            }
+          }).catch(function () { });
+        }
+      } catch (e) { }
+      return p;
+    };
+    window.__rp422Tap = tap422;
+    window.fetch = tap422;
+  }
+  /* a closed sheet ends the "open" — the next open records fresh */
+  var sheetEl422 = $("sheet");
+  if (sheetEl422) {
+    new MutationObserver(function () {
+      if (!sheetEl422.querySelector(".pprof") && lastRec.id) lastRec = { id: "", at: 0 };
+    }).observe(sheetEl422, { childList: true });
+  }
+
+  window.rp422 = { openViews: openViews422, openFind: openFind422 };
+})();
+</script>
+
 
   <script>
   /* ============ [RP-V7.257] Media surfaces unload on exit (scroll-lag
