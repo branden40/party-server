@@ -184,6 +184,12 @@ function fyRankLives(user, snap, pre) {
       (following.has(hid) || fyDecayed(aff[hid], now) > 0)
     )
       s += 6;
+    // [RP-BRAIN] League + boost join the live score: the host's win
+    // streak and league points (through the brain's league adapter —
+    // zero until the league build's fields ride the snapshot) and
+    // this live's real boost pool lift the live in the directory
+    // order. The badges themselves stay the league build's job.
+    s += brainLiveExtra(e);
     s += Math.min(10, (e.watchers || 0) * 1);
     const ageMin = (now - (e.startedAt || now)) / 60000;
     if (isFinite(ageMin) && ageMin >= 0) s += 6 * Math.pow(0.5, ageMin / 45);
@@ -198,42 +204,22 @@ function fyRankLives(user, snap, pre) {
   const fresh = snap
     .slice()
     .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0) || String(a.key).localeCompare(String(b.key)));
-  const out = [];
-  const used = new Set();
-  let f = 0;
-  scored.forEach((it, i) => {
-    out.push(it.e);
-    used.add(it.e.key);
-    if ((i + 1) % 5 === 0) {
-      while (f < fresh.length && used.has(fresh[f].key)) f++;
-      if (f < fresh.length) {
-        out.push(fresh[f]);
-        used.add(fresh[f].key);
-        f++;
-      }
-    }
-  });
-  return out;
+  // [RP-BRAIN] dedupe-safe interleave (the old loop double-listed
+  // every spliced live — the same defect as the reels ranker).
+  return brainInterleave(scored.map((x) => x.e), fresh, (e) => e.key);
 }
 // The lives-update payload FOR ONE SOCKET: signed-in sockets (identity
 // from acct-presence) get their personal order + ranked:true; guests
-// get the registry order exactly as it has always been. The registry
+// get the brain's global live order (RP-BRAIN). The registry
 // and discovery mechanics are untouched — only the ORDER of the list
 // inside the payload differs per recipient.
-// [RP-V7.41] Discovery lift for the DEFAULT (guest / unranked) order
-// only: lives with an OPEN Plaza Pot sort ahead of pot-less lives — a
-// stable partition, so relative order inside each group is exactly
-// the registry order it has always been. Ranked members keep their
-// pure V7.40 affinity order (the pot just displays there).
-function potLiftOrder(snap) {
-  const withPot = [];
-  const plain = [];
-  for (const e of snap) {
-    if (e.pot && e.pot.status === "open") withPot.push(e);
-    else plain.push(e);
-  }
-  return withPot.concat(plain);
-}
+// [RP-BRAIN] The DEFAULT (guest / unranked) live order is the
+// brain's global live score now — brainGuestLiveOrder in the brain
+// module (watchers + boost + league adapter + open-pot + recency).
+// It replaces the V7.41 pot partition: an open pot is still a lift
+// (+3), but as one real signal among the others, not a hard
+// sort-ahead of every hotter live. Ranked members keep their
+// personal fyRankLives order (the pot just displays there).
 function livesPayloadFor(socket, snap, pre) {
   // [RP-V7.63] snap/pre are optional preloads from broadcastLives: ONE
   // snapshot + ONE read of each shared store per broadcast, shared by
@@ -247,9 +233,9 @@ function livesPayloadFor(socket, snap, pre) {
   // live exists — not even as a slot in its For You order.
   const shot = (snap || livesSnapshot()).filter((e) => liveVisibleTo138(socket, e));
   const acctId = socket && socket.data && socket.data.accountId;
-  if (!acctId) return { lives: potLiftOrder(shot) };
+  if (!acctId) return { lives: brainGuestLiveOrder(shot) };
   const user = ((pre && pre.accounts) || readAccounts()).users.find((u) => u.id === acctId);
-  if (!user || user.deletionAt) return { lives: potLiftOrder(shot) };
+  if (!user || user.deletionAt) return { lives: brainGuestLiveOrder(shot) };
   return { lives: fyRankLives(user, shot, pre), ranked: true };
 }
 function broadcastLives() {
@@ -4484,7 +4470,18 @@ app.get("/api/reels", (req, res) => {
   // feed); the block + audience filters below still apply.
   const gamingOnly = req.query.category === "gaming";
   if (gamingOnly) baseList = baseList.filter((r) => r && r.category === "gaming");
-  const allRanked = (!friendsOnly && !gamingOnly && fyUser) ? fyRankReels(fyUser, baseList) : baseList;
+  // [RP-BRAIN] EVERY feed off this route is brain-ordered now:
+  // signed-in main = fyRankReels (the personal brain, scores
+  // unchanged); Friends = the brain inside the followed set; Gaming
+  // = the brain (personal when signed in, global for guests);
+  // guests = the brain's global content score. The block + audience
+  // filters below still run after ranking, exactly as before —
+  // ranking only ever orders what passes the gates.
+  let allRanked;
+  if (friendsOnly) allRanked = fyUser ? brainRankReelsFor(fyUser, baseList, "friends") : baseList;
+  else if (gamingOnly) allRanked = brainRankReelsFor(fyUser, baseList, "gaming");
+  else if (fyUser) allRanked = fyRankReels(fyUser, baseList);
+  else allRanked = brainRankReelsFor(null, baseList, "foryou");
   // [RP-V7.99] Mutual block invisibility for signed-in callers:
   // blocked (either direction) authors' reels leave the list.
   let all = allRanked;
@@ -4633,7 +4630,7 @@ app.get("/api/reels", (req, res) => {
         : {}),
     };
   });
-  res.json({ ok: true, reels: list, ...(fyUser ? { ranked: true } : {}) });
+  res.json({ ok: true, reels: list, ranked: true }); // [RP-BRAIN] every caller gets a brain-ordered list now; ranked:true tells clients to keep the server order
 });
 
 // ---------------------------------------------------------------------------
@@ -4894,9 +4891,11 @@ app.get("/api/tag/:tag", (req, res) => {
   let adb296tag = null;
   try { adb296tag = readAccounts(); } catch (e) { adb296tag = null; }
   const nameOf313tag = nameResolver313(adb296tag); // [RP-V7.313]
-  const reels = listReels()
-    .filter((r) => r && hasTag(r.caption))
-    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+  // [RP-BRAIN] A tag page is a discovery surface — its reels are
+  // brain-ordered (personal when signed in, global for guests),
+  // not pure chronology.
+  const tagViewerBrain = uid && adb296tag ? adb296tag.users.find((u) => u.id === uid) || null : null;
+  const reels = brainRankReelsFor(tagViewerBrain, listReels().filter((r) => r && hasTag(r.caption)), "tag")
     .slice(0, 60)
     .map((r) => {
       // [RP-V7.313] current-name byline for both returns below
@@ -4938,8 +4937,13 @@ app.get("/api/tag/:tag", (req, res) => {
   const likesDb = readPhotoLikes();
   const commentsDb = readPhotoComments();
   const repostsDb = readPhotoReposts();
-  const photos = readPhotoPosts()
-    .posts.filter((x) => x && x.kind !== "text" && hasTag(x.caption)) // [RP-V7.278] tag views render photo tiles — text posts stay out (their hashtags still surface photos/reels)
+  // [RP-BRAIN] tag photos are brain-ordered too (engagement +
+  // recency via brainRankTagPhotos), not raw store order.
+  const photos = brainRankTagPhotos(
+    readPhotoPosts()
+      .posts.filter((x) => x && x.kind !== "text" && hasTag(x.caption)), // [RP-V7.278] tag views render photo tiles — text posts stay out (their hashtags still surface photos/reels)
+    likesDb, commentsDb
+  )
     .slice(0, 60)
     .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296tag, clubAccess298tag, nameOf313tag)); // [RP-V7.298] club set rides along // [RP-V7.313] byline resolver rides too
   res.json({ ok: true, tag, reels, photos });
@@ -7396,6 +7400,236 @@ function fyViralScore276(agg, views, createdAtMs, now) {
   const skipPen = views > 0 ? Math.max(0, 1 - 2 * ((a.fastSkips || 0) / views)) : 1;
   return (Math.log(1 + eng) + 2.5 * Math.log(1 + velocity)) * skipPen;
 }
+// ---------------------------------------------------------------------------
+// [RP-BRAIN] THE BRAIN — ONE scoring module for every surface
+// (Branden, Nov 18, 2026: "make sure the brain and algorithm is in
+// every nook and cranny through the app" / "Everything!"). Before
+// this build the Plaza's interest brain (the reel-signals store:
+// decayed author affinity + style affinity, 7-day half-life) reached
+// SOME surfaces — fyScoreReel for For You, fyRankLives for the
+// signed-in live directory, capped timestamp lifts for Feed / Photos
+// / Store — while others were plain chronology (Gaming clips, the
+// Friends feed inside its followed set, guest For You, guest Live
+// Now, tag pages), and the exploration interleave in both rankers
+// double-listed every spliced item. This module is the shared core
+// those surfaces now all read:
+//
+//   brainInterleave      the dedupe-safe exploration interleave
+//                        (the For You dedupe fix; fyRankReels and
+//                        fyRankLives both call it now)
+//   brainCtxFor          one read of the shared stores per ranking
+//   brainScoreReelFor    personal content score for the surfaces
+//                        that had none (Friends / Gaming / Tag):
+//                        2.5x author affinity + 2.5x style + follow
+//                        (Gaming only, +12 — the Friends set is
+//                        followed-only, so a follow term there would
+//                        be a constant) + the post's own engagement
+//                        (likes + 2x comments + 2x reposts + 0.5x
+//                        gift units, log-scaled, cap +6) + watch-
+//                        aggregate popularity (-4..+7, the
+//                        fyScoreReel shape) + recency (+8, 48h
+//                        half-life) - 15 seen-fully penalty
+//   brainScoreReelGlobal the same idea with NO personal signals
+//                        (guests): 3 x log(1 + views + 3 likes +
+//                        4 comments + 4 reposts + 2 gift units),
+//                        a fast-skip discount from the watch
+//                        aggregates, + recency (+6, 72h half-life)
+//   brainLiveExtra       league + boost terms for live ranking
+//   brainLeagueOf        THE LEAGUE ADAPTER (see its own comment)
+//   brainGuestLiveOrder  guest / unranked live order: watchers
+//                        (+1 each, cap 10) + brainLiveExtra +
+//                        open-pot +3 + just-started recency (+6,
+//                        45-min half-life) — replaces the V7.41 pot
+//                        partition with the pot as one signal
+//   brainFeedEngLift     a Feed post's own engagement as lift hours
+//   brainRankTagPhotos   tag-page photo order (engagement + recency)
+//
+// Rules held: scores compute ONLY from real stored activity; every
+// surface's visibility / audience / block filters run BEFORE ranking
+// exactly as they always have (ranking only orders what passed the
+// gates); Trending / Viral / Add-Sound math is untouched; no
+// commerce signal is added to any church / Fellowship surface.
+// ---------------------------------------------------------------------------
+function brainInterleave(ranked, fresh, keyOf) {
+  const out = [];
+  const used = new Set();
+  let f = 0;
+  let placed = 0;
+  const push = (it) => {
+    const k = keyOf(it);
+    if (k == null || used.has(k)) return false;
+    used.add(k);
+    out.push(it);
+    return true;
+  };
+  for (const it of ranked) {
+    if (!push(it)) continue;
+    placed++;
+    if (placed % 5 === 0) {
+      while (f < fresh.length && used.has(keyOf(fresh[f]))) f++;
+      if (f < fresh.length) { push(fresh[f]); f++; }
+    }
+  }
+  return out;
+}
+function brainCtxFor(userId, pre) {
+  const sig = (pre && pre.sig) || readReelSignals();
+  const urec = userId ? sig.users[userId] || null : null;
+  const following = new Set(
+    userId ? socialFollowingIds((pre && pre.social) || readSocial(), userId) : []
+  );
+  const accountsDb = (pre && pre.accounts) || readAccounts();
+  return { sig, urec, following, accountsDb };
+}
+function brainReelEng(sig, vdb, pg, r) {
+  return {
+    views: vdb ? mediaViewCount(vdb, "reel:" + r.id) : 0,
+    likes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
+    comments: Array.isArray(r.comments) ? r.comments.length : 0,
+    reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
+    gifts: postGiftCountOf262(pg, "reel", r.id),
+  };
+}
+function brainScoreReelFor(ctx, userId, r, eng, now, mode) {
+  const key = reelAuthorKeyFor(ctx.accountsDb, r);
+  const isOwn = !!userId && key === userId;
+  let s = 0;
+  if (ctx.urec && key && !isOwn) {
+    s += 2.5 * fyDecayed((ctx.urec.authorAff || {})[key], now);
+    s += 2.5 * fyStyleWeight(ctx.urec, styleKeysForCaption(r.caption), now);
+  }
+  if (!isOwn && key && mode === "gaming" && ctx.following.has(key)) s += 12;
+  s += Math.min(6, 0.9 * Math.log(1 + eng.likes + 2 * eng.comments + 2 * eng.reposts + 0.5 * eng.gifts));
+  const agg = ctx.sig.reels[r.id];
+  if (agg && agg.views > 0) {
+    const pop =
+      5 * Math.min(1, ((agg.completes || 0) + (agg.likes || 0)) / agg.views) +
+      2 * Math.min(1, agg.views / 20) -
+      4 * ((agg.fastSkips || 0) / agg.views);
+    s += Math.max(-4, Math.min(7, pop));
+  } else if (eng.views > 0) {
+    s += 2 * Math.min(1, eng.views / 20);
+  }
+  const ageH = (now - Date.parse(r.createdAt || "")) / 3600000;
+  if (isFinite(ageH) && ageH >= 0) s += 8 * Math.pow(0.5, ageH / 48);
+  if (
+    ctx.urec && ctx.urec.seenFull && ctx.urec.seenFull[r.id] &&
+    now - ctx.urec.seenFull[r.id] < 24 * 3600 * 1000
+  )
+    s -= 15;
+  return s;
+}
+function brainScoreReelGlobal(ctx, r, eng, now) {
+  let s = 0;
+  s += 3 * Math.log(1 + eng.views + 3 * eng.likes + 4 * eng.comments + 4 * eng.reposts + 2 * eng.gifts);
+  const agg = ctx.sig.reels[r.id];
+  if (agg && agg.views > 0) s -= 4 * ((agg.fastSkips || 0) / agg.views);
+  const ageH = (now - Date.parse(r.createdAt || "")) / 3600000;
+  if (isFinite(ageH) && ageH >= 0) s += 6 * Math.pow(0.5, ageH / 72);
+  return s;
+}
+function brainRankReelsFor(user, list, mode) {
+  const now = Date.now();
+  const ctx = brainCtxFor(user ? user.id : null, null);
+  let vdb = null;
+  let pg = {};
+  try { vdb = readViews(); } catch (e) { }
+  try { pg = readMoney().postGifts || {}; } catch (e) { }
+  const scored = list.map((r) => ({
+    r,
+    s: user
+      ? brainScoreReelFor(ctx, user.id, r, brainReelEng(ctx.sig, vdb, pg, r), now, mode)
+      : brainScoreReelGlobal(ctx, r, brainReelEng(ctx.sig, vdb, pg, r), now),
+  }));
+  scored.sort(
+    (a, b) =>
+      b.s - a.s ||
+      String(b.r.createdAt).localeCompare(String(a.r.createdAt)) ||
+      String(b.r.id).localeCompare(String(a.r.id))
+  );
+  const ranked = scored.map((x) => x.r);
+  if (mode === "friends") {
+    // Followed-only feed: pure brain order, no exploration splice —
+    // the set is already the member's own circle. Deduped by id.
+    const seen = new Set();
+    return ranked.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+  }
+  const fresh = list
+    .slice()
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)) || String(b.id).localeCompare(String(a.id)));
+  return brainInterleave(ranked, fresh, (r) => r.id);
+}
+// [RP-BRAIN] LEAGUE ADAPTER — the ONLY door through which league
+// standing enters ranking. The battle-league build owns the league
+// store, the weekly points and the badges; this adapter reads the
+// standing off the live snapshot entry's league view — the
+// server-computed badge object the league build rides on every
+// snapshot entry: e.league = { streak, div, rank, lp, label }
+// (leagueView in the league module). A missing or malformed view
+// returns zeros — live order is then exactly the pre-league brain.
+// [RP-BRAIN re-base note, Nov 18: the league build shipped the
+// standing as this nested view, NOT as flat winStreak / leagueLP
+// fields, so this adapter — the only function the BUILD.md said to
+// touch — reads e.league.streak / e.league.lp. Nothing else in the
+// brain changed.]
+// Terms: win streak +1.5 each (cap +6); league points +1 per 25
+// (cap +8) — a top league host lifts about like a followed host
+// (+12), never above real affinity + current watchers combined.
+function brainLeagueOf(e) {
+  const lg = e && e.league && typeof e.league === "object" ? e.league : null;
+  const streak = lg && typeof lg.streak === "number" && isFinite(lg.streak) ? Math.max(0, lg.streak) : 0;
+  const lp = lg && typeof lg.lp === "number" && isFinite(lg.lp) ? Math.max(0, lg.lp) : 0;
+  return { streak, lp, score: Math.min(6, 1.5 * streak) + Math.min(8, lp / 25) };
+}
+function brainLiveExtra(e) {
+  const boost = e && typeof e.boost === "number" && isFinite(e.boost) ? e.boost : 0;
+  return Math.min(4, boost / 250) + brainLeagueOf(e).score;
+}
+function brainLiveGlobalScore(e, now) {
+  let s = 0;
+  s += Math.min(10, (e.watchers || 0) * 1);
+  s += brainLiveExtra(e);
+  if (e.pot && e.pot.status === "open") s += 3;
+  const ageMin = (now - (e.startedAt || now)) / 60000;
+  if (isFinite(ageMin) && ageMin >= 0) s += 6 * Math.pow(0.5, ageMin / 45);
+  return s;
+}
+function brainGuestLiveOrder(snap) {
+  const now = Date.now();
+  return snap
+    .slice()
+    .sort(
+      (a, b) =>
+        brainLiveGlobalScore(b, now) - brainLiveGlobalScore(a, now) ||
+        (b.startedAt || 0) - (a.startedAt || 0) ||
+        String(a.key).localeCompare(String(b.key))
+    );
+}
+function brainFeedEngLift(p, pg) {
+  const likes = Array.isArray(p.likes) ? p.likes.length : 0;
+  const comments = Array.isArray(p.comments) ? p.comments.length : 0;
+  const reposts =
+    (Array.isArray(p.reposts) ? p.reposts.length : 0) +
+    (Array.isArray(p.reshares) ? p.reshares.length : 0);
+  const gifts = pg ? pg["feed:" + p.id] || 0 : 0;
+  return Math.min(6, 0.25 * likes + 0.5 * comments + 0.5 * reposts + Math.min(2, gifts * 0.1));
+}
+function brainRankTagPhotos(posts, likesDb, commentsDb) {
+  const now = Date.now();
+  let vdb = null;
+  try { vdb = readViews(); } catch (e) { }
+  const scored = posts.map((p, i) => {
+    const likes = likesDb && likesDb.photos && Array.isArray(likesDb.photos[p.id]) ? likesDb.photos[p.id].length : 0;
+    const comments = commentsDb && commentsDb.photos && Array.isArray(commentsDb.photos[p.id]) ? commentsDb.photos[p.id].length : 0;
+    const views = vdb ? mediaViewCount(vdb, "photopost:" + p.id) : 0;
+    const tsMs = p && typeof p.ts === "number" ? p.ts : Date.parse((p && p.ts) || "") || 0; // photo ts is epoch ms in the store (photoScoreOf reads it numerically); accept ISO too
+    const ageH = (now - tsMs) / 3600000;
+    const rec = isFinite(ageH) && ageH >= 0 ? 6 * Math.pow(0.5, ageH / 72) : 0;
+    return { p, i, s: 3 * Math.log(1 + views + 3 * likes + 4 * comments) + rec };
+  });
+  scored.sort((a, b) => b.s - a.s || a.i - b.i);
+  return scored.map((x) => x.p);
+}
 // Score one reel for one member. Weights, highest first: author affinity
 // (×2.5), followed-author boost (+12), popularity from the aggregates
 // (−4..+7), gentle recency (≤ +8, 48h half-life); −15 for a reel the
@@ -7448,22 +7682,12 @@ function fyRankReels(user, newestFirst) {
       String(b.r.createdAt).localeCompare(String(a.r.createdAt)) ||
       String(b.r.id).localeCompare(String(a.r.id))
   );
-  const out = [];
-  const used = new Set();
-  let f = 0;
-  scored.forEach((it, i) => {
-    out.push(it.r);
-    used.add(it.r.id);
-    if ((i + 1) % 5 === 0) {
-      while (f < newestFirst.length && used.has(newestFirst[f].id)) f++;
-      if (f < newestFirst.length) {
-        out.push(newestFirst[f]);
-        used.add(newestFirst[f].id);
-        f++;
-      }
-    }
-  });
-  return out;
+  // [RP-BRAIN] The exploration interleave is the brain module's
+  // dedupe-safe one now: the old loop pushed every scored item
+  // unconditionally, so each exploration-spliced reel was listed
+  // TWICE (the known For You defect — 16 of 84 reels at last count).
+  // The scores above are unchanged.
+  return brainInterleave(scored.map((x) => x.r), newestFirst, (r) => r.id);
 }
 // [RP-V7.51] Toggle the caller's reaction on a photo post or a reel.
 // Session-only (requireAccount → 401 signed out); pending-deletion
@@ -8730,28 +8954,31 @@ app.get("/api/photo/posts", (req, res) => {
   let ranked276 = false;
   if (uid) {
     try {
+      // [RP-BRAIN] The lift now applies to EVERY signed-in caller:
+      // the follow term (+6h) never needed a signals record, so a
+      // member who follows people but has no learned profile yet
+      // still gets followed authors lifted. Affinity + style join
+      // when a record exists — identical math to the V7.276 lift.
       const sig276 = readReelSignals();
       const urec276 = fyUserRec(sig276, uid, false);
-      if (urec276) {
-        const aff276 = urec276.authorAff || {};
-        const fol276 = new Set(socialFollowingIds(readSocial(), uid));
-        const now276 = Date.now();
-        rawPosts99 = rawPosts99
-          .map((p, i276) => {
-            const t276 = Date.parse((p && p.ts) || "") || 0;
-            let liftH = 0;
-            if (p && p.owner && p.owner !== uid) {
-              liftH = Math.max(0, Math.min(24,
-                2.5 * fyDecayed(aff276[p.owner], now276) +
-                (fol276.has(p.owner) ? 6 : 0) +
-                2.5 * fyStyleWeight(urec276, styleKeysForCaption(p.caption), now276)));
-            }
-            return { p, i276, _t: t276 + liftH * 3600000 };
-          })
-          .sort((a, b) => b._t - a._t || a.i276 - b.i276)
-          .map((x) => x.p);
-        ranked276 = true;
-      }
+      const aff276 = (urec276 && urec276.authorAff) || {};
+      const fol276 = new Set(socialFollowingIds(readSocial(), uid));
+      const now276 = Date.now();
+      rawPosts99 = rawPosts99
+        .map((p, i276) => {
+          const t276 = Date.parse((p && p.ts) || "") || 0;
+          let liftH = 0;
+          if (p && p.owner && p.owner !== uid) {
+            liftH = Math.max(0, Math.min(24,
+              2.5 * fyDecayed(aff276[p.owner], now276) +
+              (fol276.has(p.owner) ? 6 : 0) +
+              (urec276 ? 2.5 * fyStyleWeight(urec276, styleKeysForCaption(p.caption), now276) : 0)));
+          }
+          return { p, i276, _t: t276 + liftH * 3600000 };
+        })
+        .sort((a, b) => b._t - a._t || a.i276 - b.i276)
+        .map((x) => x.p);
+      ranked276 = true;
     } catch (e) { /* ranking must never break photo posts */ }
   }
   const mdb296pp = readMoney(); // [RP-V7.298] one money read feeds both access sets
@@ -13850,7 +14077,14 @@ app.get("/api/social/search", (req, res) => {
     if (rank < 0) continue;
     rows.push({ u, rank, fol: socialFollowerIds(sdb, u.id).length });
   }
-  rows.sort((a, b) => a.rank - b.rank || b.fol - a.fol);
+  // [RP-BRAIN] Relevance still rules and follower count still
+  // breaks the first ties; the searcher's own decayed affinity is
+  // the final tiebreak, so people they actually engage with win
+  // exact ties. Wrapped: a signals read must never break search.
+  let affSearchBrain = {};
+  try { const urecSB = fyUserRec(readReelSignals(), ctx.user.id, false); if (urecSB && urecSB.authorAff) affSearchBrain = urecSB.authorAff; } catch (e) { }
+  const nowSearchBrain = Date.now();
+  rows.sort((a, b) => a.rank - b.rank || b.fol - a.fol || fyDecayed(affSearchBrain[b.u.id], nowSearchBrain) - fyDecayed(affSearchBrain[a.u.id], nowSearchBrain));
   const people = rows.slice(0, 30).map(({ u }) => {
     const p = ffPerson144(u, "");
     p.iFollow = iFollowSet.has(u.id);
@@ -14750,8 +14984,12 @@ app.get("/api/feed", (req, res) => {
     // [RP-V7.89] the lift is now author affinity + STYLE affinity (from
     // the post's caption text), still capped at 24h total.
     const styleLift = urec ? 2.5 * fyStyleWeight(urec, styleKeysForCaption(p.text), now) : 0;
+    // [RP-BRAIN] The post's OWN engagement joins the lift: its real
+    // likes / comments / reposts + the gift units it received
+    // (postGifts feed:<id>), worth up to +6h inside the same 24h cap.
+    const engLift = brainFeedEngLift(p, mdb298f.postGifts || {});
     const liftH = Math.max(0, Math.min(24,
-      2.5 * fyDecayed(aff[p.authorId], now) + (following.has(p.authorId) ? 6 : 0) + styleLift));
+      2.5 * fyDecayed(aff[p.authorId], now) + (following.has(p.authorId) ? 6 : 0) + styleLift + engLift));
     scored.push({ pub, _t: Date.parse(p.createdAt) + liftH * 3600000 });
   }
   // [RP-V7.89] Reposts surface to the reposter's FOLLOWERS in the Feed,
