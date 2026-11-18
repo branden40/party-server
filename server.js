@@ -122,6 +122,7 @@ function livesSnapshot() {
       startedAt: e.startedAt,
       watchers,
       priv: !!e.priv, // [RP-V7.138] private lives are badged for the people allowed to see them
+      gaming: !!e.gaming, // [RP-GAMING] the host's Gaming toggle — the Gaming page's Live-now section filters on it
       ticketPrice: e.ticketPrice || 0, // [RP-V7.299] ticketed lives still SHOW in discovery — badge + price ride the snapshot
       ticketSold: liveTicketSold299(e.key, e.startedAt), // [RP-V7.299] gross tickets sold for this live instance
       pot: potSnapshotFrom(potsDb, e.key, e.startedAt), // [RP-V7.41] null unless a pot is open/drawn here; [RP-V7.49] terminal pots from a previous live are scoped out
@@ -4472,7 +4473,13 @@ app.get("/api/reels", (req, res) => {
     const adbF = readAccounts();
     baseList = newest.filter((r) => { const k = reelAuthorKeyFor(adbF, r); return k && fset.has(k); });
   }
-  const allRanked = (!friendsOnly && fyUser) ? fyRankReels(fyUser, baseList) : baseList;
+  // [RP-GAMING] Category feed (?category=gaming): only reels stored
+  // with category "gaming", newest first — the For You ranker is
+  // skipped for a category feed (chronological, like the Friends
+  // feed); the block + audience filters below still apply.
+  const gamingOnly = req.query.category === "gaming";
+  if (gamingOnly) baseList = baseList.filter((r) => r && r.category === "gaming");
+  const allRanked = (!friendsOnly && !gamingOnly && fyUser) ? fyRankReels(fyUser, baseList) : baseList;
   // [RP-V7.99] Mutual block invisibility for signed-in callers:
   // blocked (either direction) authors' reels leave the list.
   let all = allRanked;
@@ -4529,6 +4536,7 @@ app.get("/api/reels", (req, res) => {
           location: "",
           link: "",
           audience: r.audience || "everyone",
+          category: r.category === "gaming" ? "gaming" : null, // [RP-GAMING]
           createdAt: r.createdAt,
           url: null,
           kind: r.kind || null,
@@ -4573,6 +4581,7 @@ app.get("/api/reels", (req, res) => {
       location: r.location || "",
       link: r.link || "",
       audience: r.audience || "everyone",
+      category: r.category === "gaming" ? "gaming" : null, // [RP-GAMING]
       createdAt: r.createdAt,
       url: "/reel-files/" + r.file,
       kind: r.kind || null,
@@ -5998,6 +6007,7 @@ app.post("/api/reel", (req, res) => {
       ...(aud156 !== "everyone" && authorUser ? { audience: aud156 } : {}),
       ...((rb156.subsOnly === "1" || rb156.subsOnly === "true" || rb156.subsOnly === true) && authorUser ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation — needs an account author (the gate keys on the account id)
       ...((rb156.clubOnly === "1" || rb156.clubOnly === "true" || rb156.clubOnly === true) && authorUser ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation — same rule
+      ...(rb.category === "gaming" ? { category: "gaming" } : {}), // [RP-GAMING] the composer's Gaming toggle at creation — only the value "gaming" is a category; anything else stores nothing (the default list ignores the field, the Gaming feed filters on it)
       ...(musicTrackId ? { musicTrackId, musicStart, musicVol, origVol } : {}),
       ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart, musicVol, origVol } : {}), // [RP-V7.335]
     });
@@ -29852,6 +29862,7 @@ io.on("connection", (socket) => {
       startedAt: prev ? prev.startedAt : now,
       lastBeat: now,
       priv: acc138.priv,
+      gaming: !!data.gaming, // [RP-GAMING] the host's Gaming toggle rides every register, exactly like priv
       ticketPrice: cfg299 ? cfg299.price : 0, // [RP-V7.299]
     });
     if (!prev) liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a NEW live invites the host's remembered viewers (public only — the helper refuses private)
