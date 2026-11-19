@@ -14205,8 +14205,51 @@ function dmEitherBlocked(db, a, b) {
 function dmUnreadCount(t, userId) {
   const since = (t.lastReadAt && t.lastReadAt[userId]) || "";
   let n = 0;
-  for (const m of t.messages) if (m.from !== userId && m.at > since) n++;
+  // [RP-V7.442] system notes (disappearing-setting changes) are not
+  // messages — they never count as unread.
+  for (const m of t.messages) if (!m.sys && m.from !== userId && m.at > since) n++;
   return n;
+}
+// [RP-V7.442] Disappearing messages (Branden, Nov 19, 2026 — "have a
+// disappearing message option — disappears after a certain time like
+// Snapchat"): the setting lives on the thread record (t.disappear =
+// { mode, setBy, setAt }); only messages sent while it is on carry an
+// expiry — timed modes stamp m.exp = sent + duration at delivery,
+// "view" stamps m.expAfterView and the recipient's thread fetch sets
+// m.exp = read + 5 minutes. Expired messages are REAL-deleted: purged
+// here and filtered out of every read path (thread fetch, inbox
+// preview, unread counts), so expired text is never served and never
+// survives as a preview.
+const DM_DISAPPEAR_MS442 = { "1h": 3600e3, "24h": 86400e3, "7d": 604800e3 };
+const DM_DISAPPEAR_LABEL442 = { view: "After viewing", "1h": "1 hour", "24h": "24 hours", "7d": "7 days" };
+const DM_VIEW_GRACE_MS442 = 5 * 60 * 1000;
+function dmMsgExpired442(m, nowMs) {
+  return !!(m && m.exp && Date.parse(m.exp) <= nowMs);
+}
+function dmUnlinkMedia442(m) {
+  // Best-effort file cleanup for a deleted DM media message — the
+  // same fire-and-forget unlink the reel/photo deletes use.
+  if (m && m.media && m.media.url) {
+    const fn = String(m.media.url).split("/photos/dm/")[1];
+    if (fn) fs.unlink(path.join(DM_DIR, fn), () => {});
+  }
+}
+function dmPurgeExpired442(t, nowMs) {
+  // Physically drop a thread's expired messages. Returns true when
+  // the thread changed (caller persists). lastAt falls back to the
+  // newest surviving message so the inbox preview never ghosts.
+  if (!t || !Array.isArray(t.messages)) return false;
+  let changed = false;
+  const kept = [];
+  for (const m of t.messages) {
+    if (dmMsgExpired442(m, nowMs)) { dmUnlinkMedia442(m); changed = true; }
+    else kept.push(m);
+  }
+  if (!changed) return false;
+  t.messages = kept;
+  const last = kept[kept.length - 1];
+  t.lastAt = last ? last.at : t.createdAt;
+  return true;
 }
 function dmIsRequestFor(socialDb, t, userId) {
   if (t.startedBy === userId || t.accepted) return false;
@@ -15544,6 +15587,17 @@ function dmDeliver(ctx, other, msg) {
     };
     db.threads[key] = t;
   }
+  // [RP-V7.442] Opportunistic purge on send + the disappearing
+  // stamp: only messages sent WHILE the setting is on expire —
+  // earlier history is untouched, and turning the setting off later
+  // never un-stamps a message already sent.
+  dmPurgeExpired442(t, Date.now());
+  const dmode442 = t.disappear && t.disappear.mode;
+  if (dmode442 && dmode442 !== "off") {
+    if (dmode442 === "view") msg.expAfterView = true;
+    else if (DM_DISAPPEAR_MS442[dmode442])
+      msg.exp = new Date(Date.parse(now) + DM_DISAPPEAR_MS442[dmode442]).toISOString();
+  }
   t.messages.push(msg);
   while (t.messages.length > 500) t.messages.shift();
   t.lastAt = now;
@@ -15596,8 +15650,13 @@ app.get("/api/dm/threads", (req, res) => {
   const inbox = [];
   const requests = [];
   let unreadTotal = 0;
+  let dmDirty442 = false; // [RP-V7.442] an expired-message purge changed a thread
   for (const t of Object.values(db.threads)) {
     if (!t || !Array.isArray(t.users) || !t.users.includes(meId)) continue;
+    // [RP-V7.442] expired disappearing messages vanish before the
+    // preview and unread count are computed — never served, never
+    // previewed.
+    if (dmPurgeExpired442(t, Date.now())) dmDirty442 = true;
     const otherId = t.users.find((u) => u !== meId);
     if (dmEitherBlocked(db, meId, otherId)) continue;
     let other = socialBrief(ctx.db, otherId);
@@ -15629,6 +15688,7 @@ app.get("/api/dm/threads", (req, res) => {
   const byTime = (x, y) => String(y.lastAt).localeCompare(String(x.lastAt));
   inbox.sort(byTime);
   requests.sort(byTime);
+  if (dmDirty442) writeDms(db); // [RP-V7.442]
   res.json({ ok: true, inbox, requests, unreadTotal });
 });
 app.get("/api/dm/thread/:userId", (req, res) => {
@@ -15646,6 +15706,19 @@ app.get("/api/dm/thread/:userId", (req, res) => {
     return res.status(404).json({ ok: false, error: "Account not found" });
   const db = readDms();
   const t = db.threads[dmThreadKey(ctx.user.id, otherId)];
+  if (t) {
+    // [RP-V7.442] Purge expired disappearing messages, and start the
+    // after-viewing clock: this fetch IS the recipient viewing, so
+    // the partner's unstamped after-viewing messages get exp = now +
+    // 5 minutes. They are still served by THIS response (the grace
+    // is running) and are gone from every later read.
+    let changed442 = dmPurgeExpired442(t, Date.now());
+    const viewExp442 = new Date(Date.now() + DM_VIEW_GRACE_MS442).toISOString();
+    for (const m of t.messages) {
+      if (m.expAfterView && !m.exp && m.from !== ctx.user.id) { m.exp = viewExp442; changed442 = true; }
+    }
+    if (changed442) writeDms(db);
+  }
   const socialDb = readSocial();
   res.json({
     ok: true,
@@ -15657,6 +15730,7 @@ app.get("/api/dm/thread/:userId", (req, res) => {
     isRequest: t ? dmIsRequestFor(socialDb, t, ctx.user.id) : false,
     blocked: dmEitherBlocked(db, ctx.user.id, otherId),
     deleted: !!gone,
+    disappear: t && t.disappear ? t.disappear : null, // [RP-V7.442] the pair's disappearing setting (either side may change it)
   });
 });
 app.post("/api/dm/send", (req, res) => {
@@ -15829,6 +15903,7 @@ app.post("/api/dm/read", (req, res) => {
   const db = readDms();
   const t = db.threads[dmThreadKey(ctx.user.id, otherId)];
   if (t) {
+    dmPurgeExpired442(t, Date.now()); // [RP-V7.442] expired messages never linger past a read
     t.lastReadAt = t.lastReadAt || {};
     t.lastReadAt[ctx.user.id] = new Date().toISOString();
     writeDms(db);
@@ -15907,6 +15982,111 @@ app.get("/api/dm/blocked", (req, res) => {
     return { id, name: "Deleted user", deleted: true };
   });
   res.json({ ok: true, blocked, hiddenIds: Array.from(blockHiddenIds(ctx.user.id)) });
+});
+// [RP-V7.442] Hold-for-options deletes + the disappearing setting
+// (Branden, Nov 19, 2026). Delete-message is an UNSEND: only the
+// author can delete their own message, and it is removed for BOTH
+// sides. Delete-conversation is a HARD delete for everyone — the
+// whole thread record goes; a later message starts a fresh thread.
+// Neither route touches blocks or any other pair's thread.
+app.post("/api/dm/delete-message", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const partnerId = String(b.partnerId || "");
+  const messageId = String(b.messageId || "");
+  const db = readDms();
+  const t = db.threads[dmThreadKey(ctx.user.id, partnerId)];
+  if (!t) return res.status(404).json({ ok: false, error: "Conversation not found" });
+  const purged442 = dmPurgeExpired442(t, Date.now());
+  const ix = t.messages.findIndex((m) => m && String(m.id) === messageId);
+  if (ix < 0) {
+    if (purged442) writeDms(db);
+    return res.status(404).json({ ok: false, error: "Message not found" });
+  }
+  const m = t.messages[ix];
+  if (m.sys)
+    return res.status(403).json({ ok: false, error: "That note can't be deleted" });
+  if (m.from !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "You can only delete your own messages" });
+  t.messages.splice(ix, 1);
+  dmUnlinkMedia442(m);
+  const last = t.messages[t.messages.length - 1];
+  t.lastAt = last ? last.at : t.createdAt;
+  writeDms(db);
+  res.json({ ok: true });
+});
+app.post("/api/dm/delete-conversation", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const partnerId = String((req.body || {}).partnerId || "");
+  const db = readDms();
+  const key442 = dmThreadKey(ctx.user.id, partnerId);
+  const t = db.threads[key442];
+  if (t) {
+    // Either participant may delete the conversation for everyone.
+    // No thread is a graceful no-op, same as read/accept/decline.
+    for (const m of t.messages) dmUnlinkMedia442(m);
+    delete db.threads[key442];
+    writeDms(db);
+  }
+  res.json({ ok: true });
+});
+app.post("/api/dm/disappear", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const partnerId = String(b.partnerId || "");
+  const mode = String(b.mode || "");
+  if (mode !== "off" && mode !== "view" && !DM_DISAPPEAR_MS442[mode])
+    return res.status(400).json({ ok: false, error: "Unknown disappearing mode" });
+  const other = ctx.db.users.find((u) => u.id === partnerId);
+  if (!other) {
+    if (isTombstonedAccount(partnerId))
+      return res.status(410).json({ ok: false, error: "This account no longer exists — this conversation is read-only now." });
+    return res.status(404).json({ ok: false, error: "Account not found" });
+  }
+  if (other.id === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't message yourself" });
+  const db = readDms();
+  const key442 = dmThreadKey(ctx.user.id, other.id);
+  let t = db.threads[key442];
+  const nowIso = new Date().toISOString();
+  if (!t) {
+    // The pair may set the option before the first message — the
+    // thread record is born holding the setting (and the note).
+    t = {
+      id: key442,
+      users: [ctx.user.id, other.id].sort(),
+      startedBy: ctx.user.id,
+      accepted: false,
+      messages: [],
+      createdAt: nowIso,
+      lastAt: nowIso,
+      lastReadAt: {},
+      declined: {},
+    };
+    db.threads[key442] = t;
+  }
+  dmPurgeExpired442(t, Date.now());
+  const prev442 = (t.disappear && t.disappear.mode) || "off";
+  if (prev442 !== mode) {
+    if (mode === "off") delete t.disappear;
+    else t.disappear = { mode, setBy: ctx.user.id, setAt: nowIso };
+    // Transparency: a system note lands in the thread for BOTH
+    // sides — never a silent change. sys notes render centered,
+    // never count as unread and can't be deleted.
+    const note442 = mode === "off"
+      ? ctx.user.name + " turned off disappearing messages"
+      : (prev442 === "off"
+          ? ctx.user.name + " turned on disappearing messages · " + DM_DISAPPEAR_LABEL442[mode]
+          : ctx.user.name + " changed disappearing messages to " + DM_DISAPPEAR_LABEL442[mode]);
+    t.messages.push({ id: crypto.randomBytes(8).toString("hex"), from: ctx.user.id, text: note442, at: nowIso, sys: true });
+    while (t.messages.length > 500) t.messages.shift();
+    t.lastAt = nowIso;
+  }
+  writeDms(db);
+  res.json({ ok: true, mode });
 });
 
 // ---------------------------------------------------------------------------
