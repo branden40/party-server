@@ -9394,6 +9394,13 @@ app.post("/api/media/view", (req, res) => {
 //   GET /api/media/viewers?kind=photopost&id=<postId>
 //   GET /api/media/viewers?kind=photo&id=<photoUrl>&owner=<ownerId>
 //     (the photo parameter shape mirrors POST /api/media/view)
+//   GET /api/media/viewers?kind=story&id=<storyId>
+//     [RP-V7.439] stories join the list: story views were always
+//     recorded under "story:<id>" (POST /api/story/view), but the
+//     story viewer's 👁 count had no door to them. The branch reads
+//     the same stories store the tray and /api/story/view use; an
+//     expired story reads as not found (the sweep prunes it there),
+//     and the read stays read-only — expiry is checked, never swept.
 // Rules:
 //  - signed-in members only (401 signed-out);
 //  - only the author may read an item's list — 403 for every other
@@ -9425,8 +9432,8 @@ app.get("/api/media/viewers", (req, res) => {
   if (!ctx) return;
   const kind = String(req.query.kind || "");
   const id = String(req.query.id || "").trim();
-  if (kind !== "reel" && kind !== "photo" && kind !== "photopost")
-    return res.status(400).json({ ok: false, error: "kind must be \"reel\", \"photo\" or \"photopost\"" });
+  if (kind !== "reel" && kind !== "photo" && kind !== "photopost" && kind !== "story")
+    return res.status(400).json({ ok: false, error: "kind must be \"reel\", \"photo\", \"photopost\" or \"story\"" });
   let itemKey = null;
   let itemId = null;
   let authorId = null;
@@ -9447,6 +9454,18 @@ app.get("/api/media/viewers", (req, res) => {
     authorId = post.owner;
     itemKey = "photopost:" + postId;
     itemId = postId;
+  } else if (kind === "story") {
+    // [RP-V7.439] The lookup mirrors /api/story/view (same store,
+    // same 404): an unknown id is not found, and an expired story —
+    // still on disk only until the next sweep — is not found either.
+    const storyId = id;
+    if (!storyId) return res.status(400).json({ ok: false, error: "Missing story id" });
+    const story = readStories().stories[storyId];
+    if (!story || !(Date.parse(story.expiresAt) > Date.now()))
+      return res.status(404).json({ ok: false, error: "Story not found" });
+    authorId = story.authorId;
+    itemKey = "story:" + storyId;
+    itemId = storyId;
   } else {
     const ownerId = String(req.query.owner || "").trim();
     const url = id.slice(0, 600);
