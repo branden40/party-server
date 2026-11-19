@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Rizz Plaza" />
     <title>Rizz Plaza</title>
-    <meta name="rp-build" content="RP-V7.431" /> <!-- [RP-V7.426] account-switch reel glitch fix (Branden, Nov 18, 2026, "Fix that glitch"): (1) reelMyName asked the socket presence name first — Online.name is set once at connect and the account bridges only wrote it while empty, so after signing in as a different account in the same page session, reels posted by the new account were stamped locally with the PREVIOUS account's name (feed author + "Original sound" line; the server record was always right). reelMyName now takes the signed-in rpAcct record first, and rpApplyAccountName / rpApplyAccountProfile correct Online.name on sign-in instead of only filling it when empty. (2) Profile grids showed a member's OLDEST 12 reels: GET /api/social/profile slices the server's insertion-ordered store, so anyone with over 12 reels never saw their newest reel in the grid. The client now tops the payload's reel list up from GET /api/reels whenever the payload's reelsCount says more exist (own grid, member sheet, profile page, V7.417 screen), sorted newest-first. Client-only; no server, layout or settled-behavior changes. --> <!-- [RP-V7.424] profile header centered + overlay safe-area (Branden, Nov 18, 2026 — two circled screenshots): (1) the V7.417 profile head is now a centered column — the big avatar sits IN THE MIDDLE with the name + @username centered under it, on the own-profile screen and the member/profile sheets alike (his words: "It should be in the middle"); the + badge, live badge, avatar tap, stats, actions, tabs and grids are untouched. (2) The V7.422 Profile views / Find friends overlay head sat at the very top of the screen under the phone status bar, so its Back button and settings gear were too high to tap — the head (and the V7.421 drawer panel) now add env(safe-area-inset-top) to their top padding, the same convention 14 other places in the app already use. Presentation only — no handler, count or data flow changes. --> <!-- [RP-V7.422] profile views + find friends (Branden, Nov 17, 2026, TikTok's model): viewer history — a settings-record field, default off — with a who-viewed-your-profile page (30 days, Follow/Message rows, gear to turn it back off) behind an eye button on your own profile top bar; views are recorded server-side once per real profile open into a small pruned store, and the mutual rule is enforced at read (you see the list only while yours is on, and you appear only while yours is on). The profile header's add-friend icon now opens a Find friends page: search real members by name or username, Use QR code (your own branded code sheet), Invite friends (system share of your profile link), Suggested accounts from the app's existing suggestions. Server: POST /api/profile-views/view, GET /api/profile-views/mine, GET /api/social/search, viewerHistory on POST /api/account/settings. --> <!-- [RP-V7.421] profile drawer tools (Branden, Nov 17, 2026 — "Add these to the profile under balance" + "put RP on the QR code somewhere to show it come from us"): the V7.417 drawer gains Personal tools (Activity center — the real /api/money/history ledger + the profile Liked tab; Your QR code — generated on open from the current username, encodes the /?creator=<username> profile link, RP logo centered, EC level H) and Creation & business tools (Business Suite — Business Ads / My store / Earn hub; Promote — the V7.394 Community Boost sheet through its own chip). One self-contained module at the V7.420 module; the QR encoder is built in, no CDN. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
+    <meta name="rp-build" content="RP-V7.432" /> <!-- [RP-V7.432] in-app notification sounds (Branden, Nov 18, 2026 — push sounds are the phone’s to pick, so this is the in-app half he approved): Settings gains a permanent "🔊 Notification sound" row under the V7.419 row — picker: Off · Cha-ching · Pop · Chime · Sparkle; a tap previews and saves per account on this device (localStorage rpNotifSound432.v1, the rpPush419.v1 pattern; default Pop on). Voices are the existing AudioFX generators (chaChing / popSfx / chime / gift) — no new audio, no files. A rise on the bell badge while the page is visible diffs the reminders list and plays the choice once per arrival batch (~1.5s debounce); gift receipts that already rang their cha-ching never double (the chaChing / chaChingBig plays are stamped), onboarding seeds never sound, hidden-page arrivals never sound, live rooms untouched. Client-only; no new list surface, so no ranking-brain integration applies. --> <!-- [RP-V7.426] account-switch reel glitch fix (Branden, Nov 18, 2026, "Fix that glitch"): (1) reelMyName asked the socket presence name first — Online.name is set once at connect and the account bridges only wrote it while empty, so after signing in as a different account in the same page session, reels posted by the new account were stamped locally with the PREVIOUS account's name (feed author + "Original sound" line; the server record was always right). reelMyName now takes the signed-in rpAcct record first, and rpApplyAccountName / rpApplyAccountProfile correct Online.name on sign-in instead of only filling it when empty. (2) Profile grids showed a member's OLDEST 12 reels: GET /api/social/profile slices the server's insertion-ordered store, so anyone with over 12 reels never saw their newest reel in the grid. The client now tops the payload's reel list up from GET /api/reels whenever the payload's reelsCount says more exist (own grid, member sheet, profile page, V7.417 screen), sorted newest-first. Client-only; no server, layout or settled-behavior changes. --> <!-- [RP-V7.424] profile header centered + overlay safe-area (Branden, Nov 18, 2026 — two circled screenshots): (1) the V7.417 profile head is now a centered column — the big avatar sits IN THE MIDDLE with the name + @username centered under it, on the own-profile screen and the member/profile sheets alike (his words: "It should be in the middle"); the + badge, live badge, avatar tap, stats, actions, tabs and grids are untouched. (2) The V7.422 Profile views / Find friends overlay head sat at the very top of the screen under the phone status bar, so its Back button and settings gear were too high to tap — the head (and the V7.421 drawer panel) now add env(safe-area-inset-top) to their top padding, the same convention 14 other places in the app already use. Presentation only — no handler, count or data flow changes. --> <!-- [RP-V7.422] profile views + find friends (Branden, Nov 17, 2026, TikTok's model): viewer history — a settings-record field, default off — with a who-viewed-your-profile page (30 days, Follow/Message rows, gear to turn it back off) behind an eye button on your own profile top bar; views are recorded server-side once per real profile open into a small pruned store, and the mutual rule is enforced at read (you see the list only while yours is on, and you appear only while yours is on). The profile header's add-friend icon now opens a Find friends page: search real members by name or username, Use QR code (your own branded code sheet), Invite friends (system share of your profile link), Suggested accounts from the app's existing suggestions. Server: POST /api/profile-views/view, GET /api/profile-views/mine, GET /api/social/search, viewerHistory on POST /api/account/settings. --> <!-- [RP-V7.421] profile drawer tools (Branden, Nov 17, 2026 — "Add these to the profile under balance" + "put RP on the QR code somewhere to show it come from us"): the V7.417 drawer gains Personal tools (Activity center — the real /api/money/history ledger + the profile Liked tab; Your QR code — generated on open from the current username, encodes the /?creator=<username> profile link, RP logo centered, EC level H) and Creation & business tools (Business Suite — Business Ads / My store / Earn hub; Promote — the V7.394 Community Boost sheet through its own chip). One self-contained module at the V7.420 module; the QR encoder is built in, no CDN. --> <!-- [RP-V7.419] push re-ask for existing members (Branden, Nov 17, 2026 — found on Sharlene’s phone: V7.414 asks only at brand-new signup and V7.351’s sheet asks once ever per account, so an existing member whose account record already reads decided has no door back — logging out and in shows nothing): at login / session restore, an account whose pushAsk was already terminal before the page load but whose THIS device holds no subscription with permission still “default” gets the ask sheet once for that login — ask until on, not ask forever (his design): Allow subscribes through V7.328’s enable() and never asks again on that phone; “Not now” is remembered on this device (localStorage rpPush419.v1) and stops the login asks for that account on that phone, with the account record still written through V7.351’s record(). Permission “denied” never sheets. Settings gains a permanent “🔔 Turn on notifications” row beside the V7.328 row: enable() when it can, silent re-subscribe when permission is already granted, “Notifications on ✓” while subscribed (tap turns off via V7.328’s disable()), and the phone-settings steps when blocked. Fresh signups untouched (V7.414’s session marker stands this down); accounts V7.351 still owns (never decided / pending-install) stay with V7.351. --> <!-- [RP-V7.418] Home swipe to the Plaza (Branden, Nov 17, 2026 — Home screenshot: "This page can either swipe to go to the plaza or tap the plaza button"): the tap already worked; now a deliberate leftward swipe on the Home screen clicks the very same #btnPlazaSide243 button, so both routes land on the Plaza through the identical door. Direction follows the app's standing swipe convention (the V7.417 profile pager: left = advance to the next page). Gesture bar: at least 72px of horizontal travel with horizontal dominance over 1.7x the vertical, judged at touchend from passive listeners, so vertical feed scrolling is never impeded and V7.399 pull-to-refresh (which already stands down on horizontal drags) is untouched. A swipe never starts on an element with its own sideways behavior — the story tray, the Reels rail, a post's multi-photo flip area, form fields, or anything inside a horizontally scrollable ancestor — and the gesture's trailing synthetic click is swallowed (the V7.417 pattern) so the lift-off cannot also tap what the finger ends on. Home screen only. --> <!-- [RP-V7.417] TikTok-style profile (Branden, Nov 17, 2026 — "Change my whole profile to TikTok style. Exactly the way it looks" + "the current page on my profile move it all into a side swipe to the next page from the profile" + "Stay black" + "When I tap the picture it should pull up the person profile"): the profile page, the member page and the own-profile screen are rearranged into the TikTok anatomy (centered name top bar with share / add-friend / menu, name + @username left with the big avatar right, Following / Followers / Likes, bio + link, action row, glyph tab bar with sliding underline, tight 3-across grid with play + real view counts on video tiles) on page 1, and EVERY other existing block — Gift Gallery, Fan Club, Rewards Club, shows, seller rating, collections, the edit form and account box on the own screen — moves untouched (same nodes, handlers and data) to a swipe-over page 2 with tappable dots. The menu opens a drawer onto the viewer's own existing doors (Balance via Earn, Settings and privacy; Log out stays at Profile → Settings → Log out). The member page's big avatar, dead before, now opens the full profile page (the live card itself needs a live-room player object, so the avatar takes the same door the card's avatar takes). Layout only: black theme and the true-red accent family unchanged, no feature, count or data flow changes. --> <!-- [RP-V7.416] gift icon-only (Branden, Nov 17, 2026 — “I thought you got rid of the word gift… to make more room”; his screenshot showed the rail still clipping because Gift is the widest pill): the action rail’s Gift pill renders just the 🎁 plus its count — the mom-act cards and the gallery lightbox keep the word as a display:none label span (gf-lb416, mirroring V7.412/413), and the counted rails’ gc262 spans lose their data-gc-label so rpGiftCount262 paints the number alone (segment hidden at zero, the photo cards’ count idiom). Gift PANEL untouched. --> <!-- [RP-V7.415] gift gallery full view (Branden, Nov 17, 2026 — "Yes open full view" after sswurve's TikTok live): tapping the profile card's Gift Gallery block (or the member profile's gallery line) opens a sheet with one tile per catalog gift in gift-panel order (price ascending) — gifts the member really received (the profile payload's gallery.items, from the same money-txlog pass as the card's got/total) render in full color with the most recent sender's name under the gift; uncollected gifts render greyscale with no sender line. Server: /api/social/profile's gallery gains items[] {giftId, lastSender} — real ledger data only, no invented receipts. --> <!-- [RP-V7.414] push on at signup: the signup success path runs the push setup automatically — system permission prompt, VAPID subscribe, POST /api/push/subscribe — with no sheet and no Settings trip (V7.351's sheet stands down for fresh signups; its catch-up for older accounts is unchanged) (Branden, Nov 17, 2026). --> <!-- [RP-V7.413] save icon-only: the action rail's Save pill renders just the bookmark glyph (its label span is display:none at rest, mirroring V7.412's Delete treatment; the saved state still reads from the V7.349 red bookmark fill and aria-pressed, and aria-label now tracks Save/Saved) — companion to V7.412, closing the last of the rail overflow on narrow phones at Branden's order (Nov 17, 2026). --> <!-- [RP-V7.412] delete icon-only: the action rail's owner Delete pill renders just the trash-can glyph (its label span is display:none until the two-tap delete arm reveals it, so the confirm flow is unchanged; aria-label="Delete" added) — Branden's screenshot showed the labeled pill cut off at the right edge of his own photo post, so the full rail now fits the screen (Nov 17, 2026). --> <!-- [RP-V7.409] icon parity (Branden's order, Nov 16, 2026 — the audit of every picture/video surface against his circled Home photo rail): every surface now carries Like+count, Comment+count, Gift+count, Share, Save, Repost+count and Delete (own content only). Home pager video slides gain Repost + Delete; Moments and Home-stream cards gain Save + Delete; lightbox and profile-player Feed-post rails gain Like/Comment/Repost/Delete and a counted Gift (the server records feed:<id>); stories gain the RPICO share glyph with a real /story/<id> link, a by-reference Save and Repost (the original's remaining lifetime, author attribution, dies with the original — never a copy, never a fresh 24h) and a story-keyed gift count (story:<id>). No public story comments — the DM reply box is untouched. --> <!-- [RP-V7.410] login-loop hotfix: a successful wall log-in enters through rpAuthGatePass (the session door sign-up, Google and reset already use) instead of a synthetic click on the sign-up Continue button — that button is gated by the sign-up form's 3–20 username rule, so an account whose stored username sits outside the sign-up format (the owner's migrated 2-char "RP") logged in fine and then bounced back onto the wall with the sign-up error showing. Stored usernames are grandfathered; the format rule binds sign-up and username change only (Branden, Nov 16, 2026) --> <!-- [RP-V7.407] forgot password: the login form gains "Forgot password?" — a 6-digit code is emailed (10-minute life, 5 guesses, one live code per account), and setting the new password burns the code, signs out every other session and lands the member signed in on a fresh token (Branden, Nov 16, 2026) --> <!-- [RP-V7.406] gift shows box-free (Branden, Nov 16, 2026 — the all-gifts audit found 14 of 86 still tracing a frame edge): the border melt gains a dead zone (alpha exactly 0 for the outer 3px of the film frame, then the ramp) on float/burst heroes; the big stage's keyed canvas gets the same border-accurate melt; the Golden Goal / Whale Dive / T-Rex scene stages lose their black letterbox backgrounds and melt at the film's rendered frame. Geometry unchanged. --> <!-- [RP-V7.404] comments: the emoji picker can no longer fail silently or hide behind the phone keyboard, and a comments sheet always opens (and posts) with the composer in view (Branden, Nov 16, 2026) --> <!-- [RP-V7.402] reels: the gift icon and its count are separated like the pictures — side-by-side segments of one control, split by the same hairline divider the photo pill's count carries; the gs402 treatment is stamped on reel-kind gift controls only (Reels pager, lightbox reel variant, Home video slides, profile reel player), photo surfaces render exactly as before (Branden, Nov 16, 2026) --> <!-- [RP-V7.401] copyright-scan notice at video post (Branden, Nov 16, 2026): after a member posts a video — reel, video story, workout clip — the posted toast cycles to "Your video is being scanned for copyright. If it uses a copyrighted song, the audio may be muted." Photo and text posts never show it; a reel whose Plaza catalog track fully replaces its audio (origVol 0 — the server skips those) doesn't either. The RP-V7.286 scan itself is untouched. --> <!-- [RP-V7.400] delete fix: every viewer offers Delete for the owner's own posts/reels — the Reels pager and the Home pager photo cards gain the button, the lightbox ownership test is account-id only (the display-name fallback is gone), and the feed/grid openers pass the real author id (Branden, Nov 16, 2026) --> <!-- [RP-V7.399] pull-to-refresh on the feeds (Home, Reels, Friends, Photos): a deliberate pull past 90px at the very top re-fetches the feed fresh (cache: no-store) and re-renders it (Branden, Nov 16, 2026) --> <!-- [RP-V7.398] frozen gift shows fixed: float/burst film heroes start their show clock on 'playing', hold the gift's animated art while the film loads, 1.8s watchdog swaps to the art, and the banner mini no longer double-fetches the film (Branden, Nov 16, 2026) --> <!-- [RP-V7.397] the word "party" removed from all user-visible copy (Branden, Nov 16, 2026) --> <!-- [RP-V7.65] video + picture SEARCH in the Facebook-style tile grid (builds on RP-V7.64's server view counts) -->
     <style>
       :root {
         color-scheme: dark;
@@ -55232,6 +55232,246 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
 
   window.rpPush419 = { evaluate: evaluate419, renderRow: renderRow419 };
 })();
+/* =====================================================================
+   [RP-V7.432] IN-APP NOTIFICATION SOUNDS (Branden, Nov 18, 2026 —
+   "On the push notifications is there any sounds I can put in the
+   settings"). Told plainly first: a push alert's sound belongs to
+   the PHONE — web push gives the app no say — so what he approved
+   is the in-app half: a sound choice in Settings that plays when
+   new activity lands WHILE THE APP IS OPEN. Settings gains a
+   permanent "🔊 Notification sound" row under the V7.419
+   notifications row, opening a picker: Off · Cha-ching · Pop ·
+   Chime · Sparkle. Tapping an option previews it (the tap is the
+   gesture that unlocks audio) and saves the choice for this
+   account on this device (localStorage rpNotifSound432.v1, keyed
+   by account id — the rpPush419.v1 pattern; the server settings
+   record whitelists its fields and this build is client-only, so
+   the choice rides the device, never the wire). Default: Pop ON —
+   Branden asked for sounds, Pop is the softest voice the app has,
+   and Off is one tap away in the same picker.
+   Every voice is an EXISTING AudioFX generator — no new audio, no
+   files, no fetches: Cha-ching = AudioFX.chaChing (the V7.229
+   register), Pop = AudioFX.popSfx, Chime = AudioFX.chime, Sparkle
+   = AudioFX.gift (the V7.39 glassy sparkle). AudioFX self-gates on
+   its own unlock + mute state, so nothing here can sound before
+   the member's first tap or over a mute.
+   The trigger is the bell itself: a light poll reads #rpBellBadge
+   (the V7.0 setUnread surface every new activity increments). A
+   RISE while the page is visible fetches the reminders list once
+   and diffs ids against the seeded baseline — genuinely new
+   unread activity plays the chosen sound ONCE (a burst inside
+   ~1.5s is one arrival). NO DOUBLE SOUNDS: AudioFX.chaChing /
+   chaChingBig are wrapped to stamp their plays — they fire ONLY
+   for picture/video gift receipts (V7.232 scope) — so a batch
+   whose new items are all gift receipts inside the guard window
+   stays silent; the receipt already rang. Live rooms are
+   untouched: this module never answers a live-room event, and the
+   live sound rules stand exactly as they are. Onboarding seeds
+   (welcome / profile kinds) never sound, and arrivals that land
+   while the page is hidden never sound.
+   Brain rule: no list or feed surface is added, so no ranking
+   integration applies.
+   ===================================================================== */
+(function () {
+  "use strict";
+  var LS432 = "rpNotifSound432.v1"; // { [uid]: "off"|"chaching"|"pop"|"chime"|"sparkle" }
+  var CHOICES432 = [
+    { id: "off", name: "Off", sub: "No sound when new activity lands" },
+    { id: "chaching", name: "Cha-ching", sub: "The cash-register ring" },
+    { id: "pop", name: "Pop", sub: "One soft pop — the quiet default" },
+    { id: "chime", name: "Chime", sub: "A gentle two-note chime" },
+    { id: "sparkle", name: "Sparkle", sub: "A light, glassy sparkle" }
+  ];
+  var DEFAULT432 = "pop";
+  var DEBOUNCE432 = 1500;  // a burst of arrivals inside this window is ONE sound
+  var GIFTGUARD432 = 3000; // a cha-ching inside this window already sounded its gift
+  var lastPlay432 = 0, lastChaChing432 = 0;
+  var watchUid432 = "", known432 = {}, seeded432 = false, seeding432 = false;
+  var lastBadge432 = null, fetchBusy432 = false;
+
+  function acctRec432() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) ? a : null; } catch (e) { return null; } }
+  function uid432() { var a = acctRec432(); if (!a) return ""; return String(a.userId || (a.user && a.user.id) || a.id || ""); }
+  function choice432() {
+    var uid = uid432(); if (!uid) return DEFAULT432;
+    try {
+      var m = JSON.parse(localStorage.getItem(LS432) || "{}");
+      var v = (m && typeof m === "object") ? m[uid] : null;
+      for (var i = 0; i < CHOICES432.length; i++) if (CHOICES432[i].id === v) return v;
+    } catch (e) { }
+    return DEFAULT432;
+  }
+  function saveChoice432(v) {
+    var uid = uid432(); if (!uid) return;
+    try { var m = JSON.parse(localStorage.getItem(LS432) || "{}"); if (!m || typeof m !== "object") m = {}; m[uid] = v; localStorage.setItem(LS432, JSON.stringify(m)); } catch (e) { }
+  }
+  function nameOf432(id) { for (var i = 0; i < CHOICES432.length; i++) if (CHOICES432[i].id === id) return CHOICES432[i].name; return "Pop"; }
+  function play432(id) {
+    var fx = window.AudioFX; if (!fx) return;
+    try {
+      if (id === "chaching") { if (fx.chaChing) fx.chaChing(); }
+      else if (id === "pop") { if (fx.popSfx) fx.popSfx(); }
+      else if (id === "chime") { if (fx.chime) fx.chime(); }
+      else if (id === "sparkle") { if (fx.gift) fx.gift(); }
+    } catch (e) { }
+  }
+  /* The no-double-sound stamp: chaChing / chaChingBig fire ONLY for
+     picture/video gift receipts (V7.232), so wrapping them marks
+     every receipt that already rang. */
+  (function wrapChaChing432() {
+    var fx = window.AudioFX; if (!fx || fx.__rp432Wrapped) return;
+    try {
+      ["chaChing", "chaChingBig"].forEach(function (k) {
+        if (typeof fx[k] !== "function") return;
+        var orig = fx[k];
+        fx[k] = function () { lastChaChing432 = Date.now(); return orig.apply(fx, arguments); };
+      });
+      fx.__rp432Wrapped = true;
+    } catch (e) { }
+  })();
+  function api432(path) {
+    return new Promise(function (resolve) {
+      var a = acctRec432(); if (!a) { resolve(null); return; }
+      fetch(path, { method: "GET", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.token } })
+        .then(function (r) { return r.text().then(function (txt) { var j = null; try { j = JSON.parse(txt); } catch (e) { } resolve(j); }); })
+        .catch(function () { resolve(null); });
+    });
+  }
+  function seed432() {
+    var uid = uid432();
+    if (!uid) { watchUid432 = ""; seeded432 = false; seeding432 = false; known432 = {}; return; }
+    if (uid === watchUid432 && (seeded432 || seeding432)) return;
+    watchUid432 = uid; seeded432 = false; seeding432 = true; known432 = {};
+    api432("/api/account/reminders").then(function (j) {
+      seeding432 = false;
+      if (uid432() !== uid) return; // the account changed mid-flight
+      var list = (j && j.ok && Array.isArray(j.reminders)) ? j.reminders : [];
+      list.forEach(function (r) { if (r && r.id) known432[r.id] = 1; });
+      seeded432 = true;
+    });
+  }
+  function trigger432() {
+    if (document.hidden) return;
+    var c = choice432(); if (c === "off") return;
+    var t = Date.now(); if (t - lastPlay432 < DEBOUNCE432) return;
+    lastPlay432 = t; play432(c);
+  }
+  function onBadgeRise432() {
+    if (document.hidden || fetchBusy432) return;
+    if (!seeded432) { seed432(); return; }
+    fetchBusy432 = true;
+    api432("/api/account/reminders").then(function (j) {
+      fetchBusy432 = false;
+      if (document.hidden) return;
+      if (!j || !j.ok || !Array.isArray(j.reminders)) {
+        // The list could not be read — fall back to the cha-ching stamp alone.
+        if (Date.now() - lastChaChing432 >= GIFTGUARD432) trigger432();
+        return;
+      }
+      var fresh = [];
+      j.reminders.forEach(function (r) {
+        if (!r || !r.id) return;
+        if (!known432[r.id] && !r.read && r.kind !== "welcome" && r.kind !== "profile") fresh.push(r);
+        known432[r.id] = 1;
+      });
+      if (!fresh.length) return;
+      var allGift = true;
+      for (var i = 0; i < fresh.length; i++) if (fresh[i].kind !== "gift") { allGift = false; break; }
+      if (allGift && Date.now() - lastChaChing432 < GIFTGUARD432) return; // the receipt already rang
+      trigger432();
+    });
+  }
+  function badgeCount432() {
+    var b = document.getElementById("rpBellBadge");
+    if (!b) return null;
+    var t = String(b.textContent || "").trim();
+    if (!t) return 0;
+    var n = parseInt(t, 10);
+    return isNaN(n) ? null : n;
+  }
+  function poll432() {
+    var uid = uid432();
+    if (uid !== watchUid432) { seed432(); lastBadge432 = badgeCount432(); return; }
+    if (uid && !seeded432 && !seeding432) seed432();
+    var n = badgeCount432();
+    if (n === null) { lastBadge432 = null; return; }
+    if (lastBadge432 === null) { lastBadge432 = n; return; }
+    if (n > lastBadge432 && !document.hidden) onBadgeRise432();
+    lastBadge432 = n;
+  }
+  setTimeout(poll432, 2600);
+  setInterval(poll432, 1200);
+  try { document.addEventListener("visibilitychange", function () { if (!document.hidden) lastBadge432 = badgeCount432(); }); } catch (e) { }
+
+  /* ---------- the Settings row + picker ---------- */
+  function paintRow432(row) {
+    var cur = choice432();
+    if (row.getAttribute("data-state432") === cur) return; // guarded write: only touch the DOM when the state changed
+    row.setAttribute("data-state432", cur);
+    var el = document.getElementById("rpNotifSound432Cur");
+    if (el && el.textContent !== nameOf432(cur) + " ›") el.textContent = nameOf432(cur) + " ›";
+  }
+  function openPicker432() {
+    if (typeof window.openSheet !== "function") return;
+    var cur = choice432();
+    var html = '<h3 style="margin:4px 0">🔊 Notification sound</h3>' +
+      '<p class="age-note">Plays inside the app when new activity lands while the app is open. Push alerts with the app closed keep your phone\'s own sound — that one lives in your phone\'s settings.</p>';
+    CHOICES432.forEach(function (c) {
+      html += '<button type="button" class="rp-set-row" data-snd432="' + c.id + '"><span>' + c.name + '<span class="rp-set-sub">' + c.sub + '</span></span><span class="rp-set-radio' + (cur === c.id ? " on" : "") + '"></span></button>';
+    });
+    window.openSheet(html);
+    document.querySelectorAll("[data-snd432]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-snd432");
+        saveChoice432(id);
+        if (id !== "off") {
+          try { if (window.AudioFX && window.AudioFX.unlock) window.AudioFX.unlock(); } catch (e) { }
+          play432(id); // the preview — this tap is the audio-unlock gesture
+        }
+        setTimeout(function () {
+          try { if (typeof window.rpOpenSettings === "function") window.rpOpenSettings(); else if (window.closeSheet) window.closeSheet(); } catch (e) { }
+          var row = document.getElementById("rpNotifSound432Row"); if (row) paintRow432(row);
+        }, 260);
+      });
+    });
+  }
+  function renderRow432() {
+    var smsRow = document.querySelector('[data-chan="sms"]');
+    if (!smsRow || !smsRow.parentNode) return;
+    var row = document.getElementById("rpNotifSound432Row");
+    if (!row) {
+      row = document.createElement("button");
+      row.type = "button";
+      row.className = "rp-set-row";
+      row.id = "rpNotifSound432Row";
+      row.innerHTML = '<span>🔊 Notification sound<span class="rp-set-sub">Plays in the app when new activity lands</span></span><span class="rp-set-cur" id="rpNotifSound432Cur">Pop ›</span>';
+      var anchor = document.getElementById("rpPush419Row") || document.getElementById("rpPush328Row") || smsRow;
+      if (!anchor.parentNode) return;
+      anchor.parentNode.insertBefore(row, anchor.nextSibling);
+      row.addEventListener("click", openPicker432);
+    }
+    paintRow432(row);
+  }
+  var sched432 = false;
+  function scheduleRow432() {
+    if (sched432) return;
+    sched432 = true;
+    setTimeout(function () { sched432 = false; try { renderRow432(); } catch (e) { } }, 90);
+  }
+  (function watchSheet432() {
+    var sheet = document.getElementById("sheet");
+    if (!sheet || !window.MutationObserver) { setTimeout(watchSheet432, 1500); return; }
+    try {
+      new MutationObserver(function () {
+        // Only act when the settings sheet is on screen, and
+        // renderRow432 itself guards every DOM write by state.
+        if (document.querySelector('[data-chan="sms"]')) scheduleRow432();
+      }).observe(sheet, { childList: true, subtree: true });
+    } catch (e) { }
+  })();
+
+  window.rpNotifSound432 = { choice: choice432, play: play432, openPicker: openPicker432, renderRow: renderRow432 };
+})();
+
 
 
 /* =====================================================================
