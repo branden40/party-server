@@ -18309,6 +18309,9 @@ const MONEY_GIFT_TABLE = {
   goldengoal: 2700,
   // [RP-V7.395] +5 weekly gifts (Nov 16, 2026) — ids + prices mirror the client's GIFT_SHOP exactly; catalog now 86 gifts.
   cometkite: 40, jellybloom: 90, rainbowfalls: 240, clockworkowl: 640, prismleviathan: 3400,
+  // [RP-V7.434] +9 gifts (Nov 18, 2026) — ids + prices mirror the client's GIFT_SHOP exactly; catalog now 95 gifts.
+  swagmouse: 45, showdog: 115, monkeycrew: 260, scarecrowpirate: 550, shuriken: 900,
+  tidalwave: 1800, meteorrun: 2400, royalcrest: 3300, theruler: 4400,
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
@@ -18375,6 +18378,15 @@ const MONEY_GIFT_INFO = {
   rainbowfalls: { name: "Rainbow Falls", tier: "medium" },
   clockworkowl: { name: "Clockwork Owl", tier: "medium" },
   prismleviathan: { name: "Prism Leviathan", tier: "big" },
+  swagmouse: { name: "Swag Mouse", tier: "small" }, // [RP-V7.434] +9 gifts Nov 18, 2026
+  showdog: { name: "Show Dog", tier: "small" },
+  monkeycrew: { name: "Monkey Crew", tier: "medium" },
+  scarecrowpirate: { name: "Scarecrow Pirate", tier: "medium" },
+  shuriken: { name: "Shuriken Strike", tier: "medium" },
+  tidalwave: { name: "Tidal Wave", tier: "big" },
+  meteorrun: { name: "Meteor Run", tier: "big" },
+  royalcrest: { name: "Royal Crest", tier: "big" },
+  theruler: { name: "The Ruler", tier: "big" },
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
   fattuesday: { name: "Fat Tuesday Frenzy", tier: "big" },
