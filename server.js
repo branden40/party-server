@@ -14223,6 +14223,17 @@ function dmUnreadCount(t, userId) {
 const DM_DISAPPEAR_MS442 = { "1h": 3600e3, "24h": 86400e3, "7d": 604800e3 };
 const DM_DISAPPEAR_LABEL442 = { view: "After viewing", "1h": "1 hour", "24h": "24 hours", "7d": "7 days" };
 const DM_VIEW_GRACE_MS442 = 5 * 60 * 1000;
+// [RP-V7.444] Chat colors (Branden, Nov 19, 2026 — "Should be able
+// to change colors", with a video of a pink-tinted iMessage chat):
+// a per-conversation color theme on the SAME thread record
+// (t.theme = { key, setBy, setAt }), pair-keyed exactly like
+// t.disappear. Either participant may change it; every change
+// lands a system note for both sides — never a silent change. The
+// field is absent on every existing thread, which reads as
+// "default" — no migration, and no visual change anywhere until
+// someone picks a color. Theme and disappearing are independent:
+// neither setter touches the other's field.
+const DM_THEME_LABEL444 = { default: "Default", pink: "Pink", purple: "Purple", blue: "Blue", green: "Green", orange: "Orange", gold: "Gold" };
 function dmMsgExpired442(m, nowMs) {
   return !!(m && m.exp && Date.parse(m.exp) <= nowMs);
 }
@@ -15681,6 +15692,7 @@ app.get("/api/dm/threads", (req, res) => {
       lastAt: t.lastAt || t.createdAt,
       unread,
       startedByMe: t.startedBy === meId,
+      theme: t.theme ? t.theme.key : "default", // [RP-V7.444] the pair's chat color (the inbox does not render it — the open thread does)
     };
     if (dmIsRequestFor(socialDb, t, meId)) requests.push(brief);
     else inbox.push(brief);
@@ -15731,6 +15743,7 @@ app.get("/api/dm/thread/:userId", (req, res) => {
     blocked: dmEitherBlocked(db, ctx.user.id, otherId),
     deleted: !!gone,
     disappear: t && t.disappear ? t.disappear : null, // [RP-V7.442] the pair's disappearing setting (either side may change it)
+    theme: t && t.theme ? t.theme : null, // [RP-V7.444] the pair's chat color theme (either side may change it)
   });
 });
 app.post("/api/dm/send", (req, res) => {
@@ -16087,6 +16100,58 @@ app.post("/api/dm/disappear", (req, res) => {
   }
   writeDms(db);
   res.json({ ok: true, mode });
+});
+app.post("/api/dm/theme", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const partnerId = String(b.partnerId || "");
+  const theme = String(b.theme || "");
+  if (!Object.prototype.hasOwnProperty.call(DM_THEME_LABEL444, theme))
+    return res.status(400).json({ ok: false, error: "Unknown chat color" });
+  const other = ctx.db.users.find((u) => u.id === partnerId);
+  if (!other) {
+    if (isTombstonedAccount(partnerId))
+      return res.status(410).json({ ok: false, error: "This account no longer exists — this conversation is read-only now." });
+    return res.status(404).json({ ok: false, error: "Account not found" });
+  }
+  if (other.id === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't message yourself" });
+  const db = readDms();
+  const key444 = dmThreadKey(ctx.user.id, other.id);
+  let t = db.threads[key444];
+  const nowIso = new Date().toISOString();
+  if (!t) {
+    // The pair may pick a color before the first message — the
+    // thread record is born holding the theme (and the note), the
+    // same birth rule as the disappearing setting.
+    t = {
+      id: key444,
+      users: [ctx.user.id, other.id].sort(),
+      startedBy: ctx.user.id,
+      accepted: false,
+      messages: [],
+      createdAt: nowIso,
+      lastAt: nowIso,
+      lastReadAt: {},
+      declined: {},
+    };
+    db.threads[key444] = t;
+  }
+  dmPurgeExpired442(t, Date.now());
+  const prev444 = (t.theme && t.theme.key) || "default";
+  if (prev444 !== theme) {
+    if (theme === "default") delete t.theme;
+    else t.theme = { key: theme, setBy: ctx.user.id, setAt: nowIso };
+    // Transparency: a system note lands in the thread for BOTH
+    // sides — never a silent change. sys notes render centered,
+    // never count as unread and can't be deleted (the V7.442 rule).
+    t.messages.push({ id: crypto.randomBytes(8).toString("hex"), from: ctx.user.id, text: ctx.user.name + " changed the chat color to " + DM_THEME_LABEL444[theme], at: nowIso, sys: true });
+    while (t.messages.length > 500) t.messages.shift();
+    t.lastAt = nowIso;
+  }
+  writeDms(db);
+  res.json({ ok: true, theme });
 });
 
 // ---------------------------------------------------------------------------
