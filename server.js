@@ -4311,6 +4311,41 @@ function updateReelEntry(id, patch) {
   fs.renameSync(tmp, REELS_FILE);
   return e;
 }
+
+// ---------------------------------------------------------------------------
+// [RP-V7.438] GAMING AUTO-ROUTE (Branden, Nov 19, 2026: "Make sure when
+// anyone post a game it goes to gaming page"). The Gaming page's clip
+// feed is GET /api/reels?category=gaming — only reels stored with
+// category "gaming" appear. Until now that category was set ONLY by the
+// composer's manual Gaming toggle, so a gaming clip posted without the
+// toggle never reached the page (the Nov 19 GTA clips). Now the caption
+// itself routes: at creation (POST /api/reel, below) and in the boot
+// backfill (sweepGamingBackfill438, bottom), a reel whose caption
+// matches RP_GAMING_TERMS is stored with category "gaming" even when
+// the toggle was off. A match can only ADD the category — it never
+// removes one the toggle set. Matching is case-insensitive and
+// word-boundary aware (a term must stand alone between non-alphanumerics
+// or string edges), with a hashtag pass on top: a hashtag token that
+// STARTS with a single-word term counts (#gta6, #fortniteclips). Bare
+// "game" and bare "cod" are deliberately NOT terms — "game night" and
+// the app's own dating-game copy must never flag a reel. RP_GAMING_TERMS
+// is the ONE tunable list; the client composer duplicates it
+// (rpGamingTerms438, tied by comment) for its type-ahead auto-check —
+// the server stays authoritative.
+const RP_GAMING_TERMS = ["gaming", "gameplay", "game clips", "game clip", "videogame", "video game", "gamer", "gta", "grand theft auto", "fortnite", "minecraft", "roblox", "warzone", "call of duty", "madden", "nba 2k", "fifa", "ea fc", "apex legends", "valorant", "league of legends", "overwatch", "rocket league", "elden ring", "zelda", "mario", "pokemon", "xbox", "ps5", "ps4", "playstation", "nintendo", "esports", "twitch", "gamingclips"];
+const RP_GAMING_TAG_WORDS438 = ["gaming", "gameplay", "videogame", "gamer", "gta", "fortnite", "minecraft", "roblox", "warzone", "madden", "fifa", "valorant", "overwatch", "zelda", "mario", "pokemon", "xbox", "ps5", "ps4", "playstation", "nintendo", "esports", "twitch", "gamingclips"];
+function rpGamingEsc438(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+const RP_GAMING_RE438 = new RegExp("(^|[^a-z0-9])(" + RP_GAMING_TERMS.slice().sort((a, b) => b.length - a.length).map(rpGamingEsc438).join("|") + ")(?=$|[^a-z0-9])", "i");
+function rpCaptionIsGaming438(text) {
+  const t = String(text || "");
+  if (RP_GAMING_RE438.test(t)) return true;
+  const tags = t.match(/#[a-z0-9]+/gi) || [];
+  for (const tag of tags) {
+    const tok = tag.slice(1).toLowerCase();
+    for (const w of RP_GAMING_TAG_WORDS438) if (tok === w || tok.indexOf(w) === 0) return true;
+  }
+  return false;
+}
 const reelUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, REELS_DIR),
@@ -6090,7 +6125,7 @@ app.post("/api/reel", (req, res) => {
       ...(aud156 !== "everyone" && authorUser ? { audience: aud156 } : {}),
       ...((rb156.subsOnly === "1" || rb156.subsOnly === "true" || rb156.subsOnly === true) && authorUser ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation — needs an account author (the gate keys on the account id)
       ...((rb156.clubOnly === "1" || rb156.clubOnly === "true" || rb156.clubOnly === true) && authorUser ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation — same rule
-      ...(rb.category === "gaming" ? { category: "gaming" } : {}), // [RP-GAMING] the composer's Gaming toggle at creation — only the value "gaming" is a category; anything else stores nothing (the default list ignores the field, the Gaming feed filters on it)
+      ...((rb.category === "gaming" || rpCaptionIsGaming438(caption)) ? { category: "gaming" } : {}), // [RP-V7.438] auto-route: a caption matching RP_GAMING_TERMS stores the category too, toggle or not — and a match never removes a category the toggle set // [RP-GAMING] the composer's Gaming toggle at creation — only the value "gaming" is a category; anything else stores nothing (the default list ignores the field, the Gaming feed filters on it)
       ...(musicTrackId ? { musicTrackId, musicStart, musicVol, origVol } : {}),
       ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart, musicVol, origVol } : {}), // [RP-V7.335]
     });
@@ -31470,6 +31505,31 @@ function sweepSeedDemo94() {
   return removed;
 }
 try { sweepSeedDemo94(); } catch (e) { console.log("[seed-sweep] failed", e && e.message); }
+
+// [RP-V7.438] GAMING AUTO-ROUTE backfill (boot, idempotent — the
+// sweepSeedDemo94 pattern): flag EXISTING reels whose captions match
+// RP_GAMING_TERMS so members' older gaming clips surface on the Gaming
+// page too. Only ever SETS category "gaming" where the matcher hits and
+// it isn't already set; a second boot finds nothing to change and
+// writes nothing. The flagged count is logged.
+function sweepGamingBackfill438() {
+  let flagged = 0;
+  try {
+    const reels = listReels();
+    for (const r of reels) {
+      if (r && r.category !== "gaming" && rpCaptionIsGaming438(r.caption)) { r.category = "gaming"; flagged++; }
+    }
+    if (flagged) {
+      const tmp = REELS_FILE + ".tmp";
+      fs.writeFileSync(tmp, JSON.stringify(reels, null, 2));
+      fs.renameSync(tmp, REELS_FILE);
+    }
+  } catch (e) { console.log("[gaming-autoroute] backfill failed", e && e.message); }
+  if (flagged) console.log("[gaming-autoroute] backfill flagged " + flagged + " existing reel(s) as gaming");
+  return flagged;
+}
+try { sweepGamingBackfill438(); } catch (e) {}
+
 
 // [RP-V7.77] POT SEPARATION boot migration: persist the normalized
 // classed shapes once. readPots/readDailyPot/readDpStreaks and the
