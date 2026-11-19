@@ -7253,13 +7253,20 @@
           if (e.cancelable) e.preventDefault();
           sh.style.transform = "translateY(" + dy + "px)";
         }, { passive: false });
-        function dragEnd133() {
+        function dragEnd133(e) {
           if (dragOn && dragDy > 10) {
             /* swallow the click the swipe would otherwise drop on
-               whatever sits under the finger once the sheet is gone */
+               whatever sits under the finger once the sheet is gone —
+               [RP-V7.443] NARROWED like the rp420 guard: only the
+               drag's own trailing ghost click (<=120 ms, <=28 px from
+               the lift point) is eaten; a deliberate first tap on a
+               button behind the sheet now answers on that first tap. */
+            var gt = (e && e.changedTouches && e.changedTouches[0]) || null;
+            var gx = gt ? gt.clientX : -9999, gy = gt ? gt.clientY : -9999, gt0 = Date.now();
             var sup = function (ev) {
-              ev.stopPropagation(); ev.preventDefault();
               document.removeEventListener("click", sup, true);
+              var near = Math.abs((ev.clientX || 0) - gx) <= 28 && Math.abs((ev.clientY || 0) - gy) <= 28;
+              if (near && Date.now() - gt0 <= 120) { ev.stopPropagation(); ev.preventDefault(); }
             };
             document.addEventListener("click", sup, true);
             setTimeout(function () { document.removeEventListener("click", sup, true); }, 400);
@@ -27239,6 +27246,40 @@
         var sb = $("photoCmtSend123"); if (sb) sb.addEventListener("click", send);
         var ci = $("photoCmtInput123"); if (ci) ci.addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
       }
+      /* [RP-V7.443] The two helpers this wire has always called —
+         reelSharePost / reelToggleFollow — were never defined anywhere
+         in the client, so a photo post's Share and Follow buttons threw
+         a ReferenceError on every tap and did nothing at all (rig-
+         measured: the click lands squarely on the button, then no
+         sheet, no request, no state change — the "buttons need two
+         taps / app feels frozen" report on photo posts). Defined here,
+         modeled on the working video paths: reelShare for share, and
+         the reel-card follow handler (toggleFollowByName +
+         isFollowingName state sync) for follow. */
+      function reelSharePost(author, caption, isPhoto, postId) {
+        var text = (isPhoto ? "📸 " : "🎬 ") + (caption ? caption + " — " : "") + (isPhoto ? "check out this post on Rizz Plaza" : "watch this Reel on Rizz Plaza");
+        var url = (postId && window.rpShareUrl269 && window.rpShareUrl269("post", postId)) || "https://rizzplaza.com"; // [RP-V7.269] a server photo post shares its own share page
+        if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+          navigator.share({ title: isPhoto ? "Rizz Plaza 📸 Post" : "Rizz Plaza 🎬 Reel", text: text, url: url }).catch(function () { });
+          return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text + "\n" + url).then(
+            function () { toast("Invite copied — paste it anywhere to share! 🔗"); },
+            function () { toast("Copy this link to share: " + url); });
+          return;
+        }
+        toast("Copy this link to share: " + url);
+      }
+      function reelToggleFollow(author, btn) {
+        if (typeof toggleFollowByName === "function") toggleFollowByName(author);
+        var on = (typeof isFollowingName === "function") ? isFollowingName(author) : !!(btn && btn.classList.contains("on"));
+        if (btn) {
+          btn.classList.toggle("on", on);
+          if (btn.classList.contains("hp-follow")) btn.textContent = on ? "Following" : "Follow";
+          else btn.textContent = on ? "✓" : "＋";
+        }
+      }
       function rpPhotoActsWire123(item, root) {
         var heart = root.querySelector(".pp-heart");
         if (heart) heart.addEventListener("click", function () { photoLikeToggle123(item, heart); });
@@ -27247,7 +27288,7 @@
         var gift = root.querySelector(".pp-gift");
         if (gift) gift.addEventListener("click", function () { openGiftSheet(item.authorId || item.author, item.author, { src: "picture", post: { kind: "photo", id: item.postId } }); }); // [RP-V7.233] this wire only ever serves photo items (rpPhotoCard123 / rpHomePhotoSlide123 — the pagers route item.photoPost here and everything else to the video builders) — [RP-V7.262] the photo post rides as the gift's post
         var share = root.querySelector(".pp-share");
-        if (share) share.addEventListener("click", function () { reelSharePost(item.author, item.caption, true); });
+        if (share) share.addEventListener("click", function () { reelSharePost(item.author, item.caption, true, item.postId); }); // [RP-V7.443] pass the post id so the share lands on the post's own share page (rpShareUrl269)
         var rp = root.querySelector(".pp-repost");
         if (rp) rp.addEventListener("click", function () { photoRepostToggle123(item, rp); });
         var fb = root.querySelector(".reel-followbtn");
@@ -30538,6 +30579,12 @@
         pin.querySelectorAll("[data-lvgive]").forEach(function (b) {
           b.addEventListener("click", function () { if (window.rpWnEnterGive) window.rpWnEnterGive(b.getAttribute("data-lvgive"), b.getAttribute("data-lid") || ""); });
         });
+      }
+      function openMoments() { // [RP-V7.443] the Earn sheet's "🎬 Reels feed" button has called openMoments() since the sheet shipped, but it was never defined — the tap threw and did nothing. Route through the tab bar's own Moments entry so the feed fetch + entry kick run exactly as a tab tap does.
+        closeSheet();
+        var mb443 = document.querySelector('#tabbar [data-tab="moments"]');
+        if (mb443) { mb443.click(); return; }
+        show("screen-moments");
       }
       function openAuctions() {
         if (!rpAdultOk()) { rpDoorGate("Live Auctions", openAuctions); return; }
@@ -51648,8 +51695,22 @@ html, body { overflow-x: clip; }
       }
       return false;
     }
-    function swallow() {
-      var h = function (ev) { ev.stopPropagation(); ev.preventDefault(); document.removeEventListener("click", h, true); };
+    function swallow(gx, gy) {
+      /* [RP-V7.443] NARROWED: this used to eat the NEXT click ANYWHERE
+         within 400 ms of a page swipe — including a deliberate first
+         tap on a button (rig-caught eating a rail-button tap after a
+         swipe; one more face of the "buttons need two taps" report).
+         Its real job is only the swipe's own trailing ghost click,
+         which lands on the lift point within a few ms. Eat only a
+         click that matches BOTH: <=120 ms after the swipe and <=28 px
+         from the lift point. Any other click passes through and
+         disarms the guard. */
+      var t0 = Date.now();
+      var h = function (ev) {
+        document.removeEventListener("click", h, true);
+        var near = Math.abs((ev.clientX || 0) - gx) <= 28 && Math.abs((ev.clientY || 0) - gy) <= 28;
+        if (near && Date.now() - t0 <= 120) { ev.stopPropagation(); ev.preventDefault(); }
+      };
       document.addEventListener("click", h, true);
       setTimeout(function () { document.removeEventListener("click", h, true); }, 400);
     }
@@ -51670,7 +51731,7 @@ html, body { overflow-x: clip; }
         var t = e.changedTouches && e.changedTouches[0]; if (!t) return;
         var dx = t.clientX - s.x, dy = t.clientY - s.y;
         if (Math.abs(dx) < THRESH || Math.abs(dx) <= DOM * Math.abs(dy)) return;
-        if (goRel(dx < 0 ? 1 : -1)) swallow();
+        if (goRel(dx < 0 ? 1 : -1)) swallow(t.clientX, t.clientY); // [RP-V7.443] the ghost guard gets the lift point
       }, { passive: true });
     }
     ["screen-home243", "screen-plaza", "screen-moments", "screen-gaming", "screen-auctions", "screen-online", "screen-profile"].forEach(function (id) { /* [RP-GAMING] screen-gaming joins the swipe attach list */
@@ -59602,12 +59663,20 @@ window.rpOpenSavedSheet349 = function () {
       var t = e.changedTouches && e.changedTouches[0]; if (!t) return;
       var dx = t.clientX - sx, dy = t.clientY - sy;
       if (Math.abs(dx) > 52 && Math.abs(dx) > 1.7 * Math.abs(dy)) {
-        if (dx < 0 && cur === 0) { go(1); swallow(); }
-        else if (dx > 0 && cur === 1) { go(0); swallow(); }
+        if (dx < 0 && cur === 0) { go(1); swallow(t.clientX, t.clientY); } // [RP-V7.443] narrowed ghost guard (see the rp420 note)
+        else if (dx > 0 && cur === 1) { go(0); swallow(t.clientX, t.clientY); }
       }
     }, { passive: true });
-    function swallow() {
-      var h = function (ev) { ev.stopPropagation(); ev.preventDefault(); document.removeEventListener("click", h, true); };
+    function swallow(gx, gy) {
+      /* [RP-V7.443] NARROWED like the rp420 guard: eat only the swipe's
+         own trailing ghost click (<=120 ms, <=28 px from the lift
+         point); a deliberate first tap anywhere else passes through. */
+      var t0 = Date.now();
+      var h = function (ev) {
+        document.removeEventListener("click", h, true);
+        var near = Math.abs((ev.clientX || 0) - gx) <= 28 && Math.abs((ev.clientY || 0) - gy) <= 28;
+        if (near && Date.now() - t0 <= 120) { ev.stopPropagation(); ev.preventDefault(); }
+      };
       document.addEventListener("click", h, true);
       setTimeout(function () { document.removeEventListener("click", h, true); }, 400);
     }
