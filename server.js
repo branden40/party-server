@@ -4497,7 +4497,7 @@ app.get("/api/reels", (req, res) => {
     let fset = new Set();
     try { fset = new Set(socialFollowingIds(readSocial(), fyUser.id)); } catch (e) { }
     const adbF = readAccounts();
-    baseList = newest.filter((r) => { const k = reelAuthorKeyFor(adbF, r); return k && fset.has(k); });
+    baseList = newest.filter((r) => { const k = reelAuthorKeyFor(adbF, r); if (k && fset.has(k)) return true; const ck = collabAccId453(r); return !!ck && fset.has(ck); }); // [RP-V7.453] an accepted collaborator is a co-author: their followers' Friends feed carries the post too
   }
   // [RP-GAMING] Category feed (?category=gaming): only reels stored
   // with category "gaming", newest first — the For You ranker is
@@ -4525,7 +4525,7 @@ app.get("/api/reels", (req, res) => {
       const h99 = blockHiddenIds(fyUser.id);
       if (h99.size) {
         const adb99 = readAccounts();
-        all = allRanked.filter((r) => { const k = reelAuthorKeyFor(adb99, r); return !(k && h99.has(k)); });
+        all = allRanked.filter((r) => { const k = reelAuthorKeyFor(adb99, r); const ck = collabAccId453(r); return !((k && h99.has(k)) || (ck && h99.has(ck))); }); // [RP-V7.453] a blocked collaborator hides the post too (mutual block invisibility covers both bylines)
       }
     } catch (e) { /* block filtering must never break reels */ }
   }
@@ -4539,7 +4539,9 @@ app.get("/api/reels", (req, res) => {
       if (!fyUser) return false;
       const k = reelAuthorKeyFor(adb156, r);
       if (k && k === fyUser.id) return true;
-      return a === "followers" && !!k && fol156.has(k);
+      const ck = collabAccId453(r); // [RP-V7.453] the accepted collaborator is a co-author for the audience gate too
+      if (ck && ck === fyUser.id) return true;
+      return a === "followers" && ((!!k && fol156.has(k)) || (!!ck && fol156.has(ck)));
     });
   } catch (e) { /* audience filtering must never break reels */ }
   const vdb64 = readViews(); // [RP-V7.64] public tile counts ride along
@@ -4585,6 +4587,7 @@ app.get("/api/reels", (req, res) => {
           id: r.id,
           author: author313r, // [RP-V7.313]
           authorId: aKey296 || null,
+          ...collabPayload453(r, nameOf313r), // [RP-V7.453] both names ride even the locked placeholder's byline
           ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
           caption: "",
           location: "",
@@ -4628,6 +4631,7 @@ app.get("/api/reels", (req, res) => {
       id: r.id,
       author: author313r, // [RP-V7.313]
       authorId: aKey313r, // [RP-V7.296] the subscribe route rides the payload (the client already reads r.authorId) — [RP-V7.313] the same hoisted key that feeds the byline above
+      ...collabPayload453(r, nameOf313r), // [RP-V7.453] collab byline fields (accepted or pending; the client shows the dual byline on accepted only)
       ...(r.subsOnly ? { subsOnly: true } : {}), // [RP-V7.296]
       ...(r.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
       ...(r.shoutoutFor ? { shoutoutFor: r.shoutoutFor } : {}), // [RP-V7.300] fulfilled-shoutout marker (server record, never caption text)
@@ -6150,6 +6154,35 @@ app.post("/api/reel", (req, res) => {
       ...(musicTrackId ? { musicTrackId, musicStart, musicVol, origVol } : {}),
       ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart, musicVol, origVol } : {}), // [RP-V7.335]
     });
+    // [RP-V7.453] Composer collab invite (optional; account authors
+    // only — a guest post has no account to hold the invite). A bad
+    // invite NEVER fails the post: it simply doesn't attach, and the
+    // author can invite from the post's menu instead.
+    if (authorUser && rb.collabUser) {
+      try {
+        const adb453r = readAccounts();
+        const target453r = collabResolveMember453(adb453r, rb.collabUser);
+        if (
+          target453r &&
+          !collabInviteError453({ user: authorUser, db: adb453r }, "reel", entry, target453r)
+        ) {
+          const c453r = collabStamp453(target453r);
+          updateReelEntry(entry.id, { collab: c453r });
+          entry.collab = c453r;
+          collabNotify453(
+            target453r.id,
+            authorUser,
+            "reel",
+            entry.id,
+            "\uD83E\uDD1D " +
+              (authorUser.name || "Someone") +
+              " invited you to collaborate on their reel — accept and it lands on your profile too, with both names on it."
+          );
+        }
+      } catch (e) {
+        /* a collab invite must never break a post */
+      }
+    }
     if (musicTrackId) soundTouchUse(authorUser ? authorUser.id : null, musicTrackId);
     // [RP-V7.335] A used member sound records its use on the registry;
     // a fresh member video with no attached sound mints its own
@@ -7551,11 +7584,25 @@ function brainScoreReelFor(ctx, userId, r, eng, now, mode) {
   const key = reelAuthorKeyFor(ctx.accountsDb, r);
   const isOwn = !!userId && key === userId;
   let s = 0;
+  const ck453b = collabAccId453(r); // [RP-V7.453] co-author for distribution on the brain path too (same rule as fyScoreReel: stronger affinity, either follow)
   if (ctx.urec && key && !isOwn) {
-    s += 2.5 * fyDecayed((ctx.urec.authorAff || {})[key], now);
+    s +=
+      2.5 *
+      Math.max(
+        fyDecayed((ctx.urec.authorAff || {})[key], now),
+        ck453b && ck453b !== userId
+          ? fyDecayed((ctx.urec.authorAff || {})[ck453b], now)
+          : 0
+      );
     s += 2.5 * fyStyleWeight(ctx.urec, fyReelStyleKeys451(r), now); // [RP-V7.451] category-aware style keys
   }
-  if (!isOwn && key && mode === "gaming" && ctx.following.has(key)) s += 12;
+  if (
+    !isOwn &&
+    mode === "gaming" &&
+    ((key && ctx.following.has(key)) ||
+      (ck453b && ck453b !== userId && ctx.following.has(ck453b)))
+  )
+    s += 12;
   s += Math.min(6, 0.9 * Math.log(1 + eng.likes + 2 * eng.comments + 2 * eng.reposts + 0.5 * eng.gifts));
   const agg = ctx.sig.reels[r.id];
   if (agg && agg.views > 0) {
@@ -7736,12 +7783,27 @@ function fyScoreReel(user, urec, sig, following, accountsDb, reel, now) {
   const aff = (urec && urec.authorAff) || {};
   const seenFull = (urec && urec.seenFull) || {};
   let score = 0;
-  if (urec && key && !isOwn) score += 2.5 * fyDecayed(aff[key], now);
+  // [RP-V7.453] An accepted collaborator is a co-author for
+  // distribution: the affinity term reads the STRONGER of the two
+  // accounts' affinities (never the sum — one post, one affinity
+  // term), and the follow boost below fires off either account.
+  const ck453 = collabAccId453(reel);
+  if (urec && key && !isOwn)
+    score +=
+      2.5 *
+      Math.max(
+        fyDecayed(aff[key], now),
+        ck453 && ck453 !== user.id ? fyDecayed(aff[ck453], now) : 0
+      );
   // [RP-V7.89] STYLE affinity joins the score: a brand-new author in a
   // member's proven style can outrank an established author in a style
   // the member skips. Same 2.5 weight as one author affinity.
   if (urec && !isOwn) score += 2.5 * fyStyleWeight(urec, fyReelStyleKeys451(reel), now); // [RP-V7.451] category-aware style keys
-  if (!isOwn && key && key.indexOf("name:") !== 0 && following.has(key))
+  if (
+    !isOwn &&
+    ((key && key.indexOf("name:") !== 0 && following.has(key)) ||
+      (ck453 && ck453 !== user.id && following.has(ck453))) // [RP-V7.453] following the collaborator lifts the post the same way
+  )
     score += 12;
   const agg = sig.reels[reel.id];
   if (agg && agg.views > 0) {
@@ -8025,6 +8087,335 @@ app.post("/api/reels/interest", (req, res) => {
   for (const id of Object.keys(urec.interest)) if (!live.has(id)) delete urec.interest[id];
   writeReelSignals(sig);
   res.json({ ok: true, interest: next });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.453] COLLAB POSTS (Instagram copy #2 from the queue Branden
+// approved Nov 19, 2026 — his call delegated to B): a photo post or a
+// reel can carry ONE collaborator, Instagram-style.
+//   INVITE — the author names a member by username, at post time (the
+//     composers' collabUser field, wired into both create routes
+//     below) or after posting (POST /api/collab/invite). One pending
+//     invite per post; inviting again replaces it. Self-invites,
+//     invites on someone else's post, invites to a nonexistent member
+//     and invites across a block (either direction) are rejected.
+//   ANSWER — the invitee is notified (notifyActivity kind "collab",
+//     riding the "posts" switch) and answers from the bell row's
+//     Accept / Decline buttons (POST /api/collab/respond). Until the
+//     accept, NOTHING changes publicly: every read path treats only
+//     an ACCEPTED collab as a co-author. A decline clears the invite
+//     silently — no notification, no public trace; the author may
+//     invite someone else.
+//   AFTER ACCEPT — both names ride the byline (the serializers add
+//     collabId / collabName / collabUsername / collabStatus), the post
+//     joins BOTH profile grids, and ranked distribution treats the
+//     partner as a co-author (the For You + brain reel scores read
+//     the stronger of the two affinities and fire the follow boost
+//     off either account; the Friends reel filter and the photo
+//     stream's follow lift include the partner; audience + block
+//     filters honor the partner as a co-author). Engagement stays on
+//     the single shared post — one like / comment / gift count, no
+//     duplicates. GIFT MONEY IS UNCHANGED: /api/money/gift resolves
+//     its recipient exactly as before, so gifts on a collab post pay
+//     the post's author of record at the standing 70% — the partner
+//     gains distribution and engagement, never a revenue split.
+//   REMOVAL — POST /api/collab/remove: the author can remove the
+//     collaborator anytime; the collaborator can remove THEMSELVES
+//     anytime. Immediate and total (byline, grids, feed eligibility).
+//     Deleting the post through the existing DELETE routes removes
+//     it for both, untouched.
+//   DATA MODEL — one field on the post record:
+//     collab: { id, name, username, status, at }
+//     id = the partner's account id; name / username = invite-time
+//     snapshots (fallback only — serializers resolve the CURRENT
+//     display name through the V7.313 resolver, like every byline);
+//     status = "pending" | "accepted"; at = last change ISO time.
+//   BRAIN — an accept bumps the shared For You author affinity +4 in
+//     BOTH members' signal records toward each other
+//     (COLLAB_ACCEPT_AFF453): exactly a like's weight (+4), kept
+//     deliberately below a follow's flat +12 in fyScoreReel — an
+//     accept is one deliberate act, not an ongoing follow edge.
+//     Declines and removals never bump. No artificial rank boost
+//     beyond the dual-audience eligibility above.
+//   REPORTS — a report filed against either party while an accepted
+//     collab is live names BOTH accounts on the owner board (see the
+//     /api/reports hunk).
+const COLLAB_ACCEPT_AFF453 = 4;
+function collabOf453(rec) {
+  const c = rec && rec.collab;
+  if (!c || typeof c !== "object" || !c.id) return null;
+  return {
+    id: String(c.id),
+    name: String(c.name || ""),
+    username: String(c.username || ""),
+    status: c.status === "accepted" ? "accepted" : "pending",
+    at: c.at || null,
+  };
+}
+function collabAccId453(rec) {
+  const c = collabOf453(rec);
+  return c && c.status === "accepted" ? c.id : null;
+}
+// The serializer spread: {} when no collab rides the record, else the
+// four collab fields with the partner's CURRENT display name.
+function collabPayload453(rec, nameOf313x) {
+  const c = collabOf453(rec);
+  if (!c) return {};
+  return {
+    collabId: c.id,
+    collabName: (nameOf313x && nameOf313x(c.id)) || c.name || "",
+    collabUsername: c.username || "",
+    collabStatus: c.status,
+  };
+}
+function collabLoad453(kind, id) {
+  if (kind === "reel") {
+    const r = listReels().find((x) => x && String(x.id) === String(id));
+    if (!r) return null;
+    return { rec: r, save: (c) => updateReelEntry(r.id, { collab: c || undefined }) };
+  }
+  if (kind === "photo") {
+    const db = readPhotoPosts();
+    const p = db.posts.find((x) => x && String(x.id) === String(id));
+    if (!p) return null;
+    return {
+      rec: p,
+      save: (c) => {
+        if (c) p.collab = c;
+        else delete p.collab;
+        writePhotoPosts(db);
+      },
+    };
+  }
+  return null;
+}
+function collabAuthorId453(kind, rec, adb) {
+  if (!rec) return null;
+  if (kind === "photo") return rec.owner || null;
+  try {
+    const k = reelAuthorKeyFor(adb || readAccounts(), rec);
+    return k && k.indexOf("name:") !== 0 ? k : null;
+  } catch (e) {
+    return rec.authorId || null;
+  }
+}
+// Resolve an invite target: username first (case-insensitive), then a
+// unique exact display-name match — the two ways members name each
+// other in this app. Locked-out / deletion-pending accounts do not
+// resolve (they are de-listed everywhere, the gift rule).
+function collabResolveMember453(adb, raw) {
+  const want = String(raw || "").trim().replace(/^@+/, "").slice(0, 40);
+  if (!want) return null;
+  const users = ((adb && adb.users) || []).filter(
+    (u) => u && !u.deletionAt && !accountLockedOut(u)
+  );
+  const byUser = users.filter(
+    (u) => String(u.username || "").toLowerCase() === want.toLowerCase()
+  );
+  if (byUser.length === 1) return byUser[0];
+  if (byUser.length > 1) return null;
+  const byName = users.filter((u) => u.name === want);
+  return byName.length === 1 ? byName[0] : null;
+}
+// null = the invite may proceed; otherwise the honest refusal.
+function collabInviteError453(ctx, kind, rec, target) {
+  const authorId = collabAuthorId453(kind, rec, ctx.db);
+  if (!authorId || authorId !== ctx.user.id) return "That's not your post";
+  if (!target) return "No member with that username";
+  if (target.id === ctx.user.id) return "You can't invite yourself";
+  if (notifyPairBlocked(ctx.user.id, target.id))
+    return "You can't invite this member";
+  return null;
+}
+function collabStamp453(target) {
+  return {
+    id: target.id,
+    name: reelCleanName(target.name) || String(target.name || ""),
+    username: String(target.username || ""),
+    status: "pending",
+    at: new Date().toISOString(),
+  };
+}
+function collabNotify453(toId, actor, kind, postId, text) {
+  notifyActivity({
+    toId,
+    kind: "collab",
+    actorId: actor.id,
+    actorName: actor.name,
+    text,
+    go:
+      kind === "reel"
+        ? { screen: "moments", reelId: postId }
+        : { screen: "moments", photoId: postId },
+    collab453: { kind, id: postId },
+  });
+}
+function collabDoInvite453(ctx, kind, rec, save, target) {
+  const c = collabStamp453(target);
+  save(c);
+  collabNotify453(
+    target.id,
+    ctx.user,
+    kind,
+    rec.id,
+    "\uD83E\uDD1D " +
+      (ctx.user.name || "Someone") +
+      " invited you to collaborate on their " +
+      (kind === "reel" ? "reel" : "photo post") +
+      " — accept and it lands on your profile too, with both names on it."
+  );
+  return c;
+}
+function collabKind453(b) {
+  return b && b.kind === "photo" ? "photo" : b && b.kind === "reel" ? "reel" : null;
+}
+app.post("/api/collab/invite", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const kind = collabKind453(b);
+  const id = reelCleanId(b.id);
+  if (!kind || !id)
+    return res.status(400).json({ ok: false, error: "Bad invite" });
+  const L = collabLoad453(kind, id);
+  if (!L) return res.status(404).json({ ok: false, error: "Post not found" });
+  const existing = collabOf453(L.rec);
+  if (existing && existing.status === "accepted")
+    return res.status(400).json({
+      ok: false,
+      error: "This post already has a collaborator — remove them first",
+    });
+  const target = collabResolveMember453(ctx.db, b.username);
+  const err = collabInviteError453(ctx, kind, L.rec, target);
+  if (err)
+    return res
+      .status(err === "That's not your post" ? 403 : 400)
+      .json({ ok: false, error: err });
+  const c = collabDoInvite453(ctx, kind, L.rec, L.save, target);
+  res.json({
+    ok: true,
+    collab: { id: c.id, name: c.name, username: c.username, status: c.status },
+  });
+});
+app.post("/api/collab/respond", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const kind = collabKind453(b);
+  const id = reelCleanId(b.id);
+  if (!kind || !id)
+    return res.status(400).json({ ok: false, error: "Bad answer" });
+  const L = collabLoad453(kind, id);
+  if (!L) return res.status(404).json({ ok: false, error: "Post not found" });
+  const c = collabOf453(L.rec);
+  if (!c || c.id !== ctx.user.id || c.status !== "pending")
+    return res
+      .status(409)
+      .json({ ok: false, error: "That invite is no longer open" });
+  const authorId = collabAuthorId453(kind, L.rec, ctx.db);
+  const author = authorId
+    ? ctx.db.users.find((u) => u && u.id === authorId) || null
+    : null;
+  const accept = b.accept === true || b.accept === "true";
+  if (!accept) {
+    // Decline: the invite clears silently — no notification, no
+    // public trace; the author may invite someone else.
+    L.save(null);
+    return res.json({ ok: true, accepted: false });
+  }
+  // The block check runs again at accept time: a pair that blocked
+  // each other after the invite was sent cannot become collaborators.
+  if (authorId && notifyPairBlocked(ctx.user.id, authorId)) {
+    L.save(null);
+    return res
+      .status(403)
+      .json({ ok: false, error: "You can't collaborate with this member" });
+  }
+  c.status = "accepted";
+  c.at = new Date().toISOString();
+  L.save(c);
+  // [RP-V7.453] BRAIN: the accept is a real engagement signal between
+  // the two accounts — +4 author affinity BOTH ways (a like's weight;
+  // see the module header for the rationale).
+  try {
+    if (authorId && authorId !== ctx.user.id) {
+      const sig453 = readReelSignals();
+      const now453 = Date.now();
+      fyBump(fyUserRec(sig453, ctx.user.id, true), authorId, COLLAB_ACCEPT_AFF453, now453);
+      fyBump(fyUserRec(sig453, authorId, true), ctx.user.id, COLLAB_ACCEPT_AFF453, now453);
+      writeReelSignals(sig453);
+    }
+  } catch (e) {
+    /* the signal must never break the accept */
+  }
+  if (author)
+    collabNotify453(
+      author.id,
+      ctx.user,
+      kind,
+      L.rec.id,
+      "\uD83E\uDD1D " +
+        (ctx.user.name || "Someone") +
+        " accepted your collab invite — the post now shows on both profiles, with both names on it."
+    );
+  res.json({ ok: true, accepted: true });
+});
+app.post("/api/collab/remove", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const kind = collabKind453(b);
+  const id = reelCleanId(b.id);
+  if (!kind || !id)
+    return res.status(400).json({ ok: false, error: "Bad request" });
+  const L = collabLoad453(kind, id);
+  if (!L) return res.status(404).json({ ok: false, error: "Post not found" });
+  const c = collabOf453(L.rec);
+  if (!c)
+    return res
+      .status(409)
+      .json({ ok: false, error: "No collaborator on this post" });
+  const authorId = collabAuthorId453(kind, L.rec, ctx.db);
+  const isAuthor = !!authorId && authorId === ctx.user.id;
+  const isCollab = c.id === ctx.user.id;
+  if (!isAuthor && !isCollab)
+    return res.status(403).json({ ok: false, error: "That's not your post" });
+  L.save(null);
+  const otherId = isAuthor ? c.id : authorId;
+  if (otherId && otherId !== ctx.user.id) {
+    const other = ctx.db.users.find((u) => u && u.id === otherId) || null;
+    if (other)
+      collabNotify453(
+        otherId,
+        ctx.user,
+        kind,
+        L.rec.id,
+        isAuthor
+          ? "\uD83E\uDD1D " +
+              (ctx.user.name || "Someone") +
+              " removed the collaboration on their " +
+              (kind === "reel" ? "reel" : "photo post") +
+              " — it no longer shows on your profile."
+          : "\uD83E\uDD1D " +
+              (ctx.user.name || "Someone") +
+              " left the collaboration on your " +
+              (kind === "reel" ? "reel" : "photo post") +
+              " — it's back to your name only."
+      );
+  }
+  res.json({ ok: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -8466,7 +8857,8 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
   // text, no comments ride a locked payload, on any surface.
   const subsOnly296 = !!p.subsOnly;
   const clubOnly298 = !!p.clubOnly; // [RP-V7.298]
-  const locked296 = uid !== p.owner && ((subsOnly296 && !(fanAccess296 && fanAccess296.has(p.owner))) || (clubOnly298 && !(clubAccess298 && clubAccess298.has(p.owner)))); // [RP-V7.298] BOTH flags gate: a viewer needs every access the post demands
+  const collabMe453p = !!uid && collabAccId453(p) === uid; // [RP-V7.453] the accepted collaborator is a co-author — the lock never gates them out of their own post
+  const locked296 = !collabMe453p && uid !== p.owner && ((subsOnly296 && !(fanAccess296 && fanAccess296.has(p.owner))) || (clubOnly298 && !(clubAccess298 && clubAccess298.has(p.owner)))); // [RP-V7.298] BOTH flags gate: a viewer needs every access the post demands
   if (locked296) {
     return {
       id: p.id,
@@ -8474,6 +8866,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
       ...(subsOnly296 ? { subsOnly: true } : {}), ...(clubOnly298 ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
       author: author313p, // [RP-V7.313]
       authorId: p.owner || null,
+      ...collabPayload453(p, nameOf313), // [RP-V7.453] both names ride even the locked placeholder's byline
       photo: null,
       urls: [],
       text: "",
@@ -8504,6 +8897,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     ...(clubOnly298 ? { clubOnly: true } : {}), // [RP-V7.298]
     shoutoutFor: p.shoutoutFor || null, // [RP-V7.300] fulfilled-shoutout marker (server record, never caption text)
     authorId: p.owner || null, // [RP-V7.296] the subscribe route rides every post payload
+    ...collabPayload453(p, nameOf313), // [RP-V7.453] collab byline fields (accepted or pending; the client shows the dual byline on accepted only)
     text: p.kind === "text" ? String(p.text || "") : "", // [RP-V7.278]
     tstyle: p.kind === "text" ? textStyle278(p.tstyle) : null, // [RP-V7.278]
     author: author313p, // [RP-V7.313]
@@ -8665,6 +9059,31 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       post.shoutoutFor = { id: so300p.requestId, name: so300p.buyerName || "" };
       post.shoutoutRequestId = so300p.requestId;
       writePhotoPosts(db);
+    }
+    // [RP-V7.453] Composer collab invite (optional): resolve +
+    // validate; a bad invite NEVER fails the post — it simply
+    // doesn't attach, and the author can invite from the post's
+    // menu instead. The response's post payload below carries the
+    // pending collab, so the author sees the invite went out.
+    if (String(b.collabUser || "").trim()) {
+      try {
+        const target453p = collabResolveMember453(ctx.db, b.collabUser);
+        if (target453p && !collabInviteError453(ctx, "photo", post, target453p)) {
+          post.collab = collabStamp453(target453p);
+          writePhotoPosts(db);
+          collabNotify453(
+            target453p.id,
+            ctx.user,
+            "photo",
+            post.id,
+            "\uD83E\uDD1D " +
+              (ctx.user.name || "Someone") +
+              " invited you to collaborate on their photo post — accept and it lands on your profile too, with both names on it."
+          );
+        }
+      } catch (e) {
+        /* a collab invite must never break a post */
+      }
     }
     return res.json({
       ok: true,
@@ -9117,7 +9536,7 @@ app.get("/api/photo/posts", (req, res) => {
   if (uid) {
     try {
       const h99 = blockHiddenIds(uid);
-      if (h99.size) rawPosts99 = rawPosts99.filter((p) => !(p && h99.has(p.owner)));
+      if (h99.size) rawPosts99 = rawPosts99.filter((p) => !(p && (h99.has(p.owner) || (collabAccId453(p) && h99.has(collabAccId453(p)))))); // [RP-V7.453] a blocked collaborator hides the post too
     } catch (e) { /* block filtering must never break photo posts */ }
   }
   // [RP-V7.156] Audience: onlyme = owner only; followers = owner + members who follow the owner.
@@ -9128,7 +9547,9 @@ app.get("/api/photo/posts", (req, res) => {
       if (a === "everyone") return true;
       if (!uid) return false;
       if (p.owner === uid) return true;
-      return a === "followers" && fol156.has(p.owner);
+      const ck = collabAccId453(p); // [RP-V7.453] the accepted collaborator is a co-author for the audience gate too
+      if (ck && ck === uid) return true;
+      return a === "followers" && (fol156.has(p.owner) || (!!ck && fol156.has(ck)));
     });
   } catch (e) { /* audience filtering must never break photo posts */ }
   const pg262 = readMoney().postGifts || {}; // [RP-V7.262] one money read per request feeds every post's gift count
@@ -9165,6 +9586,17 @@ app.get("/api/photo/posts", (req, res) => {
               2.5 * fyDecayed(aff276[p.owner], now276) +
               (fol276.has(p.owner) ? 6 : 0) +
               (urec276 ? 2.5 * fyStyleWeight(urec276, styleKeysForCaption(p.caption), now276) : 0)));
+            // [RP-V7.453] the accepted collaborator is a co-author for
+            // distribution: their affinity + follow state lift the
+            // post the same way — the STRONGER of the two lifts, never
+            // the sum (one post, one lift).
+            const ck276 = collabAccId453(p);
+            if (ck276 && ck276 !== uid) {
+              const liftC276 = Math.max(0, Math.min(24,
+                2.5 * fyDecayed(aff276[ck276], now276) +
+                (fol276.has(ck276) ? 6 : 0)));
+              if (liftC276 > liftH) liftH = liftC276;
+            }
           }
           return { p, i276, _t: t276 + liftH * 3600000 };
         })
@@ -13506,12 +13938,14 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
       if (!uid || (owner296 !== uid && ((r.subsOnly && !fanSubAccess296(mdb296r, uid, owner296)) || (r.clubOnly && !fanClubAccess298(mdb296r, uid, owner296)))))
         return { kind: "reel", id: r.id, src: null, views: 0, caption: "", likes: hl241, ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
           owner: owner296, ownerName: (owner296 && nameOf313t(owner296)) || r.author || "", // [RP-V7.313]
+          ...collabPayload453(r, nameOf313t), // [RP-V7.453]
           heartLikes: hl241, giftCount: postGiftCountOf262(mdb296r.postGifts || {}, "reel", r.id),
           myHeart: false, comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, myReposted: false };
     }
     return { kind: "reel", id: r.id, src: "/reel-files/" + r.file, views: mediaViewCount(vdb, "reel:" + r.id), caption: r.caption || "", likes: hl241,
       // [RP-V7.241] author + social state for the lightbox rail
       owner: r.authorId || null, ownerName: (adb313t ? (nameOf313t(reelAuthorKeyFor(adb313t, r)) || r.author || "") : (r.author || "")), // [RP-V7.313]
+      ...collabPayload453(r, nameOf313t), // [RP-V7.453]
       heartLikes: hl241, giftCount: postGiftCountOf262(readMoney().postGifts || {}, "reel", r.id), // [RP-V7.262]
       myHeart: !!uid && Array.isArray(r.heartLikes) && r.heartLikes.includes(uid),
       comments: reelPublicComments(r, nameOf313t), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, // [RP-V7.313] comment bylines resolve live too
@@ -13528,6 +13962,7 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
       photoCount: (pub.urls || []).length || 1, // [RP-V7.123] set size for the grid's multi-photo badge
       // [RP-V7.241] author + social state for the lightbox rail
       owner: p.owner || null, ownerName: (p.owner && nameOf313t(p.owner)) || p.name || "", // [RP-V7.313]
+      collabId: pub.collabId || null, collabName: pub.collabName || "", collabUsername: pub.collabUsername || "", collabStatus: pub.collabStatus || null, // [RP-V7.453] rides the gated payload like the byline
       myLiked: !!pub.myLiked, comments: pub.comments || [], commentCount: pub.commentCount || 0,
       reposts: pub.reposts || 0, myReposted: !!pub.myReposted, mine: !!pub.mine };
   }
@@ -13615,15 +14050,25 @@ app.get("/api/social/profile", (req, res) => {
     const canSeeSubs296 = ctx.user.id === target.id || fanSubAccess296(mdb298prof, ctx.user.id, target.id);
     const canSeeClub298 = ctx.user.id === target.id || fanClubAccess298(mdb298prof, ctx.user.id, target.id); // [RP-V7.298]
     reels = listReels()
-      .filter((r) => r && reelAuthorKeyFor(ctx.db, r) === target.id) // [RP-V7.313] stable author key, survives renames
+      .filter((r) => r && (reelAuthorKeyFor(ctx.db, r) === target.id || collabAccId453(r) === target.id)) // [RP-V7.313] stable author key, survives renames // [RP-V7.453] an accepted collab post joins the partner's grid too
       .slice(0, 12)
       .map((r) => {
-        if ((r.subsOnly && !canSeeSubs296) || (r.clubOnly && !canSeeClub298)) { // [RP-V7.298]
+        // [RP-V7.453] A collab reel sitting on the PARTNER's grid keeps
+        // gating against its real author: holding access to the
+        // profile owner never unlocks the author's gated post.
+        const ra453 = reelAuthorKeyFor(ctx.db, r);
+        const authorGate453 =
+          ra453 && ra453 !== target.id && ctx.user.id !== ra453
+            ? (r.subsOnly && !fanSubAccess296(mdb298prof, ctx.user.id, ra453)) ||
+              (r.clubOnly && !fanClubAccess298(mdb298prof, ctx.user.id, ra453))
+            : false;
+        if ((r.subsOnly && !canSeeSubs296) || (r.clubOnly && !canSeeClub298) || authorGate453) { // [RP-V7.298]
           // Locked placeholder: no playback URL, no caption, no
           // comments — the profile grid renders the lock card.
           return { id: r.id, url: null, kind: r.kind || "video", caption: "", createdAt: r.createdAt || null, views: 0, allowDownloads: false, // [RP-V7.316] locked placeholder
             ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.clubOnly ? { clubOnly: true } : {}), locked: true, // [RP-V7.298]
-            authorId: target.id,
+            authorId: reelAuthorKeyFor(ctx.db, r) || target.id, // [RP-V7.453] a collab tile keeps its real author id
+            ...collabPayload453(r, nameResolver313(ctx.db)), // [RP-V7.453]
             heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
             giftCount: postGiftCountOf262(pg262, "reel", r.id),
             myHeart: false,
@@ -13635,7 +14080,8 @@ app.get("/api/social/profile", (req, res) => {
         }
         return { id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id), allowDownloads: r.allowDownloads !== false, ...(r.clubOnly ? { clubOnly: true } : {}), ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.shoutoutFor ? { shoutoutFor: r.shoutoutFor } : {}), // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
         // [RP-V7.241] author + social state for the lightbox rail
-        authorId: target.id,
+        authorId: reelAuthorKeyFor(ctx.db, r) || target.id, // [RP-V7.453] a collab tile keeps its real author id
+        ...collabPayload453(r, nameResolver313(ctx.db)), // [RP-V7.453]
         heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
         giftCount: postGiftCountOf262(pg262, "reel", r.id), // [RP-V7.262]
         myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id),
@@ -13648,7 +14094,7 @@ app.get("/api/social/profile", (req, res) => {
   } catch (e) { }
   let reelsCount = reels.length;
   try {
-    reelsCount = listReels().filter((r) => r && reelAuthorKeyFor(ctx.db, r) === target.id).length; // [RP-V7.313] same key match as the list above
+    reelsCount = listReels().filter((r) => r && (reelAuthorKeyFor(ctx.db, r) === target.id || collabAccId453(r) === target.id)).length; // [RP-V7.313] same key match as the list above // [RP-V7.453] collab posts count on the partner's grid too
   } catch (e) { }
   // Faith testimony line, when they've set up a faith profile.
   let testimony = "";
@@ -13673,7 +14119,7 @@ app.get("/api/social/profile", (req, res) => {
   } catch (e) { }
   try {
     const pg262 = readMoney().postGifts || {}; // [RP-V7.262]
-    photoPosts = readPhotoPosts().posts.filter((p) => p && p.owner === target.id).slice(0, 30)
+    photoPosts = readPhotoPosts().posts.filter((p) => p && (p.owner === target.id || collabAccId453(p) === target.id)).slice(0, 30) // [RP-V7.453] an accepted collab post joins the partner's grid too
       .map((p) => { const mdb298pp2 = readMoney(); return photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86, pg262, fanSubAccessSet296(mdb298pp2, ctx.user.id), fanClubAccessSet298(mdb298pp2, ctx.user.id), nameResolver313(ctx.db)); }); // [RP-V7.296] // [RP-V7.298] // [RP-V7.313]
     for (const p of photoPosts) likesTotal += p.likes || 0;
   } catch (e) { }
@@ -16707,7 +17153,7 @@ app.get("/api/members", (req, res) => {
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
 const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", rewards: "gifts", // [RP-V7.390] offer + saved-search alerts ride the "gifts" switch like order, never SMS // [RP-V7.386] order updates ride the "gifts" switch like tips, never SMS // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
- like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups" }; // [RP-V7.307] owner signup alerts ride the "signups" switch // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
+ like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups", collab: "posts" }; // [RP-V7.453] collab invites/answers ride the "posts" switch, never SMS (not in NOTIFY_SMS_KINDS) // [RP-V7.307] owner signup alerts ride the "signups" switch // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true, signup: true }; // [RP-V7.307] signup alerts text too — the kind only ever targets the owner, and only once Twilio is configured (notifySmsReady)
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 // [RP-V7.129] NEW-POST ALERTS: when a member posts, every follower gets
@@ -16867,6 +17313,7 @@ function notifyActivity(o) {
         if (o.holName) rem.holName = o.holName; // [RP-V7.309]
         if (o.coalesceKey) rem.ck = o.coalesceKey;
         if (o.go) rem.go = o.go;
+        if (o.collab453) rem.collab = o.collab453; // [RP-V7.453] the collab invite's post ref ({kind, id}) — the bell row renders Accept/Decline from it
         // [RP-V7.270] actor stamps (see stampRemActor270).
         if (o.actorId) stampRemActor270(rem, o, adb);
         u.reminders.push(rem);
@@ -17052,7 +17499,7 @@ const PUSH328_FILE =
 // gift through the door, so the Likes / Comments / Reposts / New
 // posts / Live invites / Daily Pot toggles the Settings screen shows
 // never produced a phone push — members got those by email only.
-const PUSH328_KIND_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", rewards: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups" };
+const PUSH328_KIND_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", rewards: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups", collab: "posts" }; // [RP-V7.453] mirror of NOTIFY_SETTING_KEY for the collab kind
 const PUSH328_SUBJECT = "mailto:support@rizzplaza.com";
 function emptyPush328() {
   return { vapid: null, subs: {} };
@@ -27518,10 +27965,35 @@ app.post("/api/reports", (req, res) => {
     return res.status(404).json({ ok: false, error: "Account not found" });
   if (target.id === ctx.user.id)
     return res.status(400).json({ ok: false, error: "You can't report yourself" });
+  // [RP-V7.453] A report against either party to an ACCEPTED collab
+  // names BOTH accounts on the owner board: the filed surface line
+  // carries the other party, so a collab post's report can never
+  // hide who shared the byline.
+  let surface453 = String(b.surface || "profile");
+  try {
+    let other453 = null;
+    const scan453 = (rec, authorId) => {
+      const ck = collabAccId453(rec);
+      if (!ck || !authorId) return;
+      if (authorId === target.id && ck !== target.id) {
+        const u = ctx.db.users.find((x) => x && x.id === ck);
+        other453 = u ? u.name : collabOf453(rec).name;
+      } else if (ck === target.id && authorId !== target.id) {
+        const u = ctx.db.users.find((x) => x && x.id === authorId);
+        other453 = u ? u.name : "";
+      }
+    };
+    for (const r of listReels()) if (r) scan453(r, collabAuthorId453("reel", r, ctx.db));
+    if (!other453)
+      for (const p of readPhotoPosts().posts) if (p) scan453(p, p.owner || null);
+    if (other453) surface453 += " · collab with " + String(other453).slice(0, 40);
+  } catch (e) {
+    /* naming must never break the filing */
+  }
   const out = fileAgeReport263({
     reporterId: ctx.user.id, reporterName: ctx.user.name,
     reportedId: target.id, reportedName: target.name,
-    surface: String(b.surface || "profile"),
+    surface: surface453,
   });
   res.json({ ok: true, filed: out.filed, deduped: !!out.deduped });
 });
