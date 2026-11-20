@@ -20156,6 +20156,15 @@ function battle336HammerTarget(b, mySide) {
   }
   return best;
 }
+// [RP-V7.458] Opponent-mute view for the 1v1 payload: a === side "a"
+// has muted side "b", b the reverse. Public by design — TikTok
+// announces a mute to both screens, so there is nothing to mask.
+function battle458View(b) {
+  const m = b.mutes458 || {};
+  const pa = b.parts[0], pb = b.parts[1];
+  if (!pa || !pb) return { a: false, b: false };
+  return { a: !!(m[pa.sock] && m[pa.sock][pb.sock]), b: !!(m[pb.sock] && m[pb.sock][pa.sock]) };
+}
 function battle306EffectsView(b, side, now) {
   const e = b.effects[side];
   return {
@@ -20185,6 +20194,7 @@ function battle306Payload(b, forSide, forHostAcct, ev) {
     aPts: forSide === "a" ? mine : (oppMisted ? null : theirs),
     bPts: forSide === "b" ? mine : (oppMisted ? null : theirs),
     youSide: forSide,
+    mute: battle458View(b), // [RP-V7.458] opponent-mute state (see battle458SetMute)
     effects: { a: battle306EffectsView(b, "a", now), b: battle306EffectsView(b, "b", now) },
     mission: b.mission ? { active: now >= b.mission.startsAt && now < b.mission.endsAt, opensAt: b.mission.startsAt, endsAt: b.mission.endsAt } : null,
     ev: ev || null,
@@ -20307,6 +20317,7 @@ function battleBuild336(format, parts, endsAt) {
   }
   const b = {
     id, format, parts, sidePts, effects, timerUsed,
+    mutes458: {}, // [RP-V7.458] opponent-mute state: muter socket id -> { target socket id: true }; dies with the record
     endsAt, startedAt: now, ended: false, winnerSide: null, winnerSides: null,
     mission: { startsAt: mSkip ? endsAt + 1 : mStart, endsAt: mStart + 30000, announced: false, closed: mSkip, usedBy: {} },
   };
@@ -20323,6 +20334,7 @@ function battle306Create306(aSock, aPlayer, bSock, bPlayer, endsAt) {
 function battle306End(b, reason) {
   if (!b || b.ended) return;
   b.ended = true;
+  b.mutes458 = {}; // [RP-V7.458] mute state clears when the battle ends (the record is deleted below regardless)
   // [RP-V7.336] Winner = the unique top side. A tie at the top is a
   // draw — no winner and no award (the 1v1 rule, extended plainly).
   let top = -1;
@@ -20443,6 +20455,41 @@ function battle306Play(socketId, battleId, item) {
   battleEmit336(b, ev);
   console.log("[battle306] play", b.id, side, item);
   return { ok: true, item, side };
+}
+// [RP-V7.458] BATTLE OPPONENT MUTE (Branden, Nov 20, 2026 — the
+// TikTok battle mechanic from the recording he sent: one host mutes
+// the other mid-match and a banner announces "<Name> muted the other
+// creator"). A host sets or clears ONLY their own mute of the
+// opposing side; the two directions are independent. The state lives
+// on the battle record (b.mutes458: muter socket id -> { target
+// socket id: true }), rides every battle306 payload as the "mute"
+// view, and dies with the record at battle end — nothing persists,
+// nothing to clean up. Enforcement is at the receiving clients'
+// opponent-tile playback layer (the muter's side stops rendering the
+// opponent's audio); the muted host's own mic and their own live are
+// untouched. A mute is NOT a ranking signal: no League Points, no
+// affinity, no score effect. Refusals mirror battle306Play.
+function battle458SetMute(socketId, battleId, muted) {
+  const b = battles306.get(String(battleId || ""));
+  if (!b || b.ended) return { ok: false, error: "no-battle" };
+  const me = battle306PartOf(b, socketId);
+  if (!me) return { ok: false, error: "not-a-host" };
+  if (Date.now() >= b.endsAt) return { ok: false, error: "battle-over" };
+  // Targets are every part on a DIFFERENT side — in 1v1 exactly the
+  // one opponent. A host can never target their own side, so muting
+  // yourself or a teammate is structurally impossible, not just
+  // refused.
+  const targets = b.parts.filter((pt) => pt.side !== me.side);
+  if (!targets.length) return { ok: false, error: "no-opponent" };
+  if (!b.mutes458) b.mutes458 = {};
+  const want = !!muted;
+  const cur = targets.every((pt) => !!(b.mutes458[socketId] && b.mutes458[socketId][pt.sock]));
+  if (want === cur) return { ok: true, muted: want, side: me.side, changed: false }; // idempotent — no duplicate banner
+  if (want) { const m = {}; for (const pt of targets) m[pt.sock] = true; b.mutes458[socketId] = m; }
+  else delete b.mutes458[socketId];
+  battleEmit336(b, { kind: want ? "mute" : "unmute", side: me.side, byName: me.name });
+  console.log("[battle458] mute", b.id, me.side, want ? "on" : "off");
+  return { ok: true, muted: want, side: me.side, changed: true };
 }
 // Battle clock sweep: mission open/close announcements + battle end.
 setInterval(() => {
@@ -33187,6 +33234,14 @@ io.on("connection", (socket) => {
   socket.on("battle-boost", (data = {}) => {
     const r = battle306Play(socket.id, data.battleId, String(data.item || ""));
     socket.emit("battle-boost-ack", r);
+  });
+
+  // [RP-V7.458] A host mutes/unmutes the opposing creator. The ack
+  // goes only to the tapper; the state + announcement broadcast
+  // rides battleEmit336 inside battle458SetMute.
+  socket.on("battle-mute", (data = {}) => {
+    const r = battle458SetMute(socket.id, data.battleId, data.muted);
+    socket.emit("battle-mute-ack", r);
   });
 
   // [RP-V7.52] Stage requests ride a DEDICATED relay (audit H3).
