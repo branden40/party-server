@@ -18613,6 +18613,8 @@ const MONEY_GIFT_TABLE = {
   tidalwave: 1800, meteorrun: 2400, royalcrest: 3300, theruler: 4400,
   // [RP-V7.446] +6 gifts (Nov 19, 2026) — batch 1 of the Boosie-video slate; ids + prices mirror the client's GIFT_SHOP exactly; catalog now 101 gifts.
   loveyousomuch: 35, poppal: 125, dolphinleap: 140, heartpuff: 150, redglovepunch: 160, welcomemarquee: 170,
+  // [RP-V7.447] +6 gifts (Nov 19, 2026) — batch 2 of the Boosie-video slate; ids + prices mirror the client's GIFT_SHOP exactly; catalog now 107 gifts.
+  peeklemur: 190, handheart: 250, hanginglights: 280, bigbow: 320, lovepainting: 380, bubblegum: 420,
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
@@ -18694,6 +18696,12 @@ const MONEY_GIFT_INFO = {
   heartpuff: { name: "Heart Puff", tier: "medium" },
   redglovepunch: { name: "Red Glove Punch", tier: "medium" },
   welcomemarquee: { name: "Welcome Marquee", tier: "medium" },
+  peeklemur: { name: "Peek Lemur", tier: "medium" }, // [RP-V7.447] +6 gifts Nov 19, 2026
+  handheart: { name: "Hand Heart", tier: "medium" },
+  hanginglights: { name: "Hanging Lights", tier: "medium" },
+  bigbow: { name: "Big Bow", tier: "medium" },
+  lovepainting: { name: "Love Painting", tier: "medium" },
+  bubblegum: { name: "Bubble Gum", tier: "medium" },
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
   fattuesday: { name: "Fat Tuesday Frenzy", tier: "big" },
