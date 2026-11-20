@@ -4552,6 +4552,23 @@ app.get("/api/reels", (req, res) => {
   let adb296r = null;
   try { adb296r = readAccounts(); } catch (e) { adb296r = null; }
   const nameOf313r = nameResolver313(adb296r); // [RP-V7.313] byline resolver over the accounts read above
+  // [RP-V7.451] One signals read + the caller's follow set + the set of
+  // authors the caller has heart-liked a reel from feed the per-reel
+  // `why` / `myInterest` fields below (signed-in callers only; the
+  // locked subscriber placeholders never carry them).
+  let sig451 = null, urec451 = null;
+  const fol451 = new Set(), likedKeys451 = new Set();
+  if (fyUser) {
+    try {
+      sig451 = readReelSignals();
+      urec451 = sig451.users[fyUser.id] || null;
+      for (const id of socialFollowingIds(readSocial(), fyUser.id)) fol451.add(id);
+      if (urec451 && urec451.liked && adb296r) {
+        for (const r of all) if (urec451.liked[r.id]) { const k = reelAuthorKeyFor(adb296r, r); if (k) likedKeys451.add(k); }
+      }
+    } catch (e) { sig451 = null; urec451 = null; }
+  }
+  const now451 = Date.now();
   const list = all.slice(0, 100).map((r) => {
     // [RP-V7.313] the byline is the author's CURRENT display name,
     // resolved by author key; the stored snapshot is the fallback.
@@ -4661,6 +4678,10 @@ app.get("/api/reels", (req, res) => {
             myReposted:
               (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === fyUser.id)) ||
               (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === fyUser.id)), // [RP-V7.101] own reshare state
+            // [RP-V7.451] why this reel is in the caller's feed + the
+            // caller's stored feedback choice for it (null = none).
+            why: sig451 ? fyWhy451(fyUser, urec451, sig451, fol451, likedKeys451, adb296r, r, author313r, now451) : null,
+            myInterest: urec451 && urec451.interest ? (urec451.interest[r.id] || null) : null,
           }
         : {}),
     };
@@ -7330,7 +7351,7 @@ function fyUserRec(sig, userId, create) {
   let rec = sig.users[userId];
   if (!rec) {
     if (!create) return null;
-    rec = sig.users[userId] = { authorAff: {}, liked: {}, seenFull: {}, liveSigAt: {}, storySigDay: {}, pliked: {}, reposted: {}, styleAff: {} };
+    rec = sig.users[userId] = { authorAff: {}, liked: {}, seenFull: {}, liveSigAt: {}, storySigDay: {}, pliked: {}, reposted: {}, styleAff: {}, interest: {} }; // [RP-V7.451] interest: per-reel feedback choices
   }
   if (!rec.authorAff) rec.authorAff = {};
   if (!rec.liked) rec.liked = {};
@@ -7340,6 +7361,7 @@ function fyUserRec(sig, userId, create) {
   if (!rec.pliked) rec.pliked = {};
   if (!rec.reposted) rec.reposted = {}; // [RP-V7.89] repost exactly-once guard (kind:id)
   if (!rec.styleAff) rec.styleAff = {}; // [RP-V7.89] style affinity (tags + families)
+  if (!rec.interest || typeof rec.interest !== "object") rec.interest = {}; // [RP-V7.451] { [reelId]: "in" | "out" }
   return rec;
 }
 function reelAuthorKeyFor(accountsDb, reel) {
@@ -7531,7 +7553,7 @@ function brainScoreReelFor(ctx, userId, r, eng, now, mode) {
   let s = 0;
   if (ctx.urec && key && !isOwn) {
     s += 2.5 * fyDecayed((ctx.urec.authorAff || {})[key], now);
-    s += 2.5 * fyStyleWeight(ctx.urec, styleKeysForCaption(r.caption), now);
+    s += 2.5 * fyStyleWeight(ctx.urec, fyReelStyleKeys451(r), now); // [RP-V7.451] category-aware style keys
   }
   if (!isOwn && key && mode === "gaming" && ctx.following.has(key)) s += 12;
   s += Math.min(6, 0.9 * Math.log(1 + eng.likes + 2 * eng.comments + 2 * eng.reposts + 0.5 * eng.gifts));
@@ -7564,6 +7586,16 @@ function brainScoreReelGlobal(ctx, r, eng, now) {
   return s;
 }
 function brainRankReelsFor(user, list, mode) {
+  // [RP-V7.451] Not-interested exclusion on the brain path too — For
+  // You, Gaming and Search are ranked surfaces. The Friends/Following
+  // feed (mode "friends") is chronological-by-nature and stays
+  // untouched, per the brain rule for such surfaces.
+  if (user && mode !== "friends") {
+    try {
+      const urec451 = readReelSignals().users[user.id];
+      if (urec451 && urec451.interest) list = list.filter((r) => urec451.interest[r.id] !== "out");
+    } catch (e) { /* exclusion must never break the feed */ }
+  }
   const now = Date.now();
   const ctx = brainCtxFor(user ? user.id : null, null);
   let vdb = null;
@@ -7670,6 +7702,34 @@ function brainRankTagPhotos(posts, likesDb, commentsDb) {
 // (−4..+7), gentle recency (≤ +8, 48h half-life); −15 for a reel the
 // member already watched fully in the last 24h. The caller's own reels
 // get no affinity of their own (neutral), as before they simply appear.
+// [RP-V7.451] A reel's style keys for ranking: the caption's tags and
+// families, PLUS the "gaming" family when the reel is categorized
+// gaming (the V7.438 auto-route sets category from the caption OR the
+// composer toggle, so a toggle-only gaming reel carries no gaming
+// words in its caption — the category must count or the interest
+// weights below would miss exactly the reels the member means).
+function fyReelStyleKeys451(reel) {
+  const k = styleKeysForCaption(reel && reel.caption);
+  if (reel && reel.category === "gaming" && !k.families.includes("gaming")) k.families.push("gaming");
+  return k;
+}
+// [RP-V7.451] EXPLICIT FEEDBACK WEIGHTS (the About sheet's Interested /
+// Not interested rows), next to the passive signal weights they extend:
+//   completed watch +3 · like +4 · long watch (>60%) +2 · fast skip -1
+//   gift sent +4 · story like +2 (V7.450) · live stay +2
+//   INTERESTED     = +4 author / +4 style — exactly a like's weight: an
+//     explicit tap should count like the strongest everyday positive,
+//     no more (a like is already a deliberate act).
+//   NOT INTERESTED = -8 author / -8 style — deliberately the strongest
+//     preference signal in the system: 8x a passive fast skip (-1),
+//     2x a like. A member who takes the trouble to open the About sheet
+//     and say "not this" is stating a preference, not exhibiting a
+//     behaviour, so it must outweigh accumulated passive positives.
+//     The fyBump clamps ([-10, 60] per key) keep any single tap from
+//     burying an author forever, and the choice is reversible: tapping
+//     the active row again clears it and reverses the delta exactly.
+const FY_INTEREST_IN451 = 4;
+const FY_INTEREST_OUT451 = -8;
 function fyScoreReel(user, urec, sig, following, accountsDb, reel, now) {
   const key = reelAuthorKeyFor(accountsDb, reel);
   const isOwn = key === user.id;
@@ -7680,7 +7740,7 @@ function fyScoreReel(user, urec, sig, following, accountsDb, reel, now) {
   // [RP-V7.89] STYLE affinity joins the score: a brand-new author in a
   // member's proven style can outrank an established author in a style
   // the member skips. Same 2.5 weight as one author affinity.
-  if (urec && !isOwn) score += 2.5 * fyStyleWeight(urec, styleKeysForCaption(reel.caption), now);
+  if (urec && !isOwn) score += 2.5 * fyStyleWeight(urec, fyReelStyleKeys451(reel), now); // [RP-V7.451] category-aware style keys
   if (!isOwn && key && key.indexOf("name:") !== 0 && following.has(key))
     score += 12;
   const agg = sig.reels[reel.id];
@@ -7701,13 +7761,61 @@ function fyScoreReel(user, urec, sig, following, accountsDb, reel, now) {
 // after every 5 ranked picks, the newest not-yet-placed reel is spliced
 // in (deterministic), so a brand-new creator always reaches the first
 // page no matter how strong the member's habits are.
+// [RP-V7.451] WHY YOU'RE SEEING THIS — computed from the member's
+// ACTUAL ranking inputs for this reel (the same terms fyScoreReel
+// adds up), naming the single largest real contributor. Every branch
+// is gated on the underlying signal really existing: follow needs the
+// follow edge, liked/engage needs decayed author affinity >= 3 (a
+// like is +4 before decay), style needs decayed style weight >= 3
+// with a dominant key, popular needs >= 20 aggregate views AND a
+// positive popularity term with a real completion/like ratio,
+// new needs age <= 48h. When nothing clears its gate the honest
+// generic rides instead — a reason is never fabricated.
+const FY_WHY_STYLE_LABEL451 = { faith: "faith", sports: "sports", music: "music", comedy: "comedy", fitness: "fitness", food: "food", fashion: "fashion", cars: "car", dance: "dance", pets: "pet", gaming: "gaming" };
+function fyWhy451(user, urec, sig, following, likedKeys, accountsDb, reel, authorName, now) {
+  const key = accountsDb ? reelAuthorKeyFor(accountsDb, reel) : null;
+  if (key && key === user.id) return "You posted this";
+  const name = authorName || reel.author || "this creator";
+  let best = null;
+  const consider = (term, text) => { if (text && term >= 2 && (!best || term > best.term)) best = { term, text }; };
+  if (key && key.indexOf("name:") !== 0 && following.has(key))
+    consider(12, "Because you follow " + name);
+  const affD = urec && key ? fyDecayed((urec.authorAff || {})[key], now) : 0;
+  if (affD >= 3)
+    consider(2.5 * affD, likedKeys.has(key) ? "Because you liked " + name + "'s posts" : "Because you engage with " + name);
+  const keys451 = fyReelStyleKeys451(reel);
+  const sw = urec ? fyStyleWeight(urec, keys451, now) : 0;
+  if (sw >= 3 && urec && urec.styleAff) {
+    let dk = null, dv = 0;
+    for (const t of keys451.tags || []) { const v = fyDecayed(urec.styleAff[t], now); if (v > dv) { dv = v; dk = { k: t, fam: false }; } }
+    for (const f of keys451.families || []) { const v = fyDecayed(urec.styleAff[f], now); if (v > dv) { dv = v; dk = { k: f, fam: true }; } }
+    if (dk && dv > 0)
+      consider(2.5 * sw, dk.fam ? "Because you watch " + (FY_WHY_STYLE_LABEL451[dk.k] || dk.k) + " videos" : "Because you watch #" + dk.k + " videos");
+  }
+  const agg = sig && sig.reels ? sig.reels[reel.id] : null;
+  if (agg && agg.views >= 20 && ((agg.completes || 0) + (agg.likes || 0)) / agg.views >= 0.25) {
+    const pop = 5 * Math.min(1, ((agg.completes || 0) + (agg.likes || 0)) / agg.views) + 2 * Math.min(1, agg.views / 20) - 4 * ((agg.fastSkips || 0) / agg.views);
+    const popC = Math.max(-4, Math.min(7, pop));
+    if (popC > 0) consider(popC, "Popular on the Plaza right now");
+  }
+  const ageH = (now - Date.parse(reel.createdAt || "")) / 3600000;
+  if (isFinite(ageH) && ageH >= 0 && ageH <= 48)
+    consider(8 * Math.pow(0.5, ageH / 48), "New from " + name);
+  return best ? best.text : "Suggested by your activity on the Plaza";
+}
 function fyRankReels(user, newestFirst) {
   const now = Date.now();
   const sig = readReelSignals();
   const urec = sig.users[user.id] || null;
   const following = new Set(socialFollowingIds(readSocial(), user.id));
   const accountsDb = readAccounts();
-  const scored = newestFirst.map((r) => ({
+  // [RP-V7.451] Not-interested reels leave this member's ranked pool
+  // entirely — and the exploration splice draws from the SAME pool, so
+  // an excluded reel cannot sneak back in as "fresh".
+  const pool451 = urec && urec.interest
+    ? newestFirst.filter((r) => urec.interest[r.id] !== "out")
+    : newestFirst;
+  const scored = pool451.map((r) => ({
     r,
     s: fyScoreReel(user, urec, sig, following, accountsDb, r, now),
   }));
@@ -7722,7 +7830,7 @@ function fyRankReels(user, newestFirst) {
   // unconditionally, so each exploration-spliced reel was listed
   // TWICE (the known For You defect — 16 of 84 reels at last count).
   // The scores above are unchanged.
-  return brainInterleave(scored.map((x) => x.r), newestFirst, (r) => r.id);
+  return brainInterleave(scored.map((x) => x.r), pool451, (r) => r.id); // [RP-V7.451] splice from the filtered pool
 }
 // [RP-V7.51] Toggle the caller's reaction on a photo post or a reel.
 // Session-only (requireAccount → 401 signed out); pending-deletion
@@ -7868,6 +7976,55 @@ app.post("/api/reels/signal", (req, res) => {
   for (const id of Object.keys(sig.reels)) if (!live.has(id)) delete sig.reels[id];
   writeReelSignals(sig);
   res.json({ ok: true });
+});
+
+// [RP-V7.451] EXPLICIT REEL FEEDBACK — the About sheet's Interested /
+// Not interested rows. Session-only like the signal endpoint; the
+// choice is stored per member per reel in the same reel-signals
+// record (urec.interest[reelId] = "in" | "out"). One choice per reel:
+// tapping the active choice again CLEARS it, choosing the other MOVES
+// it — either way the affinity delta applied is exactly
+// weight(new) - weight(old), so clearing or switching reverses the
+// previous effect precisely (fyBump's decay-then-add keeps the books
+// balanced the same way likes do). Own reels take no affinity, same
+// notSelf rule as likes/watches. Effects: "out" also excludes the
+// reel from the member's ranked pools (fyRankReels / brainRankReelsFor).
+app.post("/api/reels/interest", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const reelId = reelCleanId(b.reelId);
+  const choice = b.choice === "in" || b.choice === "out" ? b.choice : null;
+  if (!reelId || !choice)
+    return res.status(400).json({ ok: false, error: "Bad feedback" });
+  const all = listReels();
+  const reel = all.find((r) => r.id === reelId);
+  if (!reel) return res.status(404).json({ ok: false, error: "No such reel" });
+  const now = Date.now();
+  const sig = readReelSignals();
+  const urec = fyUserRec(sig, ctx.user.id, true);
+  if (!urec.interest || typeof urec.interest !== "object") urec.interest = {};
+  const prev = urec.interest[reelId] === "in" || urec.interest[reelId] === "out" ? urec.interest[reelId] : null;
+  const next = prev === choice ? null : choice;
+  const wOf = (c) => (c === "in" ? FY_INTEREST_IN451 : c === "out" ? FY_INTEREST_OUT451 : 0);
+  const delta = wOf(next) - wOf(prev);
+  if (next) urec.interest[reelId] = next; else delete urec.interest[reelId];
+  if (delta) {
+    const accountsDb = readAccounts();
+    const key = reelAuthorKeyFor(accountsDb, reel);
+    if (key && key !== ctx.user.id) {
+      fyBump(urec, key, delta, now);
+      fyBumpStyleKeys(urec, fyReelStyleKeys451(reel), delta, now);
+    }
+  }
+  // Bound the store like the signal endpoint: choices for reels that
+  // fell out of the index are dropped.
+  const live = new Set(all.map((r) => r.id));
+  for (const id of Object.keys(urec.interest)) if (!live.has(id)) delete urec.interest[id];
+  writeReelSignals(sig);
+  res.json({ ok: true, interest: next });
 });
 
 // ---------------------------------------------------------------------------
