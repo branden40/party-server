@@ -8840,6 +8840,700 @@ app.post("/api/collab/remove", (req, res) => {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// [RP-V7.455] BROADCAST CHANNELS (Instagram copy #3 from the queue
+// Branden approved Nov 19, 2026 — his call delegated to B): a
+// one-to-many channel on a member's profile, Instagram-style.
+//   CREATE — any member can open ONE channel (name ≤50, about ≤140).
+//     A second channel for the same owner is refused (409).
+//   POSTING — the OWNER only. Text messages and photo posts (the
+//     photo rides the SAME upload pipeline as photo posts: the
+//     shared multer `upload` into PHOTO_DIR, 5 MB / image-only, the
+//     same moderateImage gate, the same /photos/ URL shape). Every
+//     other member's post attempt is a 403. Channel messages are
+//     CHRONOLOGICAL — the channel is a by-nature surface (like DMs
+//     and comment threads), so no ranking ever applies inside it.
+//   MEMBERS — join / leave freely. Blocks are respected BOTH ways:
+//     a blocked pair can neither join nor stay (joining across a
+//     block is a 403, and blocking ejects an existing membership at
+//     block time — see the /api/dm/block hunk — with a lazy eject on
+//     the reaction path for any block that lands another way).
+//     Members canNOT post — they react (below).
+//   REACTIONS — one emoji per member per message, changeable;
+//     tapping your current emoji again takes it back. Counts are
+//     computed from the stored per-account map on every read, so a
+//     change can never double-count. Non-members cannot react.
+//   NOTIFICATIONS — a new channel post notifies every joined member
+//     through notifyActivity (kind "channelpost", riding the
+//     member's "posts" switch, coalesced per channel; NEVER SMS —
+//     the kind is not in NOTIFY_SMS_KINDS). The owner is never
+//     notified of their own post (they are the actor, and
+//     notifyActivity never notifies the actor anyway).
+//   OWNER CONTROLS — delete own message, remove a member, delete
+//     the channel (POST .../delete with { confirm: true }; the
+//     cascade removes messages, reactions and memberships and
+//     unlinks the photo files).
+//   REPORTS — a report on a channel message files into the SAME
+//     reports.json the owner board reads, category "CHANNEL
+//     MESSAGE", naming the channel and its owner (the reported
+//     account is the owner — channel messages are always theirs);
+//     the board gains a channelReports455 section, and the
+//     UNDERAGE section no longer double-lists them. An "Under 18"
+//     reason ALSO files through the standing priority path.
+//   BRAIN — discovery (GET /api/channels) is the one ranked surface:
+//     score = 10·ln(1 + memberCount)            (real audience size)
+//           + 15 · 0.5^(hours since lastPost / 84)  (real activity,
+//             3.5-day half-life, the fyDecayed shape)
+//           + 2.5 · my decayed author affinity for the owner
+//             (the reel scorer's exact affinity weight)
+//           + 12 when I follow the owner (the follow boost)
+//           + 6 when I already joined (my own subscription state).
+//     Real signals only — no hand-picking, no pinning, no override.
+//     JOINING is a follow-strength affinity signal: the joiner's
+//     author affinity toward the owner bumps +12 (CHANNEL_JOIN_AFF455
+//     — a follow's weight in fyScoreReel, stored in the same
+//     authorAff record as every other signal, with its [-10, 60]
+//     clamp and 7-day half-life). Leaving never bumps. Channel posts
+//     do NOT enter For You / Reels ranking — a channel is a
+//     subscription surface, not a feed.
+//   MONEY — none. Gifting and every money feature are OUT of
+//     channels v1 by design; the church commerce rules are
+//     untouched (a faith channel is announcements + reactions,
+//     like the Fellowship room itself).
+//   DATA — channels.json beside the other stores:
+//     { channels: [{ id, owner, name, about, createdAt, lastPostAt }],
+//       members:  { "<channelId>": { "<accountId>": joinedAtISO } },
+//       messages: { "<channelId>": [{ id, kind: "text"|"photo",
+//                     text, photo, at,
+//                     reactions: { "<accountId>": emoji } }] } }
+//     Messages are append-ordered (chronological), kept to the last
+//     CHANNEL_MSGS_KEEP455 per channel, reads return the last
+//     CHANNEL_MSGS_RETURN455.
+// ---------------------------------------------------------------------------
+const CHANNELS_FILE455 =
+  process.env.CHANNELS_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "channels.json");
+const CHANNEL_MSGS_KEEP455 = 500;
+const CHANNEL_MSGS_RETURN455 = 100;
+const CHANNEL_JOIN_AFF455 = 12; // [RP-V7.455] a follow's weight — see the header
+const CHANNEL_REACT_EMOJI455 = ["❤️", "🔥", "🙏", "😂", "😮", "👍"];
+function readChannels455() {
+  return storeReadJson(
+    CHANNELS_FILE455,
+    (d) =>
+      !!(
+        d &&
+        Array.isArray(d.channels) &&
+        d.members &&
+        typeof d.members === "object" &&
+        !Array.isArray(d.members) &&
+        d.messages &&
+        typeof d.messages === "object" &&
+        !Array.isArray(d.messages)
+      ),
+    { channels: [], members: {}, messages: {} },
+    "channels"
+  );
+}
+function writeChannels455(db) {
+  storeWriteJson(CHANNELS_FILE455, db);
+}
+function channelClean455(v, max) {
+  return String(v == null ? "" : v)
+    .replace(/[<>&"']/g, "")
+    .trim()
+    .slice(0, max);
+}
+function channelText455(v) {
+  return String(v == null ? "" : v)
+    .replace(/[<>&"]/g, "")
+    .trim()
+    .slice(0, 1000);
+}
+function channelOf455(db, id) {
+  return db.channels.find((c) => c && String(c.id) === String(id || "")) || null;
+}
+function channelByOwner455(db, ownerId) {
+  return db.channels.find((c) => c && c.owner === ownerId) || null;
+}
+function channelMemberMap455(db, channelId) {
+  const m = db.members[channelId];
+  return m && typeof m === "object" && !Array.isArray(m) ? m : {};
+}
+function channelIsMember455(db, channelId, uid) {
+  return !!channelMemberMap455(db, channelId)[uid];
+}
+function channelMemberCount455(db, channelId) {
+  return Object.keys(channelMemberMap455(db, channelId)).length;
+}
+function channelOwnerUser455(adb, ch) {
+  if (!ch) return null;
+  return adb.users.find((u) => u && u.id === ch.owner) || null;
+}
+// A channel is visible to a viewer when its owner is a live,
+// listed account and the pair is not blocked in either direction
+// (the standing mutual-block invisibility rule). The owner always
+// sees their own channel.
+function channelVisible455(adb, ddb, ch, viewerId) {
+  if (!ch) return false;
+  const owner = channelOwnerUser455(adb, ch);
+  if (!owner || owner.deletionAt || accountLockedOut(owner)) return false;
+  if (viewerId && viewerId !== ch.owner && dmEitherBlocked(ddb, viewerId, ch.owner))
+    return false;
+  return true;
+}
+function channelPublic455(db, adb, ch, viewerId) {
+  const owner = channelOwnerUser455(adb, ch);
+  let ownerName = owner ? owner.name || "" : "";
+  try {
+    const nm = nameResolver313(adb)(ch.owner);
+    if (nm) ownerName = nm;
+  } catch (e) { /* snapshot name serves */ }
+  return {
+    id: ch.id,
+    name: ch.name,
+    about: ch.about || "",
+    ownerId: ch.owner,
+    ownerName,
+    ownerUsername: owner ? owner.username || "" : "",
+    ownerPhoto: owner ? owner.photo || null : null,
+    memberCount: channelMemberCount455(db, ch.id),
+    joined: viewerId === ch.owner ? true : channelIsMember455(db, ch.id, viewerId),
+    isOwner: viewerId === ch.owner,
+    createdAt: ch.createdAt || null,
+    lastPostAt: ch.lastPostAt || null,
+  };
+}
+function channelMsgPublic455(m, viewerId) {
+  const counts = {};
+  let mine = null;
+  const rx = (m && m.reactions && typeof m.reactions === "object") ? m.reactions : {};
+  for (const uid of Object.keys(rx)) {
+    const e = rx[uid];
+    if (CHANNEL_REACT_EMOJI455.indexOf(e) < 0) continue;
+    counts[e] = (counts[e] || 0) + 1;
+    if (uid === viewerId) mine = e;
+  }
+  return {
+    id: m.id,
+    kind: m.kind === "photo" ? "photo" : "text",
+    text: m.text || "",
+    photo: m.photo || null,
+    at: m.at || null,
+    reactions: counts,
+    myReaction: mine,
+  };
+}
+// Eject a pair from each other's channels (called from the
+// /api/dm/block hunk at block time): a member who is blocked by the
+// channel owner — or who blocked the owner — does not stay.
+function channelBlockEject455(aId, bId) {
+  try {
+    if (!aId || !bId || aId === bId) return;
+    const db = readChannels455();
+    let changed = false;
+    const ca = channelByOwner455(db, aId);
+    if (ca && channelMemberMap455(db, ca.id)[bId]) {
+      delete db.members[ca.id][bId];
+      changed = true;
+    }
+    const cb = channelByOwner455(db, bId);
+    if (cb && channelMemberMap455(db, cb.id)[aId]) {
+      delete db.members[cb.id][aId];
+      changed = true;
+    }
+    if (changed) writeChannels455(db);
+  } catch (e) { /* ejection must never break the block */ }
+}
+// The profile payload's channel entry point (null when the member
+// has no channel, or the pair is blocked).
+function channelProfile455(adb, targetId, viewerId) {
+  try {
+    const db = readChannels455();
+    const ch = channelByOwner455(db, targetId);
+    if (!ch) return null;
+    if (!channelVisible455(adb, readDms(), ch, viewerId)) return null;
+    return {
+      id: ch.id,
+      name: ch.name,
+      memberCount: channelMemberCount455(db, ch.id),
+      joined: viewerId === targetId ? true : channelIsMember455(db, ch.id, viewerId),
+      isOwner: viewerId === targetId,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+// File a channel-message report into reports.json (the owner
+// board's store). The reported account is the channel OWNER —
+// channel messages are always the owner's. 24h dedupe per reporter
+// + message, the fileAgeReport263 discipline.
+function fileChannelReport455(input) {
+  const db = readReports263();
+  const now = Date.now();
+  const dupe = db.reports.find(
+    (r) =>
+      r &&
+      r.status === "open" &&
+      r.category === "CHANNEL MESSAGE" &&
+      r.messageId === input.messageId &&
+      r.reporterId === (input.reporterId || null) &&
+      now - Date.parse(r.at || 0) < 24 * 3600 * 1000
+  );
+  if (dupe) {
+    dupe.at = new Date(now).toISOString();
+    writeReports263(db);
+    return { filed: false, deduped: true, report: dupe };
+  }
+  const entry = {
+    id: crypto.randomBytes(8).toString("hex"),
+    reason: String(input.reason || "Something else").slice(0, 60),
+    category: "CHANNEL MESSAGE",
+    reporterId: input.reporterId || null,
+    reporterName: String(input.reporterName || ""),
+    reportedId: input.owner ? input.owner.id : null,
+    reportedName: input.owner ? input.owner.name || "" : "",
+    reportedUsername: input.owner ? input.owner.username || "" : "",
+    channelId: input.channel ? input.channel.id : null,
+    channelName: input.channel ? input.channel.name || "" : "",
+    messageId: input.messageId || null,
+    surface: String(input.surface || ""),
+    at: new Date(now).toISOString(),
+    status: "open",
+  };
+  db.reports.push(entry);
+  while (db.reports.length > 1000) db.reports.shift();
+  writeReports263(db);
+  console.log("[RP-V7.455] channel report filed:", entry.channelName, "·", entry.reason, "by", entry.reporterName || "?");
+  return { filed: true, report: entry };
+}
+function rpChannelReportsOpen455() {
+  const open = readReports263()
+    .reports.filter((r) => r && r.status === "open" && r.category === "CHANNEL MESSAGE")
+    .slice(-50)
+    .reverse();
+  return { count: open.length, items: open };
+}
+// Shared route context: the signed-in member + their channel (or
+// the honest refusal). Returns null after answering.
+function channelCtx455(req, res, needChannel) {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return null;
+  if (isPendingDeletion(ctx.user)) {
+    res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+    return null;
+  }
+  if (!needChannel) return { ctx, db: null, ch: null };
+  const db = readChannels455();
+  const ch = channelOf455(db, req.params.id);
+  if (!ch) {
+    res.status(404).json({ ok: false, error: "Channel not found" });
+    return null;
+  }
+  return { ctx, db, ch };
+}
+// Notify every joined member of a new post (never the owner — the
+// actor guard covers it, and the owner is not in the member map).
+function channelNotifyPost455(ch, ownerUser, msg) {
+  try {
+    const db = readChannels455();
+    const ids = Object.keys(channelMemberMap455(db, ch.id)).slice(0, 1000);
+    if (!ids.length) return;
+    const excerpt = msg.kind === "photo" ? "📸 Photo" + (msg.text ? " · " + msg.text : "") : msg.text;
+    for (const mid of ids) {
+      notifyActivity({
+        toId: mid,
+        kind: "channelpost",
+        actorId: ownerUser.id,
+        actorName: ownerUser.name,
+        text:
+          "📣 " +
+          (ownerUser.name || "Someone") +
+          " posted in " +
+          ch.name +
+          ": " +
+          String(excerpt || "").slice(0, 90),
+        emailSubject: (ownerUser.name || "Someone") + " posted in " + ch.name,
+        emailText:
+          (ownerUser.name || "Someone") +
+          " posted in their channel " +
+          ch.name +
+          " on Rizz Plaza.\n\nOpen the channel: https://rizzplaza.com\n\n— The Rizz Plaza team",
+        go: { screen: "channels", channelId: ch.id },
+        coalesceKey: "channelpost:" + ch.id,
+      });
+    }
+  } catch (e) { /* a notification must never break a post */ }
+}
+function channelAppendMsg455(db, ch, msg) {
+  if (!Array.isArray(db.messages[ch.id])) db.messages[ch.id] = [];
+  db.messages[ch.id].push(msg);
+  if (db.messages[ch.id].length > CHANNEL_MSGS_KEEP455)
+    db.messages[ch.id] = db.messages[ch.id].slice(-CHANNEL_MSGS_KEEP455);
+  ch.lastPostAt = msg.at;
+  writeChannels455(db);
+}
+app.post("/api/channels/create", (req, res) => {
+  const got = channelCtx455(req, res, false);
+  if (!got) return;
+  const { ctx } = got;
+  const b = req.body || {};
+  const name = channelClean455(b.name, 50);
+  const about = channelClean455(b.about, 140);
+  if (!name)
+    return res.status(400).json({ ok: false, error: "Give your channel a name" });
+  const db = readChannels455();
+  const existing = channelByOwner455(db, ctx.user.id);
+  if (existing)
+    return res.status(409).json({
+      ok: false,
+      error: "You already have a channel",
+      channel: channelPublic455(db, ctx.db, existing, ctx.user.id),
+    });
+  const ch = {
+    id: "ch" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex"),
+    owner: ctx.user.id,
+    name,
+    about,
+    createdAt: new Date().toISOString(),
+    lastPostAt: null,
+  };
+  db.channels.push(ch);
+  db.members[ch.id] = {};
+  db.messages[ch.id] = [];
+  writeChannels455(db);
+  res.json({ ok: true, channel: channelPublic455(db, ctx.db, ch, ctx.user.id) });
+});
+// Discovery: every visible channel, brain-ranked for THIS viewer
+// (see the header for the score). My own channel rides as `mine`,
+// out of the ranked list; channels I joined are marked in place.
+app.get("/api/channels", (req, res) => {
+  const got = channelCtx455(req, res, false);
+  if (!got) return;
+  const { ctx } = got;
+  const db = readChannels455();
+  const ddb = readDms();
+  const now = Date.now();
+  let myAff = {};
+  let myFollowing = [];
+  try {
+    const rec = fyUserRec(readReelSignals(), ctx.user.id, false);
+    if (rec && rec.authorAff) myAff = rec.authorAff;
+    myFollowing = socialFollowingIds(readSocial(), ctx.user.id);
+  } catch (e) { /* ranking degrades to size + activity, never fails */ }
+  const mine = channelByOwner455(db, ctx.user.id);
+  const scored = [];
+  for (const ch of db.channels) {
+    if (!ch || ch.owner === ctx.user.id) continue;
+    if (!channelVisible455(ctx.db, ddb, ch, ctx.user.id)) continue;
+    const count = channelMemberCount455(db, ch.id);
+    const ageH = ch.lastPostAt ? Math.max(0, (now - Date.parse(ch.lastPostAt)) / 3600e3) : Infinity;
+    const activity = isFinite(ageH) ? 15 * Math.pow(0.5, ageH / 84) : 0;
+    const aff = 2.5 * fyDecayed(myAff[ch.owner], now);
+    const score =
+      10 * Math.log(1 + count) +
+      activity +
+      aff +
+      (myFollowing.includes(ch.owner) ? 12 : 0) +
+      (channelIsMember455(db, ch.id, ctx.user.id) ? 6 : 0);
+    scored.push({ ch, score, count });
+  }
+  scored.sort(
+    (a, b) =>
+      b.score - a.score ||
+      b.count - a.count ||
+      String(b.ch.createdAt || "").localeCompare(String(a.ch.createdAt || ""))
+  );
+  res.json({
+    ok: true,
+    mine: mine ? channelPublic455(db, ctx.db, mine, ctx.user.id) : null,
+    channels: scored
+      .slice(0, 100)
+      .map((s) => channelPublic455(db, ctx.db, s.ch, ctx.user.id)),
+  });
+});
+app.get("/api/channels/:id", (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  if (!channelVisible455(ctx.db, readDms(), ch, ctx.user.id))
+    return res.status(404).json({ ok: false, error: "Channel not found" });
+  const all = Array.isArray(db.messages[ch.id]) ? db.messages[ch.id] : [];
+  res.json({
+    ok: true,
+    channel: channelPublic455(db, ctx.db, ch, ctx.user.id),
+    messages: all.slice(-CHANNEL_MSGS_RETURN455).map((m) => channelMsgPublic455(m, ctx.user.id)),
+  });
+});
+app.get("/api/channels/:id/members", (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  if (ch.owner !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the channel owner can see the member list" });
+  const map = channelMemberMap455(db, ch.id);
+  const members = Object.keys(map)
+    .map((uid) => {
+      const u = ctx.db.users.find((x) => x && x.id === uid);
+      if (!u || u.deletionAt) return null;
+      return {
+        id: u.id,
+        name: u.name || "",
+        username: u.username || "",
+        photo: u.photo || null,
+        joinedAt: map[uid] || null,
+      };
+    })
+    .filter(Boolean);
+  res.json({ ok: true, members });
+});
+app.post("/api/channels/:id/join", (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  if (ch.owner === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "This is your channel" });
+  const owner = channelOwnerUser455(ctx.db, ch);
+  if (!owner || owner.deletionAt || accountLockedOut(owner))
+    return res.status(404).json({ ok: false, error: "Channel not found" });
+  if (dmEitherBlocked(readDms(), ctx.user.id, ch.owner))
+    return res.status(403).json({ ok: false, error: "You can't join this channel" });
+  if (!db.members[ch.id] || typeof db.members[ch.id] !== "object") db.members[ch.id] = {};
+  const already = !!db.members[ch.id][ctx.user.id];
+  if (!already) {
+    db.members[ch.id][ctx.user.id] = new Date().toISOString();
+    writeChannels455(db);
+    // [RP-V7.455] the join signal: +12 author affinity toward the
+    // owner (a follow's weight), exactly once per join.
+    try {
+      const sig = readReelSignals();
+      const urec = fyUserRec(sig, ctx.user.id, true);
+      fyBump(urec, ch.owner, CHANNEL_JOIN_AFF455, Date.now());
+      writeReelSignals(sig);
+    } catch (e) { /* the signal must never break the join */ }
+  }
+  res.json({
+    ok: true,
+    joined: true,
+    already,
+    memberCount: channelMemberCount455(db, ch.id),
+    channel: channelPublic455(db, ctx.db, ch, ctx.user.id),
+  });
+});
+app.post("/api/channels/:id/leave", (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  if (ch.owner === ctx.user.id)
+    return res
+      .status(400)
+      .json({ ok: false, error: "You own this channel — delete it instead of leaving" });
+  if (db.members[ch.id] && db.members[ch.id][ctx.user.id]) {
+    delete db.members[ch.id][ctx.user.id];
+    writeChannels455(db);
+  }
+  res.json({
+    ok: true,
+    joined: false,
+    memberCount: channelMemberCount455(db, ch.id),
+    channel: channelPublic455(db, ctx.db, ch, ctx.user.id),
+  });
+});
+function channelPostText455(req, res) {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  if (ch.owner !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the channel owner can post here" });
+  const text = channelText455((req.body || {}).text);
+  if (!text)
+    return res.status(400).json({ ok: false, error: "Write something first" });
+  const msg = {
+    id: "cm" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex"),
+    kind: "text",
+    text,
+    photo: null,
+    at: new Date().toISOString(),
+    reactions: {},
+  };
+  channelAppendMsg455(db, ch, msg);
+  channelNotifyPost455(ch, ctx.user, msg);
+  res.json({ ok: true, message: channelMsgPublic455(msg, ctx.user.id) });
+}
+const channelPostPhoto455 = photoUpload(async (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) {
+    if (req.file) fs.unlink(path.join(PHOTO_DIR, req.file.filename), () => {});
+    return;
+  }
+  const { ctx, db, ch } = got;
+  if (ch.owner !== ctx.user.id) {
+    if (req.file) fs.unlink(path.join(PHOTO_DIR, req.file.filename), () => {});
+    return res.status(403).json({ ok: false, error: "Only the channel owner can post here" });
+  }
+  if (!req.file)
+    return res.status(400).json({ ok: false, error: "Pick a photo first" });
+  const url = `https://${req.get("host")}/photos/${req.file.filename}`;
+  const mod = await moderateImage(url);
+  if (!mod.ok) {
+    fs.unlink(path.join(PHOTO_DIR, req.file.filename), () => {});
+    console.log("CHANNEL PHOTO REJECTED:", ctx.user.id, mod.reason);
+    return res.status(422).json({
+      ok: false,
+      error: "That photo didn't pass our safety check. Please try a different one.",
+    });
+  }
+  const msg = {
+    id: "cm" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex"),
+    kind: "photo",
+    text: channelText455((req.body || {}).text),
+    photo: url,
+    at: new Date().toISOString(),
+    reactions: {},
+  };
+  channelAppendMsg455(db, ch, msg);
+  channelNotifyPost455(ch, ctx.user, msg);
+  res.json({ ok: true, message: channelMsgPublic455(msg, ctx.user.id) });
+});
+app.post("/api/channels/:id/post", (req, res) => {
+  const ct = String(req.headers["content-type"] || "");
+  if (ct.indexOf("multipart/form-data") === 0) return channelPostPhoto455(req, res);
+  return channelPostText455(req, res);
+});
+app.post("/api/channels/:id/react", (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  const b = req.body || {};
+  const mid = String(b.messageId || "");
+  // Membership gate (the owner counts as a member of their own
+  // channel). A member who has since blocked — or been blocked by —
+  // the owner is ejected on the spot and refused.
+  if (ch.owner !== ctx.user.id) {
+    if (!channelIsMember455(db, ch.id, ctx.user.id))
+      return res.status(403).json({ ok: false, error: "Join the channel to react" });
+    if (dmEitherBlocked(readDms(), ctx.user.id, ch.owner)) {
+      if (db.members[ch.id]) delete db.members[ch.id][ctx.user.id];
+      writeChannels455(db);
+      return res.status(403).json({ ok: false, error: "You can't react in this channel" });
+    }
+  }
+  const list = Array.isArray(db.messages[ch.id]) ? db.messages[ch.id] : [];
+  const msg = list.find((m) => m && String(m.id) === mid);
+  if (!msg) return res.status(404).json({ ok: false, error: "Message not found" });
+  const emoji = String(b.emoji || "");
+  if (emoji && CHANNEL_REACT_EMOJI455.indexOf(emoji) < 0)
+    return res.status(400).json({ ok: false, error: "Pick one of the reaction emoji" });
+  if (!msg.reactions || typeof msg.reactions !== "object") msg.reactions = {};
+  if (!emoji || msg.reactions[ctx.user.id] === emoji) delete msg.reactions[ctx.user.id];
+  else msg.reactions[ctx.user.id] = emoji;
+  writeChannels455(db);
+  res.json({ ok: true, message: channelMsgPublic455(msg, ctx.user.id) });
+});
+app.post("/api/channels/:id/delete-message", (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  if (ch.owner !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the channel owner can delete messages" });
+  const mid = String((req.body || {}).messageId || "");
+  const list = Array.isArray(db.messages[ch.id]) ? db.messages[ch.id] : [];
+  const ix = list.findIndex((m) => m && String(m.id) === mid);
+  if (ix < 0) return res.status(404).json({ ok: false, error: "Message not found" });
+  const gone = list[ix];
+  list.splice(ix, 1);
+  db.messages[ch.id] = list;
+  writeChannels455(db);
+  if (gone.photo) {
+    const fn = String(gone.photo).split("/photos/")[1];
+    if (fn) fs.unlink(path.join(PHOTO_DIR, fn), () => {});
+  }
+  res.json({ ok: true });
+});
+app.post("/api/channels/:id/remove-member", (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  if (ch.owner !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the channel owner can remove members" });
+  const targetId = String((req.body || {}).accountId || "");
+  if (targetId === ch.owner)
+    return res.status(400).json({ ok: false, error: "You can't remove yourself" });
+  if (!db.members[ch.id] || !db.members[ch.id][targetId])
+    return res.status(404).json({ ok: false, error: "Not a member of this channel" });
+  delete db.members[ch.id][targetId];
+  writeChannels455(db);
+  res.json({ ok: true, memberCount: channelMemberCount455(db, ch.id) });
+});
+app.post("/api/channels/:id/delete", (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  if (ch.owner !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the channel owner can delete this channel" });
+  if ((req.body || {}).confirm !== true)
+    return res.status(400).json({ ok: false, error: "Confirm the deletion" });
+  const msgs = Array.isArray(db.messages[ch.id]) ? db.messages[ch.id] : [];
+  db.channels = db.channels.filter((c) => c && c.id !== ch.id);
+  delete db.members[ch.id];
+  delete db.messages[ch.id];
+  writeChannels455(db);
+  for (const m of msgs) {
+    if (m && m.photo) {
+      const fn = String(m.photo).split("/photos/")[1];
+      if (fn) fs.unlink(path.join(PHOTO_DIR, fn), () => {});
+    }
+  }
+  res.json({ ok: true, deleted: true });
+});
+app.post("/api/channels/:id/report", (req, res) => {
+  const got = channelCtx455(req, res, true);
+  if (!got) return;
+  const { ctx, db, ch } = got;
+  const b = req.body || {};
+  const mid = String(b.messageId || "");
+  const list = Array.isArray(db.messages[ch.id]) ? db.messages[ch.id] : [];
+  const msg = list.find((m) => m && String(m.id) === mid);
+  if (!msg) return res.status(404).json({ ok: false, error: "Message not found" });
+  if (ch.owner === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "You can't report your own message" });
+  const owner = channelOwnerUser455(ctx.db, ch);
+  if (!owner) return res.status(404).json({ ok: false, error: "Channel not found" });
+  const reason = String(b.reason || "Something else").slice(0, 60);
+  const excerpt =
+    msg.kind === "photo"
+      ? "📸 photo post" + (msg.text ? " · " + msg.text : "")
+      : String(msg.text || "");
+  const surface =
+    "channel \"" + ch.name + "\" · message: \"" + excerpt.slice(0, 80) + "\"";
+  const out = fileChannelReport455({
+    reporterId: ctx.user.id,
+    reporterName: ctx.user.name,
+    owner,
+    channel: ch,
+    messageId: msg.id,
+    reason,
+    surface,
+  });
+  // "Under 18" ALSO rides the standing priority path (the owner
+  // board's one-tap suspend), its surface naming the channel too.
+  if (reason === "Under 18") {
+    try {
+      fileAgeReport263({
+        reporterId: ctx.user.id,
+        reporterName: ctx.user.name,
+        reportedId: owner.id,
+        reportedName: owner.name,
+        surface,
+      });
+    } catch (e) { /* the channel report already landed */ }
+  }
+  res.json({ ok: true, filed: out.filed, deduped: !!out.deduped });
+});
+
+
 // [RP-V7.84] FIX-3 + FIX-4 — reel comments and heart-likes become
 // ACCOUNT state (brain-train batch 2, sweep G3/G4). Through V7.83 a
 // comment lived only in the writing device's localStorage
@@ -14700,6 +15394,7 @@ app.get("/api/social/profile", (req, res) => {
     // [RP-V7.298] Fan club on this profile: the club itself (name /
     // about / price / live member count) and the viewer's own
     // membership state — the club card + Join button paint from this.
+    channel: channelProfile455(ctx.db, target.id, ctx.user.id), // [RP-V7.455] broadcast channel entry point (null when none / owner gone / blocked pair)
     fanClub: (() => {
       const mdb298 = readMoney();
       const club298 = fanClubPublic298(mdb298, target.id);
@@ -17240,6 +17935,7 @@ app.post("/api/dm/block", (req, res) => {
     db.blocks[ctx.user.id] = set;
     writeDms(db);
   }
+  channelBlockEject455(ctx.user.id, other.id); // [RP-V7.455] a blocked pair does not stay in each other's broadcast channels
   res.json({ ok: true, blocked: true });
 });
 app.post("/api/dm/unblock", (req, res) => {
@@ -17572,7 +18268,7 @@ app.get("/api/members", (req, res) => {
 // must not break the action that caused it.
 // ---------------------------------------------------------------------------
 const NOTIFY_SETTING_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", rewards: "gifts", // [RP-V7.390] offer + saved-search alerts ride the "gifts" switch like order, never SMS // [RP-V7.386] order updates ride the "gifts" switch like tips, never SMS // [RP-V7.298] fanclub rides "gifts" like fansub/tip, never SMS // [RP-V7.299] ticket rides "gifts" the same way, never SMS // [RP-V7.300] shoutout rides "gifts" the same way, never SMS
- like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups", collab: "posts" }; // [RP-V7.453] collab invites/answers ride the "posts" switch, never SMS (not in NOTIFY_SMS_KINDS) // [RP-V7.307] owner signup alerts ride the "signups" switch // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
+ like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups", collab: "posts", channelpost: "posts" }; // [RP-V7.453] collab invites/answers ride the "posts" switch, never SMS (not in NOTIFY_SMS_KINDS) // [RP-V7.307] owner signup alerts ride the "signups" switch // liveinvite [RP-V7.138] — never added to NOTIFY_SMS_KINDS, so it can never text // [RP-V7.129] post alerts // [RP-V7.294] tip rides the member's "gifts" notify switch (a tip is a gift-class event in the bell) and, like gift, is never added to NOTIFY_SMS_KINDS // [RP-V7.296] fansub rides "gifts" the same way
 const NOTIFY_SMS_KINDS = { dm: true, potwin: true, signup: true }; // [RP-V7.307] signup alerts text too — the kind only ever targets the owner, and only once Twilio is configured (notifySmsReady)
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
 // [RP-V7.129] NEW-POST ALERTS: when a member posts, every follower gets
@@ -17918,7 +18614,7 @@ const PUSH328_FILE =
 // gift through the door, so the Likes / Comments / Reposts / New
 // posts / Live invites / Daily Pot toggles the Settings screen shows
 // never produced a phone push — members got those by email only.
-const PUSH328_KIND_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", rewards: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups", collab: "posts" }; // [RP-V7.453] mirror of NOTIFY_SETTING_KEY for the collab kind
+const PUSH328_KIND_KEY = { dm: "messages", follow: "follows", gift: "gifts", tip: "gifts", fansub: "gifts", fanclub: "gifts", ticket: "gifts", shoutout: "gifts", order: "gifts", offer: "gifts", savedsearch: "gifts", referral: "gifts", rewards: "gifts", like: "likes", comment: "comments", repost: "reposts", potwin: "dailypot", post: "posts", liveinvite: "liveinvites", signup: "signups", collab: "posts", channelpost: "posts" }; // [RP-V7.453] mirror of NOTIFY_SETTING_KEY for the collab kind
 const PUSH328_SUBJECT = "mailto:support@rizzplaza.com";
 function emptyPush328() {
   return { vapid: null, subs: {} };
@@ -28332,7 +29028,7 @@ function fileAgeReport263(input) {
 }
 function rpAgeReportsOpen263() {
   const open = readReports263().reports
-    .filter((r) => r && r.status === "open")
+    .filter((r) => r && r.status === "open" && r.category !== "CHANNEL MESSAGE") // [RP-V7.455] channel reports carry their own board section (channelReports455 below)
     .slice(-50)
     .reverse();
   return { count: open.length, items: open };
@@ -28845,6 +29541,7 @@ app.get("/api/owner/sales", (req, res) => {
     guardrail: rpGuardrailBoard323(mdb, adb), // [RP-V7.323] test-funds guardrail status: flagged accounts, promo settlements, pool exclusion
     auctionClaims: rpAuctionClaims383(mdb, adb), // [RP-V7.383] open auction buyer-protection claims awaiting the owner's refund/deny
     ageReports: rpAgeReportsOpen263(),
+    channelReports455: rpChannelReportsOpen455(), // [RP-V7.455] open channel-message reports, naming channel + owner
     ageSuspendedAccounts: rpAgeSuspendedList263(adb),
     pendingDeletions: rpOwnerPendingDeletions377(adb, mdb),
     referrals392: rpRefBoard392(),
