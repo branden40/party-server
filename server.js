@@ -18615,6 +18615,8 @@ const MONEY_GIFT_TABLE = {
   loveyousomuch: 35, poppal: 125, dolphinleap: 140, heartpuff: 150, redglovepunch: 160, welcomemarquee: 170,
   // [RP-V7.447] +6 gifts (Nov 19, 2026) — batch 2 of the Boosie-video slate; ids + prices mirror the client's GIFT_SHOP exactly; catalog now 107 gifts.
   peeklemur: 190, handheart: 250, hanginglights: 280, bigbow: 320, lovepainting: 380, bubblegum: 420,
+  // [RP-V7.448] +6 gifts (Nov 19, 2026) — batch 3 of the Boosie-video slate; ids + prices mirror the client's GIFT_SHOP exactly; catalog now 113 gifts.
+  hatandmustache: 480, stargoggles: 560, heartbuddy: 580, pinkcowboy: 660, goldmedal: 680, crystalcrown: 760,
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
@@ -18702,6 +18704,12 @@ const MONEY_GIFT_INFO = {
   bigbow: { name: "Big Bow", tier: "medium" },
   lovepainting: { name: "Love Painting", tier: "medium" },
   bubblegum: { name: "Bubble Gum", tier: "medium" },
+  hatandmustache: { name: "Hat and Mustache", tier: "medium" }, // [RP-V7.448] +6 gifts Nov 19, 2026
+  stargoggles: { name: "Star Goggles", tier: "medium" },
+  heartbuddy: { name: "Heart Buddy", tier: "medium" },
+  pinkcowboy: { name: "Pink Cowboy", tier: "medium" },
+  goldmedal: { name: "Gold Medal", tier: "medium" },
+  crystalcrown: { name: "Crystal Crown", tier: "medium" },
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
   fattuesday: { name: "Fat Tuesday Frenzy", tier: "big" },
