@@ -14408,7 +14408,7 @@ function storyCanPost(user) {
 function storyCanGift(user) {
   return !STORY_GIFT_ADULT_ONLY || storyIsAdult(user);
 }
-function storyPublic(s, vdb, meId, pg409) {
+function storyPublic(s, vdb, meId, pg409, cd450) { // [RP-V7.450] cd450: the countdown firing record, when the caller has the stories db in hand
   const likes = Array.isArray(s.likes) ? s.likes : [];
   const viewedBy = Array.isArray(s.viewedBy) ? s.viewedBy : [];
   const reps409 = Array.isArray(s.reposts) ? s.reposts : [];
@@ -14435,7 +14435,133 @@ function storyPublic(s, vdb, meId, pg409) {
     myReposted: meId
       ? reps409.some((x) => x && x.u === meId) || reshs409.some((x) => x && x.u === meId)
       : false,
+    sticker: storyStickerPublic450(s, meId, cd450), // [RP-V7.450] poll/countdown projection (null when the story carries no sticker)
   };
+}
+// ---------------------------------------------------------------------------
+// [RP-V7.450] INTERACTIVE STORY STICKERS — Poll + Countdown (Instagram
+// copy #4; Branden approved on B's call, Nov 19, 2026). A story carries
+// at most ONE sticker (poll XOR countdown — the v1 scope):
+//   poll:      s.sticker = { type:"poll", question, options:[2..4],
+//                votes: { accountId: optionIndex } } — stored ON the
+//                story record, so poll data dies with the story at
+//                expiry, exactly like its likes and viewedBy.
+//   countdown: s.sticker = { type:"countdown", title, targetAt } for
+//                display, PLUS a firing record in db.cd450[storyId]
+//                { storyId, authorId, authorName, title, targetAt,
+//                reminders:[accountId], fired, firedAt } — the firing
+//                record outlives the story ON PURPOSE: a countdown may
+//                target up to 7 days out while a story lives 24h, and
+//                the reminder is the point of the sticker. Deleting
+//                the story deletes its firing record too (below).
+// BRAIN (standing rule, Nov 18): the tap that moves a member INTO
+// the engaged state — a first vote (votes are never retracted, so
+// exactly once per member per story) or a subscribe while not
+// subscribed — bumps the shared For You author affinity by +2 in
+// the actor's own signal record: a deliberate pick, lighter than a
+// like (+4) and a full view (+3), the same family as both. Vote
+// changes and unsubscribes never bump — the story-like path's exact
+// rule (an unlike never un-bumps; a re-like bumps again).
+// ---------------------------------------------------------------------------
+const STORY_CD_MAX_AHEAD_MS450 = 7 * 24 * 3600 * 1000; // countdown target: at most 7 days out
+const STORY_CD_SWEEP_MS450 = Math.max(250, Number(process.env.STORY_CD_SWEEP_MS) || 30 * 1000);
+function storyStickerClean450(raw) {
+  if (!raw || typeof raw !== "object") return { error: "That sticker didn't come through — try again" };
+  if (raw.type === "poll") {
+    const question = String(raw.question || "").trim().slice(0, 80);
+    const options = (Array.isArray(raw.options) ? raw.options : [])
+      .map((o) => String(o || "").trim().slice(0, 30))
+      .filter((o) => o.length > 0);
+    if (!question) return { error: "Give your poll a question" };
+    if (options.length < 2 || options.length > 4) return { error: "A poll needs 2 to 4 options" };
+    return { sticker: { type: "poll", question, options, votes: {} } };
+  }
+  if (raw.type === "countdown") {
+    const title = String(raw.title || "").trim().slice(0, 60);
+    const targetAt = Number(raw.targetAt);
+    const now = Date.now();
+    if (!title) return { error: "Give your countdown a title" };
+    if (!isFinite(targetAt) || targetAt <= now) return { error: "Pick a countdown time in the future" };
+    if (targetAt > now + STORY_CD_MAX_AHEAD_MS450 + 60 * 1000) return { error: "Countdowns can be at most 7 days out" };
+    return { sticker: { type: "countdown", title, targetAt } };
+  }
+  return { error: "Unknown sticker type" };
+}
+function storyStickerPublic450(s, meId, cd450) {
+  const st = s && s.sticker;
+  if (!st || typeof st !== "object") return null;
+  if (st.type === "poll") {
+    const options = Array.isArray(st.options) ? st.options : [];
+    const votes = st.votes && typeof st.votes === "object" ? st.votes : {};
+    const counts = options.map(() => 0);
+    let total = 0;
+    for (const uid of Object.keys(votes)) {
+      const ix = votes[uid];
+      if (Number.isInteger(ix) && ix >= 0 && ix < options.length) { counts[ix]++; total++; }
+    }
+    return {
+      type: "poll",
+      question: st.question || "",
+      options,
+      counts,
+      total,
+      myVote: meId && Object.prototype.hasOwnProperty.call(votes, meId) ? votes[meId] : null,
+    };
+  }
+  if (st.type === "countdown") {
+    const rems = cd450 && Array.isArray(cd450.reminders) ? cd450.reminders : [];
+    return {
+      type: "countdown",
+      title: st.title || "",
+      targetAt: new Date(Number(st.targetAt) || 0).toISOString(),
+      reminders: rems.length,
+      remindedByMe: meId ? rems.includes(meId) : false,
+    };
+  }
+  return null;
+}
+function storyStickerBump450(ctx, s) {
+  // [RP-V7.450] BRAIN: the +2 first-engagement bump (see the block
+  // header). Mirrors the story-like path's guarded shape exactly.
+  try {
+    if (!s.authorId || s.authorId === ctx.user.id) return;
+    const sig = readReelSignals();
+    const rec = fyUserRec(sig, ctx.user.id, true);
+    fyBump(rec, s.authorId, 2, Date.now());
+    writeReelSignals(sig);
+  } catch (e) { /* affinity bookkeeping must never break a sticker tap */ }
+}
+function storyCdSweep450() {
+  const db = readStories();
+  const cds = db.cd450;
+  if (!cds || typeof cds !== "object") return;
+  const now = Date.now();
+  let changed = false;
+  for (const id of Object.keys(cds)) {
+    const e = cds[id];
+    if (!e) { delete cds[id]; changed = true; continue; }
+    if (e.fired) {
+      if (e.firedAt && now - e.firedAt > 3600 * 1000) { delete cds[id]; changed = true; }
+      continue;
+    }
+    if (Number(e.targetAt) > now) continue;
+    e.fired = true; // flag first: never twice, even on a send hiccup (the V7.385 idiom)
+    e.firedAt = now;
+    changed = true;
+    const title = String(e.title || "Countdown");
+    const authorName = String(e.authorName || "A member");
+    for (const uid of Array.isArray(e.reminders) ? e.reminders : []) {
+      if (uid === e.authorId) continue;
+      notifyActivity({
+        toId: uid,
+        kind: "liveinvite", // rides the member's "Live invites" switch — the V7.385 show-reminder precedent; bell + push + email per channels, never SMS
+        actorId: e.authorId,
+        actorName: authorName,
+        text: "⏰ " + authorName + "’s countdown “" + title + "” is happening now",
+      });
+    }
+  }
+  if (changed) writeStories(db);
 }
 const storyUpload = multer({
   storage: multer.diskStorage({
@@ -14489,6 +14615,18 @@ app.post("/api/story/post",
     const mine = Object.values(db.stories).filter((s) => s && s.authorId === ctx.user.id);
     if (mine.length >= STORY_MAX_ACTIVE_PER_AUTHOR)
       return fail(429, "You already have " + STORY_MAX_ACTIVE_PER_AUTHOR + " stories up — let one expire first");
+    // [RP-V7.450] Optional sticker (poll XOR countdown — one per
+    // story): the composer sends it as a JSON form field beside the
+    // media. Invalid sticker data fails the post (fail() unlinks the
+    // file) rather than silently dropping the sticker.
+    let sticker450 = null;
+    if (req.body && typeof req.body.sticker === "string" && req.body.sticker.trim()) {
+      let parsed450 = null;
+      try { parsed450 = JSON.parse(req.body.sticker); } catch (e) { /* falls into the cleaner's error */ }
+      const cleaned450 = storyStickerClean450(parsed450);
+      if (cleaned450.error) return fail(400, cleaned450.error);
+      sticker450 = cleaned450.sticker;
+    }
     const now = Date.now();
     const story = {
       id: crypto.randomBytes(8).toString("hex"),
@@ -14500,11 +14638,29 @@ app.post("/api/story/post",
       expiresAt: new Date(now + STORY_TTL_MS).toISOString(),
       likes: [],
       viewedBy: [],
+      ...(sticker450 ? { sticker: sticker450 } : {}), // [RP-V7.450]
     };
     db.stories[story.id] = story;
+    let cd450 = null;
+    if (sticker450 && sticker450.type === "countdown") {
+      // [RP-V7.450] the firing record (see the V7.450 block header):
+      // subscriptions + the sweep live here so the reminder can
+      // outlive the story's own 24h.
+      if (!db.cd450 || typeof db.cd450 !== "object") db.cd450 = {};
+      cd450 = {
+        storyId: story.id,
+        authorId: ctx.user.id,
+        authorName: ctx.user.name,
+        title: sticker450.title,
+        targetAt: sticker450.targetAt,
+        reminders: [],
+        fired: false,
+      };
+      db.cd450[story.id] = cd450;
+    }
     writeStories(db);
     if (!isPhoto) crEnqueue286({ surface: "story", mediaId: story.id, authorId: ctx.user.id, filePath: req.file.path }); // [RP-V7.286]
-    res.json({ ok: true, story: storyPublic(story, readViews(), ctx.user.id) });
+    res.json({ ok: true, story: storyPublic(story, readViews(), ctx.user.id, null, cd450) }); // [RP-V7.450]
   }
 );
 // The story tray: active stories grouped by author, ranked by the
@@ -14539,7 +14695,7 @@ app.get("/api/story/tray", (req, res) => {
     const acct = ctx.db.users.find((u) => u.id === authorId);
     const photos = acct ? accountPhotos(acct) : [];
     list.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
-    const stories = list.map((s) => storyPublic(s, vdb, ctx.user.id, pgTray409));
+    const stories = list.map((s) => storyPublic(s, vdb, ctx.user.id, pgTray409, db.cd450 && db.cd450[s.id])); // [RP-V7.450]
     authors.push({
       author: { id: authorId, name: brief.name, photo: (acct && acct.photo) || photos[0] || null }, // [RP-V7.89] the FACE is user.photo — gallery[0] showed the old photo after an avatar pick
       iFollow: following.has(authorId),
@@ -14590,7 +14746,7 @@ app.get("/api/story/tray", (req, res) => {
           groupById409.set(e.u, g);
         }
         if (g.stories.some((x) => x.id === s.id)) continue;
-        const pub = storyPublic(s, vdb, ctx.user.id, pgTray409);
+        const pub = storyPublic(s, vdb, ctx.user.id, pgTray409, db.cd450 && db.cd450[s.id]); // [RP-V7.450]
         const ab = socialBrief(ctx.db, authorId);
         pub.repostOf = { authorId, authorName: (ab && ab.name) || s.authorName || "" };
         pub.repostedAt = e.at || 0;
@@ -14749,6 +14905,99 @@ app.post("/api/story/repost", (req, res) => {
   writeStories(data);
   return res.json({ ok: true, id: st.id, reposted: want, reposts: st.reposts.length, reshare: mine409 });
 });
+// [RP-V7.450] Vote on a story poll. One vote per member per story;
+// voting again MOVES the vote (counts are recomputed from the votes
+// map on every read, so a move can never double-count). The first
+// vote bumps the shared author affinity +2 (storyStickerBump450).
+app.post("/api/story/poll-vote", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (!storyCanView(ctx.user))
+    return res.status(403).json({ ok: false, error: "Stories aren't available on this account" });
+  const storyId = String((req.body || {}).storyId || "");
+  const option = Number((req.body || {}).option);
+  const db = sweepStories();
+  const s = db.stories[storyId];
+  if (!s) return res.status(404).json({ ok: false, error: "Story not found" });
+  const st = s.sticker;
+  if (!st || st.type !== "poll" || !Array.isArray(st.options))
+    return res.status(400).json({ ok: false, error: "That story has no poll" });
+  if (!Number.isInteger(option) || option < 0 || option >= st.options.length)
+    return res.status(400).json({ ok: false, error: "Pick one of the poll's options" });
+  if (!st.votes || typeof st.votes !== "object") st.votes = {};
+  const firstVote450 = !Object.prototype.hasOwnProperty.call(st.votes, ctx.user.id);
+  st.votes[ctx.user.id] = option;
+  writeStories(db);
+  if (firstVote450) storyStickerBump450(ctx, s);
+  res.json({ ok: true, sticker: storyStickerPublic450(s, ctx.user.id, null) });
+});
+// [RP-V7.450] The poll's full result for its AUTHOR only — total,
+// per-option counts and WHO voted each option (the RP-V7.303 Who
+// Watched naming rules: only currently visible members are named;
+// votes from accounts that have since left still count in totals).
+app.get("/api/story/poll-voters", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const storyId = String(req.query.storyId || "");
+  const s = readStories().stories[storyId];
+  if (!s || !(Date.parse(s.expiresAt) > Date.now()))
+    return res.status(404).json({ ok: false, error: "Story not found" });
+  if (s.authorId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the author can see who voted" });
+  const st = s.sticker;
+  if (!st || st.type !== "poll" || !Array.isArray(st.options))
+    return res.status(400).json({ ok: false, error: "That story has no poll" });
+  const votes = st.votes && typeof st.votes === "object" ? st.votes : {};
+  const byId = {};
+  for (const u of ctx.db.users) byId[u.id] = u;
+  const options = st.options.map((text) => ({ text, count: 0, voters: [] }));
+  let total = 0;
+  for (const uid of Object.keys(votes)) {
+    const ix = votes[uid];
+    if (!Number.isInteger(ix) || ix < 0 || ix >= options.length) continue;
+    options[ix].count++;
+    total++;
+    const u = byId[uid];
+    if (u && !u.deletionAt && !accountLockedOut(u) && options[ix].voters.length < RP_VIEWERS_CAP_303)
+      options[ix].voters.push({ id: u.id, name: u.name, username: u.username || "", photo: u.photo || null });
+  }
+  res.json({ ok: true, storyId: s.id, question: st.question || "", total, options });
+});
+// [RP-V7.450] Countdown "Remind me" toggle. One reminder per member
+// per countdown; tapping again un-subscribes. Subscriptions live on
+// the firing record (db.cd450) so they survive the story itself;
+// subscribing while not subscribed bumps the shared author
+// affinity +2 (storyStickerBump450).
+app.post("/api/story/countdown-remind", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (!storyCanView(ctx.user))
+    return res.status(403).json({ ok: false, error: "Stories aren't available on this account" });
+  const storyId = String((req.body || {}).storyId || "");
+  const want = !!(req.body || {}).remind;
+  const db = sweepStories();
+  const s = db.stories[storyId];
+  if (!s) return res.status(404).json({ ok: false, error: "Story not found" });
+  const st = s.sticker;
+  if (!st || st.type !== "countdown")
+    return res.status(400).json({ ok: false, error: "That story has no countdown" });
+  if (!db.cd450 || typeof db.cd450 !== "object") db.cd450 = {};
+  let e = db.cd450[storyId];
+  if (!e) {
+    e = db.cd450[storyId] = {
+      storyId: s.id, authorId: s.authorId, authorName: s.authorName,
+      title: st.title, targetAt: st.targetAt, reminders: [], fired: false,
+    };
+  }
+  if (!Array.isArray(e.reminders)) e.reminders = [];
+  const ix = e.reminders.indexOf(ctx.user.id);
+  let firstSub450 = false;
+  if (want && ix < 0) { e.reminders.push(ctx.user.id); firstSub450 = true; }
+  if (!want && ix >= 0) e.reminders.splice(ix, 1);
+  writeStories(db);
+  if (firstSub450) storyStickerBump450(ctx, s);
+  res.json({ ok: true, sticker: storyStickerPublic450(s, ctx.user.id, e) });
+});
 app.delete("/api/story/:id", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -14759,6 +15008,7 @@ app.delete("/api/story/:id", (req, res) => {
     return res.status(403).json({ ok: false, error: "That's not your story" });
   if (s.file) fs.unlink(path.join(STORY_DIR, String(s.file)), () => {});
   delete db.stories[s.id];
+  if (db.cd450) delete db.cd450[s.id]; // [RP-V7.450] the countdown firing record dies with its story
   writeStories(db);
   res.json({ ok: true });
 });
@@ -31997,6 +32247,19 @@ const storySweepTimer = setInterval(() => {
   } catch (e) {}
 }, 10 * 60 * 1000);
 if (storySweepTimer.unref) storySweepTimer.unref();
+
+// [RP-V7.450] Countdown reminder sweep: fires due countdown
+// subscriptions through notifyActivity (see storyCdSweep450) —
+// once on boot, then on the STORY_CD_SWEEP_MS450 cadence.
+try {
+  storyCdSweep450();
+} catch (e) {}
+const storyCdTimer450 = setInterval(() => {
+  try {
+    storyCdSweep450();
+  } catch (e) {}
+}, STORY_CD_SWEEP_MS450);
+if (storyCdTimer450.unref) storyCdTimer450.unref();
 
 // [RP-V7.385] Scheduled-shows sweep: once on boot, then on the
 // SHOW_SWEEP_MS cadence (60s default — the daily-pot timer's rhythm):
