@@ -11170,8 +11170,13 @@ app.post("/api/media/view", (req, res) => {
 // Rules:
 //  - signed-in members only (401 signed-out);
 //  - only the author may read an item's list — 403 for every other
-//    member, the app owner included (no admin bypass: RP reads the
-//    lists of RP's own posts by being their author, like anyone);
+//    member. [RP-V7.460] SUPERSEDED for the app owner by Branden's
+//    explicit decision (Nov 20, 2026 — he picked "everyone's" from
+//    the three options after the trade-off was laid out): the app
+//    owner (rpOwnerUserId — the same check the owner board and the
+//    author-or-owner delete routes use) may ALSO read any item's
+//    list. This exception covers viewer lists ONLY; every other
+//    member's rule is unchanged (author-only, 403 otherwise);
 //  - unknown item → 404 (a deleted item is unknown; a text post
 //    carries no views and reads as not found, like everywhere a
 //    text post meets the photo surfaces);
@@ -11245,7 +11250,12 @@ app.get("/api/media/viewers", (req, res) => {
     itemKey = "photo:" + ownerId + ":" + url;
     itemId = url;
   }
-  if (authorId !== ctx.user.id)
+  // [RP-V7.460] author OR app owner (Branden, Nov 20, 2026 — see
+  // the Rules note above). rpOwnerUserId is the canonical owner
+  // check (owner board, owner delete); nothing else about this
+  // endpoint changes — same response shape, same day-precision
+  // rows, same named/total honesty rules.
+  if (authorId !== ctx.user.id && rpOwnerUserId(ctx.db) !== ctx.user.id)
     return res.status(403).json({ ok: false, error: "Only the author can see who watched" });
   const vdb = readViews();
   const total = mediaViewCount(vdb, itemKey);
