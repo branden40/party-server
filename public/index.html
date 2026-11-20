@@ -44212,7 +44212,7 @@ button.rp72-chip{ cursor:pointer; }
 /* ================= RP-V7.47: Emoji picker (reusable component) ================= */
 .rpemoji-backdrop { position: fixed; inset: 0; z-index: 99980; background: rgba(0,0,0,.25); display: none; }
 .rpemoji-backdrop.open { display: block; }
-.rpemoji-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 99981; display: none; flex-direction: column; background: rgba(14,15,22,.97); border-top: 1px solid rgba(255,255,255,.16); border-radius: 18px 18px 0 0; max-height: 54vh; box-shadow: 0 -12px 34px rgba(0,0,0,.5); }
+.rpemoji-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 99981; display: none; flex-direction: column; background: rgba(14,15,22,.97); border-top: 1px solid rgba(255,255,255,.16); border-radius: 18px 18px 0 0; height: 40vh; max-height: 40vh; box-shadow: 0 -12px 34px rgba(0,0,0,.5); }
 .rpemoji-sheet.open { display: flex; }
 .rpemoji-tabs { display: flex; gap: 4px; padding: 10px 10px 6px; overflow-x: auto; scrollbar-width: none; flex: none; }
 .rpemoji-tabs::-webkit-scrollbar { display: none; }
@@ -44220,9 +44220,23 @@ button.rp72-chip{ cursor:pointer; }
 .rpemoji-tab.on { background: #fe2c2c; border-color: #fe2c2c; }
 .rpemoji-close { margin-left: auto; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; flex: none; }
 .rpemoji-catlabel { padding: 2px 14px 6px; color: rgba(255,255,255,.65); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; flex: none; }
-.rpemoji-grid { overflow-y: auto; padding: 0 8px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 2px; }
-.rpemoji-glyph { border: none; background: transparent; font-size: 25px; line-height: 1.25; padding: 5px 0; cursor: pointer; border-radius: 10px; font-family: inherit; }
+.rpemoji-grid { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding: 0 8px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 2px; }
+.rpemoji-glyph { border: none; background: transparent; font-size: 25px; line-height: 1.25; padding: 5px 0; cursor: pointer; border-radius: 10px; font-family: inherit; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: pan-y; }
 .rpemoji-glyph:active { background: rgba(255,255,255,.14); transform: scale(1.12); }
+/* [RP-V7.445] While the picker is open, the composer it feeds rides
+   ABOVE the board (keyboard-style): the DM conversation gets bottom
+   padding equal to the board height and the meet-room chat row
+   lifts by the same amount, so a tapped emoji is SEEN landing in
+   the field. Only these two composer hosts exist (the picker's
+   only open() call sites); pick() mode has no composer. */
+body.rpemoji-open445 .rpdm-conv { padding-bottom: 40vh; }
+body.rpemoji-open445 .rproom-chatrow { bottom: calc(40vh + 12px); }
+/* [RP-V7.445] Skin-tone variant strip (hold a tone-capable glyph). */
+.rpemoji-tones445 { display: none; gap: 2px; padding: 7px 8px 9px; justify-content: center; flex-wrap: wrap; background: rgba(255,255,255,.05); border-top: 1px solid rgba(255,255,255,.10); border-bottom: 1px solid rgba(255,255,255,.10); flex: none; }
+.rpemoji-tones445.open { display: flex; }
+.rpemoji-tone445 { border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); font-size: 26px; line-height: 1.2; padding: 6px 10px; cursor: pointer; border-radius: 12px; font-family: inherit; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.rpemoji-tone445:active { background: rgba(255,255,255,.16); }
+.rpemoji-glyph.held445 { background: rgba(254,44,44,.35); }
 </style>
 <script>
 /* ================= RP-V7.47 — Emoji picker (reusable) =================
@@ -44244,6 +44258,65 @@ button.rp72-chip{ cursor:pointer; }
     { id: "flags", icon: "🏳️", label: "Flags", glyphs: "🏳️ 🏴 🏁 🚩 🏳️‍🌈 🏴‍☠️ 🇺🇸 🇬🇧 🇨🇦 🇲🇽 🇧🇷 🇦🇷 🇨🇱 🇨🇴 🇵🇪 🇻🇪 🇫🇷 🇩🇪 🇮🇹 🇪🇸 🇵🇹 🇳🇱 🇧🇪 🇨🇭 🇦🇹 🇸🇪 🇳🇴 🇩🇰 🇫🇮 🇮🇸 🇮🇪 🇵🇱 🇬🇷 🇹🇷 🇷🇺 🇺🇦 🇮🇳 🇵🇰 🇧🇩 🇱🇰 🇳🇵 🇨🇳 🇯🇵 🇰🇷 🇮🇩 🇵🇭 🇻🇳 🇹🇭 🇲🇾 🇸🇬 🇦🇺 🇳🇿 🇿🇦 🇳🇬 🇰🇪 🇪🇬 🇮🇱 🇸🇦 🇦🇪 🇶🇦 🇰🇼 🇮🇶 🇮🇷 🇦🇫 🇯🇲 🇭🇹 🇨🇺 🇩🇴 🇵🇷 🇹🇹 🇧🇸 🇬🇾 🇪🇹" }
   ];
   var sheet = null, backdrop = null, grid = null, catLabel = null, target = null, selStart = 0, selEnd = 0;
+  /* [RP-V7.445] Skin tones: TONES445 are the five Fitzpatrick
+     modifiers; TONABLE445 holds the first-code-point of every
+     glyph in the data above that Unicode defines as an emoji
+     modifier base (hands, people, body/action figures — the
+     People & Hands category plus the same glyphs repeated in
+     Symbols). Faces, objects, flags and the see/hear/speak-no-evil
+     monkeys take no modifier and get no hold behavior. */
+  var tonesEl = null, heldBtn445 = null;
+  var TONES445 = ["\u{1F3FB}", "\u{1F3FC}", "\u{1F3FD}", "\u{1F3FE}", "\u{1F3FF}"];
+  var TONABLE445 = {};
+  [0x1F44B, 0x1F91A, 0x1F590, 0x270B, 0x1F596, 0x1F44C, 0x1F90F, 0x270C, 0x1F91E, 0x1F91F, 0x1F918, 0x1F919, 0x1F448, 0x1F449, 0x1F446, 0x1F447, 0x261D, 0x1F44D, 0x1F44E, 0x270A, 0x1F44A, 0x1F91B, 0x1F91C, 0x1F44F, 0x1F64C, 0x1F450, 0x1F932, 0x1F91D, 0x1F64F, 0x1F4AA, 0x1F933, 0x1F485, 0x1F476, 0x1F9D2, 0x1F466, 0x1F467, 0x1F9D1, 0x1F471, 0x1F468, 0x1F469, 0x1F9D3, 0x1F474, 0x1F475, 0x1F64D, 0x1F64E, 0x1F645, 0x1F646, 0x1F481, 0x1F64B, 0x1F647, 0x1F937, 0x1F926, 0x1F9CF, 0x1F483, 0x1F57A, 0x1F3C3, 0x1F6B6, 0x1F9CE, 0x1F9CD, 0x1F9D8, 0x1F3CB, 0x1F938, 0x26F9, 0x1F93E, 0x1F6B4, 0x1F6A3, 0x1F3CA, 0x1F9D7, 0x1F93A, 0x1F3C7, 0x1F3C2, 0x1F3C4, 0x1F6B5, 0x1F93D, 0x1F9D6, 0x1F486, 0x1F487].forEach(function (cp) { TONABLE445[cp] = 1; });
+  function isTonable445(g) { return !!TONABLE445[g.codePointAt(0)]; }
+  function swallowClick445() { // the dmSwallowClick442 pattern: eat exactly the next click, capture-phase
+    var h = function (e) { e.preventDefault(); e.stopPropagation(); };
+    document.addEventListener("click", h, { capture: true, once: true });
+    setTimeout(function () { document.removeEventListener("click", h, { capture: true }); }, 800);
+  }
+  function closeTones445() {
+    if (tonesEl) { tonesEl.classList.remove("open"); tonesEl.innerHTML = ""; }
+    if (heldBtn445) { heldBtn445.classList.remove("held445"); heldBtn445 = null; }
+  }
+  function openTones445(g, btn) {
+    if (!tonesEl) return;
+    closeTones445();
+    heldBtn445 = btn || null;
+    if (heldBtn445) heldBtn445.classList.add("held445");
+    var base = g.replace(/\uFE0F+$/, ""); // a modifier replaces the variation selector (canonical toned form)
+    var defs = [{ mod: "", txt: g }].concat(TONES445.map(function (m) { return { mod: m, txt: base + m }; }));
+    defs.forEach(function (d) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "rpemoji-tone445";
+      b.setAttribute("data-tone445", d.mod);
+      b.textContent = d.txt;
+      b.setAttribute("aria-label", d.mod ? "Skin tone variant" : "Default skin tone");
+      b.addEventListener("click", function () { commitGlyph445(d.txt); });
+      tonesEl.appendChild(b);
+    });
+    tonesEl.classList.add("open");
+  }
+  function wireToneHold445(btn, g) { // the dmHold442 discipline: 500ms still hold, >10px move cancels
+    var timer = null, sx = 0, sy = 0;
+    function cancel() { if (timer) { clearTimeout(timer); timer = null; } }
+    btn.addEventListener("pointerdown", function (e) {
+      sx = e.clientX; sy = e.clientY; cancel();
+      timer = setTimeout(function () {
+        timer = null;
+        if (!btn.isConnected) return;
+        swallowClick445();
+        openTones445(g, btn);
+      }, 500);
+    });
+    btn.addEventListener("pointermove", function (e) {
+      if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) cancel();
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) { btn.addEventListener(ev, cancel); });
+    btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  }
+  function commitGlyph445(g) { closeTones445(); insert(g); }
   function $(id) { return document.getElementById(id); }
   function build() {
     if (sheet) return;
@@ -44276,6 +44349,10 @@ button.rp72-chip{ cursor:pointer; }
     catLabel = document.createElement("div");
     catLabel.className = "rpemoji-catlabel";
     sheet.appendChild(catLabel);
+    tonesEl = document.createElement("div"); // [RP-V7.445] skin-tone variant strip (hidden until a hold)
+    tonesEl.className = "rpemoji-tones445";
+    tonesEl.id = "rpEmojiTones445";
+    sheet.appendChild(tonesEl);
     grid = document.createElement("div");
     grid.className = "rpemoji-grid";
     sheet.appendChild(grid);
@@ -44287,6 +44364,7 @@ button.rp72-chip{ cursor:pointer; }
   function showCat(i) {
     var c = CATS[i];
     if (!c || !grid) return;
+    closeTones445(); // [RP-V7.445] a category switch drops any open variant strip
     catLabel.textContent = c.label;
     sheet.querySelectorAll(".rpemoji-tab").forEach(function (t, j) { t.classList.toggle("on", j === i); });
     grid.innerHTML = "";
@@ -44296,7 +44374,8 @@ button.rp72-chip{ cursor:pointer; }
       b.type = "button";
       b.className = "rpemoji-glyph";
       b.textContent = g;
-      b.addEventListener("click", function () { insert(g); });
+      b.addEventListener("click", function () { commitGlyph445(g); });
+      if (isTonable445(g)) wireToneHold445(b, g); // [RP-V7.445] hold -> skin-tone variants
       grid.appendChild(b);
     });
     grid.scrollTop = 0;
@@ -44329,11 +44408,14 @@ button.rp72-chip{ cursor:pointer; }
     try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) { }
     sheet.classList.add("open");
     backdrop.classList.add("open");
+    document.body.classList.add("rpemoji-open445"); // [RP-V7.445] composer rides above the board
   }
   function closePicker() {
     pickCb = null;
+    closeTones445(); // [RP-V7.445]
     if (sheet) sheet.classList.remove("open");
     if (backdrop) backdrop.classList.remove("open");
+    document.body.classList.remove("rpemoji-open445"); // [RP-V7.445]
     if (target) { try { target.focus(); } catch (e) { } }
   }
   function pickOne(cb) {
@@ -44345,6 +44427,7 @@ button.rp72-chip{ cursor:pointer; }
     pickCb = cb;
     sheet.classList.add("open");
     backdrop.classList.add("open");
+    document.body.classList.add("rpemoji-open445"); // [RP-V7.445]
   }
   window.rpEmojiPicker = {
     open: openPicker,
