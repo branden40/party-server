@@ -1066,6 +1066,44 @@ Object.keys(RP_GIFT_ART_7370).forEach((gid) => {
 });
 console.log("[RP-V7.370] new gift art:", Object.keys(RP_GIFT_ART_7370).join(", "));
 
+// [RP-V7.454] Digital Asset Links, served by the server itself as an
+// explicit route ahead of express.static (the touch-icon recipe).
+// The first entry is the document the live site already serves —
+// handle_all_urls for the Android TWA, both cert fingerprints — kept
+// untouched. The second entry ADDS delegate_permission/common.
+// get_login_creds for the same package + fingerprints: Android
+// requires it before passkeys created on the web are offered inside
+// the Rizz Plaza app (the TWA), which is where fingerprint / face
+// sign-in has to work.
+app.get("/.well-known/assetlinks.json", (req, res) => {
+  res.set("Content-Type", "application/json");
+  res.set("Cache-Control", "public, max-age=3600");
+  res.json([
+    {
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: {
+        namespace: "android_app",
+        package_name: "com.rizzplaza.app",
+        sha256_cert_fingerprints: [
+          "1E:63:3A:B1:AE:72:23:D6:A8:D9:AC:98:5D:6C:26:13:7B:E0:B7:74:F0:10:05:80:61:5D:6F:9C:64:27:12:47",
+          "71:C7:7A:AD:8A:C7:CE:DE:34:13:9A:66:13:B9:5B:89:DE:68:59:8D:2A:B3:50:6C:02:83:09:97:F2:0E:06:5D",
+        ],
+      },
+    },
+    {
+      relation: ["delegate_permission/common.get_login_creds"],
+      target: {
+        namespace: "android_app",
+        package_name: "com.rizzplaza.app",
+        sha256_cert_fingerprints: [
+          "1E:63:3A:B1:AE:72:23:D6:A8:D9:AC:98:5D:6C:26:13:7B:E0:B7:74:F0:10:05:80:61:5D:6F:9C:64:27:12:47",
+          "71:C7:7A:AD:8A:C7:CE:DE:34:13:9A:66:13:B9:5B:89:DE:68:59:8D:2A:B3:50:6C:02:83:09:97:F2:0E:06:5D",
+        ],
+      },
+    },
+  ]);
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
@@ -2108,6 +2146,387 @@ app.post("/api/account/login", (req, res) => {
   console.log("[accounts] login", user.email || user.phone || user.username);
   res.json({ ok: true, token, user: publicAccount(user), deletionCancelled, ownerDeletionNotice: rpOwnerDeletionNotice377(user) });
 });
+// ---------------------------------------------------------------------------
+// [RP-V7.454] PASSKEY SIGN-IN — WebAuthn fingerprint / face (Branden,
+// Nov 19, 2026: "Build passkey sign-in"). A member enrolls a passkey
+// once (Settings → "Fingerprint / Face sign-in", or the one-time
+// post-login prompt) and afterwards signs in from the login wall with
+// the phone's own fingerprint / face prompt. The Plaza NEVER sees or
+// stores a fingerprint or a face: the phone checks it on-device and
+// unlocks a private key; the server stores only the credential's
+// PUBLIC key (the raw COSE key), its id, a signature counter and
+// bookkeeping. Verification uses Node's built-in crypto only — no new
+// dependencies. A passkey sign-in issues the EXACT session a password
+// login issues (googleSessionFor — the shared door the Google flow
+// already uses) and passes the EXACT same standing gates, checked at
+// verify time: under-18 / disabled (403 ageLocked), age-suspended
+// (403), and the owner-delete lock (in-window = recovery-restricted
+// session + notice; past-due = finalized + refused), identical to
+// password login in every outcome. Challenges are server-generated,
+// 5-minute, single-use (any verify attempt burns the challenge) and
+// bound to the account (registration) / resolved account
+// (authentication). RP ID + origin are checked strictly; the env
+// overrides exist ONLY so the rig can run the ceremonies on a local
+// origin — production runs the defaults and must never set them.
+// ---------------------------------------------------------------------------
+const RP_PK_RP_ID_454 = process.env.RP_WEBAUTHN_RP_ID || "rizzplaza.com";
+const RP_PK_ORIGIN_454 = process.env.RP_WEBAUTHN_ORIGIN || "https://rizzplaza.com";
+const RP_PK_CHALLENGE_TTL_454 = Math.max(1000, parseInt(process.env.RP_WEBAUTHN_CHALLENGE_TTL_MS || "300000", 10) || 300000);
+const rpPkChallenges454 = new Map(); // challenge -> { kind, userId, exp }
+function rpPkB64Url454(buf) {
+  return Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function rpPkB64UrlDecode454(s) {
+  if (typeof s !== "string" || !/^[A-Za-z0-9_-]*$/.test(s)) return null;
+  let b = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (b.length % 4) b += "=";
+  try { return Buffer.from(b, "base64"); } catch (e) { return null; }
+}
+// Minimal CBOR decoder (RFC 8949): major types 0–5, tags (unwrapped),
+// simple values and floats, definite + indefinite lengths. Byte
+// strings come back as Buffers, maps as Maps (integer or text keys).
+// Returns { value, next } — `next` locates the COSE key's end inside
+// authenticator data. Unit-proven by the rig's software authenticator
+// (its encoder round-trips through every ceremony below).
+function rpPkCborDecode454(buf, off) {
+  const b0 = buf[off];
+  if (b0 === undefined) throw new Error("cbor: eof");
+  const major = b0 >> 5, ai = b0 & 31;
+  let pos = off + 1;
+  if (major === 7) {
+    if (ai === 20) return { value: false, next: pos };
+    if (ai === 21) return { value: true, next: pos };
+    if (ai === 22) return { value: null, next: pos };
+    if (ai === 23) return { value: undefined, next: pos };
+    if (ai === 24) return { value: buf[pos], next: pos + 1 };
+    if (ai === 25) { const v = rpPkHalfFloat454(buf.readUInt16BE(pos)); return { value: v, next: pos + 2 }; }
+    if (ai === 26) return { value: buf.readFloatBE(pos), next: pos + 4 };
+    if (ai === 27) return { value: buf.readDoubleBE(pos), next: pos + 8 };
+    if (ai === 31) return { value: "__break__", next: pos };
+    throw new Error("cbor: bad simple");
+  }
+  let arg;
+  if (ai < 24) arg = ai;
+  else if (ai === 24) { arg = buf[pos]; pos += 1; }
+  else if (ai === 25) { arg = buf.readUInt16BE(pos); pos += 2; }
+  else if (ai === 26) { arg = buf.readUInt32BE(pos); pos += 4; }
+  else if (ai === 27) { arg = Number(buf.readBigUInt64BE(pos)); pos += 8; }
+  else if (ai === 31) arg = -1;
+  else throw new Error("cbor: bad additional info");
+  if (major === 0) return { value: arg, next: pos };
+  if (major === 1) return { value: -1 - arg, next: pos };
+  if (major === 2 || major === 3) {
+    if (arg === -1) {
+      if (major === 2) {
+        const parts = [];
+        while (buf[pos] !== 0xff) { const c = rpPkCborDecode454(buf, pos); parts.push(c.value); pos = c.next; }
+        return { value: Buffer.concat(parts), next: pos + 1 };
+      }
+      let s = "";
+      while (buf[pos] !== 0xff) { const c = rpPkCborDecode454(buf, pos); s += c.value; pos = c.next; }
+      return { value: s, next: pos + 1 };
+    }
+    if (major === 2) return { value: buf.slice(pos, pos + arg), next: pos + arg };
+    return { value: buf.slice(pos, pos + arg).toString("utf8"), next: pos + arg };
+  }
+  if (major === 4) {
+    const arr = [];
+    if (arg === -1) { while (buf[pos] !== 0xff) { const c = rpPkCborDecode454(buf, pos); arr.push(c.value); pos = c.next; } return { value: arr, next: pos + 1 }; }
+    for (let i = 0; i < arg; i++) { const c = rpPkCborDecode454(buf, pos); arr.push(c.value); pos = c.next; }
+    return { value: arr, next: pos };
+  }
+  if (major === 5) {
+    const map = new Map();
+    if (arg === -1) {
+      while (buf[pos] !== 0xff) { const k = rpPkCborDecode454(buf, pos); const v = rpPkCborDecode454(buf, k.next); map.set(k.value, v.value); pos = v.next; }
+      return { value: map, next: pos + 1 };
+    }
+    for (let i = 0; i < arg; i++) { const k = rpPkCborDecode454(buf, pos); const v = rpPkCborDecode454(buf, k.next); map.set(k.value, v.value); pos = v.next; }
+    return { value: map, next: pos };
+  }
+  // major 6: a tag — unwrap and return the tagged item
+  const inner = rpPkCborDecode454(buf, pos);
+  return { value: inner.value, next: inner.next };
+}
+function rpPkHalfFloat454(h) {
+  const sign = (h & 0x8000) ? -1 : 1, exp = (h >> 10) & 0x1f, frac = h & 0x3ff;
+  if (exp === 0) return sign * Math.pow(2, -14) * (frac / 1024);
+  if (exp === 31) return frac ? NaN : sign * Infinity;
+  return sign * Math.pow(2, exp - 15) * (1 + frac / 1024);
+}
+// COSE_Key (EC2 / ES256 / P-256 only) -> a Node public key via JWK.
+function rpPkCoseToKey454(coseBuf) {
+  let m;
+  try { m = rpPkCborDecode454(coseBuf, 0).value; } catch (e) { return null; }
+  if (!(m instanceof Map)) return null;
+  if (m.get(1) !== 2 || m.get(3) !== -7 || m.get(-1) !== 1) return null;
+  const x = m.get(-2), y = m.get(-3);
+  if (!Buffer.isBuffer(x) || x.length !== 32 || !Buffer.isBuffer(y) || y.length !== 32) return null;
+  try {
+    return crypto.createPublicKey({ key: { kty: "EC", crv: "P-256", x: rpPkB64Url454(x), y: rpPkB64Url454(y) }, format: "jwk" });
+  } catch (e) { return null; }
+}
+function rpPkParseAuthData454(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 37) return null;
+  const out = {
+    rpIdHash: buf.slice(0, 32),
+    flags: buf[32],
+    signCount: buf.readUInt32BE(33),
+  };
+  out.up = !!(out.flags & 1);
+  out.uv = !!(out.flags & 4);
+  out.at = !!(out.flags & 64);
+  if (out.at) {
+    if (buf.length < 55) return null;
+    const credIdLen = buf.readUInt16BE(53);
+    if (buf.length < 55 + credIdLen) return null;
+    out.credId = buf.slice(55, 55 + credIdLen);
+    let d;
+    try { d = rpPkCborDecode454(buf, 55 + credIdLen); } catch (e) { return null; }
+    out.coseBytes = buf.slice(55 + credIdLen, d.next);
+  }
+  return out;
+}
+function rpPkClientData454(b64) {
+  const raw = rpPkB64UrlDecode454(b64);
+  if (!raw) return null;
+  let j = null;
+  try { j = JSON.parse(raw.toString("utf8")); } catch (e) { return null; }
+  if (!j || typeof j !== "object") return null;
+  return { json: j, raw, hash: crypto.createHash("sha256").update(raw).digest() };
+}
+function rpPkChallengePut454(kind, userId) {
+  const now = Date.now();
+  for (const [k, v] of rpPkChallenges454) if (v.exp <= now) rpPkChallenges454.delete(k);
+  const ch = rpPkB64Url454(crypto.randomBytes(32));
+  rpPkChallenges454.set(ch, { kind, userId: userId || null, exp: now + RP_PK_CHALLENGE_TTL_454 });
+  return ch;
+}
+function rpPkChallengeTake454(ch, kind) {
+  const key = String(ch || "");
+  const rec = rpPkChallenges454.get(key);
+  if (!rec) return null;
+  rpPkChallenges454.delete(key); // single-use: ANY verify attempt burns it
+  if (rec.exp <= Date.now() || rec.kind !== kind) return null;
+  return rec;
+}
+function rpPkList454(user) {
+  return user && Array.isArray(user.passkeys) ? user.passkeys : [];
+}
+function rpPkPublic454(rec) {
+  return {
+    id: rec.id,
+    label: rec.label || "Passkey",
+    createdAt: rec.createdAt || null,
+    lastUsedAt: rec.lastUsedAt || null,
+    transports: Array.isArray(rec.transports) ? rec.transports : [],
+  };
+}
+function rpPkFindOwner454(db, credIdB64) {
+  for (const u of db.users) {
+    const rec = rpPkList454(u).find((p) => p.id === credIdB64);
+    if (rec) return { user: u, rec };
+  }
+  return null;
+}
+// Identifier resolution mirrors /api/account/login exactly (username /
+// email first, phone only when neither hits) — except the winner is
+// the first matching account that actually holds a passkey.
+function rpPkResolveUser454(db, identRaw) {
+  const raw = String(identRaw || "");
+  const ident = raw.trim().toLowerCase().slice(0, 120);
+  if (!ident) return null;
+  let cands = db.users.filter(
+    (u) => (u.email && normEmailKey(u.email) === ident) || usernameKey(u.username) === ident
+  );
+  if (!cands.length && /^[+\d][\d\s().-]*$/.test(raw.trim())) {
+    const pk = normPhoneKey(raw.trim());
+    if (pk) cands = db.users.filter((u) => u.phone && normPhoneKey(u.phone) === pk);
+  }
+  return cands.find((u) => rpPkList454(u).length > 0) || null;
+}
+app.post("/api/account/passkey/register/options", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const user = ctx.user;
+  const challenge = rpPkChallengePut454("reg", user.id);
+  res.json({
+    ok: true,
+    options: {
+      challenge,
+      rp: { id: RP_PK_RP_ID_454, name: "Rizz Plaza" },
+      user: {
+        id: rpPkB64Url454(Buffer.from(user.id, "utf8")),
+        name: user.username,
+        displayName: user.name || user.username,
+      },
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+      authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
+      attestation: "none",
+      excludeCredentials: rpPkList454(user).map((p) => ({ type: "public-key", id: p.id, transports: p.transports || [] })),
+      timeout: 60000,
+    },
+  });
+});
+app.post("/api/account/passkey/register/verify", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = ctx.db, user = ctx.user;
+  const fail = () => res.status(400).json({ ok: false, error: "That passkey could not be added — try again" });
+  const b = req.body || {};
+  const resp = (b.credential && b.credential.response) || {};
+  const cd = rpPkClientData454(resp.clientDataJSON);
+  if (!cd || cd.json.type !== "webauthn.create") return fail();
+  const chRec = rpPkChallengeTake454(cd.json.challenge, "reg");
+  if (!chRec || chRec.userId !== user.id) return fail();
+  if (cd.json.origin !== RP_PK_ORIGIN_454) return fail();
+  const attBuf = rpPkB64UrlDecode454(resp.attestationObject);
+  if (!attBuf) return fail();
+  let att;
+  try { att = rpPkCborDecode454(attBuf, 0).value; } catch (e) { return fail(); }
+  if (!(att instanceof Map)) return fail();
+  const fmt = att.get("fmt");
+  const attStmt = att.get("attStmt");
+  const authData = att.get("authData");
+  if (!Buffer.isBuffer(authData)) return fail();
+  const ad = rpPkParseAuthData454(authData);
+  if (!ad || !ad.at || !ad.credId || !ad.coseBytes) return fail();
+  const wantHash = crypto.createHash("sha256").update(RP_PK_RP_ID_454).digest();
+  if (!crypto.timingSafeEqual(ad.rpIdHash, wantHash)) return fail();
+  if (!ad.up || !ad.uv) return fail();
+  const key = rpPkCoseToKey454(ad.coseBytes);
+  if (!key) return fail();
+  if (fmt === "packed") {
+    // Self-attestation only (no chain validation): the statement is
+    // signed with the credential's own key over authData || clientDataHash.
+    const sig = attStmt instanceof Map ? attStmt.get("sig") : null;
+    if (!Buffer.isBuffer(sig)) return fail();
+    let okSig = false;
+    try { okSig = crypto.verify("sha256", Buffer.concat([authData, cd.hash]), { key, dsaEncoding: "der" }, sig); } catch (e) {}
+    if (!okSig) return fail();
+  } else if (fmt !== "none") return fail();
+  const credIdB64 = rpPkB64Url454(ad.credId);
+  const existing = rpPkFindOwner454(db, credIdB64);
+  if (existing && existing.user.id !== user.id) return fail(); // a credential belongs to ONE account
+  if (existing) return res.json({ ok: true, passkey: rpPkPublic454(existing.rec), already: true });
+  const label =
+    String(b.label || "").replace(/[<>&"']/g, "").trim().slice(0, 60) ||
+    "Passkey · " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const transports = Array.isArray(b.transports)
+    ? b.transports.filter((t) => typeof t === "string" && /^[a-z-]{1,20}$/.test(t)).slice(0, 6)
+    : [];
+  const rec = {
+    id: credIdB64,
+    cose: rpPkB64Url454(ad.coseBytes), // the raw COSE public key — the ONLY key material ever stored
+    signCount: ad.signCount || 0,
+    transports,
+    createdAt: new Date().toISOString(),
+    lastUsedAt: null,
+    label,
+  };
+  if (!Array.isArray(user.passkeys)) user.passkeys = [];
+  user.passkeys.push(rec);
+  writeAccounts(db);
+  console.log("[accounts] passkey enrolled", user.username);
+  res.json({ ok: true, passkey: rpPkPublic454(rec) });
+});
+app.get("/api/account/passkey/list", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  res.json({ ok: true, passkeys: rpPkList454(ctx.user).map(rpPkPublic454) });
+});
+app.post("/api/account/passkey/revoke", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const db = ctx.db, user = ctx.user;
+  const id = String((req.body || {}).id || "");
+  const list = rpPkList454(user);
+  const idx = list.findIndex((p) => p.id === id);
+  if (idx < 0) return res.status(404).json({ ok: false, error: "That passkey is already gone" });
+  list.splice(idx, 1);
+  writeAccounts(db);
+  res.json({ ok: true, passkeys: rpPkList454(user).map(rpPkPublic454) });
+});
+app.post("/api/account/passkey/auth/options", (req, res) => {
+  const ip = req.ip || "unknown";
+  if (loginRateLimited(ip))
+    return res.status(429).json({ ok: false, error: "Too many attempts — try again in a few minutes" });
+  const db = readAccounts();
+  const user = rpPkResolveUser454(db, (req.body || {}).username);
+  // Always a challenge, always the same shape — an unknown identifier
+  // or an account with no passkey reads exactly like a real one with
+  // an empty allow list, so this door exposes nothing the username
+  // login doesn't already expose.
+  const challenge = rpPkChallengePut454("auth", user ? user.id : null);
+  res.json({
+    ok: true,
+    options: {
+      challenge,
+      rpId: RP_PK_RP_ID_454,
+      allowCredentials: user
+        ? rpPkList454(user).map((p) => ({ type: "public-key", id: p.id, transports: p.transports || [] }))
+        : [],
+      userVerification: "required",
+      timeout: 60000,
+    },
+  });
+});
+app.post("/api/account/passkey/auth/verify", (req, res) => {
+  const ip = req.ip || "unknown";
+  if (loginRateLimited(ip))
+    return res.status(429).json({ ok: false, error: "Too many attempts — try again in a few minutes" });
+  try { sweepPendingDeletions(); } catch (e) {}
+  try { rpOwnerDeleteSweep377(); } catch (e) {}
+  const generic = () => {
+    noteLoginAttempt(ip);
+    return res.status(401).json({ ok: false, error: "That fingerprint / face sign-in didn't work — try again, or use your password" });
+  };
+  const b = req.body || {};
+  const cred = b.credential || {};
+  const resp = cred.response || {};
+  const cd = rpPkClientData454(resp.clientDataJSON);
+  if (!cd || cd.json.type !== "webauthn.get") return generic();
+  const chRec = rpPkChallengeTake454(cd.json.challenge, "auth");
+  if (!chRec || !chRec.userId) return generic();
+  if (cd.json.origin !== RP_PK_ORIGIN_454) return generic();
+  const db = readAccounts();
+  const found = rpPkFindOwner454(db, String(cred.id || ""));
+  if (!found || found.user.id !== chRec.userId) return generic(); // the credential must belong to the challenged account
+  const user = found.user, rec = found.rec;
+  const authData = rpPkB64UrlDecode454(resp.authenticatorData);
+  const sig = rpPkB64UrlDecode454(resp.signature);
+  if (!authData || !sig) return generic();
+  const ad = rpPkParseAuthData454(authData);
+  if (!ad) return generic();
+  const wantHash = crypto.createHash("sha256").update(RP_PK_RP_ID_454).digest();
+  if (!crypto.timingSafeEqual(ad.rpIdHash, wantHash)) return generic();
+  if (!ad.up || !ad.uv) return generic();
+  const coseBuf = rpPkB64UrlDecode454(rec.cose);
+  const key = coseBuf ? rpPkCoseToKey454(coseBuf) : null;
+  if (!key) return generic();
+  let okSig = false;
+  try { okSig = crypto.verify("sha256", Buffer.concat([authData, cd.hash]), { key, dsaEncoding: "der" }, sig); } catch (e) {}
+  if (!okSig) return generic();
+  // A counter going BACKWARDS means a cloned authenticator — refuse.
+  // Equal is fine: synced passkeys share one counter across devices.
+  if (ad.signCount < (rec.signCount || 0)) return generic();
+  rec.signCount = Math.max(rec.signCount || 0, ad.signCount);
+  rec.lastUsedAt = new Date().toISOString();
+  // Standing gates — IDENTICAL to password login, at verify time.
+  if (teenAccountDisabled(user)) {
+    writeAccounts(db);
+    return res.status(403).json({ ok: false, error: RP_AGE_LOCK_NOTICE_263, ageLocked: true });
+  }
+  if (user.ageSuspended) {
+    writeAccounts(db);
+    return res.status(403).json({ ok: false, error: RP_AGE_SUSPEND_NOTICE_263, ageSuspended: true });
+  }
+  const sess = googleSessionFor(user, db); // the shared session door: deletion semantics + token + writeAccounts
+  if (!sess) return generic();
+  console.log("[accounts] login (passkey)", user.email || user.username);
+  res.json({ ok: true, token: sess.token, user: publicAccount(user), deletionCancelled: sess.deletionCancelled, ownerDeletionNotice: sess.ownerDeletionNotice });
+});
+
 function accountMeHandler(req, res) {
   // [RP-V7.263] A locked-out account restoring a saved session gets
   // the honest notice for its case, not a bare 401.
