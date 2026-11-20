@@ -2447,11 +2447,66 @@ app.post("/api/account/passkey/revoke", (req, res) => {
   writeAccounts(db);
   res.json({ ok: true, passkeys: rpPkList454(user).map(rpPkPublic454) });
 });
+// [RP-V7.456] SCOPED resolution for auth/options: collect candidates
+// EXACTLY as /api/account/login does (username/email pass first, the
+// phone pass only when neither hits — the V7.408 passes, same
+// normalizers) and take the FIRST candidate in store order. Passkey
+// possession plays NO part in resolution: V7.454's resolver took the
+// first candidate HOLDING a passkey, so a typed identifier shared by
+// two legacy accounts silently scoped the ceremony to whichever
+// account happened to hold a passkey — the wrong account (Branden's
+// own typed email landed on his wife's passkey, Nov 19, 2026).
+// Password login disambiguates duplicates by password match; options
+// has no password, so store order is the deterministic mirror.
+function rpPkResolveAccount456(db, identRaw) {
+  const raw = String(identRaw || "");
+  const ident = raw.trim().toLowerCase().slice(0, 120);
+  if (!ident) return null;
+  let cands = db.users.filter(
+    (u) => (u.email && normEmailKey(u.email) === ident) || usernameKey(u.username) === ident
+  );
+  if (!cands.length && /^[+\d][\d\s().-]*$/.test(raw.trim())) {
+    const pk = normPhoneKey(raw.trim());
+    if (pk) cands = db.users.filter((u) => u.phone && normPhoneKey(u.phone) === pk);
+  }
+  return cands.length ? cands[0] : null;
+}
 app.post("/api/account/passkey/auth/options", (req, res) => {
   const ip = req.ip || "unknown";
   if (loginRateLimited(ip))
     return res.status(429).json({ ok: false, error: "Too many attempts — try again in a few minutes" });
   const db = readAccounts();
+  // [RP-V7.456] Account scoping (Branden, Nov 19, 2026): when the
+  // request carries an identifier, resolve it the way password login
+  // resolves (rpPkResolveAccount456) and scope the ceremony to THAT
+  // account — its credential ids only, the challenge bound to it. An
+  // account with NO passkey gets the distinct no_passkey_for_account
+  // outcome (HTTP 200, ok:false, no challenge, no ceremony) so the
+  // client can say so honestly instead of letting the OS offer some
+  // OTHER account's passkey. An identifier matching NO account, and a
+  // request with NO identifier at all, fall through to the V7.454
+  // generic / discoverable response below, byte-identical.
+  const body456 = req.body || {};
+  const identRaw456 = String(body456.id || body456.username || body456.email || "");
+  if (identRaw456.trim()) {
+    const acct456 = rpPkResolveAccount456(db, identRaw456);
+    if (acct456) {
+      const keys456 = rpPkList454(acct456);
+      if (!keys456.length)
+        return res.json({ ok: false, code: "no_passkey_for_account", error: "No passkey set up for that account yet — sign in with your password, then turn it on in Settings" });
+      const challenge = rpPkChallengePut454("auth", acct456.id);
+      return res.json({
+        ok: true,
+        options: {
+          challenge,
+          rpId: RP_PK_RP_ID_454,
+          allowCredentials: keys456.map((p) => ({ type: "public-key", id: p.id, transports: p.transports || [] })),
+          userVerification: "required",
+          timeout: 60000,
+        },
+      });
+    }
+  }
   const user = rpPkResolveUser454(db, (req.body || {}).username);
   // Always a challenge, always the same shape — an unknown identifier
   // or an account with no passkey reads exactly like a real one with
@@ -2487,11 +2542,20 @@ app.post("/api/account/passkey/auth/verify", (req, res) => {
   const cd = rpPkClientData454(resp.clientDataJSON);
   if (!cd || cd.json.type !== "webauthn.get") return generic();
   const chRec = rpPkChallengeTake454(cd.json.challenge, "auth");
-  if (!chRec || !chRec.userId) return generic();
+  if (!chRec) return generic();
   if (cd.json.origin !== RP_PK_ORIGIN_454) return generic();
   const db = readAccounts();
   const found = rpPkFindOwner454(db, String(cred.id || ""));
-  if (!found || found.user.id !== chRec.userId) return generic(); // the credential must belong to the challenged account
+  if (!found) return generic();
+  // [RP-V7.456] A BOUND challenge (scoped options) still demands the
+  // credential belong to the challenged account. An UNBOUND challenge
+  // is the discoverable door: the account is resolved from the
+  // presented credential itself (rpPkFindOwner454 above) and every
+  // standing gate below runs on that account unchanged. (V7.454
+  // refused unbound challenges outright, so the discoverable options
+  // shape could never complete a sign-in; the ceremony now matches
+  // the shape it advertises.)
+  if (chRec.userId && found.user.id !== chRec.userId) return generic();
   const user = found.user, rec = found.rec;
   const authData = rpPkB64UrlDecode454(resp.authenticatorData);
   const sig = rpPkB64UrlDecode454(resp.signature);
