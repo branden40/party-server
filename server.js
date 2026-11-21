@@ -1534,7 +1534,8 @@ function settingsOf(u) {
     dmPrivacy: DM_PRIVACY_VALUES.indexOf(s.dmPrivacy) >= 0 ? s.dmPrivacy : "everyone",
     dlDefault: s.dlDefault !== false, // [RP-V7.316] TikTok-style downloads switch: the account default for new video posts (default ON, like TikTok); each post carries its own allowDownloads flag
     pushAsk: PUSH_ASK351_VALUES.indexOf(s.pushAsk) >= 0 ? s.pushAsk : "", // [RP-V7.351] the one-time push ask's recorded answer: "" = never asked, "granted", "declined", or "pending-install" (told in an iOS browser tab; the first Home-Screen launch asks for real). An account fact, so it follows the member across devices
-    viewerHistory: s.viewerHistory === true, // [RP-V7.422] profile viewer history opt-in: DEFAULT OFF (TikTok parity) until the member turns it on from the Profile views page; rides the settings record so it follows the member across devices
+    viewerHistory: s.viewerHistory === true,
+    showActive: s.showActive !== false, // [RP-V7.471] Facebook-style active status: DEFAULT ON; OFF hides the member's green dot + Active time from everyone else (presenceOf471) // [RP-V7.422] profile viewer history opt-in: DEFAULT OFF (TikTok parity) until the member turns it on from the Profile views page; rides the settings record so it follows the member across devices
     notify: {
       messages: n.messages !== false,
       follows: n.follows !== false,
@@ -1933,8 +1934,69 @@ function requireAccount(req, res) {
     });
     return null;
   }
+  try { presenceTouch471(user.id); } catch (e) { } // [RP-V7.471] any authenticated activity counts as active (one Map.set, no I/O)
   return { db, user };
 }
+/* ---------------------------------------------------------------------------
+   [RP-V7.471] PRESENCE — Facebook-style online / active state
+   (Branden, Nov 21, 2026: "You know how Facebook have the indicator
+   on when someone is signed in" -> "Yes build it"). A member's
+   lastSeen is stamped by the client's 60-second heartbeat
+   (POST /api/presence/ping) and, opportunistically, by ANY
+   authenticated request (requireAccount touches the map — one
+   Map.set, no I/O). Store: an in-memory Map flushed to
+   presence471.json at most once a minute (dirty-flagged) and
+   reloaded at boot, so a restart loses under a minute of freshness
+   and the hot path never writes accounts.json.
+   Windows: online <= 3 min, recent <= 60 min ("Active Xm ago"),
+   offline beyond; lastSeen is exposed up to 24h (Facebook parity),
+   null beyond 24h. Privacy: settings.showActive (default ON); when
+   OFF the member reads as plain offline (state offline, lastSeen
+   null) to everyone but themselves — never a special "hidden" tell.
+--------------------------------------------------------------------------- */
+const PRESENCE471_FILE = process.env.PRESENCE471_FILE || path.join(path.dirname(PHOTO_DIR), "presence471.json");
+const PRESENCE471_ONLINE_MS = 3 * 60 * 1000;
+const PRESENCE471_RECENT_MS = 60 * 60 * 1000;
+const PRESENCE471_EXPOSE_MS = 24 * 60 * 60 * 1000;
+const presence471Map = new Map();
+let presence471Dirty = false;
+try {
+  const pd471 = storeReadJson(PRESENCE471_FILE, (d) => !!(d && typeof d === "object" && !Array.isArray(d)), {}, "presence471");
+  for (const k471 of Object.keys(pd471 || {})) { const v471 = Number(pd471[k471]); if (k471 && Number.isFinite(v471) && v471 > 0) presence471Map.set(k471, v471); }
+} catch (e) { }
+function presence471Flush() {
+  if (!presence471Dirty) return;
+  presence471Dirty = false;
+  try { const o471 = {}; for (const [k471, v471] of presence471Map) o471[k471] = v471; storeWriteJson(PRESENCE471_FILE, o471); } catch (e) { }
+}
+try { const iv471 = setInterval(presence471Flush, 60000); if (iv471 && iv471.unref) iv471.unref(); } catch (e) { }
+function presenceTouch471(userId) {
+  if (!userId) return;
+  presence471Map.set(userId, Date.now());
+  presence471Dirty = true;
+}
+function presenceIsOnline471(u) {
+  if (!u || !u.id) return false;
+  const t471 = presence471Map.get(u.id) || 0;
+  return !!t471 && (Date.now() - t471) <= PRESENCE471_ONLINE_MS;
+}
+function presenceOf471(u, viewerId) {
+  if (!u) return { state: "offline", lastSeen: null };
+  if (viewerId !== u.id && settingsOf(u).showActive === false) return { state: "offline", lastSeen: null }; // [RP-V7.471] hidden = plain offline
+  const t471 = presence471Map.get(u.id) || 0;
+  if (!t471) return { state: "offline", lastSeen: null };
+  const age471 = Date.now() - t471;
+  if (age471 <= PRESENCE471_ONLINE_MS) return { state: "online", lastSeen: t471 };
+  if (age471 <= PRESENCE471_RECENT_MS) return { state: "recent", lastSeen: t471 };
+  if (age471 <= PRESENCE471_EXPOSE_MS) return { state: "offline", lastSeen: t471 };
+  return { state: "offline", lastSeen: null };
+}
+app.post("/api/presence/ping", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  presenceTouch471(ctx.user.id);
+  res.json({ ok: true });
+});
 app.post("/api/account/signup", (req, res) => {
   const b = req.body || {};
   const name = String(b.name || "").replace(/[<>&"']/g, "").trim().slice(0, 40);
@@ -3014,7 +3076,7 @@ const FF_HANDLE_PRIORITY_248 = ["facebook", "instagram", "tiktok", "snapchat", "
 function ffPerson144(u, why) {
   let photo = u.photo || null;
   if (!photo) { try { const ph = accountPhotos(u); if (ph && ph[0]) photo = ph[0]; } catch (e) { } }
-  return { id: u.id, name: u.name, username: u.username || "", photo, why, socials: ffLinkedSocials248(u) }; // [RP-V7.248] linked accounts ride along so a found member's card can show their other accounts
+  return { id: u.id, name: u.name, username: u.username || "", photo, why, socials: ffLinkedSocials248(u), presence: presenceOf471(u) }; // [RP-V7.471] // [RP-V7.248] linked accounts ride along so a found member's card can show their other accounts
 }
 function ffExcluded144(meId, followingSet, extraExcluded) {
   // ids that must never be suggested to me: me, people I already
@@ -3267,9 +3329,10 @@ app.post("/api/account/settings", (req, res) => {
   if (!ctx) return;
   const b = req.body || {};
   const cur = settingsOf(ctx.user);
-  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, pushAsk: cur.pushAsk, viewerHistory: cur.viewerHistory, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push } } }; // [RP-V7.328] push channel rides the same settings record
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, pushAsk: cur.pushAsk, viewerHistory: cur.viewerHistory, showActive: cur.showActive, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push } } }; // [RP-V7.328] push channel rides the same settings record
   if ("dlDefault" in b && typeof b.dlDefault === "boolean") nx.dlDefault = b.dlDefault; // [RP-V7.316] downloads default for new video posts
   if ("viewerHistory" in b && typeof b.viewerHistory === "boolean") nx.viewerHistory = b.viewerHistory; // [RP-V7.422] viewer-history toggle rides the same record
+  if ("showActive" in b && typeof b.showActive === "boolean") nx.showActive = b.showActive; // [RP-V7.471] active-status privacy toggle rides the same record
   if ("pushAsk" in b) { // [RP-V7.351] the one-time push-prompt decision rides the same record
     if (PUSH_ASK351_VALUES.indexOf(b.pushAsk) < 0)
       return res.status(400).json({ ok: false, error: "That notification answer isn't one of the Plaza's choices" });
@@ -14944,7 +15007,7 @@ function socialBrief(accountsDb, id) {
   // brief is rendered (lists + the counts computed from them).
   if (!u || u.deletionAt || accountLockedOut(u)) return null; // [RP-V7.263] locked-out accounts are invisible everywhere a brief renders
   // [RP-V7.37] the profile-type label rides along for cards/lists.
-  return { id: u.id, name: u.name, profileType: profileTypeOf(u), profileTypeLabel: profileTypeLabel(u) };
+  return { id: u.id, name: u.name, profileType: profileTypeOf(u), profileTypeLabel: profileTypeLabel(u), presence: presenceOf471(u) }; // [RP-V7.471] presence rides every brief (other-view: a member who hid their activity reads as plain offline)
 }
 function socialSetFollow(db, followerId, followeeId, on) {
   const cur = socialFollowingIds(db, followerId);
@@ -15097,6 +15160,7 @@ app.get("/api/social/user/:id", (req, res) => {
     followersCount: socialFollowerIds(db, target.id).length,
     followingCount: socialFollowingIds(db, target.id).length,
     iFollow: socialFollowingIds(db, ctx.user.id).includes(target.id),
+    presence: presenceOf471(target, ctx.user.id), // [RP-V7.471]
   });
 });
 app.get("/api/social/directory", (req, res) => {
@@ -15118,13 +15182,13 @@ app.get("/api/social/directory", (req, res) => {
     const aff276d = (urec276d && urec276d.authorAff) || {};
     const now276d = Date.now();
     dir276 = dir276
-      .map((u, i) => ({ u, i, s: (fol276d.has(u.id) ? 12 : 0) + 2.5 * fyDecayed(aff276d[u.id], now276d) }))
+      .map((u, i) => ({ u, i, s: (fol276d.has(u.id) ? 12 : 0) + 2.5 * fyDecayed(aff276d[u.id], now276d) + (presenceIsOnline471(u) ? 3 : 0) })) // [RP-V7.471] +3 online boost on the existing brain scale (follow is +12)
       .sort((a, b) => b.s - a.s || a.i - b.i)
       .map((x) => x.u);
   } catch (e) { /* directory order must never break the directory */ }
   const users = dir276
     .slice(0, 500)
-    .map((u) => ({ id: u.id, name: u.name }));
+    .map((u) => ({ id: u.id, name: u.name, presence: presenceOf471(u, ctx.user.id) })); // [RP-V7.471]
   res.json({ ok: true, users });
 });
 // [RP-V7.28] Full public profile for the person card + profile page.
@@ -15477,6 +15541,7 @@ app.get("/api/social/profile", (req, res) => {
     profileTypeLabel: profileTypeLabel(target),
     // [RP-V7.50] the account's stored photo, live-player fallback
     photo: target.photo || livePhotoForAccount(target),
+    presence: presenceOf471(target, ctx.user.id), // [RP-V7.471] profile-header dot + Active line (self-view always real)
     followersCount: socialFollowerIds(sdb, target.id).length,
     followingCount: socialFollowingIds(sdb, target.id).length,
     iFollow: socialFollowingIds(sdb, ctx.user.id).includes(target.id),
@@ -15981,7 +16046,7 @@ app.get("/api/social/search", (req, res) => {
   let affSearchBrain = {};
   try { const urecSB = fyUserRec(readReelSignals(), ctx.user.id, false); if (urecSB && urecSB.authorAff) affSearchBrain = urecSB.authorAff; } catch (e) { }
   const nowSearchBrain = Date.now();
-  rows.sort((a, b) => a.rank - b.rank || b.fol - a.fol || fyDecayed(affSearchBrain[b.u.id], nowSearchBrain) - fyDecayed(affSearchBrain[a.u.id], nowSearchBrain));
+  rows.sort((a, b) => a.rank - b.rank || b.fol - a.fol || fyDecayed(affSearchBrain[b.u.id], nowSearchBrain) - fyDecayed(affSearchBrain[a.u.id], nowSearchBrain) || (presenceIsOnline471(b.u) ? 1 : 0) - (presenceIsOnline471(a.u) ? 1 : 0)); // [RP-V7.471] online wins exact ties only — relevance, followers and affinity still rule
   const people = rows.slice(0, 30).map(({ u }) => {
     const p = ffPerson144(u, "");
     p.iFollow = iFollowSet.has(u.id);
@@ -17829,7 +17894,7 @@ app.get("/api/dm/thread/:userId", (req, res) => {
     ok: true,
     user: gone
       ? { id: otherId, name: "Deleted user", deleted: true }
-      : { id: other.id, name: other.name },
+      : { id: other.id, name: other.name, presence: presenceOf471(other, ctx.user.id) }, // [RP-V7.471] thread-header Active line
     messages: t ? t.messages : [],
     accepted: t ? !!t.accepted : false,
     isRequest: t ? dmIsRequestFor(socialDb, t, ctx.user.id) : false,
@@ -18337,12 +18402,14 @@ app.get("/api/members", (req, res) => {
       followers: socialFollowerIds(sdb, u.id).filter(
         (fid) => !pendingIds.has(fid)
       ).length,
+      online: presenceIsOnline471(u), // [RP-V7.471] brain lift input (sort below)
     });
   }
   rows.sort(
     (a, b) =>
       a.score - b.score ||
       b.followers - a.followers ||
+      (b.online ? 1 : 0) - (a.online ? 1 : 0) || // [RP-V7.471] online members lift above equally-ranked offline ones (relevance + followers still rule)
       String(a.u.name).localeCompare(String(b.u.name))
   );
   const members = rows.slice(0, limit).map(({ u, followers, via }) => {
@@ -18362,6 +18429,7 @@ app.get("/api/members", (req, res) => {
       socials: ffLinkedSocials248(u), // [RP-V7.248] accounts this member linked — found cards show them
       iFollow: myFollowing.includes(u.id),
       isSelf: u.id === ctx.user.id,
+      presence: presenceOf471(u, ctx.user.id), // [RP-V7.471]
     };
   });
   res.json({ ok: true, members });
