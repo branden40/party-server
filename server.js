@@ -499,18 +499,56 @@ function liveStartedReinvite274(socket, entry) {
       .slice(0, LIVEVIEWERS_INVITE274);
     for (const vid of ids) {
       if (vid === hostId) continue;
+      if (liveInviteSeen469(entry, vid)) continue; // [RP-V7.469] already invited to THIS live (either path) — never twice
+      liveInviteMark469(entry, vid); // [RP-V7.469] the shared ledger: a later manual invite to this viewer is a no-op
       notifyActivity({
         toId: vid,
         kind: "liveinvite",
         actorId: hostId,
         actorName: hostName,
-        text: "🔴 " + hostName + " is live now — you watched them before, tap to join",
-        emailSubject: hostName + " is live on Rizz Plaza",
+        text: "🔴 " + hostName + " invites you to watch their LIVE!", // [RP-V7.469] Branden's TikTok-style copy (Nov 20, 2026)
+        emailSubject: hostName + " invites you to watch their LIVE!",
         emailText: hostName + " just went live on Rizz Plaza — and you watched them before, so here is your invite back in.\n\nOpen the app to watch: https://rizzplaza.com\n\n— The Rizz Plaza team",
         go: { screen: "live", room: entry.room },
       });
     }
   } catch (e) { /* invites must never break a live start */ }
+}
+
+// ---------------------------------------------------------------------------
+// [RP-V7.469] LIVE INVITES — THE SHARED PER-LIVE LEDGER (Branden,
+// Nov 20, 2026: "Build it — anyone watching can invite too"). The
+// V7.274 fan-out above covers past watchers at live start; the manual
+// door (socket handlers beside the V7.138 private-live controls)
+// lets the host AND anyone watching a PUBLIC live invite their
+// followers/friends. ONE invite per person per live across BOTH
+// paths combined: this ledger is the single record — the fan-out
+// marks every recipient it sends to, the manual door checks and
+// marks before it sends, so the two paths can never double-invite,
+// and a host re-registering the same live can't re-blast anyone.
+// Keyed by room and re-validated against the live's startedAt on
+// every touch, so a NEW live on the same room always starts clean
+// (live-unregister also drops the record outright). Private lives
+// stay invisible end to end, exactly like V7.274: no view records,
+// no fan-out, and the manual door refuses them.
+// ---------------------------------------------------------------------------
+const liveInvited469 = new Map(); // room -> { startedAt, ids: Set<accountId> }
+function liveInviteSet469(entry) {
+  if (!entry || !entry.room) return null;
+  let rec = liveInvited469.get(entry.room);
+  if (!rec || rec.startedAt !== entry.startedAt) {
+    rec = { startedAt: entry.startedAt, ids: new Set() };
+    liveInvited469.set(entry.room, rec);
+  }
+  return rec.ids;
+}
+function liveInviteSeen469(entry, id) {
+  const s = liveInviteSet469(entry);
+  return !!(s && s.has(id));
+}
+function liveInviteMark469(entry, id) {
+  const s = liveInviteSet469(entry);
+  if (s) s.add(id);
 }
 
 // room -> live auction state (Whatnot-style bidding)
@@ -32970,6 +33008,8 @@ io.on("connection", (socket) => {
   socket.on("live-unregister", () => {
     const devKey = clientKeys.get(socket.id);
     if (!devKey) return;
+    const unregEntry469 = liveRegistry.get(devKey); // [RP-V7.469] the invite ledger dies with the live
+    if (unregEntry469) liveInvited469.delete(unregEntry469.room);
     if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); gwLiveEnded389(devKey); bstLiveEnded394(devKey); } // [RP-V7.394] boost pool ends too // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
   });
 
@@ -33032,6 +33072,99 @@ io.on("connection", (socket) => {
     // (Removing someone who is INSIDE is what live-kick is for.)
     emitLiveAccess138(socket, ctx.key);
     pushLivesToAccount138(toId);
+  });
+
+  // [RP-V7.469] MANUAL LIVE INVITES — the host and anyone watching a
+  // PUBLIC live invite people from their followers/friends circle.
+  // The invite is one notifyActivity (kind "liveinvite": bell + push
+  // + email per the member's own switches, never SMS) whose tap
+  // lands straight inside the live. The shared ledger
+  // (liveInvited469) makes it one invite per person per live across
+  // the auto and manual paths combined.
+  function liveInviteCtx469() {
+    const p = players.get(socket.id);
+    const myId = socket.data && socket.data.accountId;
+    if (!p || !myId) return null;
+    let entry = null;
+    for (const e of liveRegistry.values()) if (e.room === p.room) { entry = e; break; }
+    if (!entry) return null;
+    return { p, myId, entry, hostId: liveHostAccount274(entry) };
+  }
+  function liveInviteHere469(entry) {
+    const here = new Set();
+    for (const [sid, pl] of players) {
+      if (!pl || pl.room !== entry.room) continue;
+      const s2 = io.sockets.sockets.get(sid);
+      const aid = s2 && s2.data && s2.data.accountId;
+      if (aid) here.add(aid);
+    }
+    return here;
+  }
+  function emitLiveInviteState469(socket, ctx) {
+    try {
+      const ids = liveInviteSet469(ctx.entry);
+      socket.emit("live-invite-state469", {
+        room: ctx.entry.room,
+        invited: ids ? [...ids] : [],
+        here: [...liveInviteHere469(ctx.entry)],
+      });
+    } catch (e) { /* state is a courtesy — never break the live */ }
+  }
+  socket.on("live-invite-state469", () => {
+    const ctx = liveInviteCtx469();
+    if (!ctx) return;
+    emitLiveInviteState469(socket, ctx);
+  });
+  socket.on("live-invite-send469", (data = {}) => {
+    try {
+      const ctx = liveInviteCtx469();
+      if (!ctx) return;
+      const entry = ctx.entry, hostId = ctx.hostId, myId = ctx.myId;
+      if (entry.priv || !hostId) return; // public lives only; a guest host has no account audience
+      const toId = String(data.toAccountId || "").slice(0, 40);
+      if (!toId || toId === myId || toId === hostId) return;
+      // Already invited (either path) = one invite per person per
+      // live; already in the room = already watching. Both are
+      // no-ops that hand the sender the true state back.
+      if (liveInviteSeen469(entry, toId) || liveInviteHere469(entry).has(toId)) {
+        emitLiveInviteState469(socket, ctx);
+        return;
+      }
+      // The picker lists the inviter's followers + following — the
+      // door enforces the same circle server-side.
+      const sdb = readSocial();
+      const circle = new Set([...socialFollowingIds(sdb, myId), ...socialFollowerIds(sdb, myId)]);
+      if (!circle.has(toId)) return;
+      const adb = readAccounts();
+      const target = adb.users.find((u) => u.id === toId);
+      if (!target || target.deletionAt) return;
+      // A member who blocked the HOST (or was blocked by them) is
+      // never invited to that host's live by anyone; the inviter
+      // pair is checked again inside notifyActivity itself.
+      if (notifyPairBlocked(toId, hostId)) return;
+      liveInviteMark469(entry, toId); // mark BEFORE the send: the two paths can never race a duplicate
+      const hostName = String(entry.name || "Someone").slice(0, 60);
+      const inviterName = String(ctx.p.name || "Someone").slice(0, 60);
+      const isHost = myId === hostId;
+      notifyActivity({
+        toId,
+        kind: "liveinvite",
+        actorId: myId,
+        actorName: inviterName,
+        text: isHost
+          ? "🔴 " + hostName + " invites you to watch their LIVE!"
+          : "🔴 " + inviterName + " invites you to watch " + hostName + "’s LIVE!",
+        emailSubject: isHost
+          ? hostName + " invites you to watch their LIVE!"
+          : inviterName + " invites you to watch " + hostName + "’s LIVE!",
+        emailText: (isHost
+          ? hostName + " is live now on Rizz Plaza and invites you to watch."
+          : inviterName + " invites you to watch " + hostName + "’s live on Rizz Plaza — it’s happening now.") +
+          "\n\nOpen the app to watch: https://rizzplaza.com\n\n— The Rizz Plaza team",
+        go: { screen: "live", room: entry.room },
+      });
+      emitLiveInviteState469(socket, ctx);
+    } catch (e) { /* an invite must never break the live */ }
   });
   socket.on("live-link-reset", () => {
     const ctx = hostLiveCtx138();
