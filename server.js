@@ -1104,6 +1104,20 @@ app.get("/.well-known/assetlinks.json", (req, res) => {
   ]);
 });
 
+/* [RP-V7.464] Gift films are swapped in place by file drops (e.g.
+   the RP-V7.459 Peek Lemur / Hand Heart redo) under the SAME URL —
+   with express.static's default heuristic caching, phones kept
+   playing the OLD film long after a swap. Force revalidation for
+   gift-film files: the ETag still makes an unchanged film a cheap
+   304, and a swapped film is picked up on the very next show. The
+   V7.464 client also versions film URLs per build (?v=) — belt and
+   braces. Registered immediately before the static mount so it
+   covers every gift film the mount serves. */
+app.use(function (req, res, next) {
+  if (/^\/(giftfx-[^\/]+\.mp4|trex-roar5\.mp4)$/.test(req.path)) res.setHeader("Cache-Control", "no-cache");
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
