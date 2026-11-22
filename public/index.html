@@ -27,7 +27,7 @@
     <title>Rizz Plaza</title>
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
-<meta name="rp-build" content="RP-V7.482" /> <!-- [RP-V7.482] PRELOADED GRID — Branden's verdict on the grid build (Nov 22, 2026, screen recording): the grid works and taps play, but on a cold start the tiles sat black (eye counts only) for ~10 s of scrolling — "it should already be preloaded and ready to play before I even click on the grid." Diagnosis (build-7482/BUILD.md): thumbnail painting could only start at the tap — the V7.244 paint gate promotes only tiles on the VISIBLE screen (2 seek-paint slots; each job is a metadata fetch + a seek + a hold), the Reels grid renders on entry, and a painted frame lived only on its video element, so every render and every session repainted from zero. The live files are faststart (moov at byte ~36, 6/6 sampled), so the wait was gate pacing, not the files. THE FIX, server + client: the server mints a real JPEG POSTER for every reel (ffmpeg-static — the binary the copyright/trim code already runs in production — one frame at 0.1 s, 360 px wide, stored beside the video in REELS_DIR, poster482 stamped on the record; fire-and-forget at post time beside the copyright scan, plus a counted boot backfill of the existing catalogue; deletes clean the poster up with the video). The serializers carry poster, and /reel-files serves it under the same V7.479 immutable caching. Client: a reel tile whose item carries a poster renders it as the video poster with preload="none" — the picture paints from a ~25 KB image, no video fetch, no decoder, no paint slot; a per-URL probe keeps the V7.243 seek-paint as backstop for exactly the tiles whose poster failed to load, and posterless reels keep the old path untouched. The warm-up no longer waits for the tap either: when the For You feed lands (fetched at boot for Home), rpPrewarm482 preloads every poster image and fetches the first screenful's VIDEO BYTES whole into the HTTP cache (data-only fetch — never a play(), never a decoder; max 2 at a time, idle-started, 96 MB session budget, deduped by URL; the URLs are the player's own, so the entry filled is the entry playback reads), and a scroll listener on the grid wrap keeps the warm window ~6 items past the deepest tile reached. The V7.244 caps are unchanged for posterless tiles, and the V7.478 telemetry beacon on grid opens is untouched. -->
+<meta name="rp-build" content="RP-V7.483" /> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. -->
     <style>
       :root {
         color-scheme: dark;
@@ -28034,6 +28034,13 @@
         rpWarmVidDone482[url] = 1;
         rpWarmVidQ482.push(url); rpWarmVidPump482();
       }
+      /* [RP-V7.483] The lightbox module (a later script block) asks
+         for a reel's bytes through this hook when a grid player
+         session lands next to an unwarmed neighbour — same queue,
+         same URL dedupe, same 2-concurrent pump, same 96 MB session
+         budget as every other V7.482 warm. Data-only: never a
+         play(), never a decoder. */
+      window.rpWarmReelBytes483 = function (url) { try { rpWarmVid482(url); } catch (e) { } };
       function rpWarmVidPump482() {
         while (rpWarmVidActive482 < 2 && rpWarmVidQ482.length) {
           if (rpWarmVidBytes482 >= RP_WARM_VID_BUDGET482) { rpWarmVidQ482.length = 0; return; }
@@ -28709,15 +28716,30 @@
         items.forEach(function (it) { if (it.url || it.locked) out.push(rpGridItem481(it)); });
         return out;
       }
-      function rpGridOpenReel481(it, upd) {
-        /* NO nav argument, on purpose: openReel's lbReelList461
-           returns null without one, so the V7.461 list swipe is
-           never wired for a Reels-grid open — Branden's explicit
-           choice (swipe-to-next inside the player was offered and
-           declined). The player plays the single tapped reel; it
-           loops; Back returns to the grid as it was. */
-        try { it.__rpFromGrid481 = true; } catch (e) { } // [RP-V7.481] marks the open for the player's V7.478 telemetry hook (grid opens only)
-        if (window.rpViewsOpenReel) window.rpViewsOpenReel(it, upd);
+      function rpGridOpenReel481(it, upd, nav) {
+        /* [RP-V7.483] The grid's ordered list rides along: fillGrid
+           hands every opener a nav ({items, index}) of the list as
+           displayed; passing it to openReel lets lbReelList461 build
+           the V7.461 swipe context, so swipe up walks to the next
+           playable reel in grid order and swipe down to the previous
+           one (no wrap at the ends). Branden declined this in
+           V7.481, used the shipped grid, then asked for it back
+           (Nov 22, 2026). With no swipe the player plays the single
+           tapped reel exactly as before; Back returns to the grid
+           as it was. */
+        try {
+          it.__rpFromGrid481 = true;
+          /* The swipe list is read from the grid's LIVE state, not
+             from fillGrid's nav snapshot: an order-only fetch return
+             moves the tile nodes (and _gridItems481) into the new
+             order without rebinding the tiles' click handlers, so
+             the handler's snapshot can be one reorder stale. What
+             the member sees on the grid at tap time is what the
+             swipe walks. */
+          var list483 = (Reels._gridItems481 && Reels._gridItems481.length) ? Reels._gridItems481 : (nav && nav.items);
+          if (list483) { list483.forEach(function (x) { if (x) x.__rpFromGrid481 = true; }); nav = { items: list483, index: -1 }; }
+        } catch (e) { } // [RP-V7.483] the whole session list is marked, so a swipe landing beacons (V7.478) and counts exactly like a tap-open of that reel
+        if (window.rpViewsOpenReel) window.rpViewsOpenReel(it, upd, nav); // [RP-V7.483] nav = the grid's current ordered list (live state above; fillGrid's hand-off is the fallback)
       }
       function rpPaintReelsGrid481(gitems) {
         var grid = document.getElementById("reelGrid481"); if (!grid) return;
@@ -42862,9 +42884,26 @@ button.rp72-chip{ cursor:pointer; }
     if (idx < 0 || list.length < 2) return null;
     return { list: list, idx: idx };
   }
+  /* [RP-V7.483] In a Reels-grid player session (the shown item
+     carries __rpFromGrid481), keep the swipe neighbours warm:
+     when a landing settles, the reels either side of it in the
+     swipe list get their bytes requested through the V7.482
+     fetcher (deduped by URL, 2-concurrent, 96 MB session budget —
+     data-only, no decoder), so a chained swipe is cache-fed.
+     Sessions from every other surface carry no mark and warm
+     nothing here; deep-link opens have no list at all. */
+  function lbWarmNeighbours483() {
+    if (!lbNav461 || !window.rpWarmReelBytes483) return;
+    var cur483 = lbNav461.list[lbNav461.idx];
+    if (!cur483 || !cur483.__rpFromGrid481) return;
+    var prev483 = lbNav461.list[lbNav461.idx - 1], next483 = lbNav461.list[lbNav461.idx + 1];
+    if (prev483 && prev483.src) window.rpWarmReelBytes483(prev483.src);
+    if (next483 && next483.src) window.rpWarmReelBytes483(next483.src);
+  }
   function openReel(it, upd, nav) {
     lbNav461 = lbReelList461(nav, it);
     paintReel461(it, upd);
+    try { lbWarmNeighbours483(); } catch (e) { } // [RP-V7.483] a grid session opens with its swipe neighbours warming
   }
   function lbGo461(dir) {
     if (!lbNav461) return;
@@ -42874,6 +42913,7 @@ button.rp72-chip{ cursor:pointer; }
     var old = document.querySelector("#sheet .rpmedia-player video");
     if (old) { try { old.pause(); } catch (e) { } } // the previous reel pauses before the new one paints
     paintReel461(lbNav461.list[n], null);
+    try { lbWarmNeighbours483(); } catch (e) { } // [RP-V7.483] the new landing's neighbours warm next, so a chained swipe stays cache-fed
   }
   function paintReel461(it, upd) {
     if (typeof window.openSheet !== "function") return;
@@ -42913,6 +42953,7 @@ button.rp72-chip{ cursor:pointer; }
       window.rpWhoWatchedWire303(span, "reel", it.id, null);
     rpViewsPing("reel", it.id, null, function (n) {
       if (span) span.textContent = "👁 " + fmtViews(n);
+      try { it.views = n; } catch (e) { } // [RP-V7.483] the item keeps the server's count: rpViewsPing counts once per app session, so a later landing on this same item (a swipe back) paints the true count even though the ping does not fire again
       if (upd) upd(n);
     });
     if (lbNav461) { // [RP-V7.461] swipe through the list this reel was opened from
