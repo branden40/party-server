@@ -3638,6 +3638,7 @@ function deleteReelsByAuthor(name) {
         try {
           fs.unlinkSync(path.join(REELS_DIR, r.file));
         } catch (e) {}
+        rpPosterUnlink482(r.file); // [RP-V7.482]
       }
     }
     const tmp = REELS_FILE + ".tmp";
@@ -4318,7 +4319,7 @@ function crTakeDown286(rec) {
         const tmp = REELS_FILE + ".tmp";
         fs.writeFileSync(tmp, JSON.stringify(keep, null, 2));
         fs.renameSync(tmp, REELS_FILE);
-        if (r.file) fs.unlink(path.join(REELS_DIR, String(r.file)), () => {});
+        if (r.file) { fs.unlink(path.join(REELS_DIR, String(r.file)), () => {}); rpPosterUnlink482(r.file); } // [RP-V7.482]
       }
     } else if (rec.surface === "feed") {
       const db = readFeed();
@@ -4949,7 +4950,7 @@ function saveReel(entry) {
   list.push(entry);
   while (list.length > 500) {
     const old = list.shift();
-    if (old && old.file) fs.unlink(path.join(REELS_DIR, old.file), () => {});
+    if (old && old.file) { fs.unlink(path.join(REELS_DIR, old.file), () => {}); rpPosterUnlink482(old.file); } // [RP-V7.482] the poster goes with the video
   }
   const tmp = REELS_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(list, null, 2));
@@ -4978,6 +4979,131 @@ function updateReelEntry(id, patch) {
   fs.renameSync(tmp, REELS_FILE);
   return e;
 }
+
+// ---------------------------------------------------------------------------
+// [RP-V7.482] REEL POSTERS — every reel gets a real JPEG poster frame,
+// minted on this server by the same ffmpeg-static binary the
+// copyright scanner and the trim path already run in production
+// (crFfmpeg286). Why: the grids paint a tile from its video (a
+// metadata fetch + a seek per tile through a 2-slot gate), which on
+// a phone left the V7.481 Reels grid black for ~10 s after the tap.
+// A poster is a ~25 KB image the browser paints with no video
+// fetch, no decoder and no paint slot — and because it lives beside
+// the video in REELS_DIR it rides the /reel-files static route, so
+// the V7.479 immutable caching covers it with zero new cache work
+// (the name derives from the immutable upload name, so a poster
+// URL's content never changes). Generation is fire-and-forget:
+// at post time it queues beside the copyright scan (posting never
+// waits), and a boot backfill sweeps the existing catalogue. The
+// queue is strictly serial with a 300 ms breather — one frame grab
+// is a few hundred ms of one core, and the 512 MB instance also
+// runs the copyright extractor. poster482 on the record is the
+// serializer's authority: it is stamped only after the file is on
+// disk, and reel deletes remove the poster with the video.
+// ---------------------------------------------------------------------------
+function rpPosterName482(file) {
+  return String(file || "").replace(/\.[A-Za-z0-9]+$/, "") + ".poster.jpg";
+}
+function rpPosterUrl482(r) {
+  return r && r.poster482 === 1 && r.file
+    ? "/reel-files/" + rpPosterName482(r.file)
+    : null;
+}
+function rpPosterUnlink482(file) {
+  if (!file) return;
+  try {
+    fs.unlink(path.join(REELS_DIR, rpPosterName482(file)), () => {});
+  } catch (e) {}
+}
+const rpPosterQ482 = [];
+let rpPosterActive482 = false;
+const rpPosterStats482 = { gen: 0, have: 0, fail: 0 };
+function rpPosterEnqueue482(entry) {
+  if (!entry || !entry.file || entry.poster482 === 1) return;
+  const id = entry.id, file = entry.file;
+  if (rpPosterQ482.some((q) => q.id === id)) return;
+  rpPosterQ482.push({ id, file });
+  rpPosterPump482();
+}
+function rpPosterPump482() {
+  if (rpPosterActive482) return;
+  const job = rpPosterQ482.shift();
+  if (!job) {
+    if (rpPosterStats482.gen || rpPosterStats482.fail || rpPosterStats482.have) {
+      console.log(
+        "[posters482] queue drained — generated " + rpPosterStats482.gen +
+        ", already-on-disk " + rpPosterStats482.have +
+        ", failed " + rpPosterStats482.fail
+      );
+    }
+    return;
+  }
+  rpPosterActive482 = true;
+  const done = () => {
+    rpPosterActive482 = false;
+    setTimeout(rpPosterPump482, 300);
+  };
+  const src = path.join(REELS_DIR, path.basename(String(job.file)));
+  const out = path.join(REELS_DIR, rpPosterName482(job.file));
+  if (fs.existsSync(out)) {
+    try { updateReelEntry(job.id, { poster482: 1 }); } catch (e) {}
+    rpPosterStats482.have++;
+    return done();
+  }
+  rpPosterExtract482(src, out, 0.1, (ok) => {
+    if (ok) return rpPosterFinish482(job, true, done);
+    rpPosterExtract482(src, out, 0, (ok2) => rpPosterFinish482(job, ok2, done));
+  });
+}
+function rpPosterExtract482(src, out, ss, cb) {
+  const tmp = out + ".tmp.jpg";
+  // The frame the tiles paint today (the V7.243 micro-seek sits at
+  // 0.05 s; 0.1 s is the same frame on any real clip, clear of
+  // fade-from-black first frames). Input seek: ffmpeg decodes from
+  // the prior keyframe, so the grab is exact and fast.
+  const args = ["-y", "-v", "error", "-ss", String(ss), "-i", src,
+    "-frames:v", "1", "-vf", "scale=360:-2", "-q:v", "4", "-threads", "2", tmp];
+  crExecFile286(crFfmpeg286, args, { timeout: 60000, maxBuffer: 4 * 1024 * 1024 }, (e) => {
+    if (e) {
+      try { fs.unlink(tmp, () => {}); } catch (e2) {}
+      return cb(false);
+    }
+    try {
+      if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1024) {
+        try { fs.unlink(tmp, () => {}); } catch (e2) {}
+        return cb(false);
+      }
+      fs.renameSync(tmp, out);
+      cb(true);
+    } catch (e2) {
+      cb(false);
+    }
+  });
+}
+function rpPosterFinish482(job, ok, done) {
+  if (ok) {
+    try { updateReelEntry(job.id, { poster482: 1 }); } catch (e) {}
+    rpPosterStats482.gen++;
+  } else {
+    rpPosterStats482.fail++;
+  }
+  done();
+}
+function sweepPosters482() {
+  let queued = 0, have = 0;
+  try {
+    for (const r of listReels()) {
+      if (!r || !r.file) continue;
+      if (r.poster482 === 1) { have++; continue; }
+      rpPosterEnqueue482(r);
+      queued++;
+    }
+  } catch (e) {
+    console.log("[posters482] backfill scan failed", e && e.message);
+  }
+  console.log("[posters482] backfill: " + queued + " queued, " + have + " already have posters");
+}
+setTimeout(() => { try { sweepPosters482(); } catch (e) {} }, 15000);
 
 // ---------------------------------------------------------------------------
 // [RP-V7.438] GAMING AUTO-ROUTE (Branden, Nov 19, 2026: "Make sure when
@@ -5320,6 +5446,7 @@ app.get("/api/reels", (req, res) => {
       category: r.category === "gaming" ? "gaming" : null, // [RP-GAMING]
       createdAt: r.createdAt,
       url: "/reel-files/" + r.file,
+      poster: rpPosterUrl482(r), // [RP-V7.482] the grid tile's instant picture (null until minted)
       kind: r.kind || null,
       sourceId: r.sourceId || null,
       sourceAuthor: src ? ((adb296r ? nameOf313r(reelAuthorKeyFor(adb296r, src)) : null) || src.author || r.sourceAuthor || null) : (r.sourceAuthor || null), // [RP-V7.313] the source author's CURRENT name when the source reel rides this page
@@ -6365,7 +6492,7 @@ function origLivePosts335(snd, adb) {
       if (!u) continue;
       if (u.kind === "reel") {
         const r = reelMap[u.id]; if (!r || !r.file) continue;
-        out.push({ kind: "reel", id: r.id, url: "/reel-files/" + r.file, caption: r.caption || "", author: origName335(adb, r.authorId, r.author), authorId: r.authorId || null, views: mediaViewCount(vdb, "reel:" + r.id), createdAt: r.createdAt || null });
+        out.push({ kind: "reel", id: r.id, url: "/reel-files/" + r.file, poster: rpPosterUrl482(r), caption: r.caption || "", author: origName335(adb, r.authorId, r.author), authorId: r.authorId || null, views: mediaViewCount(vdb, "reel:" + r.id), createdAt: r.createdAt || null });
       } else if (u.kind === "feed") {
         const p = feedPosts[u.id]; if (!p || !p.file) continue;
         out.push({ kind: "feed", id: p.id, url: "/photos/feed/" + p.file, caption: p.text || "", author: origName335(adb, p.authorId, p.authorName), authorId: p.authorId || null, views: typeof p.views === "number" ? p.views : 0, createdAt: p.createdAt || null });
@@ -6868,6 +6995,7 @@ app.post("/api/reel", (req, res) => {
     if (origSoundId335) origRecordUse335(origSoundId335, { kind: "reel", id: entry.id, by: authorUser ? authorUser.id : null });
     if (!musicTrackId && !origSoundId335 && authorUser) origProbeAndMint335({ kind: "reel", postId: entry.id, ownerId: authorUser.id, ownerName: author, filePath: req.file.path });
     crEnqueue286({ surface: "reel", mediaId: entry.id, authorId: authorUser ? authorUser.id : null, filePath: req.file.path, trimStart: trimStart, musicTrackId: musicTrackId, origVol: origVol }); // [RP-V7.286] copyright scan — every reel, guests included
+    rpPosterEnqueue482(entry); // [RP-V7.482] poster frame for the grids — fire-and-forget like the scan; posting never waits on it
     console.log("[reels] new reel", entry.id, "by", author, entry.size, "bytes");
     if (authorUser) notifyFollowersOfPost129(authorUser, "reel", entry.id); // [RP-V7.129] [RP-V7.270] route the bell row to this reel
     // [RP-V7.300] A reel created with a shoutoutId fulfills that
@@ -11545,6 +11673,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAcc
     ...(r.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
     createdAt: r.createdAt,
     url: "/reel-files/" + r.file,
+    poster: rpPosterUrl482(r), // [RP-V7.482]
     kind: r.kind || null,
     sourceId: r.sourceId || null,
     sourceAuthor: src ? ((adb ? nameOf313s(reelAuthorKeyFor(adb, src)) : null) || src.author || r.sourceAuthor || null) : (r.sourceAuthor || null), // [RP-V7.313] the source author's CURRENT name when the source reel is in the result set
@@ -15325,7 +15454,7 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
           heartLikes: hl241, giftCount: postGiftCountOf262(mdb296r.postGifts || {}, "reel", r.id),
           myHeart: false, comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, myReposted: false };
     }
-    return { kind: "reel", id: r.id, src: "/reel-files/" + r.file, views: mediaViewCount(vdb, "reel:" + r.id), caption: r.caption || "", likes: hl241,
+    return { kind: "reel", id: r.id, src: "/reel-files/" + r.file, poster: rpPosterUrl482(r), views: mediaViewCount(vdb, "reel:" + r.id), caption: r.caption || "", likes: hl241,
       // [RP-V7.241] author + social state for the lightbox rail
       owner: r.authorId || null, ownerName: (adb313t ? (nameOf313t(reelAuthorKeyFor(adb313t, r)) || r.author || "") : (r.author || "")), // [RP-V7.313]
       ...collabPayload453(r, nameOf313t), // [RP-V7.453]
@@ -15461,7 +15590,7 @@ app.get("/api/social/profile", (req, res) => {
             crMuted: null,
             myReposted: false };
         }
-        return { id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id), allowDownloads: r.allowDownloads !== false, ...(r.clubOnly ? { clubOnly: true } : {}), ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.shoutoutFor ? { shoutoutFor: r.shoutoutFor } : {}), // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
+        return { id: r.id, url: r.url || (r.file ? "/reel-files/" + r.file : null), poster: rpPosterUrl482(r), kind: r.kind || "video", caption: r.caption || "", createdAt: r.createdAt || null, views: mediaViewCount(vdb, "reel:" + r.id), allowDownloads: r.allowDownloads !== false, ...(r.clubOnly ? { clubOnly: true } : {}), ...(r.subsOnly ? { subsOnly: true } : {}), ...(r.shoutoutFor ? { shoutoutFor: r.shoutoutFor } : {}), // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
         // [RP-V7.241] author + social state for the lightbox rail
         authorId: reelAuthorKeyFor(ctx.db, r) || target.id, // [RP-V7.453] a collab tile keeps its real author id
         ...collabPayload453(r, nameResolver313(ctx.db)), // [RP-V7.453]
@@ -17730,7 +17859,7 @@ app.delete("/api/reel/:id", (req, res) => {
   const tmp = REELS_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(keep, null, 2));
   fs.renameSync(tmp, REELS_FILE);
-  if (r.file) fs.unlink(path.join(REELS_DIR, String(r.file)), () => {});
+  if (r.file) { fs.unlink(path.join(REELS_DIR, String(r.file)), () => {}); rpPosterUnlink482(r.file); } // [RP-V7.482]
   res.json({ ok: true });
 });
 app.delete("/api/photo/:id", (req, res) => {
@@ -23442,6 +23571,7 @@ function saved349ResolveReel(r, c) {
   }
   return Object.assign(base, {
     src: "/reel-files/" + r.file,
+    poster: rpPosterUrl482(r), // [RP-V7.482]
     views: mediaViewCount(c.vdb, "reel:" + r.id),
     caption: r.caption || "",
     heartLikes: hl,
@@ -25585,7 +25715,7 @@ app.get("/api/fanclub/club", (req, res) => {
         if (locked) {
           return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, locked: true, caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null, views: 0, heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: null };
         }
-        return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, caption: r.caption || "", createdAt: r.createdAt, url: r.url || (r.file ? "/reel-files/" + r.file : null), kind: r.kind || null, views: mediaViewCount(vdb, "reel:" + r.id), heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id), comments: reelPublicComments(r, nameResolver313(ctx.db)), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: r.crMuted || null, myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
+        return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, caption: r.caption || "", createdAt: r.createdAt, url: r.url || (r.file ? "/reel-files/" + r.file : null), poster: rpPosterUrl482(r), kind: r.kind || null, views: mediaViewCount(vdb, "reel:" + r.id), heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id), comments: reelPublicComments(r, nameResolver313(ctx.db)), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: r.crMuted || null, myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
       });
   } catch (e) { }
   let photoPosts = [];
