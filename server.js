@@ -4325,7 +4325,7 @@ function crTakeDown286(rec) {
       const db = readFeed();
       const p = db.posts[rec.mediaId];
       if (p) {
-        if (p.file) fs.unlink(path.join(FEED_DIR, String(p.file)), () => {});
+        if (p.file) { fs.unlink(path.join(FEED_DIR, String(p.file)), () => {}); try { fs.unlink(path.join(FEED_DIR, rpPosterName482(p.file)), () => {}); } catch (e) {} } // [RP-V7.484]
         delete db.posts[p.id];
         writeFeed(db);
       }
@@ -5025,8 +5025,84 @@ function rpPosterEnqueue482(entry) {
   rpPosterQ482.push({ id, file });
   rpPosterPump482();
 }
+
+// ---------------------------------------------------------------------------
+// [RP-V7.484] FEED-VIDEO POSTERS — the Feed store (Home feed posts and
+// the profile payload's feedPosts) never got V7.482 posters, so feed
+// videos on profile grids painted through the seek-paint gate and
+// could sit black while the reel tiles beside them painted instantly.
+// Same discipline as the reel pump: one shared ffmpeg lane (each pump
+// checks the other's active flag — the 512 MB box never runs two
+// extracts at once), strictly serial with the same 300 ms breather,
+// failure-tolerant. The poster lands beside the feed file under the
+// reel pump's own name rule (<base>.poster.jpg) and rides the
+// immutable /photos mount; the feed record is stamped poster484 only
+// after the file is on disk, and feed deletes remove it too.
+// ---------------------------------------------------------------------------
+const feedPosterQ484 = [];
+let feedPosterActive484 = false;
+function rpFeedPosterUrl484(p) {
+  return p && p.poster484 === 1 && p.file
+    ? "/photos/feed/" + rpPosterName482(p.file)
+    : null;
+}
+function rpFeedPosterEnqueue484(p) {
+  if (!p || p.kind !== "video" || !p.file || p.poster484 === 1) return;
+  if (feedPosterQ484.some((q) => q.id === p.id)) return;
+  feedPosterQ484.push({ id: p.id, file: p.file });
+  rpFeedPosterPump484();
+}
+function rpFeedPosterPump484() {
+  if (feedPosterActive484 || rpPosterActive482) return;
+  const job = feedPosterQ484.shift();
+  if (!job) return;
+  feedPosterActive484 = true;
+  const done = () => {
+    feedPosterActive484 = false;
+    setTimeout(rpFeedPosterPump484, 300);
+    setTimeout(rpPosterPump482, 350);
+  };
+  const src = path.join(FEED_DIR, path.basename(String(job.file)));
+  const out = path.join(FEED_DIR, rpPosterName482(job.file));
+  if (fs.existsSync(out)) {
+    try {
+      const db = readFeed();
+      const rec = (db.posts || {})[job.id];
+      if (rec && rec.poster484 !== 1) { rec.poster484 = 1; writeFeed(db); }
+    } catch (e) {}
+    return done();
+  }
+  rpPosterExtract482(src, out, 0.1, (ok) => {
+    const finish = (good) => {
+      if (good) {
+        try {
+          const db = readFeed();
+          const rec = (db.posts || {})[job.id];
+          if (rec && rec.poster484 !== 1) { rec.poster484 = 1; writeFeed(db); }
+        } catch (e) {}
+      }
+      done();
+    };
+    if (ok) return finish(true);
+    rpPosterExtract482(src, out, 0, finish);
+  });
+}
+function sweepFeedPosters484() {
+  let queued = 0;
+  try {
+    const db = readFeed();
+    const posts = Object.values(db.posts || {})
+      .filter((p) => p && p.kind === "video" && p.file && p.poster484 !== 1)
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    for (const p of posts) { rpFeedPosterEnqueue484(p); queued++; }
+  } catch (e) {
+    console.log("[posters484] feed backfill scan failed", e && e.message);
+  }
+  console.log("[posters484] feed backfill: " + queued + " queued");
+}
+
 function rpPosterPump482() {
-  if (rpPosterActive482) return;
+  if (rpPosterActive482 || feedPosterActive484) return; // [RP-V7.484] one ffmpeg lane, shared with the feed pump
   const job = rpPosterQ482.shift();
   if (!job) {
     if (rpPosterStats482.gen || rpPosterStats482.fail || rpPosterStats482.have) {
@@ -5042,6 +5118,7 @@ function rpPosterPump482() {
   const done = () => {
     rpPosterActive482 = false;
     setTimeout(rpPosterPump482, 300);
+    setTimeout(() => { try { rpFeedPosterPump484(); } catch (e) {} }, 350); // [RP-V7.484] hand the shared lane to the feed pump
   };
   const src = path.join(REELS_DIR, path.basename(String(job.file)));
   const out = path.join(REELS_DIR, rpPosterName482(job.file));
@@ -5104,6 +5181,7 @@ function sweepPosters482() {
   console.log("[posters482] backfill: " + queued + " queued, " + have + " already have posters");
 }
 setTimeout(() => { try { sweepPosters482(); } catch (e) {} }, 15000);
+setTimeout(() => { try { sweepFeedPosters484(); } catch (e) {} }, 20000); // [RP-V7.484] feed-video poster backfill
 
 // ---------------------------------------------------------------------------
 // [RP-V7.438] GAMING AUTO-ROUTE (Branden, Nov 19, 2026: "Make sure when
@@ -15662,7 +15740,7 @@ app.get("/api/social/profile", (req, res) => {
       .filter((fp) => fp && fp.authorId === target.id && fp.file)
       .map((fp) => ((fp.subsOnly && !canSeeSubsFeed296) || (fp.clubOnly && !canSeeClubFeed298))
         ? { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: null, views: 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: null, allowDownloads: false, ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.clubOnly ? { clubOnly: true } : {}), locked: true, authorId: target.id } // [RP-V7.296] locked feed tile: no media URL rides the payload // [RP-V7.298] // [RP-V7.316] allowDownloads
-        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}), text: fp.text || "", likedByMe: Array.isArray(fp.likes) ? fp.likes.includes(ctx.user.id) : false, comments: reelPublicComments({ comments: Array.isArray(fp.comments) ? fp.comments : [] }, nameResolver313(ctx.db)), commentCount: Array.isArray(fp.comments) ? fp.comments.length : 0, reposts: Array.isArray(fp.reposts) ? fp.reposts.length : 0, myReposted: (Array.isArray(fp.reposts) && fp.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(fp.reshares) && fp.reshares.some((x) => x && x.u === ctx.user.id)), giftCount: pgFeed409["feed:" + fp.id] || 0 /* [RP-V7.409] the profile Feed rail paints the full canonical row */ }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
+        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, poster: rpFeedPosterUrl484(fp), /* [RP-V7.484] feed-video poster for the profile grid tiles */ views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}), text: fp.text || "", likedByMe: Array.isArray(fp.likes) ? fp.likes.includes(ctx.user.id) : false, comments: reelPublicComments({ comments: Array.isArray(fp.comments) ? fp.comments : [] }, nameResolver313(ctx.db)), commentCount: Array.isArray(fp.comments) ? fp.comments.length : 0, reposts: Array.isArray(fp.reposts) ? fp.reposts.length : 0, myReposted: (Array.isArray(fp.reposts) && fp.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(fp.reshares) && fp.reshares.some((x) => x && x.u === ctx.user.id)), giftCount: pgFeed409["feed:" + fp.id] || 0 /* [RP-V7.409] the profile Feed rail paints the full canonical row */ }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 60);
   } catch (e) { }
@@ -15706,7 +15784,7 @@ app.get("/api/social/profile", (req, res) => {
       const fdb87 = readFeed();
       for (const fp of Object.values(fdb87.posts || {}))
         if (fp && fp.file && Array.isArray(fp.likes) && fp.likes.includes(target.id))
-          liked.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, src: "/photos/feed/" + fp.file, views: 0, caption: fp.text || "", likes: fp.likes.length, owner: fp.authorId || null, ownerName: (ctx.db.users.find((u) => u.id === fp.authorId) || {}).name || "", feedPost: true }); // [RP-V7.241] real author + Feed-post mark for the lightbox rail
+          liked.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, src: "/photos/feed/" + fp.file, poster: rpFeedPosterUrl484(fp), /* [RP-V7.484] */ views: 0, caption: fp.text || "", likes: fp.likes.length, owner: fp.authorId || null, ownerName: (ctx.db.users.find((u) => u.id === fp.authorId) || {}).name || "", feedPost: true }); // [RP-V7.241] real author + Feed-post mark for the lightbox rail
     } catch (e) { }
     liked = liked.slice(0, 36);
   }
@@ -17407,6 +17485,7 @@ app.post("/api/feed/post",
       db.posts[post.id] = post;
       writeFeed(db);
       if (kind === "video") crEnqueue286({ surface: "feed", mediaId: post.id, authorId: ctx.user.id, filePath: req.file.path }); // [RP-V7.286]
+      if (kind === "video") rpFeedPosterEnqueue484(post); // [RP-V7.484] mint the feed video's poster at post time
       // [RP-V7.335] Record a used sound's use; a fresh feed video with
       // no sound attached mints its own (probe decides — no audio
       // track, no sound).
@@ -17830,7 +17909,7 @@ app.delete("/api/feed/:id", (req, res) => {
   if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
   if (p.authorId !== ctx.user.id)
     return res.status(403).json({ ok: false, error: "That's not your post" });
-  if (p.file) fs.unlink(path.join(FEED_DIR, String(p.file)), () => {});
+  if (p.file) { fs.unlink(path.join(FEED_DIR, String(p.file)), () => {}); try { fs.unlink(path.join(FEED_DIR, rpPosterName482(p.file)), () => {}); } catch (e) {} } // [RP-V7.484] the poster goes with its video
   delete db.posts[p.id];
   writeFeed(db);
   res.json({ ok: true });
