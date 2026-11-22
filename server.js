@@ -675,7 +675,18 @@ function roomState(room) {
 // ---------------------------------------------------------------------------
 const PHOTO_DIR = process.env.PHOTO_DIR || path.join(__dirname, "photos");
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
-app.use("/photos", express.static(PHOTO_DIR));
+// [RP-V7.479] Same immutable-caching fix as /reel-files below. Uniqueness
+// verified in the upload code before applying: EVERY write path into
+// PHOTO_DIR (and its stories/feed/dm/sharein/workout subdirs, all served
+// by this mount) names files `${Date.now()}-${crypto.randomBytes(...)}`
+// — the shared photo multer, voice notes, story/feed/dm/sharein/workout
+// storages, and the AI-restyle output ("ai"+ts36+rand4) — and nothing
+// ever rewrites content under an existing name (profile/gallery updates
+// point the record at a NEW name; deletes unlink). So a /photos URL's
+// bytes never change and 30-day immutable is safe here too.
+app.use("/photos", express.static(PHOTO_DIR, {
+  setHeaders: (res) => { res.setHeader("Cache-Control", "public, max-age=2592000, immutable"); },
+}));
 
 // ---------------------------------------------------------------------------
 // The Rizz Plaza game itself (static site in ./public) — served at the root
@@ -5018,7 +5029,18 @@ const reelUpload = multer({
 });
 // express.static answers Range requests with 206, which video playback
 // (and seeking) needs.
-app.use("/reel-files", express.static(REELS_DIR));
+// [RP-V7.479] Reel files are immutable by construction: multer names every
+// upload `${Date.now()}-${crypto.randomBytes(6).hex}` and the trim path
+// renames only pre-publication, inside the upload request itself — content
+// under a served name NEVER changes (deletes unlink). The V7.478 audit
+// proved the old default (max-age=0) made Cloudflare revalidate against
+// the origin on every play (39/39 MISS/REVALIDATED, zero HITs), so every
+// phone streamed from the 512 MB instance at ~0.42-0.78 MB/s. Serve them
+// long-lived + immutable so the edge can actually cache; Range + etag
+// behaviour untouched.
+app.use("/reel-files", express.static(REELS_DIR, {
+  setHeaders: (res) => { res.setHeader("Cache-Control", "public, max-age=2592000, immutable"); },
+}));
 // ---------------------------------------------------------------------------
 // [RP-V7.51] Emoji reactions on Photos + Reels (Branden: "Add emojis for
 // photos and reels" → Both → "Give all the emojis"). Any emoji from the
