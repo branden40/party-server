@@ -1997,6 +1997,64 @@ app.post("/api/presence/ping", (req, res) => {
   presenceTouch471(ctx.user.id);
   res.json({ ok: true });
 });
+
+/* ---------------------------------------------------------------------------
+   [RP-V7.478] REELS TELEMETRY (Branden, Nov 22, 2026 — two rig-proven
+   reels fixes failed his phone verdict, so this build MEASURES on his
+   device instead of guessing): the V7.478 client beacons one compact
+   record per server-reel landing (readyState/buffered at landing, ms
+   to 'playing' and to first timeupdate, play-overlay shown + duration,
+   warm/warm-play flags, dimensions, connection info where the engine
+   offers it). POST accepts a small batch from any signed-in member
+   (same requireAccount gate as /api/presence/ping; the global JSON
+   body limit is 16 KB and the client chunks to <=10 records) and
+   appends one sanitized JSON line per record to reel-telemetry478.jsonl
+   beside the presence file. GET is OWNER-ONLY (rpOwnerUserId, the same
+   verdict the owner board uses) and returns the newest N records.
+   No PII beyond the account username the token already identifies.
+   Playback behaviour is untouched. */
+const REEL_TEL478_FILE = process.env.REEL_TEL478_FILE || path.join(path.dirname(PHOTO_DIR), "reel-telemetry478.jsonl");
+app.post("/api/reels/telemetry", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const evs = Array.isArray(b.ev) ? b.ev.slice(0, 50) : [];
+  const sid478 = String(b.sid || "").slice(0, 40);
+  const num478 = (x) => (typeof x === "number" && isFinite(x) ? x : null);
+  const lines478 = [];
+  for (const e of evs) {
+    if (!e || typeof e !== "object") continue;
+    lines478.push(JSON.stringify({
+      srv: Date.now(), user: ctx.user.username || "", sid: sid478,
+      id: String(e.id || "").slice(0, 60), feed: String(e.feed || "").slice(0, 30),
+      ts: num478(e.ts), rs: num478(e.rs), buf: num478(e.buf), vw: num478(e.vw), vh: num478(e.vh), dur: num478(e.dur),
+      warm: e.warm ? 1 : 0, wp: e.wp ? 1 : 0, pre: e.pre ? 1 : 0,
+      ov: e.ov ? 1 : 0, ovMs: num478(e.ovMs), msPlay: num478(e.msPlay), msTu: num478(e.msTu),
+      conn: (e.conn && typeof e.conn === "object") ? { et: String(e.conn.et || "").slice(0, 10) || null, dl: num478(e.conn.dl), rtt: num478(e.conn.rtt), sv: e.conn.sv ? 1 : 0 } : null,
+      vis: String(e.vis || "").slice(0, 12),
+    }));
+  }
+  if (lines478.length) {
+    try {
+      try { // light size guard: past ~8 MB, drop the oldest half on a line boundary
+        const st478 = fs.statSync(REEL_TEL478_FILE);
+        if (st478.size > 8 * 1024 * 1024) { const d478 = fs.readFileSync(REEL_TEL478_FILE, "utf8"); const cut478 = d478.indexOf("\n", Math.floor(d478.length / 2)); if (cut478 > 0) fs.writeFileSync(REEL_TEL478_FILE, d478.slice(cut478 + 1)); }
+      } catch (e) { }
+      fs.appendFileSync(REEL_TEL478_FILE, lines478.join("\n") + "\n");
+    } catch (e) { }
+  }
+  res.json({ ok: true, n: lines478.length });
+});
+app.get("/api/reels/telemetry", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (rpOwnerUserId(ctx.db) !== ctx.user.id) { res.status(403).json({ ok: false, error: "owner only" }); return; }
+  let n478 = parseInt(req.query.n || "500", 10); if (!isFinite(n478) || n478 < 1) n478 = 500; if (n478 > 5000) n478 = 5000;
+  let data478 = "";
+  try { data478 = fs.readFileSync(REEL_TEL478_FILE, "utf8"); } catch (e) { }
+  const all478 = data478 ? data478.split("\n").filter(Boolean) : [];
+  res.json({ ok: true, total: all478.length, records: all478.slice(-n478).map((l) => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean) });
+});
 app.post("/api/account/signup", (req, res) => {
   const b = req.body || {};
   const name = String(b.name || "").replace(/[<>&"']/g, "").trim().slice(0, 40);
