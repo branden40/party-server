@@ -27,7 +27,8 @@
     <title>Rizz Plaza</title>
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
-<meta name="rp-build" content="RP-V7.483" /> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. -->
+<meta name="rp-build" content="RP-V7.484" /> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. -->
+<!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
     <style>
       :root {
         color-scheme: dark;
@@ -825,7 +826,12 @@
       #screen-moments.rpfs254 #reelFeed .reel-card { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; border: none; border-radius: 0; box-shadow: none; }
       /* ---------- [RP-V7.481] Reels lands on a GRID (Branden, Nov 22, 2026): the .rp-grid481 state on #screen-moments keeps the header stack in flow (back pill, title, mode toggle — the member can always get back to Photos) and the grid wrap scrolls under it, sized like the Photos feed's own scroller. The pager container is gone from this screen in both modes. Mirrors the V7.440 Gaming-grid pattern. ---------- */
       #reelGridWrap481 { display: none; }
-      #screen-moments.rp-grid481 #reelGridWrap481 { display: block; max-height: calc(100dvh - 190px); min-height: 320px; overflow-y: auto; scrollbar-width: thin; padding: 2px 2px 14px; }
+      #screen-moments.rp-grid481.active { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; } /* [RP-V7.484] grid mode takes the fixed-height treatment the pager (rpfs254) and the Gaming screen already use: the screen is exactly one viewport tall, so no document scroll exists to carry the header stack with the grid (Branden, Nov 22 recording #2: "The reels carry the page with it" — the old wrap was sized max-height: calc(100dvh - 190px) but the header stack above it measures ~228 px on Reels and ~318 px on Friends, leaving 122-212 px of document scroll room that dragged the stories/explainer/tabs over the tiles) */
+      #screen-moments.rp-grid481 .mom-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+      #screen-moments.rp-grid481 .mom-wrap > * { flex: 0 0 auto; }
+      #screen-moments.rp-grid481 #rpSearchWrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+      #screen-moments.rp-grid481 #reelGridWrap481 { display: block; flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; scrollbar-width: thin; padding: 2px 2px 14px; }
+      .wrap:has(#screen-moments.rp-grid481.active) { padding-bottom: 0; } /* [RP-V7.484] the shell's 84 px tab-bar padding is the last document scroll room in grid mode — the fixed screen needs no scroll clearance, so the document cannot move at all while the grid is up (inert where :has is unsupported: the padding band simply stays, as today) */
       #screen-moments.rp-grid481 #reelFeed { display: none !important; }
       #reelGridBar481 { margin: 0 0 10px; }
       #reelGridBar481:empty { display: none; }
@@ -43148,6 +43154,7 @@ button.rp72-chip{ cursor:pointer; }
     rpPaintIO244.observe(v);
   }
   try { window.rpPaintGate244 = rpPaintFrame243; } catch (e) { } // [RP-V7.244] module-scope export: the Reels feed delegates its card paints to this same gate
+  try { window.rpPosterProbe482 = rpPosterProbe482; } catch (e) { } // [RP-V7.484] module-scope export: the Gaming grid paints its poster tiles through the same probe fillGrid uses
   /* [RP-V7.482] Poster probe: a tile whose video carries a server
      poster paints from that image alone — the browser fetches the
      poster with the element, so there is nothing for the paint gate
@@ -43244,15 +43251,69 @@ button.rp72-chip{ cursor:pointer; }
     opts = opts || {};
     if (!el) return;
     if (!items || !items.length) { el.innerHTML = opts.emptyHtml || ""; return; }
-    el.innerHTML = items.map(tileHTML).join("");
-    el.querySelectorAll(".rpmedia-tile").forEach(function (tb, ix) {
+    // [RP-V7.484] KEYED RECONCILIATION — this used to be a full
+    // innerHTML rebuild on EVERY call, so any re-render (the profile
+    // payload landing, then the V7.426 reels top-up landing seconds
+    // later on a phone) destroyed every already-painted tile — photos
+    // included — and the grid sat black while the whole set repainted
+    // (Branden's Nov 22 recording: Profile grid black ~37-43 s, then
+    // flooding back). Now a tile whose kind+id+src+poster+lock state
+    // is unchanged is REUSED: its node, its painted poster/frame and
+    // its paint-gate state survive; only the item ref, the views
+    // count and the multi badge refresh, and the click handler is
+    // rebound to the current list (handlers capture the list — the
+    // V7.483 stale-order lesson). Text-post tiles keep the plain
+    // rebuild (their HTML carries the post text itself). First paint
+    // is unchanged: an empty grid reconciles to all-fresh tiles.
+    var oldByKey484 = {};
+    var oldTiles484 = el.querySelectorAll(".rpmedia-tile");
+    for (var oi484 = 0; oi484 < oldTiles484.length; oi484++) {
+      var oit484 = oldTiles484[oi484]._rpItem241;
+      if (!oit484 || oit484.textPost) continue;
+      var okey484 = oit484.kind + "|" + oit484.id + "|" + (oit484.src || "") + "|" + (oit484.poster || "") + "|" + (oit484.locked ? "L" : "");
+      if (!oldByKey484[okey484]) oldByKey484[okey484] = oldTiles484[oi484];
+    }
+    var used484 = {};
+    var frag484 = document.createDocumentFragment();
+    var scratch484 = null;
+    var tiles484 = [];
+    items.forEach(function (it484) {
+      var key484 = it484.kind + "|" + it484.id + "|" + (it484.src || "") + "|" + (it484.poster || "") + "|" + (it484.locked ? "L" : "");
+      var tb484 = (!it484.textPost && oldByKey484[key484] && !used484[key484]) ? oldByKey484[key484] : null;
+      if (tb484) {
+        used484[key484] = 1;
+        tb484._rpItem241 = it484;
+        var vel484 = tb484.querySelector(".rpmedia-views");
+        if (vel484) vel484.textContent = "👁 " + fmtViews(it484.views || 0);
+        tb484.setAttribute("data-rpviews", String(it484.views || 0));
+        tb484.classList.remove("tk417-reeltile"); // the tk417 pass re-labels the views chip from the fresh count
+        var multi484 = tb484.querySelector(".rpmedia-multi");
+        if (it484.media && it484.media.length > 1) { if (!multi484) { var m484 = document.createElement("span"); m484.className = "rpmedia-multi"; m484.textContent = "▦ " + it484.media.length; tb484.appendChild(m484); } else multi484.textContent = "▦ " + it484.media.length; }
+        else if (multi484) multi484.parentNode.removeChild(multi484);
+        var pins484 = tb484.querySelectorAll(".rpmedia-pin, .rpmedia-pinbtn");
+        for (var pn484 = 0; pn484 < pins484.length; pn484++) pins484[pn484].parentNode.removeChild(pins484[pn484]); // profDecorate re-adds its own pins after the fill
+        frag484.appendChild(tb484);
+        tiles484.push({ tb: tb484, reused: true });
+      } else {
+        if (!scratch484) scratch484 = document.createElement("div");
+        scratch484.innerHTML = tileHTML(it484);
+        var ntb484 = scratch484.firstElementChild;
+        frag484.appendChild(ntb484);
+        tiles484.push({ tb: ntb484, reused: false });
+      }
+    });
+    el.innerHTML = "";
+    el.appendChild(frag484);
+    tiles484.forEach(function (rec484, ix) {
+      var tb = rec484.tb;
       // [RP-V7.241] keep the full item on the tile: the data
       // attributes carry only the tile fields, but the lightbox
       // rail needs the item's owner name + social state. The
       // attribute rebuild stays as the fallback.
       if (items[ix]) tb._rpItem241 = items[ix];
-      var pv243 = tb.querySelector("video"); if (pv243) { if (pv243.getAttribute("poster")) rpPosterProbe482(pv243); else rpPaintFrame243(pv243); } // [RP-V7.243] a reel tile must never sit black // [RP-V7.482] a poster tile paints from its image — the probe keeps the seek-paint only as a backstop if that poster failed to load
-      tb.addEventListener("click", function () {
+      if (!rec484.reused) { var pv243 = tb.querySelector("video"); if (pv243) { if (pv243.getAttribute("poster")) rpPosterProbe482(pv243); else rpPaintFrame243(pv243); } } // [RP-V7.243] a reel tile must never sit black // [RP-V7.482] a poster tile paints from its image — the probe keeps the seek-paint only as a backstop if that poster failed to load // [RP-V7.484] a reused tile keeps its paint registration untouched
+      if (tb._rp484Click) tb.removeEventListener("click", tb._rp484Click);
+      var click484 = function () {
         var it = tb._rpItem241 || {
           kind: tb.getAttribute("data-rpkind"), id: tb.getAttribute("data-rpid"),
           owner: tb.getAttribute("data-rpowner"), ownerName: tb.getAttribute("data-rpownername") || "", src: tb.getAttribute("data-rpsrc"),
@@ -43265,7 +43326,9 @@ button.rp72-chip{ cursor:pointer; }
         var nav461 = { items: items, index: ix }; // [RP-V7.461] the list this tile was opened from, in displayed order — the players' swipe context
         if (it.kind === "reel") { if (opts.onReel) opts.onReel(it, upd, nav461); else openReel(it, upd, nav461); }
         else { if (opts.onPhoto) opts.onPhoto(it, upd); else openPhoto(it, upd); }
-      });
+      };
+      tb._rp484Click = click484;
+      tb.addEventListener("click", click484);
     });
   }
   window.rpViewsFillGrid = fillGrid;
@@ -43324,7 +43387,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, locked: !!pp.locked, subsOnly: !!pp.subsOnly, clubOnly: !!pp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: pp.locked ? 1 : ((pp.urls || []).length || 1) /* [RP-V7.123] */,
       // [RP-V7.241] the full feed-item shape, for the lightbox rail
       caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: pp.commentCount || 0, reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine }); });
-    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, locked: !!fp.locked, subsOnly: !!fp.subsOnly, clubOnly: !!fp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ allowDownloads: fp.allowDownloads !== false, /* [RP-V7.316] */ caption: fp.text || "", likes: fp.likes || 0, myLiked: !!fp.likedByMe, comments: Array.isArray(fp.comments) ? fp.comments : [], commentCount: fp.commentCount || 0, reposts: fp.reposts || 0, myReposted: !!fp.myReposted, giftCount: fp.giftCount || 0, /* [RP-V7.409] the lightbox/player Feed rail state */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
+    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, poster: fp.poster || "", /* [RP-V7.484] feed videos carry their server poster into the tile */ locked: !!fp.locked, subsOnly: !!fp.subsOnly, clubOnly: !!fp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ allowDownloads: fp.allowDownloads !== false, /* [RP-V7.316] */ caption: fp.text || "", likes: fp.likes || 0, myLiked: !!fp.likedByMe, comments: Array.isArray(fp.comments) ? fp.comments : [], commentCount: fp.commentCount || 0, reposts: fp.reposts || 0, myReposted: !!fp.myReposted, giftCount: fp.giftCount || 0, /* [RP-V7.409] the lightbox/player Feed rail state */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
     var order = {}; (j.pins || []).forEach(function (pn, ix) { order[pn.kind + ":" + pn.id] = ix; });
     var pinned = [], rest = [];
     items.forEach(function (it) { (order[it.kind + ":" + it.id] !== undefined ? pinned : rest).push(it); });
@@ -54255,7 +54318,8 @@ html, body { overflow-x: clip; }
           tiles[i].setAttribute("data-gownername440", items[i].author || "");
         }
         var tv = tiles[i].querySelector("video");
-        if (tv && window.rpPaintGate244) { try { window.rpPaintGate244(tv); } catch (e) { } } // a tile must never sit black — the grids' own first-frame paint
+        if (tv && tv.getAttribute("poster") && window.rpPosterProbe482) { try { window.rpPosterProbe482(tv); } catch (e) { } } // [RP-V7.484] a poster tile paints from its poster image — the probe keeps the seek-paint only as a backstop if that poster failed to load
+        else if (tv && window.rpPaintGate244) { try { window.rpPaintGate244(tv); } catch (e) { } } // a tile must never sit black — the grids' own first-frame paint
         /* An on-device (pending) clip has no URL — its tile frame
            comes from the same IndexedDB blob its pager card plays. */
         if (!items[i].server && !items[i].url && typeof reelDbGet === "function") {
