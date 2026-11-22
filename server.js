@@ -4612,6 +4612,7 @@ app.post("/api/account/photos", photoUpload(async (req, res) => {
       console.log("ACCOUNT GALLERY UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, publicUrl);
     }
     list.push(publicUrl);
+    rpThumbEnqueue485(publicUrl); // [RP-V7.485] mint the gallery variant at upload time
     ctx.user.photos = list;
     // [RP-V7.88] The gallery main tracks into photoOrig (the member's
     // own photo); the EFFECTIVE face only follows the gallery while
@@ -4910,6 +4911,7 @@ app.post("/api/profile-photo", upload.single("photo"), async (req, res) => {
         const lgal = accountPhotos(au).filter((x) => x !== publicUrl);
         lgal.unshift(publicUrl);
         au.photos = lgal;
+        try { rpThumbEnqueue485(publicUrl); } catch (e) { } // [RP-V7.485]
         writeAccounts(adb);
       }
     } catch (e) { /* the upload already succeeded */ }
@@ -5182,6 +5184,96 @@ function sweepPosters482() {
 }
 setTimeout(() => { try { sweepPosters482(); } catch (e) {} }, 15000);
 setTimeout(() => { try { sweepFeedPosters484(); } catch (e) {} }, 20000); // [RP-V7.484] feed-video poster backfill
+
+/* [RP-V7.485] PHOTO THUMBNAILS — feed/profile photos were served
+   ONLY as full-size originals (a multi-MB decode per post — the
+   Home black gaps in Branden's Nov 22 recording). The server now
+   mints a ~720px-wide JPEG variant (<base>.w720.jpg) beside every
+   photo under PHOTO_DIR (photo posts + gallery) and FEED_DIR
+   (feed photos), on the SAME shared serial ffmpeg lane as the
+   V7.482 reel posters and the V7.484 feed posters — one job at a
+   time across all three pumps, 300 ms breather. Serializers hand
+   the variant out (photoThumb / thumbUrls / thumb / photoThumbs)
+   ONLY when the variant file exists — rpThumbSet485 is stamped
+   only after the file is on disk, never before — and the
+   full-size original remains the only thing the viewer opens.
+   Boot backfill at +25 s; post-time enqueue on the photo-post,
+   feed-post and account-photo routes; variants are unlinked with
+   their originals on delete. */
+const rpThumbSet485 = new Set();
+const rpThumbQueue485 = [];
+let rpThumbActive485 = false;
+let rpThumbWatch485 = null;
+function rpThumbPath485(srcUrl) {
+  const u = String(srcUrl || "");
+  const i = u.indexOf("/photos/");
+  if (i < 0) return null;
+  const p = u.slice(i);
+  if (p.includes("..") || !/\.(jpe?g|png|webp)$/i.test(p)) return null;
+  return p;
+}
+function rpThumbVariantUrl485(srcUrl) {
+  const p = rpThumbPath485(srcUrl);
+  return p ? p.replace(/\.(jpe?g|png|webp)$/i, ".w720.jpg") : null;
+}
+function rpThumbUrl485(srcUrl) {
+  const v = rpThumbVariantUrl485(srcUrl);
+  return v && rpThumbSet485.has(v) ? v : null;
+}
+function rpThumbAbs485(variantUrl) {
+  const rel = String(variantUrl || "").slice("/photos/".length);
+  if (!rel || rel.includes("..")) return null;
+  return path.join(PHOTO_DIR, rel);
+}
+function rpThumbEnqueue485(srcUrl) {
+  const v = rpThumbVariantUrl485(srcUrl);
+  if (!v || rpThumbSet485.has(v)) return;
+  const srcAbs = rpThumbAbs485(rpThumbPath485(srcUrl));
+  const outAbs = rpThumbAbs485(v);
+  if (!srcAbs || !outAbs) return;
+  if (fs.existsSync(outAbs)) { rpThumbSet485.add(v); return; }
+  if (!fs.existsSync(srcAbs)) return;
+  if (rpThumbQueue485.some((j) => j.out === v)) return;
+  rpThumbQueue485.push({ out: v, srcAbs, outAbs });
+  if (!rpThumbWatch485) {
+    rpThumbWatch485 = setInterval(() => {
+      if (!rpThumbQueue485.length) { clearInterval(rpThumbWatch485); rpThumbWatch485 = null; return; }
+      rpThumbPump485();
+    }, 2000);
+  }
+  rpThumbPump485();
+}
+function rpThumbPump485() {
+  if (rpThumbActive485 || rpPosterActive482 || feedPosterActive484) return;
+  const job = rpThumbQueue485.shift();
+  if (!job) return;
+  rpThumbActive485 = true;
+  const done = () => { rpThumbActive485 = false; setTimeout(() => { rpThumbPump485(); rpPosterPump482(); rpFeedPosterPump484(); }, 300); };
+  try {
+    crExecFile286(crFfmpeg286, ["-nostdin", "-v", "error", "-i", job.srcAbs, "-vf", "scale=w='min(720,iw)':h=-2", "-frames:v", "1", "-q:v", "5", "-threads", "2", job.outAbs, "-y"], { timeout: 30000 }, (err) => {
+      if (!err && fs.existsSync(job.outAbs)) rpThumbSet485.add(job.out);
+      done();
+    });
+  } catch (e) { done(); }
+}
+function rpThumbForget485(srcUrl) {
+  const v = rpThumbVariantUrl485(srcUrl);
+  if (!v) return;
+  rpThumbSet485.delete(v);
+  const abs = rpThumbAbs485(v);
+  if (abs) fs.unlink(abs, () => {});
+}
+function rpPhotoThumbs485(user) {
+  const out = {};
+  for (const u of accountPhotos(user)) { const t = rpThumbUrl485(u); if (t) out[u] = t; }
+  return out;
+}
+function sweepThumbs485() {
+  try { const db = readPhotoPosts(); for (const p of (db && db.posts) || []) for (const u of photoUrlsOf123(p)) rpThumbEnqueue485(u); } catch (e) {}
+  try { const db = readFeed(); for (const id of Object.keys((db && db.posts) || {})) { const p = db.posts[id]; if (p && p.kind === "photo" && p.file) rpThumbEnqueue485("/photos/feed/" + p.file); } } catch (e) {}
+  try { const adb = readAccounts(); const users = Array.isArray(adb) ? adb : (adb && adb.users) || []; for (const u of users) for (const ph of (u && u.photos) || []) rpThumbEnqueue485(ph); } catch (e) {}
+}
+setTimeout(() => { try { sweepThumbs485(); } catch (e) {} }, 25000); // [RP-V7.485] photo-variant backfill
 
 // ---------------------------------------------------------------------------
 // [RP-V7.438] GAMING AUTO-ROUTE (Branden, Nov 19, 2026: "Make sure when
@@ -10447,6 +10539,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
       ...collabPayload453(p, nameOf313), // [RP-V7.453] both names ride even the locked placeholder's byline
       photo: null,
       urls: [],
+      photoThumb: null, thumbUrls: [], // [RP-V7.485] locked means locked — no variant rides either
       text: "",
       tstyle: null,
       caption: "",
@@ -10481,6 +10574,8 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     author: author313p, // [RP-V7.313]
     photo: p.photo,
     urls: photoUrlsOf123(p), // [RP-V7.123] the full set; photo above stays urls[0] for every older reader
+    photoThumb: rpThumbUrl485(p.photo), // [RP-V7.485] ~720px variant when minted (null until then) — feeds/grids paint this, the viewer keeps the original
+    thumbUrls: photoUrlsOf123(p).map((u) => rpThumbUrl485(u)), // [RP-V7.485] parallel to urls
     caption: p.caption || "",
     location: p.location || "",
     link: p.link || "",
@@ -10629,6 +10724,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
     db.posts.unshift(post);
     db.posts = db.posts.slice(0, PHOTO_POSTS_KEEP);
     writePhotoPosts(db);
+    for (const u of post.urls || []) rpThumbEnqueue485(u); // [RP-V7.485] mint the variants at post time
     notifyFollowersOfPost129(ctx.user, (post.urls && post.urls.length > 1) ? "photos" : "photo", post.id); // [RP-V7.129] [RP-V7.270] route the bell row to this post
     // [RP-V7.300] A photo post created with a shoutoutId fulfills
     // that shoutout (escrow settles, marker stamped on the record).
@@ -15740,7 +15836,7 @@ app.get("/api/social/profile", (req, res) => {
       .filter((fp) => fp && fp.authorId === target.id && fp.file)
       .map((fp) => ((fp.subsOnly && !canSeeSubsFeed296) || (fp.clubOnly && !canSeeClubFeed298))
         ? { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: null, views: 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: null, allowDownloads: false, ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.clubOnly ? { clubOnly: true } : {}), locked: true, authorId: target.id } // [RP-V7.296] locked feed tile: no media URL rides the payload // [RP-V7.298] // [RP-V7.316] allowDownloads
-        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, poster: rpFeedPosterUrl484(fp), /* [RP-V7.484] feed-video poster for the profile grid tiles */ views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}), text: fp.text || "", likedByMe: Array.isArray(fp.likes) ? fp.likes.includes(ctx.user.id) : false, comments: reelPublicComments({ comments: Array.isArray(fp.comments) ? fp.comments : [] }, nameResolver313(ctx.db)), commentCount: Array.isArray(fp.comments) ? fp.comments.length : 0, reposts: Array.isArray(fp.reposts) ? fp.reposts.length : 0, myReposted: (Array.isArray(fp.reposts) && fp.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(fp.reshares) && fp.reshares.some((x) => x && x.u === ctx.user.id)), giftCount: pgFeed409["feed:" + fp.id] || 0 /* [RP-V7.409] the profile Feed rail paints the full canonical row */ }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
+        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, poster: rpFeedPosterUrl484(fp), /* [RP-V7.484] feed-video poster for the profile grid tiles */ thumb: fp.kind === "photo" ? rpThumbUrl485("/photos/feed/" + fp.file) : null, /* [RP-V7.485] feed-photo variant for the tile */ views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}), text: fp.text || "", likedByMe: Array.isArray(fp.likes) ? fp.likes.includes(ctx.user.id) : false, comments: reelPublicComments({ comments: Array.isArray(fp.comments) ? fp.comments : [] }, nameResolver313(ctx.db)), commentCount: Array.isArray(fp.comments) ? fp.comments.length : 0, reposts: Array.isArray(fp.reposts) ? fp.reposts.length : 0, myReposted: (Array.isArray(fp.reposts) && fp.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(fp.reshares) && fp.reshares.some((x) => x && x.u === ctx.user.id)), giftCount: pgFeed409["feed:" + fp.id] || 0 /* [RP-V7.409] the profile Feed rail paints the full canonical row */ }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 60);
   } catch (e) { }
@@ -15784,7 +15880,7 @@ app.get("/api/social/profile", (req, res) => {
       const fdb87 = readFeed();
       for (const fp of Object.values(fdb87.posts || {}))
         if (fp && fp.file && Array.isArray(fp.likes) && fp.likes.includes(target.id))
-          liked.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, src: "/photos/feed/" + fp.file, poster: rpFeedPosterUrl484(fp), /* [RP-V7.484] */ views: 0, caption: fp.text || "", likes: fp.likes.length, owner: fp.authorId || null, ownerName: (ctx.db.users.find((u) => u.id === fp.authorId) || {}).name || "", feedPost: true }); // [RP-V7.241] real author + Feed-post mark for the lightbox rail
+          liked.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, src: "/photos/feed/" + fp.file, poster: rpFeedPosterUrl484(fp), /* [RP-V7.484] */ thumb: fp.kind === "photo" ? rpThumbUrl485("/photos/feed/" + fp.file) : null, /* [RP-V7.485] */ views: 0, caption: fp.text || "", likes: fp.likes.length, owner: fp.authorId || null, ownerName: (ctx.db.users.find((u) => u.id === fp.authorId) || {}).name || "", feedPost: true }); // [RP-V7.241] real author + Feed-post mark for the lightbox rail
     } catch (e) { }
     liked = liked.slice(0, 36);
   }
@@ -15846,6 +15942,7 @@ app.get("/api/social/profile", (req, res) => {
     // [RP-V7.64] the member's gallery photos + their server-owned
     // view counts, so profile pages can render the tile grid.
     photos: accountPhotos(target),
+    photoThumbs: rpPhotoThumbs485(target), // [RP-V7.485] gallery variant URLs, keyed by the original URL (only minted ones ride)
     photoViews: photoViewsFor(target),
     reelsCount, reels, testimony,
     // [RP-V7.86] The profile build: bio + link, live badge, Likes
@@ -17486,6 +17583,7 @@ app.post("/api/feed/post",
       writeFeed(db);
       if (kind === "video") crEnqueue286({ surface: "feed", mediaId: post.id, authorId: ctx.user.id, filePath: req.file.path }); // [RP-V7.286]
       if (kind === "video") rpFeedPosterEnqueue484(post); // [RP-V7.484] mint the feed video's poster at post time
+      if (kind === "photo") rpThumbEnqueue485("/photos/feed/" + post.file); // [RP-V7.485] mint the feed photo's variant at post time
       // [RP-V7.335] Record a used sound's use; a fresh feed video with
       // no sound attached mints its own (probe decides — no audio
       // track, no sound).
@@ -17910,6 +18008,7 @@ app.delete("/api/feed/:id", (req, res) => {
   if (p.authorId !== ctx.user.id)
     return res.status(403).json({ ok: false, error: "That's not your post" });
   if (p.file) { fs.unlink(path.join(FEED_DIR, String(p.file)), () => {}); try { fs.unlink(path.join(FEED_DIR, rpPosterName482(p.file)), () => {}); } catch (e) {} } // [RP-V7.484] the poster goes with its video
+  if (p.file) rpThumbForget485("/photos/feed/" + p.file); // [RP-V7.485] the variant goes with its photo
   delete db.posts[p.id];
   writeFeed(db);
   res.json({ ok: true });
@@ -17966,7 +18065,7 @@ app.delete("/api/photo/:id", (req, res) => {
   if (ownerRec) accountPhotos(ownerRec).forEach((u) => { const f = fileOf(u); if (f) stillUsed.add(f); });
   photoUrlsOf123(p).forEach((u) => {
     const f = fileOf(u);
-    if (f && !f.includes("/") && !stillUsed.has(f)) fs.unlink(path.join(PHOTO_DIR, f), () => {});
+    if (f && !f.includes("/") && !stillUsed.has(f)) { fs.unlink(path.join(PHOTO_DIR, f), () => {}); rpThumbForget485(u); } // [RP-V7.485] the variant goes with its original
   });
   res.json({ ok: true });
 });
