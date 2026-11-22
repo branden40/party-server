@@ -27,7 +27,7 @@
     <title>Rizz Plaza</title>
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
-<meta name="rp-build" content="RP-V7.484" /> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. -->
+<meta name="rp-build" content="RP-V7.485" /> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. -->
 <!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
     <style>
       :root {
@@ -26553,7 +26553,7 @@
       function momSrvPost(sp) {
         return {
           id: sp.id, srv: true, mine: !!sp.mine, name: sp.author || "Someone", locked: !!sp.locked, subsOnly: !!sp.subsOnly, clubOnly: !!sp.clubOnly, shoutoutFor: sp.shoutoutFor || null, authorId: sp.authorId || "", collabId: sp.collabId || null, collabName: sp.collabName || "", collabUsername: sp.collabUsername || "", collabStatus: sp.collabStatus || null, /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.300] */ /* [RP-V7.453] */
-          photo: sp.photo || "", urls: (sp.urls && sp.urls.length ? sp.urls.slice() : (sp.photo ? [sp.photo] : [])), /* [RP-V7.123] */ caption: sp.caption || "", location: sp.location || "", link: sp.link || "", audience: sp.audience || "everyone", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
+          photo: sp.photo || "", photoThumb: sp.photoThumb || "", thumbUrls: (Array.isArray(sp.thumbUrls) ? sp.thumbUrls.slice() : []), /* [RP-V7.485] */ urls: (sp.urls && sp.urls.length ? sp.urls.slice() : (sp.photo ? [sp.photo] : [])), /* [RP-V7.123] */ caption: sp.caption || "", location: sp.location || "", link: sp.link || "", audience: sp.audience || "everyone", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
           likeBase: 0, srvLikes: sp.likes || 0, liked: !!sp.myLiked, srvReposts: sp.reposts || 0, reposted: !!sp.myReposted, /* [RP-V7.89] */ gifts: 0, giftCount: sp.giftCount || 0, /* [RP-V7.262] gifts RECEIVED (units) — not the charms sum in gifts */
           comments: Array.isArray(sp.comments) ? sp.comments : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
@@ -26856,8 +26856,8 @@
           var pIdx123 = Math.min(typeof p._fi === "number" ? p._fi : 0, Math.max(0, pUrls123.length - 1));
           var photo = p.photo
             ? (pUrls123.length > 1
-              ? '<span class="mom-flip" style="display:block;"><img loading="lazy" decoding="async" src="' + pUrls123[pIdx123] + '" alt="Photo posted by ' + escHtml(p.name) + '"/><button type="button" class="ff-zone prev" data-momflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-momflip="1" aria-label="Next photo"></button><span class="ff-count"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> ' + (pIdx123 + 1) + '/' + pUrls123.length + '</span></span>'
-              : '<img loading="lazy" decoding="async" src="' + p.photo + '" alt="Photo posted by ' + escHtml(p.name) + '"/>')
+              ? '<span class="mom-flip" style="display:block;"><img loading="lazy" decoding="async" src="' + ((p.thumbUrls && p.thumbUrls[pIdx123]) || pUrls123[pIdx123]) + '" alt="Photo posted by ' + escHtml(p.name) + '"/><button type="button" class="ff-zone prev" data-momflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-momflip="1" aria-label="Next photo"></button><span class="ff-count"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> ' + (pIdx123 + 1) + '/' + pUrls123.length + '</span></span>'
+              : '<img loading="lazy" decoding="async" src="' + (p.photoThumb || p.photo) + '" alt="Photo posted by ' + escHtml(p.name) + '"/>') /* [RP-V7.485] variant in the stream; the viewer keeps p.photo */
             : '<span class="mom-nomedia" aria-hidden="true"></span>'; /* [RP-V7.29] RE1 flat tile, no drawn backdrop */
           card.innerHTML =
             '<div class="mom-top"><span class="who-av">' + av + '</span><div><b>' + escHtml(p.name) + '</b>' + (window.rpCollabByline453 ? window.rpCollabByline453(p) : "") + '<span>' + escHtml(p.when || "now") + ' · Reels</span></div>' + /* [RP-V7.453] dual byline on accepted collabs */
@@ -26881,7 +26881,7 @@
             z.addEventListener("click", function () {
               var n = (p.urls || []).length; if (n < 2) return;
               p._fi = (((typeof p._fi === "number" ? p._fi : 0) + parseInt(z.getAttribute("data-momflip"), 10)) % n + n) % n;
-              var im = card.querySelector(".mom-flip img"); if (im) im.src = p.urls[p._fi];
+              var im = card.querySelector(".mom-flip img"); if (im) im.src = (p.thumbUrls && p.thumbUrls[p._fi]) || p.urls[p._fi]; // [RP-V7.485]
               var ct = card.querySelector(".mom-flip .ff-count"); if (ct) ct.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"5\" width=\"17\" height=\"14.5\" rx=\"2.5\"/><circle cx=\"9\" cy=\"10\" r=\"1.8\"/><path d=\"m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2\"/></svg> " + (p._fi + 1) + "/" + n;
             });
           });
@@ -28073,17 +28073,66 @@
           }, function () { finish(); });
         } catch (e) { finish(); }
       }
+      /* [RP-V7.485] The VIDEO byte-warm no longer competes with the
+         member's first taps (Branden's recording: every first open
+         fought nine full video downloads for the same pipe). Full
+         video bytes now wait for the first pointerdown anywhere —
+         the member is in and moving, and the grid tap itself
+         counts — or 15 s after the warm call, whichever comes
+         first. Poster images (small, 4-concurrent) still warm
+         immediately: they ARE the grid's first paint. The
+         lightbox's neighbour warming (rpWarmReelBytes483) is NOT
+         gated — it only runs inside an active swipe session. */
+      var rpVidWarmGate485 = false, rpVidWarmWait485 = [];
+      function rpVidWarmGo485() {
+        if (rpVidWarmGate485) return; rpVidWarmGate485 = true;
+        var q = rpVidWarmWait485; rpVidWarmWait485 = [];
+        for (var i = 0; i < q.length; i++) rpWarmVid482(q[i]);
+      }
+      try { window.addEventListener("pointerdown", function () { rpVidWarmGo485(); }, { once: true, passive: true }); } catch (e) { }
+      function rpWarmVidGated485(url) { if (!url) return; if (rpVidWarmGate485) rpWarmVid482(url); else rpVidWarmWait485.push(url); }
       var rpPrewarm482At = 0;
       function rpPrewarm482(reels) {
         if (!Array.isArray(reels) || !reels.length) return;
         for (var i = 0; i < reels.length && i < 120; i++) { var r = reels[i]; if (r && r.poster) rpWarmImg482(r.poster); }
+        setTimeout(rpWarmFriends485, 4000); // [RP-V7.485] the Friends list joins the boot warm
         var kick = function () {
-          for (var k = 0; k < reels.length && k < 9; k++) { var it = reels[k]; if (it && it.url) rpWarmVid482(it.url); }
+          for (var k = 0; k < reels.length && k < 9; k++) { var it = reels[k]; if (it && it.url) rpWarmVidGated485(it.url); } // [RP-V7.485] gated — see rpVidWarmGate485
         };
         if (rpPrewarm482At && (Date.now() - rpPrewarm482At) < 4000) { kick(); return; } // a refresh return — warm now, no second idle wait; dedupe makes it nearly free
         rpPrewarm482At = Date.now();
+        setTimeout(rpVidWarmGo485, 15000); // [RP-V7.485] an idle member still gets warm videos — just not during their first taps
         if (window.requestIdleCallback) { try { window.requestIdleCallback(function () { kick(); }, { timeout: 2500 }); return; } catch (e) { } }
         setTimeout(kick, 1200);
+      }
+      /* [RP-V7.485] Boot warm for the Friends list (data only): the
+         first Friends tap of a session used to wait on its fetch
+         (Branden's recording: ~4-5 s of empty black). Four seconds
+         after the For You return — behind the poster warm — the
+         friends list is fetched quietly into the same cache
+         rpFriendsOpen paints from, persisted as the same snapshot
+         the fetch path writes, and its posters join the image warm.
+         Skips when the cache is already filled, when the member is
+         already in Friends (the entry fetch owns it), and runs at
+         most once per session. A later tap still re-fetches and
+         re-ranks behind the paint — the cache is a first frame,
+         never a freeze. */
+      var rpFriendsWarmed485 = false;
+      function rpWarmFriends485() {
+        if (rpFriendsWarmed485) return; rpFriendsWarmed485 = true;
+        try {
+          if (Reels.friends || Reels._friendsCache258) return;
+          var tok485 = reelToken() || "";
+          fetch("/api/reels?friends=1", { headers: tok485 ? { "Authorization": "Bearer " + tok485 } : {} })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+              if (!j || !Array.isArray(j.reels)) return;
+              if (Reels.friends || Reels._friendsCache258) return; // the entry path got there first — never stomp it
+              Reels._friendsCache258 = j.reels; Reels._friendsCacheTok258 = reelToken() || "";
+              try { localStorage.setItem("rpFriendsList265", JSON.stringify({ t: reelToken() || "", at: Date.now(), b: RP_BUILD463, reels: j.reels })); } catch (e) { }
+              for (var i = 0; i < j.reels.length && i < 120; i++) { var rr485 = j.reels[i]; if (rr485 && rr485.poster) rpWarmImg482(rr485.poster); }
+            }).catch(function () { });
+        } catch (e) { }
       }
       /* Scroll-ahead: keep the warm window ~6 items past the
          deepest tile the member has reached in the grid. Bound
@@ -28149,6 +28198,7 @@
             if (j && j.ok && Array.isArray(j.reels)) {
               if (fetchFriends128) { Reels._friendsLoaded = true; Reels._friendsCache258 = j.reels; Reels._friendsCacheTok258 = fyT || ""; } // [RP-V7.258] (A)
               try { localStorage.setItem(fetchFriends128 ? "rpFriendsList265" : "rpForYouList265", JSON.stringify({ t: fyT || "", at: Date.now(), b: RP_BUILD463, reels: j.reels })); } catch (e) { } // [RP-V7.265] persist so the NEXT cold open paints instantly too; the friends list is CACHED (keyed to the account token) so a return visit paints it on the tap and this fetch just refreshes it — [RP-V7.463] the snapshot now also carries the client build tag (b) for rpSnapRead463's build tie
+              if (fetchFriends128) { try { for (var fwi485 = 0; fwi485 < j.reels.length && fwi485 < 120; fwi485++) { var frp485 = j.reels[fwi485]; if (frp485 && frp485.poster) rpWarmImg482(frp485.poster); } } catch (e) { } } // [RP-V7.485] friends posters warm as the list lands — the next Friends open paints instantly
               Reels.serverOk = true;
               if (fetchFriends128 !== !!Reels.friends) return; // [RP-V7.258] (A) stale-mode response — the view it was fetched for is gone; never stomp the list the member is looking at
               Reels.server = j.reels;
@@ -40086,7 +40136,11 @@ button.rp72-chip{ cursor:pointer; }
     stopPoll();
     if (!acctRec()) { toast2("Messages need an account — sign up or log in first 💬", 4000); return; }
     if (typeof window.openSheet !== "function") { toast2("Open Messages from the Plaza home 💬", 3000); return; }
-    renderInboxShell('<p class="age-note" style="margin-top:10px">Loading your messages…</p>');
+    /* [RP-V7.485] SWR: a visited inbox repaints its rows from the
+       last payload on the tap itself; the fetch below refreshes
+       them behind. A first-ever open keeps the loading line. */
+    if (inboxData && inboxData.ok) { renderInboxShell(""); try { renderInboxRows(); } catch (e) { } }
+    else renderInboxShell('<p class="age-note" style="margin-top:10px">Loading your messages…</p>');
     api("/api/dm/threads", "GET").then(function (r) {
       if (!$("rpDmRows")) return; /* inbox screen moved on */
       if (r.json && r.json.ok) {
@@ -40098,6 +40152,19 @@ button.rp72-chip{ cursor:pointer; }
       }
     });
   }
+  /* [RP-V7.485] Boot prefetch: the threads payload lands quietly a
+     few seconds after boot, so even the session's FIRST inbox open
+     paints from the cache above (openInbox still refreshes behind
+     the paint). Fills the cache only — never opens the sheet,
+     never starts the poll. */
+  setTimeout(function () {
+    try {
+      if (inboxData || !acctRec()) return;
+      api("/api/dm/threads", "GET").then(function (r) {
+        if (r.json && r.json.ok && !inboxData) { inboxData = r.json; setBadge(r.json.unreadTotal || 0); }
+      }).catch(function () { });
+    } catch (e) { }
+  }, 6000);
   function renderInboxShell(inner) {
     var ovIb = document.getElementById("overlay"); // [RP-V7.249] the Inbox list is a full SCREEN now, not a sheet (Branden, Nov 5 17:38: the old Messages sheet is deleted and replaced) — the same .rpdm-full flag the conversation uses; it is dropped when the overlay closes (V7.226 observer) or when a member profile opens from a thread
     if (ovIb) ovIb.classList.add("rpdm-full");
@@ -42484,7 +42551,7 @@ button.rp72-chip{ cursor:pointer; }
       ? (window.RPText278 ? window.RPText278.tileHtml(it) : "")
       : it.kind === "reel"
       ? '<video src="' + esc(it.src || "") + '"' + (it.poster ? ' poster="' + esc(it.poster) + '" preload="none"' : ' preload="metadata"') + ' muted playsinline></video><span class="rpmedia-play">▶</span>' // [RP-V7.482] a server poster paints the tile from a ~25 KB image — no video fetch, no seek; posterless reels keep the metadata path the paint gate drives
-      : '<img loading="lazy" decoding="async" src="' + esc(it.src || "") + '" alt=""/>'; // [RP-V7.257] scroll-lag audit finding 2: the V7.251 lazy/async treatment, applied to grid tiles (was: eager full-size decode on every grid)
+      : '<img loading="lazy" decoding="async" src="' + esc(it.thumb || it.src || "") + '" alt=""/>'; // [RP-V7.485] tiles paint the server ~720px variant when one rides the item (full-size original only in the viewer) // [RP-V7.257] the V7.251 lazy/async treatment
     return '<button type="button" class="rpmedia-tile" data-rpkind="' + it.kind + '" data-rpid="' + esc(it.id || "") + '" data-rpowner="' + esc(it.owner || "") + '" data-rpownername="' + esc(it.ownerName || "") + '" data-rpsrc="' + esc(it.src || "") + '" data-rpviews="' + (it.views || 0) + '">' + media + (it.photoCount > 1 ? '<span class="rpmedia-multi">▦ ×' + it.photoCount + "</span>" : "") /* [RP-V7.123] */ + '<span class="rpmedia-views">👁 ' + fmtViews(it.views || 0) + "</span></button>";
   }
   window.rpViewsTileHTML = tileHTML;
@@ -43339,7 +43406,7 @@ button.rp72-chip{ cursor:pointer; }
   function itemsFromProfile(j) {
     var items = [];
     (j.photos || []).forEach(function (url) {
-      items.push({ kind: "photo", id: url, owner: j.id, ownerName: j.name || "", src: url, views: (j.photoViews && j.photoViews[url]) || 0 });
+      items.push({ kind: "photo", id: url, owner: j.id, ownerName: j.name || "", src: url, thumb: (j.photoThumbs && j.photoThumbs[url]) || "", /* [RP-V7.485] */ views: (j.photoViews && j.photoViews[url]) || 0 });
     });
     (j.reels || []).forEach(function (r) {
       items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", poster: r.poster || "", locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: r.views || 0,
@@ -43384,10 +43451,10 @@ button.rp72-chip{ cursor:pointer; }
   // the profile page so both render the same profile.
   function profItems(j) {
     var items = itemsFromProfile(j);
-    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, locked: !!pp.locked, subsOnly: !!pp.subsOnly, clubOnly: !!pp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: pp.locked ? 1 : ((pp.urls || []).length || 1) /* [RP-V7.123] */,
+    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, thumb: pp.photoThumb || (pp.thumbUrls && pp.thumbUrls[0]) || "", /* [RP-V7.485] */ locked: !!pp.locked, subsOnly: !!pp.subsOnly, clubOnly: !!pp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: pp.locked ? 1 : ((pp.urls || []).length || 1) /* [RP-V7.123] */,
       // [RP-V7.241] the full feed-item shape, for the lightbox rail
       caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: pp.commentCount || 0, reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine }); });
-    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, poster: fp.poster || "", /* [RP-V7.484] feed videos carry their server poster into the tile */ locked: !!fp.locked, subsOnly: !!fp.subsOnly, clubOnly: !!fp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ allowDownloads: fp.allowDownloads !== false, /* [RP-V7.316] */ caption: fp.text || "", likes: fp.likes || 0, myLiked: !!fp.likedByMe, comments: Array.isArray(fp.comments) ? fp.comments : [], commentCount: fp.commentCount || 0, reposts: fp.reposts || 0, myReposted: !!fp.myReposted, giftCount: fp.giftCount || 0, /* [RP-V7.409] the lightbox/player Feed rail state */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
+    (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, poster: fp.poster || "", /* [RP-V7.484] feed videos carry their server poster into the tile */ thumb: fp.thumb || "", /* [RP-V7.485] feed photos carry their server variant into the tile */ locked: !!fp.locked, subsOnly: !!fp.subsOnly, clubOnly: !!fp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ allowDownloads: fp.allowDownloads !== false, /* [RP-V7.316] */ caption: fp.text || "", likes: fp.likes || 0, myLiked: !!fp.likedByMe, comments: Array.isArray(fp.comments) ? fp.comments : [], commentCount: fp.commentCount || 0, reposts: fp.reposts || 0, myReposted: !!fp.myReposted, giftCount: fp.giftCount || 0, /* [RP-V7.409] the lightbox/player Feed rail state */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
     var order = {}; (j.pins || []).forEach(function (pn, ix) { order[pn.kind + ":" + pn.id] = ix; });
     var pinned = [], rest = [];
     items.forEach(function (it) { (order[it.kind + ":" + it.id] !== undefined ? pinned : rest).push(it); });
@@ -43461,8 +43528,12 @@ button.rp72-chip{ cursor:pointer; }
         .then(function (j) {
           if (!j || !j.ok) return;
           lastProfile86 = j;
-          /* [RP-V7.426] paint the grid only after the reels top-up, so
-             a >12-reel member's newest reels are in the first paint. */
+          /* [RP-V7.485] paint NOW from the payload; the V7.426 top-up
+             repaints when it lands (the tk417 screen's own pattern).
+             The old order held the whole grid hostage to a second,
+             sequential fetch — seconds of black on Profile opens. */
+          fillGrid(el, profItems(j), { emptyHtml: '<p class="age-note" style="grid-column:1/-1;">No photos or reels yet — add a photo above and it lands here with its view count.</p>' });
+          profDecorate(el, j, true);
           rpTopUpProfileReels426(j).then(function () {
             if (lastProfile86 !== j) return;
             fillGrid(el, profItems(j), { emptyHtml: '<p class="age-note" style="grid-column:1/-1;">No photos or reels yet — add a photo above and it lands here with its view count.</p>' });
@@ -53629,13 +53700,14 @@ html, body { overflow-x: clip; }
       var acts = window.rpFeedActs241 || {};
       var fi = { postId: pp.id, author: pp.author || "", authorId: null, caption: pp.caption || "", likes: pp.likes || 0, myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine };
       var urls = (Array.isArray(pp.urls) && pp.urls.length) ? pp.urls : (pp.photo ? [pp.photo] : []);
+      var disp243 = urls.map(function (u, i2) { return (pp.thumbUrls && pp.thumbUrls[i2]) || (i2 === 0 && pp.photoThumb) || u; }); // [RP-V7.485] cards paint the ~720px variants; the lightbox (gridItem243) keeps the full-size urls
       var face = "";
       try { if (typeof personFace === "function") face = personFace({ name: pp.author || "Someone" }); } catch (e) { }
       if (!face) face = '<span class="pface pface-init">' + esc243((pp.author || "?").charAt(0).toUpperCase() || "?") + "</span>";
       var photoHtml;
       if (pp.kind === "text") photoHtml = window.RPText278 ? window.RPText278.cardHtml(pp, 26) : '<span class="mom-nomedia" aria-hidden="true"></span>'; // [RP-V7.278] the styled text card IS the media
-      else if (urls.length > 1) photoHtml = '<span class="mom-flip" style="display:block;"><img loading="lazy" decoding="async" src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/><button type="button" class="ff-zone prev" data-fbflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-fbflip="1" aria-label="Next photo"></button><span class="ff-count">1/' + urls.length + "</span></span>";
-      else if (urls.length) photoHtml = '<img loading="lazy" decoding="async" src="' + esc243(urls[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/>'; // [RP-V7.257] finding 2: Home stream photos get the V7.251 lazy/async treatment (was: 30/30 eager full-size decodes)
+      else if (urls.length > 1) photoHtml = '<span class="mom-flip" style="display:block;"><img loading="lazy" decoding="async" src="' + esc243(disp243[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/><button type="button" class="ff-zone prev" data-fbflip="-1" aria-label="Previous photo"></button><button type="button" class="ff-zone next" data-fbflip="1" aria-label="Next photo"></button><span class="ff-count">1/' + urls.length + "</span></span>";
+      else if (urls.length) photoHtml = '<img loading="lazy" decoding="async" src="' + esc243(disp243[0]) + '" alt="Photo posted by ' + esc243(pp.author || "") + '"/>'; // [RP-V7.485] variant, not the multi-MB original // [RP-V7.257] finding 2: Home stream photos get the V7.251 lazy/async treatment (was: 30/30 eager full-size decodes)
       else photoHtml = '<span class="mom-nomedia" aria-hidden="true"></span>';
       var ico = window.RPICO || {};
       var card = document.createElement("article");
@@ -53666,7 +53738,7 @@ html, body { overflow-x: clip; }
         z.addEventListener("click", function () {
           var n = urls.length; if (n < 2) return;
           idx = (((idx + parseInt(z.getAttribute("data-fbflip"), 10)) % n) + n) % n;
-          var im = card.querySelector(".mom-flip img"); if (im) im.src = urls[idx];
+          var im = card.querySelector(".mom-flip img"); if (im) im.src = disp243[idx]; // [RP-V7.485]
           var ct = card.querySelector(".ff-count"); if (ct) ct.textContent = (idx + 1) + "/" + n;
         });
       });
@@ -62905,11 +62977,48 @@ window.rpOpenSavedSheet349 = function () {
     paintScrData();
   }
 
+  /* [RP-V7.485] The Profile screen's last payload, kept on disk
+     (token-tied + build-tied, the V7.463 snapshot discipline) so a
+     cold session's first Profile tap paints from the seed while
+     the fetch refreshes behind — Branden's Nov 22 recording had
+     Profile black for ~3 s on exactly that open. */
+  var SCR_SEED_KEY485 = "rpProfileSeed485";
+  function scrSeedRead485() {
+    try {
+      var raw = localStorage.getItem(SCR_SEED_KEY485); if (!raw) return null;
+      var sd = JSON.parse(raw);
+      var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null");
+      var tok = (a && a.token) || "";
+      var mb = document.querySelector('meta[name="rp-build"]');
+      if (!sd || sd.t !== tok || !sd.j || !sd.j.ok) return null;
+      if (sd.b !== ((mb && mb.getAttribute("content")) || "")) return null;
+      return sd.j;
+    } catch (e) { return null; }
+  }
+  function scrSeedWrite485(j) {
+    try {
+      var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null");
+      var mb = document.querySelector('meta[name="rp-build"]');
+      localStorage.setItem(SCR_SEED_KEY485, JSON.stringify({ t: (a && a.token) || "", b: (mb && mb.getAttribute("content")) || "", at: Date.now(), j: j }));
+    } catch (e) { }
+  }
+
   function paintScrData() {
     ensureScrPlus();
     var id = myId(); if (!id) return;
+    /* [RP-V7.485] SWR: the last payload paints BEFORE the fetch —
+       in-session from memory, cold from the local seed; the fetch's
+       return repaints with fresh data (and re-seeds). */
+    if (scrData) paintScrApply485(scrData);
+    else { var seed485 = scrSeedRead485(); if (seed485) paintScrApply485(seed485); }
     api("/api/social/profile?id=" + encodeURIComponent(id)).then(function (j) {
       if (!j || !j.ok) return;
+      scrSeedWrite485(j); // [RP-V7.485]
+      paintScrApply485(j);
+    });
+  }
+
+  function paintScrApply485(j) {
       scrData = j;
       ensureScrPlus();
       var nm = $("tk417ScrName"); if (nm) nm.textContent = j.name || "Your profile";
@@ -62935,7 +63044,6 @@ window.rpOpenSavedSheet349 = function () {
       }
       if (window.rpTopUpProfileReels426) window.rpTopUpProfileReels426(j).then(function () { if (scrData === j) paintScrGrid(); }); // [RP-V7.426] newest reels join the grid once the top-up lands
       paintScrGrid();
-    });
   }
 
   function paintScrGrid() {
