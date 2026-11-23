@@ -27,7 +27,7 @@
     <title>Rizz Plaza</title>
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
-<meta name="rp-build" content="RP-V7.485" /> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. -->
+<meta name="rp-build" content="RP-V7.486" /> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. -->
 <!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
     <style>
       :root {
@@ -4357,7 +4357,7 @@
        pass through to the card/player beneath, aria-hidden keeps it
        out of the accessibility tree. Stand-ins deliberately carry
        NONE of the wired classes (.gift, .pp-del243, .remix, .repost,
-       .rp-save349, .pp-dl316, .pp-ai245) — no delegated or queried
+       .rp-save349, .pp-dl316, .pp-ai245, .collab453) — no delegated or queried
        handler can ever land on one. attrs462 injects extra
        attributes (the pager's owner-fill marker rides the Delete
        stand-in). */
@@ -4372,6 +4372,7 @@
       if (kind === "remix") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + ">" + (I.remix || "") + "<span>Remix</span></span>";
       if (kind === "dl") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + '><span style="font-size:19px;line-height:1;">⬇</span><span>Save</span></span>';
       if (kind === "ai") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + '><span style="font-size:19px;line-height:1;">✨</span><span>AI Filter</span></span>';
+      if (kind === "collab") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + '><span style="font-size:19px;line-height:1;">🤝</span><span>Collab</span></span>'; // [RP-V7.486] the Collaborator slot holds its place where the viewer is neither the reel's author nor its collaborator
       return "";
     };
     </script>
@@ -10699,6 +10700,9 @@
              or for the author (account-id test, the Delete button's
              own pattern below). When off it is absent entirely. */
           if (window.rpGiftCount262 && window.rpGiftCount262.seed) fi241.giftCount = window.rpGiftCount262.seed("reel", fi241.id, fi241.giftCount); // [RP-V7.325] the profile player is rebuilt from the held profile payload after an in-viewer gift — seed its count from the registry
+          var myId486 = ""; try { myId486 = rpMyId243() || ""; } catch (e) { } // [RP-V7.486] the session account id — fi241.mine compares meta.owner to Online.myId, the socket id, so it cannot be the collab test (the V7.460 note)
+          var collabMine486 = !!(meta.owner && myId486 && String(meta.owner) === String(myId486)); // [RP-V7.486] the reel's author
+          var collabMe486 = !!(fi241.collabId && myId486 && String(fi241.collabId) === String(myId486)); // [RP-V7.486] its collaborator
           var dlOk316 = meta.allowDownloads !== false || !!(meta.owner && meta.owner === rpMyId243());
           var dlBtn316 = dlOk316 ? '<button class="reel-act pp-dl316" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span>Save</span></button>' : window.rpRailPh462("dl"); // [RP-V7.462] downloads off: the download-Save slot holds its place
           if (meta.feedPost) {
@@ -10729,6 +10733,7 @@
               (fi241.mine
                 ? '<span class="reel-act gc262-static gs402" aria-hidden="true">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(fi241.id) + '"' + ((fi241.giftCount || 0) > 0 ? ">" + fi241.giftCount : ' style="display:none">') + "</span></span>" /* [RP-V7.462] your own reel: the count chip, always in the layout (the span hides at zero, the slot never does) */ /* [RP-V7.262] your own reel: the count alone */
                 : '<button class="reel-act gift pp-gift gs402" type="button" aria-label="Gift">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(fi241.id) + '"' + ((fi241.giftCount || 0) > 0 ? ">" + fi241.giftCount : ' style="display:none">') + "</span></button>") +
+              ((collabMine486 || collabMe486) ? '<button class="reel-act collab453" type="button" aria-label="Collaborator" title="Collaborator"><span style="font-size:19px;line-height:1;">🤝</span><span>Collab</span></button>' : window.rpRailPh462("collab")) + /* [RP-V7.486] the Collaborator slot joins the player rail, immediately before Delete — the photo card's own order; author + collaborator get the button, everyone else the stand-in */
               (((meta.owner && meta.owner === rpMyId243()) || rpIsOwner435()) ? '<button class="reel-act pp-del243" type="button" aria-label="Delete"><span style="font-size:19px;line-height:1;">🗑</span><span class="del-lbl412">Delete</span></button>' : window.rpRailPh462("del")); // [RP-V7.462] fixed slots in the pager's relative order; a stand-in where an action does not apply
           }
           railHtml241 = '<div class="reel-rail">' + railHtml241 + "</div>";
@@ -10774,6 +10779,7 @@
             var rb241 = wrap241.querySelector(".repost"); if (rb241) rb241.addEventListener("click", function () { reelToggleRepost(fi241, wrap241); });
             var db243 = wrap241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/reel/" + encodeURIComponent(meta.id)).then(function (ok) { if (ok) rpAfterDel243("Reel deleted"); else { try { toast("Couldn't delete that reel."); } catch (e) { } } }); }); });
             var dlb316 = wrap241.querySelector(".pp-dl316"); if (dlb316) dlb316.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute316 = null; if (meta && meta.id && (String(url).indexOf("/reel-files/") >= 0 || String(url).indexOf("/photos/feed/") >= 0)) dlRoute316 = (meta.feedPost ? "/api/feed/" : "/api/reel/") + encodeURIComponent(meta.id) + "/download"; window.rpDownloadVideo316(dlRoute316, url); } }); // [RP-V7.316] rendered only when the post allows downloads; server files go through the stamped route
+            var cb486 = wrap241.querySelector(".collab453"); if (cb486) cb486.addEventListener("click", function () { if (window.rpCollabManage453) window.rpCollabManage453("reel", fi241); }); // [RP-V7.486] the player rail's Collaborator button — the same sheet the reel About row opens (its own no-refresh pattern)
             }
           }
         }
@@ -26837,6 +26843,7 @@
           return;
         }
         feed.innerHTML = "";
+        var myAcctId486 = ""; try { var ra486 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); myAcctId486 = (ra486 && ((ra486.user && ra486.user.id) || ra486.userId || ra486.id)) || ""; } catch (e) { } /* [RP-V7.486] the session account id, read the way rpMyId243/myAccountId read it — the V7.453 collab test below compared collabId to Online.myId, which is the socket id and never an account id (the V7.460 note), so the 🤝 could only ever render for the author (server-set p.mine), never for the collaborator */
         Moments.posts.forEach(function (p) {
           var card = document.createElement("article");
           card.className = "mom-card"; card.setAttribute("data-mid", p.id);
@@ -26872,7 +26879,7 @@
               (p.mine ? "" : '<button class="mom-act gift" type="button" aria-label="Gift">' + RPICO.gift + '<span class="gf-lb416">Gift</span>' + (p.srv ? ' <span class="gc262" data-gc262="photo:' + escHtml(p.id) + '"' + ((p.giftCount || 0) > 0 ? ">" + p.giftCount : ' style="display:none">') + "</span>" : "") + "</button>") + /* [RP-V7.262] the post's gift count, in this row's own count idiom — server posts only (a demo post has no server record to count against) */
               '<button class="mom-act share" type="button" aria-label="Share" title="Share">' + RPICO.share + '</button>' + // [SHARE-ICON] RP-V7.381 icon-only share pill (Branden) — [RP-V7.243] Facebook parity: Share on every photo post
               (p.srv ? '<button class="mom-act rp-save349" type="button" aria-label="Save" data-save349="photo:' + escHtml(p.id) + '">' + RPICO.bookmark + ' <span class="sv-lb349 sv-lb413">Save</span></button>' : "") + /* [RP-V7.409] Save joins the Moments card (server posts only — the same rule as its Repost) */
-              (p.srv && (p.mine || (p.collabId && typeof Online !== "undefined" && Online.myId && p.collabId === Online.myId)) ? '<button class="mom-act collab453" type="button" aria-label="Collaborator" title="Collaborator">🤝</button>' : "") + /* [RP-V7.453] collab manage — the author and the collaborator only */
+              (p.srv && (p.mine || (p.collabId && myAcctId486 && String(p.collabId) === String(myAcctId486))) ? '<button class="mom-act collab453" type="button" aria-label="Collaborator" title="Collaborator">🤝</button>' : "") + /* [RP-V7.453] collab manage — the author and the collaborator only */ /* [RP-V7.486] collaborator test now reads the session account id (myAcctId486), not Online.myId the socket id */
               (p.srv && (p.mine || rpIsOwner435()) ? '<button class="mom-act pp-del243" type="button" aria-label="Delete">🗑 <span class="del-lbl412">Delete</span></button>' : "") + /* [RP-V7.409] your own post — delete it right here */
             '</div>'; /* [RP-V7.107] reactions removed everywhere (Branden) */
           card.querySelector(".like").addEventListener("click", function () { momToggleLike(p.id); });
@@ -29439,6 +29446,8 @@
         try {
           var wa303 = JSON.parse(localStorage.getItem("rpAcct.v1") || "null");
           var myId303 = wa303 && ((wa303.user && wa303.user.id) || wa303.userId || wa303.id);
+          var authOnly486 = !!(item.server && item.authorId && myId303 && String(item.authorId) === String(myId303)); // [RP-V7.486] the author alone (whoMine303 also admits the app owner, who has no collab rights on another member's reel)
+          var collabMe486 = !!(item.collabId && myId303 && String(item.collabId) === String(myId303)); // [RP-V7.486] the accepted/pending collaborator
           whoMine303 = !!(item.server && item.authorId && myId303 && (String(item.authorId) === String(myId303) || rpIsOwner435())); // [RP-V7.460] author or app owner
         } catch (e) { }
         card.innerHTML =
@@ -29459,6 +29468,7 @@
             (item.mine
               ? (item.server ? '<span class="reel-act gc262-static gs402" aria-hidden="true">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(item.id) + '"' + ((item.giftCount || 0) > 0 ? ">" + item.giftCount : ' style="display:none">') + "</span></span>" : window.rpRailPh462("gift")) /* [RP-V7.462] your own server reel: the count chip is ALWAYS in the layout (still no button — never gift yourself); its count span drops data-gc-host so the V7.262 registry paints it exactly like a gift-button count — the span hides at zero, the slot never does. A local pending reel holds the slot with a stand-in. */ /* [RP-V7.262] your own reel: no gift button (never gift yourself) — the count alone */
               : '<button class="reel-act gift gs402" type="button" aria-label="Gift">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(item.id) + '"' + ((item.giftCount || 0) > 0 ? ">" + item.giftCount : ' style="display:none">') + "</span></button>") +
+            ((authOnly486 || collabMe486) ? '<button class="reel-act collab453" type="button" aria-label="Collaborator" title="Collaborator"><span style="font-size:19px;line-height:1;">🤝</span><span>Collab</span></button>' : window.rpRailPh462("collab")) + /* [RP-V7.486] the Collaborator slot joins the reel rail, immediately before Delete — the photo card's own order (… Save, 🤝, Delete); the author and the collaborator get the button (the V7.453 rule), everyone else gets the stand-in so the rail's geometry never moves */
             ((whoMine303 || (item.server && rpIsOwner435())) ? '<button class="reel-act pp-del243" type="button" aria-label="Delete"><span style="font-size:19px;line-height:1;">🗑</span><span class="del-lbl412">Delete</span></button>' : (item.server ? window.rpRailPh462("del", ' data-rpown462="del"') : window.rpRailPh462("del"))) + /* [RP-V7.462] not the author (or the owner verdict has not landed): the Delete slot holds its place; a server reel's stand-in carries the owner-fill marker */ /* [RP-V7.400] your own server reel — delete it right here (authorship by account id: the whoMine303 test) */
             (canRemix ? '<button class="reel-act remix" type="button">' + RPICO.remix + '<span>Remix</span></button>' : window.rpRailPh462("remix")) + /* [RP-V7.462] remix not allowed on this reel: the Remix slot holds its place */
             /* [RP-V7.106] Branden: "Move the icons" — the 👁 views moved
@@ -29818,6 +29828,8 @@
         if (rpb) rpb.addEventListener("click", function () { reelToggleRepost(item, card); }); // [RP-V7.89]
         var db400 = card.querySelector(".pp-del243"); // [RP-V7.400]
         if (db400) rpWireReelDel462(card, item, db400); // [RP-V7.462] one wire for the build-time button and the owner-probe fill alike
+        var cb486 = card.querySelector(".collab453"); // [RP-V7.486] the reel rail's Collaborator button — the same sheet the photo cards and the About row open, with the pager's own refresh
+        if (cb486) cb486.addEventListener("click", function () { if (window.rpCollabManage453) window.rpCollabManage453("reel", item, function () { try { renderReels(); } catch (e) { } }); });
         var gb = card.querySelector(".gift");
         if (gb) gb.addEventListener("click", function () {
           // [RP-V7.104] Server reels send a REAL gift to the poster — the
@@ -42799,6 +42811,8 @@ button.rp72-chip{ cursor:pointer; }
     var ownerId = it.owner || null;
     var ownerName = it.ownerName || "";
     var mine = lbMine241(ownerId, ownerName);
+    var myId486 = myAccountId(); // [RP-V7.486] the session account id (the same source lbMine241 reads)
+    var collabMe486 = !!(it.collabId && myId486 && String(it.collabId) === String(myId486)); // [RP-V7.486] the reel's collaborator
     if (it.feedPost) {
       // [RP-V7.409] A Feed video post: its engagement lives in the
       // Feed store, not the reel store — and it now carries the
@@ -42842,6 +42856,7 @@ button.rp72-chip{ cursor:pointer; }
     if ((ownerId || ownerName) && !mine) html += lbGiftBtn262("reel", it.id, it.giftCount || 0); // [RP-V7.262] server reels carry their count
     else if (mine) html += lbGiftMine262("reel", it.id, it.giftCount || 0); // [RP-V7.262] your own reel: the count alone
     else html += window.rpRailPh462("gift"); // [RP-V7.462] no owner on record: the Gift slot holds its place
+    html += (mine || collabMe486) ? '<button class="reel-act collab453" type="button" aria-label="Collaborator" title="Collaborator"><span style="font-size:19px;line-height:1;">🤝</span><span>Collab</span></button>' : window.rpRailPh462("collab"); // [RP-V7.486] the Collaborator slot joins the viewer rail, immediately before Delete — the photo card's own order; author + collaborator get the button, everyone else the stand-in
     html += (mine || rpIsOwner435()) ? '<button class="reel-act pp-del243" type="button" aria-label="Delete"><span style="font-size:19px;line-height:1;">🗑</span><span class="del-lbl412">Delete</span></button>' : window.rpRailPh462("del"); // [RP-V7.243] your reel — delete it right here // [RP-V7.462] fixed slots in the pager's relative order; a stand-in where Delete does not apply
     return {
       html: '<div class="reel-rail">' + html + "</div>",
@@ -42854,6 +42869,8 @@ button.rp72-chip{ cursor:pointer; }
         var r = root.querySelector(".repost"); if (r && acts.reelToggleRepost) r.addEventListener("click", function () { acts.reelToggleRepost(fi, root); });
         var d243 = root.querySelector(".pp-del243");
         if (d243) d243.addEventListener("click", function () { lbDel243("reel", it.id, d243); });
+        var cb486 = root.querySelector(".collab453"); // [RP-V7.486] the viewer rail's Collaborator button — the same sheet the reel About row opens
+        if (cb486) cb486.addEventListener("click", function () { if (window.rpCollabManage453) window.rpCollabManage453("reel", fi); });
       },
     };
   }
@@ -63103,6 +63120,52 @@ window.rpOpenSavedSheet349 = function () {
 .rp-rem-c453 { display: flex; gap: 8px; margin-top: 8px; }
 .rp-rem-c453 .btn-mini { flex: 1; min-height: 38px; }
 </style>
+<style>
+/* [RP-V7.486] MOMENTS RAIL CLIP FIX (Branden, Nov 22, 2026: "One button
+   don't show anything" / "the top of screen don't show the whole
+   button"): the Moments card rail (.mom-acts) is bottom-anchored
+   (bottom:84px) with NO top bound, and a full rail measures 406px
+   tall (7 slots: author / collaborator / app-owner seats) against a
+   421px card on a 390px phone and a 386px card on a 360px phone —
+   slot 1 (Like, always the first slot) painted at relTop −69px /
+   −104px, ENTIRELY above the card's top edge where
+   .mom-card{overflow:hidden} cuts it off, and slot 2 (Comment)
+   clipped with it; even the 6-slot stranger rail overflowed 8px at
+   390px wide (rig-measured, geometry-before.json). The rail is now
+   BOUNDED inside the card — top:10px + bottom:48px with
+   justify-content:flex-end — and its buttons may compress
+   (flex-shrink, 42px floor; 38px + tighter gap/icons under 375px)
+   so any shortfall is absorbed by the buttons instead of spilling
+   past the card's top edge; the 10px top inset doubles as a spill
+   buffer. The bottom reserve drops 84→48: the caption it cleared
+   stops at right:76px, 11px clear of the rail's own column, so the
+   rail may sit beside it. No-media cards (media box ~220px) can
+   never fit a vertical rail, so their actions take the in-flow row
+   the Home cards already use. Home cards, the pager rail and the
+   player/lightbox rails are untouched. */
+#screen-moments .mom-card .mom-acts {
+  top: 10px;
+  bottom: 48px;
+  justify-content: flex-end;
+  gap: 10px;
+}
+#screen-moments .mom-card .mom-act {
+  flex: 0 1 auto;
+  min-height: 42px;
+}
+@media (max-width: 374px) {
+  #screen-moments .mom-card .mom-acts { gap: 8px; }
+  #screen-moments .mom-card .mom-act { min-height: 38px; padding: 5px 0 3px; }
+  #screen-moments .mom-card .mom-act svg { width: 18px; height: 18px; }
+}
+#screen-moments .mom-card:has(.mom-nomedia) .mom-acts {
+  position: static;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding: 6px 10px 4px;
+}
+</style>
 <script>
 /* [RP-V7.453] COLLAB POSTS — client bridge. The server carries the
    state (record.collab on the post/reel — see the server module);
@@ -63123,7 +63186,7 @@ window.rpOpenSavedSheet349 = function () {
     });
   }
   function acct453() { try { return JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); } catch (e) { return null; } }
-  function myId453() { var a = acct453(); return (a && a.user && a.user.id) || ""; }
+  function myId453() { var a = acct453(); return (a && ((a.user && a.user.id) || a.userId || a.id)) || ""; } // [RP-V7.486] the full session-record chain (the rpMyId243/myAccountId idiom): the saved session is the FLAT record adoptSession/saveAcct writes — {token, userId, ...} with no user object — so the old a.user.id-only read returned "" for every real session and rpCollabManage453 returned false for everyone: the collab sheet could never open, from any surface. The server endpoints were always kind-generic; this read was the break.
   function token453() { var a = acct453(); return (a && a.token) || ""; }
   function toast453(msg) { if (typeof window.toast === "function") window.toast(msg, 3200); }
   function close453() { if (typeof window.closeSheet === "function") window.closeSheet(); }
