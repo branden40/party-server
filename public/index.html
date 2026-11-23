@@ -27,7 +27,7 @@
     <title>Rizz Plaza</title>
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
-<meta name="rp-build" content="RP-V7.486" /> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. -->
+<meta name="rp-build" content="RP-V7.488" /> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. --> <!-- [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE (Branden, Nov 22, 2026): his recording showed the Home For You pager landing on pure black for ~5 s and a reel sitting frozen; ordered corrected "like the other reels", chose the grid, added "Plus swipe", then scoped it himself — "This is on the for you button": the FOR YOU tab's mixed stream (reels + photo posts + text posts, the pager's own homeItems() list, same order) now paints as a poster/thumbnail grid in #homeGrid488 (fillGrid tiles — reel posters from V7.482, photo ~720px variants from V7.485, text tiles in the RPText278 style), pre-warmed the V7.482 way (reel posters already ride rpPrewarm482; photo variants now warm inside pagerPhotosFetch123; a scroll-ahead wire keeps the window ahead of the member). Tap a tile -> the sheet player (reels play with the full V7.462/V7.486 rail incl. the handshake; photos and text posts open in the same media viewer they always did); PLUS SWIPE inside the player walks the GRID'S list across types (reel -> photo -> text -> reel) via a mixed session in the lightbox (lbHomeNav488) built on the V7.461 gesture wire — every landing behaves exactly as if tapped (view-once is the existing rpViewsPing per-session dedupe for reels and photo posts; text posts never ping, as today), no wrap at the ends, neighbours warm through the V7.483 fetcher hook, Back returns to the grid at the same scroll position (the grid is never unloaded under the sheet). FOLLOWING KEEPS ITS PAGER, byte for byte: renderHomePager branches on the tab — foryou goes to rpHomeGridRender488, following runs the original pager body untouched, and the V7.468 snap machinery retires only where the pager no longer renders (For You). One mapper repair rides along: pagerPhotoMap123 silently DROPPED text posts (a text post has no photo URLs, and the mapper returned null on an empty url list), so text posts never reached the Home pager at all; the mapper now carries them (kind/text/tstyle ride the item, plus photoThumb/thumbUrls for the tiles), so no content type is missing from Home. GLOW RULE CHANGE (Branden, same night, superseding the Nov 6 exception): "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing" — the Home strip's Plaza tab loses its always-on strongest-red glow; its glow rule now keys off .on like every other tab (the true-red look is kept for the active state; Following/For You and the bottom bar are untouched). Client-only; the V7.487 server already returns every field the grid reads. -->
 <!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
     <style>
       :root {
@@ -877,6 +877,12 @@
       #hsSearch { background: none; border: none; color: #fff; font-size: 19px; cursor: pointer; padding: 4px 6px; }
       #homePager { height: calc(100dvh - 158px); min-height: 340px; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; background: #000; }
       #homePager::-webkit-scrollbar { display: none; }
+      /* ---------- [RP-V7.488] Home For You is a GRID: #homeGridWrap488 is the pager's sibling inside #homeTop, shown only while the section carries .rp-home-grid488 (the For You tab); it takes the pager's exact box so the strip, the classic Plaza view and the Following pager are untouched. The strip floats over the grid the way it floated over the pager — the top padding keeps the first row clear of it. ---------- */
+      #homeGridWrap488 { display: none; }
+      #screen-plaza.rp-home-grid488 #homeGridWrap488 { display: block; height: calc(100dvh - 158px); min-height: 340px; overflow-y: auto; scrollbar-width: thin; padding: 58px 2px 14px; background: #000; }
+      #screen-plaza.rp-home-grid488 #homePager { display: none; }
+      #homeGrid488 { gap: 3px; }
+      #homeGridEmpty488 .hp-empty { color: rgba(255,255,255,.75); font-weight: 700; text-align: center; padding: 64px 24px; line-height: 1.6; }
       .hp-slide { position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; overflow: hidden; background: #000; }
       .hp-slide video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
       .hp-grad { position: absolute; left: 0; right: 0; bottom: 0; height: 34%; background: linear-gradient(0deg, rgba(0,0,0,.55), rgba(0,0,0,0)); pointer-events: none; }
@@ -27494,10 +27500,10 @@
       var PagerPhotos123 = { loaded: false, items: [] };
       var pagerPhotoAuthors123 = {};
       function pagerPhotoMap123(sp) {
-        if (sp.locked) { // [RP-V7.296] a locked photo post still rides the pager — as its placeholder (no urls, no caption)
+        if (sp.locked) { // [RP-V7.296] a locked photo post still rides the pager — as its placeholder (no urls, no caption) // [RP-V7.488] its kind rides too, so a locked TEXT post tiles as a lock, never as a phantom photo
           return {
             id: "ph:" + sp.id, key: "ph:" + sp.id, photoPost: true, postId: sp.id,
-            url: "", urls: [], locked: true, subsOnly: !!sp.subsOnly, clubOnly: !!sp.clubOnly, // [RP-V7.298] real flags ride (was a hardcoded subsOnly)
+            url: "", urls: [], locked: true, subsOnly: !!sp.subsOnly, clubOnly: !!sp.clubOnly, textPost: sp.kind === "text", kind: sp.kind || "photo", // [RP-V7.298] real flags ride (was a hardcoded subsOnly) // [RP-V7.488]
             author: sp.author || "Someone",
             authorId: sp.authorId || "",
             mine: false, caption: "", location: "", link: "", audience: sp.audience || "everyone", createdAt: sp.createdAt || "",
@@ -27506,10 +27512,10 @@
           };
         }
         var urls = (sp.urls && sp.urls.length) ? sp.urls.slice() : (sp.photo ? [sp.photo] : []);
-        if (!urls.length) return null;
+        if (!urls.length && sp.kind !== "text") return null; // [RP-V7.488] a text post has no photo urls BY DESIGN — the old line returned null for it, so text posts silently never reached the Home pager at all; they ride now (the grid tiles them in the RPText278 style)
         return {
           id: "ph:" + sp.id, key: "ph:" + sp.id, photoPost: true, postId: sp.id,
-          url: urls[0], urls: urls,
+          url: urls[0] || "", urls: urls,
           author: sp.author || "Someone",
           authorId: sp.mine ? (Online.acctId || "") : (pagerPhotoAuthors123[sp.author] || ""),
           mine: !!sp.mine, caption: sp.caption || "", location: sp.location || "", link: sp.link || "", audience: sp.audience || "everyone", createdAt: sp.createdAt || "",
@@ -27517,7 +27523,10 @@
           comments: Array.isArray(sp.comments) ? sp.comments.slice() : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
           music: sp.music || (sp.soundId ? { origId: sp.soundId, name: sp.soundName || "original sound", ownerName: sp.soundOwnerName || "" } : null), // [RP-V7.335] member sound carried into the pager item
-          giftCount: sp.giftCount || 0 // [RP-V7.262]
+          giftCount: sp.giftCount || 0, // [RP-V7.262]
+          photoThumb: sp.photoThumb || "", thumbUrls: (Array.isArray(sp.thumbUrls) ? sp.thumbUrls.slice() : []), // [RP-V7.488] the ~720px variants (V7.485) ride for the Home grid tiles — grids paint variants, the viewer keeps the original
+          textPost: sp.kind === "text", text: sp.text || "", tstyle: sp.tstyle || null, kind: sp.kind || "photo", // [RP-V7.488] text posts carry their body + style (RP-V7.278 fields, straight off the payload)
+          collabId: sp.collabId || null, collabName: sp.collabName || "", collabUsername: sp.collabUsername || "", collabStatus: sp.collabStatus || null // [RP-V7.488] collab byline parity with the reel items (V7.453 fields were already on the payload)
         };
       }
       function pagerPhotosFetch123() {
@@ -27529,6 +27538,7 @@
             if (!j || !j.ok || !Array.isArray(j.posts)) return;
             PagerPhotos123.items = j.posts.map(pagerPhotoMap123).filter(Boolean);
             PagerPhotos123.loaded = true;
+            try { PagerPhotos123.items.forEach(function (wi488) { if (!wi488.photoPost || wi488.locked || wi488.textPost) return; var wu488 = (wi488.thumbUrls && wi488.thumbUrls.length) ? wi488.thumbUrls : [wi488.photoThumb || wi488.url]; wu488.forEach(function (u488) { if (u488 && typeof rpWarmImg482 === "function") rpWarmImg482(u488); }); }); } catch (e) { } // [RP-V7.488] the Home grid's photo tiles paint the ~720px variants — warm them as the payload lands (4-concurrent image pump, deduped), the photo twin of rpPrewarm482's poster warm
             /* author ids (gift parity) resolved by name, capped at 12
                like the V7.119 feed enrichment */
             var names = {}, need = [];
@@ -30453,8 +30463,132 @@
         var b = $("hpVerify");
         if (b) b.addEventListener("click", function () { HomeFeed.sig = ""; rpDoorGate("For You", function () { renderHomePager(); }); });
       }
+      /* ================= [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE =================
+         Branden (Nov 22, 2026): the recording showed the For You
+         pager landing pure black ~5 s and a reel sitting frozen —
+         "This need to be corrected like the other reels" -> grid,
+         "Plus swipe", scoped by him to the FOR YOU tab. So: the
+         For You stream (homeItems() — the pager's own list, same
+         order source) paints as fillGrid tiles in #homeGrid488;
+         Following renders through the ORIGINAL pager body below,
+         untouched. Tiles: reel = server poster (V7.482), photo =
+         ~720px variant (V7.485), text = RPText278 tile; locked =
+         the lock tile -> subscribe sheet (fillGrid's own routing).
+         A tap opens the sheet player through the lightbox's Home
+         session (window.rpHomeOpen488): reels play with the full
+         rail, photos/text open in the media viewer, and swiping
+         inside the player walks THIS grid's list across types.
+         The grid is never unloaded under the sheet, so Back lands
+         on the same scroll position. */
+      function rpHomeGridItem488(it) {
+        if (it.photoPost) { // the gridItem243 shape, fed from the pager item + the V7.485 variants
+          return { kind: "photopost", id: it.postId, owner: it.authorId || "", ownerName: it.author || "", src: it.url || "", thumb: (it.thumbUrls && it.thumbUrls[0]) || it.photoThumb || it.url || "", textPost: !!it.textPost, text: it.text || "", tstyle: it.tstyle || null, locked: !!it.locked, subsOnly: !!it.subsOnly, clubOnly: !!it.clubOnly, views: 0, photoCount: it.locked ? 1 : ((it.urls && it.urls.length) || 1), caption: it.caption || "", likes: it.likes || 0, giftCount: it.giftCount || 0, myLiked: !!it.myLiked, comments: Array.isArray(it.comments) ? it.comments : [], commentCount: (typeof it.commentCount === "number" ? it.commentCount : 0), reposts: it.reposts || 0, myReposted: !!it.myReposted, mine: !!it.mine, collabId: it.collabId || null, collabName: it.collabName || "", collabUsername: it.collabUsername || "", collabStatus: it.collabStatus || null, __rpHome488: true };
+        }
+        var g = rpGridItem481(it); // the Reels grid's own pager->tile mapping, reused whole
+        g.__rpHome488 = true;
+        return g;
+      }
+      function rpHomeGridItems488(items) {
+        var out = [];
+        items.forEach(function (it) {
+          if (!it) return;
+          if (it.photoPost) { if (it.locked || it.textPost || (it.urls && it.urls.length)) out.push(rpHomeGridItem488(it)); return; }
+          if (it.url || it.locked) out.push(rpHomeGridItem488(it)); // the rpGridItems481 honesty rule: a playable URL, or a locked placeholder
+        });
+        return out;
+      }
+      function rpHomeGridOpen488(it, upd, nav) {
+        /* The session list is read from the grid's LIVE state at tap
+           time (the V7.483 lesson: fillGrid's nav snapshot can be one
+           reorder stale). Every item carries the session mark, so a
+           swipe landing behaves exactly like a tap of that tile. */
+        try {
+          it.__rpHome488 = true;
+          var list488 = (HomeFeed._gridItems488 && HomeFeed._gridItems488.length) ? HomeFeed._gridItems488 : (nav && nav.items);
+          if (list488) { list488.forEach(function (x) { if (x) x.__rpHome488 = true; }); nav = { items: list488, index: -1 }; }
+        } catch (e) { }
+        if (window.rpHomeOpen488) { window.rpHomeOpen488(it, upd, nav); return; }
+        // the lightbox hook is a later script block — if it is somehow
+        // absent, the plain single-item opens still answer the tap
+        if (it.kind === "reel") { if (window.rpViewsOpenReel) window.rpViewsOpenReel(it, upd); }
+        else if (window.rpViewsOpenPhoto) window.rpViewsOpenPhoto(it, upd);
+      }
+      var rpHomeGridWarmBound488 = false;
+      function rpHomeGridWarmWire488() {
+        if (rpHomeGridWarmBound488) return;
+        var wrap = document.getElementById("homeGridWrap488"); if (!wrap) return;
+        rpHomeGridWarmBound488 = true;
+        var t488 = null;
+        wrap.addEventListener("scroll", function () {
+          if (t488) return;
+          t488 = setTimeout(function () {
+            t488 = null;
+            try { // scroll-ahead, the rpGridWarmWire482 pattern on Home's list: ~6 items past the deepest visible tile — reel bytes through the V7.482 fetcher, photo variants through the image pump
+              var items = HomeFeed._gridItems488 || [];
+              if (!items.length) return;
+              var tiles = wrap.querySelectorAll(".rpmedia-tile");
+              if (!tiles.length) return;
+              var wr = wrap.getBoundingClientRect();
+              var deepest = -1;
+              for (var i = 0; i < tiles.length; i++) { var r = tiles[i].getBoundingClientRect(); if (r.top < wr.bottom) deepest = i; else break; }
+              if (deepest < 0) return;
+              for (var k = deepest + 1; k < items.length && k <= deepest + 6; k++) {
+                var it = items[k]; if (!it) continue;
+                if (it.kind === "reel" && it.src) rpWarmVid482(it.src);
+                else if (it.kind === "photopost" && !it.textPost && it.thumb) rpWarmImg482(it.thumb);
+              }
+            } catch (e) { }
+          }, 250);
+        }, { passive: true });
+      }
+      function rpHomeGridRender488() {
+        var sec = $("screen-plaza"); if (sec) sec.classList.add("rp-home-grid488");
+        var grid = $("homeGrid488"), wrap = $("homeGridWrap488"), empty = $("homeGridEmpty488");
+        if (!grid || !wrap) return; // the container is built by initHomeFeed with the pager — its absence means Home itself never initialised
+        if (typeof rpAdultOk === "function" && !rpAdultOk()) { // the pager's 18+ door, grid edition (homeRenderGate writes into the pager element; this one writes into the grid wrap)
+          if (HomeFeed.sig === "gate") return;
+          HomeFeed.sig = "gate";
+          grid.innerHTML = "";
+          if (empty) { empty.innerHTML = '<div class="hp-empty">🔞 This feed is 18+ — verified once, then it just plays.<br/><button type="button" class="btn-primary" id="hpVerify" style="margin-top:14px; width:auto; padding:11px 22px;">Verify my age</button></div>'; empty.style.display = ""; }
+          var vb = $("hpVerify");
+          if (vb) vb.addEventListener("click", function () { HomeFeed.sig = ""; rpDoorGate("For You", function () { renderHomePager(); }); });
+          return;
+        }
+        var items = homeItems();
+        var sig = "foryou|" + items.map(function (i) { return i.key; }).join(",");
+        if (sig === HomeFeed.sig) { // [RP-V7.262] same list: gift counts still follow the fresh payload, in place — and the grid (and its scroll) is never rebuilt
+          try { if (window.rpGiftCount262) items.forEach(function (i262) { if (i262.photoPost) window.rpGiftCount262.set("photo:" + i262.postId, i262.giftCount || 0); else if (i262.server) window.rpGiftCount262.set("reel:" + i262.id, i262.giftCount || 0); }); } catch (e) { }
+          return;
+        }
+        HomeFeed.sig = sig;
+        var pager = $("homePager");
+        if (pager) pager.querySelectorAll("video").forEach(function (v) { try { v.pause(); } catch (e) { } }); // a tab switch away from Following never leaves a pager video running under the grid
+        var gitems = rpHomeGridItems488(items);
+        HomeFeed._gridItems488 = gitems;
+        if (!gitems.length) {
+          grid.innerHTML = "";
+          if (empty) { empty.innerHTML = '<div class="hp-empty">No reels yet — be the first to post one 🎬</div>'; empty.style.display = ""; }
+          return;
+        }
+        if (empty) { empty.innerHTML = ""; empty.style.display = "none"; }
+        if (window.rpViewsFillGrid) { window.rpViewsFillGrid(grid, gitems, { onReel: rpHomeGridOpen488, onPhoto: rpHomeGridOpen488 }); try { rpHomeGridWarmWire488(); } catch (e) { } return; }
+        /* fillGrid lives in a LATER script block (the rpPaintReelsGrid481
+           dependency): retry briefly until it lands; a newer render
+           supersedes this one (the _gridItems488 identity check). */
+        var tries488 = 0;
+        var retry488 = function () {
+          if (HomeFeed._gridItems488 !== gitems) return;
+          var g2 = $("homeGrid488"); if (!g2) return;
+          if (window.rpViewsFillGrid) { window.rpViewsFillGrid(g2, gitems, { onReel: rpHomeGridOpen488, onPhoto: rpHomeGridOpen488 }); try { rpHomeGridWarmWire488(); } catch (e2) { } return; }
+          if (++tries488 >= 50) { if (window.rpViewsTileHTML) g2.innerHTML = gitems.map(function (g) { return window.rpViewsTileHTML(g); }).join(""); return; }
+          setTimeout(retry488, 100);
+        };
+        setTimeout(retry488, 100);
+        try { rpHomeGridWarmWire488(); } catch (e) { }
+      }
       function renderHomePager() {
         var pager = $("homePager"); if (!pager || HomeFeed.tab === "plaza") return;
+        if (HomeFeed.tab === "foryou") { rpHomeGridRender488(); return; } // [RP-V7.488] For You is the grid now — Following falls through to the original pager body below, untouched
         if (typeof rpAdultOk === "function" && !rpAdultOk()) { homeRenderGate(pager); return; }
         var items = homeItems();
         var sig = HomeFeed.tab + "|" + items.map(function (i) { return i.key; }).join(",");
@@ -30549,6 +30683,7 @@
         HomeFeed.tab = tab;
         var sec = $("screen-plaza"); if (!sec) return;
         sec.classList.toggle("home-feedmode", tab !== "plaza");
+        sec.classList.toggle("rp-home-grid488", tab === "foryou"); // [RP-V7.488] For You = grid, Following = pager, Plaza = classic — the section class is the switch
         document.querySelectorAll("#homeStrip [data-hs]").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-hs") === tab); });
         if (tab === "following" && !HomeFeed.friendsLoaded) homeFetchFriends();
         if (tab !== "plaza") renderHomePager(); /* [RP-V7.289] no blanket sig reset here: renderHomePager's own signature (tab + ordered item keys) already rebuilds when the items actually change and early-returns — with the V7.262 in-place gift-count refresh — when they don't. The old reset forced a full teardown + rebuild of every slide (~100-183 video/photo subtrees, one uninterrupted main-thread task, plus a fresh media-fetch storm) on EVERY Following / For You tap, even when nothing had changed since the last render: the measured tab-tap freeze (rig, 8x CPU, 100-slide Following: one 350-452ms long task per tap vs 0 for Plaza taps). */
@@ -30572,7 +30707,8 @@
           "</div>" +
           '<button type="button" id="hsProfile" aria-label="My Profile"><span class="hs-pf-face" aria-hidden="true">👤</span></button>' +
           '<button type="button" id="hsSearch" aria-label="Search videos and pictures"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"m16 16 4.5 4.5\"/></svg></button></div>' +
-          '<div id="homePager"></div>';
+          '<div id="homePager"></div>' +
+          '<div id="homeGridWrap488"><div class="rpmedia-grid" id="homeGrid488"></div><div id="homeGridEmpty488" style="display:none;"></div></div>'; // [RP-V7.488] the For You grid's home — CSS shows it only in the section's grid state
         sec.insertBefore(top, sec.firstChild);
         top.querySelectorAll("[data-hs]").forEach(function (b) { b.addEventListener("click", function () { setHomeTab(b.getAttribute("data-hs")); }); });
         var lv = $("hsLive"); if (lv) lv.addEventListener("click", function () { /* [RP-V7.264] the strip button IS Go LIVE: the canonical host entry (startOwnLiveEntry — the same one btnRoomGoLive and the Live Now Go button call), never the Live Stage viewer door */ if (typeof startOwnLiveEntry === "function") { startOwnLiveEntry(); return; } var g = $("btnRoomGoLive"); if (g) { g.click(); return; } var b = $("btnOnlineHome"); if (b) b.click(); });
@@ -42875,6 +43011,7 @@ button.rp72-chip{ cursor:pointer; }
     };
   }
   function openPhoto(it, upd) {
+    lbHomeNav488 = null; // [RP-V7.488] same retirement as openReel
     if (typeof window.openSheet !== "function") return;
     var rail241 = railForPhoto241(it); // [RP-V7.241]
     window.openSheet(
@@ -42990,7 +43127,97 @@ button.rp72-chip{ cursor:pointer; }
     if (prev483 && prev483.src) window.rpWarmReelBytes483(prev483.src);
     if (next483 && next483.src) window.rpWarmReelBytes483(next483.src);
   }
+  /* [RP-V7.488] HOME-GRID PLAYER SESSIONS: the Home For You grid
+     opens through here with its full mixed list (reels, photo
+     posts, text posts — grid order). The V7.461 reel-only list
+     (lbReelList461) cannot walk it: a swipe must land on whatever
+     the grid shows next, whatever its type. So a Home session
+     keeps the WHOLE list (locked items never enter — fillGrid
+     routes their taps to the subscribe sheet before any opener
+     runs — and story items never ride a Home list), and every
+     landing paints exactly the way a tap of that tile paints:
+     paintReel461 for a reel, paintPhoto488 for a photo/text post
+     (openPhoto's body + this session's swipe wire). Views ride
+     the painters' own rpViewsPing calls, whose per-app-session
+     dedupe IS the view-once rule; text posts never ping, exactly
+     as in openPhoto. No wrap at either end (the lbGo461 rule). */
+  var lbHomeNav488 = null;
+  function lbHomeList488(nav, it) {
+    if (!nav || !Array.isArray(nav.items)) return null;
+    var list = [];
+    nav.items.forEach(function (x) {
+      if (!x || x.locked || x.story) return;
+      if (x.kind === "reel") { if (x.src) list.push(x); return; }
+      if (x.kind === "photopost") list.push(x);
+    });
+    var idx = -1;
+    for (var i = 0; i < list.length; i++) if (list[i].kind === it.kind && String(list[i].id) === String(it.id)) { idx = i; break; }
+    if (idx < 0 || list.length < 2) return null;
+    return { list: list, idx: idx };
+  }
+  function lbHomePaint488(it, upd) {
+    if (it.kind === "reel") paintReel461(it, upd);
+    else paintPhoto488(it, upd);
+  }
+  function lbHomeGo488(dir) {
+    if (!lbHomeNav488) return;
+    var n = lbHomeNav488.idx + dir;
+    if (n < 0 || n >= lbHomeNav488.list.length) return; // the ends stop cleanly — no wrap, no blank
+    lbHomeNav488.idx = n;
+    var old = document.querySelector("#sheet .rpmedia-player video");
+    if (old) { try { old.pause(); } catch (e) { } } // the previous reel pauses before the new item paints
+    lbHomePaint488(lbHomeNav488.list[n], null);
+    try { lbHomeWarm488(); } catch (e) { } // the new landing's reel neighbours warm next
+  }
+  function lbHomeWarm488() {
+    if (!lbHomeNav488 || !window.rpWarmReelBytes483) return;
+    var prev488 = lbHomeNav488.list[lbHomeNav488.idx - 1], next488 = lbHomeNav488.list[lbHomeNav488.idx + 1];
+    if (prev488 && prev488.kind === "reel" && prev488.src) window.rpWarmReelBytes483(prev488.src);
+    if (next488 && next488.kind === "reel" && next488.src) window.rpWarmReelBytes483(next488.src);
+  }
+  window.rpHomeOpen488 = function (it, upd, nav) {
+    lbNav461 = null; // a Home session supersedes any reel-only context (paintReel461 wires THIS session's swipe — see its lbHomeNav488 branch)
+    lbHomeNav488 = lbHomeList488(nav, it);
+    lbHomePaint488(it, upd);
+    try { lbHomeWarm488(); } catch (e) { }
+  };
+  function paintPhoto488(it, upd) { // [RP-V7.488] openPhoto's paint, verbatim, plus the Home session's swipe wire — a photo/text landing in a Home session
+    if (typeof window.openSheet !== "function") return;
+    var rail241 = railForPhoto241(it); // [RP-V7.241]
+    window.openSheet(
+      '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      '<div class="rpmedia-photo-view">' + (it.textPost && window.RPText278 ? window.RPText278.cardHtml(it, 24) : '<img src="' + esc(it.src || "") + '" alt=""/>') + // [RP-V7.278]
+      '<span class="rpmedia-photo-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span>" + rail241.html + "</div></div>"
+    );
+    wireSheetClose();
+    rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
+    var span = document.querySelector("[data-rpvcount]");
+    // [RP-V7.303] your own photo / photo post: the 👁 count opens
+    // Who watched. Text posts never wire (no photo, no view list).
+    // [RP-V7.460] the app owner wires it on anyone's photo too
+    // (lbMine241 itself is untouched — it also drives the gift and
+    // AI-filter treatment; only this Who watched call site widens).
+    if (span && !it.textPost && window.rpWhoWatchedWire303 && (lbMine241(it.owner || null, it.ownerName || "") || rpIsOwner435()))
+      window.rpWhoWatchedWire303(span, it.kind === "photopost" ? "photopost" : "photo", it.id, it.owner || null);
+    if (it.kind === "photopost") {
+      // [RP-V7.301] Photo posts ping their own kind — the server
+      // records the view (signed-in members, gates mirrored) for the
+      // Creator Pool. Text posts never ping (no photo to view). The
+      // lightbox's own 👁 span takes the server's number, exactly as
+      // it does for gallery photos; the grid tile's upd is NOT fed —
+      // profile tiles carry ❤ likes in that slot (RP-V7.86), never
+      // a view count, so no tile label changes.
+      if (!it.textPost) rpViewsPing("photopost", it.id, null, function (n) { if (span) span.textContent = "👁 " + fmtViews(n); });
+    } else {
+      rpViewsPing("photo", it.id, it.owner, function (n) {
+        if (span) span.textContent = "👁 " + fmtViews(n);
+        if (upd) upd(n);
+      });
+    }
+    if (lbHomeNav488) { var pv488 = document.querySelector("#sheet .rpmedia-photo-view"); if (pv488) rpWireSwipe461(pv488, lbHomeGo488); } // [RP-V7.488] the photo view carries the session's swipe, exactly like the reel player
+  }
   function openReel(it, upd, nav) {
+    lbHomeNav488 = null; // [RP-V7.488] a non-Home open retires any Home session, so its swipe can never leak onto another surface's player
     lbNav461 = lbReelList461(nav, it);
     paintReel461(it, upd);
     try { lbWarmNeighbours483(); } catch (e) { } // [RP-V7.483] a grid session opens with its swipe neighbours warming
@@ -43049,6 +43276,10 @@ button.rp72-chip{ cursor:pointer; }
     if (lbNav461) { // [RP-V7.461] swipe through the list this reel was opened from
       var pl461 = document.querySelector("#sheet .rpmedia-player");
       if (pl461) rpWireSwipe461(pl461, lbGo461);
+    }
+    else if (lbHomeNav488) { // [RP-V7.488] a Home-grid session: the same gesture walks the mixed list
+      var pl488 = document.querySelector("#sheet .rpmedia-player");
+      if (pl488) rpWireSwipe461(pl488, lbHomeGo488);
     }
   }
   window.rpViewsOpenReel = openReel;
@@ -55849,7 +56080,8 @@ html, body { overflow-x: clip; }
     #tabbar .tab-btn { text-shadow: none; }
     #tabbar .tab-btn.on, #tabbar .tab-btn.active { text-shadow: 0 0 7px rgba(254,44,44,.85), 0 0 20px rgba(254,44,44,.45), 0 0 34px rgba(254,44,44,.30); }
     #tabbar .tab-plus { box-shadow: none; }
-    #homeStrip .hs-tabs button[data-hs="plaza"] { text-shadow: 0 0 4px rgba(255,140,155,.95), 0 0 10px rgba(255,32,64,.95), 0 0 24px rgba(255,32,64,.80), 0 0 48px rgba(255,0,40,.55), 0 0 80px rgba(255,0,40,.38), 0 0 120px rgba(255,0,40,.26) !important; }
+    /* [RP-V7.488] Branden (Nov 22, 2026) removed the always-on exception himself: "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing." The very-red glow above now keys off .on — the Plaza tab wears it ONLY while it is the clicked/active tab, exactly like every other tab; unselected it falls back to the same plain readability shadow Following and For You carry. The glow's look (true red family) is unchanged for the active state. */
+    #homeStrip .hs-tabs button[data-hs="plaza"].on { text-shadow: 0 0 4px rgba(255,140,155,.95), 0 0 10px rgba(255,32,64,.95), 0 0 24px rgba(255,32,64,.80), 0 0 48px rgba(255,0,40,.55), 0 0 80px rgba(255,0,40,.38), 0 0 120px rgba(255,0,40,.26) !important; }
     #btnPlazaSide243 {
       border-color: #ffc9d2;
       background: linear-gradient(180deg, #ff2438, #e60023);
