@@ -21414,6 +21414,8 @@ const MONEY_GIFT_TABLE = {
   hatandmustache: 480, stargoggles: 560, heartbuddy: 580, pinkcowboy: 660, goldmedal: 680, crystalcrown: 760,
   // [RP-V7.449] +4 gifts (Nov 19, 2026) — batch 4 of the Boosie-video slate (the song gifts, original jingles muxed); ids + prices mirror the client's GIFT_SHOP exactly; catalog now 117 gifts — slate complete.
   nameinlights: 840, singingmushroom: 860, holyyeah: 950, rockstarset: 1050,
+  // [RP-V7.489] +5 weekly gifts (Nov 23, 2026) — ids + prices mirror the client's GIFT_SHOP exactly; catalog now 122 gifts.
+  lanternturtle: 15, discosnail: 88, tornadodancer: 370, crystaloctopus: 690, wingedlion: 1700,
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
@@ -21511,6 +21513,11 @@ const MONEY_GIFT_INFO = {
   singingmushroom: { name: "Singing Mushroom", tier: "medium" },
   holyyeah: { name: "Holy Yeah", tier: "medium" },
   rockstarset: { name: "Rock Star Set", tier: "medium" },
+  lanternturtle: { name: "Lantern Turtle", tier: "small" }, // [RP-V7.489] +5 weekly gifts Nov 23, 2026
+  discosnail: { name: "Disco Snail", tier: "small" },
+  tornadodancer: { name: "Tornado Dancer", tier: "medium" },
+  crystaloctopus: { name: "Crystal Octopus", tier: "medium" },
+  wingedlion: { name: "Winged Lion", tier: "big" },
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
   fattuesday: { name: "Fat Tuesday Frenzy", tier: "big" },
