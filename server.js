@@ -5074,19 +5074,16 @@ function rpFeedPosterPump484() {
     } catch (e) {}
     return done();
   }
-  rpPosterExtract482(src, out, 0.1, (ok) => {
-    const finish = (good) => {
-      if (good) {
-        try {
-          const db = readFeed();
-          const rec = (db.posts || {})[job.id];
-          if (rec && rec.poster484 !== 1) { rec.poster484 = 1; writeFeed(db); }
-        } catch (e) {}
-      }
-      done();
-    };
-    if (ok) return finish(true);
-    rpPosterExtract482(src, out, 0, finish);
+  rpPosterMint482(src, out, (ok, reason) => {
+    if (!ok) console.warn("[posters484] FAILED id=" + job.id + " file=" + job.file + " — " + (reason || "unknown")); // [RP-V7.486] per-item failure, named — see rpPosterMint482
+    if (ok) {
+      try {
+        const db = readFeed();
+        const rec = (db.posts || {})[job.id];
+        if (rec && rec.poster484 !== 1) { rec.poster484 = 1; writeFeed(db); }
+      } catch (e) {}
+    }
+    done();
   });
 }
 function sweepFeedPosters484() {
@@ -5129,35 +5126,88 @@ function rpPosterPump482() {
     rpPosterStats482.have++;
     return done();
   }
-  rpPosterExtract482(src, out, 0.1, (ok) => {
-    if (ok) return rpPosterFinish482(job, true, done);
-    rpPosterExtract482(src, out, 0, (ok2) => rpPosterFinish482(job, ok2, done));
+  rpPosterMint482(src, out, (ok, reason) => {
+    if (!ok) console.warn("[posters482] FAILED id=" + job.id + " file=" + job.file + " — " + (reason || "unknown")); // [RP-V7.486] a failed poster names its reel and its reason — never an aggregate count alone again
+    rpPosterFinish482(job, ok, done);
   });
 }
-function rpPosterExtract482(src, out, ss, cb) {
-  const tmp = out + ".tmp.jpg";
-  // The frame the tiles paint today (the V7.243 micro-seek sits at
-  // 0.05 s; 0.1 s is the same frame on any real clip, clear of
-  // fade-from-black first frames). Input seek: ffmpeg decodes from
-  // the prior keyframe, so the grab is exact and fast.
+/* [RP-V7.486] POSTER VALIDITY — the V7.482 extract judged success by
+   a >=1024-byte floor on the JPEG. That floor rejects VALID posters:
+   a clip whose first frame is near-uniform (Golden confetti's gold
+   fade-in) compresses to ~650 bytes at 360w q4 — ffmpeg exits 0 and
+   writes a structurally perfect 360x202 JPEG, which the minter then
+   threw away on both seeks, on every boot, silently (the only trace
+   was the aggregate "failed N" in the drain log). That is why
+   exactly one reel in 100 stayed posterless across three restarts
+   while the backfill healed everything else. Validity is now
+   STRUCTURAL — the file exists, is at least 200 bytes, and carries
+   JPEG SOI/EOI markers — and richness is a PREFERENCE, not a gate:
+   the mint walks a seek ladder (0.1 / 0.5 / 1.0 / 2.0 s; it starts at
+   0.1 for the V7.482 reason — the frame the tiles paint, clear of
+   fade-from-black first frames) and takes the first RICH frame
+   (>=1024 bytes); if every frame is plain, the first valid frame is
+   used — a plain poster beats no poster. Callers log failures with
+   the item's id and the reason (rpPosterMint482's second callback
+   argument), so one bad item can never fail silently again. */
+function rpPosterJpegOk486(p, minBytes) {
+  try {
+    const st = fs.statSync(p);
+    if (!st || st.size < (minBytes || 200)) return false;
+    const fd = fs.openSync(p, "r");
+    try {
+      const head = Buffer.alloc(2), tail = Buffer.alloc(2);
+      fs.readSync(fd, head, 0, 2, 0);
+      fs.readSync(fd, tail, 0, 2, st.size - 2);
+      return head[0] === 0xff && head[1] === 0xd8 && tail[0] === 0xff && tail[1] === 0xd9;
+    } finally { fs.closeSync(fd); }
+  } catch (e) { return false; }
+}
+function rpPosterExtractOnce486(src, tmp, ss, cb) {
+  try { fs.unlinkSync(tmp); } catch (e) {}
+  // Input seek: ffmpeg decodes from the prior keyframe, so the grab
+  // is exact and fast.
   const args = ["-y", "-v", "error", "-ss", String(ss), "-i", src,
     "-frames:v", "1", "-vf", "scale=360:-2", "-q:v", "4", "-threads", "2", tmp];
   crExecFile286(crFfmpeg286, args, { timeout: 60000, maxBuffer: 4 * 1024 * 1024 }, (e) => {
-    if (e) {
-      try { fs.unlink(tmp, () => {}); } catch (e2) {}
-      return cb(false);
-    }
-    try {
-      if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1024) {
-        try { fs.unlink(tmp, () => {}); } catch (e2) {}
-        return cb(false);
-      }
-      fs.renameSync(tmp, out);
-      cb(true);
-    } catch (e2) {
-      cb(false);
-    }
+    if (e) return cb(e);
+    let size = 0;
+    try { size = fs.statSync(tmp).size; } catch (e2) {}
+    cb(null, size);
   });
+}
+function rpPosterMint482(src, out, cb) {
+  const tmp = out + ".tmp.jpg";
+  const plain = out + ".plain.jpg";
+  try { fs.unlinkSync(plain); } catch (e) {}
+  const seeks = [0.1, 0.5, 1.0, 2.0];
+  let havePlain = false, lastErr = null, i = 0;
+  const done = (ok, reason) => {
+    try { fs.unlinkSync(tmp); } catch (e) {}
+    try { fs.unlinkSync(plain); } catch (e) {}
+    cb(ok, reason);
+  };
+  const step = () => {
+    if (i >= seeks.length) {
+      if (havePlain) {
+        try { fs.renameSync(plain, out); return done(true); }
+        catch (e) { return done(false, "rename: " + ((e && e.message) || e)); }
+      }
+      return done(false, lastErr ? ("ffmpeg: " + ((lastErr && lastErr.message) || lastErr)) : "no valid frame at any seek");
+    }
+    const ss = seeks[i++];
+    rpPosterExtractOnce486(src, tmp, ss, (err, size) => {
+      if (err) { lastErr = err; return step(); }
+      if (size >= 1024 && rpPosterJpegOk486(tmp, 200)) {
+        try { fs.renameSync(tmp, out); return done(true); }
+        catch (e) { return done(false, "rename: " + ((e && e.message) || e)); }
+      }
+      if (!havePlain && rpPosterJpegOk486(tmp, 200)) {
+        try { fs.renameSync(tmp, plain); havePlain = true; } catch (e) {}
+      }
+      return step();
+    });
+  };
+  step();
 }
 function rpPosterFinish482(job, ok, done) {
   if (ok) {
