@@ -38,11 +38,85 @@ function storeQuarantine(file) {
     if (fs.existsSync(file)) fs.renameSync(file, file + ".corrupt-" + Date.now());
   } catch (e) {}
 }
+/* [RP-V7.487] STORE READ CACHE — the TTFB-wobble fix. Before this
+   build, every read*() helper re-read and re-parsed its whole JSON
+   store from disk on EVERY call, and one signed-in GET /api/reels
+   made ~17 such calls (accounts x5, signals x3, social x3, money
+   x2, views x2, reels, dms) — ~50 ms of synchronous parse per
+   request at production store sizes, so any two overlapping
+   requests doubled each other's time-to-first-byte and a view
+   POST's read-modify-write landed in the middle of both. The cache
+   keeps ONE parsed master per file in memory. A hit is verified by
+   stat (inode + mtimeMs + size — a rename-replace changes the
+   inode, so a write that bypasses the cache still self-heals on
+   the next read) and costs one statSync instead of a full parse.
+   Writers put the object they just wrote, so read-modify-write
+   flows keep working on the master and mutations accumulate
+   exactly as the handlers intend (the money settle functions
+   already check-then-mutate: they return "without moving
+   anything" when a charge cannot be made). Fallbacks are never
+   cached: a missing or corrupt file takes the exact legacy path
+   below on every call, including the .bak restore. */
+const rpStoreCache487 = new Map(); // file -> { ino, mtimeMs, size, obj }
+let rpStoreGen487 = 0; // bumped on every cached-store write; the guest payload cache keys off it
+function rpCacheStat487(file) {
+  try {
+    const s = fs.statSync(file);
+    return { ino: s.ino, mtimeMs: s.mtimeMs, size: s.size };
+  } catch (e) {
+    return null;
+  }
+}
+function rpCacheHit487(file) {
+  const e = rpStoreCache487.get(file);
+  if (!e) return undefined;
+  const s = rpCacheStat487(file);
+  if (!s || s.ino !== e.ino || s.mtimeMs !== e.mtimeMs || s.size !== e.size) {
+    rpStoreCache487.delete(file);
+    return undefined;
+  }
+  return e.obj;
+}
+function rpCachePut487(file, obj) {
+  const s = rpCacheStat487(file);
+  if (s) rpStoreCache487.set(file, { ino: s.ino, mtimeMs: s.mtimeMs, size: s.size, obj });
+  else rpStoreCache487.delete(file);
+  rpStoreGen487++;
+}
+function rpCacheDrop487(file) {
+  rpStoreCache487.delete(file);
+}
+/* [RP-V7.487] Guest payload cache for the two hottest anonymous
+   GETs (/api/reels, /api/photo/posts): the serialized body is
+   reused for at most 3000 ms and only while no store write has
+   landed since it was built (rpStoreGen487 unchanged). Only
+   requests with NO Authorization header can receive it — a
+   headerless request is exactly the guest path accountForToken
+   resolves to null — so a signed-in payload can never be served
+   to the wrong caller, and signed-in requests never read it. */
+const rpGuestCache487 = new Map(); // key -> { at, gen, body }
+function rpGuestHit487(key) {
+  const e = rpGuestCache487.get(key);
+  if (!e) return null;
+  if (e.gen !== rpStoreGen487 || Date.now() - e.at > 3000) {
+    rpGuestCache487.delete(key);
+    return null;
+  }
+  return e.body;
+}
+function rpGuestPut487(key, body) {
+  rpGuestCache487.set(key, { at: Date.now(), gen: rpStoreGen487, body });
+}
 function storeReadJson(file, validate, fallback, label) {
+  const hit487 = rpCacheHit487(file); // [RP-V7.487]
+  if (hit487 !== undefined) {
+    if (validate(hit487)) return hit487;
+    rpCacheDrop487(file); // in-memory shape broke: take the disk path (with its .bak restore) exactly as before
+  }
   if (!fs.existsSync(file)) return fallback;
   try {
     const d = JSON.parse(fs.readFileSync(file, "utf8"));
-    if (validate(d)) return d;
+    if (validate(d)) { rpCachePut487(file, d); return d; } // [RP-V7.487]
     console.error("[store] " + label + ": unexpected shape in " + file + " — attempting .bak restore");
   } catch (e) {
     console.error("[store] " + label + ": cannot parse " + file + " (" + e.message + ") — attempting .bak restore");
@@ -55,6 +129,7 @@ function storeReadJson(file, validate, fallback, label) {
       fs.writeFileSync(tmp, JSON.stringify(b, null, 2));
       fs.renameSync(tmp, file);
       console.error("[store] " + label + ": restored last-good state from " + file + ".bak");
+      rpCachePut487(file, b); // [RP-V7.487]
       return b;
     }
   } catch (e) {}
@@ -69,6 +144,7 @@ function storeWriteJson(file, obj) {
   try {
     fs.copyFileSync(file, file + ".bak");
   } catch (e) {}
+  rpCachePut487(file, obj); // [RP-V7.487] the next read is a stat, not a parse
 }
 
 // socket.id -> { id, name, avatar, room, x, y, dancing, photoUrl }
@@ -2025,6 +2101,7 @@ app.post("/api/presence/ping", (req, res) => {
    No PII beyond the account username the token already identifies.
    Playback behaviour is untouched. */
 const REEL_TEL478_FILE = process.env.REEL_TEL478_FILE || path.join(path.dirname(PHOTO_DIR), "reel-telemetry478.jsonl");
+let rpTelTrim487 = false; // [RP-V7.487] telemetry rotation re-entry guard
 app.post("/api/reels/telemetry", (req, res) => {
   const ctx = requireAccount(req, res);
   if (!ctx) return;
@@ -2047,9 +2124,22 @@ app.post("/api/reels/telemetry", (req, res) => {
   }
   if (lines478.length) {
     try {
-      try { // light size guard: past ~8 MB, drop the oldest half on a line boundary
+      try { // light size guard: past ~8 MB, rotate the file away and start fresh
         const st478 = fs.statSync(REEL_TEL478_FILE);
-        if (st478.size > 8 * 1024 * 1024) { const d478 = fs.readFileSync(REEL_TEL478_FILE, "utf8"); const cut478 = d478.indexOf("\n", Math.floor(d478.length / 2)); if (cut478 > 0) fs.writeFileSync(REEL_TEL478_FILE, d478.slice(cut478 + 1)); }
+        // [RP-V7.487] the old guard read+rewrote the whole ~8 MB
+        // file SYNCHRONOUSLY on this request path — a rare but real
+        // tens-of-ms event-loop stall. Rotation is an atomic rename:
+        // appends keep flowing into a fresh file, no beacon line is
+        // lost, and the previous generation is unlinked (the old
+        // trim discarded the oldest half permanently; the reader
+        // only ever reads the live file, so the visible outcome is
+        // the same).
+        if (st478.size > 8 * 1024 * 1024 && !rpTelTrim487) {
+          rpTelTrim487 = true;
+          fs.unlink(REEL_TEL478_FILE + ".1", () => {
+            fs.rename(REEL_TEL478_FILE, REEL_TEL478_FILE + ".1", () => { rpTelTrim487 = false; });
+          });
+        }
       } catch (e) { }
       fs.appendFileSync(REEL_TEL478_FILE, lines478.join("\n") + "\n");
     } catch (e) { }
@@ -4940,9 +5030,12 @@ const REEL_VIDEO_TYPES = {
   "video/quicktime": "mov",
 };
 function listReels() {
+  const hit487 = rpCacheHit487(REELS_FILE); // [RP-V7.487]
+  if (hit487 !== undefined) return Array.isArray(hit487) ? hit487 : [];
   try {
     const arr = JSON.parse(fs.readFileSync(REELS_FILE, "utf8"));
-    return Array.isArray(arr) ? arr : [];
+    if (Array.isArray(arr)) { rpCachePut487(REELS_FILE, arr); return arr; } // [RP-V7.487]
+    return [];
   } catch {
     return [];
   }
@@ -4957,6 +5050,7 @@ function saveReel(entry) {
   const tmp = REELS_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(list, null, 2));
   fs.renameSync(tmp, REELS_FILE);
+  rpCachePut487(REELS_FILE, list); // [RP-V7.487]
   return entry;
 }
 function reelCleanId(v) {
@@ -4979,6 +5073,7 @@ function updateReelEntry(id, patch) {
   const tmp = REELS_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(list, null, 2));
   fs.renameSync(tmp, REELS_FILE);
+  rpCachePut487(REELS_FILE, list); // [RP-V7.487]
   return e;
 }
 
@@ -5405,10 +5500,14 @@ const REACTIONS_FILE =
   path.join(path.dirname(PHOTO_DIR), "reactions.json");
 const RX_MAX_DISTINCT_PER_MEMBER = 25;
 function readPhotoReactions() {
+  const hit487 = rpCacheHit487(REACTIONS_FILE); // [RP-V7.487]
+  if (hit487 !== undefined) return hit487;
   try {
     const db = JSON.parse(fs.readFileSync(REACTIONS_FILE, "utf8"));
-    if (db && typeof db === "object" && db.photos && typeof db.photos === "object")
+    if (db && typeof db === "object" && db.photos && typeof db.photos === "object") {
+      rpCachePut487(REACTIONS_FILE, db); // [RP-V7.487]
       return db;
+    }
   } catch (e) {}
   return { photos: {} };
 }
@@ -5416,6 +5515,7 @@ function writePhotoReactions(db) {
   const tmp = REACTIONS_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
   fs.renameSync(tmp, REACTIONS_FILE);
+  rpCachePut487(REACTIONS_FILE, db); // [RP-V7.487]
 }
 // One emoji = exactly one grapheme cluster (ZWJ families, keycaps and
 // flag pairs count as one), a sane byte cap, and a lone ASCII letter,
@@ -5498,6 +5598,16 @@ function rxToggle(map, uid, emoji) {
   return true;
 }
 app.get("/api/reels", (req, res) => {
+  // [RP-V7.487] Guest payload cache: headerless requests are the
+  // guest path; serve the serialized body while it is fresh
+  // (<=3000 ms, no store write since it was built).
+  if (!req.headers.authorization) {
+    const gk487 = "reels|" + (req.query.friends || "") + "|" + (req.query.category || "");
+    const gh487 = rpGuestHit487(gk487);
+    if (gh487 !== null) { res.setHeader("Content-Type", "application/json; charset=utf-8"); return res.send(gh487); }
+    const oj487 = res.json.bind(res);
+    res.json = (body487) => { try { rpGuestPut487(gk487, JSON.stringify(body487)); } catch (e) {} return oj487(body487); };
+  }
   const newest = listReels()
     .slice()
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -8307,10 +8417,14 @@ const REEL_SIGNALS_FILE =
   process.env.REEL_SIGNALS_FILE ||
   path.join(path.dirname(PHOTO_DIR), "reel-signals.json");
 function readReelSignals() {
+  const hit487 = rpCacheHit487(REEL_SIGNALS_FILE); // [RP-V7.487]
+  if (hit487 !== undefined) return hit487;
   try {
     const d = JSON.parse(fs.readFileSync(REEL_SIGNALS_FILE, "utf8"));
-    if (d && d.users && typeof d.users === "object" && d.reels && typeof d.reels === "object")
+    if (d && d.users && typeof d.users === "object" && d.reels && typeof d.reels === "object") {
+      rpCachePut487(REEL_SIGNALS_FILE, d); // [RP-V7.487]
       return d;
+    }
     return { users: {}, reels: {} };
   } catch {
     return { users: {}, reels: {} };
@@ -8320,6 +8434,7 @@ function writeReelSignals(sig) {
   const tmp = REEL_SIGNALS_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(sig, null, 2));
   fs.renameSync(tmp, REEL_SIGNALS_FILE);
+  rpCachePut487(REEL_SIGNALS_FILE, sig); // [RP-V7.487]
 }
 const FY_HALF_LIFE_MS = 7 * 24 * 3600 * 1000;
 function fyDecayed(entry, now) {
@@ -10177,10 +10292,14 @@ const PHOTO_COMMENTS_FILE =
   process.env.PHOTO_COMMENTS_FILE ||
   path.join(path.dirname(PHOTO_DIR), "photo-comments.json");
 function readPhotoComments() {
+  const hit487 = rpCacheHit487(PHOTO_COMMENTS_FILE); // [RP-V7.487]
+  if (hit487 !== undefined) return hit487;
   try {
     const db = JSON.parse(fs.readFileSync(PHOTO_COMMENTS_FILE, "utf8"));
-    if (db && typeof db === "object" && db.photos && typeof db.photos === "object")
+    if (db && typeof db === "object" && db.photos && typeof db.photos === "object") {
+      rpCachePut487(PHOTO_COMMENTS_FILE, db); // [RP-V7.487]
       return db;
+    }
   } catch (e) {}
   return { photos: {} };
 }
@@ -10188,6 +10307,7 @@ function writePhotoComments(db) {
   const tmp = PHOTO_COMMENTS_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
   fs.renameSync(tmp, PHOTO_COMMENTS_FILE);
+  rpCachePut487(PHOTO_COMMENTS_FILE, db); // [RP-V7.487]
 }
 // The public shape of a stored comment: display name + text + time.
 // The author's account id stays server-side (moderation only) — the
@@ -10518,10 +10638,14 @@ function writePhotoPosts(db) {
   storeWriteJson(PHOTO_POSTS_FILE, db);
 }
 function readPhotoLikes() {
+  const hit487 = rpCacheHit487(PHOTO_LIKES_FILE); // [RP-V7.487]
+  if (hit487 !== undefined) return hit487;
   try {
     const db = JSON.parse(fs.readFileSync(PHOTO_LIKES_FILE, "utf8"));
-    if (db && typeof db === "object" && db.photos && typeof db.photos === "object")
+    if (db && typeof db === "object" && db.photos && typeof db.photos === "object") {
+      rpCachePut487(PHOTO_LIKES_FILE, db); // [RP-V7.487]
       return db;
+    }
   } catch (e) {}
   return { photos: {} };
 }
@@ -10529,6 +10653,7 @@ function writePhotoLikes(db) {
   const tmp = PHOTO_LIKES_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
   fs.renameSync(tmp, PHOTO_LIKES_FILE);
+  rpCachePut487(PHOTO_LIKES_FILE, db); // [RP-V7.487]
 }
 function photoLikeCount(likesDb, id) {
   const s = likesDb.photos[id];
@@ -10541,10 +10666,14 @@ const PHOTO_REPOSTS_FILE =
   process.env.PHOTO_REPOSTS_FILE ||
   path.join(path.dirname(PHOTO_DIR), "photo-reposts.json");
 function readPhotoReposts() {
+  const hit487 = rpCacheHit487(PHOTO_REPOSTS_FILE); // [RP-V7.487]
+  if (hit487 !== undefined) return hit487;
   try {
     const db = JSON.parse(fs.readFileSync(PHOTO_REPOSTS_FILE, "utf8"));
-    if (db && typeof db === "object" && db.photos && typeof db.photos === "object")
+    if (db && typeof db === "object" && db.photos && typeof db.photos === "object") {
+      rpCachePut487(PHOTO_REPOSTS_FILE, db); // [RP-V7.487]
       return db;
+    }
   } catch (e) {}
   return { photos: {} };
 }
@@ -10552,6 +10681,7 @@ function writePhotoReposts(db) {
   const tmp = PHOTO_REPOSTS_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
   fs.renameSync(tmp, PHOTO_REPOSTS_FILE);
+  rpCachePut487(PHOTO_REPOSTS_FILE, db); // [RP-V7.487]
 }
 function photoRepostSet(repostsDb, id) {
   const s2 = repostsDb && repostsDb.photos ? repostsDb.photos[id] : null;
@@ -11245,6 +11375,14 @@ app.post("/api/ai/discard", (req, res) => {
 });
 
 app.get("/api/photo/posts", (req, res) => {
+  // [RP-V7.487] Guest payload cache — same rule as /api/reels:
+  // headerless requests only, <=3000 ms, invalidated by any store write.
+  if (!req.headers.authorization) {
+    const gh487 = rpGuestHit487("photos|");
+    if (gh487 !== null) { res.setHeader("Content-Type", "application/json; charset=utf-8"); return res.send(gh487); }
+    const oj487 = res.json.bind(res);
+    res.json = (body487) => { try { rpGuestPut487("photos|", JSON.stringify(body487)); } catch (e) {} return oj487(body487); };
+  }
   let uid = null;
   let adb313pp = null; // [RP-V7.313] kept so the byline resolver rides this same accounts read
   try {
@@ -15408,10 +15546,14 @@ const SOCIAL_FILE =
   process.env.SOCIAL_FILE ||
   path.join(path.dirname(PHOTO_DIR), "social.json");
 function readSocial() {
+  const hit487 = rpCacheHit487(SOCIAL_FILE); // [RP-V7.487]
+  if (hit487 !== undefined) return hit487;
   try {
     const d = JSON.parse(fs.readFileSync(SOCIAL_FILE, "utf8"));
-    if (d && d.follows && typeof d.follows === "object" && !Array.isArray(d.follows))
+    if (d && d.follows && typeof d.follows === "object" && !Array.isArray(d.follows)) {
+      rpCachePut487(SOCIAL_FILE, d); // [RP-V7.487]
       return d;
+    }
     return { follows: {} };
   } catch {
     return { follows: {} };
@@ -15421,6 +15563,7 @@ function writeSocial(db) {
   const tmp = SOCIAL_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
   fs.renameSync(tmp, SOCIAL_FILE);
+  rpCachePut487(SOCIAL_FILE, db); // [RP-V7.487]
 }
 function socialFollowingIds(db, userId) {
   const arr = db.follows[userId];
@@ -16516,14 +16659,18 @@ function emptyDms() {
   return { threads: {}, blocks: {} };
 }
 function readDms() {
+  const hit487 = rpCacheHit487(DMS_FILE); // [RP-V7.487]
+  if (hit487 !== undefined) return hit487;
   try {
     const d = JSON.parse(fs.readFileSync(DMS_FILE, "utf8"));
     if (
       d &&
       d.threads && typeof d.threads === "object" && !Array.isArray(d.threads) &&
       d.blocks && typeof d.blocks === "object" && !Array.isArray(d.blocks)
-    )
+    ) {
+      rpCachePut487(DMS_FILE, d); // [RP-V7.487]
       return d;
+    }
     return emptyDms();
   } catch {
     return emptyDms();
@@ -16533,6 +16680,7 @@ function writeDms(db) {
   const tmp = DMS_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
   fs.renameSync(tmp, DMS_FILE);
+  rpCachePut487(DMS_FILE, db); // [RP-V7.487]
 }
 function dmThreadKey(a, b) {
   return [String(a), String(b)].sort().join(":");
