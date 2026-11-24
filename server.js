@@ -13096,6 +13096,47 @@ const LK_TICK_MS389 = Math.max(250, Number(process.env.LIVEKIT_TICK_MS) || 15000
 const liveWatch389 = new Map(); // live key -> { instance, byAcct: Map(accountId -> { ms, earned }) }
 const watchEarnDay389 = new Map(); // ET day key -> Map(accountId -> bonuses paid)
 const liveNotes389 = new Map(); // live key -> { text, hostAccountId, instance, at }
+const liveDeco490 = new Map(); // [RP-V7.490] live key -> { label, stickers, hostAccountId, instance, at } — the host's live label + sticker set (presentation only, TikTok-style)
+// [RP-V7.490] Sticker allowlists: glyph stickers are native emoji glyphs;
+// card stickers are Instagram-style white cards. The server is the
+// authority — anything off-list is dropped, never stored or relayed.
+const DECO_GLYPHS490 = ["🔥", "⭐", "❤️", "🎉", "👑", "🎵", "⚡", "💯", "🎁", "🙌", "😂", "🎤"];
+const DECO_CARDS_FIXED490 = { questions: 1, poll: 1, countdown: 1, music: 1 }; // fixed-text cards
+const DECO_CARDS_TEXT490 = { hashtag: 1, location: 1 }; // host-text cards (max 24 chars)
+function decoCleanText490(raw, max) {
+  return String(raw || "")
+    .replace(/[<>&"]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+function decoSanitizeStickers490(list) {
+  const out = [];
+  if (!Array.isArray(list)) return out;
+  const seen = new Set();
+  for (const it of list) {
+    if (out.length >= 3) break; // up to 3 stickers on screen at once
+    if (!it || typeof it !== "object") continue;
+    if (it.kind === "glyph" && DECO_GLYPHS490.indexOf(it.g) >= 0) {
+      const k = "g:" + it.g;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ kind: "glyph", g: it.g });
+    } else if (it.kind === "card" && DECO_CARDS_FIXED490[it.card]) {
+      const k = "c:" + it.card;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ kind: "card", card: it.card });
+    } else if (it.kind === "card" && DECO_CARDS_TEXT490[it.card]) {
+      const text = decoCleanText490(it.text, 24);
+      const k = "c:" + it.card;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ kind: "card", card: it.card, text });
+    }
+  }
+  return out;
+}
 const gwTimers389 = new Map(); // live key -> auto-draw timeout handle
 
 function readGiveaways389() {
@@ -13361,6 +13402,7 @@ function gwLiveEnded389(key) {
     console.log("[giveaway389] live-end settle failed", key, e && e.message);
   }
   if (!liveRegistry.has(key)) liveNotes389.delete(key);
+  if (!liveRegistry.has(key)) liveDeco490.delete(key); // [RP-V7.490] label + stickers die with the live, same as the note
   const w = liveWatch389.get(key);
   if (!liveRegistry.has(key) || (w && gw && w.instance === gw.liveStartedAt))
     liveWatch389.delete(key);
@@ -13583,6 +13625,7 @@ setInterval(() => {
       ...Object.keys(gdb389.giveaways),
       ...liveNotes389.keys(),
       ...liveWatch389.keys(),
+      ...liveDeco490.keys(), // [RP-V7.490]
     ]);
     for (const k of keys389) {
       const e = liveRegistry.get(k);
@@ -13593,8 +13636,12 @@ setInterval(() => {
       const noteStale =
         liveNotes389.has(k) &&
         (!e || (liveNotes389.get(k).instance && e.startedAt !== liveNotes389.get(k).instance));
+      const decoStale490 =
+        liveDeco490.has(k) &&
+        (!e || (liveDeco490.get(k).instance && e.startedAt !== liveDeco490.get(k).instance)); // [RP-V7.490]
       if (!e || gwStale || noteStale) gwLiveEnded389(k);
       if (noteStale && e) liveNotes389.delete(k);
+      if (decoStale490 && e) liveDeco490.delete(k); // [RP-V7.490] replaced live instance = fresh deco
     }
     // 2) Accrue presence per live; pay watch-to-earn on the server
     //    clock. Adults only, never the host, never test funds.
@@ -21416,6 +21463,8 @@ const MONEY_GIFT_TABLE = {
   nameinlights: 840, singingmushroom: 860, holyyeah: 950, rockstarset: 1050,
   // [RP-V7.489] +5 weekly gifts (Nov 23, 2026) — ids + prices mirror the client's GIFT_SHOP exactly; catalog now 122 gifts.
   lanternturtle: 15, discosnail: 88, tornadodancer: 370, crystaloctopus: 690, wingedlion: 1700,
+  // [RP-V7.490] +2 gifts (Nov 23, 2026) — ids + prices mirror the client's GIFT_SHOP exactly; catalog now 124 gifts.
+  shellsensei: 440, auraclash: 2200,
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
@@ -21518,6 +21567,8 @@ const MONEY_GIFT_INFO = {
   tornadodancer: { name: "Tornado Dancer", tier: "medium" },
   crystaloctopus: { name: "Crystal Octopus", tier: "medium" },
   wingedlion: { name: "Winged Lion", tier: "big" },
+  shellsensei: { name: "Shell Sensei", tier: "medium" }, // [RP-V7.490] +2 gifts Nov 23, 2026
+  auraclash: { name: "Aura Clash", tier: "big" },
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
   fattuesday: { name: "Fat Tuesday Frenzy", tier: "big" },
@@ -34552,6 +34603,104 @@ io.on("connection", (socket) => {
     }
     if (note)
       socket.emit("live-note", { key: entry.key, room: entry.room, text: note.text });
+  });
+  // [RP-V7.490] LIVE LABEL + STICKERS — the host decorates their own
+  // live: a short label banner (max 40 chars, like the TikTok recap
+  // banners) + up to 3 stickers (emoji glyphs and Instagram-style white
+  // cards). Same host sanity rule as the show note (lkHostCtx389 — the
+  // sender must be standing in their OWN live room); state lives on
+  // liveDeco490 keyed by live key and dies with the live
+  // (gwLiveEnded389 + the Live Kit sweep). Presentation only — no
+  // money, no commerce — so it works in every live type.
+  function decoPayload490(key) {
+    const entry = liveRegistry.get(key);
+    if (!entry) return null;
+    const d = liveDeco490.get(key);
+    let side = null;
+    for (const b of battles306.values()) {
+      const pt = b.parts.find((x) => x.room === entry.room);
+      if (pt) { side = pt.side; break; }
+    }
+    return {
+      key,
+      room: entry.room,
+      label: d ? d.label || "" : "",
+      stickers: d ? d.stickers || [] : [],
+      side,
+    };
+  }
+  function decoEmit490(key) {
+    const payload = decoPayload490(key);
+    if (!payload) return;
+    const rooms = [payload.room];
+    // In a battle both rooms watch both hosts side by side, so every
+    // battle room gets the copy too (the battle306Emit pattern) and
+    // each client places it by the payload's key + side.
+    for (const b of battles306.values()) {
+      if (b.parts.some((x) => x.room === payload.room)) {
+        for (const pt of b.parts)
+          if (rooms.indexOf(pt.room) < 0) rooms.push(pt.room);
+        break;
+      }
+    }
+    for (const r of rooms) io.to(r).emit("live-deco490", payload);
+  }
+  function decoStore490(ctx, patch) {
+    const entry = liveRegistry.get(ctx.key);
+    const cur = liveDeco490.get(ctx.key) || { label: "", stickers: [] };
+    const next = {
+      label: patch.label !== undefined ? patch.label : cur.label || "",
+      stickers:
+        patch.stickers !== undefined ? patch.stickers : cur.stickers || [],
+      hostAccountId: socket.data.accountId || null,
+      instance: entry ? entry.startedAt : null,
+      at: Date.now(),
+    };
+    if (!next.label && !next.stickers.length) liveDeco490.delete(ctx.key);
+    else liveDeco490.set(ctx.key, next);
+    decoEmit490(ctx.key);
+  }
+  socket.on("live-label-set490", (data = {}) => {
+    const ctx = lkHostCtx389();
+    if (!ctx) return;
+    decoStore490(ctx, { label: decoCleanText490(data.text, 40) });
+  });
+  socket.on("live-label-clear490", () => {
+    const ctx = lkHostCtx389();
+    if (!ctx) return;
+    decoStore490(ctx, { label: "" });
+  });
+  socket.on("live-stickers-set490", (data = {}) => {
+    const ctx = lkHostCtx389();
+    if (!ctx) return;
+    decoStore490(ctx, { stickers: decoSanitizeStickers490(data.stickers) });
+  });
+  socket.on("live-deco-get490", () => {
+    const p = players.get(socket.id);
+    if (!p) return;
+    let entry = null;
+    for (const e of liveRegistry.values())
+      if (e.room === p.room) {
+        entry = e;
+        break;
+      }
+    if (!entry) return;
+    const mine = decoPayload490(entry.key);
+    if (mine) socket.emit("live-deco490", mine);
+    // Battle: hand the joiner every other host's deco too, so both
+    // sides of the split screen are dressed from the first frame.
+    for (const b of battles306.values()) {
+      if (!b.parts.some((x) => x.room === entry.room)) continue;
+      for (const pt of b.parts) {
+        if (pt.room === entry.room) continue;
+        for (const e2 of liveRegistry.values())
+          if (e2.room === pt.room) {
+            const theirs = decoPayload490(e2.key);
+            if (theirs) socket.emit("live-deco490", theirs);
+          }
+      }
+      break;
+    }
   });
   socket.on("live-raid", (data = {}) => {
     const ctx = lkHostCtx389();
