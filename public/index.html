@@ -34300,7 +34300,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      rpGiftVidErr / rpFilmStepDown — a show never breaks. */
   var rpEventSlug = null;
   function rpFilmBase() { return window.GIFTFX_BASE || "/"; }
-  var RP_FILM_V464 = "?v=7492"; // [RP-V7.492] token bumped 7464 -> 7492 so phones fetch this build's re-encoded films (F1/F2: bitrate-capped + faststart) instead of the cached heavy masters. [RP-V7.464] per-build film version token: a same-URL film swap (the V7.459 file-drop redo) left phones playing the cached OLD film — the versioned URL is a fresh cache key every build; the server also answers gift films with Cache-Control: no-cache (build-7464 server.js) so asset-only swaps land too
+  var RP_FILM_V464 = "?v=7494"; // [RP-V7.494] token bumped 7492 -> 7494 so phones fetch the catalog sweep's 75 re-encoded films (the AUDIT.md ship manifest) fresh instead of the cached heavy masters. [RP-V7.492] token bumped 7464 -> 7492 so phones fetch this build's re-encoded films (F1/F2: bitrate-capped + faststart) instead of the cached heavy masters. [RP-V7.464] per-build film version token: a same-URL film swap (the V7.459 file-drop redo) left phones playing the cached OLD film — the versioned URL is a fresh cache key every build; the server also answers gift films with Cache-Control: no-cache (build-7464 server.js) so asset-only swaps land too
   window.rpStdFilmUrl = function (id) { return rpFilmBase() + "giftfx-" + id + ".mp4" + RP_FILM_V464; };
   window.rpEventFilmUrl = function (id) { return rpEventSlug ? rpFilmBase() + "giftfx-" + id + "-" + rpEventSlug + ".mp4" + RP_FILM_V464 : window.rpStdFilmUrl(id); };
   /* [RP-V7.464] EVENT-FILM SESSION PROBE: an event film is handed to
@@ -34986,7 +34986,7 @@ window.RpShowDur = rpDurFor;
 /* Portrait-raster stage films (720x1280): the stage box takes the
    film's own aspect instead of the 16/9 landscape box. nebuladragon
    is scene-class (cover), so only titanclash needs the class. */
-var RP_PORTRAIT_FILMS = { titanclash: 1, plazaape: 1, foxshot: 1, ufobeam: 1, auraclash: 1, shellsensei: 1 }; // [RP-V7.492] +auraclash +shellsensei: both 720x1280 portrait films were unregistered — auraclash (big tier) reached the stage seat only via the fragile loadedmetadata rescue, shellsensei (medium) the lane equivalent; registered, the seat starts at the catalog aspect. [RP-V7.360] +foxshot +ufobeam: their 1440x2160 portrait films were never registered, so the stage squashed them into the 16:9 band (whole-scene defect) /* [RP-V7.241] +plazaape — Plaza Ape film gets the portrait treatment (Branden, Nov 4: "Fix the Ape") */
+var RP_PORTRAIT_FILMS = { titanclash: 1, plazaape: 1, foxshot: 1, ufobeam: 1, auraclash: 1, shellsensei: 1, worldtree: 1, clocktea: 1, carousel: 1, emeraldelephant: 1, swagmouse: 1, showdog: 1, monkeycrew: 1, scarecrowpirate: 1, shuriken: 1, tidalwave: 1, meteorrun: 1, royalcrest: 1, theruler: 1, loveyousomuch: 1, poppal: 1, dolphinleap: 1, heartpuff: 1, redglovepunch: 1, welcomemarquee: 1, peeklemur: 1, hanginglights: 1, bigbow: 1, lovepainting: 1, bubblegum: 1, hatandmustache: 1, stargoggles: 1, heartbuddy: 1, pinkcowboy: 1, goldmedal: 1, crystalcrown: 1, nameinlights: 1, singingmushroom: 1, holyyeah: 1, rockstarset: 1, handheart: 1 }; // [RP-V7.494] +35: the catalog audit found these 720x1280 portrait cutouts were NEVER registered — they took the 16:9 keyed seat (cropped/squashed, or rescued only by the fragile loadedmetadata path); registered, the seat starts at the film's own portrait aspect. // [RP-V7.492] +auraclash +shellsensei: both 720x1280 portrait films were unregistered — auraclash (big tier) reached the stage seat only via the fragile loadedmetadata rescue, shellsensei (medium) the lane equivalent; registered, the seat starts at the catalog aspect. [RP-V7.360] +foxshot +ufobeam: their 1440x2160 portrait films were never registered, so the stage squashed them into the 16:9 band (whole-scene defect) /* [RP-V7.241] +plazaape — Plaza Ape film gets the portrait treatment (Branden, Nov 4: "Fix the Ape") */
 /* [RP-V7.492] BAND-SCENE routing (diagnosis C1): full-bleed SCENE films
    whose content is wall-to-wall colour (measured: subject bbox = the
    whole frame, corners up to (233,164,192)). Routed through the luma
@@ -35002,7 +35002,29 @@ var RP_PORTRAIT_FILMS = { titanclash: 1, plazaape: 1, foxshot: 1, ufobeam: 1, au
    rpStageMedia extends the same treatment to any UNREGISTERED stage
    film whose corners measure as a full-bleed scene, so the hand-kept
    list stops being the failure mode for future scene films. */
-var RP_BAND_SCENE492 = { plazadiamond: 1, crownjewel: 1 };
+var RP_BAND_SCENE492 = { plazadiamond: 1, crownjewel: 1, rainbowfalls: 1, crystaloctopus: 1 }; // [RP-V7.494] +rainbowfalls +crystaloctopus: landscape full-bleed SCENE films the catalog audit found sitting on the keyed path — same unkeyed band-scene treatment as the V7.492 pair.
+/* [RP-V7.494] PORTRAIT-SCENE routing (catalog audit): full-bleed
+   SCENE films in PORTRAIT aspect — wall-to-wall colour, no black
+   ground to key (skystepper: a full animated scene; rizzuniverse:
+   the prolonged party film; trex: the photoreal jungle close-up).
+   On the keyed path they print as an opaque slab or key away real
+   content, so rpStageMedia routes them through the same unkeyed
+   raw presentation as the band scenes (bandScene492: raw video,
+   normal compositing, hairline melt, C2 aspect reseat) in the
+   portrait seat. On the stage proper, trex and skystepper keep
+   their dedicated full-bleed stages (V7.353 / V7.362) — this list
+   governs every rpStageMedia presentation of these films (the
+   resolver path after a dedicated-stage failure, and any future
+   caller) so they can never fall onto the keyer. */
+var RP_PORTRAIT_SCENE494 = { skystepper: 1, rizzuniverse: 1, trex: 1 };
+/* [RP-V7.494] ASPECT-TRUE SEAT registration (catalog audit gate e):
+   square (1:1) and 3:2 cutout films sat unregistered on the 16:9
+   keyed seat — the Star Cruiser squash class. Registered here with
+   their native aspect, rpStageMedia builds the seat at the film's
+   own shape from the first frame; the V7.492 C2 metadata reseat
+   then confirms the identical value from the film itself. These
+   are true-black cutouts — only the seat changes, never the keyer. */
+var RP_FILM_ASPECT494 = { laurelcrown: "1 / 1", kraken: "1 / 1", astropup: "1 / 1", fattuesday: "1 / 1", moonunicorn: "1 / 1", cometcrown: "1 / 1", dragonthrone: "1 / 1", musicnote: "3 / 2", guitarpick: "3 / 2", maraca: "3 / 2", cloverpop: "3 / 2", foamfinger: "3 / 2", confettipop: "3 / 2", micdrop: "3 / 2", saxsolo: "3 / 2", parrotdj: "3 / 2", keycascade: "3 / 2", tacofiesta: "3 / 2", drumroll: "3 / 2", lowrider: "3 / 2", starcruiser: "3 / 2" };
 /* [spec §2.4/§9.3] per-gift replay flag: one-play-per-streak exists
    as a mechanism (rpBigStage honors it) but NO Rizz gift is measured
    into that class — Rizz defaults to replay-per-send, so this map is
@@ -35453,6 +35475,7 @@ function rpStageMedia(div, gid, icon) {
     img.src = "img/gifts/" + aid + ".webp";
   }
   function filmMode() {
+    if (RP_FILM_ASPECT494[aid]) { try { div.style.aspectRatio = RP_FILM_ASPECT494[aid]; } catch (e) { } } /* [RP-V7.494] aspect-true seat registration: the seat is built at the film's native aspect from the first frame; the C2 metadata reseat below confirms the identical value from the film itself */
     var v = document.createElement("video");
     v.className = "rp-gift-film";
     v.setAttribute("data-gid", aid);
@@ -35563,7 +35586,7 @@ function rpStageMedia(div, gid, icon) {
        scene films nobody registered. */
     function detectScene492() {
       if (gate492.detected) return; gate492.detected = true;
-      if (RP_SCENE_FILMS[aid] || RP_PORTRAIT_FILMS[aid] || RP_BAND_SCENE492[aid]) return;
+      if (RP_SCENE_FILMS[aid] || RP_PORTRAIT_FILMS[aid] || RP_BAND_SCENE492[aid] || RP_PORTRAIT_SCENE494[aid]) return; /* [RP-V7.494] portrait-scene registrations keep their routing too (they never reach this branch — the guard list stays complete) */
       if (window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[aid]) return;
       try {
         var cw492 = 48, ch492 = Math.max(8, Math.min(64, Math.round(48 * (v.videoHeight || 9) / (v.videoWidth || 16))));
@@ -35599,7 +35622,7 @@ function rpStageMedia(div, gid, icon) {
       v.src = window.rpGiftFilmUrl(aid);
       return;
     }
-    if (RP_BAND_SCENE492[aid]) { bandScene492(false); return; } /* [RP-V7.492] C1 — registered full-bleed scenes never touch the keyer */
+    if (RP_BAND_SCENE492[aid] || RP_PORTRAIT_SCENE494[aid]) { bandScene492(false); return; } /* [RP-V7.492] C1 — registered full-bleed scenes never touch the keyer. [RP-V7.494] + the portrait-scene class: same unkeyed raw presentation (the C2 reseat hands the seat the film's own portrait aspect) */
     if (RpKey.supported()) {
       var h = RpKey.attach(v, {}); // [RP-V7.337] identity window — the WHOLE film frame keys (the V7.218 cover window cropped any film whose raster differs from the band box: portrait films lost their top and bottom in live rooms — Branden, Nov 11, 2026: "you can see part of the sides not showing because it's boxed in"); the art box now matches the film's own aspect (see the .film.portrait rule), so identity = whole scene, nothing cut
       if (h) {
@@ -35855,7 +35878,7 @@ function stageStreakBump(key, add) {
       gateWait492 = sFilm; /* [RP-V7.492] C6 */
     } else {
       artDiv.className = sFilm ? "rp-stage-art film" : ("rp-stage-art " + motion); /* [RP-V7.492] C6 — a film show's entrance class lands only when the film presents (release492 below): the gate's art hold must not ride an entrance it doesn't own, and the film must present exactly once, entrance included */
-      if (RP_PORTRAIT_FILMS[said]) artDiv.classList.add("portrait");
+      if (RP_PORTRAIT_FILMS[said] || RP_PORTRAIT_SCENE494[said]) artDiv.classList.add("portrait"); /* [RP-V7.494] portrait-scene films take the portrait seat too (trex/skystepper preempt to their dedicated stages above; this seats rizzuniverse and any future portrait-scene film) */
       if (!sFilm) artDiv.style.animationDuration = dur + "ms"; /* film shows: the duration is set at release (or by the stage clock's anchor) so the entrance runs on playback, not on append */
       stageCtl = rpStageMedia(artDiv, sgid, g.icon || GIFT_ICONS[said]);
       gateWait492 = sFilm; if (sFilm) gateMotion492 = motion; /* [RP-V7.492] C6 */
