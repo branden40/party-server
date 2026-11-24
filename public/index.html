@@ -28,7 +28,7 @@
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
 <meta name="rp-build" content="RP-V7.489" />
-<!-- [RP-V7.489] WEEKLY GIFTS (Nov 23, 2026): +5 gifts, catalog 117 -> 122, all prices unique — lanternturtle "Lantern Turtle" 15 small, discosnail "Disco Snail" 88 small, tornadodancer "Tornado Dancer" 370 medium, crystaloctopus "Crystal Octopus" 690 medium, wingedlion "Winged Lion" 1700 big; each with an HD film (giftfx-<id>.mp4) + animated art; ids added to GIFT_FILM_IDS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly. --> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. --> <!-- [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE (Branden, Nov 22, 2026): his recording showed the Home For You pager landing on pure black for ~5 s and a reel sitting frozen; ordered corrected "like the other reels", chose the grid, added "Plus swipe", then scoped it himself — "This is on the for you button": the FOR YOU tab's mixed stream (reels + photo posts + text posts, the pager's own homeItems() list, same order) now paints as a poster/thumbnail grid in #homeGrid488 (fillGrid tiles — reel posters from V7.482, photo ~720px variants from V7.485, text tiles in the RPText278 style), pre-warmed the V7.482 way (reel posters already ride rpPrewarm482; photo variants now warm inside pagerPhotosFetch123; a scroll-ahead wire keeps the window ahead of the member). Tap a tile -> the sheet player (reels play with the full V7.462/V7.486 rail incl. the handshake; photos and text posts open in the same media viewer they always did); PLUS SWIPE inside the player walks the GRID'S list across types (reel -> photo -> text -> reel) via a mixed session in the lightbox (lbHomeNav488) built on the V7.461 gesture wire — every landing behaves exactly as if tapped (view-once is the existing rpViewsPing per-session dedupe for reels and photo posts; text posts never ping, as today), no wrap at the ends, neighbours warm through the V7.483 fetcher hook, Back returns to the grid at the same scroll position (the grid is never unloaded under the sheet). FOLLOWING KEEPS ITS PAGER, byte for byte: renderHomePager branches on the tab — foryou goes to rpHomeGridRender488, following runs the original pager body untouched, and the V7.468 snap machinery retires only where the pager no longer renders (For You). One mapper repair rides along: pagerPhotoMap123 silently DROPPED text posts (a text post has no photo URLs, and the mapper returned null on an empty url list), so text posts never reached the Home pager at all; the mapper now carries them (kind/text/tstyle ride the item, plus photoThumb/thumbUrls for the tiles), so no content type is missing from Home. GLOW RULE CHANGE (Branden, same night, superseding the Nov 6 exception): "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing" — the Home strip's Plaza tab loses its always-on strongest-red glow; its glow rule now keys off .on like every other tab (the true-red look is kept for the active state; Following/For You and the bottom bar are untouched). Client-only; the V7.487 server already returns every field the grid reads. -->
+<!-- [RP-V7.490] LIVE LABEL + LIVE STICKERS + 2 GIFTS (Branden, Nov 23, 2026): (1) LIVE LABEL — the host sets a short custom label (plain text, max 40 chars) that rides as a bold banner near the top of the live screen for the host AND every viewer, modeled on the "MEDIA HIGHLIGHTS & RECAPS" banner on TikTok recap clips; set/clear from the host's ••• sheet ("Live label" row). (2) LIVE STICKERS "like TikTok" + Instagram-style cards — the host sticks up to 3 stickers on the live from the ••• sheet ("Stickers" row): a glyph pack of 12 large emoji (🔥 ⭐ ❤️ 🎉 👑 🎵 ⚡ 💯 🎁 🙌 😂 🎤) AND Instagram-style white rounded cards (❓ Ask me anything · 📊 POLL · ⏰ COUNTDOWN · #️⃣ hashtag (host text, max 24) · 📍 location (host text, max 24) · 🎵 MUSIC), rendered as styled DOM, fixed slots in the corners/lower area, never center-face. Label + stickers live on the server room state (liveDeco490, keyed by live key, beside the V7.389 show note), broadcast over the live socket flow (live-deco490; battle rooms cross-emit like battle306Emit so each host's deco lands on their own side of the split), late joiners pull it with live-deco-get490 on the Lk389 sync, and everything clears when the live ends. The banner layer is NOT part of the lv-idle chrome — it never auto-fades. All user text renders via textContent only. Works in every live type (a label/sticker is not commerce — church lives included). (3) +2 GIFTS: shellsensei "Shell Sensei" 440 medium (film 5.583 s) + auraclash "Aura Clash" 2200 big (film 4.500 s) — catalog 122 -> 124, prices unique; client GIFT_SHOP + GIFT_FILM_IDS, server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entries (the V7.474 film clock self-corrects past the tier defaults: medium 8000 / big 10000 both exceed film + 250 ms). Everything V7.489 preserved. --> <!-- [RP-V7.489] WEEKLY GIFTS (Nov 23, 2026): +5 gifts, catalog 117 -> 122, all prices unique — lanternturtle "Lantern Turtle" 15 small, discosnail "Disco Snail" 88 small, tornadodancer "Tornado Dancer" 370 medium, crystaloctopus "Crystal Octopus" 690 medium, wingedlion "Winged Lion" 1700 big; each with an HD film (giftfx-<id>.mp4) + animated art; ids added to GIFT_FILM_IDS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly. --> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. --> <!-- [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE (Branden, Nov 22, 2026): his recording showed the Home For You pager landing on pure black for ~5 s and a reel sitting frozen; ordered corrected "like the other reels", chose the grid, added "Plus swipe", then scoped it himself — "This is on the for you button": the FOR YOU tab's mixed stream (reels + photo posts + text posts, the pager's own homeItems() list, same order) now paints as a poster/thumbnail grid in #homeGrid488 (fillGrid tiles — reel posters from V7.482, photo ~720px variants from V7.485, text tiles in the RPText278 style), pre-warmed the V7.482 way (reel posters already ride rpPrewarm482; photo variants now warm inside pagerPhotosFetch123; a scroll-ahead wire keeps the window ahead of the member). Tap a tile -> the sheet player (reels play with the full V7.462/V7.486 rail incl. the handshake; photos and text posts open in the same media viewer they always did); PLUS SWIPE inside the player walks the GRID'S list across types (reel -> photo -> text -> reel) via a mixed session in the lightbox (lbHomeNav488) built on the V7.461 gesture wire — every landing behaves exactly as if tapped (view-once is the existing rpViewsPing per-session dedupe for reels and photo posts; text posts never ping, as today), no wrap at the ends, neighbours warm through the V7.483 fetcher hook, Back returns to the grid at the same scroll position (the grid is never unloaded under the sheet). FOLLOWING KEEPS ITS PAGER, byte for byte: renderHomePager branches on the tab — foryou goes to rpHomeGridRender488, following runs the original pager body untouched, and the V7.468 snap machinery retires only where the pager no longer renders (For You). One mapper repair rides along: pagerPhotoMap123 silently DROPPED text posts (a text post has no photo URLs, and the mapper returned null on an empty url list), so text posts never reached the Home pager at all; the mapper now carries them (kind/text/tstyle ride the item, plus photoThumb/thumbUrls for the tiles), so no content type is missing from Home. GLOW RULE CHANGE (Branden, same night, superseding the Nov 6 exception): "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing" — the Home strip's Plaza tab loses its always-on strongest-red glow; its glow rule now keys off .on like every other tab (the true-red look is kept for the active state; Following/For You and the bottom bar are untouched). Client-only; the V7.487 server already returns every field the grid reads. -->
 <!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
     <style>
       :root {
@@ -1159,6 +1159,32 @@
       .lk-gwchip389[hidden] { display: none; }
       .lk-note389 { background: rgba(10,10,12,.9); border-left: 3px solid #e02424; color: #fff; font-weight: 700; font-size: 13px; padding: 7px 10px; border-radius: 8px; margin: 4px 0; }
       .lk-note389[hidden] { display: none; }
+      /* [RP-V7.490] Live label banner + sticker layer. Deliberately NOT
+         in the lv-idle fade list: a label is a fixture of the live, not
+         chrome. Sits below the top bar so it never covers the host. */
+      .lv-label490 { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); z-index: 35; max-width: 92%; background: rgba(8,8,10,.88); border: 1.5px solid #e02424; color: #fff; font-weight: 900; font-size: 17px; letter-spacing: .4px; text-align: center; padding: 8px 18px; border-radius: 12px; pointer-events: none; box-shadow: 0 4px 22px rgba(224,36,36,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+      .lv-label490[hidden] { display: none; }
+      .lv-label490.half-l { left: 25%; max-width: 46%; }
+      .lv-label490.half-r { left: 75%; max-width: 46%; }
+      .lv-stickers490 { position: absolute; inset: 0; z-index: 34; pointer-events: none; }
+      .lv-stickers490[hidden] { display: none; }
+      .lv-stk-half490 { position: absolute; top: 0; bottom: 0; overflow: hidden; }
+      .lv-stk-half490.mine { left: 0; right: 0; }
+      .lv-stk-half490.mine.half { right: 50%; }
+      .lv-stk-half490.opp { left: 50%; right: 0; }
+      .lv-stk-half490[hidden] { display: none; }
+      .lv-stk-slot490 { position: absolute; display: flex; align-items: center; justify-content: center; }
+      .lv-stk-slot490.s0 { left: 12px; bottom: 92px; }
+      .lv-stk-slot490.s1 { right: 12px; bottom: 92px; }
+      .lv-stk-slot490.s2 { left: 12px; top: 118px; }
+      .lv-stk-glyph490 { font-size: 54px; line-height: 1; filter: drop-shadow(0 3px 10px rgba(0,0,0,.65)); }
+      .lv-stk-card490 { display: flex; align-items: center; gap: 7px; background: #fff; color: #111; border-radius: 14px; padding: 9px 13px; box-shadow: 0 4px 18px rgba(0,0,0,.5); max-width: 168px; }
+      .lv-stk-card-ic490 { font-size: 19px; line-height: 1; }
+      .lv-stk-card-tx490 { font-weight: 900; font-size: 14.5px; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .lv-stk-pick490 { font-size: 30px; line-height: 1; background: rgba(255,255,255,.06); border: 1.5px solid rgba(255,255,255,.16); border-radius: 12px; padding: 8px 0; cursor: pointer; }
+      .lv-stk-pick490.on { border-color: #e02424; background: rgba(224,36,36,.18); box-shadow: 0 0 0 1px #e02424 inset; }
+      .lv-stk-cardpick490 { display: flex; align-items: center; gap: 7px; background: #fff; color: #111; border: 2px solid transparent; border-radius: 12px; padding: 8px 11px; cursor: pointer; font-weight: 900; font-size: 13.5px; text-align: left; }
+      .lv-stk-cardpick490.on { border-color: #e02424; box-shadow: 0 0 0 1.5px #e02424; }
       .lk-watch389 { background: rgba(10,10,12,.8); color: #ffb3b3; font-weight: 800; font-size: 12px; padding: 5px 10px; border-radius: 999px; margin: 4px 0; display: inline-block; }
       .lk-watch389[hidden] { display: none; }
       .lk-winoverlay389 { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 40; }
@@ -3737,6 +3763,9 @@
             <div class="lv-aucpin" id="liveAucPin" hidden></div>
             <div class="lv-pollcard" id="livePollCard" hidden></div> <!-- [RP-V7.319] in-player live poll card -->
             <div class="lk-winoverlay389" id="lkWinOverlay389" hidden><div class="lk-wincard389"><div class="lk-wintitle389" id="lkWinTitle389"></div><div class="lk-winsub389" id="lkWinSub389"></div></div></div> <!-- [RP-V7.389] winner overlay -->
+            <div class="lv-label490" id="lvLabel490" hidden></div> <!-- [RP-V7.490] host's live label banner -->
+            <div class="lv-label490" id="lvLabelOpp490" hidden></div> <!-- [RP-V7.490] battle opponent's live label banner -->
+            <div class="lv-stickers490" id="lvStickers490" hidden><div class="lv-stk-half490 mine" id="lvStkMine490"></div><div class="lv-stk-half490 opp" id="lvStkOpp490" hidden></div></div> <!-- [RP-V7.490] live sticker layer (glyphs + Instagram-style cards) -->
             <div class="lv-bottombar" id="liveBottomBar">
               <div class="lv-commentbar" id="liveCommentBar" hidden>
                 <input id="liveCommentInput" type="text" maxlength="200" placeholder="Say something nice…" autocomplete="off" />
@@ -9096,6 +9125,8 @@
           socket.on("winner-overlay", onLkWinOverlay389); // [RP-V7.389] shared winner overlay (giveaway draws + auction wins)
           socket.on("live-note", onLkNote389); // [RP-V7.389] pinned show note for this live
           socket.on("live-note-error", onLkNoteError389); // [RP-V7.389] show-note refusal (links / 18+)
+          socket.on("live-deco490", onDeco490); // [RP-V7.490] live label + stickers for this live (and the battle opponent's)
+          socket.on("live-deco-error490", onDecoError490); // [RP-V7.490] label/sticker refusal
           socket.on("watch-progress", onLkWatchProgress389); // [RP-V7.389] watch-to-earn progress (server clock)
           socket.on("watch-earn", onLkWatchEarn389); // [RP-V7.389] a watch-to-earn bonus landed
           socket.on("raid-banner", onLkRaidBanner389); // [RP-V7.389] this live is raiding — tap to follow
@@ -18577,6 +18608,8 @@
         var lkGwRow389 = ""; try { if (typeof Lk389 !== "undefined" && Lk389.gw && Lk389.gw.status === "open") lkGwRow389 = " · " + (Lk389.gw.entries || 0) + " in"; } catch (e) { }
         html += '<button type="button" class="btn-mini" id="lvMoreGw389">🎁 Giveaway' + lkGwRow389 + "</button>"; // [RP-V7.389] giveaways for everyone — hosts run them, viewers enter free
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreNote389">📌 Show note' + (typeof Lk389 !== "undefined" && Lk389.note ? " · pinned" : "") + "</button>"; // [RP-V7.389] host pins a show note
+        if (host) html += '<button type="button" class="btn-mini" id="lvMoreLabel490">🏷️ Live label' + (typeof Deco490 !== "undefined" && Deco490.label ? " · on" : "") + "</button>"; // [RP-V7.490] host's banner label on the live
+        if (host) html += '<button type="button" class="btn-mini" id="lvMoreStickers490">🌟 Stickers' + (typeof Deco490 !== "undefined" && Deco490.stickers.length ? " · " + Deco490.stickers.length + " on" : "") + "</button>"; // [RP-V7.490] glyph + Instagram-style card stickers
         if (host && !aucCtx) html += '<button type="button" class="btn-mini" id="lvMorePoll319">📊 Poll' + (Live.poll && Live.poll.status === "open" ? " · live now — tap to manage" : "") + "</button>"; // [RP-V7.319] host runs polls from the ••• tray — never on an auction show
         if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreBattle">⚔️ Battle</button>'; // [RP-V7.83] Battle's home is this sheet now (was a floating button) — regular lives only, never an auction show
         if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreAddPeople">＋ Add people</button>'; // [RP-V7.83] Add people moved with Battle
@@ -18608,6 +18641,8 @@
         wire("lvMorePot", function () { closeSheet(); openPotSheet(); }); // [RP-V7.41]
         wire("lvMoreGw389", function () { closeSheet(); openLkGwSheet389(); }); // [RP-V7.389]
         wire("lvMoreNote389", function () { closeSheet(); openLkNoteSheet389(); }); // [RP-V7.389]
+        wire("lvMoreLabel490", function () { closeSheet(); openDecoLabelSheet490(); }); // [RP-V7.490]
+        wire("lvMoreStickers490", function () { closeSheet(); openDecoStickerSheet490(); }); // [RP-V7.490]
         wire("lvMoreRaid389", function () { closeSheet(); openLkRaidSheet389(); }); // [RP-V7.389]
         wire("lvMorePoll319", function () { closeSheet(); openPollSheet319(); }); // [RP-V7.319]
         wire("lvMoreSetup", function () { closeSheet(); openLiveSetup(); }); // [RP-V7.63]
@@ -18657,6 +18692,9 @@
           var lkGwOff389 = $("lkGwChip389"); if (lkGwOff389) lkGwOff389.hidden = true; // [RP-V7.389]
           var lkNoteOff389 = $("lkNote389"); if (lkNoteOff389) lkNoteOff389.hidden = true; // [RP-V7.389]
           var lkWatchOff389 = $("lkWatch389"); if (lkWatchOff389) lkWatchOff389.hidden = true; // [RP-V7.389]
+          var lvLabelOff490 = $("lvLabel490"); if (lvLabelOff490) lvLabelOff490.hidden = true; // [RP-V7.490]
+          var lvLabelOppOff490 = $("lvLabelOpp490"); if (lvLabelOppOff490) lvLabelOppOff490.hidden = true; // [RP-V7.490]
+          var lvStkOff490 = $("lvStickers490"); if (lvStkOff490) lvStkOff490.hidden = true; // [RP-V7.490]
           var pollCardOff = $("livePollCard"); if (pollCardOff) { pollCardOff.hidden = true; } var pollPanelOff = $("livePanel"); if (pollPanelOff) pollPanelOff.classList.remove("poll-on"); // [RP-V7.319]
           if (rail) rail.hidden = true;
           if (bar) bar.hidden = true;
@@ -20526,6 +20564,7 @@
           lkGwRender389();
           lkNoteRender389();
           lkWatchRender389();
+          decoReset490(); // [RP-V7.490] label + stickers hide with the live
           return;
         }
         var key = lkGwKey389();
@@ -20538,8 +20577,12 @@
           lkGwRender389();
           lkNoteRender389();
           lkWatchRender389();
+          decoReset490(); // [RP-V7.490] new live = fresh deco until the get answers
           try {
             if (Online.socket) Online.socket.emit("live-note-get", {});
+          } catch (e) {}
+          try {
+            if (Online.socket) Online.socket.emit("live-deco-get490", {}); // [RP-V7.490] late joiners pull the label + stickers
           } catch (e) {}
         }
         var now = Date.now();
@@ -20676,6 +20719,329 @@
             closeSheet();
           });
       }
+      /* ----- [RP-V7.490] live label + stickers -----
+         The host decorates their live: a label banner (🏷️ Live label
+         in the ••• sheet) + up to 3 stickers (🌟 Stickers). Two sticker
+         families share the same slots and the same server state
+         (liveDeco490): glyph stickers (kind "glyph", native emoji at
+         large size) and Instagram-style white cards (kind "card").
+         The server is authoritative: the host sends intents, the
+         server sanitizes, stores on the room state and broadcasts
+         "live-deco490"; late joiners pull it via the Lk389 sync's
+         live-deco-get490. Every user string renders via textContent —
+         never innerHTML. No MutationObserver anywhere in this module;
+         every DOM write is guarded by a state check first. */
+      var Deco490 = { key: "", label: "", stickers: [], oppKey: "", oppLabel: "", oppStickers: [] };
+      var DECO_GLYPHS490 = ["🔥", "⭐", "❤️", "🎉", "👑", "🎵", "⚡", "💯", "🎁", "🙌", "😂", "🎤"];
+      var DECO_CARDS490 = [
+        { card: "questions", icon: "❓", text: "Ask me anything" },
+        { card: "poll", icon: "📊", text: "POLL" },
+        { card: "countdown", icon: "⏰", text: "COUNTDOWN" },
+        { card: "hashtag", icon: "#️⃣", text: "", def: "#live" },
+        { card: "location", icon: "📍", text: "", def: "LIVE" },
+        { card: "music", icon: "🎵", text: "MUSIC" }
+      ];
+      function decoBattle490() {
+        try { return !!(window.__rpBat306Managed && window.__rpBat306Managed()); } catch (e) { return false; }
+      }
+      function decoReset490() {
+        Deco490.key = ""; Deco490.label = ""; Deco490.stickers = [];
+        Deco490.oppKey = ""; Deco490.oppLabel = ""; Deco490.oppStickers = [];
+        decoRender490();
+        decoStickersRender490();
+      }
+      function decoCardText490(it) {
+        for (var i = 0; i < DECO_CARDS490.length; i++) {
+          var c = DECO_CARDS490[i];
+          if (c.card !== it.card) continue;
+          if (c.card === "hashtag") {
+            var t = it.text || c.def;
+            return t.charAt(0) === "#" ? t : "#" + t;
+          }
+          if (c.card === "location") return it.text || c.def;
+          return c.text;
+        }
+        return "";
+      }
+      function decoCardIcon490(it) {
+        for (var i = 0; i < DECO_CARDS490.length; i++)
+          if (DECO_CARDS490[i].card === it.card) return DECO_CARDS490[i].icon;
+        return "🌟";
+      }
+      function decoRender490() {
+        var battle = decoBattle490();
+        var el = $("lvLabel490");
+        if (el) {
+          var txt = Live.active ? Deco490.label || "" : "";
+          if (!txt) { if (!el.hidden) el.hidden = true; }
+          else {
+            if (el.textContent !== txt) el.textContent = txt;
+            if (el.classList.contains("half-l") !== battle) el.classList.toggle("half-l", battle);
+            if (el.hidden) el.hidden = false;
+          }
+        }
+        var opp = $("lvLabelOpp490");
+        if (opp) {
+          var otxt = Live.active && battle ? Deco490.oppLabel || "" : "";
+          if (!otxt) { if (!opp.hidden) opp.hidden = true; }
+          else {
+            if (opp.textContent !== otxt) opp.textContent = otxt;
+            if (!opp.classList.contains("half-r")) opp.classList.add("half-r");
+            if (opp.hidden) opp.hidden = false;
+          }
+        }
+      }
+      function decoStickerNode490(it) {
+        if (it.kind === "glyph") {
+          var s = document.createElement("span");
+          s.className = "lv-stk-glyph490";
+          s.textContent = it.g || "";
+          return s;
+        }
+        var card = document.createElement("div");
+        card.className = "lv-stk-card490";
+        var ic = document.createElement("span");
+        ic.className = "lv-stk-card-ic490";
+        ic.textContent = decoCardIcon490(it);
+        var tx = document.createElement("span");
+        tx.className = "lv-stk-card-tx490";
+        tx.textContent = decoCardText490(it);
+        card.appendChild(ic);
+        card.appendChild(tx);
+        return card;
+      }
+      function decoFillHalf490(box, items) {
+        if (!box) return;
+        var sig = JSON.stringify(items || []);
+        if (box.__decoSig490 === sig) return; // state check before any DOM write
+        box.__decoSig490 = sig;
+        while (box.firstChild) box.removeChild(box.firstChild);
+        (items || []).slice(0, 3).forEach(function (it, i) {
+          var slot = document.createElement("div");
+          slot.className = "lv-stk-slot490 s" + i;
+          slot.appendChild(decoStickerNode490(it));
+          box.appendChild(slot);
+        });
+      }
+      function decoStickersRender490() {
+        var layer = $("lvStickers490");
+        var mine = $("lvStkMine490");
+        var opp = $("lvStkOpp490");
+        var battle = decoBattle490();
+        var myItems = Live.active ? Deco490.stickers || [] : [];
+        var oppItems = Live.active && battle ? Deco490.oppStickers || [] : [];
+        decoFillHalf490(mine, myItems);
+        decoFillHalf490(opp, oppItems);
+        if (mine) {
+          if (mine.classList.contains("half") !== battle) mine.classList.toggle("half", battle);
+          var mh = !myItems.length;
+          if (mine.hidden !== mh) mine.hidden = mh;
+        }
+        if (opp) {
+          var oh = !oppItems.length;
+          if (opp.hidden !== oh) opp.hidden = oh;
+        }
+        if (layer) {
+          var lh = !myItems.length && !oppItems.length;
+          if (layer.hidden !== lh) layer.hidden = lh;
+        }
+      }
+      function onDeco490(data) {
+        if (!data) return;
+        var myKey = "";
+        try { myKey = livePotKey(); } catch (e) {}
+        if (data.key && myKey && data.key === myKey) {
+          Deco490.key = data.key;
+          Deco490.label = data.label || "";
+          Deco490.stickers = data.stickers || [];
+        } else if (data.key && decoBattle490()) {
+          Deco490.oppKey = data.key;
+          Deco490.oppLabel = data.label || "";
+          Deco490.oppStickers = data.stickers || [];
+        } else if (data.room && data.room === livePotRoom()) {
+          // directory key not resolvable yet on this screen — the room match is authoritative enough
+          Deco490.label = data.label || "";
+          Deco490.stickers = data.stickers || [];
+        } else return;
+        decoRender490();
+        decoStickersRender490();
+      }
+      function onDecoError490(data) {
+        toast((data && data.error) || "Couldn't update the live decorations.", 3600);
+      }
+      function decoEmitStickers490() {
+        try {
+          if (Online.socket) Online.socket.emit("live-stickers-set490", { stickers: Deco490.stickers });
+        } catch (e) {}
+      }
+      function decoStickerKey490(it) { return it.kind === "glyph" ? "g:" + it.g : "c:" + it.card; }
+      function decoToggle490(it) {
+        var k = decoStickerKey490(it);
+        var had = Deco490.stickers.some(function (s) { return decoStickerKey490(s) === k; });
+        var next = Deco490.stickers.filter(function (s) { return decoStickerKey490(s) !== k; });
+        if (!had) {
+          if (next.length >= 3) { toast("Only 3 stickers on screen at once — tap one off first."); return false; }
+          next.push(it);
+        }
+        Deco490.stickers = next;
+        decoStickersRender490();
+        decoEmitStickers490();
+        return true;
+      }
+      function decoSetCardText490(card, text) {
+        var it = { kind: "card", card: card, text: text };
+        var k = decoStickerKey490(it);
+        var idx = -1;
+        Deco490.stickers.forEach(function (s, i) { if (decoStickerKey490(s) === k) idx = i; });
+        var next = Deco490.stickers.slice();
+        if (idx >= 0) next[idx] = it;
+        else {
+          if (next.length >= 3) { toast("Only 3 stickers on screen at once — tap one off first."); return false; }
+          next.push(it);
+        }
+        Deco490.stickers = next;
+        decoStickersRender490();
+        decoEmitStickers490();
+        return true;
+      }
+      function openDecoLabelSheet490() {
+        if (!Live.active || !iAmHost()) return;
+        openSheet(
+          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+            '<div class="game-box"><h3>🏷️ Live label</h3>' +
+            '<p class="pot-sub">A bold banner near the top of your live that everyone watching sees — like the title cards on highlight clips. Plain text only.</p>' +
+            '<div class="field"><label for="lvLabelIn490">Label (max 40 characters)</label>' +
+            '<input class="online-input-full" id="lvLabelIn490" type="text" maxlength="40"/></div>' +
+            '<div class="btn-row" style="justify-content:center;"><button type="button" class="btn-primary" id="lvLabelSave490" style="width:auto; padding:10px 18px;">🏷️ Set label</button>' +
+            '<button type="button" class="btn-mini" id="lvLabelClear490">Clear</button>' +
+            '<button class="btn-mini" data-act="close2">Done</button></div></div>'
+        );
+        wireLiveSheetClose();
+        var inp = $("lvLabelIn490");
+        if (inp) inp.value = Deco490.label || "";
+        var save = $("lvLabelSave490");
+        if (save)
+          save.addEventListener("click", function () {
+            var v = inp ? inp.value : "";
+            try {
+              if (Online.socket) Online.socket.emit("live-label-set490", { text: v });
+            } catch (e) {}
+            Deco490.label = v.replace(/\s+/g, " ").trim().slice(0, 40);
+            decoRender490();
+            closeSheet();
+            toast("🏷️ Label is on your live.");
+          });
+        var clear = $("lvLabelClear490");
+        if (clear)
+          clear.addEventListener("click", function () {
+            try {
+              if (Online.socket) Online.socket.emit("live-label-clear490", {});
+            } catch (e) {}
+            Deco490.label = "";
+            decoRender490();
+            closeSheet();
+          });
+      }
+      function openDecoStickerSheet490() {
+        if (!Live.active || !iAmHost()) return;
+        var glyphBtns = DECO_GLYPHS490.map(function (g) {
+          return '<button type="button" class="lv-stk-pick490" data-g="' + g + '">' + g + "</button>";
+        }).join("");
+        var cardBtns = DECO_CARDS490.map(function (c) {
+          var label = c.card === "hashtag" ? "Hashtag" : c.card === "location" ? "Location" : c.text;
+          return '<button type="button" class="lv-stk-cardpick490" data-card="' + c.card + '"><span>' + c.icon + '</span><span>' + label + "</span></button>";
+        }).join("");
+        openSheet(
+          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+            '<div class="game-box"><h3>🌟 Stickers</h3>' +
+            '<p class="pot-sub">Stick up to 3 on your live — everyone watching sees them. Tap a sticker again to take it off.</p>' +
+            '<div style="display:grid; grid-template-columns:repeat(6,1fr); gap:7px; margin:10px 0;">' + glyphBtns + "</div>" +
+            '<p class="pot-sub" style="margin-top:12px;">Instagram-style cards:</p>' +
+            '<div style="display:grid; grid-template-columns:1fr 1fr; gap:7px; margin:8px 0;">' + cardBtns + "</div>" +
+            '<div class="field"><label for="lvDecoTag490"># Hashtag card text (max 24)</label>' +
+            '<input class="online-input-full" id="lvDecoTag490" type="text" maxlength="24"/></div>' +
+            '<div class="btn-row" style="justify-content:center;"><button type="button" class="btn-mini" id="lvDecoTagBtn490">Set # card</button></div>' +
+            '<div class="field"><label for="lvDecoLoc490">📍 Location card text (max 24)</label>' +
+            '<input class="online-input-full" id="lvDecoLoc490" type="text" maxlength="24"/></div>' +
+            '<div class="btn-row" style="justify-content:center;"><button type="button" class="btn-mini" id="lvDecoLocBtn490">Set 📍 card</button></div>' +
+            '<div class="btn-row" style="justify-content:center; margin-top:12px;"><button type="button" class="btn-mini" id="lvDecoClear490">Clear all stickers</button>' +
+            '<button class="btn-mini" data-act="close2">Done</button></div></div>'
+        );
+        wireLiveSheetClose();
+        function decoSheetRefresh490() {
+          var picks = document.querySelectorAll(".lv-stk-pick490");
+          picks.forEach(function (b) {
+            var on = Deco490.stickers.some(function (s) { return s.kind === "glyph" && s.g === b.getAttribute("data-g"); });
+            if (b.classList.contains("on") !== on) b.classList.toggle("on", on);
+          });
+          var cpicks = document.querySelectorAll(".lv-stk-cardpick490");
+          cpicks.forEach(function (b) {
+            var on = Deco490.stickers.some(function (s) { return s.kind === "card" && s.card === b.getAttribute("data-card"); });
+            if (b.classList.contains("on") !== on) b.classList.toggle("on", on);
+          });
+          var tag = $("lvDecoTag490"), loc = $("lvDecoLoc490");
+          Deco490.stickers.forEach(function (s) {
+            if (s.kind === "card" && s.card === "hashtag" && tag && document.activeElement !== tag) tag.value = (s.text || "").replace(/^#/, "");
+            if (s.kind === "card" && s.card === "location" && loc && document.activeElement !== loc) loc.value = s.text || "";
+          });
+        }
+        document.querySelectorAll(".lv-stk-pick490").forEach(function (b) {
+          b.addEventListener("click", function () {
+            decoToggle490({ kind: "glyph", g: b.getAttribute("data-g") });
+            decoSheetRefresh490();
+          });
+        });
+        document.querySelectorAll(".lv-stk-cardpick490").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var card = b.getAttribute("data-card");
+            if (card === "hashtag" || card === "location") {
+              // text cards are set from their input rows below; tapping the card toggles it off when on
+              var on = Deco490.stickers.some(function (s) { return s.kind === "card" && s.card === card; });
+              if (on) { decoToggle490({ kind: "card", card: card }); decoSheetRefresh490(); }
+              else toast(card === "hashtag" ? "Type the hashtag below, then tap Set # card." : "Type the place below, then tap Set 📍 card.");
+              return;
+            }
+            decoToggle490({ kind: "card", card: card });
+            decoSheetRefresh490();
+          });
+        });
+        var tagBtn = $("lvDecoTagBtn490");
+        if (tagBtn)
+          tagBtn.addEventListener("click", function () {
+            var inp = $("lvDecoTag490");
+            if (decoSetCardText490("hashtag", inp ? inp.value : "")) decoSheetRefresh490();
+          });
+        var locBtn = $("lvDecoLocBtn490");
+        if (locBtn)
+          locBtn.addEventListener("click", function () {
+            var inp = $("lvDecoLoc490");
+            if (decoSetCardText490("location", inp ? inp.value : "")) decoSheetRefresh490();
+          });
+        var clr = $("lvDecoClear490");
+        if (clr)
+          clr.addEventListener("click", function () {
+            Deco490.stickers = [];
+            decoStickersRender490();
+            decoEmitStickers490();
+            decoSheetRefresh490();
+          });
+        decoSheetRefresh490();
+      }
+      // [RP-V7.490] battle joiners can land before the opponent's deco
+      // is known (the battle starts after the room join) — a slow tick
+      // pulls it and keeps the split layout honest. Renders are
+      // state-guarded, so the tick is silent when nothing changed.
+      setInterval(function () {
+        if (!Live.active) return;
+        if (decoBattle490() && !Deco490.oppKey) {
+          try {
+            if (Online.socket) Online.socket.emit("live-deco-get490", {});
+          } catch (e) {}
+        }
+        decoRender490();
+        decoStickersRender490();
+      }, 5000);
+
       /* ----- watch-to-earn ----- */
       function lkWatchEnsure389() {
         if (Lk389.watchTimer) return;
@@ -24109,7 +24475,9 @@
         { id: "discosnail", art: "img/gifts/discosnail.webp", name: "Disco Snail", icon: "🐌", cents: 88, tier: "small", fx: "float" },
         { id: "tornadodancer", art: "img/gifts/tornadodancer.webp", name: "Tornado Dancer", icon: "🌪️", cents: 370, tier: "medium", fx: "float" },
         { id: "crystaloctopus", art: "img/gifts/crystaloctopus.webp", name: "Crystal Octopus", icon: "🐙", cents: 690, tier: "medium", fx: "float" },
-        { id: "wingedlion", art: "img/gifts/wingedlion.webp", name: "Winged Lion", icon: "🦁", cents: 1700, tier: "big", fx: "float" }
+        { id: "wingedlion", art: "img/gifts/wingedlion.webp", name: "Winged Lion", icon: "🦁", cents: 1700, tier: "big", fx: "float" },
+        { id: "shellsensei", art: "img/gifts/shellsensei.webp", name: "Shell Sensei", icon: "🥷", cents: 440, tier: "medium", fx: "float" }, // [RP-V7.490] +2 gifts (Nov 23, 2026)
+        { id: "auraclash", art: "img/gifts/auraclash.webp", name: "Aura Clash", icon: "💥", cents: 2200, tier: "big", fx: "burst" }
       ]; // [RP-V7.395] +5 weekly gifts (Nov 16, 2026): cometkite 40 + jellybloom 90 (small), rainbowfalls 240 + clockworkowl 640 (medium), prismleviathan 3400 (big) — prices unique under the Nov 14 gift price rule; catalog now 86 gifts. // [RP-V7.434] +9 gifts (Nov 18, 2026): the nine verdict films — swagmouse 45 + showdog 115 (small), monkeycrew 260 + scarecrowpirate 550 + shuriken 900 (medium), tidalwave 1800 + meteorrun 2400 + royalcrest 3300 + theruler 4400 (big) — prices unique under the Nov 14 gift price rule; films edge-melted in post (V7.382/V7.406 profile) so no show can draw a box; catalog now 95 gifts. // [RP-V7.446] +6 gifts (Nov 19, 2026): batch 1 of the Boosie-video slate — loveyousomuch 35 (small), poppal 125 + dolphinleap 140 + heartpuff 150 + redglovepunch 160 + welcomemarquee 170 (medium) — prices unique under the Nov 14 gift price rule; films edge-melted in post (V7.382/V7.406 profile), measured 0.00 box step on bright + dark backdrops; catalog now 101 gifts. // [RP-V7.447] +6 gifts (Nov 19, 2026): batch 2 of the Boosie-video slate — peeklemur 190 + handheart 250 + hanginglights 280 + bigbow 320 + lovepainting 380 + bubblegum 420 (medium) — prices unique under the Nov 14 gift price rule; films edge-melted in post (V7.382/V7.406 profile), measured 0.00 box step on bright + dark backdrops; catalog now 107 gifts. // [RP-V7.448] +6 gifts (Nov 19, 2026): batch 3 of the Boosie-video slate — hatandmustache 480 + stargoggles 560 + heartbuddy 580 + pinkcowboy 660 + goldmedal 680 + crystalcrown 760 (medium) — prices unique under the Nov 14 gift price rule; films edge-melted in post (V7.382/V7.406 profile), measured 0.00 box step on bright + dark backdrops; catalog now 113 gifts. // [RP-V7.449] +4 gifts (Nov 19, 2026): batch 4 of the Boosie-video slate — the song gifts — nameinlights 840 + singingmushroom 860 + holyyeah 950 + rockstarset 1050 (medium) — prices unique under the Nov 14 gift price rule; films edge-melted in post (V7.382/V7.406 profile), measured 0.00 box step on bright + dark backdrops; each film carries its own ORIGINAL jingle (clean natural voices, no echo/reverb); catalog now 117 gifts — the Boosie-video slate is complete. Films giftfx-<id>.mp4 + animated art ship as file drops into public/. // [RP-V7.132] +3 gifts — the $1,000 tier (Branden, Oct 29, 2026: all three, 100000 charms each, prestige). Catalog now 36 gifts. [RP-V7.137] +3 gifts — Golden Eagle 20000 / Pegasus of Light 30000 / Aurora Crown 40000, prestige, inserted at price-ascending positions. Catalog now 39 gifts. [RP-V7.166] +1 gift — Golden Ascension 50000 ($500), prestige, after The Universe. Catalog now 40 gifts. [RP-V7.167] +1 gift — Nebula Dragon 10000 ($100), prestige, after Private Jet. Catalog now 41 gifts. [RP-V7.168] +1 gift — Titan Clash 5000 ($50), big, after Galaxy. Catalog now 42 gifts. [RP-V7.188] +1 gift — Rizz Plaza Universe 5000 ($50), big, after Titan Clash. Catalog now 43 gifts. [RP-V7.197] +1 gift — Plaza Ape 2500 ($25), big, after Golden Lion; the V7.188 client entries are RESTORED here (V7.189 had stacked on a pre-V7.188 index and dropped them; the server half never left). Catalog now 44 gifts. [RP-V7.370] PRICE SPREAD (Branden, Nov 14, 2026: "If I hit the same prices for other gifts spread them apart") — 36 gifts moved off shared prices so every catalog price stands alone (anchors kept: clocktea 700, foxshot 2300, trex 3000, skystepper 3500); +1 gift — Golden Goal 2700 ($27), big, after Plaza Ape. Catalog now 81 gifts.
       function giftById(id) { for (var i = 0; i < GIFT_SHOP.length; i++) if (GIFT_SHOP[i].id === id) return GIFT_SHOP[i]; return null; }
       function giftByName(nm) { for (var i = 0; i < GIFT_SHOP.length; i++) if (GIFT_SHOP[i].name === nm) return GIFT_SHOP[i]; return null; }
@@ -33572,7 +33940,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      batches; any gift whose film file isn't there yet falls back to
      its animated WebP art, and a film that fails swaps back the same
      way — never a broken show. */
-  var GIFT_FILM_IDS = { goldengoal: 1, skystepper: 1, clocktea: 1, foxshot: 1, ufobeam: 1, musicnote: 1, guitarpick: 1, maraca: 1, cloverpop: 1, foamfinger: 1, confettipop: 1, micdrop: 1, saxsolo: 1, parrotdj: 1, keycascade: 1, tacofiesta: 1, drumroll: 1, laurelcrown: 1, kraken: 1, lowrider: 1, astropup: 1, moonunicorn: 1, starcruiser: 1, cometcrown: 1, dragonthrone: 1, fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1, cometkite: 1, jellybloom: 1, rainbowfalls: 1, clockworkowl: 1, prismleviathan: 1, swagmouse: 1, showdog: 1, monkeycrew: 1, scarecrowpirate: 1, shuriken: 1, tidalwave: 1, meteorrun: 1, royalcrest: 1, theruler: 1, loveyousomuch: 1, poppal: 1, dolphinleap: 1, heartpuff: 1, redglovepunch: 1, welcomemarquee: 1, peeklemur: 1, handheart: 1, hanginglights: 1, bigbow: 1, lovepainting: 1, bubblegum: 1, hatandmustache: 1, stargoggles: 1, heartbuddy: 1, pinkcowboy: 1, goldmedal: 1, crystalcrown: 1, nameinlights: 1, singingmushroom: 1, holyyeah: 1, rockstarset: 1, lanternturtle: 1, discosnail: 1, tornadodancer: 1, crystaloctopus: 1, wingedlion: 1 }; // [RP-V7.489] +5 film ids // [RP-V7.395] +5 film ids // [RP-V7.434] +9 film ids // [RP-V7.446] +6 film ids // [RP-V7.447] +6 film ids // [RP-V7.448] +6 film ids // [RP-V7.449] +4 film ids
+  var GIFT_FILM_IDS = { goldengoal: 1, skystepper: 1, clocktea: 1, foxshot: 1, ufobeam: 1, musicnote: 1, guitarpick: 1, maraca: 1, cloverpop: 1, foamfinger: 1, confettipop: 1, micdrop: 1, saxsolo: 1, parrotdj: 1, keycascade: 1, tacofiesta: 1, drumroll: 1, laurelcrown: 1, kraken: 1, lowrider: 1, astropup: 1, moonunicorn: 1, starcruiser: 1, cometcrown: 1, dragonthrone: 1, fireflyjar: 1, seahorse: 1, skylanterns: 1, crystalfox: 1, celestialstag: 1, honeybee: 1, bubblewand: 1, carousel: 1, emeraldelephant: 1, worldtree: 1, rizzuniverse: 1, plazaape: 1, titanclash: 1, nebuladragon: 1, heart: 1, rose: 1, coffee: 1, icecream: 1, donut: 1, clap: 1, fingerheart: 1, kiss: 1, fireworks: 1, motorcycle: 1, sportscar: 1, loveballoon: 1, airplane: 1, moneygun: 1, castle: 1, volcano: 1, lion: 1, dragon: 1, meteor: 1, whale: 1, galaxy: 1, diamonds: 1, rocket: 1, ferriswheel: 1, jet: 1, yacht: 1, phoenix: 1, universe: 1, thunderbolt: 1, heartburst: 1, guardianpalm: 1, goldgloves: 1, starsurge: 1, supernova: 1, crownjewel: 1, plazadiamond: 1, goldeneagle: 1, pegasus: 1, auroracrown: 1, ascension: 1, fattuesday: 1, cometkite: 1, jellybloom: 1, rainbowfalls: 1, clockworkowl: 1, prismleviathan: 1, swagmouse: 1, showdog: 1, monkeycrew: 1, scarecrowpirate: 1, shuriken: 1, tidalwave: 1, meteorrun: 1, royalcrest: 1, theruler: 1, loveyousomuch: 1, poppal: 1, dolphinleap: 1, heartpuff: 1, redglovepunch: 1, welcomemarquee: 1, peeklemur: 1, handheart: 1, hanginglights: 1, bigbow: 1, lovepainting: 1, bubblegum: 1, hatandmustache: 1, stargoggles: 1, heartbuddy: 1, pinkcowboy: 1, goldmedal: 1, crystalcrown: 1, nameinlights: 1, singingmushroom: 1, holyyeah: 1, rockstarset: 1, lanternturtle: 1, discosnail: 1, tornadodancer: 1, crystaloctopus: 1, wingedlion: 1, shellsensei: 1, auraclash: 1 }; // [RP-V7.490] +2 film ids // [RP-V7.489] +5 film ids // [RP-V7.395] +5 film ids // [RP-V7.434] +9 film ids // [RP-V7.446] +6 film ids // [RP-V7.447] +6 film ids // [RP-V7.448] +6 film ids // [RP-V7.449] +4 film ids
   /* [RP-V7.337] DIM-MASTER gifts: measured against the keyer's own
      alpha curve (V7.337 audit), these gifts' ART keys to almost
      nothing (subject coverage at alpha>=0.5: fireflyjar 0.14,
