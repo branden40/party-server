@@ -1659,6 +1659,18 @@ function blockHiddenIds(meId) {
   }
   return hidden;
 }
+// [RP-V7.499] App language: the member's UI language, picked at
+// sign-up (🌐 selector on the sign-up / log-in sheet) or later in
+// Settings, from the Plaza's supported set. Stored on the account
+// record as `lang`; a value outside the set is never stored —
+// reads normalize to "en", so legacy accounts (no lang field)
+// read as English. The client dictionary does the translating;
+// the server only ever stores the code.
+const RP_LANGS_499 = ["en", "es", "fr", "pt", "de", "it", "ar", "zh", "hi"];
+function normLang499(v) {
+  const s = String(v || "").trim().toLowerCase();
+  return RP_LANGS_499.indexOf(s) >= 0 ? s : "en";
+}
 function publicAccount(u) {
   // [RP-V7.50] photo: the account record is the source of truth for the
   // profile photo — login / signup / /me all carry it back.
@@ -1673,7 +1685,7 @@ function publicAccount(u) {
   // [RP-V7.88] face rides along too: photo stays the EFFECTIVE face
   // (every surface already reads it); facePhoto is the member's own
   // uploaded photo, kept apart so switching back never loses it.
-  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u), settings: settingsOf(u), socials: socialsOf(u), dating: datingOf(u), datingSavedAt: (typeof u.datingSavedAt === "number" ? u.datingSavedAt : null), gifter: gifterPublic338(u) }; // [RP-V7.338] gifter summary (xp/level/tier/persona) rides the owner payloads // [RP-V7.144] linked handles on other apps (Find friends) // [RP-V7.276] dating profile + its sync stamp ride the owner's payloads
+  return { id: u.id, name: u.name, username: u.username || "", email: u.email, phone: u.phone, profileType: profileTypeOf(u), lang: normLang499(u.lang), photo: u.photo || null, bio: typeof u.bio === "string" ? u.bio : "", photos: accountPhotos(u), photoViews: photoViewsFor(u), link: typeof u.link === "string" ? u.link : "", likedPrivate: !!u.likedPrivate, faceMode: faceModeOf(u), faceRack: typeof u.faceRack === "string" ? u.faceRack : "", faceBuild: (u.faceBuild && typeof u.faceBuild === "object" && !Array.isArray(u.faceBuild)) ? u.faceBuild : null, facePhoto: facePhotoOrig(u), extProfile: extProfileOf(u), settings: settingsOf(u), socials: socialsOf(u), dating: datingOf(u), datingSavedAt: (typeof u.datingSavedAt === "number" ? u.datingSavedAt : null), gifter: gifterPublic338(u) }; // [RP-V7.338] gifter summary (xp/level/tier/persona) rides the owner payloads // [RP-V7.144] linked handles on other apps (Find friends) // [RP-V7.276] dating profile + its sync stamp ride the owner's payloads
 }
 // [RP-V7.62] The gallery as the rest of the app sees it: the stored
 // array when the record has one. A legacy account that only ever set
@@ -2167,6 +2179,10 @@ app.post("/api/account/signup", (req, res) => {
   // accounts land on "member". Anything outside the allowed set is
   // stored as "member" too — a bad label never fails a sign-up.
   const profileType = normProfileType(b.profileType);
+  // [RP-V7.499] the 🌐 language picked on the sign-up sheet rides
+  // the payload; validated against the supported set, default
+  // "en" — a bad code never fails a sign-up (the profileType rule).
+  const lang = normLang499(b.lang);
   const password = String(b.password || "");
   const dob = String(b.dob || "").trim().slice(0, 10);
   // [RP-V7.117] TikTok-simple sign-up: ONE way in. The member picks
@@ -2284,6 +2300,7 @@ app.post("/api/account/signup", (req, res) => {
       email,
       phone,
       profileType,
+      lang,
       passHash: hashPassword(password, salt),
       salt,
       dob,
@@ -3323,6 +3340,14 @@ app.post("/api/account/profile", (req, res) => {
   // [RP-V7.86] Liked-tab privacy: private = only the owner sees it.
   if (typeof b.likedPrivate === "boolean" && b.likedPrivate !== !!ctx.user.likedPrivate) {
     ctx.user.likedPrivate = b.likedPrivate; changed = true;
+  }
+  // [RP-V7.499] UI language (the Settings 🌐 picker): only a
+  // supported code is stored; anything else is refused with the
+  // same discipline as the other pick-one fields on this route.
+  if (typeof b.lang === "string" && b.lang) {
+    if (RP_LANGS_499.indexOf(b.lang) < 0)
+      return res.status(400).json({ ok: false, error: "That language isn't one of the Plaza's choices" });
+    if (b.lang !== normLang499(ctx.user.lang)) { ctx.user.lang = b.lang; changed = true; }
   }
   if (changed) writeAccounts(ctx.db);
   res.json({ ok: true, user: publicAccount(ctx.user) });
@@ -20690,6 +20715,7 @@ app.post("/api/account/google/complete", (req, res) => {
     return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
   const username = String(b.username || "").trim().slice(0, 20);
   const dob = String(b.dob || "").trim().slice(0, 10);
+  const lang = normLang499(b.lang); // [RP-V7.499] the sheet's 🌐 pick, same rule as sign-up
   if (!USERNAME_RE.test(username))
     return res.status(400).json({ ok: false, error: "Pick a username — 3–20 characters, letters, numbers and underscores only" });
   if (!dob)
@@ -20726,6 +20752,7 @@ app.post("/api/account/google/complete", (req, res) => {
     email: rec.email,
     phone: "",
     profileType: normProfileType(null),
+    lang,
     // No Plaza password is ever set for a Google account: the stored
     // hash is of a random secret nobody knows, so password login can
     // never match it (and never an empty password). The member signs
