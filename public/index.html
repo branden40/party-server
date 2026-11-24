@@ -27791,54 +27791,57 @@
       function openMomComments(id) {
         var p = momPostById(id); if (!p) return;
         Moments.openCommentsFor = id;
-        var list = p.comments.length
-          ? p.comments.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + '</b>' + (c.glv ? rpGifterBadge338(c.glv) : "") + '<span>' + rpLinkifyRaw259(c.text, "photos") + '</span></div>'; }).join("") // [RP-V7.259] Moments photo comments linkify on the RAW text (photos context)
-          : '<p style="color:var(--ink-soft); font-weight:700;">No comments yet — say something nice!</p>';
-        openSheet(
-          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💬 Comments · ' + escHtml(p.name) + '\u2019s Reel</h3>' +
-          '<div id="momCommentList">' + list + '</div>' +
-          '<div class="chat-row" style="margin-top:12px;"><button class="cmt-emoji" type="button" id="btnMomEmoji" aria-label="Add an emoji">😊</button><input class="online-input" id="momCommentInput" type="text" maxlength="140" placeholder="Add a kind comment…" autocomplete="off" /><button class="btn-primary" style="width:auto; padding:11px 18px;" id="btnMomComment">Post</button></div>' +
-          '<p class="age-note" style="margin-top:8px;">Comments are public — keep them kind, and follow the community guidelines.</p></div>'
-        );
-        $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { Moments.openCommentsFor = null; closeSheet(); });
-        rxWireCommentEmoji($("btnMomEmoji"), $("momCommentInput"));
-        rxCommentsToBottom(); // [RP-V7.404] open on the newest comments with the composer in view
-        $("btnMomComment").addEventListener("click", function () {
-          var inp = $("momCommentInput");
-          var txt = (inp.value || "").trim();
-          if (!txt) { toast("Write a comment first!"); return; }
-          function momAppendComment(name, text) {
-            inp.value = "";
-            var li = document.createElement("div");
-            li.className = "mom-comment";
-            li.innerHTML = "<b>" + escHtml(name) + "</b><span>" + rpLinkifyRaw259(text, "photos") + "</span>"; // [RP-V7.259] just-posted photo comments linkify on the RAW text too
-            var box = $("momCommentList"); if (box) box.appendChild(li);
-            rxCommentsToBottom(); // [RP-V7.404] the just-posted comment + composer stay in view
+        // [RP-V7.497] The TikTok-layout sheet. Signed in: the comment
+        // lives on the server (V7.84/V7.85 kind:"photo") with likes +
+        // replies; signed out: the on-device list it always had.
+        if (momToken()) {
+          rpOpenComments497({
+            linkMode: "photos",
+            comments: p.comments,
+            count: momCommentTotal(p),
+            canInteract: true,
+            token: function () { return momToken() || ""; },
+            shareFn: function () { reelSharePost(p.name, p.caption || "", true, p.srv ? p.id : null); },
+            onPost: function (text, parentId, done) {
+              fetch("/api/reel/comment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + momToken() },
+                body: JSON.stringify({ kind: "photo", id: p.id, text: text, ...(parentId ? { parentId: parentId } : {}) })
+              }).then(function (r) { return r.json().catch(function () { return null; }); })
+                .then(function (j) {
+                  if (j && j.ok && j.comment) { p.commentCount = (p.cmtBase || 0) + (j.count || 0); done(true, j.comment, momCommentTotal(p)); }
+                  else { toast((j && j.error) || "Couldn't post that comment."); done(false); }
+                }).catch(function () { toast("Couldn't post that comment."); done(false); });
+            },
+            onLike: function (cid, done) {
+              fetch("/api/reel/comment/like", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + momToken() },
+                body: JSON.stringify({ kind: "photo", id: p.id, cid: cid })
+              }).then(function (r) { return r.json().catch(function () { return null; }); })
+                .then(function (j) { if (j && j.ok) done(true, j.likes, j.myLike); else done(false); })
+                .catch(function () { done(false); });
+            },
+            onCount: function () { momCommentCountSync(p); },
+            onClose: function () { Moments.openCommentsFor = null; }
+          });
+          return;
+        }
+        rpOpenComments497({
+          linkMode: "photos",
+          comments: p.comments.map(function (c, i) { return { name: c.name || "Someone", text: c.text || "", ts: c.ts || null, cid: c.cid || ("loc" + i + "-" + String(c.text || "").length) }; }),
+          count: p.comments.length,
+          canInteract: false,
+          token: null,
+          shareFn: function () { reelSharePost(p.name, p.caption || "", true, p.srv ? p.id : null); },
+          onPost: function (text, parentId, done) {
+            var nm = Online.name || me.name || "You";
+            p.comments.push({ name: nm, text: text });
             momCommentCountSync(p);
-          }
-          if (momToken()) {
-            // [RP-V7.85] Signed in: the comment lives in the account
-            // on the server (V7.84's kind:"photo" branch of
-            // POST /api/reel/comment) — every member sees it, on
-            // every device. The NPC auto-reply below is a signed-out
-            // demo nicety and does not fire here.
-            fetch("/api/reel/comment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": "Bearer " + momToken() },
-              body: JSON.stringify({ kind: "photo", id: p.id, text: txt })
-            }).then(function (r) { return r.json().catch(function () { return null; }); })
-              .then(function (j) {
-                if (j && j.ok && j.comment) {
-                  p.comments.push(j.comment);
-                  p.commentCount = (p.cmtBase || 0) + (j.count || 0);
-                  momAppendComment(j.comment.name, j.comment.text);
-                } else toast((j && j.error) || "Couldn't post that comment.");
-              }).catch(function () { toast("Couldn't post that comment."); });
-            return;
-          }
-          p.comments.push({ name: Online.name || me.name || "You", text: txt });
-          momAppendComment(Online.name || me.name || "You", txt);
+            done(true, { name: nm, text: text, ts: new Date().toISOString(), cid: "loc" + Date.now() }, p.comments.length);
+          },
+          onLike: function (cid, done) { done(false); },
+          onClose: function () { Moments.openCommentsFor = null; }
         });
       }
       var momCapDraft123 = ""; // [RP-V7.123] caption survives composer re-renders while picking
@@ -28360,39 +28363,38 @@
         if (x) x.addEventListener("click", function () { closeSheet(); });
       }
       function openPhotoComments123(item) {
-        function listHtml() {
-          return (item.comments || []).map(function (c) {
-            return '<div class="reel-cmt"><span class="reel-ava sm" style="background:' + reelAvColor(c.name || "?") + '">' + escHtml(initialsOf(c.name || "?")) + '</span><div class="reel-cmt-body"><b>' + escHtml(c.name || "Someone") + '</b> <span class="reel-when">' + escHtml(reelWhen(c.ts)) + '</span><p>' + reelCaptionHtml(c.text || "", "photos") + '</p></div></div>'; // [RP-V7.258] photo comments: photo-post context
-          }).join("") || '<p class="age-note" style="text-align:center;">No comments yet — start the conversation 💬</p>';
-        }
-        openSheet(
-          '<button class="close-x" data-act="close" aria-label="Close comments"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💬 Comments</h3>' +
-          '<div class="reel-cmt-list" id="photoCmtList123">' + listHtml() + '</div>' +
-          '<div class="reel-cmt-add"><input class="online-input-full" id="photoCmtInput123" type="text" maxlength="300" placeholder="Add a comment…" autocomplete="off"/><button class="btn-primary" style="width:auto; padding:10px 16px;" id="photoCmtSend123">Post</button></div>' +
-          '<p class="age-note">Be kind — comments follow the same guidelines as live. 🚫 No bullying, ever.</p></div>'
-        );
-        reelWireClose();
-        function send() {
-          var inp = $("photoCmtInput123"); var txt = inp ? inp.value.trim() : "";
-          if (!txt) return;
-          var t = ""; try { t = reelToken() || ""; } catch (e) {}
-          if (!t) { toast("Sign in to comment."); return; }
-          fetch("/api/reel/comment", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ kind: "photo", id: item.postId, text: txt }) })
-            .then(function (r) { return r.json().catch(function () { return null; }); })
-            .then(function (j) {
-              if (j && j.ok && j.comment) {
-                item.comments = (item.comments || []).concat([j.comment]);
-                item.commentCount = j.count;
-                var l = $("photoCmtList123"); if (l) l.innerHTML = listHtml();
-                if (inp) inp.value = "";
-                Juice.confettiBurst(6);
-              } else toast((j && j.error) || "That comment didn't post.");
-            })
-            .catch(function () { toast("That comment didn't post — check your connection."); });
-        }
-        var sb = $("photoCmtSend123"); if (sb) sb.addEventListener("click", send);
-        var ci = $("photoCmtInput123"); if (ci) ci.addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
+        // [RP-V7.497] The TikTok-layout sheet. Posting keeps the
+        // V7.123 contract (POST /api/reel/comment kind:"photo",
+        // sign-in required); likes/replies ride the V7.497 fields.
+        var tok0 = ""; try { tok0 = reelToken() || ""; } catch (e) { }
+        if (!Array.isArray(item.comments)) item.comments = [];
+        rpOpenComments497({
+          linkMode: "photos",
+          comments: item.comments,
+          count: item.commentCount || item.comments.length,
+          canInteract: !!tok0,
+          token: function () { try { return reelToken() || ""; } catch (e) { return ""; } },
+          shareFn: function () { reelSharePost(item.author, item.caption, true, item.postId); },
+          onPost: function (text, parentId, done) {
+            var t = ""; try { t = reelToken() || ""; } catch (e) { }
+            if (!t) { toast("Sign in to comment."); done(false); return; }
+            fetch("/api/reel/comment", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ kind: "photo", id: item.postId, text: text, ...(parentId ? { parentId: parentId } : {}) }) })
+              .then(function (r) { return r.json().catch(function () { return null; }); })
+              .then(function (j) {
+                if (j && j.ok && j.comment) { item.commentCount = j.count; Juice.confettiBurst(6); done(true, j.comment, j.count); }
+                else { toast((j && j.error) || "That comment didn't post."); done(false); }
+              })
+              .catch(function () { toast("That comment didn't post — check your connection."); done(false); });
+          },
+          onLike: function (cid, done) {
+            var t = ""; try { t = reelToken() || ""; } catch (e) { }
+            if (!t) { done(false); return; }
+            fetch("/api/reel/comment/like", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ kind: "photo", id: item.postId, cid: cid }) })
+              .then(function (r) { return r.json().catch(function () { return null; }); })
+              .then(function (j) { if (j && j.ok) done(true, j.likes, j.myLike); else done(false); })
+              .catch(function () { done(false); });
+          }
+        });
       }
       /* [RP-V7.443] The two helpers this wire has always called —
          reelSharePost / reelToggleFollow — were never defined anywhere
@@ -30711,61 +30713,295 @@
         reelPostRepost(item, want, btn, rc);
         if (want) toast("Reposted to your profile 🔁", 2600);
       }
-      function openReelComments(item) {
-        // [RP-V7.84] FIX-3: on a server reel a signed-in member reads
-        // and writes the SERVER comment list (it rides the feed
-        // payload), so a comment shows on every device, not just the
-        // one that wrote it. On-device reels — and signed-out taps —
-        // keep the device list they always had.
-        var srv = !!(item.server && reelToken());
-        var list = srv ? (item.comments || []) : (reelLoadComments()[item.id] || []);
-        var html = list.length
-          ? list.map(function (c) { return '<div class="mom-comment"><b>' + escHtml(c.name) + "</b>" + (c.glv ? rpGifterBadge338(c.glv) : "") + "<span>" + rpLinkifyRaw259(c.text, "reels") + "</span></div>"; }).join("") // [RP-V7.259] reel comments linkify on the RAW text (reels context)
-          : '<p style="color:var(--ink-soft); font-weight:700;">No comments yet — say something nice!</p>';
-        openSheet(
-          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-          '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💬 Comments · ' + escHtml(item.author) + "\u2019s Reel</h3>" +
-          '<div id="reelCommentList">' + html + "</div>" +
-          '<div class="chat-row" style="margin-top:12px;"><button class="cmt-emoji" type="button" id="btnReelEmoji" aria-label="Add an emoji">😊</button><input class="online-input" id="reelCommentInput" type="text" maxlength="140" placeholder="Add a kind comment…" autocomplete="off" /><button class="btn-primary" style="width:auto; padding:11px 18px;" id="btnReelComment">Post</button></div>' +
-          '<p class="age-note" style="margin-top:8px;">Comments are public — keep them kind, and follow the community guidelines.</p></div>'
-        );
-        $("sheet").querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
-        rxWireCommentEmoji($("btnReelEmoji"), $("reelCommentInput"));
-        rxCommentsToBottom(); // [RP-V7.404] open on the newest comments with the composer in view
-        $("btnReelComment").addEventListener("click", function () {
-          var inp = $("reelCommentInput");
-          var txt = (inp.value || "").trim();
-          if (!txt) { toast("Write a comment first!"); return; }
-          function appendMine(name, text, count) {
-            inp.value = "";
-            var li = document.createElement("div");
-            li.className = "mom-comment";
-            li.innerHTML = "<b>" + escHtml(name) + "</b><span>" + rpLinkifyRaw259(text, "reels") + "</span>"; // [RP-V7.259] just-posted reel comments linkify on the RAW text too
-            var box = $("reelCommentList"); if (box) box.appendChild(li);
-            rxCommentsToBottom(); // [RP-V7.404] the just-posted comment + composer stay in view
-            var card = $("reelFeed") && $("reelFeed").querySelector('[data-rid="' + item.key + '"]');
-            if (card) card.querySelector(".cc").textContent = count;
+      /* ================= [RP-V7.497] TikTok-layout comment sheet =================
+         Branden (Nov 24, 2026): "Comments should look like this when
+         you open them — mine is old fashioned." ONE component behind
+         every post/reel comment opener (reels, Moments photos,
+         profile photos, Home feed): a black bottom sheet over the
+         still-playing post — centered "N comments" header + X at
+         top-right; rows with a round face, name (+ "· Creator" in
+         red for the post's own author), text, relative time +
+         Reply, and a heart + like count with a share arrow on the
+         right; replies thread under their parent behind "View N
+         replies" with a thread line; composer = own face + a
+         rounded "Add comment..." pill carrying the app's real emoji
+         picker and a real @ member picker (the post composer's
+         /api/social/suggestions list). Chronological, always — the
+         settled rule. Likes/replies ride the V7.497 server fields
+         (cid, likes, myLike, parentId, avatar, byAuthor). Surfaces
+         with no server behind them (device reels, signed-out photo
+         reading) get the same sheet with the server-only buttons
+         left out — nothing on screen is fake. No photo-attach icon:
+         Plaza comments have no photo support anywhere (noted in
+         BUILD.md). The share arrow shares the POST through the
+         same helper the post's own share button uses. */
+      var rpCmt497 = null; // live state while a comment sheet is open
+      function rpCmt497Me() {
+        try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a && a.user) return { name: a.user.name || "You", photo: a.user.photo || null }; } catch (e) { }
+        return { name: "You", photo: null };
+      }
+      function rpCmt497Threads(list) {
+        var known = {}, tops = [], byParent = {};
+        (list || []).forEach(function (c) { if (c && c.cid) known[c.cid] = true; });
+        (list || []).forEach(function (c) {
+          if (!c) return;
+          if (c.parentId && known[c.parentId] && c.parentId !== c.cid) (byParent[c.parentId] = byParent[c.parentId] || []).push(c);
+          else tops.push(c); // a reply whose parent fell off the payload window reads as its own comment — never lost
+        });
+        return { tops: tops, byParent: byParent };
+      }
+      function rpCmt497Heart497(on) {
+        return '<svg viewBox="0 0 24 24" fill="' + (on ? "var(--rose)" : "none") + '" stroke="' + (on ? "var(--rose)" : "currentColor") + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.7C6.4 17 3 13.6 3 9.9 3 7.2 5 5 7.7 5c1.7 0 3.3.9 4.3 2.4C13 5.9 14.6 5 16.3 5 19 5 21 7.2 21 9.9c0 3.7-3.4 7.1-9 10.8z"/></svg>';
+      }
+      function rpCmt497RowHtml(c, sub) {
+        var st = rpCmt497; if (!st) return "";
+        var cid = c.cid || "";
+        var canAct = !!(st.cfg.canInteract && cid);
+        var showLike = canAct || typeof c.likes === "number";
+        var h = '<div class="cmt497-row' + (sub ? " sub" : "") + '">' +
+          '<span class="cmt497-ava">' + personFace({ name: c.name || "Someone", photo: c.avatar || null }, "cmt497-face") + '</span>' +
+          '<div class="cmt497-main">' +
+          '<div class="cmt497-name">' + escHtml(c.name || "Someone") + (c.glv ? rpGifterBadge338(c.glv) : "") + (c.byAuthor ? '<span class="cmt497-creator">· Creator</span>' : "") + '</div>' +
+          '<p class="cmt497-text">' + rpLinkifyRaw259(c.text || "", st.cfg.linkMode || "reels") + '</p>' +
+          '<div class="cmt497-meta"><span class="cmt497-when">' + escHtml(reelWhen(c.ts)) + '</span>' +
+          (canAct ? '<button type="button" class="cmt497-replybtn" data-cmt497-reply="' + escHtml(cid) + '">Reply</button>' : "") + '</div>';
+        if (!sub && cid) {
+          var th = st.threads.byParent[cid] || [];
+          if (th.length && !st.expanded[cid]) {
+            h += '<button type="button" class="cmt497-viewrep" data-cmt497-toggle="' + escHtml(cid) + '"><span class="cmt497-vline"></span>View ' + th.length + (th.length === 1 ? " reply" : " replies") + ' <span class="cmt497-chev">⌄</span></button>';
+          } else if (th.length) {
+            h += '<div class="cmt497-threads">' + th.map(function (r) { return rpCmt497RowHtml(r, true); }).join("") +
+              '<button type="button" class="cmt497-viewrep" data-cmt497-toggle="' + escHtml(cid) + '"><span class="cmt497-vline"></span>Hide replies <span class="cmt497-chev">⌃</span></button></div>';
           }
-          if (srv) {
-            fetch("/api/reel/comment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": "Bearer " + reelToken() },
-              body: JSON.stringify({ reelId: item.id, text: txt })
-            }).then(function (r) { return r.json().catch(function () { return null; }); })
-              .then(function (j) {
-                if (j && j.ok && j.comment) {
-                  if (!Array.isArray(item.comments)) item.comments = [];
-                  item.comments.push(j.comment);
-                  item.commentCount = j.count;
-                  appendMine(j.comment.name, j.comment.text, j.count);
-                } else toast((j && j.error) || "Couldn't post that comment.");
-              }).catch(function () { toast("Couldn't post that comment."); });
+        }
+        h += '</div><div class="cmt497-side">' +
+          (showLike ? '<button type="button" class="cmt497-like' + (c.myLike ? " on" : "") + '" data-cmt497-like="' + escHtml(cid) + '" aria-label="Like this comment">' + rpCmt497Heart497(!!c.myLike) + '<span>' + (c.likes || 0) + '</span></button>' : "") +
+          (st.cfg.shareFn ? '<button type="button" class="cmt497-share" data-cmt497-share="1" aria-label="Share this post"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4.8 20 11l-6.5 6.2v-3.9c-5.7 0-8.6 1.9-10.3 5.5-.5-5.9 3-10.3 10.3-10.6z"/></svg></button>' : "") +
+          '</div></div>';
+        return h;
+      }
+      function rpCmt497Render(scrollBottom) {
+        var st = rpCmt497; if (!st) return;
+        var listEl = $("cmt497List"); if (!listEl) return;
+        var prev = listEl.scrollTop;
+        st.threads = rpCmt497Threads(st.cfg.comments);
+        var cnt = $("cmt497Count"); if (cnt) cnt.textContent = st.cfg.count + (st.cfg.count === 1 ? " comment" : " comments");
+        listEl.innerHTML = st.threads.tops.length
+          ? st.threads.tops.map(function (c) { return rpCmt497RowHtml(c, false); }).join("")
+          : '<p class="cmt497-empty">No comments yet — be the first to comment.</p>';
+        listEl.scrollTop = scrollBottom ? listEl.scrollHeight : prev;
+      }
+      function rpCmt497Close() {
+        var st = rpCmt497; rpCmt497 = null;
+        if (st && st.cfg.onClose) { try { st.cfg.onClose(); } catch (e) { } }
+        closeSheet();
+      }
+      function rpCmt497CancelReply() {
+        var st = rpCmt497; if (!st) return;
+        st.replyTo = null;
+        var bar = $("cmt497ReplyBar"); if (bar) bar.hidden = true;
+        var inp = $("cmt497Input"); if (inp) inp.placeholder = "Add comment...";
+      }
+      function rpCmt497SendVis() {
+        var inp = $("cmt497Input"), btn = $("cmt497Send");
+        if (inp && btn) btn.hidden = !((inp.value || "").trim().length);
+      }
+      function rpCmt497Send() {
+        var st = rpCmt497; if (!st || st.sending) return;
+        var inp = $("cmt497Input");
+        var txt = inp ? (inp.value || "").trim() : "";
+        if (!txt) { toast("Write a comment first!"); return; }
+        st.sending = true;
+        var parentId = st.replyTo ? st.replyTo.cid : null;
+        st.cfg.onPost(txt, parentId, function (ok, comment, count) {
+          if (rpCmt497 !== st) return;
+          st.sending = false;
+          if (!ok) return; // the adapter already toasted the reason
+          if (inp) inp.value = "";
+          rpCmt497SendVis();
+          if (comment) {
+            var dup = (st.cfg.comments || []).some(function (x) { return x && x.cid && comment.cid && x.cid === comment.cid; });
+            if (!dup) st.cfg.comments.push(comment);
+            if (comment.parentId) st.expanded[comment.parentId] = true;
+          }
+          if (typeof count === "number") { st.cfg.count = count; if (st.cfg.onCount) { try { st.cfg.onCount(count); } catch (e) { } } }
+          rpCmt497CancelReply();
+          rpCmt497Render(true);
+        });
+      }
+      function rpCmt497MentionOpen() {
+        var st = rpCmt497; if (!st) return;
+        var men = $("cmt497Men"); if (!men) return;
+        if (!men.hidden) { men.hidden = true; return; }
+        var tk = st.cfg.token ? st.cfg.token() : "";
+        if (!tk) { toast("Sign in to mention members"); return; }
+        men.hidden = false;
+        men.innerHTML = '<p class="cmt497-menload">Loading members…</p>';
+        fetch("/api/social/suggestions", { headers: { "Authorization": "Bearer " + tk } })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (rpCmt497 !== st) return;
+            var m2 = $("cmt497Men"); if (!m2 || m2.hidden) return;
+            var people = (j && j.people) || [];
+            if (!people.length) { m2.innerHTML = '<p class="cmt497-menload">No members to mention yet — you can still type @username in your comment.</p>'; return; }
+            m2.innerHTML = people.slice(0, 30).map(function (p) {
+              return '<button type="button" class="cmt497-menrow" data-cmt497-men="' + escHtml(p.username || "") + '"><span class="cmt497-ava">' + personFace({ name: p.name || "", photo: p.photo || null }, "cmt497-face") + '</span><span class="cmt497-menmeta"><b>' + escHtml(p.name || "") + '</b><i>@' + escHtml(p.username || "") + '</i></span></button>';
+            }).join("");
+          })
+          .catch(function () { var m3 = $("cmt497Men"); if (m3 && rpCmt497 === st) m3.innerHTML = '<p class="cmt497-menload">Could not load members — type @username in your comment instead.</p>'; });
+      }
+      function rpOpenComments497(cfg) {
+        rpCmt497 = { cfg: cfg, expanded: {}, replyTo: null, threads: { tops: [], byParent: {} }, sending: false };
+        var st = rpCmt497;
+        var me = rpCmt497Me();
+        openSheet(
+          '<div class="cmt497">' +
+          '<div class="cmt497-head"><span class="cmt497-count" id="cmt497Count"></span><button type="button" class="cmt497-x" data-cmt497-close aria-label="Close comments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>' +
+          '<div class="cmt497-list" id="cmt497List"></div>' +
+          '<div class="cmt497-men" id="cmt497Men" hidden></div>' +
+          '<div class="cmt497-replybar" id="cmt497ReplyBar" hidden><span>Replying to <b id="cmt497ReplyName"></b></span><button type="button" data-cmt497-cancelreply aria-label="Cancel reply">×</button></div>' +
+          '<div class="cmt497-composer"><span class="cmt497-ava">' + personFace({ name: me.name, photo: me.photo }, "cmt497-face") + '</span>' +
+          '<div class="cmt497-pill"><input id="cmt497Input" type="text" maxlength="140" placeholder="Add comment..." autocomplete="off"/>' +
+          '<button type="button" class="cmt497-icobtn" id="cmt497Emoji" aria-label="Add an emoji">😊</button>' +
+          (cfg.token ? '<button type="button" class="cmt497-icobtn at" id="cmt497Mention" aria-label="Mention a member">@</button>' : "") +
+          '</div>' +
+          '<button type="button" class="cmt497-send" id="cmt497Send" hidden aria-label="Send comment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>' +
+          '</div></div>'
+        );
+        var sheet = $("sheet");
+        var x = sheet && sheet.querySelector("[data-cmt497-close]");
+        if (x) x.addEventListener("click", rpCmt497Close);
+        var cancel = sheet && sheet.querySelector("[data-cmt497-cancelreply]");
+        if (cancel) cancel.addEventListener("click", function () { rpCmt497CancelReply(); });
+        var listEl = $("cmt497List");
+        if (listEl) listEl.addEventListener("click", function (ev) {
+          if (rpCmt497 !== st) return;
+          var t = ev.target;
+          function closest(sel) { var n = t; while (n && n !== listEl) { if (n.matches && n.matches(sel)) return n; n = n.parentNode; } return null; }
+          var likeB = closest("[data-cmt497-like]");
+          if (likeB) {
+            var cid = likeB.getAttribute("data-cmt497-like");
+            if (!cid || !st.cfg.canInteract) { toast("Sign in to like comments."); return; }
+            var c = null;
+            (st.cfg.comments || []).forEach(function (x2) { if (x2 && x2.cid === cid) c = x2; });
+            if (!c) return;
+            var wasOn = !!c.myLike, wasN = c.likes || 0;
+            c.myLike = !wasOn; c.likes = Math.max(0, wasN + (c.myLike ? 1 : -1));
+            rpCmt497Render(false);
+            st.cfg.onLike(cid, function (ok, likes, myLike) {
+              if (rpCmt497 !== st) return;
+              if (ok) { c.likes = likes; c.myLike = !!myLike; } else { c.myLike = wasOn; c.likes = wasN; toast("Couldn't save that like."); }
+              rpCmt497Render(false);
+            });
             return;
           }
-          var all = reelLoadComments();
-          (all[item.id] = all[item.id] || []).push({ name: reelMyName(), text: txt });
-          reelSaveComments(all);
-          appendMine(reelMyName(), txt, all[item.id].length);
+          var repB = closest("[data-cmt497-reply]");
+          if (repB) {
+            var rcid = repB.getAttribute("data-cmt497-reply");
+            var rc = null;
+            (st.cfg.comments || []).forEach(function (x3) { if (x3 && x3.cid === rcid) rc = x3; });
+            if (!rc) return;
+            st.replyTo = { cid: rcid, name: rc.name || "Someone" };
+            var bar = $("cmt497ReplyBar"); if (bar) bar.hidden = false;
+            var nm = $("cmt497ReplyName"); if (nm) nm.textContent = st.replyTo.name;
+            var inp2 = $("cmt497Input"); if (inp2) { inp2.placeholder = "Reply to " + st.replyTo.name + "..."; try { inp2.focus(); } catch (e) { } }
+            return;
+          }
+          var togB = closest("[data-cmt497-toggle]");
+          if (togB) { var tcid = togB.getAttribute("data-cmt497-toggle"); st.expanded[tcid] = !st.expanded[tcid]; rpCmt497Render(false); return; }
+          var shB = closest("[data-cmt497-share]");
+          if (shB && st.cfg.shareFn) { try { st.cfg.shareFn(); } catch (e) { } return; }
+        });
+        var menEl = $("cmt497Men");
+        if (menEl) menEl.addEventListener("click", function (ev) {
+          if (rpCmt497 !== st) return;
+          var n = ev.target;
+          while (n && n !== menEl) { if (n.matches && n.matches("[data-cmt497-men]")) break; n = n.parentNode; }
+          if (!n || n === menEl) return;
+          var u = n.getAttribute("data-cmt497-men"); if (!u) return;
+          var inp = $("cmt497Input"); if (!inp) return;
+          var v = inp.value || "";
+          inp.value = v + (v && !/\s$/.test(v) ? " " : "") + "@" + u + " ";
+          menEl.hidden = true;
+          rpCmt497SendVis();
+          try { inp.focus(); } catch (e) { }
+        });
+        var inp = $("cmt497Input");
+        if (inp) {
+          inp.addEventListener("input", rpCmt497SendVis);
+          inp.addEventListener("keydown", function (e) { if (e.key === "Enter") rpCmt497Send(); });
+        }
+        var sendB = $("cmt497Send"); if (sendB) sendB.addEventListener("click", rpCmt497Send);
+        var emB = $("cmt497Emoji"); if (emB && inp) rxWireCommentEmoji(emB, inp);
+        var menB = $("cmt497Mention"); if (menB) menB.addEventListener("click", rpCmt497MentionOpen);
+        rpCmt497Render(true); // open on the newest comments, composer in view (the V7.404 behavior, kept)
+      }
+      window.rpOpenComments497 = rpOpenComments497; // [RP-V7.497] the V7.409 lightbox module opens feed comments through this bridge
+      function openReelComments(item) {
+        // [RP-V7.497] The TikTok-layout sheet (rpOpenComments497).
+        // [RP-V7.84] FIX-3 semantics kept: on a server reel a
+        // signed-in member reads/writes the SERVER comment list; on
+        // device reels — and signed-out taps — the device list they
+        // always had (local mode: no like/reply, nothing to hold
+        // them server-side; the share arrow still shares the reel).
+        var srv = !!(item.server && reelToken());
+        if (srv) {
+          if (!Array.isArray(item.comments)) item.comments = [];
+          rpOpenComments497({
+            linkMode: "reels",
+            comments: item.comments,
+            count: item.commentCount || item.comments.length,
+            canInteract: true,
+            token: function () { return reelToken() || ""; },
+            shareFn: function () { reelShare(item); },
+            onPost: function (text, parentId, done) {
+              fetch("/api/reel/comment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + reelToken() },
+                body: JSON.stringify({ reelId: item.id, text: text, ...(parentId ? { parentId: parentId } : {}) })
+              }).then(function (r) { return r.json().catch(function () { return null; }); })
+                .then(function (j) {
+                  if (j && j.ok && j.comment) { item.commentCount = j.count; done(true, j.comment, j.count); }
+                  else { toast((j && j.error) || "Couldn't post that comment."); done(false); }
+                }).catch(function () { toast("Couldn't post that comment."); done(false); });
+            },
+            onLike: function (cid, done) {
+              fetch("/api/reel/comment/like", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + reelToken() },
+                body: JSON.stringify({ kind: "reel", id: item.id, cid: cid })
+              }).then(function (r) { return r.json().catch(function () { return null; }); })
+                .then(function (j) { if (j && j.ok) done(true, j.likes, j.myLike); else done(false); })
+                .catch(function () { done(false); });
+            },
+            onCount: function (n) {
+              var card = $("reelFeed") && $("reelFeed").querySelector('[data-rid="' + item.key + '"]');
+              if (card) { var cc = card.querySelector(".cc"); if (cc) cc.textContent = n; }
+            }
+          });
+          return;
+        }
+        var localList = (reelLoadComments()[item.id] || []).map(function (c, i) {
+          return { name: c.name || "Someone", text: c.text || "", ts: c.ts || null, cid: "loc" + i + "-" + String(c.name || "").length + "-" + String(c.text || "").length };
+        });
+        rpOpenComments497({
+          linkMode: "reels",
+          comments: localList,
+          count: localList.length,
+          canInteract: false,
+          token: null,
+          shareFn: function () { reelShare(item); },
+          onPost: function (text, parentId, done) {
+            var all = reelLoadComments();
+            (all[item.id] = all[item.id] || []).push({ name: reelMyName(), text: text });
+            reelSaveComments(all);
+            done(true, { name: reelMyName(), text: text, ts: new Date().toISOString(), cid: "loc" + Date.now() }, all[item.id].length);
+          },
+          onLike: function (cid, done) { done(false); },
+          onCount: function (n) {
+            var card = $("reelFeed") && $("reelFeed").querySelector('[data-rid="' + item.key + '"]');
+            if (card) { var cc = card.querySelector(".cc"); if (cc) cc.textContent = n; }
+          }
         });
       }
       /* [RP-V7.451] ABOUT THIS REEL — the sheet behind the rail's •••
@@ -43923,39 +44159,45 @@ button.rp72-chip{ cursor:pointer; }
       }).catch(function () { });
   }
   function lbFeedComments409(fi) {
-    if (typeof window.openSheet !== "function") return;
-    function listHtml() {
-      return (fi.comments || []).map(function (c) {
-        return '<div class="reel-cmt"><span class="reel-ava sm" style="background:#3a3a46">' + esc(String((c.name || "?").charAt(0)).toUpperCase()) + '</span><div class="reel-cmt-body"><b>' + esc(c.name || "Someone") + "</b><p>" + esc(c.text || "") + "</p></div></div>";
-      }).join("") || '<p class="age-note" style="text-align:center;">No comments yet — start the conversation 💬</p>';
-    }
-    window.openSheet(
-      '<button class="close-x" data-act="close" aria-label="Close comments"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">💬 Comments</h3>' +
-      '<div class="reel-cmt-list" id="feedCmtList409">' + listHtml() + "</div>" +
-      '<div class="reel-cmt-add"><input class="online-input-full" id="feedCmtInput409" type="text" maxlength="300" placeholder="Add a comment…" autocomplete="off"/><button class="btn-primary" style="width:auto; padding:10px 16px;" id="feedCmtSend409">Post</button></div>' +
-      '<p class="age-note">Be kind — comments follow the same guidelines as live. 🚫 No bullying, ever.</p></div>'
-    );
-    wireSheetClose();
-    function send() {
-      var inp = document.getElementById("feedCmtInput409"); var txt = inp ? inp.value.trim() : "";
-      if (!txt) return;
-      var tok = lbFeedTok409();
-      if (!tok) { try { window.toast("Sign in to comment."); } catch (e) { } return; }
-      fetch("/api/feed/comment", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok }, body: JSON.stringify({ postId: fi.postId, text: txt }) })
-        .then(function (r) { return r.json().catch(function () { return null; }); })
-        .then(function (j) {
-          if (j && j.ok) {
-            fi.comments = Array.isArray(j.comments) ? j.comments : (fi.comments || []).concat([j.comment]);
-            fi.commentCount = (typeof j.commentCount === "number") ? j.commentCount : fi.comments.length;
-            var l = document.getElementById("feedCmtList409"); if (l) l.innerHTML = listHtml();
-            if (inp) inp.value = "";
-          } else { try { window.toast((j && j.error) || "That comment didn't post."); } catch (e) { } }
-        })
-        .catch(function () { try { window.toast("That comment didn't post — check your connection."); } catch (e) { } });
-    }
-    var sb = document.getElementById("feedCmtSend409"); if (sb) sb.addEventListener("click", send);
-    var ci = document.getElementById("feedCmtInput409"); if (ci) ci.addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
+    // [RP-V7.497] The TikTok-layout sheet (shared component, opened
+    // through its window bridge). Posting keeps the feed contract —
+    // POST /api/feed/comment returns the full refreshed list, which
+    // replaces fi.comments IN PLACE (same array the sheet holds);
+    // likes ride POST /api/feed/comment/like.
+    if (typeof window.rpOpenComments497 !== "function") return;
+    if (!Array.isArray(fi.comments)) fi.comments = [];
+    var tok0 = lbFeedTok409();
+    window.rpOpenComments497({
+      linkMode: "photos",
+      comments: fi.comments,
+      count: fi.commentCount || fi.comments.length,
+      canInteract: !!tok0,
+      token: function () { return lbFeedTok409() || ""; },
+      shareFn: function () { lbShare241("📸", "post", fi.caption || "", ""); },
+      onPost: function (text, parentId, done) {
+        var tok = lbFeedTok409();
+        if (!tok) { try { window.toast("Sign in to comment."); } catch (e) { } done(false); return; }
+        fetch("/api/feed/comment", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok }, body: JSON.stringify({ postId: fi.postId, text: text, ...(parentId ? { parentId: parentId } : {}) }) })
+          .then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (j) {
+            if (j && j.ok) {
+              if (Array.isArray(j.comments)) { fi.comments.length = 0; Array.prototype.push.apply(fi.comments, j.comments); }
+              fi.commentCount = (typeof j.commentCount === "number") ? j.commentCount : fi.comments.length;
+              done(true, j.comment || null, fi.commentCount);
+            } else { try { window.toast((j && j.error) || "That comment didn't post."); } catch (e) { } done(false); }
+          })
+          .catch(function () { try { window.toast("That comment didn't post — check your connection."); } catch (e) { } done(false); });
+      },
+      onLike: function (cid, done) {
+        var tok = lbFeedTok409();
+        if (!tok) { done(false); return; }
+        fetch("/api/feed/comment/like", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok }, body: JSON.stringify({ postId: fi.postId, cid: cid }) })
+          .then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (j) { if (j && j.ok) done(true, j.likes, j.myLike); else done(false); })
+          .catch(function () { done(false); });
+      },
+      onCount: function (n) { fi.commentCount = n; }
+    });
   }
   window.rpFeedLb409 = { fi: lbFeedFi409, like: lbFeedLike409, repost: lbFeedRepost409, comments: lbFeedComments409 };
   function railForPhoto241(it) {
@@ -53852,6 +54094,67 @@ html, body { overflow-x: clip; }
 #screen-profile .rpmedia-grid > * { border-radius: 8px; overflow: hidden; }
 /* the dating profile CARD preview (#pfSecCard .pcard-stack) keeps its own
    dating presentation — display scope rule unchanged. */
+
+/* ---------- [RP-V7.497] TikTok-layout comment sheet ---------- */
+/* Plaza black, always: pure-black sheet, white ink, true-red accent.
+   The sheet rides the shared #sheet (margin cancels its padding so
+   the component owns the full panel); the post keeps playing above
+   it under a lighter scrim than other sheets get. */
+#overlay:has(.cmt497) { background: rgba(0,0,0,.28) !important; }
+.cmt497 { margin: -22px; height: min(78dvh, 780px); display: flex; flex-direction: column; background: #000; color: var(--ink); border-radius: 22px 22px 0 0; overflow: hidden; }
+@media (min-width: 720px) { .cmt497 { border-radius: 22px; } }
+.cmt497-head { position: relative; flex: none; padding: 16px 52px 10px; text-align: center; }
+.cmt497-count { font-size: 15px; font-weight: 800; color: var(--ink); }
+.cmt497-x { position: absolute; top: 8px; right: 10px; width: 38px; height: 38px; border: none; background: transparent; color: var(--ink); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.cmt497-x svg { width: 22px; height: 22px; }
+.cmt497-list { flex: 1; overflow-y: auto; padding: 2px 16px 10px; overscroll-behavior: contain; }
+.cmt497-empty { color: var(--ink-soft); font-weight: 700; text-align: center; padding: 34px 12px; font-size: 14px; }
+.cmt497-row { display: flex; gap: 10px; padding: 10px 0 2px; }
+.cmt497-ava { flex: none; width: 38px; height: 38px; border-radius: 50%; overflow: hidden; background: #2a2a33; display: block; }
+.cmt497-ava .pface { width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.cmt497-row.sub .cmt497-ava { width: 30px; height: 30px; }
+.cmt497-row.sub .cmt497-ava .pface { font-size: 13px; }
+.cmt497-main { flex: 1; min-width: 0; }
+.cmt497-name { font-size: 13.5px; font-weight: 700; color: #c9c9d4; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.cmt497-creator { color: var(--rose); font-weight: 800; font-size: 13px; }
+.cmt497-text { margin: 2px 0 0; font-size: 15px; line-height: 1.35; color: var(--ink); word-wrap: break-word; overflow-wrap: anywhere; }
+.cmt497-text a { color: #7ecbff; text-decoration: none; font-weight: 700; }
+.cmt497-meta { display: flex; align-items: center; gap: 16px; margin-top: 4px; }
+.cmt497-when { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+.cmt497-replybtn { border: none; background: transparent; color: var(--ink-soft); font-size: 12.5px; font-weight: 800; cursor: pointer; padding: 2px 0; font-family: inherit; }
+.cmt497-side { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 20px; min-width: 34px; }
+.cmt497-like { border: none; background: transparent; color: #8e8e9c; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 0; font-family: inherit; }
+.cmt497-like svg { width: 21px; height: 21px; }
+.cmt497-like span { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.cmt497-like.on span { color: var(--rose); }
+.cmt497-share { border: none; background: transparent; color: #8e8e9c; cursor: pointer; padding: 0; display: flex; }
+.cmt497-share svg { width: 20px; height: 20px; }
+.cmt497-threads { position: relative; margin-top: 2px; padding-left: 14px; }
+.cmt497-threads::before { content: ""; position: absolute; left: 0; top: 0; bottom: 8px; width: 1.5px; background: #2c2c33; border-radius: 2px; }
+.cmt497-viewrep { border: none; background: transparent; color: var(--ink-soft); font-size: 13px; font-weight: 800; cursor: pointer; padding: 6px 0 2px; display: flex; align-items: center; gap: 8px; font-family: inherit; }
+.cmt497-vline { display: inline-block; width: 26px; height: 1.5px; background: #3a3a44; border-radius: 2px; }
+.cmt497-chev { font-size: 11px; }
+.cmt497-men { flex: none; max-height: 240px; overflow-y: auto; border-top: 1px solid #26262c; padding: 6px 10px; }
+.cmt497-men[hidden] { display: none; }
+.cmt497-menload { color: var(--ink-soft); font-weight: 700; font-size: 13.5px; text-align: center; padding: 12px 6px; margin: 0; }
+.cmt497-menrow { display: flex; align-items: center; gap: 10px; width: 100%; border: none; background: transparent; color: var(--ink); padding: 7px 6px; cursor: pointer; text-align: left; font-family: inherit; }
+.cmt497-menrow .cmt497-ava { width: 34px; height: 34px; }
+.cmt497-menmeta { display: flex; flex-direction: column; min-width: 0; }
+.cmt497-menmeta b { font-size: 14px; }
+.cmt497-menmeta i { font-style: normal; font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+.cmt497-replybar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 16px 0; color: var(--ink-soft); font-size: 13px; font-weight: 700; }
+.cmt497-replybar b { color: var(--ink); }
+.cmt497-replybar button { border: none; background: transparent; color: var(--ink-soft); font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1; }
+.cmt497-replybar[hidden] { display: none; }
+.cmt497-composer { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid #1d1d23; }
+.cmt497-pill { flex: 1; display: flex; align-items: center; background: #26262c; border-radius: 999px; padding: 0 6px 0 16px; min-height: 44px; }
+#overlay #sheet .cmt497-pill input[type="text"] { flex: 1; min-width: 0; background: transparent !important; border: none !important; border-radius: 0 !important; color: var(--ink); font-size: 15px; padding: 10px 0; font-family: inherit; outline: none; }
+#overlay #sheet .cmt497-pill input[type="text"]::placeholder { color: #8e8e9c; }
+.cmt497-icobtn { flex: none; width: 36px; height: 36px; border: none; background: transparent; color: var(--ink); font-size: 19px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; font-family: inherit; }
+.cmt497-icobtn.at { font-weight: 900; font-size: 20px; }
+.cmt497-send { flex: none; width: 40px; height: 40px; border: none; border-radius: 50%; background: var(--rose); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.cmt497-send svg { width: 19px; height: 19px; }
+.cmt497-send[hidden] { display: none; }
 
 /* ---------- Sheets & menus (#sheet) ----------
    The :not(.rpdm-full) guard keeps the RP-V7.225 DM conversation screen
