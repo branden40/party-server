@@ -18478,6 +18478,7 @@
         LiveFs.on = true;
         panel.classList.add("live-fs");
         document.body.classList.add("live-fs");
+        try { if (window.rpWarmStageFilms492) window.rpWarmStageFilms492(); } catch (e) { } // [RP-V7.492] C5 — entering a live warms the stage films, so the session's first big gift doesn't cold-fetch in front of the room
         panel.classList.remove("lv-idle");
         LiveIdle.lastTouch = Date.now(); // chrome starts awake; the 4s fade clock starts now
         if (LiveIdle.timer) clearInterval(LiveIdle.timer);
@@ -24523,6 +24524,29 @@
       }
       function giftEarnedMap() { Party.giftEarned = Party.giftEarned || {}; return Party.giftEarned; }
       function giftBonusNow() { return activeHoliday() ? 0.25 : 0; }
+      /* [RP-V7.492] C5 — warm the stage films (big/prestige tiers —
+         the ones that play on the big stage) in the panel's own
+         display order: tiers in GIFT_TIERS order, prices ascending
+         inside a tier (the V7.372 panel sort). Capped at 14 films
+         and staggered 250 ms apart so the warmers ramp instead of
+         stampeding the pipe; the stage module's rpWarmFilm492
+         dedupes by URL across all callers (panel open, live entry,
+         next-in-queue), so repeat opens cost nothing. */
+      function rpWarmStageFilms492() {
+        try {
+          if (!window.rpWarmFilm492) return;
+          var ids492 = [];
+          GIFT_TIERS.forEach(function (t) {
+            if (t.id !== "big" && t.id !== "prestige") return;
+            GIFT_SHOP.filter(function (g) { return g.tier === t.id; }).sort(function (a, b) { return a.cents - b.cents; }).forEach(function (g) {
+              var fid492 = g.id === "diamond" ? "diamonds" : g.id;
+              if (window.rpGiftFilmIds && window.rpGiftFilmIds[fid492]) ids492.push(g.id);
+            });
+          });
+          ids492.slice(0, 14).forEach(function (id, ix) { setTimeout(function () { window.rpWarmFilm492(id); }, ix * 250); });
+        } catch (e) { }
+      }
+      window.rpWarmStageFilms492 = rpWarmStageFilms492;
       function openGiftSheet(targetId, targetName, opts) {
         opts = opts || {};
         if (!rpAdultOk()) { rpDoorGate("Gifting", function () { openGiftSheet(targetId, targetName, opts); }); return; }
@@ -24563,6 +24587,7 @@
         }).join("");
         html += '<button class="btn-mini btn-big" id="giftGetCharms" type="button">⭐ Get charms</button><div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" id="giftMyEarnings">💰 My earnings &amp; cash out</button><button class="btn-mini" id="giftMyGifter338" type="button">🏆 My gifter level</button></div></div>'; // [RP-V7.63] Get charms goes BIG (btn-big)
         openSheet(html);
+        rpWarmStageFilms492(); // [RP-V7.492] C5 — panel open warms the stage films while the sender browses, so the send that follows starts from cache, not from a cold fetch
         var sheet = $("sheet");
         sheet.querySelector("[data-act=close]").addEventListener("click", function () { closeSheet(); });
         // [RP-V7.219] quantity picker state + cell totals (default x1).
@@ -26065,7 +26090,7 @@
           try {
             var W = cv.clientWidth || 0, H = cv.clientHeight || 0;
             if (!W || !H) return false;
-            rpApplyMelt406(cv, 0, 0, W, H, Math.max(10, Math.round(W * 0.14)), Math.max(10, Math.round(H * 0.18)));
+            rpApplyMelt406(cv, 0, 0, W, H, Math.max(6, Math.round(W * 0.05)), Math.max(6, Math.round(H * 0.06))); /* [RP-V7.492] C3 — hairline only: the 14%/18% feathers ate the subject's top and bottom and rounded any broad alpha field into a visible rectangle (Branden, Nov 23, 2026: "rectangular and square boxes... not cutting some of it off"); the 3px dead zone in rpMeltStops406 still takes the outer rows to exactly transparent, so the border hairline stays dead at 5%/6% feather depth */
             return true;
           } catch (e) { return false; }
         };
@@ -26082,7 +26107,7 @@
             if (!iw || !ih || !W || !H) return false;
             var ar406 = iw / ih, fw = W, fh = fw / ar406; if (fh > H) { fh = H; fw = fh * ar406; }
             var x0 = (W - fw) / 2, y0 = (H - fh) / 2, x1 = x0 + fw, y1 = y0 + fh;
-            rpApplyMelt406(el, x0, y0, x1, y1, Math.max(12, Math.round(fw * 0.14)), Math.max(16, Math.round(fh * 0.16)));
+            rpApplyMelt406(el, x0, y0, x1, y1, Math.max(8, Math.round(fw * 0.05)), Math.max(8, Math.round(fh * 0.05))); /* [RP-V7.492] C3 — hairline only: the 14%/16% feathers painted a darkened halo FRAME around bright scene films (Golden Goal's stadium read as a framed picture in Branden's Nov 23, 2026 recording); 5% melts the rendered frame's edge without haloing the picture */
             return true;
           } catch (e) { return false; }
         };
@@ -33745,9 +33770,15 @@ canvas.rp-key-canvas{ display:block; }
    films are unaffected (their rims are already transparent). */
 .gfx canvas.gfx-hero, .gfx video.gfx-hero, .gfx img.gfx-hero,
 .gfx canvas.rp-key-canvas, .gfx video.gfx-film, .gfx img.gfx-film,
-#rpStage .rp-stage-art canvas.rp-key-canvas,
-#rpStage .rp-stage-art video.rp-gift-film:not(.rp-key-src),
+#rpStage .rp-stage-art video.rp-gift-film:not(.rp-key-src):not(.rp-bandscene492),
 #rpStage .rp-stage-art img.rp-gift-img:not(.rp-key-src){
+  /* [RP-V7.492] C3 — the stage's KEYED CANVAS is out of this rule: it
+     keeps ONLY rpMeltCanvas406's inline melt (now a 5%/6% hairline),
+     so the two melts no longer stack into the 11-18% feather that
+     cut subjects and rounded alpha fields into rectangles. The
+     band-scene raw video (.rp-bandscene492) is likewise out — it
+     carries the same hairline inline via rpMeltHairline492. Stage
+     fallback video and art imgs keep this feather (unchanged). */
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
   -webkit-mask-composite: source-in;
   mask-image: linear-gradient(to right, transparent 0, #000 11%, #000 89%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 13%, #000 87%, transparent 100%);
@@ -33984,7 +34015,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
      rpGiftVidErr / rpFilmStepDown — a show never breaks. */
   var rpEventSlug = null;
   function rpFilmBase() { return window.GIFTFX_BASE || "/"; }
-  var RP_FILM_V464 = "?v=7464"; // [RP-V7.464] per-build film version token: a same-URL film swap (the V7.459 file-drop redo) left phones playing the cached OLD film — the versioned URL is a fresh cache key every build; the server also answers gift films with Cache-Control: no-cache (build-7464 server.js) so asset-only swaps land too
+  var RP_FILM_V464 = "?v=7492"; // [RP-V7.492] token bumped 7464 -> 7492 so phones fetch this build's re-encoded films (F1/F2: bitrate-capped + faststart) instead of the cached heavy masters. [RP-V7.464] per-build film version token: a same-URL film swap (the V7.459 file-drop redo) left phones playing the cached OLD film — the versioned URL is a fresh cache key every build; the server also answers gift films with Cache-Control: no-cache (build-7464 server.js) so asset-only swaps land too
   window.rpStdFilmUrl = function (id) { return rpFilmBase() + "giftfx-" + id + ".mp4" + RP_FILM_V464; };
   window.rpEventFilmUrl = function (id) { return rpEventSlug ? rpFilmBase() + "giftfx-" + id + "-" + rpEventSlug + ".mp4" + RP_FILM_V464 : window.rpStdFilmUrl(id); };
   /* [RP-V7.464] EVENT-FILM SESSION PROBE: an event film is handed to
@@ -34580,6 +34611,7 @@ body:not(.live-fs) #rp65How { display:none !important; }
     var room = Math.max(0, RP_STAGE_CHAIN_CAP - stageOutstanding219(key));
     var plays = Math.min(cnt, room);
     for (var q = 0; q < plays; q++) stageQ.push({ g: g, f: fromName, t: toName, key: key, n: n, co: !!(g && g.__co) });
+    try { if (window.rpWarmFilm492 && plays > 0) window.rpWarmFilm492(g.id); } catch (e) { } // [RP-V7.492] C5 — a gift that lands in the queue starts warming NOW, while the current show plays, not when its own show starts (pumpStage's own next-in-queue check covers chains queued before it runs)
     if (cnt - plays > 0) stageExtend219(key, g, cnt - plays);
     if (plays > 0) pumpStage();
     try { console.log("[rp219] stage", key, "batch", cnt, "enqueued", plays, "extended", cnt - plays, "streak", n); } catch (e) { }
@@ -34669,7 +34701,23 @@ window.RpShowDur = rpDurFor;
 /* Portrait-raster stage films (720x1280): the stage box takes the
    film's own aspect instead of the 16/9 landscape box. nebuladragon
    is scene-class (cover), so only titanclash needs the class. */
-var RP_PORTRAIT_FILMS = { titanclash: 1, plazaape: 1, foxshot: 1, ufobeam: 1 }; // [RP-V7.360] +foxshot +ufobeam: their 1440x2160 portrait films were never registered, so the stage squashed them into the 16:9 band (whole-scene defect) /* [RP-V7.241] +plazaape — Plaza Ape film gets the portrait treatment (Branden, Nov 4: "Fix the Ape") */
+var RP_PORTRAIT_FILMS = { titanclash: 1, plazaape: 1, foxshot: 1, ufobeam: 1, auraclash: 1, shellsensei: 1 }; // [RP-V7.492] +auraclash +shellsensei: both 720x1280 portrait films were unregistered — auraclash (big tier) reached the stage seat only via the fragile loadedmetadata rescue, shellsensei (medium) the lane equivalent; registered, the seat starts at the catalog aspect. [RP-V7.360] +foxshot +ufobeam: their 1440x2160 portrait films were never registered, so the stage squashed them into the 16:9 band (whole-scene defect) /* [RP-V7.241] +plazaape — Plaza Ape film gets the portrait treatment (Branden, Nov 4: "Fix the Ape") */
+/* [RP-V7.492] BAND-SCENE routing (diagnosis C1): full-bleed SCENE films
+   whose content is wall-to-wall colour (measured: subject bbox = the
+   whole frame, corners up to (233,164,192)). Routed through the luma
+   keyer they key to alpha ~= 1 across the frame and print as an opaque
+   bright rectangle in the band — the Plaza Diamond / Crown Jewel
+   defect in Branden's Nov 23, 2026 recording. These play the RAW
+   video in the band seat (object-fit:cover, normal compositing, no
+   keyer, no blend — the way the post/reel path plays them whole and
+   un-boxed), with only the C3 hairline melt. NOT added to
+   RP_BAND_KEYED (keying a wall-to-wall scene is what prints the
+   rectangle) and never screen-blended (bright grounds saturate to
+   white over bright rooms). The runtime corner-luma detector in
+   rpStageMedia extends the same treatment to any UNREGISTERED stage
+   film whose corners measure as a full-bleed scene, so the hand-kept
+   list stops being the failure mode for future scene films. */
+var RP_BAND_SCENE492 = { plazadiamond: 1, crownjewel: 1 };
 /* [spec §2.4/§9.3] per-gift replay flag: one-play-per-streak exists
    as a mechanism (rpBigStage honors it) but NO Rizz gift is measured
    into that class — Rizz defaults to replay-per-send, so this map is
@@ -34775,6 +34823,13 @@ var RpKey = (function () {
     if (vw && vh) s = Math.min(dpr, vw / cw, vh / ch);
     if (!(s > 0)) s = dpr;
     var w = Math.max(2, Math.round(cw * s)), h = Math.max(2, Math.round(ch * s));
+    /* [RP-V7.492] C7 — keyer cost cap: the seat never displays larger
+       than ~100vw x 72vh, so a backing store past 960x1280 buys no
+       pixels the eye can see — it only buys fill-rate. Fox Shot's
+       seat previously backed at ~987x1755 from its 1440x2160 master
+       (full-frame texImage2D + 9-tap shader every rAF at that size
+       is the stage's jank budget). Scale down proportionally. */
+    if (w > 960 || h > 1280) { var ks492 = Math.min(960 / w, 1280 / h); w = Math.max(2, Math.round(w * ks492)); h = Math.max(2, Math.round(h * ks492)); }
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   }
   function attach(src, opts) {
@@ -34970,6 +35025,56 @@ window.RpKeySticker = function (g, px) {
   } catch (e) { return null; }
 };
 
+/* ---------- [RP-V7.492] C5: gift-film warming (preload) ----------
+   The diagnosis: the client NEVER preloaded any gift film — every
+   stage show cold-fetched at send time over a ~3.4-6.2 Mbps
+   origin-to-phone pipe, so multi-MB films buffered in front of the
+   audience (the "lagging and pauses"). rpWarmFilm492 warms ONE film
+   through a detached <video preload="auto"> held in a small pool —
+   the browser fetches and caches the media exactly as a show would,
+   so a later show of the same URL starts from cache. Deduped by URL
+   in a session set; the pool is capped (oldest warmers are unloaded)
+   so a long session cannot accumulate media elements. Callers: the
+   gift sheet warms the big/prestige stage films in panel order on
+   open, live entry warms the same set, and pumpStage warms the
+   NEXT queued show's film while the current one plays. */
+var rpWarmSeen492 = {};
+var rpWarmPool492 = [];
+function rpWarmFilm492(id) {
+  try {
+    if (!id) return;
+    var fid = id === "diamond" ? "diamonds" : id;
+    if (!window.rpGiftFilmIds || !window.rpGiftFilmIds[fid]) return;
+    var url = window.rpGiftFilmUrl(fid);
+    if (!url || rpWarmSeen492[url]) return;
+    rpWarmSeen492[url] = 1;
+    var v = document.createElement("video");
+    v.preload = "auto"; v.muted = true; v.playsInline = true;
+    v.src = url;
+    rpWarmPool492.push(v);
+    while (rpWarmPool492.length > 8) { var old492 = rpWarmPool492.shift(); try { old492.removeAttribute("src"); old492.load(); } catch (e) { } }
+  } catch (e) { }
+}
+window.rpWarmFilm492 = rpWarmFilm492;
+/* [RP-V7.492] C3 helper — the hairline melt for a raw stage element
+   (the C1 band-scene video): the same rpApplyMelt406 maths as
+   rpMeltCanvas406 at the shrunk 5%/6% feathers, aimed at the
+   element's own box (the band box IS the film frame for these
+   films), re-aimed as the box settles like the canvas profile. */
+function rpMeltHairline492(el) {
+  if (!el) return;
+  var tryH492 = function () {
+    try {
+      var W = el.clientWidth || 0, H = el.clientHeight || 0;
+      if (!W || !H) return false;
+      rpApplyMelt406(el, 0, 0, W, H, Math.max(6, Math.round(W * 0.05)), Math.max(6, Math.round(H * 0.06)));
+      return true;
+    } catch (e) { return false; }
+  };
+  if (!tryH492()) { try { requestAnimationFrame(tryH492); } catch (e) { } setTimeout(tryH492, 120); }
+  setTimeout(tryH492, 350); setTimeout(tryH492, 900);
+}
+
 /* ---------- stage media controller (film keyer / art keyer) ---------- */
 var stageCtl = null;
 function rpStageMedia(div, gid, icon) {
@@ -34986,9 +35091,17 @@ function rpStageMedia(div, gid, icon) {
     requestAnimationFrame(function () { var s2 = div.closest ? div.closest("#rpStage") : null; if (s2) s2.classList.add("rp-keyed"); });
   }
   function clearStage() { if (ctl.h) { try { ctl.h.destroy(); } catch (e) { } ctl.h = null; } div.innerHTML = ""; }
+  /* [RP-V7.492] C6 — signals pumpStage that the seat has its visual:
+     the film is playing (gate release) or the art has taken the show
+     (watchdog / error fallback). pumpStage holds a film show's
+     entrance + plate animations until this fires, so the gift
+     presents exactly once, with its entrance, on real playback —
+     never an empty seat performing the entrance first. */
+  function visual492() { try { div.dispatchEvent(new CustomEvent("rp492visual")); } catch (e) { } }
   function emojiFallback() {
     if (ctl.dead) return;
     clearStage();
+    visual492();
     div.classList.remove("film");
     var s = document.createElement("span");
     s.className = "rp-art-emoji";
@@ -34998,6 +35111,7 @@ function rpStageMedia(div, gid, icon) {
   function artMode() {
     if (ctl.dead) return;
     clearStage();
+    visual492(); // [RP-V7.492] C6 — when art takes (or always held) the seat, the show's entrance releases on the art
     /* film-missing gifts show their animated art at hero size, keyed
        like everything else — never stretched into the film box,
        never an opaque rectangle. */
@@ -35061,16 +35175,146 @@ function rpStageMedia(div, gid, icon) {
     v.autoplay = true; v.muted = true; v.loop = true; v.playsInline = true; v.preload = "auto";
     v.loop = false; // [RP-V7.334] the film plays ONCE and holds its end frame for the rest of the slot — stage windows run 9200–14600 ms against ~5.6 s films, and the V7.219 loop filled the window by restarting the film mid-show (Branden, Nov 11, 2026: gifts "show up two times"). The Golden Ascension exception below already proved this treatment. Originally gated to off-live; Branden's live extension the same evening ("Live room should be the same") made it unconditional — live stage and battle-live films play once too. (Room SCENE films are a separate element and still loop as ambience; they are not gift shows.)
     var stepped = false;
+    /* [RP-V7.492] C6 — THE STAGE FREEZE GATE (the float lanes'
+       fxGate398 pattern, ported): a film show must never present an
+       empty seat or a frozen frame as "the gift" (Branden, Nov 23,
+       2026 — gifting has "lagging and pauses"). The gift's animated
+       art — already cached from the panel — holds the seat from t=0
+       with NO entrance animation of its own; the film presents only
+       on its 'playing' event, crossfading in over ~150 ms while the
+       art fades out, and the seat's entrance + plate run from that
+       moment (pumpStage holds them for the rp492visual signal). If
+       the film is not playing by 1.8 s (the dedicated stages'
+       watchdog number — this REPLACES the old 2.8 s zero-frame
+       guard) the art becomes the show; if mid-show 'waiting' stalls
+       total more than 2.5 s before the film's midpoint, the art
+       takes the remainder instead of a frozen canvas. ONE video
+       element serves every branch below — the C1 detector rebuild
+       only changes how this same element presents, so its fetch,
+       playback position and the stage clock's reference all carry
+       over. */
+    var gate492 = { released: false, artTaken: false, armed: false, visEl: null, artImg: null, onRelease: null, stallMs: 0, stallSince: 0, detected: false };
+    function gateArt492() {
+      if (gate492.released || gate492.artTaken || gate492.artImg || ctl.dead) return;
+      var img = document.createElement("img");
+      img.className = "rp-gateart492"; /* NOT rp-gift-img: that class trips the :has(> img.rp-gift-img) art-seat rule and would resize the film box around the hold */
+      img.alt = "";
+      img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:contain;mix-blend-mode:screen;z-index:2;pointer-events:none;";
+      img.onerror = function () { if (img.parentNode) img.parentNode.removeChild(img); if (gate492.artImg === img) gate492.artImg = null; };
+      img.src = "img/gifts/" + aid + ".webp";
+      div.appendChild(img);
+      gate492.artImg = img;
+    }
+    function gateRelease492() {
+      if (gate492.released || gate492.artTaken || ctl.dead) return;
+      gate492.released = true; gate492.stallMs = 0; gate492.stallSince = 0;
+      if (gate492.onRelease) { try { gate492.onRelease(); } catch (e) { } gate492.onRelease = null; }
+      if (gate492.visEl) { try { gate492.visEl.style.transition = "opacity .15s ease"; gate492.visEl.style.opacity = "1"; } catch (e) { } }
+      if (gate492.artImg) { var im492 = gate492.artImg; gate492.artImg = null; try { im492.style.transition = "opacity .15s ease"; im492.style.opacity = "0"; } catch (e) { } setTimeout(function () { if (im492.parentNode) im492.parentNode.removeChild(im492); }, 220); }
+      visual492();
+    }
+    function gateToArt492() {
+      if (gate492.released || gate492.artTaken || ctl.dead) return;
+      if (v.readyState >= 3 && !v.paused && v.currentTime > 0) { gateRelease492(); return; } /* it started between the timer and now */
+      gate492.artTaken = true;
+      artMode();
+    }
+    function armGate492(visEl) {
+      gate492.visEl = visEl;
+      gateArt492();
+      if (gate492.armed) return;
+      gate492.armed = true;
+      v.addEventListener("playing", function () {
+        if (gate492.stallSince) { gate492.stallMs += Date.now() - gate492.stallSince; gate492.stallSince = 0; }
+        gateRelease492();
+      });
+      v.addEventListener("waiting", function () { if (gate492.released && !gate492.stallSince) gate492.stallSince = Date.now(); });
+      setTimeout(gateToArt492, 1800); /* the dedicated stages' playing-watchdog */
+      var stallIv492 = setInterval(function () {
+        if (ctl.dead || gate492.artTaken) { clearInterval(stallIv492); return; }
+        if (!gate492.released) return;
+        var tot492 = gate492.stallMs + (gate492.stallSince ? Date.now() - gate492.stallSince : 0);
+        if (tot492 > 2500 && v.duration && v.currentTime > 0 && v.currentTime < v.duration / 2) { gate492.artTaken = true; clearInterval(stallIv492); artMode(); }
+      }, 250);
+      try { var gp492 = v.play(); if (gp492 && gp492.catch) gp492.catch(function () { }); } catch (e) { } /* explicit play, as the lanes' gate does; autoplay is also set — a refusal leaves the watchdog in charge, never a stuck seat */
+    }
+    /* [RP-V7.492] C2 — the seat takes the film's OWN aspect in EVERY
+       branch (was: the keyed branch only, and portrait films only —
+       a non-16:9 film on the no-WebGL fallback, or a landscape
+       odd-aspect film like Star Cruiser's 3:2, was drawn into the
+       16:9 band and squashed ~16% vertically). Setting the inline
+       aspect is a no-op for true 16:9 films and corrects every
+       other raster the moment its metadata lands; the
+       RP_PORTRAIT_FILMS registration covers the wait for the
+       catalogued portrait films. */
+    function aspect492() { try { if (v.videoWidth && v.videoHeight) div.style.aspectRatio = v.videoWidth + " / " + v.videoHeight; } catch (e) { } }
+    /* [RP-V7.492] C1 — band-scene presentation: the RAW video in the
+       band seat — object-fit:cover (exact for the 16:9 offenders;
+       the C2 handler re-seats odd aspects from metadata), normal
+       compositing, no keyer, no blend, the C3 hairline melt only.
+       markKeyed() runs at t=0 here (not deferred to release): the
+       stage must composite NORMALLY or the raw scene would
+       screen-blend into the room. */
+    function bandScene492(fromDetect492) {
+      v.classList.add("rp-bandscene492");
+      v.style.cssText = "width:100%;height:100%;object-fit:cover;mix-blend-mode:normal;opacity:0;";
+      v.onerror = function () { if (window.rpGiftVidErr) window.rpGiftVidErr(v); };
+      if (!v.parentNode) div.appendChild(v);
+      markKeyed();
+      gate492.onRelease = null;
+      armGate492(v);
+      rpMeltHairline492(v);
+      v.addEventListener("loadedmetadata", aspect492);
+      if (gate492.released) { try { v.style.opacity = "1"; } catch (e) { } }
+      if (!fromDetect492) v.src = window.rpGiftFilmUrl(aid); /* a detector rebuild keeps the element's existing fetch — re-assigning src would restart the film */
+    }
+    /* [RP-V7.492] C1 detector — at loadeddata, sample an UNREGISTERED
+       stage film's four corners on a 2D canvas; a mean corner luma
+       over 60 marks full-bleed scene content, so the show rebuilds
+       unkeyed (bandScene492) instead of the keyer printing it as an
+       opaque rectangle. Registered films (scene / portrait /
+       band-scene / screen337 lists) keep their routing untouched —
+       the detector only ends the hand-kept-list failure mode for
+       scene films nobody registered. */
+    function detectScene492() {
+      if (gate492.detected) return; gate492.detected = true;
+      if (RP_SCENE_FILMS[aid] || RP_PORTRAIT_FILMS[aid] || RP_BAND_SCENE492[aid]) return;
+      if (window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[aid]) return;
+      try {
+        var cw492 = 48, ch492 = Math.max(8, Math.min(64, Math.round(48 * (v.videoHeight || 9) / (v.videoWidth || 16))));
+        var c492 = document.createElement("canvas"); c492.width = cw492; c492.height = ch492;
+        var x492 = c492.getContext("2d"); if (!x492) return;
+        x492.drawImage(v, 0, 0, cw492, ch492);
+        var pts492 = [[0, 0], [cw492 - 3, 0], [0, ch492 - 3], [cw492 - 3, ch492 - 3]], sum492 = 0;
+        for (var pi492 = 0; pi492 < 4; pi492++) {
+          var d492 = x492.getImageData(pts492[pi492][0], pts492[pi492][1], 3, 3).data, px492 = 0;
+          for (var pj492 = 0; pj492 < d492.length; pj492 += 4) px492 += 0.213 * d492[pj492] + 0.715 * d492[pj492 + 1] + 0.072 * d492[pj492 + 2];
+          sum492 += px492 / (d492.length / 4);
+        }
+        if (sum492 / 4 <= 60) return;
+        /* full-bleed scene: tear the keyer down and present the same
+           element raw — fetch and playback position carry over */
+        if (ctl.h) { try { ctl.h.destroy(); } catch (e) { } ctl.h = null; }
+        var st492 = div.closest ? div.closest("#rpStage") : null; if (st492) st492.classList.remove("rp-keyed");
+        div.innerHTML = "";
+        gate492.artImg = null; gate492.visEl = null;
+        v.classList.remove("rp-key-src");
+        bandScene492(true);
+      } catch (e) { }
+    }
     if (window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[aid]) {
       /* [RP-V7.337] dim-master gifts present screen-blended, never keyed
          (see RP_SCREEN_FILMS337); the whole frame still shows (contain) */
-      v.style.cssText = "width:100%;height:100%;object-fit:contain;mix-blend-mode:screen;";
+      v.style.cssText = "width:100%;height:100%;object-fit:contain;mix-blend-mode:screen;opacity:0;"; /* [RP-V7.492] C6: held invisible until the gate releases on 'playing' */
       v.classList.add("rp-screen337");
       v.onerror = function () { if (window.rpGiftVidErr) window.rpGiftVidErr(v); };
       div.appendChild(v);
+      armGate492(v);
+      v.addEventListener("loadedmetadata", aspect492); /* [RP-V7.492] C2 */
       v.src = window.rpGiftFilmUrl(aid);
       return;
     }
+    if (RP_BAND_SCENE492[aid]) { bandScene492(false); return; } /* [RP-V7.492] C1 — registered full-bleed scenes never touch the keyer */
     if (RpKey.supported()) {
       var h = RpKey.attach(v, {}); // [RP-V7.337] identity window — the WHOLE film frame keys (the V7.218 cover window cropped any film whose raster differs from the band box: portrait films lost their top and bottom in live rooms — Branden, Nov 11, 2026: "you can see part of the sides not showing because it's boxed in"); the art box now matches the film's own aspect (see the .film.portrait rule), so identity = whole scene, nothing cut
       if (h) {
@@ -35080,31 +35324,33 @@ function rpStageMedia(div, gid, icon) {
         rpMeltCanvas406(h.canvas); /* [RP-V7.406] border-accurate melt on the keyed canvas: its box IS the film frame, and the V7.337 element feather still leaked 3-9% of the film in the outer 1-3px — the hairline the audit measured on 10 stage gifts. The 406 profile takes the outer rows to exactly transparent. */
         v.classList.add("rp-key-src");
         div.appendChild(v);
-        markKeyed();
+        /* [RP-V7.492] C6 — markKeyed is DEFERRED to the gate's
+           release: while the film loads, the stage keeps its screen
+           blend so the gate's art hold dissolves into the room
+           exactly like an art show does; the keyed (normal-
+           composite) stage lands with the film itself. */
+        gate492.onRelease = function () { markKeyed(); };
+        armGate492(h.canvas);
         v.onerror = function () {
           if (ctl.dead) return;
           if (!stepped && window.rpFilmStepDown && window.rpFilmStepDown(v)) { stepped = true; return; }
-          artMode();
+          gate492.artTaken = true; artMode();
         };
-        /* stall guard: a film that never decodes a frame (e.g. the
-           server answered HTML for a not-yet-uploaded file) steps
-           down to the keyed art instead of sitting on a dead canvas. */
-        setTimeout(function () {
-          if (ctl.dead || ctl.h !== h) return;
-          if (h.frames() === 0 && v.readyState < 2) artMode();
-        }, 2800);
-        v.addEventListener("loadedmetadata", function () { // [RP-V7.360] portrait stage seat: the .portrait CSS box hardcodes 720/1280 — hand the box the film's OWN aspect so 1440x2160 films (Fox Shot, UFO Beam) show whole AND undistorted
-          try { if (v.videoWidth && v.videoHeight && v.videoHeight > v.videoWidth) div.style.aspectRatio = v.videoWidth + " / " + v.videoHeight; } catch (e) { }
+        v.addEventListener("loadedmetadata", function () { // [RP-V7.360] portrait stage seat: the .portrait CSS box hardcodes 720/1280 — hand the box the film's OWN aspect so 1440x2160 films (Fox Shot, UFO Beam) show whole AND undistorted. [RP-V7.492] C2: EVERY film hands the box its own aspect now, not just portrait — a 3:2 landscape (Star Cruiser) was squashed ~16% by the identity draw into the 16:9 band
+          aspect492();
           try { rpMeltCanvas406(h.canvas); } catch (e) { } /* [RP-V7.406] re-aim the canvas melt at the settled box */
         });
+        v.addEventListener("loadeddata", function () { detectScene492(); }); /* [RP-V7.492] C1 detector */
         v.src = window.rpGiftFilmUrl(aid);
         return;
       }
     }
     /* no WebGL: the blend path, with the whole frame kept */
-    v.style.cssText = "width:100%;height:100%;object-fit:contain;mix-blend-mode:screen;"; // [RP-V7.337] contain, never cover — the fallback shows the whole film too (the screen blend still dissolves its black ground)
+    v.style.cssText = "width:100%;height:100%;object-fit:contain;mix-blend-mode:screen;opacity:0;"; // [RP-V7.337] contain, never cover — the fallback shows the whole film too (the screen blend still dissolves its black ground). [RP-V7.492] C6: held invisible until the gate releases on 'playing'
     v.onerror = function () { if (window.rpGiftVidErr) window.rpGiftVidErr(v); };
     div.appendChild(v);
+    armGate492(v);
+    v.addEventListener("loadedmetadata", aspect492); /* [RP-V7.492] C2 */
     v.src = window.rpGiftFilmUrl(aid);
   }
   if (aid && GIFT_FILM_IDS[aid]) filmMode(); else artMode();
@@ -35185,6 +35431,7 @@ function stageStreakBump(key, add) {
     ov.innerHTML = RP_KEY_DEFS + '<div class="rp-stage-bg"></div>' + ((isTrex353 || isSky362 || isGoal370 || isWhale380) ? "" : sparks); // [RP-V7.353] no sparks on the trex stage (the V7.81 original had none — the film is the whole show); [RP-V7.362] none on the sky stage either — the film is the whole show; [RP-V7.370] none on the goal stage either
     ov.querySelector(".rp-stage-bg").style.animationDuration = dur + "ms";
     var artDiv = document.createElement("div");
+    var gateWait492 = false, gateMotion492 = null; /* [RP-V7.492] C6 — set by the rpStageMedia branches below when this show is a film show whose entrance + plate must wait for the gate's rp492visual signal */
     if (isTrex353) {
       /* [RP-V7.353] THE T-REX STAGE — by Branden's design the
          T-Rex is a screen-breaker, not a band film: the approved V3
@@ -35320,11 +35567,13 @@ function stageStreakBump(key, add) {
          no longer applied to any show. */
       ov.classList.add("bandkeyed218");
       stageCtl = rpStageMedia(artDiv, sgid, g.icon || GIFT_ICONS[said]);
+      gateWait492 = sFilm; /* [RP-V7.492] C6 */
     } else {
-      artDiv.className = "rp-stage-art " + motion + (sFilm ? " film" : "");
+      artDiv.className = sFilm ? "rp-stage-art film" : ("rp-stage-art " + motion); /* [RP-V7.492] C6 — a film show's entrance class lands only when the film presents (release492 below): the gate's art hold must not ride an entrance it doesn't own, and the film must present exactly once, entrance included */
       if (RP_PORTRAIT_FILMS[said]) artDiv.classList.add("portrait");
-      artDiv.style.animationDuration = dur + "ms";
+      if (!sFilm) artDiv.style.animationDuration = dur + "ms"; /* film shows: the duration is set at release (or by the stage clock's anchor) so the entrance runs on playback, not on append */
       stageCtl = rpStageMedia(artDiv, sgid, g.icon || GIFT_ICONS[said]);
+      gateWait492 = sFilm; if (sFilm) gateMotion492 = motion; /* [RP-V7.492] C6 */
     }
     ov.appendChild(artDiv);
     /* [RP-V7.217] Honesty Fix: a charms-only send (it.co, from the
@@ -35356,7 +35605,23 @@ function stageStreakBump(key, add) {
     stageBadgeTimer = setInterval(syncBadge, 250);
     window.__rpStageTimer = setTimeout(stageTeardown219, dur);
     try { rpStageClock474(ov, it); } catch (e) { } // [RP-V7.474] the stage show clock follows the film (see rpStageClock474)
+    if (gateWait492) { /* [RP-V7.492] C6 — the plate's fade is held paused and (generic branch) the seat's entrance class is withheld until rpStageMedia's gate signals the seat has its visual (film playing, or art took the show): the show presents exactly once, entrance and plate together, on real playback. A 4 s belt releases regardless — the entrance can never be held hostage by a gate fault. */
+      try {
+        plate.style.animationPlayState = "paused";
+        var released492 = false;
+        var release492 = function () {
+          if (released492) return; released492 = true;
+          try {
+            plate.style.animationPlayState = "";
+            if (gateMotion492) { artDiv.classList.add(gateMotion492); if (!artDiv.style.animationDuration) artDiv.style.animationDuration = dur + "ms"; }
+          } catch (e) { }
+        };
+        artDiv.addEventListener("rp492visual", release492, { once: true });
+        setTimeout(release492, Math.min(dur, 4000));
+      } catch (e) { }
+    }
     if (window.rpShowSync464) window.rpShowSync464(); // [RP-V7.464] chrome off + dimmer on, synchronously as the stage opens // [RP-V7.219] the teardown is a named function (identical body to the old inline one) so the chain cap can re-arm this timer when it extends the playing show
+    try { if (stageQ.length) { var nx492 = stageQ[0].g; rpWarmFilm492(nx492.id || NAME2ID[nx492.name] || ""); } } catch (e) { } /* [RP-V7.492] C5 — while this show plays, warm the NEXT queued show's film so a burst (Branden's Nov 23 recording sent a dozen stage gifts back to back) never cold-fetches in front of the audience */
   }
 
   /* ---------- playGiftFx hook: banner always; stage replaces big shows ---------- */
