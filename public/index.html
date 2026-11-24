@@ -26128,6 +26128,7 @@
               im2.parentNode.replaceChild(s2, im2);
             };
             vid.parentNode.replaceChild(im2, vid);
+            try { if (window.rpMeltLive496) window.rpMeltLive496(im2); } catch (e) { } // [RP-V7.496] a film that errors out in a live hands its show to the art — the art takes the hairline melt too (a keyed seat's inherited cssText already carries it; an unkeyed seat's art gets it here)
             /* [RP-V7.360] the claimed film is gone and the ART takes over: release the dead video's keyer and UN-KEY the overlay. Left keyed, the overlay's forced mix-blend-mode:normal traps the art inside with its black ground intact — the black rectangle/box on bright posts (Foam Finger, Kraken). Released, the overlay's own screen blend dissolves the black and the art animates natively. */
             try {
               var ovFix = im2.closest ? im2.closest(".gfx") : null;
@@ -26393,6 +26394,53 @@
         setTimeout(tryS406, 900);
       }
       window.rpMelt406 = rpMelt406; window.rpMeltCanvas406 = rpMeltCanvas406; window.rpSceneMelt406 = rpSceneMelt406;
+      /* [RP-V7.496] THE HEART STANDARD, EVERYWHERE (Branden, Nov 24,
+         2026: "Every gift need to be like the heart"): rpMelt406
+         above self-guards OFF in lives, so the float/burst heroes
+         that present RAW in a live — the screen-blend class
+         (RP_SCREEN_FILMS337), a band-scene film the keyer must not
+         touch, a no-WebGL hero, and the art that takes a show when
+         its film fails — kept only the V7.337 stylesheet feather
+         (11% X / 13% Y) while the Heart's keyed canvas got the
+         V7.495 hairline. rpMeltLive496 is that hairline for a raw
+         element: the SAME rpMeltStops406 profile (3px dead zone,
+         0.35 mid-stop) at the shrunk 5%/6% feathers, aimed at the
+         film's RENDERED frame (the contain rect inside the element
+         box — the V7.382 maths), live-only by its own guard so
+         off-live presentation stays byte-identical, re-aimed as
+         the seat settles (metadata, retries, a ResizeObserver),
+         and every observer write is change-guarded (the mask
+         string is compared before it is assigned). */
+      function rpMeltLive496(el) {
+        try {
+          if (!el || (el.tagName !== "VIDEO" && el.tagName !== "IMG")) return;
+          if (!(document.body && document.body.classList.contains("live-fs"))) return;
+          var aim496 = function () {
+            try {
+              var iw = el.videoWidth || el.naturalWidth || 0, ih = el.videoHeight || el.naturalHeight || 0;
+              if (!iw || !ih) return false;
+              var W = el.clientWidth || 0, H = el.clientHeight || 0;
+              if (!W || !H) return false;
+              var ar496 = iw / ih, fw = W, fh = fw / ar496; if (fh > H) { fh = H; fw = fh * ar496; }
+              var x0 = (W - fw) / 2, y0 = (H - fh) / 2;
+              var gx496 = "linear-gradient(to right, " + rpMeltStops406(x0, x0 + fw, Math.max(6, Math.round(fw * 0.05))) + ")";
+              var gy496 = "linear-gradient(to bottom, " + rpMeltStops406(y0, y0 + fh, Math.max(6, Math.round(fh * 0.06))) + ")";
+              var m496 = gx496 + ", " + gy496;
+              if (el.style.maskImage !== m496) { el.style.webkitMaskImage = m496; el.style.maskImage = m496; el.style.webkitMaskComposite = "source-in"; el.style.maskComposite = "intersect"; }
+              return true;
+            } catch (e) { return false; }
+          };
+          if (!aim496()) {
+            var f496 = function () { aim496(); };
+            if (el.tagName === "VIDEO") el.addEventListener("loadedmetadata", f496, { once: true }); else el.addEventListener("load", f496, { once: true });
+            try { requestAnimationFrame(aim496); } catch (e) { }
+            setTimeout(aim496, 120);
+          }
+          setTimeout(aim496, 350); setTimeout(aim496, 900);
+          if (window.ResizeObserver) { try { var ro496 = new ResizeObserver(function () { aim496(); }); ro496.observe(el); setTimeout(function () { try { ro496.disconnect(); } catch (e) { } }, 10000); } catch (e) { } }
+        } catch (e) { }
+      }
+      window.rpMeltLive496 = rpMeltLive496;
       /* [RP-V7.398] THE FREEZE GATE (Branden, Nov 16, 2026 — his
          Heart/Rose/Coffee shows sat on the film's first frame for
          ~2 s of their 5.2 s window, then played only the tail):
@@ -26533,6 +26581,7 @@
               hold.onerror = function () { if (hold && hold.parentNode) { var sp = document.createElement("span"); sp.textContent = (g && g.icon) || "🎁"; sp.style.cssText = hold.style.cssText; sp.style.fontSize = "110px"; hold.parentNode.replaceChild(sp, hold); hold = sp; } };
               stage.appendChild(hold);
               rpMelt406(hold); // [RP-V7.406] the 406 border melt (dead zone + ramp; same frame maths as V7.382) — the art show melts exactly like the film hero's frame; self-guards in lives
+              rpMeltLive496(hold); // [RP-V7.496] when the art takes a show in a LIVE (film failed/stalled), it takes the hairline too — a keyed seat's copied cssText already carries it; an unkeyed seat's art now gets it aimed at the art's own frame
             } else {
               hold = document.createElement("span"); hold.textContent = (g && g.icon) || "🎁"; hold.style.cssText = seatEl.style.cssText; hold.style.visibility = "visible"; hold.style.animationPlayState = ""; hold.style.fontSize = "110px";
               stage.appendChild(hold);
@@ -26621,6 +26670,7 @@
         if (window.RpKeyUpgrade) { var fu = stage.querySelector(".gfx-p"); if (fu) window.RpKeyUpgrade(fu, g, undefined); } /* [RP-V7.334] no cover/keepBox on either path now — identity window + fixAspect (the band path always keyed this way) */
         if (s.classList && s.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the band seat centres their square at 72% and pokes it above the midline */          if (document.body && document.body.classList.contains("live-fs")) { s.style.left = "var(--gfx-x, 0px)"; s.style.top = "auto"; s.style.bottom = "0px"; s.style.width = "min(100vw, var(--gfx-w, 100vw))"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { s.style.left = "0px"; s.style.top = "0px"; s.style.bottom = "auto"; s.style.width = "100vw"; s.style.height = "100dvh"; s.style.maxHeight = "none"; } s.style.transform = "none"; s.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
           rpMelt406(s); // [RP-V7.406] border melt with the 3px dead zone (was rpMelt382 — its ramp still held ~3.4% alpha in the audit's border strips)
+          rpMeltLive496(s); // [RP-V7.496] in a live rpMelt406 self-guards off and this raw screen-blend hero kept the 11%/13% stylesheet feather — the hairline instead, the Heart standard (self-gated to lives)
           s.style.animation = "gfxFade337 600ms ease-out both"; }
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
@@ -26660,6 +26710,7 @@
         if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined); // [RP-V7.217] hero keyed live — no box — [RP-V7.334] identity window + fixAspect on both paths (see the giftFxFloat note)
         if (hero.classList && hero.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the burst's centred seat pokes their square above the midline */          if (document.body && document.body.classList.contains("live-fs")) { hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { hero.style.left = "0px"; hero.style.top = "0px"; hero.style.bottom = "auto"; hero.style.width = "100vw"; hero.style.height = "100dvh"; hero.style.maxHeight = "none"; } hero.style.transform = "none"; hero.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
           rpMelt406(hero); // [RP-V7.406] border melt with the 3px dead zone (was rpMelt382)
+          rpMeltLive496(hero); // [RP-V7.496] the burst lane's raw screen-blend hero takes the hairline in lives too (see the float note)
           hero.style.animation = "gfxFade337 600ms ease-out both"; }
         /* [RP-V7.360] the burst particle scatter is REMOVED (Branden, Nov 12, 2026: "these small little pictures pop up before the gift — it need to be erased"): the 18 .gfx-p spans (the firework-burst glyph tiles, gift-icon stickers and sparkles that scattered across the post BEFORE the hero) are gone for every gift on both surfaces. The show now starts directly with the gift itself; hero, caption and the send toast/banner are untouched. */
         var cap = document.createElement("div");
@@ -33844,7 +33895,9 @@ body:not(.rp-show464) .reel-rail, body:not(.rp-show464) .reel-meta, body:not(.rp
 #rpStage.sky362{ mix-blend-mode:normal !important; }
 #rpStage.sky362 .rp-stage-art{ position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; }
 .rp-sky-video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+body.live-fs .rp-sky-video{ object-fit:contain; } /* [RP-V7.496] in a LIVE the Sky Stepper film shows WHOLE like every other gift (Branden, Nov 24, 2026: "Every gift need to be like the heart") — the cover seat cropped the 1080x1920 film's sides on any screen taller than 16:9 (~11% of width at 440x880); contain + rpSceneMelt406 at its rendered frame is the Golden Goal recipe. Live-scoped: post/reel sky shows keep the approved full-bleed cover, byte-identical. */
 #rpStage.sky362 .rp-stage-art img.rp-gift-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; mix-blend-mode:normal; }
+body.live-fs #rpStage.sky362 .rp-stage-art img.rp-gift-img{ object-fit:contain; } /* [RP-V7.496] the sky stage's art fallback follows the film's whole-frame rule in lives too */
 /* [RP-V7.362] the art-fallback swap (rpSkyErr362) puts the
    gift's img directly inside .rp-stage-art, where two GENERIC stage
    rules would otherwise win on specificity: the :has art seat
@@ -35213,8 +35266,39 @@ window.RpKeyUpgrade = function (el, g, opts327) {
     if (el && g && window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[g.id] && (el.tagName === "VIDEO" || el.tagName === "IMG")) { el.classList.add("rp-screen337"); return null; }
     /* [FREEZE-FIX] Off-live (post/reel) FILM heroes present screen-blended, never WebGL-keyed. The keyed show pipeline (RpKey.attach: full-frame texImage2D + shader + full-screen canvas composite for the whole show) saturates the main thread for the entire show — measured on the V7.375 rig sweep: rAF 60 -> 5/s and 5.5-7.7s of longtasks per gift send with keying, vs 54-517ms and 20-30 rAF/s with the same film screen-blended (the RP_SCREEN_FILMS337 presentation). Post/reel shows are full-screen over the dark stage (V7.372), where screen blend of a black-background film matches the keyed look; lives keep the keyer exactly as before (live-fs only). */
     if (el && el.tagName === "VIDEO" && !(document.body && document.body.classList.contains("live-fs"))) { el.classList.add("rp-screen337"); return null; }
+    /* [RP-V7.496] BAND-SCENE films on the float/burst lanes: the
+       RP_BAND_SCENE492 registration (the stage's C1 unkeyed recipe)
+       only ever ran inside rpStageMedia, but two of its films are
+       MEDIUM tier (rainbowfalls, crystaloctopus) and mediums never
+       reach the stage — on the burst lane they were luma-keyed, and
+       a full-bleed scene keys to alpha ~1 wall-to-wall: an opaque
+       rectangle with melted edges, not the Heart treatment. In a
+       live they now take the stage's own C1 presentation verbatim:
+       NO keyer, the raw film in its lane film seat, NORMAL
+       compositing (the overlay is marked rp-keyed exactly like the
+       stage's markKeyed — the raw scene must not screen-blend into
+       the room), and the C3 hairline melt (rpMeltHairline492).
+       Off-live videos never reach here (the FREEZE-FIX return
+       above), so post/reel shows are untouched. */
+    if (el && el.tagName === "VIDEO" && g && typeof RP_BAND_SCENE492 !== "undefined" && RP_BAND_SCENE492[g.id]) {
+      el.classList.add("rp-bandscene492");
+      el.style.mixBlendMode = "normal";
+      var ovB496 = el.closest ? el.closest(".gfx") : null;
+      if (ovB496) ovB496.classList.add("rp-keyed");
+      try { rpMeltHairline492(el); } catch (e) { }
+      return null;
+    }
     /* [RP-V7.360] an animated IMG is NEVER keyed: texImage2D from an animated image hands the keyer its FIRST frame forever on WebKit (rig-proven in Chrome too), so a keyed art hero is a frozen still — Branden's "some of them don't work at all it's still" (Nov 12, 2026: Lowrider, UFO Beam). Art heroes stay the raw animated image (natively animated on every engine, screen blend per the .gfx-artimg rules); the keyer remains for VIDEO sources only. */
     if (el && el.tagName === "IMG") return null;
+    /* [RP-V7.496] NO-WEBGL (or a dead GL context): an in-live film
+       hero the keyer cannot claim used to present raw under the
+       overlay blend with only the 11%/13% stylesheet feather. It
+       now takes the rp-screen337 tag, so the lanes' existing
+       screen-blend handling claims it — film seat, fade entrance,
+       and (V7.496) the hairline frame melt — the same blend
+       fallback the stage's filmMode runs. In-live only by
+       construction: off-live videos returned above. */
+    if (el && el.tagName === "VIDEO" && !RpKey.supported()) { el.classList.add("rp-screen337"); return null; }
     if (!el || (el.tagName !== "VIDEO" && el.tagName !== "IMG") || !RpKey.supported()) return null;
     var parent = el.parentNode;
     if (!parent) return null;
@@ -35225,7 +35309,7 @@ window.RpKeyUpgrade = function (el, g, opts327) {
        the canvas back to the film's 16:9 raster box. Default (no
        opts) is byte-for-byte the pre-327 behaviour. */
     var h = RpKey.attach(el, (opts327 && opts327.cover) ? { cover: true } : {});
-    if (!h) return null;
+    if (!h) { if (el.tagName === "VIDEO") el.classList.add("rp-screen337"); return null; } /* [RP-V7.496] a failed attach takes the same blend fallback as no-WebGL (see above) — never an opaque raw rectangle in a live */
     var cv = h.canvas;
     cv.className = (el.className || "") + " rp-key-canvas";
     cv.style.cssText = el.style.cssText;
@@ -35472,6 +35556,7 @@ function rpStageMedia(div, gid, icon) {
       img.classList.add("rp-screen337");
       img.style.mixBlendMode = "screen";
       div.appendChild(img);
+      try { if (document.body.classList.contains("live-fs")) rpMeltHairline492(img); } catch (e) { } /* [RP-V7.496] the art show takes the hairline in lives (defensive twin of the film branch above) */
       img.src = "img/gifts/" + aid + ".webp";
       return;
     }
@@ -35487,6 +35572,7 @@ function rpStageMedia(div, gid, icon) {
     if (st354) st354.classList.remove("rp-keyed");
     if (!holFit220) { div.style.width = "min(100vw, 85dvh)"; div.style.height = "min(100vw, 85dvh)"; }
     div.appendChild(img);
+    try { if (document.body.classList.contains("live-fs")) rpMeltHairline492(img); } catch (e) { } /* [RP-V7.496] when the ART is the show in a live (the film failed or never shipped), it melts at the hairline like every film — not the 11%/13% stylesheet feather */
     img.src = "img/gifts/" + aid + ".webp";
   }
   function filmMode() {
@@ -35633,6 +35719,7 @@ function rpStageMedia(div, gid, icon) {
       v.onerror = function () { if (window.rpGiftVidErr) window.rpGiftVidErr(v); };
       div.appendChild(v);
       armGate492(v);
+      try { if (document.body.classList.contains("live-fs")) rpMeltHairline492(v); } catch (e) { } /* [RP-V7.496] in a live this raw blend hero takes the hairline, not the 11%/13% stylesheet feather (defensive: no screen-class film is big/prestige today, so no stage show reaches this branch yet — the lanes carry the class) */
       v.addEventListener("loadedmetadata", aspect492); /* [RP-V7.492] C2 */
       v.src = window.rpGiftFilmUrl(aid);
       return;
@@ -35673,6 +35760,7 @@ function rpStageMedia(div, gid, icon) {
     v.onerror = function () { if (window.rpGiftVidErr) window.rpGiftVidErr(v); };
     div.appendChild(v);
     armGate492(v);
+    try { if (document.body.classList.contains("live-fs")) rpMeltHairline492(v); } catch (e) { } /* [RP-V7.496] the no-WebGL blend fallback takes the hairline in lives too — the Heart standard on every path (off-live stage shows keep the stylesheet feather, byte-identical) */
     v.addEventListener("loadedmetadata", aspect492); /* [RP-V7.492] C2 */
     v.src = window.rpGiftFilmUrl(aid);
   }
@@ -35803,6 +35891,7 @@ function stageStreakBump(key, add) {
       var sv362 = artDiv.querySelector("video.rp-sky-video");
       if (sv362) {
         sv362.addEventListener("playing", function () { sv362.setAttribute("data-playing362", "1"); });
+        try { if (document.body.classList.contains("live-fs")) rpSceneMelt406(sv362); } catch (e) { } /* [RP-V7.496] in a live the contained film melts at its rendered frame (the Golden Goal treatment) — no letterbox edge, no rectangle; off-live the full-bleed cover show is unchanged */
         try {
           var pp362 = sv362.play();
           if (pp362 && pp362.catch) pp362.catch(function () { try { sv362.muted = true; var p2362 = sv362.play(); if (p2362 && p2362.catch) p2362.catch(function () { }); } catch (e) { } });
