@@ -5807,7 +5807,7 @@ app.get("/api/reels", (req, res) => {
       giftCount: postGiftCountOf262(pg262, "reel", r.id),
       // [RP-V7.89] Reposts ride the payload like heart-likes do.
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
-      comments: reelPublicComments(r, nameOf313r), // [RP-V7.313]
+      comments: reelPublicComments(r, nameOf313r, { viewerId: fyUser ? fyUser.id : null, authorId: aKey313r || null, avatarOf: avatarResolver497(adb296r) }), // [RP-V7.313] // [RP-V7.497]
       commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
       ...(fyUser
         ? {
@@ -6140,7 +6140,7 @@ app.get("/api/tag/:tag", (req, res) => {
     likesDb, commentsDb
   )
     .slice(0, 60)
-    .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296tag, clubAccess298tag, nameOf313tag)); // [RP-V7.298] club set rides along // [RP-V7.313] byline resolver rides too
+    .map((x) => photoPublicPost(x, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296tag, clubAccess298tag, nameOf313tag, avatarResolver497(adb296tag))); // [RP-V7.298] club set rides along // [RP-V7.313] byline resolver rides too // [RP-V7.497]
   res.json({ ok: true, tag, reels, photos });
 });
 
@@ -8581,6 +8581,29 @@ function nameResolver313(accountsDb) {
     return n ? n : null;
   };
 }
+// [RP-V7.497] The face twin of memberNamesById313: (accountId) -> the
+// member's CURRENT profile photo (user.photo — the V7.89 FACE), so
+// comment avatars follow a face change exactly like V7.313 bylines
+// follow a rename. Same WeakMap-per-db caching pattern.
+const _photosById497 = new WeakMap();
+function memberPhotosById497(accountsDb) {
+  if (!accountsDb || !Array.isArray(accountsDb.users)) return null;
+  let m = _photosById497.get(accountsDb);
+  if (!m) {
+    m = new Map();
+    for (const u of accountsDb.users) if (u && u.id) m.set(u.id, u.photo || null);
+    _photosById497.set(accountsDb, m);
+  }
+  return m;
+}
+function avatarResolver497(accountsDb) {
+  const m = memberPhotosById497(accountsDb);
+  return (id) => {
+    if (!m || !id) return null;
+    const p = m.get(id);
+    return p ? p : null;
+  };
+}
 // The byline for one stored record: current name when the author
 // account resolves, else the record's stored snapshot.
 function byline313(accountsDb, id, snapshot) {
@@ -10316,8 +10339,38 @@ function writePhotoComments(db) {
 // display name from their stored uid, so comment bylines follow a
 // rename exactly like post bylines; without a resolver — or when the
 // commenter is gone — the stored snapshot serves, as before.
-function reelPublicComments(r, nameOf313) {
+// [RP-V7.497] Comment identity for likes + threading. Comments
+// created before V7.497 carry no stored id, so their public id is
+// DERIVED deterministically from the immutable stored fields
+// (uid|ts|text) — stable across reads with zero write-on-read, and
+// the like/reply lookups below match on the same derivation. New
+// comments store a random cid at creation. A stored comment's likes
+// ride a uid array (the reel heartLikes pattern); parentId points
+// at the top-level parent's cid (one thread level, TikTok-style).
+function commentCid497(c) {
+  if (!c) return "";
+  if (c.cid) return String(c.cid);
+  const s = String(c.uid || "") + "|" + String(c.ts || "") + "|" + String(c.text || "");
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return "x" + h.toString(36);
+}
+function findComment497(list, cid) {
+  if (!Array.isArray(list) || !cid) return null;
+  for (const c of list) if (c && commentCid497(c) === cid) return c;
+  return null;
+}
+function newCommentCid497() {
+  return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+// [RP-V7.497] opts497 (optional) = { viewerId, authorId, avatarOf }:
+// viewerId drives myLike, authorId drives the byAuthor (Creator)
+// flag, avatarOf resolves the commenter's current face. Callers
+// that pass no opts get exactly the pre-497 shape plus cid/likes/
+// parentId (avatar/byAuthor simply stay empty/false there).
+function reelPublicComments(r, nameOf313, opts497) {
   const list = r && Array.isArray(r.comments) ? r.comments : [];
+  const o = opts497 || {};
   return list.slice(-REEL_COMMENTS_RETURN).map((c) => {
     let nm = (c && c.name) || "";
     if (nameOf313 && c && c.uid) {
@@ -10325,13 +10378,40 @@ function reelPublicComments(r, nameOf313) {
       if (cur) nm = cur;
     }
     const glv338c = c && c.uid ? gifterLevelOf338(c.uid) : 0; // [RP-V7.338] commenter's gifter level (0/absent = no badge)
+    const likes497 = c && Array.isArray(c.likes) ? c.likes : [];
     return {
       name: String(nm || "Someone").slice(0, 40),
       text: String((c && c.text) || "").slice(0, REEL_COMMENT_MAX),
       ts: (c && c.ts) || null,
       ...(glv338c ? { glv: glv338c } : {}),
+      cid: commentCid497(c), // [RP-V7.497]
+      likes: likes497.length, // [RP-V7.497]
+      myLike: !!(o.viewerId && likes497.includes(o.viewerId)), // [RP-V7.497]
+      parentId: (c && c.parentId) || null, // [RP-V7.497]
+      avatar: o.avatarOf && c && c.uid ? o.avatarOf(c.uid) : null, // [RP-V7.497]
+      byAuthor: !!(o.authorId && c && c.uid && c.uid === o.authorId), // [RP-V7.497]
     };
   });
+}
+// [RP-V7.497] Build the public shape of ONE freshly-written comment
+// (POST responses) through the same serializer everyone else reads.
+function publicComment497(comment, accountsDb, authorId, viewerId) {
+  const out = reelPublicComments({ comments: [comment] }, accountsDb ? nameResolver313(accountsDb) : null, {
+    viewerId: viewerId || null,
+    authorId: authorId || null,
+    avatarOf: accountsDb ? avatarResolver497(accountsDb) : null,
+  });
+  return out[0];
+}
+// [RP-V7.497] Resolve a requested parentId against a comment list:
+// returns the TOP-LEVEL parent's cid (a reply to a reply threads
+// under the same top-level parent), or null when the parent is
+// unknown — the comment then posts as top-level, never an error.
+function resolveParent497(list, parentId) {
+  if (!parentId) return null;
+  const p = findComment497(list, String(parentId));
+  if (!p) return null;
+  return p.parentId ? String(p.parentId) : commentCid497(p);
 }
 function reelCleanCommentText(v) {
   return String(v == null ? "" : v)
@@ -10352,21 +10432,42 @@ app.post("/api/reel/comment", (req, res) => {
   const text = reelCleanCommentText(b.text);
   if (!id) return res.status(400).json({ ok: false, error: "Bad post reference" });
   if (!text) return res.status(400).json({ ok: false, error: "Write a comment first" });
-  const comment = {
-    uid: ctx.user.id,
-    name: reelCleanName(ctx.user.name) || "Someone",
-    text,
-    ts: new Date().toISOString(),
-  };
-  const pub = { name: comment.name, text: comment.text, ts: comment.ts };
+  // [RP-V7.497] a reply names its parent by cid; the parent is
+  // resolved against the target list BEFORE the push (unknown parent
+  // = posts top-level, never an error). One thread level: a reply to
+  // a reply stores the top-level parent's cid.
   if (kind === "photo") {
     const db = readPhotoComments();
     const list = db.photos[id] || (db.photos[id] = []);
+    const parentC497 = b.parentId ? findComment497(list, String(b.parentId)) : null;
+    const comment = {
+      uid: ctx.user.id,
+      name: reelCleanName(ctx.user.name) || "Someone",
+      text,
+      ts: new Date().toISOString(),
+      cid: newCommentCid497(), // [RP-V7.497]
+      likes: [], // [RP-V7.497]
+      ...(parentC497 ? { parentId: parentC497.parentId ? String(parentC497.parentId) : commentCid497(parentC497) } : {}), // [RP-V7.497]
+    };
     list.push(comment);
     while (list.length > REEL_COMMENTS_KEEP) list.shift();
     writePhotoComments(db);
+    let pcPost497 = null;
+    try { pcPost497 = readPhotoPosts().posts.find((x) => x && x.id === id) || null; } catch (e) {}
+    const pub = publicComment497(comment, ctx.db, pcPost497 ? pcPost497.owner : null, ctx.user.id); // [RP-V7.497]
     try {
-      const pcPost = readPhotoPosts().posts.find((x) => x && x.id === id);
+      const pcPost = pcPost497;
+      if (parentC497 && parentC497.uid && parentC497.uid !== ctx.user.id && (!pcPost || pcPost.owner !== parentC497.uid)) // [RP-V7.497] reply: the parent commenter hears about it (the post author is notified just below, never twice)
+        notifyActivity({
+          toId: parentC497.uid,
+          kind: "comment",
+          actorId: ctx.user.id,
+          actorName: ctx.user.name,
+          text: "↩️ " + ctx.user.name + " replied to your comment: \"" + String(comment.text).slice(0, 60) + "\"",
+          emailSubject: ctx.user.name + " replied to your comment on Rizz Plaza",
+          emailText: ctx.user.name + " replied to your comment on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+          go: { screen: "moments", photoId: id },
+        });
       if (pcPost && pcPost.owner && pcPost.owner !== ctx.user.id) {
         const isTx278 = pcPost.kind === "text"; // [RP-V7.278] text posts live in the Home stream, not Moments
         notifyActivity({
@@ -10386,11 +10487,34 @@ app.post("/api/reel/comment", (req, res) => {
   const entry = listReels().find((r) => r.id === id);
   if (!entry) return res.status(404).json({ ok: false, error: "Reel not found" });
   if (!Array.isArray(entry.comments)) entry.comments = [];
+  const parentC497 = b.parentId ? findComment497(entry.comments, String(b.parentId)) : null; // [RP-V7.497]
+  const comment = {
+    uid: ctx.user.id,
+    name: reelCleanName(ctx.user.name) || "Someone",
+    text,
+    ts: new Date().toISOString(),
+    cid: newCommentCid497(), // [RP-V7.497]
+    likes: [], // [RP-V7.497]
+    ...(parentC497 ? { parentId: parentC497.parentId ? String(parentC497.parentId) : commentCid497(parentC497) } : {}), // [RP-V7.497]
+  };
   entry.comments.push(comment);
   while (entry.comments.length > REEL_COMMENTS_KEEP) entry.comments.shift();
   updateReelEntry(id, { comments: entry.comments });
+  const cKey497 = reelAuthorKeyFor(ctx.db, entry); // [RP-V7.497]
+  const pub = publicComment497(comment, ctx.db, cKey497, ctx.user.id); // [RP-V7.497]
   try {
-    const cKey = reelAuthorKeyFor(ctx.db, entry);
+    const cKey = cKey497;
+    if (parentC497 && parentC497.uid && parentC497.uid !== ctx.user.id && cKey !== parentC497.uid) // [RP-V7.497] reply notify (post author below, never twice)
+      notifyActivity({
+        toId: parentC497.uid,
+        kind: "comment",
+        actorId: ctx.user.id,
+        actorName: ctx.user.name,
+        text: "↩️ " + ctx.user.name + " replied to your comment: \"" + String(comment.text).slice(0, 60) + "\"",
+        emailSubject: ctx.user.name + " replied to your comment on Rizz Plaza",
+        emailText: ctx.user.name + " replied to your comment on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+        go: { screen: "moments", reelId: id },
+      });
     if (cKey && cKey !== ctx.user.id)
       notifyActivity({
         toId: cKey,
@@ -10404,6 +10528,44 @@ app.post("/api/reel/comment", (req, res) => {
       });
   } catch (e) { /* a notification must never break a comment */ }
   res.json({ ok: true, kind, id, comment: pub, count: entry.comments.length });
+});
+// [RP-V7.497] Comment like toggle — one endpoint for reel + photo
+// comments (the same kind split as POST /api/reel/comment). The
+// caller's uid toggles in the comment's stored likes array; legacy
+// comments (no cid/likes fields) work through the derived cid and a
+// lazily-created array. Response carries the new count + own state.
+app.post("/api/reel/comment/like", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res
+      .status(403)
+      .json({ ok: false, error: "This account is scheduled for deletion" });
+  const b = req.body || {};
+  const kind = b.kind === "photo" ? "photo" : "reel";
+  const id = reelCleanId(b.id || b.reelId);
+  const cid = String(b.cid || "");
+  if (!id || !cid) return res.status(400).json({ ok: false, error: "Bad comment reference" });
+  let list = null, save = null;
+  if (kind === "photo") {
+    const db = readPhotoComments();
+    list = db.photos[id] || null;
+    if (!list) return res.status(404).json({ ok: false, error: "Post not found" });
+    save = () => writePhotoComments(db);
+  } else {
+    const entry = listReels().find((r) => r.id === id);
+    if (!entry) return res.status(404).json({ ok: false, error: "Reel not found" });
+    list = Array.isArray(entry.comments) ? entry.comments : [];
+    save = () => updateReelEntry(id, { comments: entry.comments });
+  }
+  const c = findComment497(list, cid);
+  if (!c) return res.status(404).json({ ok: false, error: "Comment not found" });
+  if (!Array.isArray(c.likes)) c.likes = [];
+  const has = c.likes.includes(ctx.user.id);
+  if (has) c.likes = c.likes.filter((x) => x !== ctx.user.id);
+  else c.likes.push(ctx.user.id);
+  save();
+  res.json({ ok: true, kind, id, cid: commentCid497(c), likes: c.likes.length, myLike: !has });
 });
 app.post("/api/reel/like", (req, res) => {
   const ctx = requireAccount(req, res);
@@ -10694,7 +10856,7 @@ function photoReshareSet(repostsDb, id) {
   const s2 = repostsDb && repostsDb.reshares ? repostsDb.reshares[id] : null;
   return Array.isArray(s2) ? s2 : [];
 }
-function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAccess296, clubAccess298, nameOf313) { // [RP-V7.298] clubAccess298 = the caller's fan-club access set (same pattern as fanAccess296) // [RP-V7.313] nameOf313 = optional current-name resolver (accountId -> name|null)
+function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAccess296, clubAccess298, nameOf313, avatarOf497) { // [RP-V7.298] clubAccess298 = the caller's fan-club access set (same pattern as fanAccess296) // [RP-V7.313] nameOf313 = optional current-name resolver (accountId -> name|null) // [RP-V7.497] avatarOf497 = optional comment-face resolver
   const author313p = (nameOf313 && p.owner) ? (nameOf313(p.owner) || p.name) : p.name; // [RP-V7.313] the author's CURRENT display name; the stored snapshot is the fallback
   const list = (commentsDb.photos && commentsDb.photos[p.id]) || [];
   const set = Array.isArray(likesDb.photos[p.id]) ? likesDb.photos[p.id] : [];
@@ -10767,7 +10929,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     // [RP-V7.89] repost count + the caller's own state, like likes.
     reposts: rset.length,
     myReposted: !!uid && (rset.some((x) => x && x.u === uid) || photoReshareSet(repostsDb, p.id).some((x) => x && x.u === uid)), // [RP-V7.101] own reshare state; reposts count above stays public-only
-    comments: reelPublicComments({ comments: list }, nameOf313), // [RP-V7.313]
+    comments: reelPublicComments({ comments: list }, nameOf313, { viewerId: uid || null, authorId: p.owner || null, avatarOf: avatarOf497 || null }), // [RP-V7.313] // [RP-V7.497]
     commentCount: list.length,
     // [RP-V7.262] gifts this post has received (units, server truth
     // from the money DB — the photo-post payload's gift count).
@@ -11472,7 +11634,7 @@ app.get("/api/photo/posts", (req, res) => {
   const clubAccess298pp = fanClubAccessSet298(mdb296pp, uid); // [RP-V7.298]
   const posts = rawPosts99
     .slice(0, PHOTO_POSTS_RETURN)
-    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296pp, clubAccess298pp, nameResolver313(adb313pp))); // [RP-V7.313]
+    .map((p) => photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, pg262, fanAccess296pp, clubAccess298pp, nameResolver313(adb313pp), avatarResolver497(adb313pp))); // [RP-V7.313] // [RP-V7.497]
   res.json({ ok: true, posts, ...(ranked276 ? { ranked: true } : {}) });
 });
 // [RP-V7.85] Batch social state for posts that have no server post
@@ -11521,7 +11683,7 @@ app.get("/api/photo/extras", (req, res) => {
     const set = Array.isArray(likesDb.photos[id]) ? likesDb.photos[id] : [];
     const rset = photoRepostSet(repostsDbE, id);
     posts[id] = {
-      comments: reelPublicComments({ comments: list }, nameResolver313(adb313e)), // [RP-V7.313]
+      comments: reelPublicComments({ comments: list }, nameResolver313(adb313e), { viewerId: uid || null, authorId: recE296 && recE296.owner ? recE296.owner : null, avatarOf: avatarResolver497(adb313e) }), // [RP-V7.313] // [RP-V7.497]
       commentCount: list.length,
       likes: set.length,
       myLiked: !!uid && set.includes(uid),
@@ -12053,7 +12215,7 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAcc
     heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
     giftCount: postGiftCountOf262(pg262, "reel", r.id), // [RP-V7.262]
     reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
-    comments: reelPublicComments(r, nameOf313s), // [RP-V7.313]
+    comments: reelPublicComments(r, nameOf313s, { viewerId: uid || null, authorId: adb ? reelAuthorKeyFor(adb, r) : (r.authorId || null), avatarOf: avatarResolver497(adb) }), // [RP-V7.313] // [RP-V7.497]
     commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
     ...(uid
       ? {
@@ -15874,7 +16036,7 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
       ...collabPayload453(r, nameOf313t), // [RP-V7.453]
       heartLikes: hl241, giftCount: postGiftCountOf262(readMoney().postGifts || {}, "reel", r.id), // [RP-V7.262]
       myHeart: !!uid && Array.isArray(r.heartLikes) && r.heartLikes.includes(uid),
-      comments: reelPublicComments(r, nameOf313t), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, // [RP-V7.313] comment bylines resolve live too
+      comments: reelPublicComments(r, nameOf313t, { viewerId: uid || null, authorId: adb313t ? reelAuthorKeyFor(adb313t, r) : (r.authorId || null), avatarOf: avatarResolver497(adb313t) }), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, // [RP-V7.313] comment bylines resolve live too // [RP-V7.497]
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
       myReposted: !!uid && ((Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === uid))) };
   }
@@ -15882,7 +16044,7 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
     const p = readPhotoPosts().posts.find((x) => x && x.id === id);
     if (!p || !p.photo) return null;
     const mdb296tile = readMoney();
-    const pub = photoPublicPost(p, uid || "", likesDb, commentsDb, repostsDb || { photos: {}, reshares: {} }, mdb296tile.postGifts || {}, fanSubAccessSet296(mdb296tile, uid || null), fanClubAccessSet298(mdb296tile, uid || null), nameOf313t); // [RP-V7.262] // [RP-V7.296] // [RP-V7.298] // [RP-V7.313]
+    const pub = photoPublicPost(p, uid || "", likesDb, commentsDb, repostsDb || { photos: {}, reshares: {} }, mdb296tile.postGifts || {}, fanSubAccessSet296(mdb296tile, uid || null), fanClubAccessSet298(mdb296tile, uid || null), nameOf313t, avatarResolver497(adb313t)); // [RP-V7.262] // [RP-V7.296] // [RP-V7.298] // [RP-V7.313] // [RP-V7.497]
     return { kind: "photopost", id: p.id, src: pub.photo, views: 0, caption: pub.caption || "", likes: pub.likes || 0, giftCount: pub.giftCount || 0, // [RP-V7.262] // [RP-V7.296] src/caption ride the GATED payload — a locked post tiles without its photo or words
       ...(pub.locked ? { ...(pub.subsOnly ? { subsOnly: true } : {}), ...(pub.clubOnly ? { clubOnly: true } : {}), locked: true } : {}), // [RP-V7.296] // [RP-V7.298]
       photoCount: (pub.urls || []).length || 1, // [RP-V7.123] set size for the grid's multi-photo badge
@@ -16011,7 +16173,7 @@ app.get("/api/social/profile", (req, res) => {
         heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0,
         giftCount: postGiftCountOf262(pg262, "reel", r.id), // [RP-V7.262]
         myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id),
-        comments: reelPublicComments(r, nameResolver313(ctx.db)), // [RP-V7.313]
+        comments: reelPublicComments(r, nameResolver313(ctx.db), { viewerId: ctx.user.id, authorId: reelAuthorKeyFor(ctx.db, r), avatarOf: avatarResolver497(ctx.db) }), // [RP-V7.313] // [RP-V7.497]
         commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
         reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
         crMuted: r.crMuted || null, // [RP-V7.286]
@@ -16046,7 +16208,7 @@ app.get("/api/social/profile", (req, res) => {
   try {
     const pg262 = readMoney().postGifts || {}; // [RP-V7.262]
     photoPosts = readPhotoPosts().posts.filter((p) => p && (p.owner === target.id || collabAccId453(p) === target.id)).slice(0, 30) // [RP-V7.453] an accepted collab post joins the partner's grid too
-      .map((p) => { const mdb298pp2 = readMoney(); return photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86, pg262, fanSubAccessSet296(mdb298pp2, ctx.user.id), fanClubAccessSet298(mdb298pp2, ctx.user.id), nameResolver313(ctx.db)); }); // [RP-V7.296] // [RP-V7.298] // [RP-V7.313]
+      .map((p) => { const mdb298pp2 = readMoney(); return photoPublicPost(p, ctx.user.id, likesDb86, commentsDb86, repostsDb86, pg262, fanSubAccessSet296(mdb298pp2, ctx.user.id), fanClubAccessSet298(mdb298pp2, ctx.user.id), nameResolver313(ctx.db), avatarResolver497(ctx.db)); }); // [RP-V7.296] // [RP-V7.298] // [RP-V7.313] // [RP-V7.497]
     for (const p of photoPosts) likesTotal += p.likes || 0;
   } catch (e) { }
   try {
@@ -16076,7 +16238,7 @@ app.get("/api/social/profile", (req, res) => {
       .filter((fp) => fp && fp.authorId === target.id && fp.file)
       .map((fp) => ((fp.subsOnly && !canSeeSubsFeed296) || (fp.clubOnly && !canSeeClubFeed298))
         ? { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: null, views: 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: null, allowDownloads: false, ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.clubOnly ? { clubOnly: true } : {}), locked: true, authorId: target.id } // [RP-V7.296] locked feed tile: no media URL rides the payload // [RP-V7.298] // [RP-V7.316] allowDownloads
-        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, poster: rpFeedPosterUrl484(fp), /* [RP-V7.484] feed-video poster for the profile grid tiles */ thumb: fp.kind === "photo" ? rpThumbUrl485("/photos/feed/" + fp.file) : null, /* [RP-V7.485] feed-photo variant for the tile */ views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}), text: fp.text || "", likedByMe: Array.isArray(fp.likes) ? fp.likes.includes(ctx.user.id) : false, comments: reelPublicComments({ comments: Array.isArray(fp.comments) ? fp.comments : [] }, nameResolver313(ctx.db)), commentCount: Array.isArray(fp.comments) ? fp.comments.length : 0, reposts: Array.isArray(fp.reposts) ? fp.reposts.length : 0, myReposted: (Array.isArray(fp.reposts) && fp.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(fp.reshares) && fp.reshares.some((x) => x && x.u === ctx.user.id)), giftCount: pgFeed409["feed:" + fp.id] || 0 /* [RP-V7.409] the profile Feed rail paints the full canonical row */ }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
+        : { id: fp.id, kind: fp.kind === "video" ? "video" : "photo", src: "/photos/feed/" + fp.file, poster: rpFeedPosterUrl484(fp), /* [RP-V7.484] feed-video poster for the profile grid tiles */ thumb: fp.kind === "photo" ? rpThumbUrl485("/photos/feed/" + fp.file) : null, /* [RP-V7.485] feed-photo variant for the tile */ views: fp.views || 0, likes: Array.isArray(fp.likes) ? fp.likes.length : 0, createdAt: fp.createdAt || "", crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, ...(fp.clubOnly ? { clubOnly: true } : {}), ...(fp.subsOnly ? { subsOnly: true } : {}), ...(fp.shoutoutFor ? { shoutoutFor: fp.shoutoutFor } : {}), text: fp.text || "", likedByMe: Array.isArray(fp.likes) ? fp.likes.includes(ctx.user.id) : false, comments: reelPublicComments({ comments: Array.isArray(fp.comments) ? fp.comments : [] }, nameResolver313(ctx.db), { viewerId: ctx.user.id, authorId: fp.authorId || null, avatarOf: avatarResolver497(ctx.db) }), commentCount: Array.isArray(fp.comments) ? fp.comments.length : 0, reposts: Array.isArray(fp.reposts) ? fp.reposts.length : 0, myReposted: (Array.isArray(fp.reposts) && fp.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(fp.reshares) && fp.reshares.some((x) => x && x.u === ctx.user.id)), giftCount: pgFeed409["feed:" + fp.id] || 0 /* [RP-V7.409] the profile Feed rail paints the full canonical row */ }) // [RP-V7.286] // [RP-V7.298] // [RP-V7.300] fulfilled-shoutout marker // [RP-V7.316] allowDownloads
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 60);
   } catch (e) { }
@@ -17692,7 +17854,7 @@ function feedPublic(ctx, p, following, fanAccess296, clubAccess298, pg409) { // 
     // [RP-V7.95] engagement counts ride the feed payload (public, like
     // the like count): comments in the public name/text shape, repost
     // count + the caller's own state, share and view counters.
-    comments: reelPublicComments({ comments: Array.isArray(p.comments) ? p.comments : [] }, nameResolver313(ctx.db)), // [RP-V7.313] comment bylines resolve live too (the post's own byline above already rides socialBrief)
+    comments: reelPublicComments({ comments: Array.isArray(p.comments) ? p.comments : [] }, nameResolver313(ctx.db), { viewerId: ctx.user.id, authorId: p.authorId || null, avatarOf: avatarResolver497(ctx.db) }), // [RP-V7.313] comment bylines resolve live too (the post's own byline above already rides socialBrief) // [RP-V7.497]
     commentCount: Array.isArray(p.comments) ? p.comments.length : 0,
     reposts: Array.isArray(p.reposts) ? p.reposts.length : 0,
     myReposted: (Array.isArray(p.reposts) && p.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(p.reshares) && p.reshares.some((x) => x && x.u === ctx.user.id)), // [RP-V7.101] own reshare shows as my repost state; the public count above stays reposts-only
@@ -18076,10 +18238,22 @@ app.post("/api/feed/comment", (req, res) => {
   const p = db.posts[postId];
   if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
   if (!Array.isArray(p.comments)) p.comments = [];
-  const comment = { uid: ctx.user.id, name: reelCleanName(ctx.user.name) || "Someone", text, ts: new Date().toISOString() };
+  const parentC497 = b.parentId ? findComment497(p.comments, String(b.parentId)) : null; // [RP-V7.497]
+  const comment = { uid: ctx.user.id, name: reelCleanName(ctx.user.name) || "Someone", text, ts: new Date().toISOString(), cid: newCommentCid497(), likes: [], ...(parentC497 ? { parentId: parentC497.parentId ? String(parentC497.parentId) : commentCid497(parentC497) } : {}) }; // [RP-V7.497]
   p.comments.push(comment);
   while (p.comments.length > REEL_COMMENTS_KEEP) p.comments.shift();
   writeFeed(db);
+  if (parentC497 && parentC497.uid && parentC497.uid !== ctx.user.id && p.authorId !== parentC497.uid) // [RP-V7.497] reply notify (post author below, never twice)
+    notifyActivity({
+      toId: parentC497.uid,
+      kind: "comment",
+      actorId: ctx.user.id,
+      actorName: ctx.user.name,
+      text: "↩️ " + ctx.user.name + " replied to your comment: \"" + String(comment.text).slice(0, 60) + "\"",
+      emailSubject: ctx.user.name + " replied to your comment on Rizz Plaza",
+      emailText: ctx.user.name + " replied to your comment on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nRead it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      go: { screen: "ownprofile" },
+    });
   if (p.authorId !== ctx.user.id)
     notifyActivity({
       toId: p.authorId,
@@ -18091,7 +18265,33 @@ app.post("/api/feed/comment", (req, res) => {
       emailText: ctx.user.name + " commented on your post on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nRead it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
       go: { screen: "ownprofile" },
     });
-  res.json({ ok: true, comment: { name: comment.name, text: comment.text, ts: comment.ts }, comments: reelPublicComments({ comments: p.comments }, nameResolver313(ctx.db)), commentCount: p.comments.length }); // [RP-V7.313] the returned list's bylines resolve live
+  res.json({ ok: true, comment: publicComment497(comment, ctx.db, p.authorId, ctx.user.id), comments: reelPublicComments({ comments: p.comments }, nameResolver313(ctx.db), { viewerId: ctx.user.id, authorId: p.authorId, avatarOf: avatarResolver497(ctx.db) }), commentCount: p.comments.length }); // [RP-V7.313] the returned list's bylines resolve live // [RP-V7.497] full comment shape + opts
+});
+// [RP-V7.497] Feed comment like toggle — the feed-store twin of
+// POST /api/reel/comment/like (same stored likes array + derived
+// cid rules, so legacy feed comments like/thread identically).
+app.post("/api/feed/comment/like", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+  if (!feedAdultOk(ctx.user))
+    return res.status(403).json({ ok: false, error: "The Feed is 18+ right now" });
+  const b = req.body || {};
+  const postId = String(b.postId || "");
+  const cid = String(b.cid || "");
+  if (!postId || !cid) return res.status(400).json({ ok: false, error: "Bad comment reference" });
+  const db = readFeed();
+  const p = db.posts[postId];
+  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  const c = findComment497(Array.isArray(p.comments) ? p.comments : [], cid);
+  if (!c) return res.status(404).json({ ok: false, error: "Comment not found" });
+  if (!Array.isArray(c.likes)) c.likes = [];
+  const has = c.likes.includes(ctx.user.id);
+  if (has) c.likes = c.likes.filter((x) => x !== ctx.user.id);
+  else c.likes.push(ctx.user.id);
+  writeFeed(db);
+  res.json({ ok: true, postId, cid: commentCid497(c), likes: c.likes.length, myLike: !has });
 });
 app.post("/api/feed/repost", (req, res) => {
   const ctx = requireAccount(req, res);
@@ -24011,7 +24211,7 @@ function saved349ResolveReel(r, c) {
     heartLikes: hl,
     giftCount: postGiftCountOf262(c.pg, "reel", r.id),
     myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(c.uid),
-    comments: reelPublicComments(r, c.nameOf),
+    comments: reelPublicComments(r, c.nameOf, { viewerId: c.uid || null, authorId: reelAuthorKeyFor(c.adb, r), avatarOf: avatarResolver497(c.adb) }), // [RP-V7.497]
     commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
     reposts: rp,
     myReposted:
@@ -24032,7 +24232,7 @@ function saved349ResolvePhoto(p, c) {
   if (aud !== "everyone" && p.owner !== c.uid) {
     if (aud !== "followers" || !p.owner || !c.following.has(p.owner)) return null;
   }
-  const pub = photoPublicPost(p, c.uid, c.likesDb, c.commentsDb, c.repostsDb, c.pg, c.fanAccess, c.clubAccess, c.nameOf);
+  const pub = photoPublicPost(p, c.uid, c.likesDb, c.commentsDb, c.repostsDb, c.pg, c.fanAccess, c.clubAccess, c.nameOf, avatarResolver497(c.adb)); // [RP-V7.497]
   return {
     kind: "photopost", id: p.id, owner: p.owner || null, ownerName: pub.author || "",
     src: pub.photo, views: 0, caption: pub.caption || "",
@@ -26149,7 +26349,7 @@ app.get("/api/fanclub/club", (req, res) => {
         if (locked) {
           return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, locked: true, caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null, views: 0, heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: null };
         }
-        return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, caption: r.caption || "", createdAt: r.createdAt, url: r.url || (r.file ? "/reel-files/" + r.file : null), poster: rpPosterUrl482(r), kind: r.kind || null, views: mediaViewCount(vdb, "reel:" + r.id), heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id), comments: reelPublicComments(r, nameResolver313(ctx.db)), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: r.crMuted || null, myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
+        return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, caption: r.caption || "", createdAt: r.createdAt, url: r.url || (r.file ? "/reel-files/" + r.file : null), poster: rpPosterUrl482(r), kind: r.kind || null, views: mediaViewCount(vdb, "reel:" + r.id), heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id), comments: reelPublicComments(r, nameResolver313(ctx.db), { viewerId: ctx.user.id, authorId: recipient.id, avatarOf: avatarResolver497(ctx.db) }), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: r.crMuted || null, myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
       });
   } catch (e) { }
   let photoPosts = [];
@@ -26157,7 +26357,7 @@ app.get("/api/fanclub/club", (req, res) => {
     photoPosts = readPhotoPosts().posts
       .filter((x) => x && x.owner === recipient.id && x.clubOnly)
       .slice(0, 60)
-      .map((x) => photoPublicPost(x, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), pg298, fanSet, clubSet, nameResolver313(ctx.db))); // [RP-V7.313]
+      .map((x) => photoPublicPost(x, ctx.user.id, readPhotoLikes(), readPhotoComments(), readPhotoReposts(), pg298, fanSet, clubSet, nameResolver313(ctx.db), avatarResolver497(ctx.db))); // [RP-V7.313] // [RP-V7.497]
   } catch (e) { }
   let feedPosts = [];
   try {
