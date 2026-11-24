@@ -27800,13 +27800,18 @@
             comments: p.comments,
             count: momCommentTotal(p),
             canInteract: true,
+            canPhoto: true, // [RP-V7.498] server-backed: the composer may attach a photo
             token: function () { return momToken() || ""; },
             shareFn: function () { reelSharePost(p.name, p.caption || "", true, p.srv ? p.id : null); },
-            onPost: function (text, parentId, done) {
+            onPost: function (text, parentId, photoFile, done) {
+              var hdrs498 = { "Authorization": "Bearer " + momToken() };
+              var body498;
+              if (photoFile) body498 = window.rpCmt498Form({ kind: "photo", id: p.id, text: text, ...(parentId ? { parentId: parentId } : {}) }, photoFile); // [RP-V7.498] multipart: the photo rides the server's shared upload pipeline
+              else { hdrs498["Content-Type"] = "application/json"; body498 = JSON.stringify({ kind: "photo", id: p.id, text: text, ...(parentId ? { parentId: parentId } : {}) }); }
               fetch("/api/reel/comment", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + momToken() },
-                body: JSON.stringify({ kind: "photo", id: p.id, text: text, ...(parentId ? { parentId: parentId } : {}) })
+                headers: hdrs498,
+                body: body498
               }).then(function (r) { return r.json().catch(function () { return null; }); })
                 .then(function (j) {
                   if (j && j.ok && j.comment) { p.commentCount = (p.cmtBase || 0) + (j.count || 0); done(true, j.comment, momCommentTotal(p)); }
@@ -27834,7 +27839,7 @@
           canInteract: false,
           token: null,
           shareFn: function () { reelSharePost(p.name, p.caption || "", true, p.srv ? p.id : null); },
-          onPost: function (text, parentId, done) {
+          onPost: function (text, parentId, photoFile, done) { // [RP-V7.498] photoFile is always null here — local mode has no photo button (nothing server-side to hold the photo)
             var nm = Online.name || me.name || "You";
             p.comments.push({ name: nm, text: text });
             momCommentCountSync(p);
@@ -28373,12 +28378,17 @@
           comments: item.comments,
           count: item.commentCount || item.comments.length,
           canInteract: !!tok0,
+          canPhoto: !!tok0, // [RP-V7.498] server-backed: the composer may attach a photo
           token: function () { try { return reelToken() || ""; } catch (e) { return ""; } },
           shareFn: function () { reelSharePost(item.author, item.caption, true, item.postId); },
-          onPost: function (text, parentId, done) {
+          onPost: function (text, parentId, photoFile, done) {
             var t = ""; try { t = reelToken() || ""; } catch (e) { }
             if (!t) { toast("Sign in to comment."); done(false); return; }
-            fetch("/api/reel/comment", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + t }, body: JSON.stringify({ kind: "photo", id: item.postId, text: text, ...(parentId ? { parentId: parentId } : {}) }) })
+            var hdrs498 = { Authorization: "Bearer " + t };
+            var body498;
+            if (photoFile) body498 = window.rpCmt498Form({ kind: "photo", id: item.postId, text: text, ...(parentId ? { parentId: parentId } : {}) }, photoFile); // [RP-V7.498] multipart: the photo rides the server's shared upload pipeline
+            else { hdrs498["Content-Type"] = "application/json"; body498 = JSON.stringify({ kind: "photo", id: item.postId, text: text, ...(parentId ? { parentId: parentId } : {}) }); }
+            fetch("/api/reel/comment", { method: "POST", headers: hdrs498, body: body498 })
               .then(function (r) { return r.json().catch(function () { return null; }); })
               .then(function (j) {
                 if (j && j.ok && j.comment) { item.commentCount = j.count; Juice.confettiBurst(6); done(true, j.comment, j.count); }
@@ -30731,9 +30741,12 @@
          (cid, likes, myLike, parentId, avatar, byAuthor). Surfaces
          with no server behind them (device reels, signed-out photo
          reading) get the same sheet with the server-only buttons
-         left out — nothing on screen is fake. No photo-attach icon:
-         Plaza comments have no photo support anywhere (noted in
-         BUILD.md). The share arrow shares the POST through the
+         left out — nothing on screen is fake. [RP-V7.498] Photo
+         comments: the composer carries the photo icon (TikTok's
+         position, first in the pill) on server-backed surfaces —
+         the pick rides the server's shared photo pipeline and the
+         comment renders its photo under its text, tap to view full.
+         The share arrow shares the POST through the
          same helper the post's own share button uses. */
       var rpCmt497 = null; // live state while a comment sheet is open
       function rpCmt497Me() {
@@ -30762,7 +30775,8 @@
           '<span class="cmt497-ava">' + personFace({ name: c.name || "Someone", photo: c.avatar || null }, "cmt497-face") + '</span>' +
           '<div class="cmt497-main">' +
           '<div class="cmt497-name">' + escHtml(c.name || "Someone") + (c.glv ? rpGifterBadge338(c.glv) : "") + (c.byAuthor ? '<span class="cmt497-creator">· Creator</span>' : "") + '</div>' +
-          '<p class="cmt497-text">' + rpLinkifyRaw259(c.text || "", st.cfg.linkMode || "reels") + '</p>' +
+          (c.text ? '<p class="cmt497-text">' + rpLinkifyRaw259(c.text, st.cfg.linkMode || "reels") + '</p>' : "") +
+          (c.photo ? '<img class="cmt497-photo" src="' + escHtml(c.photo) + '" alt="" loading="lazy" data-cmt497-img="' + escHtml(c.photo) + '"/>' : "") +
           '<div class="cmt497-meta"><span class="cmt497-when">' + escHtml(reelWhen(c.ts)) + '</span>' +
           (canAct ? '<button type="button" class="cmt497-replybtn" data-cmt497-reply="' + escHtml(cid) + '">Reply</button>' : "") + '</div>';
         if (!sub && cid) {
@@ -30793,6 +30807,7 @@
       }
       function rpCmt497Close() {
         var st = rpCmt497; rpCmt497 = null;
+        if (st && st.photoObjUrl) { try { URL.revokeObjectURL(st.photoObjUrl); } catch (e) { } st.photoObjUrl = null; } // [RP-V7.498]
         if (st && st.cfg.onClose) { try { st.cfg.onClose(); } catch (e) { } }
         closeSheet();
       }
@@ -30804,20 +30819,59 @@
       }
       function rpCmt497SendVis() {
         var inp = $("cmt497Input"), btn = $("cmt497Send");
-        if (inp && btn) btn.hidden = !((inp.value || "").trim().length);
+        if (inp && btn) btn.hidden = !(((inp.value || "").trim().length) || (rpCmt497 && rpCmt497.photoFile));
       }
+      /* [RP-V7.498] The composer's attached photo: the picked File
+         rides the next send (the adapters turn it into the multipart
+         body the server's shared photoUpload reads); the preview bar
+         shows its thumbnail with an × to drop it before sending. */
+      function rpCmt498SetPhoto(st, file) {
+        if (st.photoObjUrl) { try { URL.revokeObjectURL(st.photoObjUrl); } catch (e) { } st.photoObjUrl = null; }
+        st.photoFile = file || null;
+        var bar = $("cmt497PhotoBar"), th = $("cmt497PhotoThumb");
+        if (file) {
+          try { st.photoObjUrl = URL.createObjectURL(file); } catch (e) { st.photoObjUrl = null; }
+          if (th && st.photoObjUrl) th.src = st.photoObjUrl;
+          if (bar) bar.hidden = false;
+        } else if (bar) bar.hidden = true;
+        rpCmt497SendVis();
+      }
+      /* [RP-V7.498] Full-screen view of a comment photo (tap the
+         photo in the sheet; tap anywhere to close). */
+      function rpCmt498View(url) {
+        if (!url) return;
+        var old = document.getElementById("cmt498Viewer"); if (old) old.remove();
+        var v = document.createElement("div");
+        v.id = "cmt498Viewer"; v.className = "cmt498-viewer";
+        v.innerHTML = '<img src="' + escHtml(url) + '" alt=""/>';
+        v.addEventListener("click", function () { v.remove(); });
+        document.body.appendChild(v);
+      }
+      /* [RP-V7.498] Multipart body for a comment post carrying a
+         photo: the plain fields ride as form fields and the file as
+         "photo" — the field the server's shared photoUpload multer
+         reads. Callers must NOT set Content-Type; the browser adds
+         the multipart boundary. */
+      function rpCmt498Form(fields, photoFile) {
+        var fd = new FormData();
+        Object.keys(fields || {}).forEach(function (k) { var v = fields[k]; if (v != null && v !== "") fd.append(k, v); });
+        if (photoFile) fd.append("photo", photoFile);
+        return fd;
+      }
+      window.rpCmt498Form = rpCmt498Form; // the V7.409 lightbox module's feed adapter builds its body through this bridge
       function rpCmt497Send() {
         var st = rpCmt497; if (!st || st.sending) return;
         var inp = $("cmt497Input");
         var txt = inp ? (inp.value || "").trim() : "";
-        if (!txt) { toast("Write a comment first!"); return; }
+        if (!txt && !st.photoFile) { toast("Write a comment first!"); return; }
         st.sending = true;
         var parentId = st.replyTo ? st.replyTo.cid : null;
-        st.cfg.onPost(txt, parentId, function (ok, comment, count) {
+        st.cfg.onPost(txt, parentId, st.photoFile || null, function (ok, comment, count) {
           if (rpCmt497 !== st) return;
           st.sending = false;
-          if (!ok) return; // the adapter already toasted the reason
+          if (!ok) return; // the adapter already toasted the reason; the photo stays attached for a retry
           if (inp) inp.value = "";
+          rpCmt498SetPhoto(st, null);
           rpCmt497SendVis();
           if (comment) {
             var dup = (st.cfg.comments || []).some(function (x) { return x && x.cid && comment.cid && x.cid === comment.cid; });
@@ -30851,7 +30905,7 @@
           .catch(function () { var m3 = $("cmt497Men"); if (m3 && rpCmt497 === st) m3.innerHTML = '<p class="cmt497-menload">Could not load members — type @username in your comment instead.</p>'; });
       }
       function rpOpenComments497(cfg) {
-        rpCmt497 = { cfg: cfg, expanded: {}, replyTo: null, threads: { tops: [], byParent: {} }, sending: false };
+        rpCmt497 = { cfg: cfg, expanded: {}, replyTo: null, threads: { tops: [], byParent: {} }, sending: false, photoFile: null, photoObjUrl: null }; // [RP-V7.498] photoFile/photoObjUrl = the composer's attached photo + its preview URL
         var st = rpCmt497;
         var me = rpCmt497Me();
         openSheet(
@@ -30860,13 +30914,17 @@
           '<div class="cmt497-list" id="cmt497List"></div>' +
           '<div class="cmt497-men" id="cmt497Men" hidden></div>' +
           '<div class="cmt497-replybar" id="cmt497ReplyBar" hidden><span>Replying to <b id="cmt497ReplyName"></b></span><button type="button" data-cmt497-cancelreply aria-label="Cancel reply">×</button></div>' +
+          '<div class="cmt497-photobar" id="cmt497PhotoBar" hidden><img id="cmt497PhotoThumb" alt=""/><span class="cmt497-photonote">Photo attached</span><button type="button" data-cmt497-photorm aria-label="Remove photo">×</button></div>' +
           '<div class="cmt497-composer"><span class="cmt497-ava">' + personFace({ name: me.name, photo: me.photo }, "cmt497-face") + '</span>' +
           '<div class="cmt497-pill"><input id="cmt497Input" type="text" maxlength="140" placeholder="Add comment..." autocomplete="off"/>' +
+          (cfg.canPhoto ? '<button type="button" class="cmt497-icobtn" id="cmt497Photo" aria-label="Add a photo to your comment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 18.5 10 13l3.5 3.5L17 13l2.5 2.8"/></svg></button>' : "") +
           '<button type="button" class="cmt497-icobtn" id="cmt497Emoji" aria-label="Add an emoji">😊</button>' +
           (cfg.token ? '<button type="button" class="cmt497-icobtn at" id="cmt497Mention" aria-label="Mention a member">@</button>' : "") +
           '</div>' +
           '<button type="button" class="cmt497-send" id="cmt497Send" hidden aria-label="Send comment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>' +
-          '</div></div>'
+          '</div>' +
+          (cfg.canPhoto ? '<input type="file" id="cmt497File" accept="image/*" hidden/>' : "") +
+          '</div>'
         );
         var sheet = $("sheet");
         var x = sheet && sheet.querySelector("[data-cmt497-close]");
@@ -30878,6 +30936,8 @@
           if (rpCmt497 !== st) return;
           var t = ev.target;
           function closest(sel) { var n = t; while (n && n !== listEl) { if (n.matches && n.matches(sel)) return n; n = n.parentNode; } return null; }
+          var imgB = closest("[data-cmt497-img]"); // [RP-V7.498] tap a comment photo → full-screen view
+          if (imgB) { rpCmt498View(imgB.getAttribute("data-cmt497-img")); return; }
           var likeB = closest("[data-cmt497-like]");
           if (likeB) {
             var cid = likeB.getAttribute("data-cmt497-like");
@@ -30932,6 +30992,25 @@
           inp.addEventListener("keydown", function (e) { if (e.key === "Enter") rpCmt497Send(); });
         }
         var sendB = $("cmt497Send"); if (sendB) sendB.addEventListener("click", rpCmt497Send);
+        // [RP-V7.498] Photo attach: the button opens the device photo
+        // picker; the pick is validated against the same rules the
+        // server enforces (image-only, 5 MB) BEFORE it attaches, so
+        // the limit is surfaced here, never discovered after a send.
+        var phB = $("cmt497Photo"), fileEl = $("cmt497File");
+        if (phB && fileEl) {
+          phB.addEventListener("click", function () { try { fileEl.click(); } catch (e) { } });
+          fileEl.addEventListener("change", function () {
+            if (rpCmt497 !== st) return;
+            var f = fileEl.files && fileEl.files[0];
+            try { fileEl.value = ""; } catch (e) { } // the same photo can be picked again after a remove
+            if (!f) return;
+            if (!/^image\//.test(f.type || "")) { toast("Only image files are allowed"); return; }
+            if (f.size > 5 * 1024 * 1024) { toast("That photo is over the 5 MB limit"); return; }
+            rpCmt498SetPhoto(st, f);
+          });
+        }
+        var prmB = sheet && sheet.querySelector("[data-cmt497-photorm]");
+        if (prmB) prmB.addEventListener("click", function () { if (rpCmt497 === st) rpCmt498SetPhoto(st, null); });
         var emB = $("cmt497Emoji"); if (emB && inp) rxWireCommentEmoji(emB, inp);
         var menB = $("cmt497Mention"); if (menB) menB.addEventListener("click", rpCmt497MentionOpen);
         rpCmt497Render(true); // open on the newest comments, composer in view (the V7.404 behavior, kept)
@@ -30952,13 +31031,18 @@
             comments: item.comments,
             count: item.commentCount || item.comments.length,
             canInteract: true,
+            canPhoto: true, // [RP-V7.498] server-backed: the composer may attach a photo
             token: function () { return reelToken() || ""; },
             shareFn: function () { reelShare(item); },
-            onPost: function (text, parentId, done) {
+            onPost: function (text, parentId, photoFile, done) {
+              var hdrs498 = { "Authorization": "Bearer " + reelToken() };
+              var body498;
+              if (photoFile) body498 = window.rpCmt498Form({ reelId: item.id, text: text, ...(parentId ? { parentId: parentId } : {}) }, photoFile); // [RP-V7.498] multipart: the photo rides the server's shared upload pipeline
+              else { hdrs498["Content-Type"] = "application/json"; body498 = JSON.stringify({ reelId: item.id, text: text, ...(parentId ? { parentId: parentId } : {}) }); }
               fetch("/api/reel/comment", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + reelToken() },
-                body: JSON.stringify({ reelId: item.id, text: text, ...(parentId ? { parentId: parentId } : {}) })
+                headers: hdrs498,
+                body: body498
               }).then(function (r) { return r.json().catch(function () { return null; }); })
                 .then(function (j) {
                   if (j && j.ok && j.comment) { item.commentCount = j.count; done(true, j.comment, j.count); }
@@ -30991,7 +31075,7 @@
           canInteract: false,
           token: null,
           shareFn: function () { reelShare(item); },
-          onPost: function (text, parentId, done) {
+          onPost: function (text, parentId, photoFile, done) { // [RP-V7.498] photoFile is always null here — local mode has no photo button (nothing server-side to hold the photo)
             var all = reelLoadComments();
             (all[item.id] = all[item.id] || []).push({ name: reelMyName(), text: text });
             reelSaveComments(all);
@@ -44172,12 +44256,17 @@ button.rp72-chip{ cursor:pointer; }
       comments: fi.comments,
       count: fi.commentCount || fi.comments.length,
       canInteract: !!tok0,
+      canPhoto: !!tok0, // [RP-V7.498] server-backed: the composer may attach a photo
       token: function () { return lbFeedTok409() || ""; },
       shareFn: function () { lbShare241("📸", "post", fi.caption || "", ""); },
-      onPost: function (text, parentId, done) {
+      onPost: function (text, parentId, photoFile, done) {
         var tok = lbFeedTok409();
         if (!tok) { try { window.toast("Sign in to comment."); } catch (e) { } done(false); return; }
-        fetch("/api/feed/comment", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok }, body: JSON.stringify({ postId: fi.postId, text: text, ...(parentId ? { parentId: parentId } : {}) }) })
+        var hdrs498 = { Authorization: "Bearer " + tok };
+        var body498;
+        if (photoFile) body498 = window.rpCmt498Form({ postId: fi.postId, text: text, ...(parentId ? { parentId: parentId } : {}) }, photoFile); // [RP-V7.498] multipart: the photo rides the server's shared upload pipeline
+        else { hdrs498["Content-Type"] = "application/json"; body498 = JSON.stringify({ postId: fi.postId, text: text, ...(parentId ? { parentId: parentId } : {}) }); }
+        fetch("/api/feed/comment", { method: "POST", headers: hdrs498, body: body498 })
           .then(function (r) { return r.json().catch(function () { return null; }); })
           .then(function (j) {
             if (j && j.ok) {
@@ -54155,6 +54244,15 @@ html, body { overflow-x: clip; }
 .cmt497-send { flex: none; width: 40px; height: 40px; border: none; border-radius: 50%; background: var(--rose); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
 .cmt497-send svg { width: 19px; height: 19px; }
 .cmt497-send[hidden] { display: none; }
+.cmt497-icobtn svg { width: 21px; height: 21px; }
+.cmt497-photo { display: block; margin-top: 6px; max-width: 210px; max-height: 260px; width: auto; height: auto; border-radius: 12px; object-fit: cover; background: #1a1a20; cursor: pointer; }
+.cmt497-photobar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 16px 0; }
+.cmt497-photobar[hidden] { display: none; }
+.cmt497-photobar img { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; background: #1a1a20; display: block; }
+.cmt497-photonote { color: var(--ink-soft); font-size: 13px; font-weight: 700; }
+.cmt497-photobar button { border: none; background: transparent; color: var(--ink-soft); font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1; }
+.cmt498-viewer { position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,.94); display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+.cmt498-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
 
 /* ---------- Sheets & menus (#sheet) ----------
    The :not(.rpdm-full) guard keeps the RP-V7.225 DM conversation screen
