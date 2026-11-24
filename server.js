@@ -10388,6 +10388,7 @@ function reelPublicComments(r, nameOf313, opts497) {
       likes: likes497.length, // [RP-V7.497]
       myLike: !!(o.viewerId && likes497.includes(o.viewerId)), // [RP-V7.497]
       parentId: (c && c.parentId) || null, // [RP-V7.497]
+      photo: (c && c.photo) || null, // [RP-V7.498] comment photo — a /photos/ URL from the shared upload pipeline; legacy comments simply have none
       avatar: o.avatarOf && c && c.uid ? o.avatarOf(c.uid) : null, // [RP-V7.497]
       byAuthor: !!(o.authorId && c && c.uid && c.uid === o.authorId), // [RP-V7.497]
     };
@@ -10413,25 +10414,56 @@ function resolveParent497(list, parentId) {
   if (!p) return null;
   return p.parentId ? String(p.parentId) : commentCid497(p);
 }
+// [RP-V7.498] Turn an uploaded comment photo (req.file, saved by the
+// shared photoUpload pipeline) into the value stored on the comment:
+// the same public /photos/ URL shape photo posts carry, behind the
+// same moderateImage gate photo posts use. Returns the URL, or null
+// when no file rode along. On a moderation reject it unlinks the
+// file, answers 422 with the photo-post wording, and returns "" —
+// callers treat "" as "response already sent".
+async function commentPhotoUrl498(req, res) {
+  if (!req.file) return null;
+  const u = `https://${req.get("host")}/photos/${req.file.filename}`;
+  const mod = await moderateImage(u);
+  if (!mod.ok) {
+    unlinkPhotoFiles123(req);
+    console.log("COMMENT PHOTO REJECTED:", mod.reason);
+    res.status(422).json({
+      ok: false,
+      error: "That photo didn't pass our safety check. Please try a different one.",
+    });
+    return "";
+  }
+  if (mod.unreviewed) console.log("COMMENT PHOTO UNREVIEWED (no HIVE_API_KEY):", u);
+  return u;
+}
 function reelCleanCommentText(v) {
   return String(v == null ? "" : v)
     .replace(/[<>&"]/g, "")
     .trim()
     .slice(0, REEL_COMMENT_MAX);
 }
-app.post("/api/reel/comment", (req, res) => {
+// [RP-V7.498] Photo comments ride the shared photoUpload pipeline —
+// the same multer as photo posts (PHOTO_DIR, 5 MB, image-only, clean
+// JSON errors). Non-multipart (JSON) posts pass through untouched,
+// exactly as before; a multipart post may carry ONE photo file,
+// which is moderated and stored on the comment as its /photos/ URL.
+// A photo-only comment (no text) is valid; text-only is unchanged.
+app.post("/api/reel/comment", photoUpload(async (req, res) => {
   const ctx = requireAccount(req, res);
-  if (!ctx) return;
+  if (!ctx) { unlinkPhotoFiles123(req); return; }
   if (isPendingDeletion(ctx.user))
+    { unlinkPhotoFiles123(req);
     return res
       .status(403)
-      .json({ ok: false, error: "This account is scheduled for deletion" });
+      .json({ ok: false, error: "This account is scheduled for deletion" }); }
   const b = req.body || {};
   const kind = b.kind === "photo" ? "photo" : "reel";
   const id = reelCleanId(b.id || b.reelId);
   const text = reelCleanCommentText(b.text);
-  if (!id) return res.status(400).json({ ok: false, error: "Bad post reference" });
-  if (!text) return res.status(400).json({ ok: false, error: "Write a comment first" });
+  const cNote498 = text || "📷 Photo"; // [RP-V7.498] notification label when the comment is a photo alone
+  if (!id) { unlinkPhotoFiles123(req); return res.status(400).json({ ok: false, error: "Bad post reference" }); }
+  if (!text && !req.file) return res.status(400).json({ ok: false, error: "Write a comment or add a photo first" });
   // [RP-V7.497] a reply names its parent by cid; the parent is
   // resolved against the target list BEFORE the push (unknown parent
   // = posts top-level, never an error). One thread level: a reply to
@@ -10439,6 +10471,8 @@ app.post("/api/reel/comment", (req, res) => {
   if (kind === "photo") {
     const db = readPhotoComments();
     const list = db.photos[id] || (db.photos[id] = []);
+    const photoUrl498 = await commentPhotoUrl498(req, res); // [RP-V7.498]
+    if (photoUrl498 === "") return; // moderation already answered
     const parentC497 = b.parentId ? findComment497(list, String(b.parentId)) : null;
     const comment = {
       uid: ctx.user.id,
@@ -10448,6 +10482,7 @@ app.post("/api/reel/comment", (req, res) => {
       cid: newCommentCid497(), // [RP-V7.497]
       likes: [], // [RP-V7.497]
       ...(parentC497 ? { parentId: parentC497.parentId ? String(parentC497.parentId) : commentCid497(parentC497) } : {}), // [RP-V7.497]
+      ...(photoUrl498 ? { photo: photoUrl498 } : {}), // [RP-V7.498]
     };
     list.push(comment);
     while (list.length > REEL_COMMENTS_KEEP) list.shift();
@@ -10463,9 +10498,9 @@ app.post("/api/reel/comment", (req, res) => {
           kind: "comment",
           actorId: ctx.user.id,
           actorName: ctx.user.name,
-          text: "↩️ " + ctx.user.name + " replied to your comment: \"" + String(comment.text).slice(0, 60) + "\"",
+          text: "↩️ " + ctx.user.name + " replied to your comment: \"" + String(cNote498).slice(0, 60) + "\"",
           emailSubject: ctx.user.name + " replied to your comment on Rizz Plaza",
-          emailText: ctx.user.name + " replied to your comment on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+          emailText: ctx.user.name + " replied to your comment on Rizz Plaza: \"" + String(cNote498).slice(0, 140) + "\"\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
           go: { screen: "moments", photoId: id },
         });
       if (pcPost && pcPost.owner && pcPost.owner !== ctx.user.id) {
@@ -10475,9 +10510,9 @@ app.post("/api/reel/comment", (req, res) => {
           kind: "comment",
           actorId: ctx.user.id,
           actorName: ctx.user.name,
-          text: "✍️ " + ctx.user.name + (isTx278 ? " commented on your text post: \"" : " commented on your photo: \"") + String(comment.text).slice(0, 60) + "\"",
+          text: "✍️ " + ctx.user.name + (isTx278 ? " commented on your text post: \"" : " commented on your photo: \"") + String(cNote498).slice(0, 60) + "\"",
           emailSubject: ctx.user.name + (isTx278 ? " commented on your text post on Rizz Plaza" : " commented on your photo on Rizz Plaza"),
-          emailText: ctx.user.name + (isTx278 ? " commented on your text post on Rizz Plaza: \"" : " commented on your photo on Rizz Plaza: \"") + String(comment.text).slice(0, 140) + "\"\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+          emailText: ctx.user.name + (isTx278 ? " commented on your text post on Rizz Plaza: \"" : " commented on your photo on Rizz Plaza: \"") + String(cNote498).slice(0, 140) + "\"\n\nSee it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
           go: isTx278 ? { screen: "home" } : { screen: "moments", photoId: id },
         });
       }
@@ -10485,8 +10520,10 @@ app.post("/api/reel/comment", (req, res) => {
     return res.json({ ok: true, kind, id, comment: pub, count: list.length });
   }
   const entry = listReels().find((r) => r.id === id);
-  if (!entry) return res.status(404).json({ ok: false, error: "Reel not found" });
+  if (!entry) { unlinkPhotoFiles123(req); return res.status(404).json({ ok: false, error: "Reel not found" }); }
   if (!Array.isArray(entry.comments)) entry.comments = [];
+  const photoUrl498 = await commentPhotoUrl498(req, res); // [RP-V7.498]
+  if (photoUrl498 === "") return; // moderation already answered
   const parentC497 = b.parentId ? findComment497(entry.comments, String(b.parentId)) : null; // [RP-V7.497]
   const comment = {
     uid: ctx.user.id,
@@ -10496,6 +10533,7 @@ app.post("/api/reel/comment", (req, res) => {
     cid: newCommentCid497(), // [RP-V7.497]
     likes: [], // [RP-V7.497]
     ...(parentC497 ? { parentId: parentC497.parentId ? String(parentC497.parentId) : commentCid497(parentC497) } : {}), // [RP-V7.497]
+    ...(photoUrl498 ? { photo: photoUrl498 } : {}), // [RP-V7.498]
   };
   entry.comments.push(comment);
   while (entry.comments.length > REEL_COMMENTS_KEEP) entry.comments.shift();
@@ -10510,9 +10548,9 @@ app.post("/api/reel/comment", (req, res) => {
         kind: "comment",
         actorId: ctx.user.id,
         actorName: ctx.user.name,
-        text: "↩️ " + ctx.user.name + " replied to your comment: \"" + String(comment.text).slice(0, 60) + "\"",
+        text: "↩️ " + ctx.user.name + " replied to your comment: \"" + String(cNote498).slice(0, 60) + "\"",
         emailSubject: ctx.user.name + " replied to your comment on Rizz Plaza",
-        emailText: ctx.user.name + " replied to your comment on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+        emailText: ctx.user.name + " replied to your comment on Rizz Plaza: \"" + String(cNote498).slice(0, 140) + "\"\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
         go: { screen: "moments", reelId: id },
       });
     if (cKey && cKey !== ctx.user.id)
@@ -10521,14 +10559,14 @@ app.post("/api/reel/comment", (req, res) => {
         kind: "comment",
         actorId: ctx.user.id,
         actorName: ctx.user.name,
-        text: "✍️ " + ctx.user.name + " commented on your reel: \"" + String(comment.text).slice(0, 60) + "\"",
+        text: "✍️ " + ctx.user.name + " commented on your reel: \"" + String(cNote498).slice(0, 60) + "\"",
         emailSubject: ctx.user.name + " commented on your reel on Rizz Plaza",
-        emailText: ctx.user.name + " commented on your reel on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
+        emailText: ctx.user.name + " commented on your reel on Rizz Plaza: \"" + String(cNote498).slice(0, 140) + "\"\n\nWatch it in Moments: https://rizzplaza.com\n\n— The Rizz Plaza team",
         go: { screen: "moments", reelId: id },
       });
   } catch (e) { /* a notification must never break a comment */ }
   res.json({ ok: true, kind, id, comment: pub, count: entry.comments.length });
-});
+}));
 // [RP-V7.497] Comment like toggle — one endpoint for reel + photo
 // comments (the same kind split as POST /api/reel/comment). The
 // caller's uid toggles in the comment's stored likes array; legacy
@@ -18223,23 +18261,26 @@ app.post("/api/feed/share", (req, res) => {
   writeFeed(db);
   res.json({ ok: true, shares: p.shares });
 });
-app.post("/api/feed/comment", (req, res) => {
+app.post("/api/feed/comment", photoUpload(async (req, res) => { // [RP-V7.498] the shared photo pipeline, exactly as /api/reel/comment
   const ctx = requireAccount(req, res);
-  if (!ctx) return;
+  if (!ctx) { unlinkPhotoFiles123(req); return; }
   if (isPendingDeletion(ctx.user))
-    return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+    { unlinkPhotoFiles123(req); return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" }); }
   if (!feedAdultOk(ctx.user))
-    return res.status(403).json({ ok: false, error: "The Feed is 18+ right now" });
+    { unlinkPhotoFiles123(req); return res.status(403).json({ ok: false, error: "The Feed is 18+ right now" }); }
   const b = req.body || {};
   const postId = String(b.postId || "");
   const text = reelCleanCommentText(b.text);
-  if (!text) return res.status(400).json({ ok: false, error: "Write a comment first" });
+  const cNote498 = text || "📷 Photo"; // [RP-V7.498] notification label when the comment is a photo alone
+  if (!text && !req.file) return res.status(400).json({ ok: false, error: "Write a comment or add a photo first" });
   const db = readFeed();
   const p = db.posts[postId];
-  if (!p) return res.status(404).json({ ok: false, error: "Post not found" });
+  if (!p) { unlinkPhotoFiles123(req); return res.status(404).json({ ok: false, error: "Post not found" }); }
   if (!Array.isArray(p.comments)) p.comments = [];
+  const photoUrl498 = await commentPhotoUrl498(req, res); // [RP-V7.498]
+  if (photoUrl498 === "") return; // moderation already answered
   const parentC497 = b.parentId ? findComment497(p.comments, String(b.parentId)) : null; // [RP-V7.497]
-  const comment = { uid: ctx.user.id, name: reelCleanName(ctx.user.name) || "Someone", text, ts: new Date().toISOString(), cid: newCommentCid497(), likes: [], ...(parentC497 ? { parentId: parentC497.parentId ? String(parentC497.parentId) : commentCid497(parentC497) } : {}) }; // [RP-V7.497]
+  const comment = { uid: ctx.user.id, name: reelCleanName(ctx.user.name) || "Someone", text, ts: new Date().toISOString(), cid: newCommentCid497(), likes: [], ...(parentC497 ? { parentId: parentC497.parentId ? String(parentC497.parentId) : commentCid497(parentC497) } : {}), ...(photoUrl498 ? { photo: photoUrl498 } : {}) }; // [RP-V7.497] // [RP-V7.498]
   p.comments.push(comment);
   while (p.comments.length > REEL_COMMENTS_KEEP) p.comments.shift();
   writeFeed(db);
@@ -18249,9 +18290,9 @@ app.post("/api/feed/comment", (req, res) => {
       kind: "comment",
       actorId: ctx.user.id,
       actorName: ctx.user.name,
-      text: "↩️ " + ctx.user.name + " replied to your comment: \"" + String(comment.text).slice(0, 60) + "\"",
+      text: "↩️ " + ctx.user.name + " replied to your comment: \"" + String(cNote498).slice(0, 60) + "\"",
       emailSubject: ctx.user.name + " replied to your comment on Rizz Plaza",
-      emailText: ctx.user.name + " replied to your comment on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nRead it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      emailText: ctx.user.name + " replied to your comment on Rizz Plaza: \"" + String(cNote498).slice(0, 140) + "\"\n\nRead it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
       go: { screen: "ownprofile" },
     });
   if (p.authorId !== ctx.user.id)
@@ -18260,13 +18301,13 @@ app.post("/api/feed/comment", (req, res) => {
       kind: "comment",
       actorId: ctx.user.id,
       actorName: ctx.user.name,
-      text: "✍️ " + ctx.user.name + " commented on your post: \"" + String(comment.text).slice(0, 60) + "\"",
+      text: "✍️ " + ctx.user.name + " commented on your post: \"" + String(cNote498).slice(0, 60) + "\"",
       emailSubject: ctx.user.name + " commented on your post on Rizz Plaza",
-      emailText: ctx.user.name + " commented on your post on Rizz Plaza: \"" + String(comment.text).slice(0, 140) + "\"\n\nRead it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
+      emailText: ctx.user.name + " commented on your post on Rizz Plaza: \"" + String(cNote498).slice(0, 140) + "\"\n\nRead it on Rizz Plaza: https://rizzplaza.com\n\n— The Rizz Plaza team",
       go: { screen: "ownprofile" },
     });
   res.json({ ok: true, comment: publicComment497(comment, ctx.db, p.authorId, ctx.user.id), comments: reelPublicComments({ comments: p.comments }, nameResolver313(ctx.db), { viewerId: ctx.user.id, authorId: p.authorId, avatarOf: avatarResolver497(ctx.db) }), commentCount: p.comments.length }); // [RP-V7.313] the returned list's bylines resolve live // [RP-V7.497] full comment shape + opts
-});
+}));
 // [RP-V7.497] Feed comment like toggle — the feed-store twin of
 // POST /api/reel/comment/like (same stored likes array + derived
 // cid rules, so legacy feed comments like/thread identically).
