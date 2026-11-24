@@ -1393,6 +1393,16 @@
       .lv-hostchip .lhc-nameline { display: flex; align-items: center; gap: 5px; min-width: 0; }
       .lv-hostchip .lhc-nameline b { min-width: 0; }
       .lv-hostchip .lhc-league { display: inline-block; width: max-content; max-width: 100%; margin-top: 2px; background: rgba(254,44,44,.18); border: 1px solid rgba(254,44,44,.55); color: #ffd9d9; border-radius: 99px; padding: 1px 8px; font-size: 10.5px; font-weight: 900; font-style: normal; white-space: nowrap; } /* [RP-LEAGUE] */
+      /* [RP-V7.491] top-bar overflow fix: the top bar is width-capped and
+         its children can shrink; the host chip is a true flex row whose
+         meta lines truncate cleanly instead of word-wrapping into a
+         tall skinny column, and the Follow button never gets squeezed. */
+      .lv-topbar { max-width: 100%; box-sizing: border-box; }
+      .lv-topbar > * { min-width: 0; }
+      .lv-hostchip { min-width: 0; flex: 0 1 auto; box-sizing: border-box; }
+      .lv-hostchip .lhc-meta { min-width: 0; flex: 0 1 auto; overflow: hidden; }
+      .lv-hostchip .lhc-meta i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .lv-hostchip .follow-btn { flex: none; }
       .lv-crown { display: inline-block; flex: none; font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); }
       .live-tile .lt-name .lv-crown { margin-right: 4px; font-size: 12px; }
       .lv-viewers { display: flex; margin-left: auto; }
@@ -18586,6 +18596,10 @@
           '<div class="game-box"><h3 style="text-align:center;">••• More</h3>' +
           '<p style="text-align:center; font-weight:800; margin:0 0 4px;">👁 ' + watchN + ' watching · ' + escHtml(Live.topic || "Chatting") + '</p><div class="lv-more-list">';
         if (!host && Live.hostId) html += followBtnHTML(Live.hostName || "Host", "lv-more-follow");
+        if (!host && Live.hostId) { // [RP-V7.491] Fan Club's viewer home (moved out of the top-bar chip, which overflowed): shown only while the viewer hasn't joined; classed rp65-fanjoin so syncCardFanButtons never adds a duplicate beside it
+          var fanJ491 = null; try { fanJ491 = window.rpFanOf65 ? window.rpFanOf65(Live.hostId) : null; } catch (e) { }
+          if (!fanJ491) html += '<button type="button" class="btn-mini rp65-fanjoin" id="lvMoreFan491">🎉 Join Fan Club</button>';
+        }
         html += '<button type="button" class="btn-mini" id="lvMoreLike">❤️ Send hearts</button>';
         if (onStage) {
           html += '<button type="button" class="btn-mini" id="lvMoreFilters">✨ Filters' + (Live.filterId && Live.filterId !== "none" ? " · " + escHtml(fxRecipe(Live.filterId).name) : "") + '</button>';
@@ -18649,6 +18663,7 @@
         wire("lvMoreEnd", function () { closeSheet(); liveEndMine(); });
         wire("lvMoreLeave", function () { closeSheet(); liveLeaveStage(); });
         wire("lvMoreLike", function (e) { closeSheet(); sendLiveHeart(e); }); // [RP-V7.340] the sheet row feeds back too
+        wire("lvMoreFan491", function () { closeSheet(); if (window.rpFanJoin65) window.rpFanJoin65(Live.hostId, Live.hostName || "Host"); }); // [RP-V7.491] same joinFan call the old chip button made
         wire("lvMoreShare", function () { closeSheet(); shareLive(); });
         wire("lvMoreClose", function () { closeSheet(); liveFsCloseTap(); });
       }
@@ -37448,6 +37463,11 @@ function stageStreakBump(key, add) {
     syncFanChip();
     syncCardFanButtons(true);
   }
+  /* [RP-V7.491] bridges for the live ••• More sheet (main module): the
+     sheet renders its own Fan Club row for viewers, so it needs the fan
+     state and the join call without reaching into this module. */
+  window.rpFanOf65 = function (hostId) { try { return fan.fanOf[hostId] || null; } catch (e) { return null; } };
+  window.rpFanJoin65 = function (hostId, name) { joinFan(hostId, name); };
   function hostFanJoin(memberId, memberName) {
     if (!memberId || memberId === myId()) return;
     var n = fan.my.members[memberId];
@@ -37477,26 +37497,18 @@ function stageStreakBump(key, add) {
     }
   }
   function syncFanChip() {
+    /* [RP-V7.491] the Fan Club button no longer lives in the top-bar
+       host chip: appended there, it ran off the right edge of the phone
+       screen (Branden's Nov 23 screenshot — measured right edge 486px
+       on a 440px viewport) and crushed the chip's meta text into a
+       skinny column. Fan access for viewers now lives on the host card
+       and in the live ••• More sheet. This function stays as a harmless
+       sweeper — it only removes a legacy chip button — so every old
+       caller (join flow, fan-count handler, the 900ms loop) keeps
+       working unchanged. */
     var chip = $("liveHostChip"); if (!chip) return;
-    var L = live();
     var existing = chip.querySelector(".rp65-fanbtn");
-    if (!L || !L.active || !L.hostId || L.hostId === myId()) { if (existing) existing.remove(); return; }
-    var hostId = L.hostId;
-    var joined = fan.fanOf[hostId];
-    var b = existing;
-    if (!b) {
-      b = document.createElement("button");
-      b.type = "button";
-      b.className = "btn-mini rp65-fanbtn";
-      b.addEventListener("click", function () {
-        var L2 = live();
-        if (L2 && L2.hostId) joinFan(L2.hostId, chipName());
-      });
-      chip.appendChild(b);
-    }
-    var txt = joined ? (joined.n ? "🎉 Fan No. " + joined.n : "🎉 Fan Club ✓") : "🎉 Join Fan Club";
-    if (b.textContent !== txt) b.textContent = txt;
-    b.disabled = !!joined;
+    if (existing) existing.remove();
   }
   function chipName() {
     var chip = $("liveHostChip");
@@ -37511,6 +37523,7 @@ function stageStreakBump(key, add) {
     var btns = document.querySelectorAll("[data-follow]");
     for (var i = 0; i < btns.length; i++) {
       var fb = btns[i];
+      if (fb.closest && fb.closest("#liveHostChip")) continue; // [RP-V7.491] never inject a Fan button into the top-bar chip (it overflowed the bar) — cards and sheets only
       if (fb.getAttribute("data-follow") !== hostName) continue;
       // [RP-V7.290] guard by the whole parent, not just the next sibling: the DM
       // module parks its Message button directly after the follow button, which
@@ -41636,6 +41649,12 @@ button.rp72-chip{ cursor:pointer; }
     document.querySelectorAll("[data-follow]").forEach(function (fb) {
       var name = fb.getAttribute("data-follow");
       if (!name || mine[key(name)]) return;
+      /* [RP-V7.491] no Message button beside the live top-bar chip's
+         Follow button — it helped push the chip off the phone screen.
+         Scoped by the chip only: profile cards, people lists, swipe
+         cards and sheets keep their Message buttons. */
+      if (fb.classList && fb.classList.contains("lhc")) return;
+      if (fb.closest && fb.closest("#liveHostChip")) return;
       var parent = fb.parentNode;
       if (!parent) return;
       var kids = parent.children, found = false, i;
