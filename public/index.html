@@ -1633,6 +1633,24 @@
       .soc-ig { background: linear-gradient(45deg, #f9ce34 0%, #ee2a7b 55%, #6228d7 100%); }
       .soc-tt { background: #010101; border: 1.5px solid rgba(255,255,255,.22); box-sizing: border-box; }
       .soc-sc { background: #FFFC00; }
+      .soc-ms { background: #0084FF; }
+      .soc-x { background: #000; border: 1.5px solid rgba(255,255,255,.22); box-sizing: border-box; }
+      /* [RP-V7.493] TikTok-style live share sheet: the people row
+         (one-tap live invites), the actions stack, and the mixed
+         tap-icon LIVE badge (Part 2 — the badge rides the same two
+         floater spans the hearts always used). */
+      .lv-share-people493 { display: flex; gap: 10px; overflow-x: auto; padding: 8px 2px 4px; -webkit-overflow-scrolling: touch; }
+      .lv-person493 { flex: none; width: 76px; display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; font-family: inherit; color: var(--ink); padding: 2px 0; }
+      .lv-person493:active { transform: scale(.94); }
+      .lv-person493[disabled] { opacity: .6; cursor: default; }
+      .lv-person-av493 { width: 50px; height: 50px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,.28); flex: none; }
+      .lv-person-av493 .pface { width: 50px; height: 50px; font-size: 21px; }
+      .lv-person-nm493 { font-size: 11.5px; font-weight: 800; line-height: 1.1; text-align: center; max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .lv-person-st493 { font-size: 10.5px; font-weight: 900; color: var(--rose-deep); line-height: 1; }
+      .lv-share-search493 { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--panel-2); color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; }
+      .lv-share-actions493 { display: flex; flex-direction: column; gap: 9px; margin-top: 8px; }
+      .lv-share-actions493 .btn-mini { width: 100%; padding: 12px; font-size: 15px; box-sizing: border-box; }
+      .lv-livebadge493 { background: #fe2c2c; color: #fff; font-weight: 900; border-radius: 99px; padding: 2px 7px 3px; letter-spacing: .6px; line-height: 1.3; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
       .mom-comment b { flex: none; }
       .live-rules-note { margin: 10px 0 0; padding: 9px 12px; border-radius: 12px; background: rgba(254,44,44,.16); border: 1.5px solid rgba(254,44,44,.65); color: #fff; font-weight: 800; font-size: 13.5px; text-align: center; }
       .rules-sec { text-align: left; margin: 8px 0; border: 1px solid rgba(127,127,140,.35); border-radius: 12px; background: rgba(255,255,255,.05); overflow: hidden; }
@@ -10259,9 +10277,16 @@
       // [RP-V7.241] Photo share for the profile photo-post viewer:
       // the same navigator.share -> clipboard -> toast cascade
       // reelShare uses, with photo wording.
-      function rpPhotoShare241(author, caption, postId) {
+      function rpPhotoShare241(author, caption, postId, mediaUrl) {
         var text = "📸 " + (caption ? caption + " — " : "") + "check out this photo on Rizz Plaza";
         var url = (postId && window.rpShareUrl269 && window.rpShareUrl269("post", postId)) || "https://rizzplaza.com"; // [RP-V7.269] a real photo post shares its share page; a pinned/gallery item (no post record id) keeps the Plaza link
+        // [RP-V7.493] when the caller knows the photo's file and the
+        // phone's share sheet takes files, share the photo itself —
+        // the helper falls back to the link share below on any "no".
+        if (mediaUrl) {
+          rpShareMediaFile493(mediaUrl, "", "rizzplaza-photo.jpg", { title: "Rizz Plaza 📸 Photo", text: text, url: url });
+          return;
+        }
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
           navigator.share({ title: "Rizz Plaza 📸 Photo", text: text, url: url }).catch(function () { });
           return;
@@ -10354,7 +10379,7 @@
         var hb241 = sheet241.querySelector(".pp-heart"); if (hb241) hb241.addEventListener("click", function () { photoLikeToggle123(fi241, hb241); });
         var cb241 = sheet241.querySelector(".pp-cmt"); if (cb241) cb241.addEventListener("click", function () { openPhotoComments123(fi241); });
         var gb241 = sheet241.querySelector(".pp-gift"); if (gb241) gb241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, (post && post.kind === "text") ? { post: { kind: "photo", id: fi241.postId } } : { src: "picture", post: { kind: "photo", id: fi241.postId } } ); }); // [RP-V7.262] the post rides as the gift's post — [RP-V7.278] a text post carries no src, so its gift notice keeps the honest generic wording
-        var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption, fi241.postId); });
+        var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption, fi241.postId, (post && post.kind === "text") ? "" : src); }); // [RP-V7.493] the photo's own file rides along for file-capable share sheets; a text post has no photo file
         var rb241 = sheet241.querySelector(".pp-repost"); if (rb241) rb241.addEventListener("click", function () { photoRepostToggle123(fi241, rb241); });
         var db243 = sheet241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/photo/" + encodeURIComponent(it.id)).then(function (ok) { if (ok) rpAfterDel243((post && post.kind === "text") ? "Post deleted" : "Photo deleted"); else /* [RP-V7.278] text-aware delete toast */ { try { toast("Couldn't delete that photo."); } catch (e) { } } }); }); });
         // [RP-V7.301] This sheet IS a full view of the post — count
@@ -18322,15 +18347,43 @@
         toast(Live.micOn ? "🎙 Mic on — the room can hear you." : "🎙 Mic off — the room can't hear you.");
       }
       /* ---------- hearts ---------- */
+      /* [RP-V7.493] Mixed tap icons (Branden, Nov 23 — TikTok's
+         current lives float more than hearts): every floater drawn
+         by either spawn path below picks from this weighted mix —
+         heart ~55%, thumbs-up ~20%, smiley ~15%, LIVE badge ~10%
+         (a small red pill, not a glyph). Cosmetics only: floaters
+         still spawn ONLY from real taps (sendLiveHeart here, the
+         room's live-heart events for other viewers' taps), the
+         count and batching are untouched, and gift shows keep
+         their own sparkles — this picker is never called there. */
+      function liveTapIcon493() {
+        var r = Math.random();
+        if (r < 0.55) return "❤️";
+        if (r < 0.75) return "👍";
+        if (r < 0.90) return "😊";
+        return null; // the LIVE badge
+      }
+      function applyTapIcon493(el, badgePx) {
+        var icon = liveTapIcon493();
+        if (icon === null) {
+          el.textContent = "LIVE";
+          el.classList.add("lv-livebadge493");
+          el.style.fontSize = badgePx + "px";
+        } else {
+          el.textContent = icon;
+        }
+        return icon;
+      }
       function floatLiveHearts(n) {
         var fx = $("liveHearts"); if (!fx || !Live.active) return;
         var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         if (reduced) n = 1;
         for (var i = 0; i < n; i++) {
           var s = document.createElement("span");
-          s.className = "live-heart-float"; s.textContent = "❤️";
+          s.className = "live-heart-float";
           s.style.right = (12 + Math.random() * 46) + "px";
           s.style.fontSize = (17 + Math.random() * 13) + "px";
+          applyTapIcon493(s, 11); // [RP-V7.493] mixed icons — runs last so a badge draw keeps its small pill size
           fx.appendChild(s);
           if (s.animate) {
             var rise = 120 + Math.random() * 130, drift = Math.round((Math.random() - 0.5) * 44), dur = 1500 + Math.random() * 800;
@@ -18414,9 +18467,10 @@
         }
         var reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
         var s = document.createElement("span");
-        s.className = "lv-tapheart340"; s.textContent = "❤️";
+        s.className = "lv-tapheart340";
         s.style.left = x + "px"; s.style.top = y + "px";
         s.style.fontSize = (26 + Math.random() * 8) + "px";
+        applyTapIcon493(s, 12); // [RP-V7.493] mixed icons — the badge draw overrides the glyph size with its pill size
         fx.appendChild(s);
         lvTapHearts340++;
         var done = false;
@@ -18938,28 +18992,144 @@
           return mine || "";
         } catch (e) { return ""; }
       }
+      /* [RP-V7.493] Share a media FILE itself (not just its link)
+         when the phone's share sheet accepts files: fetch the media,
+         wrap it in a File, and hand it to navigator.share({files}).
+         Every failure — no canShare, canShare says no, the fetch
+         fails — falls back to the URL share the caller would have
+         done anyway, so a share tap never dead-ends. Used by the
+         reel and photo share paths; lives are streams, not files,
+         so the live sheet never calls this. */
+      function rpShareMediaFile493(mediaUrl, mime, filename, payload) {
+        function urlFallback() {
+          if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+            navigator.share({ title: payload.title, text: payload.text, url: payload.url }).catch(function () { });
+            return;
+          }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(payload.text + "\n" + payload.url).then(
+              function () { toast("Invite copied — paste it anywhere to share! 🔗"); },
+              function () { toast("Copy this link to share: " + payload.url); });
+            return;
+          }
+          toast("Copy this link to share: " + payload.url);
+        }
+        try {
+          if (typeof navigator === "undefined" || typeof navigator.share !== "function" || typeof navigator.canShare !== "function" || typeof fetch !== "function") { urlFallback(); return; }
+          fetch(mediaUrl).then(function (r) { if (!r.ok) throw new Error("media " + r.status); return r.blob(); }).then(function (blob) {
+            var f = new File([blob], filename, { type: mime || blob.type || "application/octet-stream" });
+            if (navigator.canShare({ files: [f] })) {
+              navigator.share({ files: [f], title: payload.title, text: payload.text }).catch(function () { });
+            } else urlFallback();
+          }).catch(function () { urlFallback(); });
+        } catch (e) { urlFallback(); }
+      }
+      /* [RP-V7.493] Add to Story from the live share sheet: stories
+         are media posts (POST /api/story/post takes one file), so
+         the announcement is drawn onto a story card — black card,
+         red LIVE pill, the host's name, the live's title, and the
+         Plaza name — and posted through the very same endpoint and
+         payload shape the story composer uses. */
+      function liveShareToStory493() {
+        var tok = (typeof rpAcctToken === "function") ? rpAcctToken() : null;
+        if (!tok) { toast("Sign in to post to your story."); return; }
+        var hostName = Live.hostName || "Someone";
+        var liveTitle = (Live.title || "").trim();
+        try {
+          var cv = document.createElement("canvas"); cv.width = 1080; cv.height = 1920;
+          var cx = cv.getContext("2d"); if (!cx) { toast("Couldn't make the story card — try again."); return; }
+          var grd = cx.createLinearGradient(0, 0, 0, 1920);
+          grd.addColorStop(0, "#17101f"); grd.addColorStop(0.55, "#0b0b12"); grd.addColorStop(1, "#1c0510");
+          cx.fillStyle = grd; cx.fillRect(0, 0, 1080, 1920);
+          cx.textAlign = "center";
+          cx.fillStyle = "#fe2c2c";
+          var pillW = 340, pillX = (1080 - pillW) / 2, pillY = 560;
+          cx.beginPath();
+          if (cx.roundRect) cx.roundRect(pillX, pillY, pillW, 118, 59); else cx.rect(pillX, pillY, pillW, 118);
+          cx.fill();
+          cx.fillStyle = "#fff"; cx.font = "900 64px system-ui, sans-serif";
+          cx.fillText("● LIVE", 540, pillY + 80);
+          cx.font = "900 92px system-ui, sans-serif";
+          var nm = hostName.length > 22 ? hostName.slice(0, 22) + "…" : hostName;
+          cx.fillText(nm, 540, 830);
+          cx.font = "800 54px system-ui, sans-serif"; cx.fillStyle = "rgba(255,255,255,.92)";
+          cx.fillText("is LIVE on Rizz Plaza", 540, 920);
+          if (liveTitle) {
+            cx.font = "700 46px system-ui, sans-serif"; cx.fillStyle = "rgba(255,255,255,.75)";
+            var words = liveTitle.split(/\s+/), lines = [], line = "";
+            words.forEach(function (w) { var t = line ? line + " " + w : w; if (cx.measureText(t).width > 880 && line) { lines.push(line); line = w; } else line = t; });
+            if (line) lines.push(line);
+            lines.slice(0, 3).forEach(function (ln, i) { cx.fillText(ln, 540, 1030 + i * 62); });
+          }
+          cx.font = "900 58px system-ui, sans-serif"; cx.fillStyle = "#fff";
+          cx.fillText("Come watch! 👀", 540, 1560);
+          cx.font = "800 44px system-ui, sans-serif"; cx.fillStyle = "rgba(255,255,255,.65)";
+          cx.fillText("rizzplaza.com", 540, 1640);
+          if (!cv.toBlob) { toast("Couldn't make the story card — try again."); return; }
+          cv.toBlob(function (blob) {
+            if (!blob) { toast("Couldn't make the story card — try again."); return; }
+            var fd = new FormData();
+            fd.append("media", new File([blob], "live-story.png", { type: "image/png" }));
+            fetch("/api/story/post", { method: "POST", headers: { "Authorization": "Bearer " + tok }, body: fd })
+              .then(function (r) { return r.json().catch(function () { return null; }); })
+              .then(function (j) {
+                if (j && j.ok) toast("Posted to your story 🎬 — it announces this live for 24 hours.");
+                else toast((j && j.error) || "That story didn't post — try again.", 4000);
+              })
+              .catch(function () { toast("That story didn't post — check your connection.", 4000); });
+          }, "image/png");
+        } catch (e) { toast("Couldn't make the story card — try again."); }
+      }
+      /* [RP-V7.493] Not interested (live share sheet, viewers only):
+         there is no live-level interest endpoint (the V7.451 one is
+         reel-scoped), so this applies the same signal the feed brain
+         reads — a real decrement of this host's affinity record
+         (watch / share / compliment weights), saved with the profile
+         exactly like affinityBump saves its increments. */
+      function liveNotInterested493() {
+        var name = Live.hostName || "";
+        try {
+          var k = (typeof fyKey === "function") ? fyKey(name) : "";
+          if (k && typeof affinityMap === "function") {
+            var rec = affinityMap()[k];
+            if (rec) {
+              rec.w = Math.max(0, (rec.w | 0) - 4);
+              rec.s = Math.max(0, (rec.s | 0) - 2);
+              rec.c = Math.max(0, (rec.c | 0) - 2);
+              rec.at = Date.now();
+              if (typeof saveProfile === "function") saveProfile();
+            }
+          }
+        } catch (e) { }
+        toast(name ? "Got it — you'll see less of " + name + "'s lives. 👎" : "Got it — you'll see less like this. 👎", 3200);
+      }
       function shareLive() {
         if (!Live.active) { toast("Nobody's live right now — Share lights up while a live is on. 🔴"); return; }
         var title = (Live.title || "").trim() || ((Live.hostName || "Someone") + " is LIVE on Rizz Plaza");
-        var text = "I'm live on Rizz Plaza — come watch!";
+        var text = "🔴 " + (Live.hostName || "Someone") + " is LIVE on Rizz Plaza — come watch!"; // [RP-V7.493] the prefilled share line, TikTok-style
         var liveKey = liveInviteRoomKey();
         var url = liveKey ? PUBLIC_LINK + "?live=" + encodeURIComponent(liveKey) : PUBLIC_LINK; // [RP-V7.65] the link names THIS live — the boot invite router takes a signed-in guest straight to it
         if (Live.privOn && iAmHost() && Live.privToken) url += "&lt=" + encodeURIComponent(Live.privToken); // [RP-V7.138] hosting a private live: my share IS the private link
         shareCopiedFlag = false;
-        var payload = title + "\n" + text + "\n" + url;
+        var payload = ((Live.title || "").trim() ? title + "\n" : "") + text + "\n" + url;
         var encPayload = encodeURIComponent(payload);
-        var nativeBtn = (typeof navigator.share === "function")
-          ? '<button type="button" class="btn-primary" id="lvShareNative" style="width:100%; padding:13px;">📤 Share…</button>' : "";
+        var encUrl = encodeURIComponent(url);
+        var hasNativeShare = (typeof navigator !== "undefined" && typeof navigator.share === "function");
+        var host493 = iAmHost();
+        var myTok493 = (typeof rpAcctToken === "function") ? rpAcctToken() : null;
+        var canInvite493 = !!(myTok493 && liveInvitePublic469()); // [RP-V7.493] the people row rides the V7.469 door: signed-in + public live only
         var svgFb = '<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M14.2 8.6V6.9c0-.8.2-1.3 1.4-1.3h1.5V2.2h-2.4c-2.9 0-3.9 2-3.9 4.2v2.2H8.2V12h2.6v9.8h3.4V12h2.7l.4-3.4h-3.1z"/></svg>';
         var svgIg = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.7" r="1.15" fill="#fff" stroke="none"/></svg>';
         var svgTt = '<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M16.7 2.5c.4 2.2 1.8 3.6 4 3.8v3c-1.5 0-2.9-.4-4-1.2v6.4c0 3.8-2.6 6.2-6 6.2-3.3 0-5.9-2.4-5.9-5.8 0-3.5 2.7-6 6.4-5.9v3.1c-1.9-.3-3.3 1-3.3 2.7 0 1.6 1.2 2.8 2.8 2.8 1.7 0 2.9-1.2 2.9-3.1V2.5h3.2z"/></svg>';
         var svgSc = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" stroke="rgba(0,0,0,.8)" stroke-width=".7" d="M12 2.6c3.3 0 5.8 2.5 5.8 6 0 .9-.1 1.8-.3 2.5.5.3 1.3.3 1.8.8.3.3.2.8-.2 1.1-.6.5-1.3.8-1.8 1.6.3.3.5.6.8.9.2.3 0 .6-.4.6h-1.4c-.3 0-.5.2-.6.5l-.3 1.1c-.1.3-.4.5-.7.4-.9-.2-1.8-.6-2.7-.6s-1.8.4-2.7.6c-.3.1-.6-.1-.7-.4l-.3-1.1c-.1-.3-.3-.5-.6-.5H6.3c-.4 0-.6-.3-.4-.6.3-.3.5-.6.8-.9-.5-.8-1.2-1.1-1.8-1.6-.4-.3-.5-.8-.2-1.1.5-.5 1.3-.5 1.8-.8-.2-.7-.3-1.6-.3-2.5 0-3.5 2.5-6 5.8-6z"/><circle cx="9.4" cy="9.2" r="1" fill="#111"/><circle cx="14.6" cy="9.2" r="1" fill="#111"/></svg>';
-        var html =
-          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-          '<div class="game-box"><h3><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg> Share this live</h3>' +
-          '<p style="font-weight:700;">' + escHtml(title) + '<br><span style="color:var(--ink-soft);">Send it to anybody — the invite and the link to join are already written for you.</span></p>' +
-          nativeBtn +
-          '<p class="share-status" id="lvShareStatus" role="status"></p>' +
+        var svgMs = '<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2.2C6.5 2.2 2 6.2 2 11.1c0 2.8 1.4 5.3 3.7 6.9V22l3.4-1.9c.9.3 1.9.4 2.9.4 5.5 0 10-4 10-8.9S17.5 2.2 12 2.2zm1.2 12.4l-2.5-2.7-4.9 2.7 5.4-5.7 2.5 2.6 4.8-2.6-5.3 5.7z"/></svg>';
+        var svgX = '<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M17.8 3h3.1l-6.8 7.8L22 21h-6.3l-4.9-6.4L5.2 21H2.1l7.3-8.3L2 3h6.4l4.4 5.9L17.8 3zm-1.1 16.1h1.7L7.4 4.8H5.6l11.1 14.3z"/></svg>';
+        /* [RP-V7.493] The sheet is TikTok-shaped now: people row,
+           More (the phone's own share sheet), the one-tap targets,
+           then the actions stack. When the platform has no native
+           share, the targets start folded away and More unfolds
+           them — the full list is always one tap deep. */
+        var targets493 =
           '<p class="share-to-label">Share to</p>' +
           '<div class="share-social">' +
           '<button type="button" class="share-soc" id="lvShareFb"><span class="soc-ic soc-fb">' + svgFb + '</span><span class="soc-name">Facebook</span></button>' +
@@ -18967,37 +19137,75 @@
           '<button type="button" class="share-soc" id="lvShareTt"><span class="soc-ic soc-tt">' + svgTt + '</span><span class="soc-name">TikTok</span></button>' +
           '<button type="button" class="share-soc" id="lvShareSc"><span class="soc-ic soc-sc">' + svgSc + '</span><span class="soc-name">Snapchat</span></button>' +
           '</div>' +
-          '<div class="share-apps">' +
-          '<a class="share-opt" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=' + encPayload + '">💬 WhatsApp</a>' +
-          '<a class="share-opt" id="lvShareSms" href="sms:?&amp;body=' + encPayload + '">✉️ Messages</a>' +
-          '<a class="share-opt" target="_blank" rel="noopener noreferrer" href="https://t.me/share/url?url=' + encodeURIComponent(url) + '&amp;text=' + encodeURIComponent(title + " — " + text) + '">✈️ Telegram</a>' +
-          '<a class="share-opt" id="lvShareMail" href="mailto:?subject=' + encodeURIComponent(title) + '&amp;body=' + encPayload + '">📧 Email</a>' +
+          '<div class="share-social">' +
+          '<button type="button" class="share-soc" id="lvShareMs"><span class="soc-ic soc-ms">' + svgMs + '</span><span class="soc-name">Messenger</span></button>' +
+          '<a class="share-soc" id="lvShareX" target="_blank" rel="noopener noreferrer" href="https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&amp;url=' + encUrl + '"><span class="soc-ic soc-x">' + svgX + '</span><span class="soc-name">X</span></a>' +
+          '<a class="share-soc" id="lvShareWa" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=' + encPayload + '"><span class="soc-ic" style="background:#25D366; font-size:24px;">💬</span><span class="soc-name">WhatsApp</span></a>' +
+          '<button type="button" class="share-soc" id="lvShareCopyLink"><span class="soc-ic" style="background:#3a3a46; font-size:22px;">🔗</span><span class="soc-name">Copy link</span></button>' +
           '</div>' +
-          '<button type="button" class="btn-primary" id="lvShareCopy" style="width:100%; padding:13px;">📋 Copy invite</button>' +
+          '<div class="share-apps">' +
+          '<a class="share-opt" id="lvShareSms" href="sms:?&amp;body=' + encPayload + '">✉️ Messages</a>' +
+          '<a class="share-opt" id="lvShareMail" href="mailto:?subject=' + encodeURIComponent(title) + '&amp;body=' + encPayload + '">📧 Email</a>' +
+          '<a class="share-opt" target="_blank" rel="noopener noreferrer" href="https://t.me/share/url?url=' + encUrl + '&amp;text=' + encodeURIComponent(text) + '">✈️ Telegram</a>' +
+          '<button type="button" class="share-opt" id="lvShareCopy">📋 Copy invite</button>' +
+          '</div>' +
           '<textarea class="share-text" id="lvShareText" readonly rows="3" aria-label="Invite text">' + escHtml(payload) + '</textarea>' +
-          '<p class="age-note" style="margin-top:8px;">Nothing work? Press and hold the invite above, tap Select All, then Copy — you can paste it anywhere.</p>' +
+          '<p class="age-note" style="margin-top:8px;">Nothing work? Press and hold the invite above, tap Select All, then Copy — you can paste it anywhere.</p>';
+        var actions493 =
+          '<p class="share-to-label">Do more</p>' +
+          '<div class="lv-share-actions493">' +
+          (canInvite493 ? '<button type="button" class="btn-mini" id="lvShareInvite493">👥 Invite people</button>' : "") +
+          (myTok493 ? '<button type="button" class="btn-mini" id="lvShareStory493">🎬 Add to Story</button>' : "") +
+          (!host493 && Live.hostId ? '<button type="button" class="btn-mini" id="lvShareReport493">🚩 Report ' + escHtml(Live.hostName || "host") + '</button>' : "") +
+          (!host493 && Live.hostId ? '<button type="button" class="btn-mini" id="lvShareNoInt493">👎 Not interested</button>' : "") +
+          '</div>';
+        var html =
+          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+          '<div class="game-box"><h3><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg> Share this live</h3>' +
+          '<p style="font-weight:700;">' + escHtml(title) + '<br><span style="color:var(--ink-soft);">Send it to anybody — the invite and the link to join are already written for you.</span></p>' +
+          (canInvite493 ?
+            '<p class="share-to-label">Invite your people</p>' +
+            '<input type="search" class="lv-share-search493" id="lvSharePeopleSearch493" placeholder="Search your people" aria-label="Search your people">' +
+            '<div class="lv-share-people493" id="lvSharePeople493"><span class="age-note">Loading your people…</span></div>' : "") +
+          '<button type="button" class="btn-primary" id="lvShareMore493" style="width:100%; padding:13px; margin-top:12px;">📤 More — all my apps &amp; contacts</button>' +
+          '<p class="share-status" id="lvShareStatus" role="status"></p>' +
+          '<div id="lvShareAll493"' + (hasNativeShare ? "" : " hidden") + '>' + targets493 + '</div>' +
+          actions493 +
           '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" data-act="close2">Done</button></div>' +
           '</div>';
         openSheet(html);
         wireLiveSheetClose();
-        var nb = $("lvShareNative");
-        if (nb) nb.addEventListener("click", function () {
-          noteLiveShared(); // 🔥 a share counts toward this live's engagement score
-          var done = false;
-          function refused() {
-            if (done) return; done = true;
-            toast("That share didn't go through here — pick an app below or tap Copy invite instead. 🔗", 3600);
+        /* [RP-V7.493] More: the phone's OWN share sheet — every app
+           installed on this member's phone plus their contacts,
+           which no fixed in-app list can know. Without a native
+           share API, More unfolds the sheet's full target list
+           (rendered folded in that case) instead. */
+        var moreB = $("lvShareMore493");
+        if (moreB) moreB.addEventListener("click", function () {
+          if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+            noteLiveShared(); // 🔥 a share counts toward this live's engagement score
+            var done = false;
+            function refused() {
+              if (done) return; done = true;
+              var all493 = $("lvShareAll493"); if (all493) all493.hidden = false;
+              toast("That share didn't go through here — pick an app below or tap Copy invite instead. 🔗", 3600);
+            }
+            try {
+              var p = navigator.share({ title: title, text: text, url: url });
+              if (p && typeof p.catch === "function") p.catch(function (err) {
+                if (err && err.name === "AbortError") return; // they opened it and closed it themselves — fine
+                refused();
+              });
+            } catch (e) { refused(); }
+          } else {
+            var all493b = $("lvShareAll493");
+            if (all493b) { all493b.hidden = false; moreB.style.display = "none"; }
           }
-          try {
-            var p = navigator.share({ title: title, text: text, url: url });
-            if (p && typeof p.catch === "function") p.catch(function (err) {
-              if (err && err.name === "AbortError") return; // they opened it and closed it themselves — fine
-              refused();
-            });
-          } catch (e) { refused(); }
         });
         var cb = $("lvShareCopy");
         if (cb) cb.addEventListener("click", function () { noteLiveShared(); copyInviteText(payload); });
+        var clB = $("lvShareCopyLink");
+        if (clB) clB.addEventListener("click", function () { noteLiveShared(); copyInviteText(url, "🔗 Live link copied — paste it anywhere to bring people straight here."); });
         // The social row: buttons, not bare app links — every tap
         // copies the invite FIRST and reports it on the status line,
         // then opens the app through its HTTPS share form (Facebook,
@@ -19038,7 +19246,15 @@
         if (scB) scB.addEventListener("click", function () {
           appShareTap("https://www.snapchat.com/scan?attachmentUrl=" + encodeURIComponent(url), "Snapchat", "👻", true);
         });
-        $("sheet").querySelectorAll(".share-apps a").forEach(function (a) {
+        var msB = $("lvShareMs");
+        if (msB) msB.addEventListener("click", function () {
+          // [RP-V7.493] Messenger has no app-id-free web share form
+          // (its dialog/send requires a registered Facebook app id),
+          // so it rides the same copy-first flow as Instagram/TikTok:
+          // the invite is on the clipboard, Messenger opens, paste sends it.
+          appShareTap("https://www.messenger.com/", "Messenger", "💬", true);
+        });
+        $("sheet").querySelectorAll(".share-apps a, .share-social a").forEach(function (a) {
           a.addEventListener("click", function () { noteLiveShared(); }); // 🔥 link shares count too
         });
         var smsB = $("lvShareSms");
@@ -19054,6 +19270,68 @@
         if (mailB) mailB.addEventListener("click", function () {
           copyFirstWatch(payload, "Invite copied — paste it into your email 📧");
         });
+        /* [RP-V7.493] The actions stack. Invite people reopens the
+           V7.469 picker (the full follower list with live state);
+           the people row below is its quick form — both emit the
+           same live-invite-send469, so the server's one-per-person-
+           per-live ledger covers both. Report rides the existing
+           live report flow (openOnlineReport), the same one the
+           ••• sheet's Report row uses. */
+        var invB = $("lvShareInvite493");
+        if (invB) invB.addEventListener("click", function () { closeSheet(); rpOpenLiveInvitePicker469(); });
+        var styB = $("lvShareStory493");
+        if (styB) styB.addEventListener("click", function () { closeSheet(); liveShareToStory493(); });
+        var repB = $("lvShareReport493");
+        if (repB) repB.addEventListener("click", function () { closeSheet(); openOnlineReport(Online.players[Live.hostId] || { id: Live.hostId, name: Live.hostName || "Host" }); });
+        var noiB = $("lvShareNoInt493");
+        if (noiB) noiB.addEventListener("click", function () { closeSheet(); liveNotInterested493(); });
+        /* [RP-V7.493] The people row: my followers + the people I
+           follow (the same /api/social/me people the V7.469 picker
+           loads), as tap-to-invite chips. The ledger mirror
+           (Live.invited469 / Live.inviteHere469) paints each chip's
+           state, and a tap emits the picker's exact invite call —
+           no parallel mechanism. */
+        if (canInvite493) {
+          try { Online.socket.emit("live-invite-state469", {}); } catch (e) { }
+          fetch("/api/social/me", { headers: { "Authorization": "Bearer " + myTok493 } }).then(function (r) { return r.json(); }).then(function (j) {
+            var row = $("lvSharePeople493"); if (!row) return; // sheet closed meanwhile
+            if (!j || !j.ok) { row.innerHTML = '<span class="age-note">Couldn\'t load your people — use Invite people below instead.</span>'; return; }
+            var seen = {}, people493 = [];
+            (j.following || []).concat(j.followers || []).forEach(function (b) { if (b && b.id && !seen[b.id]) { seen[b.id] = 1; people493.push(b); } });
+            if (!people493.length) { row.innerHTML = '<span class="age-note">No followers or follows yet — share the link below instead.</span>'; return; }
+            function chipState493(id) {
+              if (Live.inviteHere469 && Live.inviteHere469.indexOf(id) >= 0) return "Watching";
+              if (Live.invited469 && Live.invited469.indexOf(id) >= 0) return "Invited ✓";
+              return "Invite";
+            }
+            row.innerHTML = people493.map(function (b) {
+              var st = chipState493(b.id);
+              return '<button type="button" class="lv-person493" data-p493="' + escHtml(b.id) + '" data-nm493="' + escHtml((b.name || "Member").toLowerCase()) + '"' + (st === "Invite" ? "" : " disabled") + '>' +
+                '<span class="lv-person-av493">' + personFace({ name: b.name || "Member" }) + '</span>' +
+                '<span class="lv-person-nm493">' + escHtml(b.name || "Member") + '</span>' +
+                '<span class="lv-person-st493">' + st + '</span></button>';
+            }).join("");
+            row.querySelectorAll("[data-p493]").forEach(function (chip) {
+              chip.addEventListener("click", function () {
+                var id = chip.getAttribute("data-p493");
+                if (!id || chip.disabled) return;
+                chip.disabled = true;
+                var stEl = chip.querySelector(".lv-person-st493"); if (stEl) stEl.textContent = "Invited ✓"; // optimistic — the state push confirms it (or corrects it)
+                if (Live.invited469 && Live.invited469.indexOf(id) < 0) Live.invited469.push(id);
+                try { Online.socket.emit("live-invite-send469", { toAccountId: id }); } catch (e) { }
+              });
+            });
+            var search493 = $("lvSharePeopleSearch493");
+            if (search493) search493.addEventListener("input", function () {
+              var q = (search493.value || "").trim().toLowerCase();
+              row.querySelectorAll("[data-p493]").forEach(function (chip) {
+                chip.style.display = (!q || (chip.getAttribute("data-nm493") || "").indexOf(q) >= 0) ? "" : "none";
+              });
+            });
+          }).catch(function () {
+            var row = $("lvSharePeople493"); if (row) row.innerHTML = '<span class="age-note">Couldn\'t load your people — use Invite people below instead.</span>';
+          });
+        }
       }
       /* [RP-V7.47] Share this ROOM — the app's existing share panel
          (same sheet, same lvShare ids, same copy-first social row,
@@ -30519,6 +30797,13 @@
       function reelShare(item) {
         var text = "🎬 " + (item.caption ? item.caption + " — " : "") + "watch this Reel on Rizz Plaza";
         var url = (item && item.server && window.rpShareUrl269 && window.rpShareUrl269("reel", item.id)) || "https://rizzplaza.com"; // [RP-V7.269] a server reel shares its own share page (real OG card); a device-only reel has no server record to point at, so it keeps the Plaza link
+        // [RP-V7.493] a server reel's video is a real file: when the
+        // phone's share sheet takes files, share the video itself —
+        // the helper falls back to the link share below on any "no".
+        if (item && item.server && item.url) {
+          rpShareMediaFile493(item.url, "video/mp4", "rizzplaza-reel.mp4", { title: "Rizz Plaza 🎬 Reel", text: text, url: url });
+          return;
+        }
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
           navigator.share({ title: "Rizz Plaza 🎬 Reel", text: text, url: url }).catch(function () { });
           return;
