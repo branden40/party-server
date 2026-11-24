@@ -35273,6 +35273,21 @@ window.RpKeyUpgrade = function (el, g, opts327) {
       ov.classList.add("rp-keyed");
       (ov.__rpKeys = ov.__rpKeys || []).push(h);
     }
+    /* [RP-V7.495] the float/burst keyed canvas takes the SAME hairline
+       melt the big stage's canvas got in V7.492 (rpMeltCanvas406: 5%/6%
+       feathers + the 3px dead zone that takes the outer rows to exactly
+       transparent). Until now this path — every in-live small/mid film
+       show — kept only the V7.337 stylesheet feather (11% X / 13% Y),
+       whose deep crossed ramps carve the keyed frame into a
+       rounded-corner rectangle card crouching at the bottom of the
+       live (Branden, Nov 24, 2026: "the heart is boxed in because it
+       don't overlap the screen"). The inline melt supersedes the
+       stylesheet rule on this element, exactly as it does on the stage
+       canvas, and rpMeltCanvas406 re-aims itself as the seat settles
+       (fixAspect) via its own retries + ResizeObserver. Off-live shows
+       never reach here (RpKeyUpgrade returns null before attach), so
+       post/reel presentation is untouched. */
+    try { if (window.rpMeltCanvas406) window.rpMeltCanvas406(cv); } catch (e) { }
     return h;
   } catch (e) { return null; }
 };
