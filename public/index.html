@@ -27890,10 +27890,13 @@
           '<div class="pd-sub" id="' + k + 'AudBox" hidden>' +
             [["everyone", rpT("pd_aud_everyone")], ["followers", rpT("pd_aud_followers")], ["onlyme", "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"5\" y=\"10.5\" width=\"14\" height=\"9.5\" rx=\"2.5\"/><path d=\"M8 10.5V8a4 4 0 0 1 8 0v2.5\"/><circle cx=\"12\" cy=\"15.2\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg> " + rpT("pd_aud_onlyme")]].map(function (a) { return '<button type="button" class="pd-aud' + (postMeta156.audience === a[0] ? " on" : "") + '" data-pdaud="' + a[0] + '">' + a[1] + '</button>'; }).join("") +
           '</div>' +
-          (opts.remix ? '<div class="pd-row" style="cursor:default;"><span class="pd-ic">⚙</span><span class="pd-lb">' + rpT("pd_more_options") + '</span></div><div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_allow_remix") + '</span><button type="button" class="pd-aud' + (postMeta156.remix ? " on" : "") + '" id="' + k + 'RemixBtn">' + (postMeta156.remix ? rpT("about_on") : rpT("pd_off")) + '</button></div><div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_allow_downloads") + '</span><button type="button" class="pd-aud' + (postMeta156.downloads ? " on" : "") + '" id="' + k + 'DlBtn316">' + (postMeta156.downloads ? rpT("about_on") : rpT("pd_off")) + '</button></div>' : "") + /* [RP-V7.316] the Sharing area: both TikTok-style switches together under More options */
+          '<button type="button" class="pd-row" id="' + k + 'MoreBtn501" aria-expanded="false"><span class="pd-ic">⚙</span><span class="pd-lb">' + rpT("pd_more_options") + '</span><span class="pd-chv" id="' + k + 'MoreChv501">›</span></button>' + /* [RP-V7.501] More options is a real control now: it expands/collapses the advanced rows wrapped in MoreBox501 (default collapsed, TikTok-style). It used to render only when opts.remix was set, as a cursor:default label with NO handler — a dead control — while the toggles sat bare beneath it (and the photo composer, which passes no remix option, had the bare toggles with no header at all). The toggles, their postMeta156 values and their defaults are untouched. */
+          '<div id="' + k + 'MoreBox501" hidden>' +
+          (opts.remix ? '<div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_allow_remix") + '</span><button type="button" class="pd-aud' + (postMeta156.remix ? " on" : "") + '" id="' + k + 'RemixBtn">' + (postMeta156.remix ? rpT("about_on") : rpT("pd_off")) + '</button></div><div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_allow_downloads") + '</span><button type="button" class="pd-aud' + (postMeta156.downloads ? " on" : "") + '" id="' + k + 'DlBtn316">' + (postMeta156.downloads ? rpT("about_on") : rpT("pd_off")) + '</button></div>' : "") + /* [RP-V7.316] the Sharing area: both TikTok-style switches together under More options */
           '<div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_subs_only") + '</span><button type="button" class="pd-aud' + (postMeta156.subsOnly ? " on" : "") + '" id="' + k + 'SubsBtn296">' + (postMeta156.subsOnly ? rpT("about_on") : rpT("pd_off")) + '</button></div>' + /* [RP-V7.296] the fan-subscriptions toggle: set at creation, the server gates every payload */
           '<div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_club_only") + '</span><button type="button" class="pd-aud' + (postMeta156.clubOnly ? " on" : "") + '" id="' + k + 'ClubBtn298">' + (postMeta156.clubOnly ? rpT("about_on") : rpT("pd_off")) + '</button></div>' + /* [RP-V7.298] the fan-clubs toggle: same pattern, the server gates every payload */
           (opts.gaming ? '<div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_gaming") + '</span><button type="button" class="pd-aud' + (postMeta156.gaming ? " on" : "") + '" id="' + k + 'GamingBtn">' + (postMeta156.gaming ? rpT("about_on") : rpT("pd_off")) + '</button></div>' : "") + /* [RP-GAMING] the Gaming toggle: reel composer only (the photo composer never passes opts.gaming); set at creation, the server stores category "gaming" */
+          '</div>' + /* [RP-V7.501] end MoreBox501 — the shoutout row below stays outside the collapsible, exactly as before */
           (postMeta156.shoutoutId ? '<div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpTf("pd_shoutout_for", { name: escHtml("@" + (postMeta156.shoutoutBuyer || rpT("pd_a_member"))) }) + '</span><button type="button" class="pd-aud" id="' + k + 'ShoutUnlink300">' + rpT("pd_unlink") + '</button></div>' : "") + /* [RP-V7.300] the armed fulfill link, set from the Earn inbox */
           '<button type="button" class="pd-row" id="' + k + 'ShareRow"><span class="pd-ic">↗</span><span class="pd-lb">' + rpT("pd_share_to") + '</span><span class="pd-val">' + rpT("pd_invite_friends") + '</span><span class="pd-chv">›</span></button>' +
           '</div>';
@@ -27903,6 +27906,13 @@
         var men = $(k + "MenBtn"); if (men) men.addEventListener("click", function () { postMentionOpen156(k, capId, reopen); });
         ["Loc", "Link", "Aud", "Collab"].forEach(function (p) { // [RP-V7.453] Collab rides the same row/box/input toggle idiom
           var row = $(k + p + "Row"); if (row) row.addEventListener("click", function () { var b = $(k + p + "Box"); if (b) { b.hidden = !b.hidden; var i = $(k + p + "Input"); if (i && !b.hidden) i.focus(); } });
+        });
+        var mb501 = $(k + "MoreBtn501"); // [RP-V7.501] expand/collapse only — writes happen on the tap itself, never on render
+        if (mb501) mb501.addEventListener("click", function () {
+          var bx501 = $(k + "MoreBox501"); if (!bx501) return;
+          bx501.hidden = !bx501.hidden;
+          mb501.setAttribute("aria-expanded", bx501.hidden ? "false" : "true");
+          var ch501 = $(k + "MoreChv501"); if (ch501) ch501.textContent = bx501.hidden ? "›" : "⌄";
         });
         var sheet = $("sheet");
         if (sheet) sheet.querySelectorAll("[data-pdaud]").forEach(function (b) { b.addEventListener("click", function () { postMeta156.audience = b.getAttribute("data-pdaud"); var v = $(k + "AudVal"); if (v) v.textContent = postAudText156(); sheet.querySelectorAll("[data-pdaud]").forEach(function (x) { x.classList.toggle("on", x === b); }); }); });
@@ -27989,6 +27999,7 @@
       function openMomComposer() {
         // [RP-V7.211] teen gate removed — the Moments section (Photos + Reels) is open to teen accounts
         var ci0 = $("momCapInput"); if (ci0) momCapDraft123 = ci0.value; // [RP-V7.123]
+        if (!Moments.pendingSound && Moments.fromCam156 && window.rpSndAttached501) { var at501 = window.rpSndAttached501(); if (at501) Moments.pendingSound = { trackId: at501.trackId, start: at501.start || 0, musicVol: at501.musicVol }; } // [RP-V7.501] a sound attached on the camera rides into the photo composer — the file-pick path never copied it (only the snap path, capturePhoto, did), so picked photos posted silent
         var picks = Moments.pendingPhotos || [];
         var has = picks.length > 0;
         var strip = "";
@@ -28011,6 +28022,7 @@
             (Online.myPhotoUrl ? '<button class="btn-mini" id="btnMomUseOnline">' + rpT("composer_use_online") + '</button>' : "") +
             (has && momToken() ? '<button class="btn-mini" id="btnMomAi245">' + rpT("composer_ai_filter") + '</button>' : "") +
           '</div>' +
+          '<button type="button" class="pd-row" id="momSndRow501"><span class="pd-ic">🎵</span><span class="pd-lb">' + (Moments.pendingSound ? escHtml((window.rpTrackName ? window.rpTrackName(Moments.pendingSound.trackId) : null) || rpT("cam_sound_attached")) : rpT("cam_add_sound")) + '</span>' + (Moments.pendingSound ? '<span class="pd-val" id="momSndX501" role="button" aria-label="' + rpT("cedit_remove") + '">\u2715</span>' : '<span class="pd-chv">\u203A</span>') + '</button>' + // [RP-V7.501] the photo composer never had a sound row at all
           postDetailsHtml156("mom", {}) +
           momDraftsHtml156() +
           '<div class="pd-bar"><button type="button" class="pd-drafts" id="btnMomDraft156">' + rpT("composer_drafts") + '</button><button type="button" class="pd-post" id="btnMomPublish">' + (picks.length > 1 ? rpTf("composer_post_n", { n: picks.length }) : rpT("act_post")) + '</button></div>' +
@@ -28040,6 +28052,14 @@
           momPublish(cap);
         });
         postDetailsWire156("mom", "momCapInput", function () { openMomComposer(); }); // [RP-V7.156]
+        var msr501 = $("momSndRow501"); // [RP-V7.501]
+        if (msr501) msr501.addEventListener("click", function (e) {
+          if (e.target && e.target.id === "momSndX501") return;
+          window.rpSndOnUse501 = function (att) { if (att) Moments.pendingSound = { trackId: att.trackId, start: att.start || 0, musicVol: att.musicVol }; openMomComposer(); };
+          if (window.rpSndOpen) window.rpSndOpen();
+        });
+        var msx501 = $("momSndX501");
+        if (msx501) msx501.addEventListener("click", function (e) { e.stopPropagation(); Moments.pendingSound = null; if (window.rpSndClear501) window.rpSndClear501(); openMomComposer(); });
         momDraftsWire156(); // [RP-V7.156]
         var mdb156 = $("btnMomDraft156"); if (mdb156) mdb156.addEventListener("click", momSaveDraft156); // [RP-V7.156]
       }
@@ -28069,7 +28089,7 @@
         /* [RP-V7.123] multi-pick: every chosen image is downscaled with
            the same canvas recipe as before and appended to the pick
            list IN PICK ORDER, up to 35 photos per post [RP-V7.125]. */
-        if (Moments.camUpload156) { Moments.fromCam156 = true; Moments.camUpload156 = false; try { closeCamera(); } catch (e) { } } else Moments.fromCam156 = false; // [RP-V7.157]
+        if (Moments.camUpload156) { Moments.fromCam156 = true; Moments.camUpload156 = false; try { if (window.rpCloseCamera) window.rpCloseCamera(); } catch (e) { } } else Moments.fromCam156 = false; // [RP-V7.157] [RP-V7.501] was a bare closeCamera() call: that function only exists inside the camera module, so the call threw (silently caught) and the camera screen (z-index 80) stayed open over this composer (overlay z-index 50) — the same fix the reel input got in V7.191
         var files = Array.prototype.slice.call(momInput.files || []);
         momInput.value = "";
         var imgs = files.filter(function (f) { return /^image\//.test(f.type || ""); });
@@ -31841,6 +31861,7 @@
       }
       function openReelComposer() {
         // [RP-V7.211] teen gate removed — teens post reels through the normal composer
+        if (!Reels.pendingSound && Reels.pendingCamSound501) { Reels.pendingSound = Reels.pendingCamSound501; Reels.pendingCamSound501 = null; } // [RP-V7.501] adopt the camera-upload sound stash (consumed on first composer open after the pick)
         reelDuetCleanup();
         var has = !!Reels.pendingBlob;
         var stage = Reels.stage || "pick";
@@ -31905,6 +31926,7 @@
               '<textarea class="pd-desc" id="reelCapInput" maxlength="140" rows="3" placeholder="' + rpT("composer_desc_ph") + '" autocomplete="off"></textarea>' +
               '<span class="pd-thumb pd-thumb-empty">🎬</span>' +
             '</div>' +
+            '<button type="button" class="pd-row" id="reelSndRow501"><span class="pd-ic">🎵</span><span class="pd-lb">' + (Reels.pendingSound ? escHtml((window.rpTrackName ? window.rpTrackName(Reels.pendingSound.trackId) : null) || rpT("cam_sound_attached")) : rpT("cam_add_sound")) + '</span>' + (Reels.pendingSound ? '<span class="pd-val" id="reelSndX501" role="button" aria-label="' + rpT("cedit_remove") + '">\u2715</span>' : '<span class="pd-chv">\u203A</span>') + '</button>' + // [RP-V7.501] the reel composer never had a sound row at all
             postDetailsHtml156("reel", { remix: true, gaming: true }) /* [RP-GAMING] the reel composer carries the Gaming toggle */ +
             '<div class="pd-bar"><button type="button" class="pd-drafts" id="btnReelDraft">' + rpT("composer_drafts") + '</button><button type="button" class="pd-post" id="btnReelPublish">' + rpT("act_post") + '</button></div>' +
             '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" id="btnReelBackPrev" type="button">' + rpT("rc_back_preview") + '</button></div>';
@@ -32031,6 +32053,14 @@
             Reels.stage = "preview"; openReelComposer();
           });
           postDetailsWire156("reel", "reelCapInput", function () { openReelComposer(); }); // [RP-V7.156]
+          var rsr501 = $("reelSndRow501"); // [RP-V7.501]
+          if (rsr501) rsr501.addEventListener("click", function (e) {
+            if (e.target && e.target.id === "reelSndX501") return;
+            window.rpSndOnUse501 = function (att) { if (att) Reels.pendingSound = { trackId: att.trackId, start: att.start || 0, musicVol: att.musicVol, origVol: att.origVol }; var c501 = $("reelCapInput"); if (c501) Reels.pendingCaption = (c501.value || "").trim(); openReelComposer(); };
+            if (window.rpSndOpen) window.rpSndOpen();
+          });
+          var rsx501 = $("reelSndX501");
+          if (rsx501) rsx501.addEventListener("click", function (e) { e.stopPropagation(); Reels.pendingSound = null; if (window.rpSndClear501) window.rpSndClear501(); var c501 = $("reelCapInput"); if (c501) Reels.pendingCaption = (c501.value || "").trim(); openReelComposer(); });
         }
         $("sheet").querySelectorAll("[data-dresume]").forEach(function (b) { b.addEventListener("click", function () { reelResumeDraft(b.getAttribute("data-dresume")); }); });
         $("sheet").querySelectorAll("[data-dpost]").forEach(function (b) { b.addEventListener("click", function () { reelPostDraft(b.getAttribute("data-dpost")); }); });
@@ -32364,7 +32394,7 @@
       if (reelInput) reelInput.addEventListener("change", function () {
         var f = reelInput.files && reelInput.files[0];
         reelInput.value = "";
-        if (window.rpCamUpPick157) { window.rpCamUpPick157 = false; try { if (window.rpCloseCamera) window.rpCloseCamera(); } catch (e) { } } // [RP-V7.191] was a bare Cam reference — Cam is local to the camera module, so this threw and killed every file pick since V7.157
+        if (window.rpCamUpPick157) { window.rpCamUpPick157 = false; var at501 = window.rpSndAttached501 && window.rpSndAttached501(); if (at501 && !Reels.pendingSound) Reels.pendingCamSound501 = { trackId: at501.trackId, start: at501.start || 0, musicVol: at501.musicVol, origVol: at501.origVol }; /* [RP-V7.501] a sound attached on the camera rides the upload pick into the reel — before, only the recorded path (editorCommit) ever set Reels.pendingSound, so picked videos posted silent. It rides as a stash, not pendingSound itself: reelAcceptVideoFile's reelClearPending() wipes pendingSound, and openReelComposer adopts the stash on its next open (the accept path always opens it). */ try { if (window.rpCloseCamera) window.rpCloseCamera(); } catch (e) { } } // [RP-V7.191] was a bare Cam reference — Cam is local to the camera module, so this threw and killed every file pick since V7.157
         reelAcceptVideoFile(f);
       });
 
@@ -86128,7 +86158,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       background: transparent; color: rgba(255,255,255,.65); font-size: 21px;
     }
     .snd-fav.on { color: #ffd166; }
-    #sndTrimBox { background: rgba(255,255,255,.05); border-radius: 14px; padding: 12px; margin-top: 6px; }
+    #sndTrimBox { position: sticky; bottom: 0; z-index: 3; background: #1b1b26; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 -10px 28px rgba(0,0,0,.5); border-radius: 14px; padding: 12px; margin-top: 6px; } /* [RP-V7.501] sticky footer: the trim + Use bar pins to the panel's bottom edge the moment a track is picked. Before, the box sat after the ENTIRE 1,000-track list in a whole-panel scroller (rig-measured 132,866px of content in a 591px viewport; the attach button rendered 132,916px below the panel top), so a member who previewed a track at the top could never reach it and the sound never attached. */
     #sndTrimBox[hidden] { display: none; }
     #sndTrimBox label, .ed-row label { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; color: rgba(255,255,255,.8); margin-bottom: 6px; }
     .rp-panel input[type="range"] { width: 100%; accent-color: #fe2c2c; }
@@ -86548,7 +86578,9 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     function paintFavs() {
       document.querySelectorAll(".rp-sndfav, .snd-fav").forEach(function (b) {
         var on = !!Snd.favs[b.getAttribute("data-tid")];
-        b.classList.toggle("on", on); b.textContent = on ? "★" : "☆";
+        b.classList.toggle("on", on);
+        var ch501 = on ? "★" : "☆";
+        if (b.textContent !== ch501) b.textContent = ch501; // [RP-V7.501] guarded write: paintFavs ticks every 500ms while the picker is open and used to rewrite every star's text node even when nothing had changed — needless DOM churn inside the scrolling list
       });
     }
     function trackOrder() {
@@ -86643,10 +86675,13 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     }
     function closePicker() {
       el("sndSheet").classList.remove("open"); el("sndSheet").setAttribute("aria-hidden", "true");
+      window.rpSndOnUse501 = null; // [RP-V7.501] a composer hook only lives until the picker closes (the Use handler captures it before calling closePicker)
       if (Snd.owner === "pick") sndStop("pick");
       try { AudioFX.releaseMusic("sndpick"); } catch (e) { }
     }
     window.rpSndOpen = openPicker;
+    window.rpSndAttached501 = function () { return Snd.attached; }; // [RP-V7.501] the photo/reel composers read the camera's attached sound through here
+    window.rpSndClear501 = function () { Snd.attached = null; updatePill(); }; // [RP-V7.501] a composer removing its sound clears the camera copy too, so it cannot be re-adopted
     function updatePill() {
       var p = el("camSoundPill"); if (!p) return;
       if (Snd.attached) { var t = trackById(Snd.attached.trackId); if (!t && Snd.orig[Snd.attached.trackId]) t = { name: Snd.orig[Snd.attached.trackId].name }; /* [RP-V7.335] */ p.innerHTML = "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M9.5 18.3V6.2l10-2v11.3\"/><circle cx=\"6.8\" cy=\"18.3\" r=\"2.7\"/><circle cx=\"16.8\" cy=\"15.5\" r=\"2.7\"/></svg>"; p.appendChild(document.createTextNode(" " + (t ? t.name : rpT("cam_sound_attached")))); p.classList.add("has"); }
@@ -87301,6 +87336,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       });
       el("sndUse").addEventListener("click", function () {
         if (!Snd.pickId) return;
+        var hook501 = window.rpSndOnUse501 || null; window.rpSndOnUse501 = null; // [RP-V7.501] capture before closePicker clears it
         Snd.attached = { trackId: Snd.pickId, start: Snd.pickStart || 0, musicVol: 0.8, origVol: 1 };
         if (!Snd.signedIn) {
           Snd.recents = [Snd.pickId].concat(Snd.recents.filter(function (x) { return x !== Snd.pickId; })).slice(0, 12);
@@ -87308,6 +87344,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         }
         closePicker(); updatePill();
         if (el("camEditSheet").classList.contains("open")) openEditor();
+        if (hook501) { try { hook501(Snd.attached); } catch (e) { } } // [RP-V7.501] a composer that opened the picker gets its pending sound synced + re-renders
       });
       /* editor */
       el("camEditChange").addEventListener("click", function () { openPicker(); });
