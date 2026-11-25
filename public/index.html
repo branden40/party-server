@@ -28,7 +28,7 @@
     <title>Rizz Plaza</title>
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
-<meta name="rp-build" content="RP-V7.518" />
+<meta name="rp-build" content="RP-V7.519" />
 <!-- [RP-V7.506] FAN CLUB FILTER (Branden, Nov 24, 2026 — his Loozecannon TikTok LIVE recording: "I need that filter join my club"): a Plaza-ORIGINAL animated mascot (inline SVG, drawn in code: round black body, red backwards cap, gold star badge, waving arm — never TikTok's character, never anyone's likeness) bobbing over a glowing red "Join my Fan Club" pill that floats at the top of the host's live for the whole show — under the top bar, stacked below the V7.490 label when both are up. It is part of the show, not lv-idle chrome: like the deco layer it never auto-fades. TAP = JOIN through the existing V6.5 live fan-club path (rpFanJoin65 -> joinFan -> the room fan-join proto; free, instant, no confirm, the host's client assigns the fan number) — the identical call the live More-sheet row and the host-card buttons make. Joined viewers see their real state ("Fan No. N" once the host's fan-count lands, "Fan Club member" before it); the host sees a non-tappable preview of their own pill; signed-out viewers see it display-only. The host turns it off/on for their live from the More sheet ("Fan Club filter" row, default ON); the flag rides the V7.490 deco room state (fanFilter on liveDeco490, broadcast on live-deco490, pulled by late joiners via live-deco-get490, dies with the live; a viewer renders the pill only once that payload has landed, so a host's OFF never flashes at a late joiner — the 5s deco tick re-asks until it lands) — the server change is exactly that one field plus one host-only socket intent (live-fanfilter-set506). Battles: the pill dresses the live you are in, half-width over your host's side of the split — the fan-join proto is room-local and every existing fan button joins only that host, so the opponent's pill is not rendered (joining them happens from their own live, as today). Church lives included: a fan club is not selling or auctions (the V7.490 deco precedent — gifting is likewise allowed). No counts on the pill (the existing live fan buttons show none either). New strings fanpill_*506 / more_fanfilter506 in all 9 languages. Everything V7.505 preserved. -->
 <!-- [RP-V7.490] LIVE LABEL + LIVE STICKERS + 2 GIFTS (Branden, Nov 23, 2026): (1) LIVE LABEL — the host sets a short custom label (plain text, max 40 chars) that rides as a bold banner near the top of the live screen for the host AND every viewer, modeled on the "MEDIA HIGHLIGHTS & RECAPS" banner on TikTok recap clips; set/clear from the host's ••• sheet ("Live label" row). (2) LIVE STICKERS "like TikTok" + Instagram-style cards — the host sticks up to 3 stickers on the live from the ••• sheet ("Stickers" row): a glyph pack of 12 large emoji (🔥 ⭐ ❤️ 🎉 👑 🎵 ⚡ 💯 🎁 🙌 😂 🎤) AND Instagram-style white rounded cards (❓ Ask me anything · 📊 POLL · ⏰ COUNTDOWN · #️⃣ hashtag (host text, max 24) · 📍 location (host text, max 24) · 🎵 MUSIC), rendered as styled DOM, fixed slots in the corners/lower area, never center-face. Label + stickers live on the server room state (liveDeco490, keyed by live key, beside the V7.389 show note), broadcast over the live socket flow (live-deco490; battle rooms cross-emit like battle306Emit so each host's deco lands on their own side of the split), late joiners pull it with live-deco-get490 on the Lk389 sync, and everything clears when the live ends. The banner layer is NOT part of the lv-idle chrome — it never auto-fades. All user text renders via textContent only. Works in every live type (a label/sticker is not commerce — church lives included). (3) +2 GIFTS: shellsensei "Shell Sensei" 440 medium (film 5.583 s) + auraclash "Aura Clash" 2200 big (film 4.500 s) — catalog 122 -> 124, prices unique; client GIFT_SHOP + GIFT_FILM_IDS, server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entries (the V7.474 film clock self-corrects past the tier defaults: medium 8000 / big 10000 both exceed film + 250 ms). Everything V7.489 preserved. --> <!-- [RP-V7.489] WEEKLY GIFTS (Nov 23, 2026): +5 gifts, catalog 117 -> 122, all prices unique — lanternturtle "Lantern Turtle" 15 small, discosnail "Disco Snail" 88 small, tornadodancer "Tornado Dancer" 370 medium, crystaloctopus "Crystal Octopus" 690 medium, wingedlion "Winged Lion" 1700 big; each with an HD film (giftfx-<id>.mp4) + animated art; ids added to GIFT_FILM_IDS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly. --> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. --> <!-- [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE (Branden, Nov 22, 2026): his recording showed the Home For You pager landing on pure black for ~5 s and a reel sitting frozen; ordered corrected "like the other reels", chose the grid, added "Plus swipe", then scoped it himself — "This is on the for you button": the FOR YOU tab's mixed stream (reels + photo posts + text posts, the pager's own homeItems() list, same order) now paints as a poster/thumbnail grid in #homeGrid488 (fillGrid tiles — reel posters from V7.482, photo ~720px variants from V7.485, text tiles in the RPText278 style), pre-warmed the V7.482 way (reel posters already ride rpPrewarm482; photo variants now warm inside pagerPhotosFetch123; a scroll-ahead wire keeps the window ahead of the member). Tap a tile -> the sheet player (reels play with the full V7.462/V7.486 rail incl. the handshake; photos and text posts open in the same media viewer they always did); PLUS SWIPE inside the player walks the GRID'S list across types (reel -> photo -> text -> reel) via a mixed session in the lightbox (lbHomeNav488) built on the V7.461 gesture wire — every landing behaves exactly as if tapped (view-once is the existing rpViewsPing per-session dedupe for reels and photo posts; text posts never ping, as today), no wrap at the ends, neighbours warm through the V7.483 fetcher hook, Back returns to the grid at the same scroll position (the grid is never unloaded under the sheet). FOLLOWING KEEPS ITS PAGER, byte for byte: renderHomePager branches on the tab — foryou goes to rpHomeGridRender488, following runs the original pager body untouched, and the V7.468 snap machinery retires only where the pager no longer renders (For You). One mapper repair rides along: pagerPhotoMap123 silently DROPPED text posts (a text post has no photo URLs, and the mapper returned null on an empty url list), so text posts never reached the Home pager at all; the mapper now carries them (kind/text/tstyle ride the item, plus photoThumb/thumbUrls for the tiles), so no content type is missing from Home. GLOW RULE CHANGE (Branden, same night, superseding the Nov 6 exception): "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing" — the Home strip's Plaza tab loses its always-on strongest-red glow; its glow rule now keys off .on like every other tab (the true-red look is kept for the active state; Following/For You and the bottom bar are untouched). Client-only; the V7.487 server already returns every field the grid reads. -->
 <!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
@@ -93928,7 +93928,7 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
       if (e.booster > 0) html += '<span class="bchip' + (mine ? " mine" : "") + '">⚡ ' + nm + ' · ×' + (e.boosterMult || 2) + ' <span class="cd">' + fmtCd(e.booster) + "</span></span>";
       if (e.freeze > 0) html += '<span class="bchip frozen">🔨 ' + nm + ' · Frozen <span class="cd">' + fmtCd(e.freeze) + "</span></span>";
     });
-    if (B.mission) {
+    if (B.mission && B.mission.kind !== "gifters") { // [RP-V7.519] the gifter-target variant renders its banner/pill/ticker in the 519 layer instead
       if (B.mission.active) html += '<span class="bchip mission">🎁 Bonus Mission · First Gift ×3 <span class="cd">' + fmtCd(B.mission.endsAt - now) + "</span></span>";
       else if (B.mission.opensAt > now && B.mission.opensAt < B.endsAt) html += '<span class="bchip mission">🎁 Bonus Mission soon…</span>';
     }
@@ -94023,8 +94023,9 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
     try { if (window.__rpBat306SetPts) window.__rpBat306SetPts(p); } catch (e) { }
     var ev = p.ev;
     if (ev && ev.kind === "gift") {
-      var multTxt = (ev.mults || []).indexOf("gloves5") >= 0 ? " · 🥊 GLOVES ×5!" : ((ev.mults || []).indexOf("firstgift3") >= 0 ? " · 🎁 First Gift ×3" : ((ev.mults || []).indexOf("boost3") >= 0 ? " · ⚡ ×3" : ((ev.mults || []).indexOf("boost2") >= 0 ? " · ⚡ ×2" : "")));
-      if ((ev.mults || []).indexOf("frozen") >= 0) feedLine("🔨 " + sideName(ev.side) + "'s gift landed but the freeze kept it at 0 points.");
+      var multTxt = (ev.mults || []).indexOf("rush3") >= 0 ? " · ⚡ RUSH ×3!" : ((ev.mults || []).indexOf("gloves5") >= 0 ? " · 🥊 GLOVES ×5!" : ((ev.mults || []).indexOf("firstgift3") >= 0 ? " · 🎁 First Gift ×3" : ((ev.mults || []).indexOf("boost3") >= 0 ? " · ⚡ ×3" : ((ev.mults || []).indexOf("boost2") >= 0 ? " · ⚡ ×2" : "")))); // [RP-V7.519] the Rush Window's multiplier is named on the gift line
+      if ((ev.mults || []).indexOf("away") >= 0) feedLine("📶 " + (ev.fromName || "A fan") + "'s " + (ev.giftName || "gift") + " landed while " + sideName(ev.side) + " is reconnecting — it still counts for them, but scores 0 until they're back."); // [RP-V7.519] grace freeze, stated plainly
+      else if ((ev.mults || []).indexOf("frozen") >= 0) feedLine("🔨 " + sideName(ev.side) + "'s gift landed but the freeze kept it at 0 points.");
       else if (ev.pts > 0) feedLine("⚔️ " + (ev.fromName || "A fan") + "'s " + (ev.giftName || "gift") + " scored " + Number(ev.pts).toLocaleString() + " for " + sideName(ev.side) + multTxt);
       if ((ev.mults || []).indexOf("gloves5") >= 0) callout("🥊 GLOVES ×5!", sideName(ev.side) + "'s gift just scored five times");
       if (ev.dropItem && ev.dropSide === B.youSide && isHost()) toast2("🎁 A gift in your battle dropped a booster for you — check your tray!", 3600);
@@ -94035,8 +94036,8 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
     else if (ev && ev.kind === "timer") { callout("⏱️ +30 SECONDS!", sideName(ev.side) + " extended the battle"); }
     else if (ev && ev.kind === "mute") { callout("🔇 " + (ev.byName || sideName(ev.side)) + " muted the other creator"); feedLine("🔇 " + (ev.byName || sideName(ev.side)) + " muted the other creator."); } // [RP-V7.458] TikTok's announcement, in both battle views
     else if (ev && ev.kind === "unmute") { feedLine("🔊 " + (ev.byName || sideName(ev.side)) + " unmuted the other creator."); } // [RP-V7.458] unmute stays quiet — chat line only, no callout
-    else if (ev && ev.kind === "mission-start") { callout("🎁 BONUS MISSION!", "First gift from each fan counts ×3 — 30 seconds!"); feedLine("🎁 BONUS MISSION is open — every fan's first gift counts ×3 for 30 seconds!"); }
-    else if (ev && ev.kind === "mission-end") { feedLine("🎁 Bonus Mission closed."); }
+    else if (ev && ev.kind === "mission-start") { if (ev.missionKind !== "gifters") { callout("🎁 BONUS MISSION!", "First gift from each fan counts ×3 — 30 seconds!"); feedLine("🎁 BONUS MISSION is open — every fan's first gift counts ×3 for 30 seconds!"); } } // [RP-V7.519] the gifter variant's callout/banner live in the 519 layer
+    else if (ev && ev.kind === "mission-end") { if (ev.missionKind !== "gifters") feedLine("🎁 Bonus Mission closed."); } // [RP-V7.519]
     if (p.ended) {
       B.ended = p.ended; B.active = false;
       B.muteA = false; B.muteB = false; // [RP-V7.458] the server cleared the state with the record; mirror it here
@@ -94309,7 +94310,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
       if (e.booster > 0) html += '<span class="bchip' + (mine ? " mine" : "") + '">⚡ ' + nm + ' · ×' + (e.boosterMult || 2) + ' <span class="cd">' + fmtCd(e.booster) + "</span></span>";
       if (e.freeze > 0) html += '<span class="bchip frozen">🔨 ' + nm + ' · Frozen <span class="cd">' + fmtCd(e.freeze) + "</span></span>";
     });
-    if (T.mission) {
+    if (T.mission && T.mission.kind !== "gifters") { // [RP-V7.519] gifter variant UI lives in the 519 layer
       if (T.mission.active) html += '<span class="bchip mission">🎁 Bonus Mission · First Gift ×3 <span class="cd">' + fmtCd(T.mission.endsAt - now) + "</span></span>";
       else if (T.mission.opensAt > now && T.mission.opensAt < T.endsAt) html += '<span class="bchip mission">🎁 Bonus Mission soon…</span>';
     }
@@ -94478,8 +94479,9 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     if (p.stock) T.stock = p.stock;
     var ev = p.ev;
     if (ev && ev.kind === "gift") {
-      var multTxt = (ev.mults || []).indexOf("gloves5") >= 0 ? " · 🥊 GLOVES ×5!" : ((ev.mults || []).indexOf("firstgift3") >= 0 ? " · 🎁 First Gift ×3" : ((ev.mults || []).indexOf("boost3") >= 0 ? " · ⚡ ×3" : ((ev.mults || []).indexOf("boost2") >= 0 ? " · ⚡ ×2" : "")));
-      if ((ev.mults || []).indexOf("frozen") >= 0) feedLine("🔨 " + sideLabel(ev.side) + "'s gift landed but the freeze kept it at 0 points.");
+      var multTxt = (ev.mults || []).indexOf("rush3") >= 0 ? " · ⚡ RUSH ×3!" : ((ev.mults || []).indexOf("gloves5") >= 0 ? " · 🥊 GLOVES ×5!" : ((ev.mults || []).indexOf("firstgift3") >= 0 ? " · 🎁 First Gift ×3" : ((ev.mults || []).indexOf("boost3") >= 0 ? " · ⚡ ×3" : ((ev.mults || []).indexOf("boost2") >= 0 ? " · ⚡ ×2" : "")))); // [RP-V7.519] the Rush Window's multiplier is named on the gift line
+      if ((ev.mults || []).indexOf("away") >= 0) feedLine("📶 " + (ev.fromName || "A fan") + "'s " + (ev.giftName || "gift") + " landed while " + sideLabel(ev.side) + " is reconnecting — it still counts for them, but scores 0 until they're back."); // [RP-V7.519]
+      else if ((ev.mults || []).indexOf("frozen") >= 0) feedLine("🔨 " + sideLabel(ev.side) + "'s gift landed but the freeze kept it at 0 points.");
       else if (ev.pts > 0) feedLine("⚔️ " + (ev.fromName || "A fan") + "'s " + (ev.giftName || "gift") + " scored " + Number(ev.pts).toLocaleString() + " for " + (T.format === "2v2" ? sideLabel(ev.side) : partName(ev.partSock)) + multTxt);
       if ((ev.mults || []).indexOf("gloves5") >= 0) callout("🥊 GLOVES ×5!", sideLabel(ev.side) + "'s gift just scored five times");
       if (ev.dropItem && ev.partSock === myId() && isPart()) toast2("🎁 A gift in your battle dropped a booster for you — check your tray!", 3600);
@@ -94488,8 +94490,8 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     else if (ev && ev.kind === "booster") { callout("⚡ BOOSTER ×" + (ev.mult || 2) + "!", sideLabel(ev.side) + "'s gifts count ×" + (ev.mult || 2) + " for 30s"); }
     else if (ev && ev.kind === "hammer") { callout("🔨 HAMMER HIT!", sideLabel(ev.oppSide) + " loses " + Number(ev.cut || 0).toLocaleString() + " points and is frozen 10s"); feedLine("🔨 " + sideLabel(ev.side) + "'s Hammer smashed " + Number(ev.cut || 0).toLocaleString() + " points off " + sideLabel(ev.oppSide) + " — frozen for 10s!"); }
     else if (ev && ev.kind === "timer") { callout("⏱️ +30 SECONDS!", sideLabel(ev.side) + " extended the battle"); }
-    else if (ev && ev.kind === "mission-start") { callout("🎁 BONUS MISSION!", "First gift from each fan counts ×3 — 30 seconds!"); feedLine("🎁 BONUS MISSION is open — every fan's first gift counts ×3 for 30 seconds!"); }
-    else if (ev && ev.kind === "mission-end") { feedLine("🎁 Bonus Mission closed."); }
+    else if (ev && ev.kind === "mission-start") { if (ev.missionKind !== "gifters") { callout("🎁 BONUS MISSION!", "First gift from each fan counts ×3 — 30 seconds!"); feedLine("🎁 BONUS MISSION is open — every fan's first gift counts ×3 for 30 seconds!"); } } // [RP-V7.519] the gifter variant's callout/banner live in the 519 layer
+    else if (ev && ev.kind === "mission-end") { if (ev.missionKind !== "gifters") feedLine("🎁 Bonus Mission closed."); } // [RP-V7.519]
     if (p.ended) {
       T.ended = p.ended; T.active = false;
       if (ev && ev.kind === "end" && ev.awards && isPart() && ev.awards[myId()]) toast2("🏆 You won a booster for winning the battle — it's in your tray stock!", 4200);
@@ -102686,6 +102688,454 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
 
   setInterval(function () { try { render518(); } catch (e) { } }, 1000);
   try { render518(); } catch (e) { }
+})();
+</script>
+
+<style>
+/* ================= RP-V7.519: BATTLE EVENTS & GRACE (Build C) =================
+   Reconnect-grace pane overlays · Live Goals card + ladder + Gallery
+   chip · gifter-target Bonus Mission banner/ticker + Rush Window ·
+   Plaza Spark. Everything renders SERVER-computed values from the
+   battle306/battle336 payloads (away / mission / rush), the
+   live-goal519 events and the spark519 stamps — nothing is tallied
+   on the client. Black UI, true-red accent, gold for rush/spark. */
+.rp-away519{ position:absolute; inset:0; z-index:6; background:rgba(4,4,10,.78); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; text-align:center; padding:10px; }
+.rp-away-float519{ position:relative; inset:auto; border-radius:14px; padding:12px 14px; min-width:172px; border:1px solid rgba(254,44,44,.45); }
+.rp-spin519{ width:34px; height:34px; border-radius:50%; border:3px solid rgba(255,255,255,.25); border-top-color:#fe2c2c; animation:rpSpin519 .8s linear infinite; }
+@keyframes rpSpin519{ to{ transform:rotate(360deg); } }
+.rp-away-t519{ color:#fff; font-size:15px; font-weight:900; }
+.rp-away-n519{ color:#ffb3b3; font-size:12px; font-weight:700; }
+.rp-away-c519{ color:#ffd23c; font-size:12px; font-weight:900; font-variant-numeric:tabular-nums; }
+.rp-mban519{ position:fixed; top:172px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:45; background:rgba(8,8,14,.9); border:1.5px solid #ffd23c; border-radius:14px; padding:8px 12px; color:#fff; backdrop-filter:blur(12px); box-shadow:0 10px 30px rgba(0,0,0,.5); }
+.rp-mban519.rush{ border-color:#fe2c2c; box-shadow:0 0 22px rgba(254,44,44,.5); }
+.rp-mban-top519{ display:flex; align-items:center; gap:8px; font-weight:900; font-size:13px; }
+.rp-mban-top519 .cd{ margin-left:auto; color:#ffb3b3; font-variant-numeric:tabular-nums; }
+.rp-mpill519{ background:#ffd23c; color:#231a00; border-radius:99px; padding:1px 9px; font-size:11.5px; font-weight:900; white-space:nowrap; }
+.rp-mban519.rush .rp-mpill519{ background:#fe2c2c; color:#fff; }
+.rp-tick519{ overflow:hidden; white-space:nowrap; margin-top:5px; font-size:11px; font-weight:700; color:#ffe9a8; }
+.rp-tick-in519{ display:inline-block; padding-left:100%; animation:rpTick519 14s linear infinite; }
+@keyframes rpTick519{ from{ transform:translateX(0); } to{ transform:translateX(-100%); } }
+#rpCall519{ position:fixed; inset:0; z-index:46; display:none; align-items:center; justify-content:center; pointer-events:none; }
+#rpCall519.on{ display:flex; }
+#rpCall519 .bc-card{ background:rgba(8,8,14,.88); border:2px solid #fe2c2c; color:#fff; border-radius:18px; padding:16px 26px; text-align:center; font-weight:900; font-size:19px; box-shadow:0 18px 50px rgba(0,0,0,.6), 0 0 24px rgba(254,44,44,.4); animation:bcPop306 .3s ease; max-width:86vw; }
+#rpCall519 .bc-card small{ display:block; font-size:12.5px; font-weight:700; color:#ffb3b3; margin-top:3px; }
+#rpLive519{ position:fixed; left:10px; top:118px; z-index:44; display:flex; flex-direction:column; gap:6px; max-width:210px; }
+.rp-goal519{ background:rgba(8,8,14,.88); border:1.5px solid rgba(254,44,44,.6); border-radius:14px; padding:8px 10px; color:#fff; backdrop-filter:blur(10px); }
+.rp-goal519.done{ border-color:#ffd23c; box-shadow:0 0 14px rgba(255,210,60,.45); }
+.rp-goal-top519{ display:flex; align-items:center; gap:9px; }
+.rp-ringwrap519{ position:relative; width:48px; height:48px; flex:none; }
+.rp-ringwrap519 svg{ transform:rotate(-90deg); display:block; }
+.rp-ring-bg519{ fill:none; stroke:rgba(255,255,255,.15); stroke-width:4.5; }
+.rp-ring-fg519{ fill:none; stroke:#fe2c2c; stroke-width:4.5; stroke-linecap:round; }
+.rp-goal519.done .rp-ring-fg519{ stroke:#ffd23c; }
+.rp-ring-art519{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+.rp-ring-art519 img{ width:26px; height:26px; object-fit:cover; border-radius:6px; }
+.rp-goal-nm519{ font-size:12.5px; font-weight:900; line-height:1.15; }
+.rp-goal-ct519{ font-size:11px; font-weight:800; color:#ffb3b3; font-variant-numeric:tabular-nums; }
+.rp-gal519{ margin-top:6px; font-size:10.5px; font-weight:800; color:#ffe9a8; background:rgba(255,210,60,.1); border:1px solid rgba(255,210,60,.35); border-radius:99px; padding:2px 8px; display:inline-block; }
+.rp-sparkbar519{ display:flex; align-items:center; gap:7px; background:rgba(8,8,14,.88); border:1px solid rgba(255,210,60,.5); border-radius:99px; padding:4px 6px 4px 11px; color:#ffd23c; font-size:12px; font-weight:900; backdrop-filter:blur(10px); }
+.rp-sparkbar519 button{ background:#ffd23c; color:#231a00; border:none; border-radius:99px; font-family:inherit; font-weight:900; font-size:11.5px; padding:4px 11px; cursor:pointer; }
+.rp-sparkbar519 button:disabled{ opacity:.4; cursor:default; }
+.rp-goalbtn519{ background:rgba(8,8,14,.88); border:1px solid rgba(254,44,44,.6); color:#fff; border-radius:99px; font-family:inherit; font-weight:900; font-size:11.5px; padding:5px 12px; cursor:pointer; backdrop-filter:blur(10px); }
+#rpGoalLadder519{ position:fixed; right:5px; top:50%; transform:translateY(-50%); z-index:44; display:flex; flex-direction:column; align-items:center; gap:5px; color:#fff; }
+.rp-lad-art519 img{ width:24px; height:24px; object-fit:cover; border-radius:6px; }
+.rp-lad-track519{ position:relative; width:14px; height:150px; border-radius:99px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); overflow:hidden; }
+.rp-lad-fill519{ position:absolute; left:0; right:0; bottom:0; background:linear-gradient(to top,#fe2c2c,#ffd23c); transition:height .5s ease; }
+.rp-lad-rungs519{ position:absolute; inset:0; background:repeating-linear-gradient(to top, transparent 0, transparent 14px, rgba(0,0,0,.55) 14px, rgba(0,0,0,.55) 15px); }
+.rp-lad-ct519{ font-size:10px; font-weight:900; color:#ffb3b3; font-variant-numeric:tabular-nums; text-align:center; }
+#rpGoalSheet519{ position:fixed; left:50%; transform:translateX(-50%); bottom:118px; width:min(620px,96vw); z-index:47; background:rgba(8,8,14,.94); border:1.5px solid rgba(254,44,44,.6); border-radius:14px; padding:10px 12px; color:#fff; backdrop-filter:blur(12px); }
+#rpGoalSheet519 .gs-head{ font-size:12px; font-weight:900; letter-spacing:.05em; color:#ffb3b3; margin:0 2px 8px; }
+#rpGoalSheet519 .gs-gifts{ display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; }
+#rpGoalSheet519 .gs-gift{ flex:0 0 auto; width:64px; background:rgba(255,255,255,.06); border:1.5px solid rgba(255,255,255,.18); border-radius:11px; padding:5px 2px; text-align:center; cursor:pointer; font-family:inherit; color:#fff; }
+#rpGoalSheet519 .gs-gift.on{ border-color:#fe2c2c; background:rgba(254,44,44,.18); }
+#rpGoalSheet519 .gs-gift img{ width:30px; height:30px; object-fit:cover; border-radius:6px; }
+#rpGoalSheet519 .gs-gift .n{ display:block; font-size:9.5px; font-weight:800; line-height:1.1; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#rpGoalSheet519 .gs-gift .p{ display:block; font-size:9px; color:#ffb3b3; font-weight:700; }
+#rpGoalSheet519 .gs-trow{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:7px; }
+#rpGoalSheet519 .gs-tchip{ background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.22); color:#fff; border-radius:99px; font-family:inherit; font-weight:900; font-size:12px; padding:5px 12px; cursor:pointer; }
+#rpGoalSheet519 .gs-tchip.on{ border-color:#fe2c2c; background:rgba(254,44,44,.25); }
+#rpGoalSheet519 .gs-tin{ width:76px; background:#17171f; border:1px solid rgba(255,255,255,.3); border-radius:9px; color:#fff; font-family:inherit; font-weight:800; font-size:13px; padding:5px 8px; }
+#rpGoalSheet519 .gs-actions{ display:flex; gap:6px; margin-top:9px; }
+#rpGoalSheet519 .gs-actions button{ flex:1; border-radius:11px; font-family:inherit; font-weight:900; font-size:12.5px; padding:9px 4px; cursor:pointer; border:1.5px solid rgba(255,255,255,.25); background:rgba(255,255,255,.07); color:#fff; }
+#rpGoalSheet519 .gs-actions button.go{ background:#fe2c2c; border-color:#fe2c2c; }
+.lv-vav{ position:relative; }
+.rp-stackspark519{ position:absolute; left:-4px; bottom:-5px; background:#ffd23c; color:#231a00; font-size:8.5px; font-weight:900; border-radius:99px; padding:0 4px; line-height:1.5; pointer-events:none; white-space:nowrap; }
+.rp-sparkburst519{ position:absolute; inset:0; z-index:7; pointer-events:none; overflow:hidden; }
+.rp-sparkburst519 span{ position:absolute; color:#ffd23c; font-size:17px; animation:rpSparkFly519 1.5s ease-out forwards; text-shadow:0 0 8px rgba(255,210,60,.8); }
+@keyframes rpSparkFly519{ from{ transform:translateY(12px) scale(.6); opacity:0; } 25%{ opacity:1; } to{ transform:translateY(-64px) scale(1.25); opacity:0; } }
+body:not(.live-fs) #rpLive519, body:not(.live-fs) #rpGoalLadder519, body:not(.live-fs) .rp-mban519{ display:none; }
+</style>
+<script>
+/* ================= RP-V7.519: BATTLE EVENTS & GRACE (client) =================
+   Build C of the Nov 25 battle audit — the final battle build.
+   Renders only server-computed state: the battle payloads' away /
+   mission / rush fields, the live-goal519 room events, and the
+   spark519 seat stamps + stock events. The client tallies nothing.
+   Host goal controls emit intents; the server validates (own live
+   room) and owns the count. Battles and goals live only inside
+   regular lives, so auction/church surfaces never see any of it. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function live519() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function myName519() { try { return window.rpMyName ? window.rpMyName() : ""; } catch (e) { return ""; } }
+  function sock519() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function onLive519() { return !!(document.body && document.body.classList.contains("live-fs")); }
+  function toast519(m, t) { try { if (window.toast) window.toast(m, t || 3000); } catch (e) { } }
+  function fmt519(n) { return Number(n || 0).toLocaleString(); }
+  function art519(giftId, size) {
+    try { if (typeof window.rpShowArtHtml === "function") return window.rpShowArtHtml(giftId, "🎁", size || 26); } catch (e) { }
+    return '<img src="img/gifts/' + esc(giftId) + '.webp" alt="" style="width:' + (size || 26) + 'px;height:' + (size || 26) + 'px;object-fit:cover;border-radius:6px">';
+  }
+  function feedLine519(text) {
+    try {
+      var log = $("onlineChatLog"); if (!log) return;
+      var row = document.createElement("div");
+      row.className = "chat-row sys";
+      row.innerHTML = "<span>" + esc(text) + "</span>";
+      log.appendChild(row);
+      while (log.children.length > 60) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    } catch (e) { }
+  }
+  var callTimer519 = 0;
+  function callout519(main, sub) {
+    var ov = $("rpCall519");
+    if (!ov) { ov = document.createElement("div"); ov.id = "rpCall519"; document.body.appendChild(ov); }
+    ov.innerHTML = '<div class="bc-card">' + esc(main) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</div>";
+    ov.classList.add("on");
+    clearTimeout(callTimer519);
+    callTimer519 = setTimeout(function () { ov.classList.remove("on"); }, 2600);
+  }
+
+  /* ---------- state ---------- */
+  var boundSock = null;
+  var last306 = null, last336 = null;
+  var goal519 = null;        // { goal: view|null, gallery: n } for the room I am standing in
+  var goalRoom519 = "";      // the live room that state belongs to
+  var mySpark519 = 0;
+  var sparkById519 = {};     // seat id -> spark stock (server stamps)
+  var evSeen519 = {};        // one-shot battle event dedupe (room copy + host copy)
+  var sheetOpen519 = false, selGift519 = "", selTarget519 = 10;
+
+  function curRoom519() { var L = live519(); return L ? (L.roomId || L.room || "") : ""; }
+  function evOnce519(key) {
+    var now = Date.now();
+    if (evSeen519[key] && now - evSeen519[key] < 4000) return false;
+    evSeen519[key] = now;
+    return true;
+  }
+
+  /* ---------- socket feeds ---------- */
+  function battleEv519(p, ev) {
+    if (!ev || !p.battleId) return;
+    var key = p.battleId + "|" + ev.kind + "|" + (ev.side || "") + "|" + (ev.name || "") + "|" + (ev.endsAt || "");
+    if (ev.kind === "away" && evOnce519(key)) { feedLine519("📶 " + (ev.name || "A host") + "'s connection dropped — the battle waits 30s for them to reconnect."); }
+    else if (ev.kind === "back" && evOnce519(key)) { feedLine519("📶 " + (ev.name || "A host") + " is back — the battle resumes!"); callout519("📶 " + (ev.name || "A host") + " is back!", "The battle resumes"); }
+    else if (ev.kind === "mission-start" && ev.missionKind === "gifters" && evOnce519(key)) { callout519("🎯 BONUS MISSION!", "Get " + (ev.target || 1) + " gifter in 60 seconds to unlock ×3 for the whole room"); feedLine519("🎯 BONUS MISSION: reach " + (ev.target || 1) + " gifter in 60 seconds and the whole room unlocks ×3 gifting points!"); }
+    else if (ev.kind === "mission-end" && ev.missionKind === "gifters" && ev.completed && evOnce519(key)) { feedLine519("🎯 Bonus Mission complete — the Rush Window is open!"); }
+    else if (ev.kind === "rush-start" && evOnce519(key)) { callout519("⚡ RUSH WINDOW!", "Every gift counts ×3 — 30 seconds!"); feedLine519("⚡ RUSH WINDOW is open — every gift scores ×3 for 30 seconds!"); }
+    else if (ev.kind === "rush-end" && evOnce519(key)) { feedLine519("⚡ Rush Window closed."); }
+  }
+  function on306519(p) { if (!p || !p.battleId) return; last306 = p; battleEv519(p, p.ev); }
+  function on336519(p) { if (!p || !p.battleId) return; last336 = p; battleEv519(p, p.ev); }
+  function onGoal519(d) {
+    if (!d) return;
+    goal519 = { goal: d.goal || null, gallery: d.gallery || 0 };
+    goalRoom519 = curRoom519();
+    if (d.ev === "set") feedLine519("🎯 Live goal set: " + ((d.goal && d.goal.target) || 0) + " × " + ((d.goal && d.goal.name) || "gift") + " — help the host get there!");
+    if (d.ev === "clear") feedLine519("🎯 The live goal was cleared.");
+    renderGoal519();
+  }
+  function noteSpark519(p) { if (p && p.id && typeof p.spark519 === "number") sparkById519[p.id] = p.spark519; }
+  function onRoomState519(d) { try { ((d && d.players) || []).forEach(noteSpark519); } catch (e) { } }
+  function bindSock519() {
+    var s = sock519();
+    if (s && boundSock !== s) {
+      boundSock = s;
+      try { s.on("battle306", on306519); } catch (e) { }
+      try { s.on("battle336", on336519); } catch (e) { }
+      try { s.on("live-goal519", onGoal519); } catch (e) { }
+      try { s.on("live-goal-ack519", function (r) { if (r && !r.ok) toast519(r.error === "not-host" ? "Only the host can set the goal." : "That goal didn't save.", 2600); }); } catch (e) { }
+      try { s.on("spark519-state", function (d) { if (d && typeof d.stock === "number") { mySpark519 = d.stock; renderSparkBar519(); } }); } catch (e) { }
+      try { s.on("spark519", onSparkBurst519); } catch (e) { }
+      try { s.on("spark-ack519", function (r) { if (r && !r.ok) toast519(r.error === "no-stock" ? "No Plaza Sparks yet — join lives and back battle winners to earn them!" : "That Spark didn't send.", 2800); }); } catch (e) { }
+      try { s.on("room-state", onRoomState519); } catch (e) { }
+      try { s.on("player-joined", noteSpark519); } catch (e) { }
+    }
+  }
+
+  /* ---------- pane resolution (the V7.517 idioms) ---------- */
+  function hostName519() {
+    var L = live519(); if (!L) return "";
+    try {
+      var dirs = window.rpDirectory ? window.rpDirectory() : [];
+      for (var i = 0; i < dirs.length; i++) if (dirs[i] && dirs[i].hostId === L.hostId && dirs[i].name) return dirs[i].name;
+      for (var j = 0; j < dirs.length; j++) if (dirs[j] && L.roomId && dirs[j].room === L.roomId && dirs[j].name) return dirs[j].name;
+    } catch (e) { }
+    return "";
+  }
+  function hostTile519() {
+    var grid = $("liveGrid"); if (!grid) return null;
+    var tiles = grid.querySelectorAll(".live-tile");
+    if (!tiles.length) return null;
+    var hn = hostName519();
+    if (hn) for (var i = 0; i < tiles.length; i++) { var nm = tiles[i].querySelector(".lt-name"); if (nm && nm.textContent.indexOf(hn) >= 0) return tiles[i]; }
+    return tiles[0];
+  }
+  function tileByName519(name) {
+    var grid = $("liveGrid"); if (!grid || !name) return null;
+    var tiles = grid.querySelectorAll(".live-tile, .rp-team-tile336");
+    for (var i = 0; i < tiles.length; i++) {
+      var nm = tiles[i].querySelector(".lt-name") || tiles[i].querySelector(".rp-bat-name");
+      if (nm && nm.textContent.indexOf(name) >= 0) return tiles[i];
+    }
+    return null;
+  }
+  function hostSide519() {
+    var L = live519(); if (!L || !L.hostId || !last306) return null;
+    if (last306.aId === L.hostId) return "a";
+    if (last306.bId === L.hostId) return "b";
+    return null;
+  }
+  function paneForSide519(side) {
+    var hs = hostSide519();
+    if (!last306) return null;
+    var nm = side === "a" ? last306.aName : last306.bName;
+    if (hs && side === hs) return hostTile519();
+    return tileByName519(nm) || null;
+  }
+
+  /* ---------- reconnect-grace overlays ---------- */
+  function setAway519(pane, entry, now) {
+    if (!pane) return;
+    var el = pane.querySelector(":scope > .rp-away519");
+    if (!entry) { if (el) el.remove(); return; }
+    var secs = Math.max(0, Math.ceil((entry.until - now) / 1000));
+    var sig = entry.name + "|" + secs;
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "rp-away519";
+      pane.appendChild(el);
+    }
+    if (el.__sig519 !== sig) {
+      el.__sig519 = sig;
+      el.innerHTML = '<div class="rp-spin519"></div><div class="rp-away-t519">Reconnecting…</div><div class="rp-away-n519">' + esc(entry.name || "The creator") + ' will be back soon.</div><div class="rp-away-c519">' + secs + 's</div>';
+    }
+  }
+  /* A dropped host's tile leaves the grid with their seat, so the
+     away card also has a layer-level float for when no pane exists. */
+  var awayFloats519 = {};
+  function setAwayFloat519(key, entry, now) {
+    var el = awayFloats519[key];
+    if (el && !el.isConnected) { delete awayFloats519[key]; el = null; }
+    if (!entry) { if (el) { el.remove(); delete awayFloats519[key]; } return; }
+    var secs = Math.max(0, Math.ceil((entry.until - now) / 1000));
+    var sig = entry.name + "|" + secs;
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "rp-away519 rp-away-float519";
+      goalWrap519().appendChild(el);
+      awayFloats519[key] = el;
+    }
+    if (el.__sig519 !== sig) {
+      el.__sig519 = sig;
+      el.innerHTML = '<div class="rp-spin519"></div><div class="rp-away-t519">Reconnecting…</div><div class="rp-away-n519">' + esc(entry.name || "The creator") + ' will be back soon.</div><div class="rp-away-c519">' + secs + 's</div>';
+    }
+  }
+  function renderAway519() {
+    var now = Date.now();
+    var away = [];
+    var active = false;
+    if (last306 && last306.battleId && !last306.ended) { active = true; away = last306.away || []; }
+    else if (last336 && last336.battleId && !last336.ended) { active = true; away = last336.away || []; }
+    var bySide = {}, byName = {};
+    away.forEach(function (a) { bySide[a.side] = a; byName[a.name] = a; });
+    if (last306 && active) {
+      ["a", "b"].forEach(function (side) {
+        var entry = bySide[side] || null;
+        var pane = paneForSide519(side);
+        setAway519(pane, entry, now);
+        setAwayFloat519("s" + side, entry && !pane ? entry : null, now);
+      });
+    } else if (last336 && active) {
+      var grid = $("liveGrid");
+      var matched = {};
+      if (grid) grid.querySelectorAll(".live-tile, .rp-team-tile336").forEach(function (tile) {
+        var nm = tile.querySelector(".lt-name") || tile.querySelector(".rp-bat-name");
+        var tn = nm ? nm.textContent : "";
+        var hit = null;
+        Object.keys(byName).forEach(function (n) { if (tn.indexOf(n) >= 0) { hit = byName[n]; matched[n] = true; } });
+        setAway519(tile, hit, now);
+      });
+      Object.keys(byName).forEach(function (n) { setAwayFloat519("n" + n, matched[n] ? null : byName[n], now); });
+    } else {
+      document.querySelectorAll(".rp-away519").forEach(function (el) { el.remove(); });
+      awayFloats519 = {};
+    }
+  }
+
+  /* ---------- gifter mission banner + rush ---------- */
+  function missionOf519() {
+    if (last306 && last306.battleId && !last306.ended) return { m: last306.mission, rush: last306.rush };
+    if (last336 && last336.battleId && !last336.ended) return { m: last336.mission, rush: last336.rush };
+    return { m: null, rush: null };
+  }
+  function renderMission519() {
+    var st = missionOf519();
+    var show = null;
+    if (st.rush && st.rush.active) show = { rush: true, endsAt: st.rush.endsAt };
+    else if (st.m && st.m.kind === "gifters" && st.m.active) show = { rush: false, m: st.m };
+    var el = $("rpMban519");
+    if (!show) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement("div"); el.id = "rpMban519"; document.body.appendChild(el); }
+    var now = Date.now();
+    var cd = Math.max(0, Math.ceil(((show.rush ? show.endsAt : show.m.endsAt) - now) / 1000));
+    var html, sig;
+    if (show.rush) {
+      sig = "rush|" + cd;
+      html = '<div class="rp-mban-top519">⚡ RUSH WINDOW<span class="rp-mpill519">ALL GIFTS ×3</span><span class="cd">0:' + String(cd).padStart(2, "0") + '</span></div>' +
+        '<div class="rp-tick519"><span class="rp-tick-in519">Every gift scores ×3 while the Rush Window is open — send now! ⚡ Every gift scores ×3 while the Rush Window is open — send now!</span></div>';
+      el.className = "rp-mban519 rush";
+    } else {
+      var m = show.m;
+      sig = "mis|" + (m.got || 0) + "|" + cd;
+      html = '<div class="rp-mban-top519">🎯 BONUS MISSION<span class="rp-mpill519">Gifters ' + (m.got || 0) + '/' + (m.target || 1) + '</span><span class="cd">0:' + String(cd).padStart(2, "0") + '</span></div>' +
+        '<div class="rp-tick519"><span class="rp-tick-in519">Reach ' + (m.target || 1) + ' gifter in ' + Math.max(1, Math.round((m.endsAt - m.opensAt) / 1000)) + ' seconds to unlock ×3 gifting points for the whole room ⚡ Reach the target and the Rush Window opens!</span></div>';
+      el.className = "rp-mban519";
+    }
+    if (el.__sig519 !== sig) { el.__sig519 = sig; el.innerHTML = html; }
+  }
+
+  /* ---------- live goals: card, ladder, gallery, host sheet ---------- */
+  function goalWrap519() {
+    var w = $("rpLive519");
+    if (!w) { w = document.createElement("div"); w.id = "rpLive519"; document.body.appendChild(w); }
+    return w;
+  }
+  function renderGoal519() {
+    if (!onLive519()) return;
+    var wrap = goalWrap519();
+    var L = live519();
+    var inRoom = goal519 && goalRoom519 && curRoom519() === goalRoom519;
+    var g = inRoom ? goal519.goal : null;
+    var gallery = inRoom ? (goal519.gallery || 0) : 0;
+    var html = "";
+    if (g) {
+      var pct = Math.max(0, Math.min(1, (g.count || 0) / Math.max(1, g.target || 1)));
+      var off = (125.6 * (1 - pct)).toFixed(1);
+      html += '<div class="rp-goal519' + (g.done ? " done" : "") + '"><div class="rp-goal-top519">' +
+        '<span class="rp-ringwrap519"><svg viewBox="0 0 48 48" width="48" height="48"><circle class="rp-ring-bg519" cx="24" cy="24" r="20"></circle><circle class="rp-ring-fg519" cx="24" cy="24" r="20" stroke-dasharray="125.6" stroke-dashoffset="' + off + '"></circle></svg><span class="rp-ring-art519">' + art519(g.giftId, 26) + '</span></span>' +
+        '<span><span class="rp-goal-nm519">' + (g.done ? "🎯 Goal complete!" : "🎯 " + esc(g.name || "Gift") + " goal") + '</span><br><span class="rp-goal-ct519">' + fmt519(g.count || 0) + ' / ' + fmt519(g.target || 0) + ' collected</span></span></div>' +
+        (gallery ? '<span class="rp-gal519">🖼 Gallery · ' + gallery + ' gift types collected</span>' : "") + '</div>';
+    } else if (gallery) {
+      html += '<div class="rp-goal519"><span class="rp-gal519" style="margin-top:0">🖼 Gallery · ' + gallery + ' gift types collected</span></div>';
+    }
+    if (L && L.mine) html += '<button type="button" class="rp-goalbtn519" id="rpGoalBtn519">🎯 ' + (g ? "Change goal" : "Set a live goal") + '</button>';
+    html += '<span class="rp-sparkbar519">✦ Plaza Sparks <b id="rpSparkN519">' + mySpark519 + '</b><button type="button" id="rpSparkSend519"' + (mySpark519 > 0 ? "" : " disabled") + '>Send</button></span>';
+    if (wrap.__sig519 !== html) {
+      wrap.__sig519 = html;
+      wrap.innerHTML = html;
+      var gb = $("rpGoalBtn519");
+      if (gb) gb.addEventListener("click", function () { sheetOpen519 = true; renderSheet519(); });
+      var sb = $("rpSparkSend519");
+      if (sb) sb.addEventListener("click", function () { var s = sock519(); if (s) s.emit("spark-send519", {}); });
+    }
+    // ladder (right edge) — only while a goal runs in this room
+    var lad = $("rpGoalLadder519");
+    if (!g) { if (lad) lad.remove(); }
+    else {
+      if (!lad) { lad = document.createElement("div"); lad.id = "rpGoalLadder519"; document.body.appendChild(lad); }
+      var pct2 = Math.round(100 * Math.max(0, Math.min(1, (g.count || 0) / Math.max(1, g.target || 1))));
+      var lsig = g.giftId + "|" + pct2 + "|" + (g.count || 0) + "/" + (g.target || 0);
+      if (lad.__sig519 !== lsig) {
+        lad.__sig519 = lsig;
+        lad.innerHTML = '<span class="rp-lad-art519">' + art519(g.giftId, 24) + '</span><span class="rp-lad-track519"><span class="rp-lad-fill519" style="height:' + pct2 + '%"></span><span class="rp-lad-rungs519"></span></span><span class="rp-lad-ct519">' + fmt519(g.count || 0) + '/' + fmt519(g.target || 0) + '</span>';
+      }
+    }
+  }
+  function renderSparkBar519() { renderGoal519(); }
+  function renderSheet519() {
+    var sh = $("rpGoalSheet519");
+    if (!sheetOpen519) { if (sh) sh.remove(); return; }
+    if (!sh) { sh = document.createElement("div"); sh.id = "rpGoalSheet519"; document.body.appendChild(sh); }
+    var cat = [];
+    try { if (window.rpGiftCatalog325 && window.rpGiftCatalog325.list) cat = window.rpGiftCatalog325.list(); } catch (e) { }
+    if (!selGift519 && cat.length) selGift519 = (cat.find(function (x) { return x.id === "rose"; }) || cat[0]).id;
+    var sig = selGift519 + "|" + selTarget519 + "|" + cat.length;
+    if (sh.__sig519 === sig) return;
+    sh.__sig519 = sig;
+    var gifts = cat.map(function (x) {
+      return '<button type="button" class="gs-gift' + (x.id === selGift519 ? " on" : "") + '" data-g519="' + esc(x.id) + '"><img src="' + esc(x.art || ("img/gifts/" + x.id + ".webp")) + '" alt="" onerror="rpGiftImgErr(this)"><span class="n">' + esc(x.name || x.id) + '</span><span class="p">' + (x.cents || 0) + '¢</span></button>';
+    }).join("");
+    var presets = [5, 10, 25, 50, 100].map(function (n) { return '<button type="button" class="gs-tchip' + (selTarget519 === n ? " on" : "") + '" data-t519="' + n + '">×' + n + '</button>'; }).join("");
+    sh.innerHTML = '<p class="gs-head">🎯 LIVE GOAL — PICK A GIFT + TARGET (THE ROOM SEES THE RING FILL)</p>' +
+      '<div class="gs-gifts">' + gifts + '</div>' +
+      '<div class="gs-trow"><span style="font-size:11.5px;font-weight:900;color:#ffb3b3">TARGET</span>' + presets + '<input class="gs-tin" id="rpGoalTIn519" type="number" min="1" max="100000" value="' + selTarget519 + '"></div>' +
+      '<div class="gs-actions"><button type="button" class="go" id="rpGoalSet519">Set goal</button><button type="button" id="rpGoalClear519">Clear goal</button><button type="button" id="rpGoalClose519">Close</button></div>';
+    sh.querySelectorAll("[data-g519]").forEach(function (b) { b.addEventListener("click", function () { selGift519 = b.getAttribute("data-g519"); renderSheet519(); }); });
+    sh.querySelectorAll("[data-t519]").forEach(function (b) { b.addEventListener("click", function () { selTarget519 = parseInt(b.getAttribute("data-t519"), 10) || 10; renderSheet519(); }); });
+    var tin = $("rpGoalTIn519");
+    if (tin) tin.addEventListener("change", function () { var v = parseInt(tin.value, 10); if (v >= 1) { selTarget519 = Math.min(100000, v); renderSheet519(); } });
+    $("rpGoalSet519").addEventListener("click", function () { var s = sock519(); if (s && selGift519) { s.emit("live-goal-set519", { giftId: selGift519, target: selTarget519 }); sheetOpen519 = false; renderSheet519(); } });
+    $("rpGoalClear519").addEventListener("click", function () { var s = sock519(); if (s) { s.emit("live-goal-clear519", {}); sheetOpen519 = false; renderSheet519(); } });
+    $("rpGoalClose519").addEventListener("click", function () { sheetOpen519 = false; renderSheet519(); });
+  }
+
+  /* ---------- plaza spark: stack badges + burst ---------- */
+  function onSparkBurst519(d) {
+    var tile = hostTile519();
+    if (!tile) return;
+    var b = document.createElement("div");
+    b.className = "rp-sparkburst519";
+    var html = "";
+    for (var i = 0; i < 8; i++) html += '<span style="left:' + (18 + i * 9) + '%;bottom:' + (8 + (i % 3) * 7) + '%;animation-delay:' + (i * 70) + 'ms">✦</span>';
+    b.innerHTML = html;
+    tile.appendChild(b);
+    setTimeout(function () { if (b.parentNode) b.remove(); }, 2400);
+  }
+  function stackSparks519() {
+    var vrow = $("liveViewerRow"); if (!vrow) return;
+    var spans = Array.prototype.slice.call(vrow.querySelectorAll(".lv-vav"));
+    if (!spans.length) return;
+    var byName = {};
+    try {
+      var vs = window.rpViewers ? window.rpViewers() : [];
+      vs.forEach(function (v) { var n = sparkById519[v.id]; if (!n) { var p = window.rpPlayerById ? window.rpPlayerById(v.id) : null; if (p && p.spark519) n = p.spark519; } if (n) byName[v.name] = n; });
+    } catch (e) { }
+    spans.forEach(function (sp) {
+      var n = byName[sp.title] || 0;
+      var cur = sp.querySelector(":scope > .rp-stackspark519");
+      if (!n) { if (cur) cur.remove(); return; }
+      var txt = "✦" + n;
+      if (cur && cur.textContent === txt) return;
+      if (cur) cur.remove();
+      var b = document.createElement("span");
+      b.className = "rp-stackspark519";
+      b.textContent = txt;
+      sp.appendChild(b);
+    });
+  }
+
+  /* ---------- the watcher ---------- */
+  function tick519() {
+    try {
+      bindSock519();
+      if (!onLive519()) {
+        document.querySelectorAll(".rp-away519").forEach(function (el) { el.remove(); });
+        var mb = $("rpMban519"); if (mb) mb.remove();
+        return;
+      }
+      renderAway519();
+      renderMission519();
+      renderGoal519();
+      renderSheet519();
+      stackSparks519();
+    } catch (e) { }
+  }
+  setInterval(tick519, 650);
+  tick519();
 })();
 </script>
 
