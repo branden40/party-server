@@ -41658,6 +41658,7 @@ function stageStreakBump(key, add) {
     stk_votes_many: "{n} votes",
     stk_votes_one: "{n} vote",
     stk_who_voted: "Who voted",
+    stk_you_voted: "You voted {choice} · {pct}%",
     stk_youre_set: "🔔 You're set ✓",
     story_by_aria: "Story by {name}",
     story_create: "Create story",
@@ -45437,6 +45438,7 @@ function stageStreakBump(key, add) {
     stk_votes_many: "{n} votos",
     stk_votes_one: "{n} voto",
     stk_who_voted: "Quién votó",
+    stk_you_voted: "Votaste {choice} · {pct}%",
     stk_youre_set: "🔔 Ya estás listo ✓",
     story_by_aria: "Historia de {name}",
     story_create: "Crear historia",
@@ -49216,6 +49218,7 @@ function stageStreakBump(key, add) {
     stk_votes_many: "{n} votes",
     stk_votes_one: "{n} vote",
     stk_who_voted: "Qui a voté",
+    stk_you_voted: "Vous avez voté {choice} · {pct}%",
     stk_youre_set: "🔔 C'est noté ✓",
     story_by_aria: "Story de {name}",
     story_create: "Créer une story",
@@ -52995,6 +52998,7 @@ function stageStreakBump(key, add) {
     stk_votes_many: "{n} votos",
     stk_votes_one: "{n} voto",
     stk_who_voted: "Quem votou",
+    stk_you_voted: "Você votou {choice} · {pct}%",
     stk_youre_set: "🔔 Tudo certo ✓",
     story_by_aria: "História de {name}",
     story_create: "Criar história",
@@ -56774,6 +56778,7 @@ function stageStreakBump(key, add) {
     stk_votes_many: "{n} Stimmen",
     stk_votes_one: "{n} Stimme",
     stk_who_voted: "Wer abgestimmt hat",
+    stk_you_voted: "Deine Stimme: {choice} · {pct}%",
     stk_youre_set: "🔔 Du bist dabei ✓",
     story_by_aria: "Story von {name}",
     story_create: "Story erstellen",
@@ -60553,6 +60558,7 @@ function stageStreakBump(key, add) {
     stk_votes_many: "{n} voti",
     stk_votes_one: "{n} voto",
     stk_who_voted: "Chi ha votato",
+    stk_you_voted: "Hai votato {choice} · {pct}%",
     stk_youre_set: "🔔 Fatto ✓",
     story_by_aria: "Storia di {name}",
     story_create: "Crea storia",
@@ -64332,6 +64338,7 @@ function stageStreakBump(key, add) {
     stk_votes_many: "{n} أصوات",
     stk_votes_one: "{n} صوت",
     stk_who_voted: "من صوّت",
+    stk_you_voted: "صوتك: {choice} · {pct}%",
     stk_youre_set: "🔔 تم تعيينك ✓",
     story_by_aria: "قصة من {name}",
     story_create: "إنشاء قصة",
@@ -68111,6 +68118,7 @@ function stageStreakBump(key, add) {
     stk_votes_many: "{n} 票",
     stk_votes_one: "{n} 票",
     stk_who_voted: "投票者",
+    stk_you_voted: "你投了{choice} · {pct}%",
     stk_youre_set: "🔔 已设置 ✓",
     story_by_aria: "{name} 的故事",
     story_create: "创建故事",
@@ -71890,6 +71898,7 @@ function stageStreakBump(key, add) {
     stk_votes_many: "{n} वोट",
     stk_votes_one: "{n} वोट",
     stk_who_voted: "किसने वोट किया",
+    stk_you_voted: "आपने {choice} को वोट किया · {pct}%",
     stk_youre_set: "🔔 आप सेट हैं ✓",
     story_by_aria: "{name} की स्टोरी",
     story_create: "स्टोरी बनाएं",
@@ -83899,6 +83908,9 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
 .sv-sticker450 .stk-opt450 span, .sv-sticker450 .stk-opt450 b { position: relative; z-index: 1; }
 .sv-sticker450 .stk-total450 { font-size: 12px; font-weight: 700; opacity: .85; margin: 8px 0 0; }
 .sv-sticker450 .stk-voters450 { margin-top: 9px; background: #fe2c2c; color: #fff; border: none; border-radius: 999px; padding: 8px 16px; font-weight: 800; font-family: inherit; font-size: 13px; cursor: pointer; }
+/* [RP-V7.503] Collapsed poll chip: the sticker box shrinks to a slim pill. */
+.sv-sticker450.chip503 { width: auto; max-width: 84%; padding: 0; border-radius: 999px; }
+.sv-sticker450 .stk-chip503 { display: block; width: 100%; background: none; border: none; color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; padding: 9px 16px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sv-sticker450 .stk-title450 { font-weight: 800; font-size: 15.5px; margin: 0; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
 .sv-sticker450 .stk-left450 { font-size: 26px; font-weight: 900; letter-spacing: .5px; margin: 5px 0 2px; }
 .sv-sticker450 .stk-when450 { font-size: 12px; font-weight: 700; opacity: .85; margin: 0 0 9px; }
@@ -84733,14 +84745,50 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     return pad(h) + ":" + pad(m) + ":" + pad(ss);
   }
   function stopStickerTick450() { if (V.stkTick450) { clearInterval(V.stkTick450); V.stkTick450 = 0; } }
+  /* [RP-V7.503] Poll collapse helpers. The viewer's own vote is
+     already in the story payload (sticker.myVote, projected per
+     viewer by the server), so "already voted" is known on every
+     open with no server change. V.pollOpen503 holds the one story
+     id the viewer manually expanded from its chip;
+     V.pollJustVoted503 the story whose vote answer just landed. */
+  function stopPollChipTimer503() { if (V.pollChipTimer503) { clearTimeout(V.pollChipTimer503); V.pollChipTimer503 = 0; } }
+  function paintPollChip503(box, st) {
+    var mine = st.myVote;
+    var cnt = (st.counts && st.counts[mine]) || 0;
+    var pct = st.total ? Math.round(100 * cnt / st.total) : 0;
+    var choice = (st.options && st.options[mine]) || "";
+    box.innerHTML = '<button type="button" class="stk-chip503">📊 ' + escS(rpTf("stk_you_voted", { choice: choice, pct: pct })) + "</button>";
+    if (!box.classList.contains("chip503")) box.classList.add("chip503");
+    box.hidden = false;
+    var cb = box.querySelector(".stk-chip503");
+    if (cb) cb.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      var c = cur(); if (!c || !c.story) return;
+      V.pollOpen503 = c.story.id;
+      paintSticker450();
+    });
+  }
   function paintSticker450() {
     if (!V.el) return;
     var box = V.el.querySelector(".sv-sticker450"); if (!box) return;
     stopStickerTick450();
+    stopPollChipTimer503(); // [RP-V7.503] every repaint re-decides the chip state — a stale collapse timer never survives a repaint
     var c = cur(); var st = c && c.story ? c.story.sticker : null;
-    if (!st) { if (!box.hidden) box.hidden = true; if (box.innerHTML) box.innerHTML = ""; return; }
+    if (V.pollOpen503 && (!c || !c.story || V.pollOpen503 !== c.story.id)) V.pollOpen503 = null; // [RP-V7.503] a manual expansion belongs to the story it was opened on — leaving that story forgets it, so coming back starts as the chip
+    if (!st) { if (box.classList.contains("chip503")) box.classList.remove("chip503"); if (!box.hidden) box.hidden = true; if (box.innerHTML) box.innerHTML = ""; return; }
     var isAuthor450 = !!(c.entry.isSelf && !c.story.repostOf); // the Who Watched "own" condition
     if (st.type === "poll") {
+      /* [RP-V7.503] A non-author viewer who already voted gets the
+         slim chip, not the full card — except for the ~2.5s right
+         after their vote lands (the results moment) or after they
+         tap the chip to reopen the card. The author's own view
+         never collapses, and an un-voted viewer still gets the
+         full tappable card below. */
+      var collapsible503 = !isAuthor450 && st.myVote != null;
+      var justVoted503 = collapsible503 && V.pollJustVoted503 === c.story.id;
+      if (justVoted503) V.pollJustVoted503 = null;
+      if (collapsible503 && !justVoted503 && V.pollOpen503 !== c.story.id) { paintPollChip503(box, st); return; }
+      if (box.classList.contains("chip503")) box.classList.remove("chip503");
       var showRes = isAuthor450 || st.myVote != null;
       var html = '<p class="stk-q450">' + escS(st.question || "") + "</p>";
       (st.options || []).forEach(function (opt, ix) {
@@ -84759,7 +84807,16 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       });
       var vb = box.querySelector(".stk-voters450");
       if (vb) vb.addEventListener("click", function (ev) { ev.stopPropagation(); openPollVoters450(c.story.id); });
+      if (justVoted503) { // [RP-V7.503] results moment over in ~2.5s — repaint as the chip if this story is still on screen
+        var sid503 = c.story.id;
+        V.pollChipTimer503 = setTimeout(function () {
+          V.pollChipTimer503 = 0;
+          var cc = cur();
+          if (cc && cc.story && cc.story.id === sid503 && V.el && V.el.classList.contains("open")) paintSticker450();
+        }, 2500);
+      }
     } else if (st.type === "countdown") {
+      if (box.classList.contains("chip503")) box.classList.remove("chip503"); // [RP-V7.503]
       var target = Date.parse(st.targetAt) || 0;
       var html2 = '<p class="stk-title450">⏰ ' + escS(st.title || rpT("stk_countdown")) + "</p>" +
         '<p class="stk-left450" data-stkleft450></p>' +
@@ -84779,6 +84836,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       var rb = box.querySelector(".stk-remind450");
       if (rb) rb.addEventListener("click", function (ev) { ev.stopPropagation(); onCdRemind450(); });
     } else {
+      if (box.classList.contains("chip503")) box.classList.remove("chip503"); // [RP-V7.503]
       if (!box.hidden) box.hidden = true;
       if (box.innerHTML) box.innerHTML = "";
     }
@@ -84786,7 +84844,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   function onPollVote450(ix) {
     var c = cur(); if (!c || !c.story.sticker) return;
     api("/api/story/poll-vote", "POST", { storyId: c.story.id, option: ix }).then(function (r) {
-      if (r.json && r.json.ok && r.json.sticker) { c.story.sticker = r.json.sticker; paintSticker450(); }
+      if (r.json && r.json.ok && r.json.sticker) { c.story.sticker = r.json.sticker; V.pollJustVoted503 = c.story.id; if (V.pollOpen503 === c.story.id) V.pollOpen503 = null; paintSticker450(); } // [RP-V7.503] fresh results show, then collapse to the chip
       else toastS((r.json && r.json.error) || rpT("toast_vote_fail"), 3000);
     });
   }
@@ -84877,6 +84935,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
   function closeViewer() {
     stopPhotoTimer();
     stopStickerTick450(); // [RP-V7.450]
+    stopPollChipTimer503(); V.pollOpen503 = null; V.pollJustVoted503 = null; // [RP-V7.503] a reopen starts as the chip
     var svw466 = $("svSheetWrap"); if (svw466) { svw466.classList.remove("open"); var svc466 = $("svSheet"); if (svc466) svc466.innerHTML = ""; } // [RP-V7.466] clear the in-viewer sheet so no stale form survives the viewer
     replyReset(); // [RP-V7.354]
     if (V.photo) { V.photo.hidden = true; V.photo.removeAttribute("src"); }
