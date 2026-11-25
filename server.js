@@ -7120,7 +7120,7 @@ function origLivePosts335(snd, adb) {
         out.push({ kind: "reel", id: r.id, url: "/reel-files/" + r.file, poster: rpPosterUrl482(r), caption: r.caption || "", author: origName335(adb, r.authorId, r.author), authorId: r.authorId || null, views: mediaViewCount(vdb, "reel:" + r.id), createdAt: r.createdAt || null });
       } else if (u.kind === "feed") {
         const p = feedPosts[u.id]; if (!p || !p.file) continue;
-        out.push({ kind: "feed", id: p.id, url: "/photos/feed/" + p.file, caption: p.text || "", author: origName335(adb, p.authorId, p.authorName), authorId: p.authorId || null, views: typeof p.views === "number" ? p.views : 0, createdAt: p.createdAt || null });
+        out.push({ kind: "feed", id: p.id, url: "/photos/feed/" + p.file, caption: p.text || "", author: origName335(adb, p.authorId, p.authorName), authorId: p.authorId || null, views: typeof p.views === "number" ? p.views : 0, createdAt: p.createdAt || null, allowDownloads: p.allowDownloads !== false }); // [RP-V7.512] the tile's player gates its download on this
       } else if (u.kind === "photo") {
         const p = photoMap[u.id]; if (!p) continue;
         out.push({ kind: "photo", id: p.id, url: p.photo || (Array.isArray(p.urls) ? p.urls[0] : null), caption: p.caption || "", author: origName335(adb, p.owner, p.name), authorId: p.owner || null, views: 0, createdAt: p.ts || null });
@@ -7975,7 +7975,7 @@ app.post("/api/reel/downloads", (req, res) => {
 // spot to spot in the encode). Per the V7.316 rule, the version
 // tag is what stops files stamped by an older design from ever
 // being served.
-const WM_STAMP_VER_316 = "wm7";
+const WM_STAMP_VER_316 = "wm8"; // [RP-V7.512] wm8: the export encode changed (cover art, below) — the version keys the stamp PNG and rides the video cache names, so no wm7 export is ever served again
 // [RP-V7.321.1] EMERGENCY KILL-SWITCH (Branden approved Nov 10, 2026):
 // the V7.320 stamp render crashes the origin process on real
 // production downloads (proxy 502 + ~1 min full-site outage per
@@ -8476,7 +8476,7 @@ function wmLane507(job) {
   wmLaneTail507 = run.catch(() => {});
   return run;
 }
-function wmStampedFor316(cacheName, srcPath, handle) {
+function wmStampedFor316(cacheName, srcPath, handle, coverPath512) {
   const out = path.join(WM_DIR_316, cacheName);
   if (fs.existsSync(out)) return Promise.resolve(out);
   const inflightKey = "file:" + cacheName;
@@ -8532,8 +8532,35 @@ function wmStampedFor316(cacheName, srcPath, handle) {
     // rig VM, unbounded on a many-core production host — and the
     // 1080-wide decode pool was the single biggest block in the
     // measured peak (200 MB → 166 MB from this one bound).
-    try { await wmRun316(["-y", "-v", "error", "-filter_complex_threads", "1", "-threads", "1", "-i", srcPath, "-i", stampPath, "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", "-threads", "1", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", tmp], 15 * 60 * 1000, { rssLimitBytes: WM_ENCODE_RSS_LIMIT_509 }); }
-    catch (e) { try { fs.unlinkSync(tmp); } catch (e2) {} throw wmStepErr316("encode", e); }
+    // [RP-V7.512] COVER ART (Branden, Nov 25: the share sheet
+    // showed a generic MP4 glyph — "this should have the video
+    // picture or something"): when the caller hands over the
+    // post's poster file, it rides the encode as a third input
+    // and lands in the export as the MP4's attached_pic, so iOS
+    // shows the video's own picture for the file. The poster is
+    // a single JPEG frame the V7.482/484 pumps already minted —
+    // stream-copying it in costs one image decode at input open,
+    // no extra video decode, inside the same thread/RSS bounds.
+    // If the covered encode ever fails, the encode retries ONCE
+    // without the cover: a missing picture must never cost the
+    // download itself.
+    const cover512 = coverPath512 && fs.existsSync(coverPath512) ? coverPath512 : null;
+    const encArgs512 = (withCover) => {
+      const a = ["-y", "-v", "error", "-filter_complex_threads", "1", "-threads", "1", "-i", srcPath, "-i", stampPath];
+      if (withCover) a.push("-i", cover512);
+      a.push("-filter_complex", fc, "-map", "[v]", "-map", "0:a?");
+      if (withCover) a.push("-map", "2:v", "-c:v:1", "copy", "-disposition:v:1", "attached_pic");
+      a.push("-threads", "1", "-c:v:0", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", tmp);
+      return a;
+    };
+    try { await wmRun316(encArgs512(!!cover512), 15 * 60 * 1000, { rssLimitBytes: WM_ENCODE_RSS_LIMIT_509 }); }
+    catch (e) {
+      try { fs.unlinkSync(tmp); } catch (e2) {}
+      if (!cover512) throw wmStepErr316("encode", e);
+      console.log("[watermark] covered encode failed for", cacheName, "— retrying without cover art ::", e.message);
+      try { await wmRun316(encArgs512(false), 15 * 60 * 1000, { rssLimitBytes: WM_ENCODE_RSS_LIMIT_509 }); }
+      catch (e3) { try { fs.unlinkSync(tmp); } catch (e4) {} throw wmStepErr316("encode", e3); }
+    }
     if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1024) throw wmStepErr316("encode", new Error("watermark encode produced no file"));
     fs.renameSync(tmp, out);
     // A replaced source re-stamps under a new key; prune this post's
@@ -8588,7 +8615,7 @@ function wmServe316(res, cacheName, srcPath, handle, dlName) {
 // this build (supersedes wmServe316, which stays for the diag
 // endpoint's own history): same capability guards, plus the
 // duration cap answered as an honest 503.
-function wmServe507(res, cacheName, srcPath, handle, dlName) {
+function wmServe507(res, cacheName, srcPath, handle, dlName, coverPath512) {
   wmFfmpegReady318().then(async (ok) => {
     if (!ok || !wmAssetsOk316)
       return res.status(503).json({ ok: false, error: "Downloads are being set up — please try again shortly." });
@@ -8597,7 +8624,7 @@ function wmServe507(res, cacheName, srcPath, handle, dlName) {
       console.log("[watermark] download refused: ffmpeg capability mismatch (missing filters: " + caps320.missing.join(", ") + ")");
       return res.status(503).json({ ok: false, error: "Downloads are being set up — please try again shortly." });
     }
-    wmStampedFor316(cacheName, srcPath, handle)
+    wmStampedFor316(cacheName, srcPath, handle, coverPath512)
       .then((p) => { if (!res.headersSent) res.download(p, dlName); })
       .catch((e) => {
         if (e && e.wmStep316 === "cap") {
@@ -8916,8 +8943,9 @@ app.get("/api/reel/:id/download", (req, res) => {
   let handle507 = entry.author || "rizzplaza";
   try { const au507 = (adb && aKey) ? adb.users.find((x) => x && x.id === aKey) : null; if (au507 && au507.username) handle507 = au507.username; } catch (e) {}
   let st507 = null; try { st507 = fs.statSync(srcPath); } catch (e) {}
-  const cache507 = "reel-" + id + "-" + (st507 ? st507.size : 0) + "-" + (st507 ? Math.round(st507.mtimeMs) : 0) + ".mp4";
-  return wmServe507(res, cache507, srcPath, wmHandle316(handle507), "rizzplaza-" + id + ".mp4");
+  const cache512 = "reel-" + WM_STAMP_VER_316 + "-" + id + "-" + (st507 ? st507.size : 0) + "-" + (st507 ? Math.round(st507.mtimeMs) : 0) + ".mp4"; // [RP-V7.512] the stamp version rides the cache key, so wm8 exports (with cover art) never serve a wm7 file
+  const cover512 = entry.poster482 === 1 && entry.file ? path.join(REELS_DIR, rpPosterName482(entry.file)) : null; // [RP-V7.512] the reel's own minted poster becomes the export's cover art
+  return wmServe507(res, cache512, srcPath, wmHandle316(handle507), "rizzplaza-" + id + ".mp4", cover512);
 });
 
 // ---------------------------------------------------------------------------
@@ -17702,6 +17730,7 @@ function storyPublic(s, vdb, meId, pg409, cd450) { // [RP-V7.450] cd450: the cou
     likedByMe: meId ? likes.includes(meId) : false,
     viewedByMe: meId ? viewedBy.includes(meId) : false,
     crMuted: s.crMuted || null, // [RP-V7.286]
+    allowDownloads: s.allowDownloads !== false, // [RP-V7.512] the story downloads switch (the reel rule: absent = on)
     // [RP-V7.409] Icon parity: the story viewer paints the same
     // counts as every other surface — gifts received on THIS story
     // (postGifts "story:<id>", recorded by the gift handler under
@@ -17905,6 +17934,12 @@ app.post("/api/story/post",
       if (cleaned450.error) return fail(400, cleaned450.error);
       sticker450 = cleaned450.sticker;
     }
+    // [RP-V7.512] The story downloads switch, set at post time
+    // exactly like a reel's: the composer sends allowDownloads=
+    // false to turn downloads off for this story; anything else
+    // (including absent) leaves the default ON, and the record
+    // stores only the OFF state.
+    const storyDl512 = !(req.body && (req.body.allowDownloads === "false" || req.body.allowDownloads === false));
     const now = Date.now();
     const story = {
       id: crypto.randomBytes(8).toString("hex"),
@@ -17917,6 +17952,7 @@ app.post("/api/story/post",
       likes: [],
       viewedBy: [],
       ...(sticker450 ? { sticker: sticker450 } : {}), // [RP-V7.450]
+      ...(storyDl512 ? {} : { allowDownloads: false }), // [RP-V7.512]
     };
     db.stories[story.id] = story;
     let cd450 = null;
@@ -17941,6 +17977,64 @@ app.post("/api/story/post",
     res.json({ ok: true, story: storyPublic(story, readViews(), ctx.user.id, null, cd450) }); // [RP-V7.450]
   }
 );
+// [RP-V7.512] The story downloads switch, flipped after posting —
+// the twin of POST /api/reel/downloads: the author alone flips it,
+// and the record stores only the OFF state (absent = downloads on).
+app.post("/api/story/downloads", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const id = String(b.id || "");
+  if (!id) return res.status(400).json({ ok: false, error: "Missing story id" });
+  const db = sweepStories();
+  const s = db.stories[id];
+  if (!s) return res.status(404).json({ ok: false, error: "Story not found" });
+  if (s.authorId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "Only the story's author can change that setting" });
+  const allow =
+    b.allow === true || b.allow === "true" || b.allow === 1 || b.allow === "1";
+  if (allow) delete s.allowDownloads;
+  else s.allowDownloads = false;
+  writeStories(db);
+  res.json({ ok: true, id, allowDownloads: allow });
+});
+
+// [RP-V7.512] Story download — stories follow the reel rule
+// (Branden delegated the call Nov 25, 2026: "It's your call" →
+// downloads ON unless the creator turned them off; the author
+// always may). Video stories stamp through the same wm lane as
+// reels; photo stories take the photo stamp, like photo posts.
+// Visibility mirrors the tray: a signed-in member the author has
+// not blocked (and who has not blocked the author); expired
+// stories are already swept, so an unknown id is a plain 404.
+app.get("/api/story/:id/download", (req, res) => {
+  let adb = null, user = null;
+  try { adb = readAccounts(); user = accountForToken(adb, req); } catch (e) { adb = null; user = null; }
+  if (!user) return res.status(401).json({ ok: false, error: "Sign in to download" });
+  if (!storyCanView(user)) return res.status(403).json({ ok: false, error: "That story isn't available for download" });
+  const db = sweepStories();
+  const s = db.stories[String(req.params.id || "")];
+  if (!s || !s.file) return res.status(404).json({ ok: false, error: "Story not found" });
+  const isAuthor = user.id === s.authorId;
+  if (!isAuthor) {
+    if (s.allowDownloads === false)
+      return res.status(403).json({ ok: false, error: "The creator turned downloads off for this story" });
+    try { if (blockHiddenIds(user.id).has(s.authorId)) return res.status(404).json({ ok: false, error: "Story not found" }); } catch (e) {}
+  }
+  const srcPath = path.join(STORY_DIR, path.basename(String(s.file)));
+  if (!fs.existsSync(srcPath)) return res.status(404).json({ ok: false, error: "That story's file is gone" });
+  let handle512 = s.authorName || "rizzplaza";
+  try { const au512 = adb ? adb.users.find((x) => x && x.id === s.authorId) : null; if (au512 && au512.username) handle512 = au512.username; } catch (e) {}
+  const safeId = String(s.id).replace(/[^A-Za-z0-9._-]/g, "").slice(0, 64) || "story";
+  let st512 = null; try { st512 = fs.statSync(srcPath); } catch (e) {}
+  const key512 = (st512 ? st512.size : 0) + "-" + (st512 ? Math.round(st512.mtimeMs) : 0);
+  if (s.kind === "photo") {
+    const ext512 = path.extname(String(s.file)).toLowerCase() === ".png" ? ".png" : ".jpg";
+    return wmServePhoto507(res, "storyphoto-" + safeId + "-" + key512 + ext512, srcPath, wmHandle316(handle512), "rizzplaza-" + safeId + ext512);
+  }
+  return wmServe507(res, "story-" + WM_STAMP_VER_316 + "-" + safeId + "-" + key512 + ".mp4", srcPath, wmHandle316(handle512), "rizzplaza-" + safeId + ".mp4");
+});
+
 // The story tray: active stories grouped by author, ranked by the
 // shared For You profile (follows first, then decayed author
 // affinity, newest first on ties).
@@ -19035,7 +19129,8 @@ app.get("/api/feed/:id/download", (req, res) => {
     const ext507 = path.extname(String(p.file)).toLowerCase() === ".png" ? ".png" : ".jpg";
     return wmServePhoto507(res, "feedphoto-" + safeId + "-" + key507 + ext507, srcPath, wmHandle316(handle507), "rizzplaza-" + safeId + ext507);
   }
-  return wmServe507(res, "feed-" + safeId + "-" + key507 + ".mp4", srcPath, wmHandle316(handle507), "rizzplaza-" + safeId + ".mp4");
+  const cover512 = p.poster484 === 1 && p.file ? path.join(FEED_DIR, rpPosterName482(p.file)) : null; // [RP-V7.512] the feed video's own minted poster becomes the export's cover art
+  return wmServe507(res, "feed-" + WM_STAMP_VER_316 + "-" + safeId + "-" + key507 + ".mp4", srcPath, wmHandle316(handle507), "rizzplaza-" + safeId + ".mp4", cover512);
 });
 
 // ---------------------------------------------------------------------------
@@ -26990,9 +27085,9 @@ app.get("/api/fanclub/club", (req, res) => {
       .map((r) => {
         const locked = (r.clubOnly && !canAccess) || (r.subsOnly && ctx.user.id !== recipient.id && !fanSet.has(recipient.id));
         if (locked) {
-          return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, locked: true, caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null, views: 0, heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: null };
+          return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, locked: true, allowDownloads: false, caption: "", createdAt: r.createdAt, url: null, kind: r.kind || null, views: 0, heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), comments: [], commentCount: 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: null };
         }
-        return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, caption: r.caption || "", createdAt: r.createdAt, url: r.url || (r.file ? "/reel-files/" + r.file : null), poster: rpPosterUrl482(r), kind: r.kind || null, views: mediaViewCount(vdb, "reel:" + r.id), heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id), comments: reelPublicComments(r, nameResolver313(ctx.db), { viewerId: ctx.user.id, authorId: recipient.id, avatarOf: avatarResolver497(ctx.db) }), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: r.crMuted || null, myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
+        return { id: r.id, author: recipient.name || r.author, authorId: recipient.id, ...(r.subsOnly ? { subsOnly: true } : {}), clubOnly: true, allowDownloads: r.allowDownloads !== false, caption: r.caption || "", createdAt: r.createdAt, url: r.url || (r.file ? "/reel-files/" + r.file : null), poster: rpPosterUrl482(r), kind: r.kind || null, views: mediaViewCount(vdb, "reel:" + r.id), heartLikes: Array.isArray(r.heartLikes) ? r.heartLikes.length : 0, giftCount: postGiftCountOf262(pg298, "reel", r.id), myHeart: Array.isArray(r.heartLikes) && r.heartLikes.includes(ctx.user.id), comments: reelPublicComments(r, nameResolver313(ctx.db), { viewerId: ctx.user.id, authorId: recipient.id, avatarOf: avatarResolver497(ctx.db) }), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, reposts: Array.isArray(r.reposts) ? r.reposts.length : 0, crMuted: r.crMuted || null, myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
       });
   } catch (e) { }
   let photoPosts = [];
