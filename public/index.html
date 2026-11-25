@@ -28,9 +28,10 @@
     <title>Rizz Plaza</title>
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
-<meta name="rp-build" content="RP-V7.520" />
+<meta name="rp-build" content="RP-V7.521" />
 <!-- [RP-V7.506] FAN CLUB FILTER (Branden, Nov 24, 2026 — his Loozecannon TikTok LIVE recording: "I need that filter join my club"): a Plaza-ORIGINAL animated mascot (inline SVG, drawn in code: round black body, red backwards cap, gold star badge, waving arm — never TikTok's character, never anyone's likeness) bobbing over a glowing red "Join my Fan Club" pill that floats at the top of the host's live for the whole show — under the top bar, stacked below the V7.490 label when both are up. It is part of the show, not lv-idle chrome: like the deco layer it never auto-fades. TAP = JOIN through the existing V6.5 live fan-club path (rpFanJoin65 -> joinFan -> the room fan-join proto; free, instant, no confirm, the host's client assigns the fan number) — the identical call the live More-sheet row and the host-card buttons make. Joined viewers see their real state ("Fan No. N" once the host's fan-count lands, "Fan Club member" before it); the host sees a non-tappable preview of their own pill; signed-out viewers see it display-only. The host turns it off/on for their live from the More sheet ("Fan Club filter" row, default ON); the flag rides the V7.490 deco room state (fanFilter on liveDeco490, broadcast on live-deco490, pulled by late joiners via live-deco-get490, dies with the live; a viewer renders the pill only once that payload has landed, so a host's OFF never flashes at a late joiner — the 5s deco tick re-asks until it lands) — the server change is exactly that one field plus one host-only socket intent (live-fanfilter-set506). Battles: the pill dresses the live you are in, half-width over your host's side of the split — the fan-join proto is room-local and every existing fan button joins only that host, so the opponent's pill is not rendered (joining them happens from their own live, as today). Church lives included: a fan club is not selling or auctions (the V7.490 deco precedent — gifting is likewise allowed). No counts on the pill (the existing live fan buttons show none either). New strings fanpill_*506 / more_fanfilter506 in all 9 languages. Everything V7.505 preserved. -->
-<!-- [RP-V7.520] TREASURE CHEST + CHARM DROP (Branden, Nov 25, 2026 — from his 4th TikTok battle recording: "Add those gifts in our own way"; the catalog audit found Wonderland/Galaxy/gloves/drums/Money Gun/Universe already Plaza-style, the one gap was the Treasure Box): +1 gift — treasurechest "Treasure Chest" 1900 big (free price in the premium band; film 5.625 s portrait, animated art via giftart7520.js) — catalog 124 -> 125, price unique; client GIFT_SHOP (+drop: 200 disclosure in the panel cell) + GIFT_ART_IDS + GIFT_ICONS + GIFT_FILM_IDS + RP_PORTRAIT_FILMS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entry (the V7.474 film clock self-corrects past the big-tier default 10000 > film + 250 ms). CHARM DROP: a real-rail chest sent in a live (regular or battle) carves a fixed 200 charms per unit from the price BEFORE the 70/30 split (host/platform split price-pool; battle score stays the FULL price) and drops it to the room — ~30s claim window, viewers only (never sender/host), one claim each, first-come cap 10; at close the pool splits EQUALLY among claimers (no randomness), integer remainder — or the whole pool on zero claims — to the host; claims credit the normal charm balance; escrow persists in the money db in the same writeMoney as the settle, boot sweep re-arms/settles; promo + charms-only sends settle plain with NO drop. Charms conserved exactly: sender pays the price once, host + platform + claimers together receive exactly the price. Everything V7.519 preserved. --> <!-- [RP-V7.490] LIVE LABEL + LIVE STICKERS + 2 GIFTS (Branden, Nov 23, 2026): (1) LIVE LABEL — the host sets a short custom label (plain text, max 40 chars) that rides as a bold banner near the top of the live screen for the host AND every viewer, modeled on the "MEDIA HIGHLIGHTS & RECAPS" banner on TikTok recap clips; set/clear from the host's ••• sheet ("Live label" row). (2) LIVE STICKERS "like TikTok" + Instagram-style cards — the host sticks up to 3 stickers on the live from the ••• sheet ("Stickers" row): a glyph pack of 12 large emoji (🔥 ⭐ ❤️ 🎉 👑 🎵 ⚡ 💯 🎁 🙌 😂 🎤) AND Instagram-style white rounded cards (❓ Ask me anything · 📊 POLL · ⏰ COUNTDOWN · #️⃣ hashtag (host text, max 24) · 📍 location (host text, max 24) · 🎵 MUSIC), rendered as styled DOM, fixed slots in the corners/lower area, never center-face. Label + stickers live on the server room state (liveDeco490, keyed by live key, beside the V7.389 show note), broadcast over the live socket flow (live-deco490; battle rooms cross-emit like battle306Emit so each host's deco lands on their own side of the split), late joiners pull it with live-deco-get490 on the Lk389 sync, and everything clears when the live ends. The banner layer is NOT part of the lv-idle chrome — it never auto-fades. All user text renders via textContent only. Works in every live type (a label/sticker is not commerce — church lives included). (3) +2 GIFTS: shellsensei "Shell Sensei" 440 medium (film 5.583 s) + auraclash "Aura Clash" 2200 big (film 4.500 s) — catalog 122 -> 124, prices unique; client GIFT_SHOP + GIFT_FILM_IDS, server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entries (the V7.474 film clock self-corrects past the tier defaults: medium 8000 / big 10000 both exceed film + 250 ms). Everything V7.489 preserved. --> <!-- [RP-V7.489] WEEKLY GIFTS (Nov 23, 2026): +5 gifts, catalog 117 -> 122, all prices unique — lanternturtle "Lantern Turtle" 15 small, discosnail "Disco Snail" 88 small, tornadodancer "Tornado Dancer" 370 medium, crystaloctopus "Crystal Octopus" 690 medium, wingedlion "Winged Lion" 1700 big; each with an HD film (giftfx-<id>.mp4) + animated art; ids added to GIFT_FILM_IDS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly. --> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. --> <!-- [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE (Branden, Nov 22, 2026): his recording showed the Home For You pager landing on pure black for ~5 s and a reel sitting frozen; ordered corrected "like the other reels", chose the grid, added "Plus swipe", then scoped it himself — "This is on the for you button": the FOR YOU tab's mixed stream (reels + photo posts + text posts, the pager's own homeItems() list, same order) now paints as a poster/thumbnail grid in #homeGrid488 (fillGrid tiles — reel posters from V7.482, photo ~720px variants from V7.485, text tiles in the RPText278 style), pre-warmed the V7.482 way (reel posters already ride rpPrewarm482; photo variants now warm inside pagerPhotosFetch123; a scroll-ahead wire keeps the window ahead of the member). Tap a tile -> the sheet player (reels play with the full V7.462/V7.486 rail incl. the handshake; photos and text posts open in the same media viewer they always did); PLUS SWIPE inside the player walks the GRID'S list across types (reel -> photo -> text -> reel) via a mixed session in the lightbox (lbHomeNav488) built on the V7.461 gesture wire — every landing behaves exactly as if tapped (view-once is the existing rpViewsPing per-session dedupe for reels and photo posts; text posts never ping, as today), no wrap at the ends, neighbours warm through the V7.483 fetcher hook, Back returns to the grid at the same scroll position (the grid is never unloaded under the sheet). FOLLOWING KEEPS ITS PAGER, byte for byte: renderHomePager branches on the tab — foryou goes to rpHomeGridRender488, following runs the original pager body untouched, and the V7.468 snap machinery retires only where the pager no longer renders (For You). One mapper repair rides along: pagerPhotoMap123 silently DROPPED text posts (a text post has no photo URLs, and the mapper returned null on an empty url list), so text posts never reached the Home pager at all; the mapper now carries them (kind/text/tstyle ride the item, plus photoThumb/thumbUrls for the tiles), so no content type is missing from Home. GLOW RULE CHANGE (Branden, same night, superseding the Nov 6 exception): "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing" — the Home strip's Plaza tab loses its always-on strongest-red glow; its glow rule now keys off .on like every other tab (the true-red look is kept for the active state; Following/For You and the bottom bar are untouched). Client-only; the V7.487 server already returns every field the grid reads. -->
+<!-- [RP-V7.520] TREASURE CHEST + CHARM DROP (Branden, Nov 25, 2026 — from his 4th TikTok battle recording: "Add those gifts in our own way"; the catalog audit found Wonderland/Galaxy/gloves/drums/Money Gun/Universe already Plaza-style, the one gap was the Treasure Box): +1 gift — treasurechest "Treasure Chest" 1900 big (free price in the premium band; film 5.625 s portrait, animated art via giftart7520.js) — catalog 124 -> 125, price unique; client GIFT_SHOP (+drop: 200 disclosure in the panel cell) + GIFT_ART_IDS + GIFT_ICONS + GIFT_FILM_IDS + RP_PORTRAIT_FILMS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entry (the V7.474 film clock self-corrects past the big-tier default 10000 > film + 250 ms). CHARM DROP: a real-rail chest sent in a live (regular or battle) carves a fixed 200 charms per unit from the price BEFORE the 70/30 split (host/platform split price-pool; battle score stays the FULL price) and drops it to the room — ~30s claim window, viewers only (never sender/host), one claim each, first-come cap 10; at close the pool splits EQUALLY among claimers (no randomness), integer remainder — or the whole pool on zero claims — to the host; claims credit the normal charm balance; escrow persists in the money db in the same writeMoney as the settle, boot sweep re-arms/settles; promo + charms-only sends settle plain with NO drop. Charms conserved exactly: sender pays the price once, host + platform + claimers together receive exactly the price. Everything V7.519 preserved. -->
+<!-- [RP-V7.521] FFA RANKED MATCHES + REC-4 EXTRAS (Branden, Nov 25, 2026 — Build D of the battle audit, from his 4th TikTok recording, the Loozecannon 4-way freestyle match: "Add what I don't have"): the audit found the FFA ENGINE already shipped in V7.336 — 3-way/4-way lobbies deal every host their own side and scoring, podium, MVP, grace and missions already ride that participants model — so this build is the FFA PRESENTATION the recording shows, all inside the V7.336 layer and all rendering server payload numbers (the client ranks display only, like the rows' existing sort): bar titles read FREE-FOR-ALL; every bar row wears a RANK CHIP (1st/2nd/3rd/4th, competition ranking over known scores; a Mist side shows • — its rank is unknowable and never invented); a SEGMENTED PROPORTIONAL BAR under the rows splits by score share in stable per-contestant colours (red/gold/white/grey — never TikTok pink/cyan) with the leader's segment labeled "1st · <pts>"; every pane carries its RANK + POINTS chip and, while that contestant's booster runs, a "⚡ Points ×N" chip; every opponent pane carries a 🎁 GIFT button opening the standard gift sheet ADDRESSED TO THAT CONTESTANT (the money layer settles to them by name and the server scores the gift to their side — the "sent Universe to gianni" addressing; money path untouched); the result card stamps every FFA standings line with its placement and tells a contestant "You placed N of M"; the FFA start toast says so. RUSH TEASER (polish on V7.519): a completed gifter mission now opens the Rush Window 3 s later — the server emits rush-soon, clients call out "RUSH STARTING SOON!" and hold a teaser banner with the countdown, then rush-start fires at the true open; the window itself is unchanged (30 s, every gift ×3). SHARE MILESTONES: the server counts live-share signals per room over a trailing 60 s window and emits share-milestone521 at threshold crossings; clients print ONE aggregate line ("shared N times in the last minute") — distinct from V7.517's per-share lines, server-counted, threshold-only so it cannot spam. SUB BADGE: a member of the room host's free live fan club (the V6.5 club the V7.506 pill joins — never the paid profile clubs) wears a gold SUB chip beside their name in that room's chat; the server stamps sub521 on the chat relay (learned from the fan-join/fan-count protos it already relays, plus the member's account fanState — the V7.276 durable home of the same membership), rendered here exactly like the V7.393 club badge. Money, splits, scoring and conservation untouched everywhere; 1v1 and 2v2 render exactly as before. Everything V7.520 preserved. --> <!-- [RP-V7.490] LIVE LABEL + LIVE STICKERS + 2 GIFTS (Branden, Nov 23, 2026): (1) LIVE LABEL — the host sets a short custom label (plain text, max 40 chars) that rides as a bold banner near the top of the live screen for the host AND every viewer, modeled on the "MEDIA HIGHLIGHTS & RECAPS" banner on TikTok recap clips; set/clear from the host's ••• sheet ("Live label" row). (2) LIVE STICKERS "like TikTok" + Instagram-style cards — the host sticks up to 3 stickers on the live from the ••• sheet ("Stickers" row): a glyph pack of 12 large emoji (🔥 ⭐ ❤️ 🎉 👑 🎵 ⚡ 💯 🎁 🙌 😂 🎤) AND Instagram-style white rounded cards (❓ Ask me anything · 📊 POLL · ⏰ COUNTDOWN · #️⃣ hashtag (host text, max 24) · 📍 location (host text, max 24) · 🎵 MUSIC), rendered as styled DOM, fixed slots in the corners/lower area, never center-face. Label + stickers live on the server room state (liveDeco490, keyed by live key, beside the V7.389 show note), broadcast over the live socket flow (live-deco490; battle rooms cross-emit like battle306Emit so each host's deco lands on their own side of the split), late joiners pull it with live-deco-get490 on the Lk389 sync, and everything clears when the live ends. The banner layer is NOT part of the lv-idle chrome — it never auto-fades. All user text renders via textContent only. Works in every live type (a label/sticker is not commerce — church lives included). (3) +2 GIFTS: shellsensei "Shell Sensei" 440 medium (film 5.583 s) + auraclash "Aura Clash" 2200 big (film 4.500 s) — catalog 122 -> 124, prices unique; client GIFT_SHOP + GIFT_FILM_IDS, server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entries (the V7.474 film clock self-corrects past the tier defaults: medium 8000 / big 10000 both exceed film + 250 ms). Everything V7.489 preserved. --> <!-- [RP-V7.489] WEEKLY GIFTS (Nov 23, 2026): +5 gifts, catalog 117 -> 122, all prices unique — lanternturtle "Lantern Turtle" 15 small, discosnail "Disco Snail" 88 small, tornadodancer "Tornado Dancer" 370 medium, crystaloctopus "Crystal Octopus" 690 medium, wingedlion "Winged Lion" 1700 big; each with an HD film (giftfx-<id>.mp4) + animated art; ids added to GIFT_FILM_IDS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly. --> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. --> <!-- [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE (Branden, Nov 22, 2026): his recording showed the Home For You pager landing on pure black for ~5 s and a reel sitting frozen; ordered corrected "like the other reels", chose the grid, added "Plus swipe", then scoped it himself — "This is on the for you button": the FOR YOU tab's mixed stream (reels + photo posts + text posts, the pager's own homeItems() list, same order) now paints as a poster/thumbnail grid in #homeGrid488 (fillGrid tiles — reel posters from V7.482, photo ~720px variants from V7.485, text tiles in the RPText278 style), pre-warmed the V7.482 way (reel posters already ride rpPrewarm482; photo variants now warm inside pagerPhotosFetch123; a scroll-ahead wire keeps the window ahead of the member). Tap a tile -> the sheet player (reels play with the full V7.462/V7.486 rail incl. the handshake; photos and text posts open in the same media viewer they always did); PLUS SWIPE inside the player walks the GRID'S list across types (reel -> photo -> text -> reel) via a mixed session in the lightbox (lbHomeNav488) built on the V7.461 gesture wire — every landing behaves exactly as if tapped (view-once is the existing rpViewsPing per-session dedupe for reels and photo posts; text posts never ping, as today), no wrap at the ends, neighbours warm through the V7.483 fetcher hook, Back returns to the grid at the same scroll position (the grid is never unloaded under the sheet). FOLLOWING KEEPS ITS PAGER, byte for byte: renderHomePager branches on the tab — foryou goes to rpHomeGridRender488, following runs the original pager body untouched, and the V7.468 snap machinery retires only where the pager no longer renders (For You). One mapper repair rides along: pagerPhotoMap123 silently DROPPED text posts (a text post has no photo URLs, and the mapper returned null on an empty url list), so text posts never reached the Home pager at all; the mapper now carries them (kind/text/tstyle ride the item, plus photoThumb/thumbUrls for the tiles), so no content type is missing from Home. GLOW RULE CHANGE (Branden, same night, superseding the Nov 6 exception): "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing" — the Home strip's Plaza tab loses its always-on strongest-red glow; its glow rule now keys off .on like every other tab (the true-red look is kept for the active state; Following/For You and the bottom bar are untouched). Client-only; the V7.487 server already returns every field the grid reads. -->
 <!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
     <style>
       :root {
@@ -9841,14 +9842,14 @@
         var goBtn = $("btnRoomGoLive");
         if (goBtn) goBtn.hidden = !(eligible && (rpAdultOk())); // [RP-V7.75] a signed-in teen sees Go LIVE too — their live runs charms-only
       }
-      function addChatLine(name, text, mine, mid, fromId, glv338, fx392, rcb393) { // [RP-V7.338] glv338 = sender's gifter level (0/absent = no badge) // [RP-V7.392] fx392 = chat effect // [RP-V7.393] rcb393 = rewards-club tier badge
+      function addChatLine(name, text, mine, mid, fromId, glv338, fx392, rcb393, sub521) { // [RP-V7.521] sub521 = fan-club SUB badge (server-stamped) // [RP-V7.338] glv338 = sender's gifter level (0/absent = no badge) // [RP-V7.392] fx392 = chat effect // [RP-V7.393] rcb393 = rewards-club tier badge
         // [RP-V7.24] chat also lives in the LIVE overlay stream (and
         // the Teen Hangout's bubble stream) — feed those FIRST.
         // [RP-V7.47] the meet rooms' floating stream is fed the same
         // way, through the room stage module's hook (it renders only
         // while its room layout is up). Sender id rides along so a
         // report/mute can purge the sender's bubbles on screen.
-        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, "", glv338, fx392, rcb393); } catch (e) { } // [RP-V7.338] the badge rides into the live stream too // [RP-V7.392] the chat effect rides too // [RP-V7.393] the club badge rides too
+        try { if (typeof Live !== "undefined" && Live.active && typeof inLiveRoom === "function" && inLiveRoom()) pushLiveComment(name, text, "", glv338, fx392, rcb393, sub521); } catch (e) { } // [RP-V7.338] the badge rides into the live stream too // [RP-V7.392] the chat effect rides too // [RP-V7.393] the club badge rides too
         try { if (window.rpRoomBubble) window.rpRoomBubble(name, text, false, fromId || (mid ? String(mid).split(":")[0] : "")); } catch (e) { }
         var log = $("onlineChatLog"); if (!log) return;
         var isQ = chatIsQuestion(text);
@@ -9861,7 +9862,8 @@
         who.textContent = name;
         row.appendChild(who);
         if (glv338 > 0) { var gb338 = document.createElement("span"); gb338.innerHTML = rpGifterBadge338(glv338); if (gb338.firstChild) row.appendChild(gb338.firstChild); } // [RP-V7.338] gifter badge beside the name
-        if (rcb393) { var cb393 = document.createElement("span"); cb393.className = "rp393-badge"; cb393.textContent = rcb393; row.appendChild(cb393); } // [RP-V7.393] rewards-club tier badge with this room's seller
+        if (rcb393) { var cb393 = document.createElement("span"); cb393.className = "rp393-badge"; cb393.textContent = rcb393; row.appendChild(cb393); }
+        if (sub521) { var sb521 = document.createElement("span"); sb521.className = "rp-sub521"; sb521.textContent = "SUB"; row.appendChild(sb521); } // [RP-V7.521] fan-club member of this room's host // [RP-V7.393] rewards-club tier badge with this room's seller
         if (isQ) { var qt = document.createElement("span"); qt.className = "q-text"; qt.textContent = text; row.appendChild(qt); }
         else row.appendChild(document.createTextNode(text));
         if (mid) {
@@ -9914,7 +9916,7 @@
         if (fromId) statBump("chat", fromId, name);
         // 🔥 a real comment in a live room counts toward that live's engagement score
         try { if (fromId && typeof Live !== "undefined" && Live.active && Live.hostId && typeof inLiveRoom === "function" && inLiveRoom()) engRecord(Live.hostId, fromId, "comment", 1); } catch (e) { }
-        addChatLine(name, text, fromId === Online.myId, mid, fromId, (d && d.glv) || 0, (d && d.fx392) || null, (d && d.rcb393) || null); // [RP-V7.338] [RP-V7.392] fx392 = points-shop chat effect // [RP-V7.393] rcb393 = rewards-club tier badge with this live's host
+        addChatLine(name, text, fromId === Online.myId, mid, fromId, (d && d.glv) || 0, (d && d.fx392) || null, (d && d.rcb393) || null, (d && d.sub521) ? 1 : 0); // [RP-V7.521] the server's SUB stamp // [RP-V7.338] [RP-V7.392] fx392 = points-shop chat effect // [RP-V7.393] rcb393 = rewards-club tier badge with this live's host
       }
       function onChatBlocked(d) {
         // If the spam cap caught a live-room signal (not a typed message),
@@ -19136,7 +19138,7 @@
         if (Online.room !== LIVE_ROOM_ID) switchOnlineRoom(LIVE_ROOM_ID);
       }
       /* ---------- TikTok-style live overlay: host chip, viewer row, comments, rail, host tools ---------- */
-      function pushLiveComment(name, text, kind, glv338, fx392, rcb393) { // [RP-V7.338] [RP-V7.392] fx392 = chat effect // [RP-V7.393] rcb393 = rewards-club tier badge
+      function pushLiveComment(name, text, kind, glv338, fx392, rcb393, sub521) { // [RP-V7.521] sub521 = fan-club SUB badge // [RP-V7.338] [RP-V7.392] fx392 = chat effect // [RP-V7.393] rcb393 = rewards-club tier badge
         var box = $("liveComments"); if (!box || !Live.active) return;
         var row = document.createElement("div");
         row.className = "lv-comment" + (kind ? " " + kind : "");
@@ -19146,7 +19148,7 @@
           var cp2 = (typeof playerForName === "function") ? playerForName(name) : null;
           var cav = cp2 ? faceHTML(cp2, false) : personFace({ name: name || rpT("name_guest") });
           row.classList.add("chat");
-          row.innerHTML = '<span class="lv-cav">' + cav + '</span><span class="lv-cbody"><b' + (fx392 && fx392.n === "gold" ? ' class="fx392-gold"' : fx392 && fx392.n === "rainbow" ? ' class="fx392-rainbow"' : "") + '>' + escHtml(name) + "</b>" + (glv338 ? rpGifterBadge338(glv338) : "") + (rcb393 ? ' <span class="rp393-badge">' + rcb393 + "</span>" : "") + " " + escHtml(text) + "</span>"; // [RP-V7.392] // [RP-V7.393] club badge beside the name
+          row.innerHTML = '<span class="lv-cav">' + cav + '</span><span class="lv-cbody"><b' + (fx392 && fx392.n === "gold" ? ' class="fx392-gold"' : fx392 && fx392.n === "rainbow" ? ' class="fx392-rainbow"' : "") + '>' + escHtml(name) + "</b>" + (glv338 ? rpGifterBadge338(glv338) : "") + (rcb393 ? ' <span class="rp393-badge">' + rcb393 + "</span>" : "") + (sub521 ? ' <span class="rp-sub521">SUB</span>' : "") + " " + escHtml(text) + "</span>"; // [RP-V7.392] // [RP-V7.393] club badge beside the name
           if (fx392 && fx392.hl) row.classList.add("fx392-hl"); // [RP-V7.392]
           if (cp2) row.addEventListener("click", function () { openOnlinePlayerCard(cp2); });
         }
@@ -94097,6 +94099,12 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
 #rpTeamBar336 .tb-nm small{ color:#9a9aad; font-weight:700; font-size:11px; }
 #rpTeamBar336 .tb-nm.lead{ color:#ffd23c; }
 #rpTeamBar336 .tb-pts{ font-weight:900; font-size:15px; font-variant-numeric:tabular-nums; }
+#rpTeamBar336 .tb-rank{ flex:none; background:#ffd23c; color:#231a00; border-radius:99px; font-size:10px; font-weight:900; padding:1px 7px; min-width:28px; text-align:center; margin-right:7px; } /* [RP-V7.521] FFA rank chip on the bar rows */
+#tbSeg336{ display:flex; height:15px; border-radius:99px; overflow:hidden; margin-top:5px; background:rgba(255,255,255,.08); } /* [RP-V7.521] segmented proportional bar */
+#tbSeg336 .tb-seg{ height:100%; transition:width .45s ease; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:900; white-space:nowrap; overflow:hidden; }
+.rp-team-tile336 .rp-rank521{ position:absolute; top:6px; left:6px; z-index:5; background:rgba(8,8,14,.88); border:1px solid #ffd23c; color:#ffd23c; border-radius:99px; font-size:10.5px; font-weight:900; padding:2px 8px; pointer-events:none; } /* [RP-V7.521] per-pane rank + points */
+.rp-team-tile336 .rp-mult521{ position:absolute; top:6px; right:6px; z-index:5; background:rgba(8,8,14,.88); border:1px solid #fe2c2c; color:#ffb3b3; border-radius:99px; font-size:10.5px; font-weight:900; padding:2px 8px; pointer-events:none; } /* [RP-V7.521] per-pane points multiplier */
+.rp-team-tile336 .rp-gift521{ position:absolute; right:6px; bottom:6px; z-index:5; background:#fe2c2c; color:#fff; border:none; border-radius:99px; font-family:inherit; font-size:11px; font-weight:900; padding:5px 11px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.45); } /* [RP-V7.521] gift THIS contestant */
 #rpTeamBar336 .tb-tug{ display:flex; height:7px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.12); margin:3px 0; }
 #rpTeamBar336 .tb-fill.a{ background:#fe2c2c; height:100%; transition:width .45s ease; }
 #rpTeamBar336 .tb-fill.b{ background:#f5b93f; height:100%; transition:width .45s ease; }
@@ -94210,7 +94218,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     if (bar) return bar;
     bar = document.createElement("div");
     bar.id = "rpTeamBar336";
-    bar.innerHTML = '<div class="tb-head"><span class="tb-title" id="tbTitle336"></span><span class="tb-time" id="tbTime336">⚔️ 0:00</span><button type="button" class="tb-end" id="tbEnd336" style="display:none">End</button></div><div id="tbRows336"></div>';
+    bar.innerHTML = '<div class="tb-head"><span class="tb-title" id="tbTitle336"></span><span class="tb-time" id="tbTime336">⚔️ 0:00</span><button type="button" class="tb-end" id="tbEnd336" style="display:none">End</button></div><div id="tbRows336"></div><div id="tbSeg336" style="display:none"></div>'; // [RP-V7.521] the segmented bar lives under the rows
     document.body.appendChild(bar);
     $("tbEnd336").addEventListener("click", function () {
       var s = sock(); if (!s || !T.id) return;
@@ -94220,13 +94228,55 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     });
     return bar;
   }
+  /* [RP-V7.521] FFA ranked presentation helpers. Everything renders
+     the server payload's numbers (sides[].pts / sides[].effects) —
+     ranks are display math over server scores, exactly like the
+     rows' existing sort; a Mist side's score is null here and its
+     rank is shown as •, never invented. */
+  var SEG_COLORS521 = ["#fe2c2c", "#ffd23c", "#e8e8f2", "#8a8aa5"]; // stable per contestant (parts order): Plaza red / gold / white / grey — never TikTok pink/cyan
+  function ord521(n) { return ["1st", "2nd", "3rd", "4th"][n - 1] || String(n); }
+  function rankOf521(side) {
+    var s = sideOf(side); if (!s || s.masked || s.pts == null) return 0;
+    return 1 + T.sides.filter(function (o) { return o.pts != null && o.pts > s.pts; }).length;
+  }
+  function renderSeg521() {
+    var seg = $("tbSeg336"); if (!seg) return;
+    var ffa = T.format !== "2v2" && T.sides.length >= 3;
+    if (!ffa) { if (seg.style.display !== "none") seg.style.display = "none"; return; }
+    if (seg.style.display !== "flex") seg.style.display = "flex";
+    var sig = T.sides.map(function (s) { return s.side; }).join(",");
+    if (seg.__sig521 !== sig) {
+      seg.__sig521 = sig; seg.innerHTML = "";
+      T.sides.forEach(function (s, i) {
+        var d = document.createElement("div");
+        d.className = "tb-seg"; d.setAttribute("data-side", s.side);
+        d.style.background = SEG_COLORS521[i % SEG_COLORS521.length];
+        d.style.color = (i === 0 || i === 3) ? "#fff" : "#231a00";
+        seg.appendChild(d);
+      });
+    }
+    var total = T.sides.reduce(function (t, s) { return t + (s.pts == null ? 0 : s.pts); }, 0);
+    var leadSide = null, leadPts = -1;
+    T.sides.forEach(function (s) { if (s.pts != null && s.pts > leadPts) { leadPts = s.pts; leadSide = s.side; } });
+    T.sides.forEach(function (s) {
+      var d = seg.querySelector('[data-side="' + s.side + '"]'); if (!d) return;
+      var share = total > 0 ? ((s.pts == null ? 0 : s.pts) / total) * 100 : 100 / T.sides.length;
+      var w = share.toFixed(1) + "%";
+      if (d.style.width !== w) d.style.width = w;
+      var lab = "";
+      if (s.side === leadSide && total > 0 && share >= 18) lab = "1st · " + Number(s.pts || 0).toLocaleString();
+      if (d.textContent !== lab) d.textContent = lab;
+      var ttl = sideLabel(s.side) + " — " + (s.masked ? "???" : Number(s.pts || 0).toLocaleString());
+      if (d.title !== ttl) d.title = ttl;
+    });
+  }
   function renderBar() {
     var bar = $("rpTeamBar336");
     var show = !!(T.id && T.active && onLiveScreen());
     if (!show) { if (bar && bar.style.display !== "none") bar.style.display = "none"; return; }
     bar = ensureBar();
     if (bar.style.display !== "block") bar.style.display = "block";
-    var title = T.format === "2v2" ? "⚔️ 2v2 TEAM BATTLE" : (T.format === "3way" ? "⚔️ 3-WAY BATTLE" : "⚔️ 4-WAY BATTLE");
+    var title = T.format === "2v2" ? "⚔️ 2v2 TEAM BATTLE" : (T.format === "3way" ? "⚔️ 3-WAY FREE-FOR-ALL" : "⚔️ 4-WAY FREE-FOR-ALL"); // [RP-V7.521] FFA formats carry their own name
     var tt = $("tbTitle336"); if (tt && tt.textContent !== title) tt.textContent = title;
     var endBtn = $("tbEnd336");
     if (endBtn) { var want = isPart() ? "" : "none"; if (endBtn.style.display !== want) endBtn.style.display = want; }
@@ -94256,7 +94306,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
         }
         var row = document.createElement("div");
         row.className = "tb-row";
-        row.innerHTML = '<span class="tb-nm"></span><span class="tb-pts">0</span>';
+        row.innerHTML = (T.format === "2v2" ? "" : '<span class="tb-rank"></span>') + '<span class="tb-nm"></span><span class="tb-pts">0</span>'; // [RP-V7.521] FFA rows carry a rank chip; 2v2 rows are byte-identical to before
         wrap.appendChild(row);
         T.rowEls[key] = row;
       });
@@ -94283,6 +94333,8 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
       if (nm) { var nc = "tb-nm" + (lead ? " lead" : ""); if (nm.className !== nc) nm.className = nc; }
       var ptxt = s.masked ? "???" : Number(s.pts || 0).toLocaleString();
       if (pts && pts.textContent !== ptxt) pts.textContent = ptxt;
+      var rk = row.querySelector(".tb-rank"); // [RP-V7.521] live re-ranking: the chip follows the server scores every paint
+      if (rk) { var rn = rankOf521(key); var rt = rn ? ord521(rn) : "•"; if (rk.textContent !== rt) rk.textContent = rt; }
     });
     if (T.format === "2v2") {
       var fa = $("tbFillA336"), fb = $("tbFillB336");
@@ -94292,6 +94344,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
       if (fa && fa.style.width !== share + "%") fa.style.width = share + "%";
       if (fb && fb.style.width !== (100 - share) + "%") fb.style.width = (100 - share) + "%";
     }
+    renderSeg521(); // [RP-V7.521] segmented proportional bar (renders for FFA, hides itself for 2v2)
   }
 
   /* ---------------- chips + tray ---------------- */
@@ -94407,6 +94460,48 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
       if (r3.remoteSet) r3.pc.addIceCandidate(m.ice).catch(function () { }); else r3.ice.push(m.ice);
     }
   }
+  /* [RP-V7.521] Per-pane FFA furniture on the team tiles: the
+     contestant's live RANK chip (rank + points), a POINTS
+     MULTIPLIER chip while that contestant's own booster runs, and a
+     GIFT button that opens the standard gift sheet addressed to
+     THAT contestant — the money layer settles to them by name and
+     the server scores the settled gift to their side, the TikTok
+     "sent X to <host>" addressing from the recording. 2v2 panes keep
+     the plain furniture they always had. Every write is
+     signature-guarded (the MutationObserver rule). */
+  function tileFurniture521(t, peerId) {
+    var ffa = T.format !== "2v2" && T.active;
+    var part = null;
+    for (var i = 0; i < T.parts.length; i++) if (T.parts[i].id === peerId) part = T.parts[i];
+    var rk = t.querySelector(".rp-rank521"), mu = t.querySelector(".rp-mult521"), gb = t.querySelector(".rp-gift521");
+    if (!ffa || !part) {
+      if (rk) rk.remove(); if (mu) mu.remove(); if (gb) gb.remove();
+      if (t.__sig521) t.__sig521 = "";
+      return;
+    }
+    var s = sideOf(part.side);
+    var rn = s ? rankOf521(part.side) : 0;
+    var rankTxt = (rn ? ord521(rn) : "•") + " · " + (s && !s.masked && s.pts != null ? Number(s.pts).toLocaleString() : "???");
+    var mult = (s && s.effects && s.effects.booster > 0) ? (s.effects.boosterMult || 2) : 0;
+    var sig = rankTxt + "|" + mult + "|" + part.name;
+    if (t.__sig521 === sig) return;
+    t.__sig521 = sig;
+    if (!rk) { rk = document.createElement("span"); rk.className = "rp-rank521"; t.appendChild(rk); }
+    if (rk.textContent !== rankTxt) rk.textContent = rankTxt;
+    if (mult > 0) {
+      if (!mu) { mu = document.createElement("span"); mu.className = "rp-mult521"; t.appendChild(mu); }
+      var mt = "⚡ Points ×" + mult;
+      if (mu.textContent !== mt) mu.textContent = mt;
+    } else if (mu) mu.remove();
+    if (peerId !== myId()) {
+      if (!gb) {
+        gb = document.createElement("button");
+        gb.type = "button"; gb.className = "rp-gift521"; gb.textContent = "🎁 Gift";
+        (function (pid, pn) { gb.addEventListener("click", function () { try { if (window.openGiftSheet) window.openGiftSheet(pid, pn, { src: "live" }); } catch (e) { } }); })(part.id, part.name);
+        t.appendChild(gb);
+      }
+    } else if (gb) gb.remove();
+  }
   function renderTiles() {
     var grid = $("liveGrid");
     if (!grid) return;
@@ -94424,6 +94519,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
       var nm = t.querySelector(".rp-bat-name");
       var label = "⚔️ " + partName(id);
       if (nm && nm.textContent !== label) nm.textContent = label;
+      tileFurniture521(t, id); // [RP-V7.521] rank / multiplier / gift furniture on the pane
       var st = tileStreams336[id];
       if (st) {
         var v = t.querySelector("video");
@@ -94457,11 +94553,19 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     else title = ((e.winnerNames && e.winnerNames[0]) || "Host") + " WINS THE BATTLE!";
     var lines = (e.standings || []).map(function (s) {
       var nm = T.format === "2v2" ? (s.side === "a" ? "Team A" : "Team B") + " (" + (s.names || []).join(" & ") + ")" : (s.names || []).join(" & ");
-      return '<div class="score">' + esc(nm) + " — " + Number(s.pts || 0).toLocaleString() + "</div>";
+      var place = ""; // [RP-V7.521] FFA placement on every standings line (competition ranking — tied scores share the place)
+      if (T.format !== "2v2") { var rn = 1 + (e.standings || []).filter(function (o) { return (o.pts || 0) > (s.pts || 0); }).length; place = ord521(rn) + " · "; }
+      return '<div class="score">' + place + esc(nm) + " — " + Number(s.pts || 0).toLocaleString() + "</div>";
     }).join("");
+    var myPlace = ""; // [RP-V7.521] a contestant sees their own placement on the card
+    if (T.format !== "2v2" && isPart() && !e.draw) {
+      var ms = mySide();
+      var mine = (e.standings || []).filter(function (s2) { return s2.side === ms; })[0];
+      if (mine) { var mrn = 1 + (e.standings || []).filter(function (o) { return (o.pts || 0) > (mine.pts || 0); }).length; myPlace = '<div class="score" style="color:#ffd23c">You placed ' + ord521(mrn) + " of " + (e.standings || []).length + "</div>"; }
+    }
     var ov = document.createElement("div");
     ov.id = "rpBatResult";
-    ov.innerHTML = '<div class="card"><div class="crown">' + (e.draw ? "🤝" : "👑") + "</div><h3>" + esc(title) + "</h3>" + lines + '<div class="rp-total516">Total match points: ' + Number((e.standings || []).reduce(function (t516, s516) { return t516 + (s516.pts || 0); }, 0)).toLocaleString() + "</div>" + '<div><button class="btn-mini" id="rpTeamClose336" style="padding:11px 18px">Close</button></div></div>';
+    ov.innerHTML = '<div class="card"><div class="crown">' + (e.draw ? "🤝" : "👑") + "</div><h3>" + esc(title) + "</h3>" + lines + myPlace + '<div class="rp-total516">Total match points: ' + Number((e.standings || []).reduce(function (t516, s516) { return t516 + (s516.pts || 0); }, 0)).toLocaleString() + "</div>" + '<div><button class="btn-mini" id="rpTeamClose336" style="padding:11px 18px">Close</button></div></div>';
     document.body.appendChild(ov);
     $("rpTeamClose336").addEventListener("click", function () { ov.remove(); });
     setTimeout(function () { if (ov.parentNode) ov.remove(); }, 12000);
@@ -94618,7 +94722,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
       T.id = m.battleId; T.active = true; T.ended = null; T.format = m.format || T.format; T.endsAt = m.endsAt || 0; T.stock = null; T.parts = []; T.sides = [];
       clearLobby336();
       closeSheet();
-      toast2("⚔️ TEAM BATTLE STARTED — most gift points wins!", 3600);
+      toast2(T.format === "2v2" ? "⚔️ TEAM BATTLE STARTED — most gift points wins!" : "⚔️ FREE-FOR-ALL STARTED — every host for themselves, most gift points wins!", 3600); // [RP-V7.521] FFA gets its own start callout
       return;
     }
   }
@@ -98687,6 +98791,7 @@ window.rpOpenSavedSheet349 = function () {
 <style>
 /* [RP-V7.393] Per-seller Rewards Club surfaces. */
 .rp393-badge { font-size: 12px; margin-left: 2px; }
+.rp-sub521 { background:#ffd23c; color:#231a00; font-size:8.5px; font-weight:900; border-radius:4px; padding:1px 4px; margin-left:4px; vertical-align:1px; letter-spacing:.05em; } /* [RP-V7.521] fan-club SUB badge beside the name */
 .rp393-card { background: #101014; border: 1px solid #26262e; border-radius: 14px; padding: 14px; margin: 10px 0; color: #f2f2f5; }
 .rp393-card h3 { margin: 0 0 4px; font-size: 16px; }
 .rp393-sub { margin: 0 0 6px; color: #a7a7b3; font-size: 12.5px; line-height: 1.45; }
@@ -102835,7 +102940,8 @@ body:not(.live-fs) #rpLive519, body:not(.live-fs) #rpGoalLadder519, body:not(.li
     if (ev.kind === "away" && evOnce519(key)) { feedLine519("📶 " + (ev.name || "A host") + "'s connection dropped — the battle waits 30s for them to reconnect."); }
     else if (ev.kind === "back" && evOnce519(key)) { feedLine519("📶 " + (ev.name || "A host") + " is back — the battle resumes!"); callout519("📶 " + (ev.name || "A host") + " is back!", "The battle resumes"); }
     else if (ev.kind === "mission-start" && ev.missionKind === "gifters" && evOnce519(key)) { callout519("🎯 BONUS MISSION!", "Get " + (ev.target || 1) + " gifter in 60 seconds to unlock ×3 for the whole room"); feedLine519("🎯 BONUS MISSION: reach " + (ev.target || 1) + " gifter in 60 seconds and the whole room unlocks ×3 gifting points!"); }
-    else if (ev.kind === "mission-end" && ev.missionKind === "gifters" && ev.completed && evOnce519(key)) { feedLine519("🎯 Bonus Mission complete — the Rush Window is open!"); }
+    else if (ev.kind === "mission-end" && ev.missionKind === "gifters" && ev.completed && evOnce519(key)) { feedLine519("🎯 Bonus Mission complete — Rush Window starting soon!"); } // [RP-V7.521] the teaser beat comes first now
+    else if (ev.kind === "rush-soon" && evOnce519(key)) { callout519("⚡ RUSH STARTING SOON!", "Every gift counts ×3 — get ready!"); feedLine519("⚡ Rush Window starting soon — every gift scores ×3!"); } // [RP-V7.521] the teaser beat between mission completion and the window opening
     else if (ev.kind === "rush-start" && evOnce519(key)) { callout519("⚡ RUSH WINDOW!", "Every gift counts ×3 — 30 seconds!"); feedLine519("⚡ RUSH WINDOW is open — every gift scores ×3 for 30 seconds!"); }
     else if (ev.kind === "rush-end" && evOnce519(key)) { feedLine519("⚡ Rush Window closed."); }
   }
@@ -102987,14 +103093,20 @@ body:not(.live-fs) #rpLive519, body:not(.live-fs) #rpGoalLadder519, body:not(.li
     var st = missionOf519();
     var show = null;
     if (st.rush && st.rush.active) show = { rush: true, endsAt: st.rush.endsAt };
+    else if (st.rush && st.rush.startsAt && st.rush.startsAt > Date.now()) show = { soon: true, startsAt: st.rush.startsAt }; // [RP-V7.521] teaser: the window is armed but not open yet
     else if (st.m && st.m.kind === "gifters" && st.m.active) show = { rush: false, m: st.m };
     var el = $("rpMban519");
     if (!show) { if (el) el.remove(); return; }
     if (!el) { el = document.createElement("div"); el.id = "rpMban519"; document.body.appendChild(el); }
     var now = Date.now();
-    var cd = Math.max(0, Math.ceil(((show.rush ? show.endsAt : show.m.endsAt) - now) / 1000));
+    var cd = Math.max(0, Math.ceil((((show.rush || show.soon) ? (show.endsAt || show.startsAt) : show.m.endsAt) - now) / 1000)); // [RP-V7.521] the teaser counts down to the open
     var html, sig;
-    if (show.rush) {
+    if (show.soon) {
+      sig = "soon|" + cd;
+      html = '<div class="rp-mban-top519">⚡ RUSH STARTING SOON<span class="rp-mpill519">ALL GIFTS ×3</span><span class="cd">0:' + String(cd).padStart(2, "0") + '</span></div>' +
+        '<div class="rp-tick519"><span class="rp-tick-in519">The Rush Window opens in a few seconds — every gift scores ×3 for 30 seconds, get ready! ⚡ The Rush Window opens in a few seconds — get ready!</span></div>';
+      el.className = "rp-mban519 rush";
+    } else if (show.rush) {
       sig = "rush|" + cd;
       html = '<div class="rp-mban-top519">⚡ RUSH WINDOW<span class="rp-mpill519">ALL GIFTS ×3</span><span class="cd">0:' + String(cd).padStart(2, "0") + '</span></div>' +
         '<div class="rp-tick519"><span class="rp-tick-in519">Every gift scores ×3 while the Rush Window is open — send now! ⚡ Every gift scores ×3 while the Rush Window is open — send now!</span></div>';
@@ -103240,6 +103352,56 @@ body:not(.live-fs) #rpDrop520{ display:none; }
   function tick520() { try { bindSock520(); renderDrop520(false); } catch (e) { } }
   setInterval(tick520, 400);
   tick520();
+})();
+</script>
+
+<script>
+/* ================= RP-V7.521: SHARE MILESTONES (client) =================
+   The FFA ranked presentation lives in the V7.336 layer (tagged 521);
+   this module carries the one new room event of the build: the
+   server counts live-share signals per room over a trailing
+   60-second window and emits "share-milestone521" when the count
+   crosses a threshold — the aggregate encouragement line from the
+   fourth recording, distinct from V7.517's per-share lines. The
+   client tallies nothing; it prints the server's count onto both
+   chat surfaces (the live comment stream + the room chat log). */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function sock521() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  var bound521 = null;
+  function line521(text) {
+    try {
+      var box = $("liveComments");
+      var L = null; try { L = window.rpLive ? window.rpLive() : null; } catch (e) { }
+      if (box && L && L.active) {
+        var r = document.createElement("div");
+        r.className = "lv-comment sys";
+        r.textContent = text;
+        box.appendChild(r);
+        while (box.children.length > 40) box.removeChild(box.firstChild);
+      }
+    } catch (e) { }
+    try {
+      var log = $("onlineChatLog"); if (!log) return;
+      var row = document.createElement("div");
+      row.className = "chat-row sys";
+      row.innerHTML = "<span>" + esc(text) + "</span>";
+      log.appendChild(row);
+      while (log.children.length > 60) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    } catch (e) { }
+  }
+  function bind521() {
+    var s = sock521();
+    if (s && bound521 !== s) {
+      bound521 = s;
+      try { s.on("share-milestone521", function (d) { if (d && d.n) line521("🔥 This LIVE was shared " + Number(d.n).toLocaleString() + " times in the last minute — share it with your friends too!"); }); } catch (e) { }
+    }
+  }
+  setInterval(bind521, 1500);
+  bind521();
 })();
 </script>
 
