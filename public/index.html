@@ -1065,6 +1065,12 @@
 .gf-lb416 { display: none; }
 .reel-act { display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; color: #fff; font-size: 21px; cursor: pointer; font-family: inherit; text-shadow: 0 1px 6px rgba(0,0,0,.7); padding: 2px; line-height: 1.1; }
       .reel-act span { font-size: 11.5px; font-weight: 800; }
+      /* [RP-V7.513-A] DOWNLOAD GLYPH — Option 3's arrow + ground bar, sized to sit with the rail's other line icons; the caption under it is the rail's ordinary label span. */
+      svg.dl513 { display: block; }
+      .reel-act > svg.dl513 { width: 27px; height: 27px; }
+      .hp-act .hp-ico > svg.dl513 { width: 27px; height: 27px; }
+      .sv-dl > svg.dl513 { width: 25px; height: 25px; margin: 0 auto; }
+      .fc298-dl512 > svg.dl513 { display: inline-block; width: 15px; height: 15px; vertical-align: -2px; }
       .reel-act.liked { color: #ff7d7d; }
       .reel-act.reposted { color: #25d0a5; } /* [RP-V7.89] repost active */
       /* [RP-V7.451] reel About sheet (Interested / Not interested + why) */
@@ -4447,6 +4453,7 @@
        handler can ever land on one. attrs462 injects extra
        attributes (the pager's owner-fill marker rides the Delete
        stand-in). */
+    window.rpDlIco513 = '<svg class="dl513" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2.8v12.6"/><path d="M5.4 10.2 12 16.8l6.6-6.6"/><path d="M5.4 21.6h13.2" stroke-width="1.3"/></svg>'; // [RP-V7.513-A] Option 3 glyph: bold rounded arrow + ground bar (currentColor so each rail paints it its own color)
     window.rpRailPh462 = function (kind, attrs462) {
       var I = window.RPICO || {};
       var a = attrs462 || "";
@@ -4456,7 +4463,7 @@
       if (kind === "giftFlat") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + ">" + (I.gift || "") + '<span class="gc262" style="display:none"></span></span>';
       if (kind === "del") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + '><span style="font-size:19px;line-height:1;">🗑</span><span class="del-lbl412" data-i18n="act_delete">Delete</span></span>';
       if (kind === "remix") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + ">" + (I.remix || "") + "<span data-i18n=\"rail_remix\">Remix</span></span>";
-      if (kind === "dl") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + '><span style="font-size:19px;line-height:1;">⬇</span><span data-i18n="act_save">Save</span></span>';
+      if (kind === "dl") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + ">" + window.rpDlIco513 + '<span data-i18n="act_save">Save</span></span>'; // [RP-V7.513-A] stand-in carries the arrow button's exact inner structure
       if (kind === "ai") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + '><span style="font-size:19px;line-height:1;">✨</span><span data-i18n="rail_ai_filter">AI Filter</span></span>';
       if (kind === "collab") return '<span class="reel-act rp-ph462" aria-hidden="true"' + a + '><span style="font-size:19px;line-height:1;">🤝</span><span data-i18n="rail_collab">Collab</span></span>'; // [RP-V7.486] the Collaborator slot holds its place where the viewer is neither the reel's author nor its collaborator
       return "";
@@ -10418,7 +10425,7 @@
           '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span data-i18n=\"act_share\">Share</span></button>" +
           '<button class="reel-act repost pp-repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>" +
           '<button class="reel-act rp-save349" type="button" aria-label="Save" data-i18n-al="act_save" data-save349="photo:' + escHtml(fi241.postId) + '">' + RPICO.bookmark + '<span class="sv-lb349 sv-lb413" data-i18n="act_save">Save</span></button>' + /* [RP-V7.349] */
-          (postFull && !(post && post.kind === "text") ? '<button class="reel-act pp-dl507" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span data-i18n="act_save">Save</span></button>' : "") + /* [RP-V7.507] the photo twin of the video rail's ⬇ Save: downloads the STAMPED export */
+          (postFull && !(post && post.kind === "text") ? '<button class="reel-act pp-dl507" type="button">' + window.rpDlIco513 + '<span data-i18n="act_save">Save</span></button>' : "") + /* [RP-V7.507] the photo twin of the video rail's ⬇ Save: downloads the STAMPED export */
           (((postFull && j.id && j.id === rpMyId243()) || (it.owner && it.owner === rpMyId243()) || rpIsOwner435()) ? '<button class="reel-act pp-del243" type="button" aria-label="Delete" data-i18n-al="act_delete"><span style="font-size:19px;line-height:1;">🗑</span><span class="del-lbl412" data-i18n="act_delete">Delete</span></button>' : "");
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close" data-i18n-al="act_close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
@@ -10834,7 +10841,7 @@
           var collabMine486 = !!(meta.owner && myId486 && String(meta.owner) === String(myId486)); // [RP-V7.486] the reel's author
           var collabMe486 = !!(fi241.collabId && myId486 && String(fi241.collabId) === String(myId486)); // [RP-V7.486] its collaborator
           var dlOk316 = meta.allowDownloads !== false || !!(meta.owner && meta.owner === rpMyId243());
-          var dlBtn316 = dlOk316 ? '<button class="reel-act pp-dl316" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span data-i18n="act_save">Save</span></button>' : window.rpRailPh462("dl"); // [RP-V7.462] downloads off: the download-Save slot holds its place
+          var dlBtn316 = dlOk316 ? '<button class="reel-act pp-dl316" type="button">' + window.rpDlIco513 + '<span data-i18n="act_save">Save</span></button>' : window.rpRailPh462("dl"); // [RP-V7.462] downloads off: the download-Save slot holds its place
           if (meta.feedPost) {
             /* [RP-V7.409] The FULL canonical rail for a Feed-post
                video — Like, Comment, counted Gift, Share, Save,
@@ -30469,7 +30476,7 @@
            the wire below resolves its on-device blob. */
         var dlOk512 = !item.server || item.allowDownloads !== false || !!item.mine || authOnly486;
         var dlBtn512 = dlOk512
-          ? '<button class="reel-act pp-dl316" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span data-i18n="act_save">Save</span></button>'
+          ? '<button class="reel-act pp-dl316" type="button">' + window.rpDlIco513 + '<span data-i18n="act_save">Save</span></button>'
           : window.rpRailPh462("dl");
         card.innerHTML =
           videoHtml +
@@ -31762,7 +31769,7 @@
           : '<button type="button" class="hp-act hp-gift gs402" aria-label="Gift" data-i18n-al="act_gift"><span class="hp-ico">' + RPICO.gift + '</span><span class="gc262" data-gc262="reel:' + escHtml(item.id) + '"' + ((item.giftCount || 0) > 0 ? ">" + item.giftCount : ' style="display:none">') + "</span></button>") +
           '<button type="button" class="hp-act hp-share"><span class="hp-ico">' + RPICO.share + '</span><span data-i18n="act_share">Share</span></button>' +
           (item.server ? '<button type="button" class="hp-act rp-save349" aria-label="Save" data-i18n-al="act_save" data-save349="reel:' + escHtml(item.id) + '"><span class="hp-ico">' + RPICO.bookmark + '</span><span class="hp-n sv-lb349 sv-lb413" data-i18n="act_save">Save</span></button>' : "") + /* [RP-V7.349] */
-          (((item.server || item.serverId) && (item.allowDownloads !== false || item.mine)) ? '<button type="button" class="hp-act pp-dl316"><span class="hp-ico" style="font-size:19px;line-height:1;">⬇</span><span class="hp-n" data-i18n="act_save">Save</span></button>' : "") + /* [RP-V7.512] the Home pager's own download Save — the standard gate, the stamped route */
+          (((item.server || item.serverId) && (item.allowDownloads !== false || item.mine)) ? '<button type="button" class="hp-act pp-dl316"><span class="hp-ico">' + window.rpDlIco513 + '<span class="hp-n" data-i18n="act_save">Save</span></button>' : "") + /* [RP-V7.512] the Home pager's own download Save — the standard gate, the stamped route */
           ((item.server || item.serverId) ? '<button type="button" class="hp-act pp-repost repost' + (item.myReposted ? " reposted" : "") + '"><span class="hp-ico">' + RPICO.repost + '</span><span class="rc">' + (item.reposts || 0) + "</span></button>" : "") + /* [RP-V7.409] Repost joins the Home video slide — the photo slide always had it */
           ((item.mine || rpIsOwner435()) && item.server ? '<button type="button" class="hp-act pp-del243" aria-label="Delete" data-i18n-al="act_delete"><span class="hp-ico" style="font-size:19px;line-height:1;">🗑</span><span class="del-lbl412" data-i18n="act_delete">Delete</span></button>' : "") + /* [RP-V7.409] your own slide — delete it right here (the server re-checks authorship) */
           '<span class="hp-views">👁 ' + (item.views || 0) + "</span>" +
@@ -79264,7 +79271,7 @@ button.rp72-chip{ cursor:pointer; }
     var myId486 = myAccountId(); // [RP-V7.486] the session account id (the same source lbMine241 reads)
     var collabMe486 = !!(it.collabId && myId486 && String(it.collabId) === String(myId486)); // [RP-V7.486] the reel's collaborator
     var dlOk508 = it.allowDownloads !== false || mine; // [RP-V7.508] the profile player's download gate (RP-V7.316), decided on this rail's own mine test
-    var dlBtn508 = dlOk508 ? '<button class="reel-act pp-dl316" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span data-i18n="act_save">Save</span></button>' : window.rpRailPh462("dl"); // [RP-V7.508] downloads off for this viewer: the download-Save slot holds its place, so the rail's geometry never moves
+    var dlBtn508 = dlOk508 ? '<button class="reel-act pp-dl316" type="button">' + window.rpDlIco513 + '<span data-i18n="act_save">Save</span></button>' : window.rpRailPh462("dl"); // [RP-V7.508] downloads off for this viewer: the download-Save slot holds its place, so the rail's geometry never moves
     if (it.feedPost) {
       // [RP-V7.409] A Feed video post: its engagement lives in the
       // Feed store, not the reel store — and it now carries the
@@ -81308,7 +81315,7 @@ button.rp72-chip{ cursor:pointer; }
         out += '<p style="color:var(--ink);">' + (j.isSelf ? rpT("clubroom_no_posts_self") : rpT("clubroom_no_posts")) + '</p>';
       }
       reels.forEach(function (rl) {
-        var dl512 = (!rl.locked && (rl.allowDownloads !== false || j.isSelf)) ? '<div class="btn-row" style="margin-top:6px;"><button type="button" class="btn-mini fc298-dl512" data-dlroute512="/api/reel/' + encodeURIComponent(rl.id) + '/download">⬇ Download video</button></div>' : ""; // [RP-V7.512] club reels download through the stamped route — the server re-checks club access there
+        var dl512 = (!rl.locked && (rl.allowDownloads !== false || j.isSelf)) ? '<div class="btn-row" style="margin-top:6px;"><button type="button" class="btn-mini fc298-dl512" data-dlroute512="/api/reel/' + encodeURIComponent(rl.id) + '/download">' + window.rpDlIco513 + ' Download video</button></div>' : ""; // [RP-V7.512] club reels download through the stamped route — the server re-checks club access there
         out += '<div class="fc298-post">' + (rl.locked ? window.rpAnyLockHtml298(rl, creatorName) : '<video src="' + esc(rl.url || "") + '" controls playsinline preload="metadata"></video>' + (rl.caption ? '<p>' + esc(rl.caption) + '</p>' : '') + dl512) + '</div>';
       });
       photos.forEach(function (pp) {
@@ -81321,7 +81328,7 @@ button.rp72-chip{ cursor:pointer; }
         var media = "";
         if (fp.url && fp.kind === "video") media = '<video src="' + esc(fp.url) + '" controls playsinline preload="metadata"></video>';
         else if (fp.url) media = '<img loading="lazy" decoding="async" src="' + esc(fp.url) + '" alt=""/>';
-        var dl512 = (fp.url && fp.kind === "video" && (fp.allowDownloads !== false || fp.isSelf || j.isSelf)) ? '<div class="btn-row" style="margin-top:6px;"><button type="button" class="btn-mini fc298-dl512" data-dlroute512="/api/feed/' + encodeURIComponent(fp.id) + '/download">⬇ Download video</button></div>' : ""; // [RP-V7.512] club feed videos too
+        var dl512 = (fp.url && fp.kind === "video" && (fp.allowDownloads !== false || fp.isSelf || j.isSelf)) ? '<div class="btn-row" style="margin-top:6px;"><button type="button" class="btn-mini fc298-dl512" data-dlroute512="/api/feed/' + encodeURIComponent(fp.id) + '/download">' + window.rpDlIco513 + ' Download video</button></div>' : ""; // [RP-V7.512] club feed videos too
         out += '<div class="fc298-post">' + media + (fp.text ? '<p>' + esc(fp.text) + '</p>' : '') + dl512 + '</div>';
       });
       body.innerHTML = out;
@@ -84924,7 +84931,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       '<button type="button" class="sv-share"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M13.3 4.3 20 10.6l-6.7 6.3v-3.9c-4.9 0-7.9 1.5-9.8 4.4.2-6 3.3-10.1 9.8-10.6z\"/></svg><small data-i18n="act_share">Share</small></button>' + // [RP-V7.409] the RPICO share glyph (was a link-chain), and onShare now sends a real story link
       '<button type="button" class="sv-save rp-save349" data-save349=""><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path class=\"bf\" d=\"M6.5 4h11v16L12 15.9 6.5 20z\"/></svg><small class="sv-lb349" data-i18n="act_save">Save</small></button>' + // [RP-V7.409] by-reference Save — data-save349 re-points per story in showStory; the RpSave349 delegated handler owns the tap
       '<button type="button" class="sv-repost"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M17 3.8 20.2 7 17 10.2\"/><path d=\"M4.5 12.8v-1.6a3.7 3.7 0 0 1 3.7-3.7h11.5\"/><path d=\"M7 20.2 3.8 17 7 13.8\"/><path d=\"M19.5 11.2v1.6a3.7 3.7 0 0 1-3.7 3.7H4.3\"/></svg><small>0</small></button>' + // [RP-V7.409] by-reference Repost — the original's clock, dies with it
-      '<button type="button" class="sv-dl" aria-label="Download this story" hidden>⬇<small data-i18n="act_save">Save</small></button>' + // [RP-V7.512] story download — shown per story by showStory under the reel rule
+      '<button type="button" class="sv-dl" aria-label="Download this story" hidden>' + window.rpDlIco513 + '<small data-i18n="act_save">Save</small></button>' + // [RP-V7.512] story download — shown per story by showStory under the reel rule
       "</div>" +
       '<div class="sv-bottom"><span class="sv-views"></span>' +
       '<button type="button" class="sv-follow" data-i18n="follow_btn_follow" hidden>Follow</button></div>' +
@@ -101097,6 +101104,90 @@ window.rpOpenSavedSheet349 = function () {
     } catch (e) { }
   }
   window.rpAppr505 = { consider: consider };
+})();
+</script>
+
+<style>
+/* [RP-V7.514] RAIL FIT — the action rails are bottom-anchored inside
+   full-height containers (pager rail bottom:84px; full-screen player
+   rail bottom:72px + safe-area), so their lowest items — Remix, the
+   👁 count, About — carry only ~84px of clearance from the LAYOUT
+   viewport's bottom edge. When the VISIBLE viewport is shorter than
+   the layout viewport (in-app webviews and browser chrome the page's
+   own dvh does not track), that whole strip is off-screen and the
+   rail appears to end at the gift button (Branden's phone, Nov 25).
+   The same fixed 690px rail also eats its own top at genuinely short
+   viewports (measured: avatar clipped at 760px, Like at 700px). The
+   V7.514 script below measures the true visible height through
+   visualViewport and publishes (1) --rp-vvd: the invisible bottom
+   strip, added to every bottom anchor in this family, and (2)
+   rp-railfit1/2 classes on <html> compressing the rail to fit short
+   visible heights. Height media queries mirror the compression for
+   matched layout==visible environments. When visible == layout,
+   --rp-vvd is 0px and no class fires — the tall-screen rendering is
+   exactly V7.513's. */
+#gameFeed .reel-card .reel-rail, #reelFeed .reel-card .reel-rail { bottom: calc(84px + var(--rp-vvd, 0px)); }
+body .overlay.rpvid-full254 .rpmedia-player { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--rp-vvd, 0px)); }
+body .overlay.rpvid-full254 .rpmedia-player-count { bottom: calc(26px + env(safe-area-inset-bottom, 0px) + var(--rp-vvd, 0px)); }
+body .overlay.rpvid-full254 .rpmedia-player .reel-rail { bottom: calc(72px + env(safe-area-inset-bottom, 0px) + var(--rp-vvd, 0px)); }
+.hp-rail { bottom: calc(20px + var(--rp-vvd, 0px)); }
+/* [RP-V7.514 ext] The same lift for the pager's remaining bottom chrome —
+   the caption/meta block (base bottom:12px) and the seek bar (base
+   bottom:0) sat in the invisible strip under a mismatch exactly like the
+   rail tail — and for the story viewer's bottom-anchored chrome (rail
+   base bottom:108px, the views/follow bar, the reply bar, the sticker),
+   which never got the lift. Matched environments: --rp-vvd is 0px and
+   every value below reduces to its pre-V7.514 base — rendering unchanged. */
+#gameFeed .reel-card .reel-meta, #reelFeed .reel-card .reel-meta { bottom: calc(12px + var(--rp-vvd, 0px)); }
+#gameFeed .reel-card .reel-progress, #reelFeed .reel-card .reel-progress { bottom: var(--rp-vvd, 0px); }
+#storyViewer .sv-rail { bottom: calc(108px + var(--rp-vvd, 0px)); }
+#storyViewer .sv-bottom { bottom: calc(16px + env(safe-area-inset-bottom) + var(--rp-vvd, 0px)); }
+#storyViewer.has-reply .sv-bottom { bottom: calc(74px + env(safe-area-inset-bottom) + var(--rp-vvd, 0px)); }
+#storyViewer .sv-replybar { bottom: calc(14px + env(safe-area-inset-bottom) + var(--rp-vvd, 0px)); }
+#storyViewer .sv-sticker450 { bottom: calc(118px + env(safe-area-inset-bottom) + var(--rp-vvd, 0px)); }
+@media (max-width: 719px) { body .overlay { padding-bottom: var(--rp-vvd, 0px); } }
+html.rp-railfit1 .reel-rail { gap: 8px; }
+html.rp-railfit2 .reel-rail { gap: 5px; }
+html.rp-railfit2 .reel-act { font-size: 18px; }
+html.rp-railfit2 .reel-act span { font-size: 10.5px; }
+html.rp-railfit2 .reel-act > svg.dl513 { width: 22px; height: 22px; }
+html.rp-railfit2 .reel-avwrap { width: 38px; height: 38px; }
+html.rp-railfit2 .reel-views { font-size: 11.5px; }
+@media (max-height: 799px) and (min-height: 701px) { .reel-rail { gap: 8px; } }
+@media (max-height: 700px) {
+  .reel-rail { gap: 5px; }
+  .reel-act { font-size: 18px; }
+  .reel-act span { font-size: 10.5px; }
+  .reel-act > svg.dl513 { width: 22px; height: 22px; }
+  .reel-avwrap { width: 38px; height: 38px; }
+  .reel-views { font-size: 11.5px; }
+}
+</style>
+<script>
+/* [RP-V7.514] Visible-viewport fit: visualViewport is the one API
+   that reports the height the member can actually see in every
+   shell (Safari chrome, in-app webviews, keyboards). Publish the
+   invisible bottom strip as --rp-vvd and the compression classes
+   the V7.514 style block consumes. No-ops where visualViewport is
+   unavailable (the CSS var fallbacks keep V7.513 geometry). */
+(function () {
+  var vv = window.visualViewport;
+  if (!vv) return;
+  var root = document.documentElement;
+  function upd514() {
+    var delta = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    root.style.setProperty("--rp-vvd", delta + "px");
+    var h = vv.height;
+    root.classList.toggle("rp-railfit1", h < 800 && h > 700);
+    root.classList.toggle("rp-railfit2", h <= 700);
+  }
+  vv.addEventListener("resize", upd514);
+  vv.addEventListener("scroll", upd514);
+  window.addEventListener("resize", upd514);
+  window.addEventListener("orientationchange", function () { setTimeout(upd514, 80); });
+  upd514();
+  setTimeout(upd514, 1200);
+  window.rpRailFit514 = upd514;
 })();
 </script>
 
