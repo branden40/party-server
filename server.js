@@ -8004,16 +8004,49 @@ function wmProbe316(file) {
     });
   });
 }
-function wmRun316(args, timeoutMs) {
+function wmRun316(args, timeoutMs, opts) {
   return new Promise((resolve, reject) => {
-    crExecFile286(crFfmpeg286, args, { timeout: timeoutMs || 120000, maxBuffer: 8 * 1024 * 1024 }, (e, so, se) => {
+    // [RP-V7.509] Opt-in RSS watchdog (opts.rssLimitBytes): while
+    // the child runs, poll its resident set every 100 ms; if it
+    // crosses the limit, kill the child so the CALLER fails with
+    // its honest error instead of ffmpeg eating the whole
+    // instance's memory and the cgroup killer taking Node down
+    // with it (the Nov 25, 2026 production OOM: three download
+    // taps at 07:16:55/58 + 07:17:01 ET, "Instance failed — Ran
+    // out of memory (used over 512MB)" at 07:17:04). Default
+    // behaviour is byte-for-byte the old one for every caller
+    // that does not opt in — only the watermark video encode
+    // (wmStampedFor316) passes rssLimitBytes today.
+    const rssLimit509 = opts && opts.rssLimitBytes > 0 ? opts.rssLimitBytes : 0;
+    let rssKilled509 = false;
+    let rssPeak509 = 0;
+    let rssTimer509 = null;
+    const child509 = crExecFile286(crFfmpeg286, args, { timeout: timeoutMs || 120000, maxBuffer: 8 * 1024 * 1024 }, (e, so, se) => {
+      if (rssTimer509) { clearInterval(rssTimer509); rssTimer509 = null; }
       // [RP-V7.317] carry the exit code / killing signal into the log
       // line: a resource-killed ffmpeg writes no stderr at all, and
       // the bare "Command failed" hid the V7.316 production 500s'
       // cause (see the hotfix note at WM_STAMP_VER_316 below).
-      if (e) { e.message = (e.message || "ffmpeg failed") + (e.signal ? " [killed by " + e.signal + "]" : "") + (typeof e.code === "number" ? " [exit " + e.code + "]" : "") + " :: " + String(se || "").slice(-400); return reject(e); }
+      if (e) { e.message = (e.message || "ffmpeg failed") + (e.signal ? " [killed by " + e.signal + "]" : "") + (typeof e.code === "number" ? " [exit " + e.code + "]" : "") + (rssKilled509 ? " [RP-V7.509 watchdog: ffmpeg RSS crossed " + Math.round(rssLimit509 / 1048576) + " MB (peak " + Math.round(rssPeak509 / 1048576) + " MB) — encode killed so the instance survives]" : "") + " :: " + String(se || "").slice(-400); return reject(e); }
       resolve(true);
     });
+    if (rssLimit509 && child509 && child509.pid) {
+      rssTimer509 = setInterval(() => {
+        try {
+          const st509 = fs.readFileSync("/proc/" + child509.pid + "/status", "utf8");
+          const m509 = /VmRSS:\s*(\d+)\s*kB/.exec(st509);
+          if (!m509) return;
+          const rss509 = (+m509[1]) * 1024;
+          if (rss509 > rssPeak509) rssPeak509 = rss509;
+          if (rss509 > rssLimit509 && !rssKilled509) {
+            rssKilled509 = true;
+            console.log("[watermark] RP-V7.509 watchdog: ffmpeg pid " + child509.pid + " RSS " + Math.round(rss509 / 1048576) + " MB crossed the " + Math.round(rssLimit509 / 1048576) + " MB encode budget — killing the encode; the download fails honestly and the instance stays up");
+            try { child509.kill("SIGKILL"); } catch (e2) {}
+          }
+        } catch (e3) { /* /proc entry gone (child exited) or unreadable — the callback clears the timer */ }
+      }, 100);
+      if (rssTimer509.unref) rssTimer509.unref();
+    }
   });
 }
 // Advance-width metrics parsed out of the embedded subset font, so
@@ -8222,7 +8255,9 @@ function wmStampFor316(handle) {
 // (Branden retired the watermark over it on Nov 12). The re-stamp
 // therefore runs on a SINGLE-FILE LANE — one ffmpeg encode at a
 // time across the whole process, however many downloads arrive —
-// inside the V7.317 thread bounds (threads 2, veryfast), and only
+// inside the V7.317 thread bounds (veryfast; the encode's thread
+// counts drop 2 → 1 in RP-V7.509, which also adds the RSS
+// watchdog and the 720 export width cap below), and only
 // for exports the 512 MB instance can honestly carry: at most
 // WM_MAX_DUR_507 seconds (reels are already <=300 s by the V7.179
 // fit-trim, so the cap only ever bites an over-long feed video,
@@ -8230,7 +8265,28 @@ function wmStampFor316(handle) {
 // unstamped copy) and at most WM_MAX_W_507 wide (the ORIGINAL is
 // never touched — only the export copy is scaled).
 const WM_MAX_DUR_507 = 300;
-const WM_MAX_W_507 = 1080;
+// [RP-V7.509] Export width cap 1080 → 720. The Nov 25, 2026
+// production OOM proved the 1080-wide hop encode (frame buffers
+// scale with pixel count: 1080x1920 carries 2.25x the pixels of
+// 720x1280) does not fit beside Node on the 512 MB instance.
+// Most sources are 720 wide already, so nothing changes for
+// them; a wider source's EXPORT copy is scaled to 720 (the
+// original is never touched), the same honest trade V7.507
+// already made at 1080.
+const WM_MAX_W_507 = 720;
+// [RP-V7.509] Encode RSS budget for the watchdog in wmRun316:
+// the video stamp encode is killed (honest step-"encode" error
+// to the downloader) if its ffmpeg child crosses this resident
+// set. Sized from the RP-V7.509 parity rig (real server under a
+// hard 512 MB ceiling, production ffmpeg-static binary, kernel
+// VmHWM peaks): the worst legitimate encode — the real
+// 1080x1920 promo that OOM'd production, decoded + encoded with
+// every thread pool at 1 under the 720 width cap — peaks at
+// 166 MB; a 720-wide source peaks at 153 MB. 180 MB sits just
+// above the worst measured encode, and with Node's ~298 MB
+// footprint plus one 100 ms poll of overshoot the tree stays
+// under the 512 MB instance cap — see BUILD.md (rizz-v7509).
+const WM_ENCODE_RSS_LIMIT_509 = 180 * 1024 * 1024;
 const WM_GLOW_PAD_507 = 14; // transparent glow margin baked into every stamp PNG (wmGlowGraph507)
 let wmLaneTail507 = Promise.resolve();
 function wmLane507(job) {
@@ -8282,7 +8338,19 @@ function wmStampedFor316(cacheName, srcPath, handle) {
     // from the host's CPU count and its memory demand got the
     // encoder killed at init in production. Filter-graph threads
     // are capped alongside; a failed encode unlinks its tmp file.
-    try { await wmRun316(["-y", "-v", "error", "-filter_complex_threads", "2", "-i", srcPath, "-i", stampPath, "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", "-threads", "2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", tmp], 15 * 60 * 1000); }
+    // [RP-V7.509] Threads 2 → 1 on BOTH pools and the RSS watchdog
+    // rides along (third wmRun316 argument): the Nov 25 production
+    // OOM showed threads-2 frame-thread buffers at 1080 wide still
+    // outgrew the 512 MB instance; one thread at the 720 cap peaks
+    // far lower (parity-rig measured, BUILD.md rizz-v7509), and if
+    // any future input still balloons, the watchdog kills the
+    // encode — never the instance. The input-side "-threads 1"
+    // (before -i) caps the DECODER too: uncapped, ffmpeg sizes the
+    // decode pool from the host's CPU count — invisible on the
+    // rig VM, unbounded on a many-core production host — and the
+    // 1080-wide decode pool was the single biggest block in the
+    // measured peak (200 MB → 166 MB from this one bound).
+    try { await wmRun316(["-y", "-v", "error", "-filter_complex_threads", "1", "-threads", "1", "-i", srcPath, "-i", stampPath, "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", "-threads", "1", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", tmp], 15 * 60 * 1000, { rssLimitBytes: WM_ENCODE_RSS_LIMIT_509 }); }
     catch (e) { try { fs.unlinkSync(tmp); } catch (e2) {} throw wmStepErr316("encode", e); }
     if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1024) throw wmStepErr316("encode", new Error("watermark encode produced no file"));
     fs.renameSync(tmp, out);
