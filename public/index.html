@@ -28,7 +28,7 @@
     <title>Rizz Plaza</title>
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
-<meta name="rp-build" content="RP-V7.517" />
+<meta name="rp-build" content="RP-V7.518" />
 <!-- [RP-V7.506] FAN CLUB FILTER (Branden, Nov 24, 2026 — his Loozecannon TikTok LIVE recording: "I need that filter join my club"): a Plaza-ORIGINAL animated mascot (inline SVG, drawn in code: round black body, red backwards cap, gold star badge, waving arm — never TikTok's character, never anyone's likeness) bobbing over a glowing red "Join my Fan Club" pill that floats at the top of the host's live for the whole show — under the top bar, stacked below the V7.490 label when both are up. It is part of the show, not lv-idle chrome: like the deco layer it never auto-fades. TAP = JOIN through the existing V6.5 live fan-club path (rpFanJoin65 -> joinFan -> the room fan-join proto; free, instant, no confirm, the host's client assigns the fan number) — the identical call the live More-sheet row and the host-card buttons make. Joined viewers see their real state ("Fan No. N" once the host's fan-count lands, "Fan Club member" before it); the host sees a non-tappable preview of their own pill; signed-out viewers see it display-only. The host turns it off/on for their live from the More sheet ("Fan Club filter" row, default ON); the flag rides the V7.490 deco room state (fanFilter on liveDeco490, broadcast on live-deco490, pulled by late joiners via live-deco-get490, dies with the live; a viewer renders the pill only once that payload has landed, so a host's OFF never flashes at a late joiner — the 5s deco tick re-asks until it lands) — the server change is exactly that one field plus one host-only socket intent (live-fanfilter-set506). Battles: the pill dresses the live you are in, half-width over your host's side of the split — the fan-join proto is room-local and every existing fan button joins only that host, so the opponent's pill is not rendered (joining them happens from their own live, as today). Church lives included: a fan club is not selling or auctions (the V7.490 deco precedent — gifting is likewise allowed). No counts on the pill (the existing live fan buttons show none either). New strings fanpill_*506 / more_fanfilter506 in all 9 languages. Everything V7.505 preserved. -->
 <!-- [RP-V7.490] LIVE LABEL + LIVE STICKERS + 2 GIFTS (Branden, Nov 23, 2026): (1) LIVE LABEL — the host sets a short custom label (plain text, max 40 chars) that rides as a bold banner near the top of the live screen for the host AND every viewer, modeled on the "MEDIA HIGHLIGHTS & RECAPS" banner on TikTok recap clips; set/clear from the host's ••• sheet ("Live label" row). (2) LIVE STICKERS "like TikTok" + Instagram-style cards — the host sticks up to 3 stickers on the live from the ••• sheet ("Stickers" row): a glyph pack of 12 large emoji (🔥 ⭐ ❤️ 🎉 👑 🎵 ⚡ 💯 🎁 🙌 😂 🎤) AND Instagram-style white rounded cards (❓ Ask me anything · 📊 POLL · ⏰ COUNTDOWN · #️⃣ hashtag (host text, max 24) · 📍 location (host text, max 24) · 🎵 MUSIC), rendered as styled DOM, fixed slots in the corners/lower area, never center-face. Label + stickers live on the server room state (liveDeco490, keyed by live key, beside the V7.389 show note), broadcast over the live socket flow (live-deco490; battle rooms cross-emit like battle306Emit so each host's deco lands on their own side of the split), late joiners pull it with live-deco-get490 on the Lk389 sync, and everything clears when the live ends. The banner layer is NOT part of the lv-idle chrome — it never auto-fades. All user text renders via textContent only. Works in every live type (a label/sticker is not commerce — church lives included). (3) +2 GIFTS: shellsensei "Shell Sensei" 440 medium (film 5.583 s) + auraclash "Aura Clash" 2200 big (film 4.500 s) — catalog 122 -> 124, prices unique; client GIFT_SHOP + GIFT_FILM_IDS, server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entries (the V7.474 film clock self-corrects past the tier defaults: medium 8000 / big 10000 both exceed film + 250 ms). Everything V7.489 preserved. --> <!-- [RP-V7.489] WEEKLY GIFTS (Nov 23, 2026): +5 gifts, catalog 117 -> 122, all prices unique — lanternturtle "Lantern Turtle" 15 small, discosnail "Disco Snail" 88 small, tornadodancer "Tornado Dancer" 370 medium, crystaloctopus "Crystal Octopus" 690 medium, wingedlion "Winged Lion" 1700 big; each with an HD film (giftfx-<id>.mp4) + animated art; ids added to GIFT_FILM_IDS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly. --> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. --> <!-- [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE (Branden, Nov 22, 2026): his recording showed the Home For You pager landing on pure black for ~5 s and a reel sitting frozen; ordered corrected "like the other reels", chose the grid, added "Plus swipe", then scoped it himself — "This is on the for you button": the FOR YOU tab's mixed stream (reels + photo posts + text posts, the pager's own homeItems() list, same order) now paints as a poster/thumbnail grid in #homeGrid488 (fillGrid tiles — reel posters from V7.482, photo ~720px variants from V7.485, text tiles in the RPText278 style), pre-warmed the V7.482 way (reel posters already ride rpPrewarm482; photo variants now warm inside pagerPhotosFetch123; a scroll-ahead wire keeps the window ahead of the member). Tap a tile -> the sheet player (reels play with the full V7.462/V7.486 rail incl. the handshake; photos and text posts open in the same media viewer they always did); PLUS SWIPE inside the player walks the GRID'S list across types (reel -> photo -> text -> reel) via a mixed session in the lightbox (lbHomeNav488) built on the V7.461 gesture wire — every landing behaves exactly as if tapped (view-once is the existing rpViewsPing per-session dedupe for reels and photo posts; text posts never ping, as today), no wrap at the ends, neighbours warm through the V7.483 fetcher hook, Back returns to the grid at the same scroll position (the grid is never unloaded under the sheet). FOLLOWING KEEPS ITS PAGER, byte for byte: renderHomePager branches on the tab — foryou goes to rpHomeGridRender488, following runs the original pager body untouched, and the V7.468 snap machinery retires only where the pager no longer renders (For You). One mapper repair rides along: pagerPhotoMap123 silently DROPPED text posts (a text post has no photo URLs, and the mapper returned null on an empty url list), so text posts never reached the Home pager at all; the mapper now carries them (kind/text/tstyle ride the item, plus photoThumb/thumbUrls for the tiles), so no content type is missing from Home. GLOW RULE CHANGE (Branden, same night, superseding the Nov 6 exception): "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing" — the Home strip's Plaza tab loses its always-on strongest-red glow; its glow rule now keys off .on like every other tab (the true-red look is kept for the active state; Following/For You and the bottom bar are untouched). Client-only; the V7.487 server already returns every field the grid reads. -->
 <!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
@@ -12372,10 +12372,11 @@
             if (typeof lv.ticketSold === "number") e.ticketSold = lv.ticketSold; // [RP-V7.299]
             if (typeof lv.boost === "number") e.boost = lv.boost; // [RP-V7.394] boost pool refreshes on existing entries too
             if (lv.league !== undefined) e.league = lv.league || null; // [RP-LEAGUE] the host's league badge refreshes with the snapshot
+            e.battle = lv.battle || null; // [RP-V7.518] the room's live battle (server directory view) rides the entry; null clears it when the battle ends
             e.seen = now; e.reg = true; e.regKey = lv.key || e.regKey || "";
             if (foundId !== key && lv.hostId) { Live.directory[key] = e; delete Live.directory[foundId]; }
           } else {
-            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, gaming: !!lv.gaming /* [RP-GAMING] */, pot: lv.pot || null, poll: lv.poll || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0, boost: lv.boost || 0, league: lv.league || null }; // [RP-LEAGUE] league badge rides the directory entry // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.394] + boost pool // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
+            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, gaming: !!lv.gaming /* [RP-GAMING] */, pot: lv.pot || null, poll: lv.poll || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0, boost: lv.boost || 0, league: lv.league || null, battle: lv.battle || null /* [RP-V7.518] */ }; // [RP-LEAGUE] league badge rides the directory entry // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.394] + boost pool // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
           }
         });
         Live.regRooms = rooms;
@@ -25882,7 +25883,7 @@
         window.rpPlayerById = function (id) { try { return (Online.players && Online.players[id]) || null; } catch (e) { return null; } };
         window.rpViewers = function () { try { return Object.keys(Online.players).filter(function (id) { return Live.stage.indexOf(id) < 0 && id !== Online.myId; }).map(function (id) { return { id: id, name: liveName(id) }; }); } catch (e) { return []; } };
         window.rpLive = function () { try { return { active: !!(typeof Live !== "undefined" && Live.active), hostId: (typeof Live !== "undefined" ? Live.hostId : ""), mine: (typeof Live !== "undefined" && Live.hostId === Online.myId), roomId: (typeof Live !== "undefined" ? (Live.roomId || "") : ""), originRoom: (typeof Live !== "undefined" ? (Live.originRoom || "") : ""), room: (typeof Online !== "undefined" ? (Online.room || "") : ""), church: (typeof liveChurchCtx === "function" ? !!liveChurchCtx() : false) }; } catch (e) { return null; } }; // [RP-V7.467] room/type fields plumbed through so satellite modules can gate on the actual live type (rp384's auction gate reads them)
-        window.rpDirectory = function () { try { return Object.keys(Live.directory || {}).map(function (id) { var e = Live.directory[id]; return { hostId: id, room: e.room, name: e.name || "A host", title: e.title || "", topic: e.topic || "", n: e.n || 1, photo: e.photo || null, mine: id === Online.myId, seen: e.seen || 0 }; }); } catch (e) { return []; } };
+        window.rpDirectory = function () { try { return Object.keys(Live.directory || {}).map(function (id) { var e = Live.directory[id]; return { hostId: id, room: e.room, name: e.name || "A host", title: e.title || "", topic: e.topic || "", n: e.n || 1, photo: e.photo || null, mine: id === Online.myId, seen: e.seen || 0, battle: e.battle || null /* [RP-V7.518] */ }; }); } catch (e) { return []; } };
         window.rpJoinLive = function (room) { try { joinOnlineRoomFromHome(room); return true; } catch (e) { return false; } };
         window.rpMyName = function () { try { return Online.name || me.name || "You"; } catch (e) { return "You"; } };
         window.rpRoom = function () { try { return Online.room || ""; } catch (e) { return ""; } };
@@ -102543,6 +102544,148 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
   }
   setInterval(tick517, 650);
   tick517();
+})();
+</script>
+<style>
+/* ================= RP-V7.518: HOME "BATTLES HAPPENING NOW" =================
+   A Home row fed entirely by the server's battle directory view
+   (lives snapshot -> Live.directory -> window.rpDirectory): both
+   hosts, live scores, watchers, server clock. The section renders
+   ONLY while at least one battle is running — no battles, no row,
+   no placeholder (the no-fake-content rule). Black UI, true-red
+   accent, matching the 🔴 Live Now box it sits directly above. */
+.rp-bnow518{ margin:14px 0 4px; padding:14px; border-radius:18px; border:2px solid rgba(224,36,36,.55); background:linear-gradient(120deg, rgba(224,36,36,.16), rgba(232,67,67,.08)); box-shadow:0 8px 24px rgba(224,36,36,.22); }
+.rp-bnow518[hidden]{ display:none; }
+.rp-bnow-head518{ margin:0 0 10px; font-size:19px; font-weight:800; color:#fff; }
+.rp-bnow-row518{ display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
+.rp-bcard518{ flex:0 0 auto; width:236px; text-align:left; font-family:inherit; cursor:pointer; background:#0c0c12; border:1.5px solid rgba(255,255,255,.16); border-radius:14px; padding:10px 12px; color:#fff; display:flex; flex-direction:column; gap:7px; }
+.rp-bcard518:active{ transform:scale(.98); border-color:#fe2c2c; }
+.rp-btop518{ display:flex; align-items:center; gap:7px; font-size:11px; font-weight:900; letter-spacing:.03em; }
+.rp-blive518{ color:#fe2c2c; }
+.rp-bfmt518{ color:#ffd23c; }
+.rp-btime518{ margin-left:auto; color:#ffb3b3; font-variant-numeric:tabular-nums; }
+.rp-bsides518{ display:flex; flex-direction:column; gap:5px; }
+.rp-bside518{ display:flex; align-items:center; gap:8px; min-width:0; }
+.rp-bav518{ flex:none; width:30px; height:30px; border-radius:50%; overflow:hidden; background:linear-gradient(135deg,#7b2ff7,#fe2c2c); color:#fff; font-weight:900; font-size:13px; display:flex; align-items:center; justify-content:center; }
+.rp-bav518 img{ width:100%; height:100%; object-fit:cover; display:block; }
+.rp-bnm518{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; font-weight:800; }
+.rp-bpts518{ font-size:15px; font-weight:900; color:#ffd23c; font-variant-numeric:tabular-nums; }
+.rp-bvs518{ font-size:10px; font-weight:900; color:#fe2c2c; letter-spacing:.14em; padding-left:38px; }
+.rp-bwatch518{ font-size:11.5px; font-weight:700; color:rgba(255,255,255,.75); }
+</style>
+<script>
+/* ================= RP-V7.518: HOME "BATTLES HAPPENING NOW" (client) =================
+   Branden (Nov 25): battles shouldn't hide inside a host's live —
+   surface them on Home. The server attaches a neutral directory view
+   of each authoritative battle record to the lives snapshot
+   (RP-V7.518 server); the core carries it onto Live.directory and
+   window.rpDirectory exposes it. This layer only renders: dedupe by
+   battle id (both hosts' entries carry the same view), order by the
+   house BRAIN rule from real server numbers — watchers first, then
+   score velocity (points per minute since the server start stamp),
+   then total points, then recency — and a tap joins that battle's
+   room as a viewer through the existing Live Now entry path
+   (rpOpenLiveFromList138 / openLiveFromList). No battles running =
+   the section never renders. Battles exist only inside regular
+   lives, so no church/auction surface can ever feed this row. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;"); }
+  function fmt518(n) { return Number(n || 0).toLocaleString("en-US"); }
+  function dir518() { try { return window.rpDirectory ? window.rpDirectory() : []; } catch (e) { return []; } }
+
+  var section = null;
+  function ensureSection518() {
+    if (section && document.body && document.body.contains(section)) return section;
+    var anchor = $("liveNowBox");
+    if (!anchor || !anchor.parentNode) return null;
+    section = document.createElement("div");
+    section.className = "rp-bnow518";
+    section.id = "rpBattlesNow518";
+    section.hidden = true;
+    section.innerHTML = '<h4 class="rp-bnow-head518">\u{2694}\u{FE0F} Battles happening now</h4><div class="rp-bnow-row518" id="rpBattlesRow518"></div>';
+    anchor.parentNode.insertBefore(section, anchor);
+    section.querySelector(".rp-bnow-row518").addEventListener("click", function (ev) {
+      var card = ev.target && ev.target.closest ? ev.target.closest("[data-broom518]") : null;
+      if (!card) return;
+      var room = card.getAttribute("data-broom518");
+      if (!room) return;
+      try { if (window.rpOpenLiveFromList138) { window.rpOpenLiveFromList138(room); return; } } catch (e) { }
+      try { if (window.rpJoinLive) window.rpJoinLive(room); } catch (e) { }
+    });
+    return section;
+  }
+
+  function battles518() {
+    var seen = {}, out = [];
+    dir518().forEach(function (e) {
+      var b = e && e.battle;
+      if (!b || !b.id || !Array.isArray(b.sides) || !b.sides.length || seen[b.id]) return;
+      seen[b.id] = true;
+      out.push(b);
+    });
+    var now = Date.now();
+    out.forEach(function (b) {
+      var tot = 0;
+      b.sides.forEach(function (s) { tot += (typeof s.pts === "number" ? s.pts : 0); });
+      b.__tot518 = tot;
+      b.__vel518 = tot / Math.max(1 / 60, (now - (b.startedAt || now)) / 60000);
+    });
+    // BRAIN order: live engagement only — watchers, then score
+    // velocity, then total points, then newest first.
+    out.sort(function (x, y) {
+      return (y.watchers || 0) - (x.watchers || 0) || y.__vel518 - x.__vel518 || y.__tot518 - x.__tot518 || (y.startedAt || 0) - (x.startedAt || 0);
+    });
+    return out;
+  }
+
+  function sideHtml518(s) {
+    var nm = (s.names || []).join(" & ") || "Host";
+    var av = s.photo ? '<img src="' + esc(s.photo) + '" alt="">' : esc((nm.trim().charAt(0) || "H").toUpperCase());
+    var pts = (typeof s.pts === "number") ? fmt518(s.pts) : "???"; // Mist: the server sent null — never a guessed number
+    return '<span class="rp-bside518"><span class="rp-bav518">' + av + '</span><span class="rp-bnm518">' + esc(nm) + '</span><span class="rp-bpts518">' + pts + '</span></span>';
+  }
+  function cardHtml518(b) {
+    var sides = b.sides.map(sideHtml518).join('<span class="rp-bvs518">VS</span>');
+    var fmt = b.format === "1v1" ? "BATTLE" : esc(String(b.format || "BATTLE").toUpperCase() + " BATTLE");
+    return '<button type="button" class="rp-bcard518" data-broom518="' + esc(b.room || "") + '" data-bid518="' + esc(b.id) + '">'
+      + '<span class="rp-btop518"><span class="rp-blive518">\u{1F534} LIVE</span><span class="rp-bfmt518">\u{2694}\u{FE0F} ' + fmt + '</span><span class="rp-btime518" data-bend518="' + (b.endsAt || 0) + '"></span></span>'
+      + '<span class="rp-bsides518">' + sides + '</span>'
+      + '<span class="rp-bwatch518">\u{1F441} ' + fmt518(b.watchers || 0) + ' watching</span>'
+      + '</button>';
+  }
+
+  var lastSig518 = "";
+  function tickTimes518() {
+    if (!section || section.hidden) return;
+    var now = Date.now();
+    section.querySelectorAll("[data-bend518]").forEach(function (el) {
+      var left = Math.max(0, Math.round(((+el.getAttribute("data-bend518") || 0) - now) / 1000));
+      var t = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+      if (el.textContent !== t) el.textContent = t;
+    });
+  }
+  function render518() {
+    var sec = ensureSection518();
+    if (!sec) return;
+    var list = battles518();
+    if (!list.length) {
+      // honest empty state: no battles -> the row does not render at all
+      if (!sec.hidden) { sec.hidden = true; sec.querySelector(".rp-bnow-row518").innerHTML = ""; lastSig518 = ""; }
+      return;
+    }
+    sec.hidden = false;
+    var sig = list.map(function (b) { return b.id + ":" + (b.watchers || 0) + ":" + b.__tot518 + ":" + b.sides.map(function (s) { return s.pts; }).join(","); }).join("|");
+    if (sig !== lastSig518) {
+      lastSig518 = sig;
+      sec.querySelector(".rp-bnow-row518").innerHTML = list.map(cardHtml518).join("");
+    }
+    tickTimes518();
+  }
+
+  setInterval(function () { try { render518(); } catch (e) { } }, 1000);
+  try { render518(); } catch (e) { }
 })();
 </script>
 
