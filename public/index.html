@@ -10901,7 +10901,7 @@
               var fs241 = wrap241.querySelector(".pp-share"); if (fs241) fs241.addEventListener("click", function () { fi241.feedPost = true; reelShare(fi241); }); // [RP-V7.511] a Feed-post video shares its /f/ page, not a reel lookup
               var fr241 = wrap241.querySelector(".repost"); if (fr241) fr241.addEventListener("click", function () { window.rpFeedLb409.repost(ffi241, fr241); });
               var fd241 = wrap241.querySelector(".pp-del243"); if (fd241) fd241.addEventListener("click", function () { rpArmDel243(fd241, function () { rpAcctDel243("/api/feed/" + encodeURIComponent(meta.id)).then(function (ok) { if (ok) rpAfterDel243("Post deleted"); else { try { toast("Couldn't delete that post."); } catch (e) { } } }); }); });
-              var fdl241 = wrap241.querySelector(".pp-dl316"); if (fdl241) fdl241.addEventListener("click", function () { if (window.rpDownloadVideo316) window.rpDownloadVideo316("/api/feed/" + encodeURIComponent(meta.id) + "/download", url); });
+              var fdl241 = wrap241.querySelector(".pp-dl316"); if (fdl241) fdl241.addEventListener("click", function () { if (window.rpDownloadVideo316) window.rpDownloadVideo316("/api/feed/" + encodeURIComponent(meta.id) + "/download", url, window.rpDlName512 ? window.rpDlName512(meta.ownerName || "", meta.id) : null); }); // [RP-V7.512] friendly filename
             } else {
             var hb241 = wrap241.querySelector(".like"); if (hb241) hb241.addEventListener("click", function () { reelToggleLike(fi241, wrap241); });
             var cb241 = wrap241.querySelector(".cmt"); if (cb241) cb241.addEventListener("click", function () { openReelComments(fi241); });
@@ -10909,7 +10909,7 @@
             var sb241 = wrap241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { reelShare(fi241); });
             var rb241 = wrap241.querySelector(".repost"); if (rb241) rb241.addEventListener("click", function () { reelToggleRepost(fi241, wrap241); });
             var db243 = wrap241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/reel/" + encodeURIComponent(meta.id)).then(function (ok) { if (ok) rpAfterDel243("Reel deleted"); else { try { toast("Couldn't delete that reel."); } catch (e) { } } }); }); });
-            var dlb316 = wrap241.querySelector(".pp-dl316"); if (dlb316) dlb316.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute316 = null; if (meta && meta.id && (String(url).indexOf("/reel-files/") >= 0 || String(url).indexOf("/photos/feed/") >= 0)) dlRoute316 = (meta.feedPost ? "/api/feed/" : "/api/reel/") + encodeURIComponent(meta.id) + "/download"; window.rpDownloadVideo316(dlRoute316, url); } }); // [RP-V7.316] rendered only when the post allows downloads; server files go through the stamped route
+            var dlb316 = wrap241.querySelector(".pp-dl316"); if (dlb316) dlb316.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute512 = (meta && meta.id) ? (meta.feedPost ? "/api/feed/" : "/api/reel/") + encodeURIComponent(meta.id) + "/download" : null; window.rpDownloadVideo316(dlRoute512, url, window.rpDlName512 ? window.rpDlName512(meta.ownerName || "", meta.id) : null); } }); // [RP-V7.512] the stamped route is built from the post id (this rail only exists for server posts) — the V7.316 src-prefix test silently served the UNSTAMPED original for any other src shape
             var cb486 = wrap241.querySelector(".collab453"); if (cb486) cb486.addEventListener("click", function () { if (window.rpCollabManage453) window.rpCollabManage453("reel", fi241); }); // [RP-V7.486] the player rail's Collaborator button — the same sheet the reel About row opens (its own no-refresh pattern)
             }
           }
@@ -27368,10 +27368,11 @@
             }
             if (tagMode253 === "reels" && j.reels && j.reels.length) { // [RP-V7.253]
               html += '<h4 class="pprof-gridtitle">🎬 Reels</h4>' + j.reels.map(function (r) {
-                return '<div class="rp-tagreel"><video src="' + escHtml(r.url) + '" preload="metadata" muted playsinline></video><div><b>' + escHtml(r.author || "") + '</b><p>' + escHtml(r.caption || "") + '</p><small>❤️ ' + (r.heartLikes || 0) + " · 🔁 " + (r.reposts || 0) + " · 💬 " + (r.commentCount || 0) + "</small></div></div>";
+                return '<div class="rp-tagreel" data-tagrid512="' + escHtml(String(r.id || "")) + '" style="cursor:pointer;"><video src="' + escHtml(r.url) + '" preload="metadata" muted playsinline></video><div><b>' + escHtml(r.author || "") + '</b><p>' + escHtml(r.caption || "") + '</p><small>❤️ ' + (r.heartLikes || 0) + " · 🔁 " + (r.reposts || 0) + " · 💬 " + (r.commentCount || 0) + "</small></div></div>"; // [RP-V7.512] the row carries its reel id so a tap can open the player
               }).join("");
             }
             body.innerHTML = html || '<p class="age-note" style="text-align:center;">Nothing with #' + escHtml(tag) + " yet — post the first one!</p>";
+            body.querySelectorAll(".rp-tagreel").forEach(function (row) { row.addEventListener("click", function () { var rid512 = row.getAttribute("data-tagrid512"); if (rid512 && window.rpReelsOpenOne481) window.rpReelsOpenOne481(rid512); }); }); // [RP-V7.512] a tag row opens the grid player (which carries the ⬇) — the rows had no click handler at all
             if (window.rpPaintGate244) body.querySelectorAll(".rp-tagreel video").forEach(function (tv) { try { window.rpPaintGate244(tv); } catch (e) { } }); // [RP-V7.257] finding 9: tag-row videos were ungated preload="metadata" — a tag page fetched metadata for every row at once; they ride the paint gate now
           })
           .catch(function () { var body = $("rpTagBody"); if (body) body.innerHTML = '<p class="age-note" style="text-align:center;">Couldn\'t load that tag — check your connection.</p>'; });
@@ -30456,6 +30457,20 @@
           var collabMe486 = !!(item.collabId && myId303 && String(item.collabId) === String(myId303)); // [RP-V7.486] the accepted/pending collaborator
           whoMine303 = !!(item.server && item.authorId && myId303 && (String(item.authorId) === String(myId303) || rpIsOwner435())); // [RP-V7.460] author or app owner
         } catch (e) { }
+        /* [RP-V7.512] The pager's own download Save (Branden,
+           Nov 25: "Make sure every one has it"): the gate is
+           decided HERE on allowDownloads alone — never on
+           canRemix. Before this build the only pager download
+           lived inside the Remix sheet, so a downloads-ON /
+           remix-OFF reel left a non-author viewer with no
+           download path at all in the pager (the same reel
+           downloaded fine from a grid). A device-only reel is
+           the author's own file: the button always renders and
+           the wire below resolves its on-device blob. */
+        var dlOk512 = !item.server || item.allowDownloads !== false || !!item.mine || authOnly486;
+        var dlBtn512 = dlOk512
+          ? '<button class="reel-act pp-dl316" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span data-i18n="act_save">Save</span></button>'
+          : window.rpRailPh462("dl");
         card.innerHTML =
           videoHtml +
           '<button class="reel-mute" type="button" aria-label="Mute or unmute" data-i18n-al="rail_mute_al"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"m15.8 9.8 4.7 4.7M20.5 9.8l-4.7 4.7\"/></svg></button>' +
@@ -30471,6 +30486,7 @@
             '<button class="reel-act share" type="button">' + RPICO.share + '<span data-i18n="act_share">Share</span></button>' +
             ((item.server || item.serverId) ? '<button class="reel-act repost' /* [RP-V7.198] local copies of your own posted reels too — Branden: "I need to add a repost button here" (his own reel in the Reels tab rendered as the on-device copy, which had no button) */ /* [RP-V7.101] own reels too — reshare */ + (item.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + (item.reposts || 0) + "</span></button>" : window.rpRailPh462("repost")) + /* [RP-V7.462] local pending: the Repost slot holds its place */ /* [RP-V7.89] */
             (item.server ? '<button class="reel-act rp-save349" type="button" aria-label="Save" data-i18n-al="act_save" data-save349="reel:' + escHtml(item.id) + '">' + RPICO.bookmark + '<span class="sv-lb349 sv-lb413" data-i18n="act_save">Save</span></button>' : window.rpRailPh462("save")) + /* [RP-V7.462] device-only reel: the Save slot holds its place */ /* [RP-V7.349] Save (bookmark) — server posts only; a device-only reel has no server post to reference */
+            dlBtn512 + /* [RP-V7.512] the download Save rides immediately after the bookmark, exactly as in the grid and profile players */
             (item.mine
               ? (item.server ? '<span class="reel-act gc262-static gs402" aria-hidden="true">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(item.id) + '"' + ((item.giftCount || 0) > 0 ? ">" + item.giftCount : ' style="display:none">') + "</span></span>" : window.rpRailPh462("gift")) /* [RP-V7.462] your own server reel: the count chip is ALWAYS in the layout (still no button — never gift yourself); its count span drops data-gc-host so the V7.262 registry paints it exactly like a gift-button count — the span hides at zero, the slot never does. A local pending reel holds the slot with a stand-in. */ /* [RP-V7.262] your own reel: no gift button (never gift yourself) — the count alone */
               : '<button class="reel-act gift gs402" type="button" aria-label="Gift" data-i18n-al="act_gift">' + RPICO.gift + '<span class="gc262" data-gc262="reel:' + escHtml(item.id) + '"' + ((item.giftCount || 0) > 0 ? ">" + item.giftCount : ' style="display:none">') + "</span></button>") +
@@ -30845,6 +30861,19 @@
           // nobody. Local items are always mine (no button renders).
           if (item.server) openGiftSheet(item.authorId || item.author, item.author, { src: "video", post: { kind: "reel", id: item.id }, onSent: function () { } }); // [RP-V7.233] reelCard only ever renders video reels (photo posts route to rpPhotoCard123) — [RP-V7.262] the reel itself rides as the gift's post
           else openGiftSheet("npc:" + item.author, item.author, { local: true, onSent: function () { } });
+        });
+        var dlb512 = card.querySelector(".pp-dl316"); // [RP-V7.512]
+        if (dlb512) dlb512.addEventListener("click", function () {
+          if (!window.rpDownloadVideo316) return;
+          var dlName512 = window.rpDlName512 ? window.rpDlName512(item.author, item.id) : null;
+          var srvId512 = item.server ? item.id : (item.serverId || null);
+          if (srvId512) { window.rpDownloadVideo316("/api/reel/" + encodeURIComponent(srvId512) + "/download", null, dlName512); return; }
+          reelDbGet(item.id).then(function (blob) {
+            if (!blob) { toast("That video isn't on this device anymore."); return; }
+            var u512 = URL.createObjectURL(blob);
+            window.rpDownloadVideo316(null, u512, dlName512);
+            setTimeout(function () { try { URL.revokeObjectURL(u512); } catch (e) { } }, 8000);
+          });
         });
         var rb = card.querySelector(".remix");
         if (rb) rb.addEventListener("click", function () { openReelRemix(item); });
@@ -31667,7 +31696,7 @@
          18+ door verifies once before the feed plays. */
       var HomeFeed = { tab: "foryou", friendsItems: null, friendsLoaded: false, sig: "", observer: null };
       function homeMapServer(r) {
-        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), crMuted: r.crMuted || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */ }; // [RP-V7.286]
+        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), crMuted: r.crMuted || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */, allowDownloads: r.allowDownloads !== false /* [RP-V7.512] the Home pager's download gate reads it */ }; // [RP-V7.286]
       }
       function homeFetchFriends() {
         var tok = reelToken();
@@ -31733,6 +31762,7 @@
           : '<button type="button" class="hp-act hp-gift gs402" aria-label="Gift" data-i18n-al="act_gift"><span class="hp-ico">' + RPICO.gift + '</span><span class="gc262" data-gc262="reel:' + escHtml(item.id) + '"' + ((item.giftCount || 0) > 0 ? ">" + item.giftCount : ' style="display:none">') + "</span></button>") +
           '<button type="button" class="hp-act hp-share"><span class="hp-ico">' + RPICO.share + '</span><span data-i18n="act_share">Share</span></button>' +
           (item.server ? '<button type="button" class="hp-act rp-save349" aria-label="Save" data-i18n-al="act_save" data-save349="reel:' + escHtml(item.id) + '"><span class="hp-ico">' + RPICO.bookmark + '</span><span class="hp-n sv-lb349 sv-lb413" data-i18n="act_save">Save</span></button>' : "") + /* [RP-V7.349] */
+          (((item.server || item.serverId) && (item.allowDownloads !== false || item.mine)) ? '<button type="button" class="hp-act pp-dl316"><span class="hp-ico" style="font-size:19px;line-height:1;">⬇</span><span class="hp-n" data-i18n="act_save">Save</span></button>' : "") + /* [RP-V7.512] the Home pager's own download Save — the standard gate, the stamped route */
           ((item.server || item.serverId) ? '<button type="button" class="hp-act pp-repost repost' + (item.myReposted ? " reposted" : "") + '"><span class="hp-ico">' + RPICO.repost + '</span><span class="rc">' + (item.reposts || 0) + "</span></button>" : "") + /* [RP-V7.409] Repost joins the Home video slide — the photo slide always had it */
           ((item.mine || rpIsOwner435()) && item.server ? '<button type="button" class="hp-act pp-del243" aria-label="Delete" data-i18n-al="act_delete"><span class="hp-ico" style="font-size:19px;line-height:1;">🗑</span><span class="del-lbl412" data-i18n="act_delete">Delete</span></button>' : "") + /* [RP-V7.409] your own slide — delete it right here (the server re-checks authorship) */
           '<span class="hp-views">👁 ' + (item.views || 0) + "</span>" +
@@ -31773,6 +31803,8 @@
         var gb = slide.querySelector(".hp-gift");
         if (gb) gb.addEventListener("click", function () { if (typeof openGiftSheet === "function") openGiftSheet(item.authorId || item.author, item.author, { src: "video", post: item.server ? { kind: "reel", id: item.id } : undefined }); }); // [RP-V7.233] homeSlide only ever renders non-photoPost items (the pager routes photo posts to rpHomePhotoSlide123) — video slides — [RP-V7.262] the reel rides as the gift's post
         slide.querySelector(".hp-share").addEventListener("click", function () { reelShare(item); });
+        var dlb512 = slide.querySelector(".pp-dl316"); // [RP-V7.512]
+        if (dlb512) dlb512.addEventListener("click", function () { if (window.rpDownloadVideo316) window.rpDownloadVideo316("/api/reel/" + encodeURIComponent(item.server ? item.id : item.serverId) + "/download", null, window.rpDlName512 ? window.rpDlName512(item.author, item.id) : null); });
         var rpB409 = slide.querySelector(".pp-repost"); // [RP-V7.409]
         if (rpB409) rpB409.addEventListener("click", function () { reelToggleRepost(item, slide); });
         var delB409 = slide.querySelector(".pp-del243"); // [RP-V7.409] the shared two-tap delete, pager pattern ({ stay: true } + refresh)
@@ -32726,14 +32758,28 @@
          file. The fetch carries the member's token so the server
          can apply the same author/flag gate; a local on-device item
          (no route) keeps the plain direct save of its own file. */
-      window.rpDownloadVideo316 = function (route, url) {
+      /* [RP-V7.512] The friendly download filename —
+         rizzplaza-@<handle>-<shortid>.mp4 — so a saved video in
+         Photos / Files says whose it is instead of carrying the
+         raw post id. The handle is sanitized to filename-safe
+         characters; call sites that don't know the author pass
+         nothing and keep the V7.510 name. */
+      window.rpDlName512 = function (handle, id) {
+        var h = String(handle || "").replace(/^@+/, "").replace(/[^A-Za-z0-9._-]/g, "");
+        if (!h) return null;
+        var sid = String(id || "");
+        var tail = sid.split("-").pop() || sid;
+        var short = tail.slice(0, 10);
+        return "rizzplaza-@" + h + (short ? "-" + short : "") + ".mp4";
+      };
+      window.rpDownloadVideo316 = function (route, url, fname512) {
         if (!route) {
           if (!url) { toast("That video isn't on the Plaza yet — nothing to download."); return; }
           try {
             var a0 = document.createElement("a");
             a0.href = url;
             var base = String(url).split("/").pop().split("?")[0];
-            if (base) a0.download = base;
+            if (fname512 || base) a0.download = fname512 || base; // [RP-V7.512]
             document.body.appendChild(a0); a0.click(); a0.remove();
             toast("⬇ Downloading the video…");
           } catch (e) { try { window.open(url, "_blank"); } catch (e2) { } }
@@ -32752,7 +32798,7 @@
           return r.blob();
         }).then(function (blob) {
           var seg = String(route).split("/");
-          var dlName510 = "rizzplaza-" + (seg[3] || "video") + ".mp4";
+          var dlName510 = fname512 || ("rizzplaza-" + (seg[3] || "video") + ".mp4"); // [RP-V7.512] a call-site filename wins; the V7.510 route-derived name is the fallback
           var dlAnchor510 = function () {
             var u = URL.createObjectURL(blob);
             var a = document.createElement("a");
@@ -32834,7 +32880,7 @@
         var bd = $("btnRemixDuet"); if (bd) bd.addEventListener("click", function () { closeSheet(); openDuetStudio(item); });
         var bs = $("btnRemixStitch"); if (bs) bs.addEventListener("click", function () { closeSheet(); openStitchStudio(item); });
         var bt = $("btnRemixToggle"); if (bt) bt.addEventListener("click", function () { reelToggleRemix(item); });
-        var bdl = $("btnReelDl316"); if (bdl) bdl.addEventListener("click", function () { if (window.rpDownloadVideo316) window.rpDownloadVideo316("/api/reel/" + encodeURIComponent(item.id) + "/download"); }); // [RP-V7.316] stamped route, never the raw file
+        var bdl = $("btnReelDl316"); if (bdl) bdl.addEventListener("click", function () { if (window.rpDownloadVideo316) window.rpDownloadVideo316("/api/reel/" + encodeURIComponent(item.id) + "/download", null, window.rpDlName512 ? window.rpDlName512(item.author, item.id) : null); }); // [RP-V7.316] stamped route, never the raw file // [RP-V7.512] friendly filename
         var bdt = $("btnDlToggle316"); if (bdt) bdt.addEventListener("click", function () { reelToggleDownloads(item); }); // [RP-V7.316]
       }
       /* [RP-V7.316] The downloads twin of reelToggleRemix: same trust
@@ -77266,6 +77312,7 @@ button.rp72-chip{ cursor:pointer; }
     var html = '<h3 style="margin:4px 0">' + esc(rpT("dm_msg_title")) + '</h3>' +
       '<div class="btn-row" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:8px;">' +
       (mine ? '<button type="button" class="btn-mini" id="rpDmMsgDel442" style="padding:12px;">' + esc(rpT("dm_delete_btn")) + '</button>' : "") +
+      ((isMedia && msg.media.kind === "video") ? '<button type="button" class="btn-mini" id="rpDmMsgSave442" style="padding:12px;">⬇ Save video</button>' : "") + /* [RP-V7.512] */
       (!isMedia ? '<button type="button" class="btn-mini" id="rpDmMsgCopy442" style="padding:12px;">' + esc(rpT("dm_copy_text")) + '</button>' : "") +
       '<button type="button" class="btn-mini" id="rpDmMsgCancel442" style="padding:12px;">' + esc(rpT("gen_cancel")) + '</button>' +
       "</div>";
@@ -77283,6 +77330,15 @@ button.rp72-chip{ cursor:pointer; }
         else toast2((r.json && r.json.error) || rpT("toast_msg_delete_fail"), 3200);
         openConversation(conv.userId, conv.name); /* re-render from the server — the message is gone for both sides */
       });
+    });
+    var sv442 = $("rpDmMsgSave442"); // [RP-V7.512]
+    if (sv442) sv442.addEventListener("click", function () {
+      /* DM media is not a reel/feed item, so no stamped export
+         route exists for it: the save runs the raw file through
+         the shared funnel's no-route path (the audit's smallest
+         fix — noted honestly in BUILD.md). */
+      if (window.rpDownloadVideo316) window.rpDownloadVideo316(null, msg.media.url);
+      openConversation(conv.userId, conv.name);
     });
     var cp = $("rpDmMsgCopy442");
     if (cp) cp.addEventListener("click", function () {
@@ -79237,7 +79293,7 @@ button.rp72-chip{ cursor:pointer; }
           var s = root.querySelector(".pp-share");
           if (s) s.addEventListener("click", function () { lbShare241("🎬", "Reel", ffi.caption || "", (window.rpShareUrl269 ? window.rpShareUrl269("feed", it.id) : "")); }); // [RP-V7.511] a Feed-post video shares its /f/ page
           var fr = root.querySelector(".pp-repost"); if (fr) fr.addEventListener("click", function () { lbFeedRepost409(ffi, fr); });
-          var fdl508 = root.querySelector(".pp-dl316"); if (fdl508) fdl508.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute508 = null; if (it && it.id && (String(it.src || "").indexOf("/reel-files/") >= 0 || String(it.src || "").indexOf("/photos/feed/") >= 0)) dlRoute508 = (it.feedPost ? "/api/feed/" : "/api/reel/") + encodeURIComponent(it.id) + "/download"; window.rpDownloadVideo316(dlRoute508, it.src || ""); } }); // [RP-V7.508] the profile player's dlb316 route logic: server files go through the stamped export route, anything else falls back to the raw URL
+          var fdl508 = root.querySelector(".pp-dl316"); if (fdl508) fdl508.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute512 = (it && it.id) ? "/api/feed/" + encodeURIComponent(it.id) + "/download" : null; window.rpDownloadVideo316(dlRoute512, it.src || "", window.rpDlName512 ? window.rpDlName512(it.ownerName || "", it.id) : null); } }); // [RP-V7.512] the stamped route is built from the item id whenever the item is a server post — the V7.508 src-prefix test silently served the UNSTAMPED original for any other src shape; the raw fallback remains only for id-less items
           var fd243 = root.querySelector(".pp-del243");
           if (fd243) fd243.addEventListener("click", function () { lbDel243("feed", it.id, fd243); });
         },
@@ -79266,7 +79322,7 @@ button.rp72-chip{ cursor:pointer; }
         var g = root.querySelector(".pp-gift"); if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "video", post: { kind: "reel", id: it.id } }); }); // [RP-V7.262] the reel rides as the gift's post
         var s = root.querySelector(".pp-share"); if (s && acts.reelShare) s.addEventListener("click", function () { acts.reelShare(fi); });
         var r = root.querySelector(".repost"); if (r && acts.reelToggleRepost) r.addEventListener("click", function () { acts.reelToggleRepost(fi, root); });
-        var rdl508 = root.querySelector(".pp-dl316"); if (rdl508) rdl508.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute508 = null; if (it && it.id && (String(it.src || "").indexOf("/reel-files/") >= 0 || String(it.src || "").indexOf("/photos/feed/") >= 0)) dlRoute508 = (it.feedPost ? "/api/feed/" : "/api/reel/") + encodeURIComponent(it.id) + "/download"; window.rpDownloadVideo316(dlRoute508, it.src || ""); } }); // [RP-V7.508] the profile player's dlb316 route logic: server files go through the stamped export route, anything else falls back to the raw URL
+        var rdl508 = root.querySelector(".pp-dl316"); if (rdl508) rdl508.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute512 = (it && it.id) ? "/api/reel/" + encodeURIComponent(it.id) + "/download" : null; window.rpDownloadVideo316(dlRoute512, it.src || "", window.rpDlName512 ? window.rpDlName512(it.ownerName || "", it.id) : null); } }); // [RP-V7.512] the stamped route is built from the item id whenever the item is a server post — the V7.508 src-prefix test silently served the UNSTAMPED original for any other src shape; the raw fallback remains only for id-less items
         var d243 = root.querySelector(".pp-del243");
         if (d243) d243.addEventListener("click", function () { lbDel243("reel", it.id, d243); });
         var cb486 = root.querySelector(".collab453"); // [RP-V7.486] the viewer rail's Collaborator button — the same sheet the reel About row opens
@@ -81252,7 +81308,8 @@ button.rp72-chip{ cursor:pointer; }
         out += '<p style="color:var(--ink);">' + (j.isSelf ? rpT("clubroom_no_posts_self") : rpT("clubroom_no_posts")) + '</p>';
       }
       reels.forEach(function (rl) {
-        out += '<div class="fc298-post">' + (rl.locked ? window.rpAnyLockHtml298(rl, creatorName) : '<video src="' + esc(rl.url || "") + '" controls playsinline preload="metadata"></video>' + (rl.caption ? '<p>' + esc(rl.caption) + '</p>' : '')) + '</div>';
+        var dl512 = (!rl.locked && (rl.allowDownloads !== false || j.isSelf)) ? '<div class="btn-row" style="margin-top:6px;"><button type="button" class="btn-mini fc298-dl512" data-dlroute512="/api/reel/' + encodeURIComponent(rl.id) + '/download">⬇ Download video</button></div>' : ""; // [RP-V7.512] club reels download through the stamped route — the server re-checks club access there
+        out += '<div class="fc298-post">' + (rl.locked ? window.rpAnyLockHtml298(rl, creatorName) : '<video src="' + esc(rl.url || "") + '" controls playsinline preload="metadata"></video>' + (rl.caption ? '<p>' + esc(rl.caption) + '</p>' : '') + dl512) + '</div>';
       });
       photos.forEach(function (pp) {
         if (pp.locked) { out += '<div class="fc298-post">' + window.rpAnyLockHtml298(pp, creatorName) + '</div>'; return; }
@@ -81264,9 +81321,11 @@ button.rp72-chip{ cursor:pointer; }
         var media = "";
         if (fp.url && fp.kind === "video") media = '<video src="' + esc(fp.url) + '" controls playsinline preload="metadata"></video>';
         else if (fp.url) media = '<img loading="lazy" decoding="async" src="' + esc(fp.url) + '" alt=""/>';
-        out += '<div class="fc298-post">' + media + (fp.text ? '<p>' + esc(fp.text) + '</p>' : '') + '</div>';
+        var dl512 = (fp.url && fp.kind === "video" && (fp.allowDownloads !== false || fp.isSelf || j.isSelf)) ? '<div class="btn-row" style="margin-top:6px;"><button type="button" class="btn-mini fc298-dl512" data-dlroute512="/api/feed/' + encodeURIComponent(fp.id) + '/download">⬇ Download video</button></div>' : ""; // [RP-V7.512] club feed videos too
+        out += '<div class="fc298-post">' + media + (fp.text ? '<p>' + esc(fp.text) + '</p>' : '') + dl512 + '</div>';
       });
       body.innerHTML = out;
+      body.querySelectorAll(".fc298-dl512").forEach(function (b) { b.addEventListener("click", function () { if (window.rpDownloadVideo316) window.rpDownloadVideo316(b.getAttribute("data-dlroute512"), null, window.rpDlName512 ? window.rpDlName512(creatorName, "") : null); }); }); // [RP-V7.512]
       var jb = $("fanClubRoomJoin298");
       if (jb) jb.addEventListener("click", function () { window.rpOpenFanClubSheet298(creatorId, creatorName); });
       // Locked placeholders inside the room wire both pills.
@@ -84686,6 +84745,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
      false (invalid — a toast says why; the post does not happen), or
      the sticker object that rides the post's FormData. */
   var stkMode450 = "";
+  var storyDl512 = true; // [RP-V7.512] the story composer's downloads switch — reset to the default (on) for every preview, like stkMode450
   function wireStickerBar450() {
     var pb = $("storyStkPollBtn"), cb = $("storyStkCdBtn");
     stkMode450 = "";
@@ -84764,6 +84824,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
         : '<video class="story-post-video" src="' + pendingUrl + '" controls autoplay muted playsinline loop></video>') +
       '<div class="stk450-bar"><button type="button" class="btn-mini" id="storyStkPollBtn">📊 Add a poll</button><button type="button" class="btn-mini" id="storyStkCdBtn">⏰ Add a countdown</button></div>' + // [RP-V7.450]
       '<div id="storyStkBox"></div>' +
+      '<div class="stk450-bar"><button type="button" class="btn-mini" id="storyDlBtn512">⬇ Downloads: ON for this story</button></div>' + // [RP-V7.512] the reel rule, chosen at post time like a reel's composer switch
       '<div class="btn-row" style="justify-content:center; margin-top:12px;">' +
       '<button type="button" class="btn-primary" style="width:auto; padding:12px 22px;" id="storyPostGo">Post to my story</button>' +
       '<button type="button" class="btn-mini" id="storyPostBack">↩ Pick another</button></div>' +
@@ -84773,6 +84834,12 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     var cx = sh && sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { storyQ = null; window.closeSheet(); }); // [RP-V7.331] closing the preview abandons the queue
     $("storyPostBack").addEventListener("click", function () { storyQ = null; openPoster(); }); // [RP-V7.331] Pick another abandons the queue too
     wireStickerBar450(); // [RP-V7.450]
+    storyDl512 = true; // [RP-V7.512] every preview starts at the default
+    var dlBtn512 = $("storyDlBtn512");
+    if (dlBtn512) dlBtn512.addEventListener("click", function () {
+      storyDl512 = !storyDl512;
+      dlBtn512.textContent = storyDl512 ? "⬇ Downloads: ON for this story" : "🚫 Downloads: OFF for this story";
+    });
     $("storyPostGo").addEventListener("click", function () {
       var btn = this; btn.disabled = true;
       btn.textContent = (inQ331 && storyQ) ? "Posting " + (storyQ.i + 1) + " of " + storyQ.files.length + "…" : "Posting…"; // [RP-V7.331] honest queue progress
@@ -84781,6 +84848,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       var a = acctRec();
       var fd = new FormData(); fd.append("media", pendingFile);
       if (stk450) fd.append("sticker", JSON.stringify(stk450));
+      if (!storyDl512) fd.append("allowDownloads", "false"); // [RP-V7.512] the composer's downloads switch rides the post (absent = on)
       fetch("/api/story/post", { method: "POST", headers: { "Authorization": "Bearer " + (a ? a.token : "") }, body: fd })
         .then(function (r) { return r.json(); })
         .then(function (j) {
@@ -84856,6 +84924,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       '<button type="button" class="sv-share"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M13.3 4.3 20 10.6l-6.7 6.3v-3.9c-4.9 0-7.9 1.5-9.8 4.4.2-6 3.3-10.1 9.8-10.6z\"/></svg><small data-i18n="act_share">Share</small></button>' + // [RP-V7.409] the RPICO share glyph (was a link-chain), and onShare now sends a real story link
       '<button type="button" class="sv-save rp-save349" data-save349=""><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path class=\"bf\" d=\"M6.5 4h11v16L12 15.9 6.5 20z\"/></svg><small class="sv-lb349" data-i18n="act_save">Save</small></button>' + // [RP-V7.409] by-reference Save — data-save349 re-points per story in showStory; the RpSave349 delegated handler owns the tap
       '<button type="button" class="sv-repost"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M17 3.8 20.2 7 17 10.2\"/><path d=\"M4.5 12.8v-1.6a3.7 3.7 0 0 1 3.7-3.7h11.5\"/><path d=\"M7 20.2 3.8 17 7 13.8\"/><path d=\"M19.5 11.2v1.6a3.7 3.7 0 0 1-3.7 3.7H4.3\"/></svg><small>0</small></button>' + // [RP-V7.409] by-reference Repost — the original's clock, dies with it
+      '<button type="button" class="sv-dl" aria-label="Download this story" hidden>⬇<small data-i18n="act_save">Save</small></button>' + // [RP-V7.512] story download — shown per story by showStory under the reel rule
       "</div>" +
       '<div class="sv-bottom"><span class="sv-views"></span>' +
       '<button type="button" class="sv-follow" data-i18n="follow_btn_follow" hidden>Follow</button></div>' +
@@ -84876,6 +84945,7 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     d.querySelector(".sv-gift").addEventListener("click", onGift);
     d.querySelector(".sv-share").addEventListener("click", onShare);
     d.querySelector(".sv-repost").addEventListener("click", onRepost); // [RP-V7.409] (.sv-save needs no wire — RpSave349's delegated handler owns every .rp-save349 tap)
+    d.querySelector(".sv-dl").addEventListener("click", onStoryDownload512); // [RP-V7.512]
     d.querySelector(".sv-follow").addEventListener("click", onFollow);
     V.replyIn.addEventListener("focus", replyHold); // [RP-V7.354]
     V.replyIn.addEventListener("blur", replyRelease);
@@ -84977,6 +85047,8 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
     try { if (window.rpGiftCount262) window.rpGiftCount262.set("story:" + s.id, s.giftCount || 0); } catch (e) {}
     var svb409 = V.el.querySelector(".sv-save");
     if (svb409) { svb409.setAttribute("data-save349", "story:" + s.id); try { if (window.RpSave349) window.RpSave349.paintAll(V.el); } catch (e) {} }
+    var dlb512 = V.el.querySelector(".sv-dl"); // [RP-V7.512] the story ⬇ rides the reel rule: the story's downloads flag, or the author
+    if (dlb512) dlb512.hidden = !(s.allowDownloads !== false || e.isSelf);
     paintSegs();
     if (!V.seenSent[s.id]) {
       V.seenSent[s.id] = true;
@@ -85320,6 +85392,17 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
       window.openGiftSheet(id, name, src233 ? { src: src233, post: { kind: "story", id: c.story.id } } : { post: { kind: "story", id: c.story.id } });
     } else toastS(rpTf("toast_story_gift_profile", { name: name }), 3600);
   }
+  function onStoryDownload512() { // [RP-V7.512]
+    var c = cur(); if (!c) return;
+    var s = c.story;
+    var route512 = "/api/story/" + encodeURIComponent(s.id) + "/download";
+    /* Video stories ride the video funnel (share-sheet-first,
+       stamped on the server); photo stories ride the photo
+       funnel — the story route stamps each kind like its post
+       twin. The server re-checks the flag + authorship. */
+    if (s.kind === "photo") { if (window.rpDownloadPhoto507) window.rpDownloadPhoto507(route512); return; }
+    if (window.rpDownloadVideo316) window.rpDownloadVideo316(route512, s.url, window.rpDlName512 ? window.rpDlName512(c.entry.author.name, s.id) : null);
+  }
   function onShare() {
     var c = cur(); if (!c) return;
     /* [RP-V7.409] A REAL story link: /story/<id> serves this
@@ -85429,13 +85512,25 @@ h1, h2, h3, .display { font-family: inherit; letter-spacing: -.2px; font-weight:
         '<div class="pprof-stat"><b>' + (j.followersCount || 0) + '</b><small>' + rpT("act_followers") + '</small></div>' +
         '<div class="pprof-stat"><b>' + (j.reelsCount || 0) + '</b><small>' + rpT("nav_reels") + '</small></div></div>' +
         '<div class="pprof-actions">' +
-        (e.isSelf ? "" : '<button type="button" class="follow-btn big" id="svProfFollow">' + (e.iFollow ? rpT("story_following") : rpT("follow_btn_follow")) + "</button>" +
+        (e.isSelf ? '<button type="button" class="follow-btn big" id="svProfDl512">' + (c.story.allowDownloads === false ? "🚫 Downloads: OFF for this story" : "⬇ Downloads: ON for this story") + "</button>" : '<button type="button" class="follow-btn big" id="svProfFollow">' + (e.iFollow ? rpT("story_following") : rpT("follow_btn_follow")) + "</button>" +
           '<button type="button" class="follow-btn big" data-dm="' + escS(j.name || e.author.name) + '">' + rpT("story_msg_btn") + '</button>' +
           '<button type="button" class="follow-btn big" id="svProfGift">' + rpT("story_gift_btn") + '</button>') +
         "</div></div>";
       var host450 = openSheet450(html);
       if (!host450) { viewerResume(); return; }
       var cx = host450.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { closeSheet450(); if (V.el && V.el.classList.contains("open") && V.video) V.video.play().catch(function () {}); });
+      var dlb512 = $("svProfDl512"); // [RP-V7.512] the author's post-hoc downloads switch for this story (POST /api/story/downloads — the reel toggle's twin)
+      if (dlb512) dlb512.addEventListener("click", function () {
+        var want512 = c.story.allowDownloads === false;
+        api("/api/story/downloads", "POST", { id: c.story.id, allow: want512 }).then(function (rr) {
+          if (rr.json && rr.json.ok) {
+            c.story.allowDownloads = want512;
+            dlb512.textContent = want512 ? "⬇ Downloads: ON for this story" : "🚫 Downloads: OFF for this story";
+            var svdl512 = V.el.querySelector(".sv-dl"); if (svdl512) svdl512.hidden = !(want512 || e.isSelf);
+            toastS(want512 ? "Downloads are ON for this story" : "Downloads are OFF for this story", 2400);
+          } else toastS((rr.json && rr.json.error) || "Couldn't change that setting", 3000);
+        });
+      });
       var fb = $("svProfFollow");
       if (fb) fb.addEventListener("click", function () {
         api(e.iFollow ? "/api/social/unfollow" : "/api/social/follow", "POST", { accountId: e.author.id }).then(function (rr) {
@@ -87801,6 +87896,14 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       // videos have none today, so their tile is its own player.
       if (kind === "reel") { location.assign("/?reel=" + encodeURIComponent(pid)); return; }
       if (kind === "photo") { location.assign("/?photo=" + encodeURIComponent(pid)); return; }
+      if (kind === "feed") { // [RP-V7.512] a feed-video tile opens the real player (whose rail carries the ⬇) instead of being its own bare inline player
+        var post335 = null;
+        try { ((SndPage.data && SndPage.data.posts) || []).forEach(function (p) { if (String(p.id) === String(pid)) post335 = p; }); } catch (e) { }
+        if (post335 && window.rpViewsOpenReel) {
+          window.rpViewsOpenReel({ kind: "reel", id: post335.id, owner: post335.authorId || "", ownerName: post335.author || "", src: post335.url || "", poster: "", views: post335.views || 0, caption: post335.caption || "", allowDownloads: post335.allowDownloads !== false, feedPost: true }, null);
+          return;
+        }
+      }
       var v = tile ? tile.querySelector("video") : null;
       if (v) {
         if (v.paused) { v.muted = false; v.setAttribute("controls", ""); var pr = v.play(); if (pr && pr.catch) pr.catch(function () { }); }
