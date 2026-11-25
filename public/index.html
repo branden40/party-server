@@ -26438,6 +26438,56 @@
         } catch (e) { }
       }
       window.rpMeltLive496 = rpMeltLive496;
+      /* [RP-GSFIX] LIVE FILM SEAT — CENTRED, WHOLE FRAME (Branden,
+         Nov 24, 2026, on the V7.492–V7.496 shows: "Gifts still not
+         overlapping the screen it's not blended in the screen... It
+         don't show the full gift it cuts out some of it. I need the
+         whole gift showing from one end to the other not cutting
+         edges off show full edges"). The float/burst lanes seated a
+         live film hero flush with the BOTTOM of the screen
+         (bottom:0): a 1280x720 film at full width is only ~28% of
+         the screen tall, so the whole show lived in a strip at the
+         very bottom — its lower slice BEHIND the live's bottom
+         chrome (the Firefly Jar's base, the Rose's lower petals,
+         the Heart's point all played under the buttons), and when
+         the film's subject swells past its own frame at the peak
+         (Rose/Heart/Firefly Jar all do), the strip's straight top
+         edge reads as the box slicing the gift. The stage never had
+         the defect (its flex seat centres the same 16:9 frame on
+         the full screen). The lanes now centre the film's frame on
+         the live screen the same way: this helper lifts the seat
+         element (keyed canvas or raw film) so its box is vertically
+         centred — the WHOLE frame, at the same full width, blended
+         over the middle of the live picture, clear of the bottom
+         chrome. Nothing is cropped (the frame's own aspect never
+         changes), nothing re-encoded, the hairline melt untouched.
+         Live-only and .gfx-only by its own guards (the stage's
+         seats are not inside .gfx and off-live shows keep their
+         approved seats byte-for-byte), re-aimed as the seat
+         settles (metadata, retries, a ResizeObserver), and every
+         write is change-guarded. */
+      function rpCenterSeatLive501(el) {
+        try {
+          if (!el) return;
+          if (!(document.body && document.body.classList.contains("live-fs"))) return;
+          if (!(el.closest && el.closest(".gfx"))) return;
+          var aim501 = function () {
+            try {
+              var H = el.clientHeight || 0, W = el.clientWidth || 0;
+              if (!H || !W) return false;
+              var bs = Math.max(0, Math.round(((window.innerHeight || 0) - H) / 2)) + "px";
+              if (el.style.bottom !== bs) el.style.bottom = bs;
+              if (el.style.top !== "auto") el.style.top = "auto";
+              return true;
+            } catch (e) { return false; }
+          };
+          if (el.tagName === "VIDEO") el.addEventListener("loadedmetadata", aim501);
+          if (!aim501()) { try { requestAnimationFrame(aim501); } catch (e) { } setTimeout(aim501, 120); }
+          setTimeout(aim501, 350); setTimeout(aim501, 900);
+          if (window.ResizeObserver) { try { var ro501 = new ResizeObserver(function () { aim501(); }); ro501.observe(el); setTimeout(function () { try { ro501.disconnect(); } catch (e) { } }, 10000); } catch (e) { } }
+        } catch (e) { }
+      }
+      window.rpCenterSeatLive501 = rpCenterSeatLive501;
       /* [RP-V7.398] THE FREEZE GATE (Branden, Nov 16, 2026 — his
          Heart/Rose/Coffee shows sat on the film's first frame for
          ~2 s of their 5.2 s window, then played only the tail):
@@ -26668,7 +26718,7 @@
         if (s.classList && s.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the band seat centres their square at 72% and pokes it above the midline */          if (document.body && document.body.classList.contains("live-fs")) { s.style.left = "var(--gfx-x, 0px)"; s.style.top = "auto"; s.style.bottom = "0px"; s.style.width = "min(100vw, var(--gfx-w, 100vw))"; s.style.height = "auto"; s.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { s.style.left = "0px"; s.style.top = "0px"; s.style.bottom = "auto"; s.style.width = "100vw"; s.style.height = "100dvh"; s.style.maxHeight = "none"; } s.style.transform = "none"; s.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
           rpMelt406(s); // [RP-V7.406] border melt with the 3px dead zone (was rpMelt382 — its ramp still held ~3.4% alpha in the audit's border strips)
           rpMeltLive496(s); // [RP-V7.496] in a live rpMelt406 self-guards off and this raw screen-blend hero kept the 11%/13% stylesheet feather — the hairline instead, the Heart standard (self-gated to lives)
-          s.style.animation = "gfxFade337 600ms ease-out both"; }
+          s.style.animation = "gfxFade337 600ms ease-out both"; try { rpCenterSeatLive501(s); } catch (e) { } /* [RP-GSFIX] the raw live film (screen class / no-WebGL) centres on the screen like the keyed canvas */ }
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
         ov.appendChild(cap);
@@ -26708,7 +26758,7 @@
         if (hero.classList && hero.classList.contains("rp-screen337")) { /* [RP-V7.337] dim-master art heroes take the film seat (bottom half, own aspect) — the burst's centred seat pokes their square above the midline */          if (document.body && document.body.classList.contains("live-fs")) { hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = "0px"; hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = bigSeat347 ? "85dvh" : "50dvh"; } else { hero.style.left = "0px"; hero.style.top = "0px"; hero.style.bottom = "auto"; hero.style.width = "100vw"; hero.style.height = "100dvh"; hero.style.maxHeight = "none"; } hero.style.transform = "none"; hero.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
           rpMelt406(hero); // [RP-V7.406] border melt with the 3px dead zone (was rpMelt382)
           rpMeltLive496(hero); // [RP-V7.496] the burst lane's raw screen-blend hero takes the hairline in lives too (see the float note)
-          hero.style.animation = "gfxFade337 600ms ease-out both"; }
+          hero.style.animation = "gfxFade337 600ms ease-out both"; try { rpCenterSeatLive501(hero); } catch (e) { } /* [RP-GSFIX] the raw live film (screen class / no-WebGL) centres on the screen like the keyed canvas */ }
         /* [RP-V7.360] the burst particle scatter is REMOVED (Branden, Nov 12, 2026: "these small little pictures pop up before the gift — it need to be erased"): the 18 .gfx-p spans (the firework-burst glyph tiles, gift-icon stickers and sparkles that scattered across the post BEFORE the hero) are gone for every gift on both surfaces. The show now starts directly with the gift itself; hero, caption and the send toast/banner are untouched. */
         var cap = document.createElement("div");
         cap.className = "gfx-cap"; cap.innerHTML = giftFxCaption(fromName, toName, g);
@@ -26849,6 +26899,7 @@
           hero.style.animation = "gfxHalfIn334 " + dur + "ms cubic-bezier(.2,.7,.3,1) both";
           var bg337 = ov.querySelector(".gfx-bg"); if (bg337) { bg337.style.background = "transparent"; bg337.style.animation = "none"; bg337.style.opacity = "0"; }
           if (window.RpKeyUpgrade) window.RpKeyUpgrade(hero, g, undefined);
+          if (hero.classList && hero.classList.contains("rp-screen337")) { try { rpCenterSeatLive501(hero); } catch (e) { } } // [RP-GSFIX] a raw (screen-class) cinematic film centres like the lanes'; the keyed canvas is centred inside RpKeyUpgrade
         } else if (hero.tagName === "IMG") {
           if (bigSeat347) { /* [RP-V7.347] a big gift whose film has not landed yet presents its animated art in the same raised film seat (bottom-anchored, own aspect, whole from the first frame) instead of the small centred seat */            hero.style.left = "var(--gfx-x, 0px)"; hero.style.top = "auto"; hero.style.bottom = (document.body && document.body.classList.contains("live-fs") ? "0px" : "76px"); hero.style.transform = "none"; // [RP-V7.360] seat raise (see C5a)
             if (document.body && document.body.classList.contains("live-fs")) { hero.style.width = "min(100vw, var(--gfx-w, 100vw))"; hero.style.height = "auto"; hero.style.maxHeight = "85dvh"; } else { hero.style.left = "0px"; hero.style.top = "0px"; hero.style.bottom = "auto"; hero.style.width = "100vw"; hero.style.height = "100dvh"; hero.style.maxHeight = "none"; } hero.style.objectFit = "contain"; // [RP-V7.372] full-screen off-live
@@ -35633,6 +35684,7 @@ window.RpKeyUpgrade = function (el, g, opts327) {
       var ovB496 = el.closest ? el.closest(".gfx") : null;
       if (ovB496) ovB496.classList.add("rp-keyed");
       try { rpMeltHairline492(el); } catch (e) { }
+      try { if (window.rpCenterSeatLive501) window.rpCenterSeatLive501(el); } catch (e) { } // [RP-GSFIX] the band-scene film takes the centred live seat too (the helper self-gates to .gfx overlays in lives — the stage's own band seats are untouched)
       return null;
     }
     /* [RP-V7.360] an animated IMG is NEVER keyed: texImage2D from an animated image hands the keyer its FIRST frame forever on WebKit (rig-proven in Chrome too), so a keyed art hero is a frozen still — Branden's "some of them don't work at all it's still" (Nov 12, 2026: Lowrider, UFO Beam). Art heroes stay the raw animated image (natively animated on every engine, screen blend per the .gfx-artimg rules); the keyer remains for VIDEO sources only. */
@@ -35719,6 +35771,7 @@ window.RpKeyUpgrade = function (el, g, opts327) {
        never reach here (RpKeyUpgrade returns null before attach), so
        post/reel presentation is untouched. */
     try { if (window.rpMeltCanvas406) window.rpMeltCanvas406(cv); } catch (e) { }
+    try { if (window.rpCenterSeatLive501 && ov) window.rpCenterSeatLive501(cv); } catch (e) { } // [RP-GSFIX] centre the keyed canvas on the live screen — the float/burst film seat leaves the bottom strip (see rpCenterSeatLive501)
     return h;
   } catch (e) { return null; }
 };
