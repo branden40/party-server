@@ -10301,14 +10301,43 @@
       // [RP-V7.241] Photo share for the profile photo-post viewer:
       // the same navigator.share -> clipboard -> toast cascade
       // reelShare uses, with photo wording.
-      function rpPhotoShare241(author, caption, postId, mediaUrl) {
+      // [RP-V7.507] Photo download: the stamped export route, saved
+      // to the device exactly like the video download path — the
+      // copy that leaves the Plaza carries the glowing mark.
+      window.rpDownloadPhoto507 = function (route) {
+        toast("⬇ Adding the Plaza watermark…");
+        var headers = {};
+        var tok = null; try { tok = rpAcctToken(); } catch (e) { }
+        if (tok) headers["Authorization"] = "Bearer " + tok;
+        fetch(route, { headers: headers }).then(function (r) {
+          if (!r.ok) {
+            return r.json().catch(function () { return null; }).then(function (j) {
+              throw new Error((j && j.error) || "Couldn't download that photo.");
+            });
+          }
+          return r.blob();
+        }).then(function (blob) {
+          var u = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = u;
+          a.download = "rizzplaza-photo" + (blob.type && blob.type.indexOf("png") >= 0 ? ".png" : ".jpg");
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) { } }, 4000);
+          toast("⬇ Downloading the photo…");
+        }).catch(function (e) { toast((e && e.message) || "Couldn't download that photo."); });
+      };
+      function rpPhotoShare241(author, caption, postId, mediaUrl, exportUrl507) {
         var text = "📸 " + (caption ? caption + " — " : "") + rpT("share_check_photo");
         var url = (postId && window.rpShareUrl269 && window.rpShareUrl269("post", postId)) || "https://rizzplaza.com"; // [RP-V7.269] a real photo post shares its share page; a pinned/gallery item (no post record id) keeps the Plaza link
         // [RP-V7.493] when the caller knows the photo's file and the
         // phone's share sheet takes files, share the photo itself —
         // the helper falls back to the link share below on any "no".
-        if (mediaUrl) {
-          rpShareMediaFile493(mediaUrl, "", "rizzplaza-photo.jpg", { title: "Rizz Plaza 📸 Photo", text: text, url: url });
+        if (mediaUrl || exportUrl507) {
+          // [RP-V7.507] a real photo post shares its STAMPED export
+          // (the glowing mark in the corner); pinned/gallery items
+          // have no post record, so they keep the file they were
+          // given, exactly as before.
+          rpShareMediaFile493(exportUrl507 || mediaUrl, "", "rizzplaza-photo.jpg", { title: "Rizz Plaza 📸 Photo", text: text, url: url });
           return;
         }
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
@@ -10387,6 +10416,7 @@
           '<button class="reel-act share pp-share" type="button">' + RPICO.share + "<span data-i18n=\"act_share\">Share</span></button>" +
           '<button class="reel-act repost pp-repost' + (fi241.myReposted ? " reposted" : "") + '" type="button">' + RPICO.repost + '<span class="rc">' + fi241.reposts + "</span></button>" +
           '<button class="reel-act rp-save349" type="button" aria-label="Save" data-i18n-al="act_save" data-save349="photo:' + escHtml(fi241.postId) + '">' + RPICO.bookmark + '<span class="sv-lb349 sv-lb413" data-i18n="act_save">Save</span></button>' + /* [RP-V7.349] */
+          (postFull && !(post && post.kind === "text") ? '<button class="reel-act pp-dl507" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span data-i18n="act_save">Save</span></button>' : "") + /* [RP-V7.507] the photo twin of the video rail's ⬇ Save: downloads the STAMPED export */
           (((postFull && j.id && j.id === rpMyId243()) || (it.owner && it.owner === rpMyId243()) || rpIsOwner435()) ? '<button class="reel-act pp-del243" type="button" aria-label="Delete" data-i18n-al="act_delete"><span style="font-size:19px;line-height:1;">🗑</span><span class="del-lbl412" data-i18n="act_delete">Delete</span></button>' : "");
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close" data-i18n-al="act_close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
@@ -10403,8 +10433,9 @@
         var hb241 = sheet241.querySelector(".pp-heart"); if (hb241) hb241.addEventListener("click", function () { photoLikeToggle123(fi241, hb241); });
         var cb241 = sheet241.querySelector(".pp-cmt"); if (cb241) cb241.addEventListener("click", function () { openPhotoComments123(fi241); });
         var gb241 = sheet241.querySelector(".pp-gift"); if (gb241) gb241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, (post && post.kind === "text") ? { post: { kind: "photo", id: fi241.postId } } : { src: "picture", post: { kind: "photo", id: fi241.postId } } ); }); // [RP-V7.262] the post rides as the gift's post — [RP-V7.278] a text post carries no src, so its gift notice keeps the honest generic wording
-        var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption, fi241.postId, (post && post.kind === "text") ? "" : src); }); // [RP-V7.493] the photo's own file rides along for file-capable share sheets; a text post has no photo file
+        var sb241 = sheet241.querySelector(".pp-share"); if (sb241) sb241.addEventListener("click", function () { rpPhotoShare241(fi241.author, fi241.caption, fi241.postId, (post && post.kind === "text") ? "" : src, (postFull && !(post && post.kind === "text")) ? "/api/photo/" + encodeURIComponent(fi241.postId) + "/download" : ""); }); // [RP-V7.493] the photo's own file rides along for file-capable share sheets; a text post has no photo file
         var rb241 = sheet241.querySelector(".pp-repost"); if (rb241) rb241.addEventListener("click", function () { photoRepostToggle123(fi241, rb241); });
+        var dl507 = sheet241.querySelector(".pp-dl507"); if (dl507) dl507.addEventListener("click", function () { if (window.rpDownloadPhoto507) window.rpDownloadPhoto507("/api/photo/" + encodeURIComponent(fi241.postId) + "/download"); }); // [RP-V7.507]
         var db243 = sheet241.querySelector(".pp-del243"); if (db243) db243.addEventListener("click", function () { rpArmDel243(db243, function () { rpAcctDel243("/api/photo/" + encodeURIComponent(it.id)).then(function (ok) { if (ok) rpAfterDel243((post && post.kind === "text") ? "Post deleted" : "Photo deleted"); else /* [RP-V7.278] text-aware delete toast */ { try { toast("Couldn't delete that photo."); } catch (e) { } } }); }); });
         // [RP-V7.301] This sheet IS a full view of the post — count
         // it for the Creator Pool through the same ping the media
@@ -19044,7 +19075,9 @@
         }
         try {
           if (typeof navigator === "undefined" || typeof navigator.share !== "function" || typeof navigator.canShare !== "function" || typeof fetch !== "function") { urlFallback(); return; }
-          fetch(mediaUrl).then(function (r) { if (!r.ok) throw new Error("media " + r.status); return r.blob(); }).then(function (blob) {
+          var hdrs507 = {};
+          if (String(mediaUrl).indexOf("/api/") === 0) { try { var tk507 = (typeof rpAcctToken === "function") ? rpAcctToken() : null; if (tk507) hdrs507["Authorization"] = "Bearer " + tk507; } catch (e) { } } // [RP-V7.507] the export routes apply the member's own gates — carry the token like the download path does
+          fetch(mediaUrl, { headers: hdrs507 }).then(function (r) { if (!r.ok) throw new Error("media " + r.status); return r.blob(); }).then(function (blob) {
             var f = new File([blob], filename, { type: mime || blob.type || "application/octet-stream" });
             if (navigator.canShare({ files: [f] })) {
               navigator.share({ files: [f], title: payload.title, text: payload.text }).catch(function () { });
@@ -31379,7 +31412,18 @@
         // phone's share sheet takes files, share the video itself —
         // the helper falls back to the link share below on any "no".
         if (item && item.server && item.url) {
-          rpShareMediaFile493(item.url, "video/mp4", "rizzplaza-reel.mp4", { title: "Rizz Plaza 🎬 Reel", text: text, url: url });
+          // [RP-V7.507] Share the STAMPED export, not the raw file:
+          // the copy that leaves the Plaza carries the glowing mark
+          // (videos hop spot to spot; feed photos take the corner).
+          // The helper still falls back to the link share on any
+          // refusal, so a share tap never dead-ends.
+          var expUrl507 = item.url, expMime507 = "video/mp4", expName507 = "rizzplaza-reel.mp4", expTitle507 = "Rizz Plaza 🎬 Reel";
+          if (item.id && String(item.url).indexOf("/reel-files/") >= 0) expUrl507 = "/api/reel/" + encodeURIComponent(item.id) + "/download";
+          else if (item.id && String(item.url).indexOf("/photos/feed/") >= 0) {
+            expUrl507 = "/api/feed/" + encodeURIComponent(item.id) + "/download";
+            if (!/\.(mp4|mov|m4v|webm)(\?|$)/i.test(String(item.url))) { expMime507 = "image/jpeg"; expName507 = "rizzplaza-photo.jpg"; expTitle507 = "Rizz Plaza 📸 Photo"; }
+          }
+          rpShareMediaFile493(expUrl507, expMime507, expName507, { title: expTitle507, text: text, url: url });
           return;
         }
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
