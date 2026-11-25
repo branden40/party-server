@@ -5977,6 +5977,78 @@ function rpShareEsc269(s) {
 }
 const RP_SHARE_DESC269 =
   "Live rooms, battles, gifting, auctions, dating & faith — earn real money going live. Join free at rizzplaza.com.";
+// [RP-V7.511] The TikTok-shaped card (Branden, Nov 25, 2026 — his
+// iMessage recording: a shared TikTok link renders the video's own
+// thumbnail with a play badge over a banner carrying the TikTok
+// logo + "TikTok · <creator> · Watch the full video…"; his words:
+// "do the same for rizz"). The V7.269 pages predated reel posters,
+// so every reel card carried the site poster as og:image and a
+// "Name: caption" title. V7.482 has minted real poster frames
+// since, so the card now carries: og:title in TikTok's shape
+// ("Rizz Plaza · @handle · <caption snippet>"), the fixed
+// descriptions ("Watch the full video on Rizz Plaza" / "See the
+// full photo on Rizz Plaza"), the item's OWN poster/photo as
+// og:image with its measured dimensions, and the brand icon links
+// (builder, below). Short routes join the long ones: /r/:id
+// (reels), /p/:id (photo posts), /f/:id (feed posts — new
+// coverage; a feed share used to resolve to the generic card via
+// a /reel/ lookup miss, or the bare root link). /reel/:id and
+// /post/:id keep working and serve the same new card. Privacy is
+// unchanged from V7.269/V7.296/V7.298: audience-gated,
+// subscriber-only, club-only, and missing content serves the
+// generic site card — never its own title, caption, or image.
+// [RP-V7.511] Card helpers. The @handle is the author's account
+// username (the same resolution the download routes use for the
+// stamp handle), sanitized by wmHandle316; the record's name
+// snapshot is the fallback for a record whose account is gone.
+function rpShareHandle511(adb, authorKey, fallbackName) {
+  try {
+    if (adb && authorKey) {
+      const u = adb.users.find((x) => x && x.id === authorKey);
+      if (u && u.username) return wmHandle316(u.username);
+    }
+  } catch (e) {}
+  return wmHandle316(fallbackName || "");
+}
+function rpShareSnippet511(s) {
+  const t = String(s || "").replace(/\s+/g, " ").trim();
+  return t.length > 70 ? t.slice(0, 70).trimEnd() : t;
+}
+function rpShareTitle511(handle, caption) {
+  const sn = rpShareSnippet511(caption);
+  return "Rizz Plaza · @" + handle + (sn ? " · " + sn : "");
+}
+// [RP-V7.511] Real pixel dimensions of a local image file (PNG /
+// JPEG / WebP-VP8X headers) for og:image:width/height — best
+// effort: any doubt returns null and the tags are omitted.
+function rpImgDims511(filePath) {
+  let fd = null;
+  try {
+    fd = fs.openSync(filePath, "r");
+    const buf = Buffer.alloc(65536);
+    const n = fs.readSync(fd, buf, 0, buf.length, 0);
+    const b = buf.subarray(0, n);
+    if (b.length >= 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47)
+      return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+    if (b.length >= 4 && b[0] === 0xff && b[1] === 0xd8) {
+      let i = 2;
+      while (i + 9 < b.length) {
+        if (b[i] !== 0xff) { i++; continue; }
+        const m = b[i + 1];
+        if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+        const len = b.readUInt16BE(i + 2);
+        if ((m >= 0xc0 && m <= 0xc3) || (m >= 0xc5 && m <= 0xc7) || (m >= 0xc9 && m <= 0xcb) || (m >= 0xcd && m <= 0xcf))
+          return { w: b.readUInt16BE(i + 7), h: b.readUInt16BE(i + 5) };
+        if (len < 2) break;
+        i += 2 + len;
+      }
+    }
+    if (b.length >= 30 && b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP" && b.toString("ascii", 12, 16) === "VP8X")
+      return { w: 1 + b.readUIntLE(24, 3), h: 1 + b.readUIntLE(27, 3) };
+  } catch (e) {}
+  if (fd !== null) { try { fs.closeSync(fd); } catch (e) {} }
+  return null;
+}
 function rpSharePage269(res, o) {
   const title = rpShareEsc269(o.title);
   const desc = rpShareEsc269(o.description);
@@ -5988,6 +6060,18 @@ function rpSharePage269(res, o) {
     '<meta property="og:description" content="' + desc + '" />' +
     '<meta property="og:image" content="' + image + '" />' +
     '<meta property="og:url" content="' + rpShareEsc269(o.url) + '" />';
+  // [RP-V7.511] The card's brand icon (the decoded-buffer PNG
+  // routes — real bytes to any unauthenticated crawler) and the
+  // og:image's real dimensions when the resolver measured them.
+  const org511 = o.origin || (String(o.url || "").match(/^https?:\/\/[^/]+/) || [""])[0];
+  if (org511)
+    head +=
+      '<link rel="icon" type="image/png" href="' + rpShareEsc269(org511 + "/icon-192.png") + '" />' +
+      '<link rel="apple-touch-icon" href="' + rpShareEsc269(org511 + "/apple-touch-icon.png") + '" />';
+  if (o.imageW && o.imageH)
+    head +=
+      '<meta property="og:image:width" content="' + o.imageW + '" />' +
+      '<meta property="og:image:height" content="' + o.imageH + '" />';
   if (o.video) {
     head +=
       '<meta property="og:video" content="' + rpShareEsc269(o.video) + '" />' +
@@ -6019,21 +6103,24 @@ function rpSharePage269(res, o) {
     .set("Cache-Control", "public, max-age=" + (o.generic ? 60 : 300))
     .send(html);
 }
-function rpShareGeneric269(req, res, kind, id) {
+function rpShareGeneric269(req, res, kind, id, prefix511) {
   const origin = siteOrigin(req);
+  const dims511 = rpImgDims511(path.join(__dirname, "public", "logo-poster.jpg")); // [RP-V7.511]
   rpSharePage269(res, {
     generic: true,
     type: "website",
     title: "Rizz Plaza",
     description: RP_SHARE_DESC269,
     image: origin + "/logo-poster.jpg",
-    url: origin + (kind === "reel" ? "/reel/" : "/post/") + id,
+    ...(dims511 ? { imageW: dims511.w, imageH: dims511.h } : {}), // [RP-V7.511]
+    url: origin + "/" + (prefix511 || (kind === "reel" ? "reel" : "post")) + "/" + id, // [RP-V7.511] og:url names the route actually shared
     target: origin + "/",
   });
 }
-app.get("/reel/:id", (req, res) => {
+function rpShareReel511(req, res) {
   const raw = String(req.params.id || "").slice(0, 80);
   const id = reelCleanId(req.params.id);
+  const prefix511 = String(req.path || "").split("/")[1] === "r" ? "r" : "reel"; // [RP-V7.511] og:url names the route actually shared
   try {
     if (id) {
       const rec = listReels().find((r) => r && r.id === id);
@@ -6049,16 +6136,27 @@ app.get("/reel/:id", (req, res) => {
           : ext === "mov" ? "video/quicktime"
           : null;
         const cap = String(rec.caption || "").trim();
-        // [RP-V7.313] the share card carries the author's CURRENT name
-        let author313 = rec.author || "";
-        try { const adb313 = readAccounts(); author313 = byline313(adb313, reelAuthorKeyFor(adb313, rec), rec.author); } catch (e) {}
-        const author = String(author313 || "").trim() || "Someone";
+        // [RP-V7.511] the card names the creator by @handle (the
+        // account's username — TikTok's shape), and og:image is
+        // the reel's OWN poster frame (V7.482) with its measured
+        // dimensions; a posterless reel keeps the site poster.
+        let adb511 = null;
+        try { adb511 = readAccounts(); } catch (e) {}
+        const handle511 = rpShareHandle511(adb511, adb511 ? reelAuthorKeyFor(adb511, rec) : (rec.authorId || null), rec.author);
+        const poster511 = rpPosterUrl482(rec);
+        let image511 = origin + "/logo-poster.jpg";
+        let dims511 = rpImgDims511(path.join(__dirname, "public", "logo-poster.jpg"));
+        if (poster511) {
+          image511 = origin + poster511;
+          dims511 = rpImgDims511(path.join(REELS_DIR, rpPosterName482(rec.file)));
+        }
         return rpSharePage269(res, {
           type: "video.other",
-          title: cap ? author + ": " + cap.slice(0, 80) : author + "'s reel on Rizz Plaza",
-          description: cap || RP_SHARE_DESC269,
-          image: origin + "/logo-poster.jpg",
-          url: origin + "/reel/" + id,
+          title: rpShareTitle511(handle511, cap),
+          description: "Watch the full video on Rizz Plaza",
+          image: image511,
+          ...(dims511 ? { imageW: dims511.w, imageH: dims511.h } : {}),
+          url: origin + "/" + prefix511 + "/" + id,
           video: video,
           videoType: videoType,
           target: origin + "/?reel=" + encodeURIComponent(id),
@@ -6068,11 +6166,14 @@ app.get("/reel/:id", (req, res) => {
   } catch (e) {
     /* any lookup failure serves the generic card below */
   }
-  return rpShareGeneric269(req, res, "reel", id || raw);
-});
-app.get("/post/:id", (req, res) => {
+  return rpShareGeneric269(req, res, "reel", id || raw, prefix511);
+}
+// [RP-V7.511] Short + long reel share routes, one resolver.
+app.get(["/r/:id", "/reel/:id"], rpShareReel511);
+function rpSharePhoto511(req, res) {
   const raw = String(req.params.id || "").slice(0, 80);
   const id = reelCleanId(req.params.id);
+  const prefix511 = String(req.path || "").split("/")[1] === "p" ? "p" : "post"; // [RP-V7.511] og:url names the route actually shared
   try {
     if (id) {
       const rec = readPhotoPosts().posts.find((p) => p && p.id === id);
@@ -6085,16 +6186,19 @@ app.get("/post/:id", (req, res) => {
           // (text posts live in the Home stream; the deep-link
           // stash only knows reel/photo targets).
           const tx278 = String(rec.text || "").trim();
-          // [RP-V7.313] current display name, snapshot fallback
-          let au313 = rec.name || "";
-          try { au313 = byline313(readAccounts(), rec.owner, rec.name); } catch (e) {}
-          const au278 = String(au313 || "").trim() || "Someone";
+          // [RP-V7.511] text posts ride the same TikTok shape:
+          // the @handle + the post's own words as the snippet.
+          let adb511t = null;
+          try { adb511t = readAccounts(); } catch (e) {}
+          const handle511t = rpShareHandle511(adb511t, rec.owner, rec.name);
+          const dims511t = rpImgDims511(path.join(__dirname, "public", "logo-poster.jpg"));
           return rpSharePage269(res, {
             type: "article",
-            title: tx278 ? au278 + ": " + tx278.slice(0, 80) : au278 + "'s text post on Rizz Plaza",
-            description: tx278 || RP_SHARE_DESC269,
+            title: rpShareTitle511(handle511t, tx278),
+            description: rpShareSnippet511(tx278) || RP_SHARE_DESC269,
             image: origin + "/logo-poster.jpg",
-            url: origin + "/post/" + id,
+            ...(dims511t ? { imageW: dims511t.w, imageH: dims511t.h } : {}),
+            url: origin + "/" + prefix511 + "/" + id,
             target: origin + "/",
           });
         }
@@ -6103,17 +6207,20 @@ app.get("/post/:id", (req, res) => {
         if (img && !/^https?:\/\//i.test(img))
           img = img.charAt(0) === "/" ? origin + img : origin + "/" + img;
         if (img) {
-          const cap = String(rec.caption || "").trim();
-          // [RP-V7.313] current display name, snapshot fallback
-          let author313p = rec.name || "";
-          try { author313p = byline313(readAccounts(), rec.owner, rec.name); } catch (e) {}
-          const author = String(author313p || "").trim() || "Someone";
+          // [RP-V7.511] @handle title, the fixed photo
+          // description, and the photo's measured dimensions
+          // when it is a local /photos/ file.
+          let adb511p = null;
+          try { adb511p = readAccounts(); } catch (e) {}
+          const handle511p = rpShareHandle511(adb511p, rec.owner, rec.name);
+          const dims511p = img.indexOf(origin + "/photos/") === 0 ? rpImgDims511(path.join(PHOTO_DIR, path.basename(img))) : null;
           return rpSharePage269(res, {
             type: "article",
-            title: cap ? author + ": " + cap.slice(0, 80) : author + "'s photo on Rizz Plaza",
-            description: cap || RP_SHARE_DESC269,
+            title: rpShareTitle511(handle511p, rec.caption),
+            description: "See the full photo on Rizz Plaza",
             image: img,
-            url: origin + "/post/" + id,
+            ...(dims511p ? { imageW: dims511p.w, imageH: dims511p.h } : {}),
+            url: origin + "/" + prefix511 + "/" + id,
             target: origin + "/?photo=" + encodeURIComponent(id),
           });
         }
@@ -6122,7 +6229,82 @@ app.get("/post/:id", (req, res) => {
   } catch (e) {
     /* any lookup failure serves the generic card below */
   }
-  return rpShareGeneric269(req, res, "post", id || raw);
+  return rpShareGeneric269(req, res, "post", id || raw, prefix511);
+}
+// [RP-V7.511] Short + long photo-post share routes, one resolver.
+app.get(["/p/:id", "/post/:id"], rpSharePhoto511);
+// [RP-V7.511] Feed-post share pages: GET /f/:id. Feed posts live
+// in the Feed store (readFeed), not the reel/photo stores, so
+// V7.269 never covered them — a feed share resolved to the
+// generic card (via a /reel/ lookup miss) or the bare root link.
+// Same card, same privacy rule: subscriber/club-only posts and
+// posts whose author account is gone serve the generic card.
+// Humans bounce to /?feed=<id>, which the client's V7.511
+// consumer opens in the player (the Feed is members-only, so the
+// open waits for a session). Text posts have no media landing —
+// their card points at the app root, like text photo posts.
+app.get("/f/:id", (req, res) => {
+  const raw = String(req.params.id || "").slice(0, 80);
+  const id = reelCleanId(req.params.id);
+  try {
+    if (id) {
+      const post = readFeed().posts[id];
+      if (post && post.authorId && !post.subsOnly && !post.clubOnly) {
+        let author511 = null;
+        try { author511 = readAccounts().users.find((u) => u && u.id === post.authorId && !u.deletionAt) || null; } catch (e) {}
+        if (author511) {
+          const origin = siteOrigin(req);
+          const handle511 = wmHandle316(author511.username || post.authorName || "");
+          if (post.kind === "video" && post.file) {
+            const poster511 = rpFeedPosterUrl484(post);
+            let image511 = origin + "/logo-poster.jpg";
+            let dims511 = rpImgDims511(path.join(__dirname, "public", "logo-poster.jpg"));
+            if (poster511) {
+              image511 = origin + poster511;
+              dims511 = rpImgDims511(path.join(FEED_DIR, rpPosterName482(post.file)));
+            }
+            const ext511 = String(post.file).split(".").pop().toLowerCase();
+            return rpSharePage269(res, {
+              type: "video.other",
+              title: rpShareTitle511(handle511, post.text),
+              description: "Watch the full video on Rizz Plaza",
+              image: image511,
+              ...(dims511 ? { imageW: dims511.w, imageH: dims511.h } : {}),
+              url: origin + "/f/" + id,
+              video: origin + "/photos/feed/" + post.file,
+              videoType: ext511 === "webm" ? "video/webm" : ext511 === "mov" ? "video/quicktime" : "video/mp4",
+              target: origin + "/?feed=" + encodeURIComponent(id),
+            });
+          }
+          if (post.kind === "photo" && post.file) {
+            const dims511 = rpImgDims511(path.join(FEED_DIR, path.basename(String(post.file))));
+            return rpSharePage269(res, {
+              type: "article",
+              title: rpShareTitle511(handle511, post.text),
+              description: "See the full photo on Rizz Plaza",
+              image: origin + "/photos/feed/" + post.file,
+              ...(dims511 ? { imageW: dims511.w, imageH: dims511.h } : {}),
+              url: origin + "/f/" + id,
+              target: origin + "/?feed=" + encodeURIComponent(id),
+            });
+          }
+          const dims511 = rpImgDims511(path.join(__dirname, "public", "logo-poster.jpg"));
+          return rpSharePage269(res, {
+            type: "article",
+            title: rpShareTitle511(handle511, post.text),
+            description: rpShareSnippet511(post.text) || RP_SHARE_DESC269,
+            image: origin + "/logo-poster.jpg",
+            ...(dims511 ? { imageW: dims511.w, imageH: dims511.h } : {}),
+            url: origin + "/f/" + id,
+            target: origin + "/",
+          });
+        }
+      }
+    }
+  } catch (e) {
+    /* any lookup failure serves the generic card below */
+  }
+  return rpShareGeneric269(req, res, "feed", id || raw, "f");
 });
 // [RP-V7.409] Story share page: a LIVE story gets its own card
 // (its photo, or its video) and bounces humans to /?story=<authorId>,
