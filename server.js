@@ -1661,6 +1661,7 @@ function settingsOf(u) {
     dlDefault: s.dlDefault !== false, // [RP-V7.316] TikTok-style downloads switch: the account default for new video posts (default ON, like TikTok); each post carries its own allowDownloads flag
     pushAsk: PUSH_ASK351_VALUES.indexOf(s.pushAsk) >= 0 ? s.pushAsk : "", // [RP-V7.351] the one-time push ask's recorded answer: "" = never asked, "granted", "declined", or "pending-install" (told in an iOS browser tab; the first Home-Screen launch asks for real). An account fact, so it follows the member across devices
     viewerHistory: s.viewerHistory === true,
+    charmDrops: s.charmDrops !== false, // [RP-V7.523] the host's Charm Drops switch: DEFAULT ON; OFF means drop gifts addressed to this host settle plain at the full-price 70/30 (no carve, no pool) — server-enforced at settle time in the money/gift handler
     showActive: s.showActive !== false, // [RP-V7.471] Facebook-style active status: DEFAULT ON; OFF hides the member's green dot + Active time from everyone else (presenceOf471) // [RP-V7.422] profile viewer history opt-in: DEFAULT OFF (TikTok parity) until the member turns it on from the Profile views page; rides the settings record so it follows the member across devices
     notify: {
       messages: n.messages !== false,
@@ -3552,10 +3553,11 @@ app.post("/api/account/settings", (req, res) => {
   if (!ctx) return;
   const b = req.body || {};
   const cur = settingsOf(ctx.user);
-  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, pushAsk: cur.pushAsk, viewerHistory: cur.viewerHistory, showActive: cur.showActive, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push } } }; // [RP-V7.328] push channel rides the same settings record
+  const nx = { letterStyle: cur.letterStyle, dmPrivacy: cur.dmPrivacy, dlDefault: cur.dlDefault, pushAsk: cur.pushAsk, viewerHistory: cur.viewerHistory, showActive: cur.showActive, charmDrops: cur.charmDrops, notify: { messages: cur.notify.messages, follows: cur.notify.follows, gifts: cur.notify.gifts, likes: cur.notify.likes, comments: cur.notify.comments, reposts: cur.notify.reposts, dailypot: cur.notify.dailypot, posts: cur.notify.posts, liveinvites: cur.notify.liveinvites, signups: cur.notify.signups, channels: { inapp: cur.notify.channels.inapp, email: cur.notify.channels.email, sms: cur.notify.channels.sms, push: cur.notify.channels.push } } }; // [RP-V7.328] push channel rides the same settings record
   if ("dlDefault" in b && typeof b.dlDefault === "boolean") nx.dlDefault = b.dlDefault; // [RP-V7.316] downloads default for new video posts
   if ("viewerHistory" in b && typeof b.viewerHistory === "boolean") nx.viewerHistory = b.viewerHistory; // [RP-V7.422] viewer-history toggle rides the same record
   if ("showActive" in b && typeof b.showActive === "boolean") nx.showActive = b.showActive; // [RP-V7.471] active-status privacy toggle rides the same record
+  if ("charmDrops" in b && typeof b.charmDrops === "boolean") nx.charmDrops = b.charmDrops; // [RP-V7.523] host Charm Drops switch rides the same record
   if ("pushAsk" in b) { // [RP-V7.351] the one-time push-prompt decision rides the same record
     if (PUSH_ASK351_VALUES.indexOf(b.pushAsk) < 0)
       return res.status(400).json({ ok: false, error: "That notification answer isn't one of the Plaza's choices" });
@@ -22191,6 +22193,28 @@ const chestTimers520 = new Map();  // dropId -> timeout handle (process-local on
 // Gifts not listed settle plain, exactly as before.
 const GIFT_DROP522 = { treasurechest: 200, volcano: 200, auraclash: 220, trex: 300, rizzuniverse: 520, universe: 5000 };
 function giftDropPool522(giftId) { const p = GIFT_DROP522[giftId]; return (typeof p === "number" && isFinite(p) && p > 0) ? Math.floor(p) : 0; }
+// [RP-V7.523] HOST RECEIPT SPLIT + HOST CHARM DROP SWITCH (Branden,
+// Nov 25, 2026 — "add them both"): (1) when a drop gift settles, the
+// host's gift notification carries the full split in the settle's own
+// numbers (see the money/gift handler's receipt523), and when a drop
+// closes with unclaimed charms returning to the host, the host gets
+// a "+N unclaimed drop charms" line (chestDrop520Settle below).
+// (2) Every host carries a durable Charm Drops switch on their
+// account settings (settingsOf().charmDrops, default ON, written via
+// /api/account/settings — the fanState/settings record pattern).
+// When the RECIPIENT host has it OFF, their drop gifts settle PLAIN
+// at the standard 70/30 of the FULL price: no carve, no pool, no
+// drop card — enforced here at settle time, per recipient, so in a
+// battle only the addressed host's setting governs their gifts. An
+// already-open drop always finishes under the rules it opened with:
+// the switch is read only at the settle decision, never at claim or
+// drop-settle time. The icons mirror the client catalog (the server
+// gift table carries names/tiers only) for the receipt line.
+const GIFT_DROP_ICON523 = { treasurechest: "\u{1F9F0}", volcano: "\u{1F30B}", auraclash: "\u{1F4A5}", trex: "\u{1F996}", rizzuniverse: "\u{1F310}", universe: "\u{1FA90}" };
+function hostCharmDropsOn523(accountId) {
+  if (!accountId) return true;
+  try { const adb = readAccounts(); const u = adb.users.find((x) => x && x.id === accountId); if (!u) return true; return settingsOf(u).charmDrops !== false; } catch (e) { return true; }
+}
 function chestDrop520View(r) {
   return { dropId: r.id, pool: r.pool, endsAt: r.endsAt, claims: Object.keys(r.claims || {}).length, maxClaims: CHEST_MAX_CLAIMS520, fromName: r.senderName, hostName: r.hostName, giftId: r.giftId || "treasurechest", giftName: r.giftName || "Treasure Chest" }; // [RP-V7.522] the gift actually sent rides the view (escrow rows written before V7.522 carry no giftId and fall back to the chest)
 }
@@ -22222,6 +22246,12 @@ function chestDrop520Settle(dropId) {
   writeMoney(db);
   if (chestTimers520.has(dropId)) { clearTimeout(chestTimers520.get(dropId)); chestTimers520.delete(dropId); }
   chestDrop520Emit(r, "settled", { each: each, claimers: claimers.length });
+  // [RP-V7.523] the host's return line: whatever came back unclaimed
+  // (the integer remainder after equal shares, or the whole pool on
+  // zero claims) is stated to the host with its amount — bell only,
+  // never a second push/email (the room settle line below already
+  // announced the close publicly).
+  if (hostGets > 0) { try { notifyActivity({ toId: r.hostId, kind: "gift", actorId: r.senderId, actorName: r.senderName, inAppOnly: true, text: "\u{1F9F0} +" + hostGets + " unclaimed drop charms \u2014 the " + (r.giftName || "Treasure Chest") + " drop closed and the unclaimed charms landed in your balance." }); } catch (e) { } }
   const line = claimers.length
     ? "\u{1F9F0} " + (r.giftName || "Treasure Chest") + " drop: " + claimers.length + (claimers.length === 1 ? " viewer" : " viewers") + " claimed " + each + " charms each!"
     : "\u{1F9F0} " + (r.giftName || "Treasure Chest") + " drop: no claims \u2014 the host keeps the " + r.pool + " charms."; // [RP-V7.522] the line names the gift that was sent
@@ -26092,7 +26122,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // GIFT_DROP522 (server authoritative) — never a per-gift code path.
   let chestDropRec520 = null;
   let dropUnit522 = 0;
-  if (!charmsOnly && !promo321 && (dropUnit522 = giftDropPool522(giftId)) > 0) {
+  if (!charmsOnly && !promo321 && (dropUnit522 = giftDropPool522(giftId)) > 0 && hostCharmDropsOn523(recipient.id)) { // [RP-V7.523] the recipient host's Charm Drops switch gates the whole drop: OFF -> no record, no carve, the gift settles plain at the full-price split below
     try {
       let rooms520 = null;
       const bb520 = b.battleId ? battles306.get(String(b.battleId)) : null;
@@ -26417,14 +26447,22 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   if (gInfo250) gCore250 += " · " + gInfo250.tier + " · " + gAmt250;
   else if (gName250) gCore250 += " · " + gAmt250; // [RP-V7.309] a named holiday instance states name + amount (holiday instances carry no server tier, so no tier segment)
   else gCore250 += " (" + gAmt250 + ")";
+  // [RP-V7.523] HOST RECEIPT SPLIT: for a drop gift, the host's
+  // notification states the whole split in the settle's OWN numbers
+  // — the batch accumulators above (hostShare / platformCut) and
+  // the escrow record's pool, never a recomputation: "{icon}
+  // {GiftName} {price}\u00A2 \u2014 you {hostShare} \u00B7 room drop {pool}
+  // \u00B7 platform {platformCut}". Non-drop gifts carry no receipt
+  // segment and their notice is byte-identical to before.
+  const receipt523 = chestDropRec520 ? ((GIFT_DROP_ICON523[giftId] || "\u{1F9F0}") + " " + ((MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId) + " " + (cost * count) + "\u00A2 \u2014 you " + hostShare + " \u00B7 room drop " + chestDropRec520.pool + " \u00B7 platform " + platformCut) : "";
   notifyActivity({
     toId: recipient.id,
     kind: "gift",
     actorId: ctx.user.id,
     actorName: ctx.user.name,
-    text: "🎁 " + gCore250 + "!",
+    text: "🎁 " + gCore250 + "!" + (receipt523 ? " " + receipt523 : ""), // [RP-V7.523] drop gifts append the host receipt split
     emailSubject: "You got a gift on Rizz Plaza 🎁",
-    emailText: gCore250 + " on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
+    emailText: gCore250 + (receipt523 ? " " + receipt523 : "") + " on Rizz Plaza.\n\nOpen the Plaza to see it: https://rizzplaza.com\n\n— The Rizz Plaza team",
     // [RP-V7.270] a gift tied to a post opens that post (the V7.262
     // postKey carries its id); a live / gallery gift keeps the
     // own-profile target, where the earnings land.
@@ -36396,6 +36434,15 @@ io.on("connection", (socket) => {
   function decoPayload490(key) {
     const entry = liveRegistry.get(key);
     if (!entry) return null;
+    // [RP-V7.523] the host's account Charm Drops switch rides the
+    // deco payload (resolved from the live key's socket binding, the
+    // livesSnapshot way) so every client in the room — and every
+    // battle room watching this host — can keep the gift panel's
+    // drop note honest for THIS host. Read fresh from the account
+    // record on every payload build; the durable write is
+    // /api/account/settings, never this payload.
+    let hostAcct523 = null;
+    for (const [sid523, k523] of clientKeys) { if (k523 === key) { const hs523 = io.sockets.sockets.get(sid523); if (hs523 && hs523.data && hs523.data.accountId) hostAcct523 = hs523.data.accountId; break; } }
     const d = liveDeco490.get(key);
     let side = null;
     for (const b of battles306.values()) {
@@ -36408,6 +36455,7 @@ io.on("connection", (socket) => {
       label: d ? d.label || "" : "",
       stickers: d ? d.stickers || [] : [],
       fanFilter: d ? d.fanFilter !== false : true, // [RP-V7.506] the host's Fan Club filter switch (default ON)
+      charmDrops523: hostCharmDropsOn523(hostAcct523), // [RP-V7.523] this host's Charm Drops switch (account setting, default ON)
       side,
     };
   }
@@ -36466,6 +36514,16 @@ io.on("connection", (socket) => {
     const ctx = lkHostCtx389();
     if (!ctx) return;
     decoStore490(ctx, { fanFilter: !!(data && data.on) });
+  });
+  socket.on("live-drops-refresh523", () => {
+    // [RP-V7.523] the host flipped their ACCOUNT Charm Drops switch
+    // (the durable write already landed via /api/account/settings):
+    // re-broadcast this live's deco so the room's gift-panel drop
+    // note follows the new setting immediately. Host-only, and it
+    // writes nothing — the payload re-reads the account record.
+    const ctx = lkHostCtx389();
+    if (!ctx) return;
+    decoEmit490(ctx.key);
   });
   socket.on("live-deco-get490", () => {
     const p = players.get(socket.id);
