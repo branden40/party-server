@@ -28,6 +28,7 @@
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
 <meta name="rp-build" content="RP-V7.489" />
+<!-- [RP-V7.506] FAN CLUB FILTER (Branden, Nov 24, 2026 — his Loozecannon TikTok LIVE recording: "I need that filter join my club"): a Plaza-ORIGINAL animated mascot (inline SVG, drawn in code: round black body, red backwards cap, gold star badge, waving arm — never TikTok's character, never anyone's likeness) bobbing over a glowing red "Join my Fan Club" pill that floats at the top of the host's live for the whole show — under the top bar, stacked below the V7.490 label when both are up. It is part of the show, not lv-idle chrome: like the deco layer it never auto-fades. TAP = JOIN through the existing V6.5 live fan-club path (rpFanJoin65 -> joinFan -> the room fan-join proto; free, instant, no confirm, the host's client assigns the fan number) — the identical call the live More-sheet row and the host-card buttons make. Joined viewers see their real state ("Fan No. N" once the host's fan-count lands, "Fan Club member" before it); the host sees a non-tappable preview of their own pill; signed-out viewers see it display-only. The host turns it off/on for their live from the More sheet ("Fan Club filter" row, default ON); the flag rides the V7.490 deco room state (fanFilter on liveDeco490, broadcast on live-deco490, pulled by late joiners via live-deco-get490, dies with the live; a viewer renders the pill only once that payload has landed, so a host's OFF never flashes at a late joiner — the 5s deco tick re-asks until it lands) — the server change is exactly that one field plus one host-only socket intent (live-fanfilter-set506). Battles: the pill dresses the live you are in, half-width over your host's side of the split — the fan-join proto is room-local and every existing fan button joins only that host, so the opponent's pill is not rendered (joining them happens from their own live, as today). Church lives included: a fan club is not selling or auctions (the V7.490 deco precedent — gifting is likewise allowed). No counts on the pill (the existing live fan buttons show none either). New strings fanpill_*506 / more_fanfilter506 in all 9 languages. Everything V7.505 preserved. -->
 <!-- [RP-V7.490] LIVE LABEL + LIVE STICKERS + 2 GIFTS (Branden, Nov 23, 2026): (1) LIVE LABEL — the host sets a short custom label (plain text, max 40 chars) that rides as a bold banner near the top of the live screen for the host AND every viewer, modeled on the "MEDIA HIGHLIGHTS & RECAPS" banner on TikTok recap clips; set/clear from the host's ••• sheet ("Live label" row). (2) LIVE STICKERS "like TikTok" + Instagram-style cards — the host sticks up to 3 stickers on the live from the ••• sheet ("Stickers" row): a glyph pack of 12 large emoji (🔥 ⭐ ❤️ 🎉 👑 🎵 ⚡ 💯 🎁 🙌 😂 🎤) AND Instagram-style white rounded cards (❓ Ask me anything · 📊 POLL · ⏰ COUNTDOWN · #️⃣ hashtag (host text, max 24) · 📍 location (host text, max 24) · 🎵 MUSIC), rendered as styled DOM, fixed slots in the corners/lower area, never center-face. Label + stickers live on the server room state (liveDeco490, keyed by live key, beside the V7.389 show note), broadcast over the live socket flow (live-deco490; battle rooms cross-emit like battle306Emit so each host's deco lands on their own side of the split), late joiners pull it with live-deco-get490 on the Lk389 sync, and everything clears when the live ends. The banner layer is NOT part of the lv-idle chrome — it never auto-fades. All user text renders via textContent only. Works in every live type (a label/sticker is not commerce — church lives included). (3) +2 GIFTS: shellsensei "Shell Sensei" 440 medium (film 5.583 s) + auraclash "Aura Clash" 2200 big (film 4.500 s) — catalog 122 -> 124, prices unique; client GIFT_SHOP + GIFT_FILM_IDS, server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entries (the V7.474 film clock self-corrects past the tier defaults: medium 8000 / big 10000 both exceed film + 250 ms). Everything V7.489 preserved. --> <!-- [RP-V7.489] WEEKLY GIFTS (Nov 23, 2026): +5 gifts, catalog 117 -> 122, all prices unique — lanternturtle "Lantern Turtle" 15 small, discosnail "Disco Snail" 88 small, tornadodancer "Tornado Dancer" 370 medium, crystaloctopus "Crystal Octopus" 690 medium, wingedlion "Winged Lion" 1700 big; each with an HD film (giftfx-<id>.mp4) + animated art; ids added to GIFT_FILM_IDS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly. --> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. --> <!-- [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE (Branden, Nov 22, 2026): his recording showed the Home For You pager landing on pure black for ~5 s and a reel sitting frozen; ordered corrected "like the other reels", chose the grid, added "Plus swipe", then scoped it himself — "This is on the for you button": the FOR YOU tab's mixed stream (reels + photo posts + text posts, the pager's own homeItems() list, same order) now paints as a poster/thumbnail grid in #homeGrid488 (fillGrid tiles — reel posters from V7.482, photo ~720px variants from V7.485, text tiles in the RPText278 style), pre-warmed the V7.482 way (reel posters already ride rpPrewarm482; photo variants now warm inside pagerPhotosFetch123; a scroll-ahead wire keeps the window ahead of the member). Tap a tile -> the sheet player (reels play with the full V7.462/V7.486 rail incl. the handshake; photos and text posts open in the same media viewer they always did); PLUS SWIPE inside the player walks the GRID'S list across types (reel -> photo -> text -> reel) via a mixed session in the lightbox (lbHomeNav488) built on the V7.461 gesture wire — every landing behaves exactly as if tapped (view-once is the existing rpViewsPing per-session dedupe for reels and photo posts; text posts never ping, as today), no wrap at the ends, neighbours warm through the V7.483 fetcher hook, Back returns to the grid at the same scroll position (the grid is never unloaded under the sheet). FOLLOWING KEEPS ITS PAGER, byte for byte: renderHomePager branches on the tab — foryou goes to rpHomeGridRender488, following runs the original pager body untouched, and the V7.468 snap machinery retires only where the pager no longer renders (For You). One mapper repair rides along: pagerPhotoMap123 silently DROPPED text posts (a text post has no photo URLs, and the mapper returned null on an empty url list), so text posts never reached the Home pager at all; the mapper now carries them (kind/text/tstyle ride the item, plus photoThumb/thumbUrls for the tiles), so no content type is missing from Home. GLOW RULE CHANGE (Branden, same night, superseding the Nov 6 exception): "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing" — the Home strip's Plaza tab loses its always-on strongest-red glow; its glow rule now keys off .on like every other tab (the true-red look is kept for the active state; Following/For You and the bottom bar are untouched). Client-only; the V7.487 server already returns every field the grid reads. -->
 <!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
     <style>
@@ -1164,6 +1165,20 @@
          chrome. Sits below the top bar so it never covers the host. */
       .lv-label490 { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); z-index: 35; max-width: 92%; background: rgba(8,8,10,.88); border: 1.5px solid #e02424; color: #fff; font-weight: 900; font-size: 17px; letter-spacing: .4px; text-align: center; padding: 8px 18px; border-radius: 12px; pointer-events: none; box-shadow: 0 4px 22px rgba(224,36,36,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
       .lv-label490[hidden] { display: none; }
+      /* [RP-V7.506] Fan Club filter: mascot + Join pill. Position mirrors the
+         label (centred; half-left in a battle; drops below a visible label).
+         Animation is transform-only (mascot bob + arm wave) — no layout work. */
+      .lv-fanpill506 { position: absolute; top: 60px; left: 50%; transform: translateX(-50%); z-index: 36; max-width: 92%; }
+      .lv-fanpill506[hidden] { display: none; }
+      .lv-fanpill506.half-l { left: 25%; max-width: 46%; }
+      .lv-fanpill506.under-label { top: 112px; }
+      .lv-fanpill-in506 { display: flex; align-items: center; gap: 8px; padding: 5px 16px 5px 7px; border-radius: 999px; background: rgba(8,8,10,.88); border: 1.5px solid #e02424; color: #fff; font-family: inherit; font-size: 14.5px; font-weight: 900; letter-spacing: .2px; white-space: nowrap; box-shadow: 0 0 18px rgba(224,36,36,.55), 0 4px 18px rgba(0,0,0,.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); appearance: none; -webkit-appearance: none; }
+      button.lv-fanpill-in506 { cursor: pointer; }
+      .lv-fanpill-in506.member { border-color: rgba(255,210,60,.8); box-shadow: 0 0 14px rgba(255,210,60,.35), 0 4px 18px rgba(0,0,0,.45); }
+      .lv-mascot506 { width: 34px; height: 34px; flex: 0 0 auto; animation: fanpillBob506 1.5s ease-in-out infinite alternate; }
+      @keyframes fanpillBob506 { from { transform: translateY(1.5px) rotate(-2deg); } to { transform: translateY(-2.5px) rotate(2deg); } }
+      .lv-mascot-arm506 { transform-box: fill-box; transform-origin: 18% 87%; animation: fanpillWave506 1.5s ease-in-out infinite alternate; }
+      @keyframes fanpillWave506 { from { transform: rotate(-6deg); } to { transform: rotate(15deg); } }
       .lv-label490.half-l { left: 25%; max-width: 46%; }
       .lv-label490.half-r { left: 75%; max-width: 46%; }
       .lv-stickers490 { position: absolute; inset: 0; z-index: 34; pointer-events: none; }
@@ -3797,6 +3812,7 @@
             <div class="lk-winoverlay389" id="lkWinOverlay389" hidden><div class="lk-wincard389"><div class="lk-wintitle389" id="lkWinTitle389"></div><div class="lk-winsub389" id="lkWinSub389"></div></div></div> <!-- [RP-V7.389] winner overlay -->
             <div class="lv-label490" id="lvLabel490" hidden></div> <!-- [RP-V7.490] host's live label banner -->
             <div class="lv-label490" id="lvLabelOpp490" hidden></div> <!-- [RP-V7.490] battle opponent's live label banner -->
+            <div class="lv-fanpill506" id="lvFanPill506" hidden></div> <!-- [RP-V7.506] Fan Club filter: Plaza mascot + Join pill for the live you are in -->
             <div class="lv-stickers490" id="lvStickers490" hidden><div class="lv-stk-half490 mine" id="lvStkMine490"></div><div class="lv-stk-half490 opp" id="lvStkOpp490" hidden></div></div> <!-- [RP-V7.490] live sticker layer (glyphs + Instagram-style cards) -->
             <div class="lv-bottombar" id="liveBottomBar">
               <div class="lv-commentbar" id="liveCommentBar" hidden>
@@ -18689,6 +18705,7 @@
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreNote389">' + rpT("more_note") + (typeof Lk389 !== "undefined" && Lk389.note ? rpT("more_pinned_suffix") : "") + "</button>"; // [RP-V7.389] host pins a show note
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreLabel490">' + rpT("more_label") + (typeof Deco490 !== "undefined" && Deco490.label ? rpT("more_on_suffix") : "") + "</button>"; // [RP-V7.490] host's banner label on the live
         if (host) html += '<button type="button" class="btn-mini" id="lvMoreStickers490">' + rpT("more_stickers") + (typeof Deco490 !== "undefined" && Deco490.stickers.length ? rpTf("more_n_on_suffix", { n: Deco490.stickers.length }) : "") + "</button>"; // [RP-V7.490] glyph + Instagram-style card stickers
+        if (host) html += '<button type="button" class="btn-mini" id="lvMoreFanFilter506">' + rpT("more_fanfilter506") + (typeof Deco490 !== "undefined" && Deco490.fanFilter === false ? rpT("fanpill_off_suffix506") : rpT("more_on_suffix")) + "</button>"; // [RP-V7.506] Fan Club filter (mascot + Join pill) on/off for this live
         if (host && !aucCtx) html += '<button type="button" class="btn-mini" id="lvMorePoll319">' + rpT("more_poll") + (Live.poll && Live.poll.status === "open" ? rpT("more_poll_live_suffix") : "") + "</button>"; // [RP-V7.319] host runs polls from the ••• tray — never on an auction show
         if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreBattle">' + rpT("more_battle") + '</button>'; // [RP-V7.83] Battle's home is this sheet now (was a floating button) — regular lives only, never an auction show
         if (host && !aucCtx && !(Live.ticketPrice > 0)) html += '<button type="button" class="btn-mini" id="lvMoreAddPeople">' + rpT("more_add_people") + '</button>'; // [RP-V7.83] Add people moved with Battle
@@ -18722,6 +18739,7 @@
         wire("lvMoreNote389", function () { closeSheet(); openLkNoteSheet389(); }); // [RP-V7.389]
         wire("lvMoreLabel490", function () { closeSheet(); openDecoLabelSheet490(); }); // [RP-V7.490]
         wire("lvMoreStickers490", function () { closeSheet(); openDecoStickerSheet490(); }); // [RP-V7.490]
+        wire("lvMoreFanFilter506", function () { closeSheet(); fanFilterToggle506(); }); // [RP-V7.506]
         wire("lvMoreRaid389", function () { closeSheet(); openLkRaidSheet389(); }); // [RP-V7.389]
         wire("lvMorePoll319", function () { closeSheet(); openPollSheet319(); }); // [RP-V7.319]
         wire("lvMoreSetup", function () { closeSheet(); openLiveSetup(); }); // [RP-V7.63]
@@ -21034,7 +21052,7 @@
          live-deco-get490. Every user string renders via textContent —
          never innerHTML. No MutationObserver anywhere in this module;
          every DOM write is guarded by a state check first. */
-      var Deco490 = { key: "", label: "", stickers: [], oppKey: "", oppLabel: "", oppStickers: [] };
+      var Deco490 = { key: "", label: "", stickers: [], oppKey: "", oppLabel: "", oppStickers: [], fanFilter: true, oppFanFilter: true, got506: false }; // [RP-V7.506] fanFilter fields ride the same record; got506 marks a landed deco payload for this live
       var DECO_GLYPHS490 = ["🔥", "⭐", "❤️", "🎉", "👑", "🎵", "⚡", "💯", "🎁", "🙌", "😂", "🎤"];
       var DECO_CARDS490 = [
         { card: "questions", icon: "❓", text: "Ask me anything" },
@@ -21050,8 +21068,10 @@
       function decoReset490() {
         Deco490.key = ""; Deco490.label = ""; Deco490.stickers = [];
         Deco490.oppKey = ""; Deco490.oppLabel = ""; Deco490.oppStickers = [];
+        Deco490.fanFilter = true; Deco490.oppFanFilter = true; Deco490.got506 = false; // [RP-V7.506] a fresh live starts with the filter ON, deco unconfirmed
         decoRender490();
         decoStickersRender490();
+        fanPillRender506();
       }
       function decoCardText490(it) {
         for (var i = 0; i < DECO_CARDS490.length; i++) {
@@ -21157,20 +21177,101 @@
           Deco490.key = data.key;
           Deco490.label = data.label || "";
           Deco490.stickers = data.stickers || [];
+          Deco490.fanFilter = data.fanFilter !== false; // [RP-V7.506]
         } else if (data.key && decoBattle490()) {
           Deco490.oppKey = data.key;
           Deco490.oppLabel = data.label || "";
           Deco490.oppStickers = data.stickers || [];
+          Deco490.oppFanFilter = data.fanFilter !== false; // [RP-V7.506]
         } else if (data.room && data.room === livePotRoom()) {
           // directory key not resolvable yet on this screen — the room match is authoritative enough
           Deco490.label = data.label || "";
           Deco490.stickers = data.stickers || [];
+          Deco490.fanFilter = data.fanFilter !== false; // [RP-V7.506]
         } else return;
+        Deco490.got506 = true; // [RP-V7.506] a payload landed for this live — the tick can stop re-asking
         decoRender490();
         decoStickersRender490();
+        fanPillRender506(); // [RP-V7.506]
       }
       function onDecoError490(data) {
         toast((data && data.error) || rpT("toast_deco_fail"), 3600);
+      }
+      /* [RP-V7.506] FAN CLUB FILTER — the Plaza mascot + "Join my Fan
+         Club" pill floating over the live you are in. State comes from
+         the deco record (Deco490.fanFilter, server-synced, default ON)
+         and the V6.5 fan store (via the rpFanOf65 / rpFanJoin65
+         bridges — the join is the very call the More-sheet row makes).
+         Modes: join (a real button), member (the viewer's true fan
+         state), preview (the host's own view + signed-out viewers —
+         display only, never a dead button). Every DOM write is behind
+         the __fanSig506 state check; the V6.5 module's syncFanChip
+         (join flow, fan-count handler, 900ms loop) re-calls
+         rpFanPillSync506 so membership changes land within a second. */
+      var FAN_MASCOT506 = '<svg class="lv-mascot506" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><g class="lv-mascot-arm506"><path d="M29 28 Q34.5 25 33.8 19.5" stroke="#3a3a44" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="33.8" cy="18.4" r="2.7" fill="#e02424" stroke="rgba(255,255,255,.55)" stroke-width=".8"/></g><rect x="12.5" y="28.5" width="15" height="9" rx="3.5" fill="#e02424"/><circle cx="20" cy="19" r="10.5" fill="#17171f" stroke="rgba(255,255,255,.28)" stroke-width="1"/><path d="M9.5 17.5 A10.5 10.5 0 0 1 30.5 17.5 Z" fill="#e02424"/><rect x="28.6" y="12.4" width="8" height="3.2" rx="1.6" fill="#b81c1c" transform="rotate(-14 28.6 12.4)"/><rect x="9.5" y="16.6" width="21" height="2.4" fill="#b81c1c"/><circle cx="20" cy="8.4" r="1.5" fill="#b81c1c"/><circle cx="12.6" cy="24.4" r="1.25" fill="#e02424" opacity=".75"/><circle cx="27.4" cy="24.4" r="1.25" fill="#e02424" opacity=".75"/><ellipse cx="15.8" cy="20.6" rx="2.2" ry="2.8" fill="#fff"/><ellipse cx="24.2" cy="20.6" rx="2.2" ry="2.8" fill="#fff"/><circle cx="15.8" cy="21.1" r="1.15" fill="#111"/><circle cx="24.2" cy="21.1" r="1.15" fill="#111"/><circle cx="16.2" cy="20.6" r=".45" fill="#fff"/><circle cx="24.6" cy="20.6" r=".45" fill="#fff"/><path d="M16.4 24.9 Q20 27.7 23.6 24.9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/><polygon points="20,30.7 20.72,32.45 22.6,32.55 21.18,33.72 21.62,35.5 20,34.6 18.38,35.5 18.82,33.72 17.4,32.55 19.28,32.45" fill="#ffd23c"/></svg>';
+      function fanPillRender506() {
+        var box = $("lvFanPill506");
+        if (!box) return;
+        var battle = false;
+        try { battle = decoBattle490(); } catch (e) { }
+        var show = false, mode = "", text = "";
+        var host = false;
+        try { host = Live.active && iAmHost(); } catch (e) { }
+        // A viewer waits for this live's deco payload before the pill
+        // may show: until it lands, fanFilter is only the default, and
+        // a host who turned the filter off must not flash the pill at
+        // a late joiner (the label behaves the same way — the live's
+        // fixtures appear when its deco syncs). The host's own state
+        // is authoritative locally, so the host sees it at once.
+        if (Live.active && Live.hostId && Deco490.fanFilter !== false && (host || Deco490.got506)) {
+          var joined = null;
+          try { if (!host && window.rpFanOf65) joined = window.rpFanOf65(Live.hostId); } catch (e) { }
+          if (host || !Online.myId) { mode = "preview"; text = rpT("fanpill_join506"); }
+          else if (joined) { mode = "member"; text = joined.n ? rpTf("fanpill_fanno506", { n: joined.n }) : rpT("fanpill_member506"); }
+          else { mode = "join"; text = rpT("fanpill_join506"); }
+          show = true;
+        }
+        if (!show) {
+          if (!box.hidden) box.hidden = true;
+          if (box.__fanSig506) box.__fanSig506 = "";
+          return;
+        }
+        var under = !!Deco490.label;
+        var sig = mode + "|" + text + "|" + (battle ? "b" : "-") + (under ? "L" : "-");
+        if (box.__fanSig506 !== sig) {
+          box.__fanSig506 = sig;
+          while (box.firstChild) box.removeChild(box.firstChild);
+          var inner = document.createElement(mode === "join" ? "button" : "div");
+          inner.className = "lv-fanpill-in506" + (mode === "member" ? " member" : "");
+          if (mode === "join") {
+            inner.type = "button";
+            inner.setAttribute("aria-label", text);
+            inner.addEventListener("click", function () {
+              try { if (window.rpFanJoin65) window.rpFanJoin65(Live.hostId, Live.hostName || rpT("live_host_cap")); } catch (e) { }
+              fanPillRender506();
+            });
+          }
+          var m = document.createElement("span");
+          m.setAttribute("aria-hidden", "true");
+          m.innerHTML = FAN_MASCOT506; // compile-time constant SVG — no user content ever rides this string
+          var tx = document.createElement("span");
+          tx.textContent = text;
+          inner.appendChild(m);
+          inner.appendChild(tx);
+          box.appendChild(inner);
+          if (box.classList.contains("half-l") !== battle) box.classList.toggle("half-l", battle);
+          if (box.classList.contains("under-label") !== under) box.classList.toggle("under-label", under);
+        }
+        if (box.hidden) box.hidden = false;
+      }
+      window.rpFanPillSync506 = fanPillRender506;
+      function fanFilterToggle506() {
+        if (!Live.active || !iAmHost()) return;
+        var on = Deco490.fanFilter === false; // flip: OFF -> ON, ON -> OFF
+        Deco490.fanFilter = on;
+        try { if (Online.socket) Online.socket.emit("live-fanfilter-set506", { on: on }); } catch (e) { }
+        fanPillRender506();
+        toast(rpT(on ? "toast_fanfilter_on506" : "toast_fanfilter_off506"));
       }
       function decoEmitStickers490() {
         try {
@@ -21341,8 +21442,17 @@
             if (Online.socket) Online.socket.emit("live-deco-get490", {});
           } catch (e) {}
         }
+        if (!Deco490.got506) {
+          // [RP-V7.506] a late joiner's first deco pull can race the
+          // room join and land nothing — keep asking until a payload
+          // for this live has actually been applied.
+          try {
+            if (Online.socket) Online.socket.emit("live-deco-get490", {});
+          } catch (e) {}
+        }
         decoRender490();
         decoStickersRender490();
+        fanPillRender506(); // [RP-V7.506]
       }, 5000);
 
       /* ----- watch-to-earn ----- */
@@ -38653,6 +38763,7 @@ function stageStreakBump(key, add) {
     }
   }
   function syncFanChip() {
+    try { if (window.rpFanPillSync506) window.rpFanPillSync506(); } catch (e) { } // [RP-V7.506] keep the live Fan Club pill's join/member state fresh
     /* [RP-V7.491] the Fan Club button no longer lives in the top-bar
        host chip: appended there, it ran off the right edge of the phone
        screen (Branden's Nov 23 screenshot — measured right edge 486px
@@ -41528,6 +41639,13 @@ function stageStreakBump(key, add) {
     more_edit_title: " Edit title & topic",
     more_end_live: "⏹ End Live",
     more_fan_join: "🎉 Join Fan Club",
+    fanpill_join506: "Join my Fan Club",
+    fanpill_member506: "Fan Club member ✓",
+    fanpill_fanno506: "Fan No. {n} ✓",
+    more_fanfilter506: "🎉 Fan Club filter",
+    fanpill_off_suffix506: " · off",
+    toast_fanfilter_on506: "🎉 Fan Club filter on — viewers see the Join pill on your live.",
+    toast_fanfilter_off506: "Fan Club filter off — the Join pill is hidden on your live.",
     more_filters: "✨ Filters",
     more_gift: "🎁 Send a gift",
     more_giveaway: "🎁 Giveaway",
@@ -45315,6 +45433,13 @@ function stageStreakBump(key, add) {
     more_edit_title: " Editar título y tema",
     more_end_live: "⏹ Terminar vivo",
     more_fan_join: "🎉 Únete al Club de Fans",
+    fanpill_join506: "Únete a mi club de fans",
+    fanpill_member506: "Miembro del club de fans ✓",
+    fanpill_fanno506: "Fan n.º {n} ✓",
+    more_fanfilter506: "🎉 Filtro del club de fans",
+    fanpill_off_suffix506: " · desactivado",
+    toast_fanfilter_on506: "🎉 Filtro del club de fans activado: los espectadores ven el botón de unirse en tu directo.",
+    toast_fanfilter_off506: "Filtro del club de fans desactivado: el botón de unirse está oculto en tu directo.",
     more_filters: "✨ Filtros",
     more_gift: "🎁 Enviar un regalo",
     more_giveaway: "🎁 Sorteo",
@@ -49102,6 +49227,13 @@ function stageStreakBump(key, add) {
     more_edit_title: " Modifier titre et sujet",
     more_end_live: "⏹ Terminer le direct",
     more_fan_join: "🎉 Rejoindre le Fan Club",
+    fanpill_join506: "Rejoins mon fan club",
+    fanpill_member506: "Membre du fan club ✓",
+    fanpill_fanno506: "Fan n° {n} ✓",
+    more_fanfilter506: "🎉 Filtre fan club",
+    fanpill_off_suffix506: " · désactivé",
+    toast_fanfilter_on506: "🎉 Filtre fan club activé : les spectateurs voient le bouton Rejoindre sur ton live.",
+    toast_fanfilter_off506: "Filtre fan club désactivé : le bouton Rejoindre est masqué sur ton live.",
     more_filters: "✨ Filtres",
     more_gift: "🎁 Envoyer un cadeau",
     more_giveaway: "🎁 Cadeau à gagner",
@@ -52889,6 +53021,13 @@ function stageStreakBump(key, add) {
     more_edit_title: " Editar título e tópico",
     more_end_live: "⏹ Encerrar live",
     more_fan_join: "🎉 Entrar no Fã Clube",
+    fanpill_join506: "Entre para o meu fã-clube",
+    fanpill_member506: "Membro do fã-clube ✓",
+    fanpill_fanno506: "Fã nº {n} ✓",
+    more_fanfilter506: "🎉 Filtro do fã-clube",
+    fanpill_off_suffix506: " · desativado",
+    toast_fanfilter_on506: "🎉 Filtro do fã-clube ativado: os espectadores veem o botão de entrar no seu ao vivo.",
+    toast_fanfilter_off506: "Filtro do fã-clube desativado: o botão de entrar está oculto no seu ao vivo.",
     more_filters: "✨ Filtros",
     more_gift: "🎁 Enviar um presente",
     more_giveaway: "🎁 Sorteio",
@@ -56676,6 +56815,13 @@ function stageStreakBump(key, add) {
     more_edit_title: " Titel & Thema bearbeiten",
     more_end_live: "⏹ Live beenden",
     more_fan_join: "🎉 Fan Club beitreten",
+    fanpill_join506: "Meinem Fanclub beitreten",
+    fanpill_member506: "Fanclub-Mitglied ✓",
+    fanpill_fanno506: "Fan Nr. {n} ✓",
+    more_fanfilter506: "🎉 Fanclub-Filter",
+    fanpill_off_suffix506: " · aus",
+    toast_fanfilter_on506: "🎉 Fanclub-Filter an – Zuschauer sehen die Beitreten-Pille in deinem Live.",
+    toast_fanfilter_off506: "Fanclub-Filter aus – die Beitreten-Pille ist in deinem Live ausgeblendet.",
     more_filters: "✨ Filter",
     more_gift: "🎁 Ein Geschenk senden",
     more_giveaway: "🎁 Gewinnspiel",
@@ -60463,6 +60609,13 @@ function stageStreakBump(key, add) {
     more_edit_title: " Modifica titolo e argomento",
     more_end_live: "⏹ Termina diretta",
     more_fan_join: "🎉 Unisciti al Fan Club",
+    fanpill_join506: "Unisciti al mio fan club",
+    fanpill_member506: "Membro del fan club ✓",
+    fanpill_fanno506: "Fan n. {n} ✓",
+    more_fanfilter506: "🎉 Filtro fan club",
+    fanpill_off_suffix506: " · disattivato",
+    toast_fanfilter_on506: "🎉 Filtro fan club attivo: gli spettatori vedono il pulsante per unirsi alla tua live.",
+    toast_fanfilter_off506: "Filtro fan club disattivato: il pulsante per unirsi è nascosto nella tua live.",
     more_filters: "✨ Filtri",
     more_gift: "🎁 Invia un regalo",
     more_giveaway: "🎁 Giveaway",
@@ -64250,6 +64403,13 @@ function stageStreakBump(key, add) {
     more_edit_title: " تعديل العنوان والموضوع",
     more_end_live: "⏹ إنهاء البث",
     more_fan_join: "🎉 انضم إلى نادي المعجبين",
+    fanpill_join506: "انضم إلى نادي المعجبين الخاص بي",
+    fanpill_member506: "عضو في نادي المعجبين ✓",
+    fanpill_fanno506: "المعجب رقم {n} ✓",
+    more_fanfilter506: "🎉 فلتر نادي المعجبين",
+    fanpill_off_suffix506: " · متوقف",
+    toast_fanfilter_on506: "🎉 فلتر نادي المعجبين مفعّل — يرى المشاهدون زر الانضمام في البث المباشر.",
+    toast_fanfilter_off506: "فلتر نادي المعجبين متوقف — زر الانضمام مخفي في البث المباشر.",
     more_filters: "✨ الفلاتر",
     more_gift: "🎁 إرسال هدية",
     more_giveaway: "🎁 هدية مجانية",
@@ -68037,6 +68197,13 @@ function stageStreakBump(key, add) {
     more_edit_title: " 编辑标题和话题",
     more_end_live: "⏹ 结束直播",
     more_fan_join: "🎉 加入粉丝俱乐部",
+    fanpill_join506: "加入我的粉丝团",
+    fanpill_member506: "粉丝团成员 ✓",
+    fanpill_fanno506: "第 {n} 号粉丝 ✓",
+    more_fanfilter506: "🎉 粉丝团滤镜",
+    fanpill_off_suffix506: " · 已关",
+    toast_fanfilter_on506: "🎉 粉丝团滤镜已开——观众会在你的直播上看到加入按钮。",
+    toast_fanfilter_off506: "粉丝团滤镜已关——加入按钮已在你的直播上隐藏。",
     more_filters: "✨ 滤镜",
     more_gift: "🎁 送礼物",
     more_giveaway: "🎁 赠品活动",
@@ -71824,6 +71991,13 @@ function stageStreakBump(key, add) {
     more_edit_title: " शीर्षक और विषय संपादित करें",
     more_end_live: "⏹ लाइव समाप्त करें",
     more_fan_join: "🎉 फ़ैन क्लब से जुड़ें",
+    fanpill_join506: "मेरे फैन क्लब से जुड़ें",
+    fanpill_member506: "फैन क्लब सदस्य ✓",
+    fanpill_fanno506: "फैन नंबर {n} ✓",
+    more_fanfilter506: "🎉 फैन क्लब फ़िल्टर",
+    fanpill_off_suffix506: " · बंद",
+    toast_fanfilter_on506: "🎉 फैन क्लब फ़िल्टर चालू है — दर्शकों को आपके लाइव पर जुड़ने का बटन दिखेगा।",
+    toast_fanfilter_off506: "फैन क्लब फ़िल्टर बंद है — जुड़ने का बटन आपके लाइव पर छिपा है।",
     more_filters: "✨ फ़िल्टर",
     more_gift: "🎁 उपहार भेजें",
     more_giveaway: "🎁 गिवअवे",
