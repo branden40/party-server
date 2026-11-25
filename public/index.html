@@ -16,6 +16,7 @@
     <meta property="og:title" content="Rizz Plaza" />
     <meta property="og:description" content="Live rooms, battles, gifting, auctions, dating &amp; faith — earn real money going live. Join free at rizzplaza.com." />
     <meta property="og:image" content="https://rizzplaza.com/logo-poster.jpg" />
+    <meta property="og:url" content="https://rizzplaza.com/" /> <!-- [RP-V7.511] the site card names its canonical URL, like the share pages -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Rizz Plaza" />
     <meta name="twitter:description" content="Live rooms, battles, gifting, auctions, dating &amp; faith — earn real money going live. Join free at rizzplaza.com." />
@@ -3229,18 +3230,19 @@
   <script>
     /* [RP-V7.269] Share-link landing: the /reel/<id> and /post/<id>
        share pages bounce human visitors here as /?reel=<id> /
-       /?photo=<id>. Stash the target before anything else runs,
+       /?photo=<id>. [RP-V7.511] the /f/<id> feed share pages join
+       them as /?feed=<id>. Stash the target before anything else runs,
        then clean the URL — the consumer module at the end of the
        body opens the content once the app has booted. Same pattern
        as the V7.133 share-in stash above. */
     (function () {
       try {
         var q = new URLSearchParams(location.search || "");
-        var rid = q.get("reel"), pid = q.get("photo"), sid = q.get("story"); // [RP-V7.409] /story/<id> pages bounce humans here as /?story=<authorId>
-        var tgt = rid ? { kind: "reel", id: String(rid).slice(0, 80) } : (pid ? { kind: "photo", id: String(pid).slice(0, 80) } : (sid ? { kind: "story", id: String(sid).slice(0, 80) } : null));
+        var rid = q.get("reel"), pid = q.get("photo"), sid = q.get("story"), fid = q.get("feed"); // [RP-V7.409] /story/<id> pages bounce humans here as /?story=<authorId> // [RP-V7.511] /f/<id> pages as /?feed=<id>
+        var tgt = rid ? { kind: "reel", id: String(rid).slice(0, 80) } : (pid ? { kind: "photo", id: String(pid).slice(0, 80) } : (sid ? { kind: "story", id: String(sid).slice(0, 80) } : (fid ? { kind: "feed", id: String(fid).slice(0, 80) } : null))); // [RP-V7.511]
         if (tgt && /^[A-Za-z0-9_-]+$/.test(tgt.id)) {
           try { sessionStorage.setItem("rpShareLink.v1", JSON.stringify({ kind: tgt.kind, id: tgt.id, at: Date.now() })); } catch (e) { }
-          q.delete("reel"); q.delete("photo"); q.delete("story"); // [RP-V7.409]
+          q.delete("reel"); q.delete("photo"); q.delete("story"); q.delete("feed"); // [RP-V7.409] // [RP-V7.511]
           var rest = q.toString();
           history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
         }
@@ -3291,7 +3293,7 @@
       } catch (e) { }
     })();
     /* [RP-V7.269] The one place share URLs are built: a server
-       content id becomes its share page (/reel/<id>, /post/<id>);
+       content id becomes its share page (/r/<id>, /p/<id>, /f/<id>); // [RP-V7.511] short routes (the server's /reel/ + /post/ pages still answer)
        anything that can't be a server record id (gallery photos
        carry their photo URL as id) returns "" and callers keep the
        plain Plaza link they have always used. */
@@ -3299,7 +3301,7 @@
       try {
         var s = String(id == null ? "" : id);
         if (!/^[A-Za-z0-9_-]{1,80}$/.test(s)) return "";
-        return location.origin + (kind === "reel" ? "/reel/" : kind === "story" ? "/story/" : "/post/") + s; // [RP-V7.409] stories share their own page
+        return location.origin + (kind === "reel" ? "/r/" : kind === "feed" ? "/f/" : kind === "story" ? "/story/" : "/p/") + s; // [RP-V7.511] /r/ reel, /p/ photo post, /f/ feed post // [RP-V7.409] stories share their own page
       } catch (e) { return ""; }
     };
   </script>
@@ -10896,7 +10898,7 @@
               var fh241 = wrap241.querySelector(".like"); if (fh241) fh241.addEventListener("click", function () { window.rpFeedLb409.like(ffi241, fh241); });
               var fc241 = wrap241.querySelector(".cmt"); if (fc241) fc241.addEventListener("click", function () { window.rpFeedLb409.comments(ffi241); });
               var fg241 = wrap241.querySelector(".pp-gift"); if (fg241) fg241.addEventListener("click", function () { openGiftSheet(fi241.authorId || fi241.author, fi241.author, { src: "video", post: { kind: "feed", id: meta.id } }); });
-              var fs241 = wrap241.querySelector(".pp-share"); if (fs241) fs241.addEventListener("click", function () { reelShare(fi241); });
+              var fs241 = wrap241.querySelector(".pp-share"); if (fs241) fs241.addEventListener("click", function () { fi241.feedPost = true; reelShare(fi241); }); // [RP-V7.511] a Feed-post video shares its /f/ page, not a reel lookup
               var fr241 = wrap241.querySelector(".repost"); if (fr241) fr241.addEventListener("click", function () { window.rpFeedLb409.repost(ffi241, fr241); });
               var fd241 = wrap241.querySelector(".pp-del243"); if (fd241) fd241.addEventListener("click", function () { rpArmDel243(fd241, function () { rpAcctDel243("/api/feed/" + encodeURIComponent(meta.id)).then(function (ok) { if (ok) rpAfterDel243("Post deleted"); else { try { toast("Couldn't delete that post."); } catch (e) { } } }); }); });
               var fdl241 = wrap241.querySelector(".pp-dl316"); if (fdl241) fdl241.addEventListener("click", function () { if (window.rpDownloadVideo316) window.rpDownloadVideo316("/api/feed/" + encodeURIComponent(meta.id) + "/download", url); });
@@ -31407,7 +31409,7 @@
       window.rpReelAbout451 = rpReelAbout451; // [RP-V7.451] bridge for any other reel surface that renders this module's items
       function reelShare(item) {
         var text = "🎬 " + (item.caption ? item.caption + " — " : "") + rpT("share_watch_reel");
-        var url = (item && item.server && window.rpShareUrl269 && window.rpShareUrl269("reel", item.id)) || "https://rizzplaza.com"; // [RP-V7.269] a server reel shares its own share page (real OG card); a device-only reel has no server record to point at, so it keeps the Plaza link
+        var url = (item && item.server && window.rpShareUrl269 && window.rpShareUrl269((item.feedPost || String(item.url || "").indexOf("/photos/feed/") >= 0) ? "feed" : "reel", item.id)) || "https://rizzplaza.com"; // [RP-V7.269] a server reel shares its own share page (real OG card); a device-only reel has no server record to point at, so it keeps the Plaza link
         // [RP-V7.493] a server reel's video is a real file: when the
         // phone's share sheet takes files, share the video itself —
         // the helper falls back to the link share below on any "no".
@@ -79113,7 +79115,7 @@ button.rp72-chip{ cursor:pointer; }
       canInteract: !!tok0,
       canPhoto: !!tok0, // [RP-V7.498] server-backed: the composer may attach a photo
       token: function () { return lbFeedTok409() || ""; },
-      shareFn: function () { lbShare241("📸", "post", fi.caption || "", ""); },
+      shareFn: function () { lbShare241("📸", "post", fi.caption || "", (window.rpShareUrl269 ? window.rpShareUrl269("feed", fi.postId) : "")); }, // [RP-V7.511] a Feed post shares its /f/ page
       onPost: function (text, parentId, photoFile, done) {
         var tok = lbFeedTok409();
         if (!tok) { try { window.toast("Sign in to comment."); } catch (e) { } done(false); return; }
@@ -79191,7 +79193,7 @@ button.rp72-chip{ cursor:pointer; }
         var g = root.querySelector(".pp-gift");
         if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "picture", post: isPost ? { kind: "photo", id: it.id } : isFeed409 ? { kind: "feed", id: it.id } : undefined }); }); // [RP-V7.262] only a real post rides // [RP-V7.409] Feed posts ride as "feed" 
         var s = root.querySelector(".pp-share");
-        if (s) s.addEventListener("click", function () { lbShare241("📸", "photo", (isPost || isFeed409) ? (it.caption || "") : "", (isPost && window.rpShareUrl269) ? window.rpShareUrl269("post", it.id) : ""); }); // [RP-V7.269] a real photo post shares its share page // [RP-V7.409] Feed posts share their caption; they have no share page, so the URL stays generic
+        if (s) s.addEventListener("click", function () { lbShare241("📸", "photo", (isPost || isFeed409) ? (it.caption || "") : "", (isPost && window.rpShareUrl269) ? window.rpShareUrl269("post", it.id) : (isFeed409 && window.rpShareUrl269) ? window.rpShareUrl269("feed", it.id) : ""); }); // [RP-V7.269] a real photo post shares its share page // [RP-V7.511] Feed posts share their /f/ page now (V7.409: they had no share page, so the URL stayed generic)
         var d243 = root.querySelector(".pp-del243");
         if (d243) d243.addEventListener("click", function () { lbDel243(isFeed409 ? "feed" : "photo", it.id, d243); }); // [RP-V7.409] Feed posts delete from the Feed store
         var a245 = root.querySelector(".pp-ai245"); // [RP-V7.245]
@@ -79233,7 +79235,7 @@ button.rp72-chip{ cursor:pointer; }
           var g = root.querySelector(".pp-gift");
           if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "video", post: { kind: "feed", id: it.id } }); });
           var s = root.querySelector(".pp-share");
-          if (s) s.addEventListener("click", function () { lbShare241("🎬", "Reel", ffi.caption || ""); });
+          if (s) s.addEventListener("click", function () { lbShare241("🎬", "Reel", ffi.caption || "", (window.rpShareUrl269 ? window.rpShareUrl269("feed", it.id) : "")); }); // [RP-V7.511] a Feed-post video shares its /f/ page
           var fr = root.querySelector(".pp-repost"); if (fr) fr.addEventListener("click", function () { lbFeedRepost409(ffi, fr); });
           var fdl508 = root.querySelector(".pp-dl316"); if (fdl508) fdl508.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute508 = null; if (it && it.id && (String(it.src || "").indexOf("/reel-files/") >= 0 || String(it.src || "").indexOf("/photos/feed/") >= 0)) dlRoute508 = (it.feedPost ? "/api/feed/" : "/api/reel/") + encodeURIComponent(it.id) + "/download"; window.rpDownloadVideo316(dlRoute508, it.src || ""); } }); // [RP-V7.508] the profile player's dlb316 route logic: server files go through the stamped export route, anything else falls back to the raw URL
           var fd243 = root.querySelector(".pp-del243");
@@ -92856,14 +92858,54 @@ html, body { overflow-x: clip; }
   function stash269() {
     try {
       var s = JSON.parse(sessionStorage.getItem(KEY) || "null");
-      return (s && typeof s === "object" && (s.kind === "reel" || s.kind === "photo" || s.kind === "story") && /^[A-Za-z0-9_-]{1,80}$/.test(String(s.id || ""))) ? s : null; // [RP-V7.409] story targets ride the same stash
+      return (s && typeof s === "object" && (s.kind === "reel" || s.kind === "photo" || s.kind === "story" || s.kind === "feed") && /^[A-Za-z0-9_-]{1,80}$/.test(String(s.id || ""))) ? s : null; // [RP-V7.409] story targets ride the same stash
     } catch (e) { return null; }
   }
   function clear269() { try { sessionStorage.removeItem(KEY); } catch (e) { } }
+  /* [RP-V7.511] A feed target (/?feed=<id> from a /f/<id> share
+     page): the Feed store is members-only, so the open waits for a
+     saved session token — polling like the V7.312 creator-link
+     consumer — then reads GET /api/feed, maps the post into the
+     lightbox item shape the profile grids build (V7.409), and
+     opens it through the same player doors (rpViewsOpenReel /
+     rpViewsOpenPhoto). The stash survives until the open is
+     attempted or goes stale (a member who signs in after landing
+     still gets their post); locked, text-only, and missing posts
+     degrade to HOME silently, exactly like the reel/photo paths. */
+  function feedRun511(s) {
+    var deadline = (s.at || Date.now()) + 10 * 60 * 1000;
+    var attempted = false;
+    (function fpoll511() {
+      var tok = "";
+      try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); tok = (a && a.token) ? String(a.token) : ""; } catch (e) { }
+      if (tok && !attempted) {
+        attempted = true;
+        clear269(); // one attempt per landing, as with reel/photo
+        fetch("/api/feed?limit=50", { headers: { Authorization: "Bearer " + tok, Accept: "application/json" } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            var posts = (j && j.posts) || [];
+            var fp = null;
+            for (var i = 0; i < posts.length; i++) { if (posts[i] && String(posts[i].id) === String(s.id)) { fp = posts[i]; break; } }
+            if (!fp || fp.locked || !fp.url || !fp.author) { try { if (typeof window.show === "function") window.show("screen-home243"); } catch (e) { } return; }
+            var it511 = { kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: fp.author.id, ownerName: fp.author.name || "", src: fp.url, poster: "", thumb: "", locked: false, subsOnly: !!fp.subsOnly, clubOnly: !!fp.clubOnly, views: fp.views || 0, crMuted: fp.crMuted || null, allowDownloads: fp.allowDownloads !== false, caption: fp.text || "", likes: fp.likes || 0, myLiked: !!fp.likedByMe, comments: Array.isArray(fp.comments) ? fp.comments : [], commentCount: fp.commentCount || 0, reposts: fp.reposts || 0, myReposted: !!fp.myReposted, giftCount: fp.giftCount || 0, feedPost: true };
+            try {
+              if (it511.kind === "reel") { if (window.rpViewsOpenReel) window.rpViewsOpenReel(it511, null); }
+              else if (window.rpViewsOpenPhoto) window.rpViewsOpenPhoto(it511, null);
+            } catch (e) { }
+          })
+          .catch(function () { });
+        return;
+      }
+      if (Date.now() < deadline) setTimeout(fpoll511, 1000);
+      else clear269();
+    })();
+  }
   function run269() {
     var s = stash269();
     if (!s) return;
     if (s.at && Date.now() - s.at > 10 * 60 * 1000) { clear269(); return; }
+    if (s.kind === "feed") { feedRun511(s); return; } // [RP-V7.511] feed targets manage their own stash inside feedRun511 (the open waits for a session token)
     clear269(); // one attempt per landing — a failed jump never nags twice
     if (s.kind === "story") {
       /* [RP-V7.409] A story link lands in the story viewer on the
