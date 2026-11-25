@@ -22076,9 +22076,13 @@ function battle519MissionView(b, now) {
     got: m.gifters ? Object.keys(m.gifters).length : 0, done: !!m.done,
   };
 }
+// [RP-V7.521] Rush teaser: the seconds between a completed gifter
+// mission and the Rush Window opening (Addendum 4's polish on 519 —
+// the window itself is unchanged: 30s, every gift x3).
+const RUSH_TEASER521_MS = 3000;
 function battle519RushView(b, now) {
   if (!b.rush519 || now >= b.rush519.endsAt) return null;
-  return { active: now >= b.rush519.startsAt, endsAt: b.rush519.endsAt };
+  return { active: now >= b.rush519.startsAt, startsAt: b.rush519.startsAt, endsAt: b.rush519.endsAt }; // [RP-V7.521] startsAt rides along so late joiners render the teaser countdown too
 }
 // A battling host's socket died: hold the battle open for 30s instead
 // of ending it (the disconnect handler calls this with the device key
@@ -22529,7 +22533,7 @@ function battle306OnGift(info) {
             b.mission.gifters[senderId] = 1;
             if (Object.keys(b.mission.gifters).length >= (b.mission.target || 1) && !b.mission.done) {
               b.mission.done = true; b.mission.closed = true;
-              b.rush519 = { startsAt: now, endsAt: now + 30000, announcedEnd: false };
+              b.rush519 = { startsAt: now + RUSH_TEASER521_MS, endsAt: now + RUSH_TEASER521_MS + 30000, announcedStart: false, announcedEnd: false }; // [RP-V7.521] the teaser beat: the window opens 3s after the mission completes; its own length stays 30s
               missionRush519 = true;
             }
           }
@@ -22578,7 +22582,7 @@ function battle306OnGift(info) {
       // [RP-V7.519] the completing gift just landed: close the mission
       // out loud and open the Rush Window for the whole room.
       battleEmit336(b, { kind: "mission-end", missionKind: "gifters", completed: true });
-      battleEmit336(b, { kind: "rush-start", endsAt: b.rush519.endsAt });
+      battleEmit336(b, { kind: "rush-soon", startsAt: b.rush519.startsAt, endsAt: b.rush519.endsAt }); // [RP-V7.521] teaser first — the clock sweep fires rush-start when the window actually opens
     }
     return pts;
   } catch (e) { return 0; }
@@ -22674,6 +22678,12 @@ setInterval(() => {
       if (b.mission && b.mission.announced && !b.mission.closed && now >= b.mission.endsAt) {
         b.mission.closed = true;
         battleEmit336(b, { kind: "mission-end", missionKind: b.mission.kind || "first", completed: !!b.mission.done }); // [RP-V7.519]
+      }
+      // [RP-V7.521] Rush Window open announcement (once) — the
+      // window opens RUSH_TEASER521_MS after the mission completes.
+      if (b.rush519 && !b.rush519.announcedStart && now >= b.rush519.startsAt) {
+        b.rush519.announcedStart = true;
+        battleEmit336(b, { kind: "rush-start", endsAt: b.rush519.endsAt });
       }
       // [RP-V7.519] Rush Window close announcement (once).
       if (b.rush519 && !b.rush519.announcedEnd && now >= b.rush519.endsAt) {
@@ -34123,6 +34133,94 @@ function rcEvaluate393(adb, mdb, buyerId, sellerId) {
     return null;
   }
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.521] SHARE MILESTONES + FAN-CLUB SUB BADGE (Addendum 4 smalls).
+// Room signals ride the chat channel as PX protos and pass through the
+// chat relay below, so the server observes them there (chatSignal521,
+// called from the relay just before the broadcast — a message the
+// gates blocked is never counted).
+//
+// SHARE MILESTONES: live-share protos are counted per room over a
+// trailing 60-second window; when the count crosses a threshold the
+// room hears ONE aggregate line ("shared N times in the last
+// minute") on the dedicated share-milestone521 event. Threshold
+// crossings only — the same share burst can never spam the room, and
+// the fired mark resets once the window fully drains.
+//
+// SUB BADGE: the free live fan club (V6.5, joined via the V7.506
+// pill) has no server registry — membership lives in the member's
+// account fanState (V7.276) keyed by the host's socket id, and the
+// join itself is the fan-join proto the host's client answers with a
+// fan-count proto. The relay learns membership from BOTH protos as
+// they pass (fanSeen521, session-scoped) and stamps sub521 on the
+// member's chat lines in that host's room; the account fanState is
+// the second source, so a member who rejoins the room on a fresh
+// socket mid-live is badged from their durable record too. The host
+// never wears their own badge. Nothing here moves money, points or
+// rankings — the badge is display only, like the glv stamp.
+// ---------------------------------------------------------------------------
+const PX521 = "\u2726PX\u2726";
+const SHARE_MILESTONES521 = [5, 10, 25, 50, 100, 250, 500, 1000];
+const shareWin521 = new Map(); // room -> { times: [ms], fired: highest threshold fired this burst }
+function shareThreshold521(count) {
+  let t = 0;
+  for (const m of SHARE_MILESTONES521) if (count >= m) t = m;
+  if (count >= 1500) t = Math.max(t, Math.floor(count / 500) * 500);
+  return t;
+}
+function shareNote521(room, now) {
+  let w = shareWin521.get(room);
+  if (!w) { w = { times: [], fired: 0 }; shareWin521.set(room, w); }
+  w.times.push(now);
+  while (w.times.length && now - w.times[0] > 60000) w.times.shift();
+  if (!w.times.length) { w.fired = 0; return; }
+  const t = shareThreshold521(w.times.length);
+  if (t > w.fired) {
+    w.fired = t;
+    try { io.to(room).emit("share-milestone521", { n: w.times.length }); } catch (e) { }
+  }
+}
+const fanSeen521 = new Map(); // host socket id -> Map(member socket id -> account id | null)
+function fanSeenNote521(h, m) {
+  if (!h || !m || h === m) return;
+  let s = fanSeen521.get(h);
+  if (!s) { s = new Map(); fanSeen521.set(h, s); }
+  if (!s.has(m)) s.set(m, null);
+}
+function fanSeenDrop521(sockId) {
+  fanSeen521.delete(sockId);
+  for (const s of fanSeen521.values()) s.delete(sockId);
+}
+function chatSignal521(p, text) {
+  if (!text || text.indexOf(PX521) !== 0) return;
+  let o = null;
+  try { o = JSON.parse(text.slice(PX521.length)); } catch (e) { return; }
+  if (!o || !o.k) return;
+  if (o.k === "live-share") { if (isLiveRoom(p.room)) shareNote521(p.room, Date.now()); }
+  else if (o.k === "fan-join") fanSeenNote521(String(o.h || ""), p.id);
+  else if (o.k === "fan-count") fanSeenNote521(String(o.h || ""), String(o.m || ""));
+}
+function fanSub521(acctId, p) {
+  if (!p || !p.room || !isLiveRoom(p.room)) return false;
+  try {
+    const entry = [...liveRegistry.values()].find((e) => e.room === p.room);
+    if (!entry) return false;
+    const hostAcct = liveHostAccountId(entry);
+    if (hostAcct && acctId && hostAcct === acctId) return false; // the host wears no SUB in their own room
+    let hostSock = null;
+    for (const [sid, k] of clientKeys) if (k === entry.key) { hostSock = sid; break; }
+    if (!hostSock || hostSock === p.id) return false;
+    const seen = fanSeen521.get(hostSock);
+    if (seen && seen.has(p.id)) return true;
+    if (acctId) {
+      const db = readAccounts();
+      const u = db.users.find((x) => x.id === acctId);
+      if (u && u.fanState && u.fanState.fanOf && u.fanState.fanOf[hostSock]) return true;
+    }
+  } catch (e) { }
+  return false;
+}
+
 // Chat-relay lookup: the sender's tier badge with THIS live's host.
 // Server-resolved from the room's live entry; church lives and the
 // host themself get nothing. Cache-only (evaluations keep it warm:
@@ -35157,6 +35255,7 @@ io.on("connection", (socket) => {
     let text = String(data.text || "").trim().slice(0, 200);
     if (!text) return;
     text = filterProfanity(text);
+    try { chatSignal521(p, text); } catch (e) { } // [RP-V7.521] room signals observed as they pass (share milestones, fan-club joins) — observation only, the relay below is untouched
     io.to(p.room).emit("chat-message", {
       id: p.id,
       name: p.name,
@@ -35165,6 +35264,7 @@ io.on("connection", (socket) => {
       glv: gifterLevelOf338(p.acctId || (socket.data && socket.data.accountId)), // [RP-V7.338] sender's gifter level rides the relay (0 = no badge)
       fx392: chatFx392(socket.data && socket.data.accountId), // [RP-V7.392] points-shop chat effect (name colour / one-message highlight)
       rcb393: rcBadge393(socket.data && socket.data.accountId, p), // [RP-V7.393] sender's rewards-club tier badge with this live's host (null when none / church live)
+      sub521: fanSub521(p.acctId || (socket.data && socket.data.accountId), p), // [RP-V7.521] fan-club SUB badge: the sender is a member of this room host's free live fan club
     });
   });
 
@@ -36465,6 +36565,7 @@ io.on("connection", (socket) => {
       socket.to(p.room).emit("player-left", { id: p.id });
       players.delete(socket.id);
       chatTimes.delete(socket.id);
+      try { fanSeenDrop521(socket.id); } catch (e) { } // [RP-V7.521] fan-badge session state dies with the socket
     }
     // [RP-V7.306] a host whose socket dies mid-battle ends the battle
     // on the spot at the current score (the other host + both rooms
