@@ -22182,8 +22182,17 @@ const CHEST_POOL520 = 200;         // charms carved per chest unit
 const CHEST_WINDOW520 = 30000;     // claim window, ms
 const CHEST_MAX_CLAIMS520 = 10;    // first-come claimer cap
 const chestTimers520 = new Map();  // dropId -> timeout handle (process-local only; escrow is in the money db)
+// [RP-V7.522] Charm Drops generalized (Branden, Nov 25, 2026 — "add
+// drops to the biggest gifts" + "it needs explaining so they know how
+// to do it"): the pool is DATA-DRIVEN from this settle-table map —
+// ~10% of each listed gift's price — and the whole V7.520 engine
+// (carve, escrow, claim, settle, boot sweep) runs unchanged for any
+// gift listed here. The Treasure Chest is simply the first entry.
+// Gifts not listed settle plain, exactly as before.
+const GIFT_DROP522 = { treasurechest: 200, volcano: 200, auraclash: 220, trex: 300, rizzuniverse: 520, universe: 5000 };
+function giftDropPool522(giftId) { const p = GIFT_DROP522[giftId]; return (typeof p === "number" && isFinite(p) && p > 0) ? Math.floor(p) : 0; }
 function chestDrop520View(r) {
-  return { dropId: r.id, pool: r.pool, endsAt: r.endsAt, claims: Object.keys(r.claims || {}).length, maxClaims: CHEST_MAX_CLAIMS520, fromName: r.senderName, hostName: r.hostName, giftId: "treasurechest" };
+  return { dropId: r.id, pool: r.pool, endsAt: r.endsAt, claims: Object.keys(r.claims || {}).length, maxClaims: CHEST_MAX_CLAIMS520, fromName: r.senderName, hostName: r.hostName, giftId: r.giftId || "treasurechest", giftName: r.giftName || "Treasure Chest" }; // [RP-V7.522] the gift actually sent rides the view (escrow rows written before V7.522 carry no giftId and fall back to the chest)
 }
 function chestDrop520Emit(r, ev, extra) {
   const payload = Object.assign(chestDrop520View(r), { ev: ev }, extra || {});
@@ -22214,8 +22223,8 @@ function chestDrop520Settle(dropId) {
   if (chestTimers520.has(dropId)) { clearTimeout(chestTimers520.get(dropId)); chestTimers520.delete(dropId); }
   chestDrop520Emit(r, "settled", { each: each, claimers: claimers.length });
   const line = claimers.length
-    ? "\u{1F9F0} Treasure Chest drop: " + claimers.length + (claimers.length === 1 ? " viewer" : " viewers") + " claimed " + each + " charms each!"
-    : "\u{1F9F0} Treasure Chest drop: no claims \u2014 the host keeps the " + r.pool + " charms.";
+    ? "\u{1F9F0} " + (r.giftName || "Treasure Chest") + " drop: " + claimers.length + (claimers.length === 1 ? " viewer" : " viewers") + " claimed " + each + " charms each!"
+    : "\u{1F9F0} " + (r.giftName || "Treasure Chest") + " drop: no claims \u2014 the host keeps the " + r.pool + " charms."; // [RP-V7.522] the line names the gift that was sent
   for (const room of r.rooms || []) { try { io.to(room).emit("chat-message", { id: "", name: "", text: line, sys: true, at: Date.now() }); } catch (e) { } }
   console.log("[chest520] settled", dropId, "pool", r.pool, "claimers", claimers.length, "each", each, "hostGets", hostGets);
 }
@@ -26073,14 +26082,17 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   } else {
     db.balances[ctx.user.id] = balance - totalCost;
   }
-  // [RP-V7.520] TREASURE CHEST drop decision — made BEFORE the
-  // settlement loop because the pool is carved out of the earn
-  // split. Real rail only (never promo, never charms-only), and
-  // only when the recipient is actually standing in a live: hosting
-  // one, or a part of the active battle this send carries. Any
-  // other chest send settles as a completely plain gift.
+  // [RP-V7.520] Charm Drop decision — made BEFORE the settlement
+  // loop because the pool is carved out of the earn split. Real rail
+  // only (never promo, never charms-only), and only when the
+  // recipient is actually standing in a live: hosting one, or a part
+  // of the active battle this send carries. Any other send settles
+  // as a completely plain gift.
+  // [RP-V7.522] WHICH gifts drop, and how much, is data-driven from
+  // GIFT_DROP522 (server authoritative) — never a per-gift code path.
   let chestDropRec520 = null;
-  if (giftId === "treasurechest" && !charmsOnly && !promo321) {
+  let dropUnit522 = 0;
+  if (!charmsOnly && !promo321 && (dropUnit522 = giftDropPool522(giftId)) > 0) {
     try {
       let rooms520 = null;
       const bb520 = b.battleId ? battles306.get(String(b.battleId)) : null;
@@ -26095,7 +26107,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
           id: "drop" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
           hostId: recipient.id, hostName: recipient.name,
           senderId: ctx.user.id, senderName: ctx.user.name,
-          pool: CHEST_POOL520 * count, rooms: [...new Set(rooms520)],
+          pool: dropUnit522 * count, rooms: [...new Set(rooms520)], giftId: giftId, giftName: (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId, // [RP-V7.522] the escrow remembers which gift opened it
           claims: {}, openedAt: Date.now(), endsAt: Date.now() + CHEST_WINDOW520,
           settled: false, battleId: b.battleId ? String(b.battleId) : null,
         };
@@ -26123,7 +26135,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
       // pair records cents: 0 / cut: 0 and no money figure moves.
       db.balances[recipient.id] = (db.balances[recipient.id] || 0) + promoShareCharms321(cost, GIFT_HOST_PCT);
     } else {
-      uValue = (chestDropRec520 ? cost - CHEST_POOL520 : cost) * CHARM_CENT_VALUE; // [RP-V7.520] the drop pool is carved BEFORE the split — host/platform split (price - pool); the sender still pays the full price once
+      uValue = (chestDropRec520 ? cost - dropUnit522 : cost) * CHARM_CENT_VALUE; // [RP-V7.520] the drop pool is carved BEFORE the split — host/platform split (price - pool); the sender still pays the full price once // [RP-V7.522] the per-unit pool is the gift's own GIFT_DROP522 value
       uShare = Math.floor((uValue * GIFT_HOST_PCT) / 100);
       uCut = uValue - uShare;
       const earn = moneyEarningsFor(db, recipient.id);
@@ -26298,7 +26310,10 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // [RP-V7.520] the chest drop opens as the gift lands: the rooms
   // hear it now, the settle timer is armed, and the window runs
   // from the settle — never from a client clock.
-  if (chestDropRec520) { try { chestDrop520Emit(chestDropRec520, "open"); chestDrop520Arm(chestDropRec520); console.log("[chest520] drop opened", chestDropRec520.id, "pool", chestDropRec520.pool, "rooms", chestDropRec520.rooms.join(",")); } catch (e) { } }
+  if (chestDropRec520) { try { chestDrop520Emit(chestDropRec520, "open"); chestDrop520Arm(chestDropRec520); console.log("[chest520] drop opened", chestDropRec520.id, "gift", chestDropRec520.giftId, "pool", chestDropRec520.pool, "rooms", chestDropRec520.rooms.join(",")); } catch (e) { } }
+  // [RP-V7.522] Branden's explainer: exactly one room line per drop
+  // teaches the room how claiming works, as the drop opens.
+  if (chestDropRec520) { try { for (const room522 of chestDropRec520.rooms) io.to(room522).emit("chat-message", { id: "", name: "", text: "\u{1F9F0} Charm Drop! Tap Claim charms within 30 seconds to split the charms free \u2014 first 10 viewers share.", sys: true, at: Date.now() }); } catch (e) { } }
   // [RP-V7.517] Room-wide gifter level-up line: when a settle levels
   // the sender up and the recipient is live, the host's room hears it
   // (TikTok announces level-ups to the room; Plaza told only the
