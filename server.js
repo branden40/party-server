@@ -35105,6 +35105,7 @@ io.on("connection", (socket) => {
       room: entry.room,
       label: d ? d.label || "" : "",
       stickers: d ? d.stickers || [] : [],
+      fanFilter: d ? d.fanFilter !== false : true, // [RP-V7.506] the host's Fan Club filter switch (default ON)
       side,
     };
   }
@@ -35126,16 +35127,18 @@ io.on("connection", (socket) => {
   }
   function decoStore490(ctx, patch) {
     const entry = liveRegistry.get(ctx.key);
-    const cur = liveDeco490.get(ctx.key) || { label: "", stickers: [] };
+    const cur = liveDeco490.get(ctx.key) || { label: "", stickers: [], fanFilter: true };
     const next = {
       label: patch.label !== undefined ? patch.label : cur.label || "",
       stickers:
         patch.stickers !== undefined ? patch.stickers : cur.stickers || [],
+      fanFilter:
+        patch.fanFilter !== undefined ? !!patch.fanFilter : cur.fanFilter !== false, // [RP-V7.506]
       hostAccountId: socket.data.accountId || null,
       instance: entry ? entry.startedAt : null,
       at: Date.now(),
     };
-    if (!next.label && !next.stickers.length) liveDeco490.delete(ctx.key);
+    if (!next.label && !next.stickers.length && next.fanFilter !== false) liveDeco490.delete(ctx.key); // [RP-V7.506] an OFF switch alone still counts as state
     else liveDeco490.set(ctx.key, next);
     decoEmit490(ctx.key);
   }
@@ -35153,6 +35156,14 @@ io.on("connection", (socket) => {
     const ctx = lkHostCtx389();
     if (!ctx) return;
     decoStore490(ctx, { stickers: decoSanitizeStickers490(data.stickers) });
+  });
+  socket.on("live-fanfilter-set506", (data = {}) => {
+    // [RP-V7.506] host-only: the Fan Club filter (mascot + Join pill)
+    // on/off for this live; stored on the deco record, broadcast on
+    // live-deco490 like the label/stickers, pulled by late joiners.
+    const ctx = lkHostCtx389();
+    if (!ctx) return;
+    decoStore490(ctx, { fanFilter: !!(data && data.on) });
   });
   socket.on("live-deco-get490", () => {
     const p = players.get(socket.id);
