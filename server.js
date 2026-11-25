@@ -171,6 +171,26 @@ function livesSnapshot() {
   // since V7.52 (audit C4) — yet it cost a full synchronous read+parse
   // of accounts.json on EVERY snapshot computation. Gone.
   const potsDb = readPots(); // [RP-V7.41] Plaza Pot state rides the snapshot
+  // [RP-V7.518] HOME "BATTLES HAPPENING NOW" — directory views of the
+  // authoritative battle records, keyed by participant room and built
+  // ONCE per snapshot. A battle is withheld entirely when ANY side's
+  // live is private (the snapshot's per-socket privacy filter only
+  // sees the entry carrying the view, never the far side's flag).
+  const battleByRoom518 = new Map();
+  try {
+    const regByRoom518 = new Map();
+    for (const re of liveRegistry.values()) regByRoom518.set(re.room, re);
+    const watchByRoom518 = {};
+    for (const p of players.values()) watchByRoom518[p.room] = (watchByRoom518[p.room] || 0) + 1;
+    for (const b of battles306.values()) {
+      if (b.ended) continue;
+      let priv518 = false;
+      for (const pt of b.parts) { const re = regByRoom518.get(pt.room); if (re && re.priv) { priv518 = true; break; } }
+      if (priv518) continue;
+      const v = battle518View(b, regByRoom518, watchByRoom518);
+      if (v) for (const pt of b.parts) battleByRoom518.set(pt.room, v);
+    }
+  } catch (e) { /* the directory must never break on a battle view */ }
   // [RP-LEAGUE] league standings are computed ONCE per snapshot and
   // shared by every entry (the badge view itself is leagueView).
   let leagueDb = null, leagueStand = null;
@@ -209,6 +229,7 @@ function livesSnapshot() {
       pot: potSnapshotFrom(potsDb, e.key, e.startedAt), // [RP-V7.41] null unless a pot is open/drawn here; [RP-V7.49] terminal pots from a previous live are scoped out
       poll: pollSnapshot319(e.key, e.startedAt), // [RP-V7.319] null unless a poll is open (or just ended) on this live
       boost: bstPoolTotal394(e.key, e.startedAt), // [RP-V7.394] Community Boost pool for this live instance (charms; 0 = unboosted)
+      battle: battleByRoom518.get(e.room) || null, // [RP-V7.518] the live battle in this room (neutral directory view), or null
     };
   });
 }
@@ -21940,6 +21961,46 @@ function battle306Payload(b, forSide, forHostAcct, ev) {
   if (b.ended) { p.ended = { winnerSide: b.winnerSide || null, aPts: b.sidePts.a || 0, bPts: b.sidePts.b || 0, mvp: battle517Mvp(b, b.winnerSide) }; } // [RP-V7.517] MVP: the winning side's top gifter, server-decided (null on a draw or an ungifted win)
   return p;
 }
+// [RP-V7.518] The neutral-audience directory view of one battle for
+// Home's "Battles happening now" row: both sides' host names, the
+// join room (side "a"'s room — the battle screen renders identically
+// from either host's room), current scores, headcount across the
+// sides' rooms, and the server clock. Mist keeps its V7.306 rule for
+// this audience too: a side under Mist sends pts null — the real
+// number never leaves the server in any shape. Every value is read
+// straight off the authoritative record; nothing is tallied here.
+function battle518View(b, regByRoom, watchByRoom) {
+  const now = Date.now();
+  const sides = battle336Sides(b).map((side) => {
+    const members = b.parts.filter((pt) => pt.side === side);
+    const room = members.length ? members[0].room : "";
+    const re = room ? regByRoom.get(room) : null;
+    return {
+      side,
+      names: members.map((pt) => pt.name),
+      room,
+      photo: re ? (re.photo || null) : null,
+      pts: (b.effects[side].mistUntil || 0) > now ? null : (b.sidePts[side] || 0),
+    };
+  });
+  let watchers = 0;
+  for (const s of sides) watchers += watchByRoom[s.room] || 0;
+  return { id: b.id, format: b.format, startedAt: b.startedAt, endsAt: b.endsAt, room: sides.length ? sides[0].room : "", watchers, sides };
+}
+// Battle state changes (gifts, boosters, missions) don't move the
+// live registry, so without this the Home row's scores would only
+// refresh on registry churn. Every battle emit funnels through the
+// two emit functions below; a 3s-throttled lives rebroadcast rides
+// them — the same snapshot mechanism as every other Home live
+// surface. Battle end forces an immediate one (the record is already
+// deleted, so the row drops the battle at once).
+let battle518DirAt = 0;
+function battle518DirRefresh(force) {
+  const now = Date.now();
+  if (!force && now - battle518DirAt < 3000) return;
+  battle518DirAt = now;
+  try { broadcastLives(); } catch (e) { }
+}
 function battle306Emit(b, ev) {
   // Both rooms (each gets its own mist-tailored copy) + both hosts
   // directly (their copy also carries their stock).
@@ -21948,6 +22009,7 @@ function battle306Emit(b, ev) {
   try { io.to(pb.room).emit("battle306", battle306Payload(b, "b", null, ev)); } catch (e) { }
   try { io.to(pa.sock).emit("battle306", battle306Payload(b, "a", pa.acct, ev)); } catch (e) { }
   try { io.to(pb.sock).emit("battle306", battle306Payload(b, "b", pb.acct, ev)); } catch (e) { }
+  battle518DirRefresh(false); // [RP-V7.518] Home's battles row tracks battle state
 }
 // [RP-V7.336] Team payload (event "battle336"): the whole roster with
 // per-side totals. Masking is per audience side exactly as 1v1 — a
@@ -22000,6 +22062,7 @@ function battle336Payload(b, forSide, forHostAcct, ev) {
   return p;
 }
 function battle336Emit(b, ev) {
+  battle518DirRefresh(false); // [RP-V7.518] Home's battles row tracks battle state
   // Every participant room (copy tailored to that room host's side,
   // no stock) + every host directly (tailored to their side, WITH
   // their stock) — the 1v1 emit pattern, generalized.
@@ -22097,6 +22160,7 @@ function battle306End(b, reason) {
   }
   battles306.delete(b.id);
   for (const pt of b.parts) if (battleBySocket306.get(pt.sock) === b.id) battleBySocket306.delete(pt.sock);
+  battle518DirRefresh(true); // [RP-V7.518] the battle is gone from the record — Home's row drops it now, not at the next registry sweep
   console.log("[battle306] end", b.id, b.format, JSON.stringify(b.sidePts), "winner", (b.winnerSides || []).join("+") || "draw", reason || "time");
 }
 // The gift hook: called from /api/money/gift AFTER settlement with the
