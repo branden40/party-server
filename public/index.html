@@ -3824,6 +3824,7 @@
             <div class="lv-stickers490" id="lvStickers490" hidden><div class="lv-stk-half490 mine" id="lvStkMine490"></div><div class="lv-stk-half490 opp" id="lvStkOpp490" hidden></div></div> <!-- [RP-V7.490] live sticker layer (glyphs + Instagram-style cards) -->
             <div class="lv-bottombar" id="liveBottomBar">
               <div class="lv-commentbar" id="liveCommentBar" hidden>
+                <button type="button" id="lvEmojiBtn516" class="lv-emoji516" aria-label="Add an emoji">😊</button>
                 <input id="liveCommentInput" type="text" maxlength="200" data-i18n-ph="live_say_nice" placeholder="Say something nice…" autocomplete="off" />
                 <button type="button" id="btnLiveCommentSend" class="btn-mini" data-i18n="room_send">Send</button>
               </div>
@@ -3831,7 +3832,8 @@
                 <button type="button" id="lvRailLike" aria-label="Send hearts to the stage" data-i18n-al="live_like_al">❤️<span id="lvLikeCount" data-i18n="cmt_like">Like</span></button>
                 <button type="button" id="lvRailViewers" aria-label="See who is watching" data-i18n-al="live_viewers_al">👥<span data-i18n="live_viewers">Viewers</span></button>
                 <button type="button" id="lvRailGift" aria-label="Send a gift" data-i18n-al="live_gift_al">🎁<span data-i18n="act_gift">Gift</span></button>
-                <button type="button" id="lvRailShare" aria-label="Share this live" data-i18n-al="live_share_al"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6"/><path d="M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6"/></svg><span data-i18n="act_share">Share</span></button>
+                <button type="button" id="lvRailRose516" aria-label="Send one Rose">🌹<span>Rose</span></button>
+                <button type="button" id="lvRailShare" aria-label="Share this live" data-i18n-al="live_share_al"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6"/><path d="M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6"/></svg><span data-i18n="act_share">Share</span><span class="lv-sharebadge516" id="lvShareBadge516" hidden>0</span></button>
                 <button type="button" id="lvRailJoin" aria-label="Request to join the stage" data-i18n-al="live_join_al" hidden>🙋<span data-i18n="live_join">Join</span></button>
               </div>
               <button type="button" class="lv-morebtn" id="lvMoreBtn" aria-label="More live options" data-i18n-al="live_more_al" hidden>•••</button>
@@ -19376,6 +19378,7 @@
         lastShareNoteAt = now;
         engRecord(Live.hostId, Online.myId, "share", 1);
         protoSend({ k: "live-share" });
+        try { if (window.__rpShare516) window.__rpShare516(); } catch (e) { } // [RP-V7.516] session share-count badge on the rail Share button (audit §18)
       }
       /* [RP-V7.65] The room key a live invite link carries: exactly
          the identifier openLiveFromList(room) consumes — the live
@@ -19916,7 +19919,25 @@
   }
   function rpApplyRankPill() {
     var pill = $("liveRankPill"); if (!pill) return;
-    if (Live.active && rpRankCache.rank > 0) { pill.textContent = "\u{1F3C6} Daily No. " + rpRankCache.rank; pill.hidden = false; }
+    if (Live.active && rpRankCache.rank > 0) {
+      /* [RP-V7.516] ONE rotating status slot (audit §2 + scope-add §6):
+         Daily ⇄ League ⇄ Popular, 4 s per state, phase from the clock
+         so every re-apply agrees. The league label is read from the
+         host chip's own league pill (the server RP-LEAGUE view,
+         already on screen); "Popular LIVE" shows only while the host
+         sits in today's daily top 3 — the rankings tally is the
+         server popularity signal the client already holds (a
+         dedicated server flag is Build B territory). A state the
+         data doesn't support is skipped, never invented. */
+      var lg516 = "";
+      var chip516 = $("liveHostChip");
+      if (chip516) { var le516 = chip516.querySelector(".lhc-league"); if (le516) lg516 = le516.textContent.trim(); }
+      var states516 = ["\u{1F3C6} Daily No. " + rpRankCache.rank];
+      if (lg516) states516.push(lg516);
+      if (rpRankCache.rank <= 3) states516.push("\u{1F525} Popular LIVE");
+      pill.textContent = states516[Math.floor(Date.now() / 4000) % states516.length];
+      pill.hidden = false;
+    }
     else pill.hidden = true;
   }
   function refreshDailyRankPill() {
@@ -37222,7 +37243,7 @@ function stageStreakBump(key, add) {
     ov.id = "rpBatResult";
     var streakLine = "";
     if (battler && st) streakLine = winnerName && winnerName === myProfileName() ? '<p style="margin:2px 0;color:#ff922b;font-weight:800">' + esc(rpTf("bat_streak", { s: st.s || 0, w: st.w || 0 })) + "</p>" : '<p style="margin:2px 0;color:#9a9aad">' + esc(rpT("bat_streak_reset")) + "</p>";
-    ov.innerHTML = '<div class="card"><div class="crown">' + (winnerName ? "👑" : "🤝") + "</div><h3>" + (winnerName ? esc(rpTf("bat_wins", { name: winnerName })) : rpT("bat_draw")) + '</h3><div class="score">' + esc(an || rpT("live_host_cap")) + " " + Number(ap || 0).toLocaleString() + " — " + Number(bp || 0).toLocaleString() + " " + esc(bn || rpT("live_host_cap")) + "</div>" + streakLine + '<div>' + (battler && Bat.lastOpp ? '<button class="btn-primary" id="rpRematch" style="padding:11px 18px">' + rpT("bat_rematch") + '</button>' : "") + '<button class="btn-mini" id="rpBatClose" style="padding:11px 18px;margin-left:6px">' + rpT("act_close") + '</button></div></div>';
+    ov.innerHTML = '<div class="card"><div class="crown">' + (winnerName ? "👑" : "🤝") + "</div><h3>" + (winnerName ? esc(rpTf("bat_wins", { name: winnerName })) : rpT("bat_draw")) + '</h3><div class="score">' + esc(an || rpT("live_host_cap")) + " " + Number(ap || 0).toLocaleString() + " — " + Number(bp || 0).toLocaleString() + " " + esc(bn || rpT("live_host_cap")) + "</div>" + '<div class="rp-total516">Total match points: ' + Number((ap || 0) + (bp || 0)).toLocaleString() + "</div>" + streakLine + '<div>' + (battler && Bat.lastOpp ? '<button class="btn-primary" id="rpRematch" style="padding:11px 18px">' + rpT("bat_rematch") + '</button>' : "") + '<button class="btn-mini" id="rpBatClose" style="padding:11px 18px;margin-left:6px">' + rpT("act_close") + '</button></div></div>';
     document.body.appendChild(ov);
     $("rpBatClose").addEventListener("click", function () { ov.remove(); });
     var rm = $("rpRematch");
@@ -37241,17 +37262,32 @@ function stageStreakBump(key, add) {
     if (!bar) {
       bar = document.createElement("div");
       bar.id = "rpBatBar";
-      bar.innerHTML = '<div class="bb-side"><span class="bb-av" id="bbAvA">A</span><span class="bb-nm" id="bbNmA"></span><span class="bb-pts" id="bbPtA">0</span></div><div class="bb-mid"><div class="bb-tug"><div class="bb-fill a" id="bbFillA"></div><div class="bb-fill b" id="bbFillB"></div></div><div class="bb-time" id="bbTime">⚔️ 5:00</div></div><div class="bb-side r"><span class="bb-pts" id="bbPtB">0</span><span class="bb-nm" id="bbNmB"></span><span class="bb-av b" id="bbAvB">B</span></div>';
+      bar.innerHTML = '<div class="bb-side"><span class="bb-av" id="bbAvA">A</span><span class="bb-nm" id="bbNmA"></span><span class="bb-ptwrap"><span class="bb-pts" id="bbPtA">0</span><span class="bb-lead" id="bbLeadA" hidden>👑</span></span></div><div class="bb-mid"><div class="bb-tug"><div class="bb-fill a" id="bbFillA"></div><div class="bb-fill b" id="bbFillB"></div></div><div class="bb-time" id="bbTime">⚔️ 5:00</div><div class="bb-final516" id="bbFinal516" hidden>FINAL 10s</div></div><div class="bb-side r"><span class="bb-ptwrap"><span class="bb-pts" id="bbPtB">0</span><span class="bb-lead" id="bbLeadB" hidden>👑</span></span><span class="bb-nm" id="bbNmB"></span><span class="bb-av b" id="bbAvB">B</span></div>';
       document.body.appendChild(bar);
     }
     bar.hidden = false;
     $("bbAvA").textContent = (aN || "A").slice(0, 1).toUpperCase();
     $("bbAvB").textContent = (bN || "B").slice(0, 1).toUpperCase();
     var nmA = $("bbNmA"), nmB = $("bbNmB");
-    nmA.textContent = (ap > bp ? "👑 " : "") + (aN || rpT("live_host_cap"));
-    nmB.textContent = (bp > ap ? "👑 " : "") + (bN || rpT("live_host_cap"));
+    nmA.textContent = (aN || rpT("live_host_cap")); // [RP-V7.516] crown moved off the name — it floats over the leading SCORE now (audit §6)
+    nmB.textContent = (bN || rpT("live_host_cap"));
     nmA.className = "bb-nm" + (ap > bp ? " lead" : "");
     nmB.className = "bb-nm" + (bp > ap ? " lead" : "");
+    /* [RP-V7.516] leader badge over the leading side's score + the
+       COMEBACK flip hook: data-lead516 holds the last STRICT leader,
+       so a flip that passes through a tie still counts as a comeback.
+       Guarded writes only (V7.226 law). */
+    var ldA516 = $("bbLeadA"), ldB516 = $("bbLeadB");
+    var lead516 = ap > bp ? "a" : (bp > ap ? "b" : "");
+    if (ldA516 && ldA516.hidden !== (lead516 !== "a")) ldA516.hidden = (lead516 !== "a");
+    if (ldB516 && ldB516.hidden !== (lead516 !== "b")) ldB516.hidden = (lead516 !== "b");
+    var prevLead516 = bar.getAttribute("data-lead516") || "";
+    if (lead516 && lead516 !== prevLead516) {
+      var ldEl516 = lead516 === "a" ? ldA516 : ldB516;
+      if (ldEl516) { ldEl516.classList.remove("hop"); void ldEl516.offsetWidth; ldEl516.classList.add("hop"); }
+      if (prevLead516) { try { if (window.__rpComeback516) window.__rpComeback516(); } catch (e) { } }
+      bar.setAttribute("data-lead516", lead516);
+    }
     var mask306 = null; try { mask306 = (window.__rpBat306Managed && window.__rpBat306Managed() && window.__rpBat306Masked) ? window.__rpBat306Masked() : null; } catch (e) { }
     $("bbPtA").textContent = (mask306 && mask306.a) ? "???" : Number(ap || 0).toLocaleString();
     $("bbPtB").textContent = (mask306 && mask306.b) ? "???" : Number(bp || 0).toLocaleString();
@@ -37263,6 +37299,12 @@ function stageStreakBump(key, add) {
     var tm = $("bbTime");
     tm.textContent = "⚔️ " + Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
     tm.className = "bb-time" + (left <= 30 ? " hot" : "");
+    /* [RP-V7.516] FINAL 10s state (scope add §2): red pulsing timer +
+       the FINAL 10s tag under it for the whole snipe window. */
+    var fin516 = $("bbFinal516");
+    if (fin516 && fin516.hidden !== (left > 10 || left <= 0)) fin516.hidden = (left > 10 || left <= 0);
+    if (left <= 10 && left > 0) { if (!bar.classList.contains("rp516-final")) bar.classList.add("rp516-final"); }
+    else if (bar.classList.contains("rp516-final")) bar.classList.remove("rp516-final");
   }
   function rpBatMsg(m) {
     if (!m || !m.t) return;
@@ -94414,7 +94456,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     }).join("");
     var ov = document.createElement("div");
     ov.id = "rpBatResult";
-    ov.innerHTML = '<div class="card"><div class="crown">' + (e.draw ? "🤝" : "👑") + "</div><h3>" + esc(title) + "</h3>" + lines + '<div><button class="btn-mini" id="rpTeamClose336" style="padding:11px 18px">Close</button></div></div>';
+    ov.innerHTML = '<div class="card"><div class="crown">' + (e.draw ? "🤝" : "👑") + "</div><h3>" + esc(title) + "</h3>" + lines + '<div class="rp-total516">Total match points: ' + Number((e.standings || []).reduce(function (t516, s516) { return t516 + (s516.pts || 0); }, 0)).toLocaleString() + "</div>" + '<div><button class="btn-mini" id="rpTeamClose336" style="padding:11px 18px">Close</button></div></div>';
     document.body.appendChild(ov);
     $("rpTeamClose336").addEventListener("click", function () { ov.remove(); });
     setTimeout(function () { if (ov.parentNode) ov.remove(); }, 12000);
@@ -101521,6 +101563,617 @@ html.rp-railfit2 .reel-views { font-size: 11.5px; }
   upd514();
   setTimeout(upd514, 1200);
   window.rpRailFit514 = upd514;
+})();
+</script>
+
+<style>
+/* ================= RP-V7.516: BATTLE SCREEN FINISH (Build A) =================
+   Leader crown over the score · final-10 countdown + FINAL 10s state ·
+   COMEBACK callout · Validating beat + WINNER pill · rematch 3-2-1 ·
+   +N score popups · per-pane gift banners · rotating Daily/League/
+   Popular chips · bottom-bar emoji / Rose quick-gift / share badge.
+   Black UI, true-red accent, Plaza-original throughout. */
+.bb-ptwrap{ position:relative; display:inline-block; }
+.bb-lead{ position:absolute; top:-13px; right:-9px; font-size:13px; line-height:1; z-index:2; filter:drop-shadow(0 2px 4px rgba(0,0,0,.65)); pointer-events:none; }
+.bb-lead.hop{ animation:rp516hop .45s cubic-bezier(.3,1.6,.4,1); }
+@keyframes rp516hop{ 0%{ transform:translateY(2px) scale(.6); } 55%{ transform:translateY(-7px) scale(1.3); } 100%{ transform:translateY(0) scale(1); } }
+.bb-final516{ margin-top:3px; font-size:10px; font-weight:900; letter-spacing:.14em; color:#ffb3b3; text-align:center; }
+#rpBatBar.rp516-final .bb-time{ background:#fe2c2c !important; color:#fff !important; border-color:#fe2c2c !important; animation:rp516pulse 1s ease-in-out infinite; }
+#rpTeamBar336 .tb-time.rp516-final{ background:#fe2c2c !important; color:#fff !important; border-color:#fe2c2c !important; animation:rp516pulse 1s ease-in-out infinite; }
+@keyframes rp516pulse{ 50%{ transform:scale(1.09); } }
+.rp-total516{ margin:9px auto 2px; display:inline-block; background:rgba(254,44,44,.16); border:1px solid rgba(254,44,44,.6); color:#ffd9d9; border-radius:99px; padding:4px 14px; font-weight:900; font-size:13.5px; }
+#rpCount516{ position:fixed; inset:0; z-index:47; display:none; align-items:center; justify-content:center; pointer-events:none; }
+#rpCount516 .n{ font-size:128px; font-weight:900; color:#fff; text-shadow:0 0 34px rgba(254,44,44,.85), 0 6px 24px rgba(0,0,0,.6); animation:rp516pop .9s ease-out; }
+#rpCount516 .n.go{ font-size:92px; color:#ffd23c; }
+@keyframes rp516pop{ 0%{ transform:scale(1.7); opacity:0; } 25%{ opacity:1; } 100%{ transform:scale(1); opacity:1; } }
+#rpComeback516{ position:fixed; left:50%; top:126px; transform:translateX(-50%); z-index:47; display:none; background:rgba(8,8,14,.92); border:2px solid #ffd23c; color:#ffd23c; font-weight:900; font-size:20px; letter-spacing:.06em; border-radius:14px; padding:10px 22px; pointer-events:none; box-shadow:0 14px 40px rgba(0,0,0,.55); }
+#rpComeback516.on{ display:block; animation:rp516cb .35s cubic-bezier(.2,1.4,.4,1); }
+@keyframes rp516cb{ from{ transform:translateX(-50%) scale(.6); opacity:0; } to{ transform:translateX(-50%) scale(1); opacity:1; } }
+.rp-paneb516{ position:absolute; left:6px; bottom:30px; z-index:3; display:flex; flex-direction:column; gap:5px; pointer-events:none; max-width:88%; }
+.rp-paneb516 .rp-banner{ max-width:100%; }
+.rp-lose516{ position:fixed; z-index:46; display:none; pointer-events:none; text-align:center; transform:translate(-50%,-50%); }
+.rp-lose516 .seal{ display:inline-block; transform:rotate(-12deg); border:3.5px solid #fe2c2c; color:#fe2c2c; background:rgba(0,0,0,.5); font-weight:900; font-size:29px; letter-spacing:.18em; padding:4px 15px 6px 18px; border-radius:8px; text-shadow:0 2px 10px rgba(0,0,0,.5); animation:rp516stamp .4s cubic-bezier(.2,1.6,.4,1); }
+@keyframes rp516stamp{ from{ transform:rotate(-12deg) scale(2.1); opacity:0; } to{ transform:rotate(-12deg) scale(1); opacity:1; } }
+.rp-lose516 .mascot{ display:block; margin:3px auto 0; width:44px; height:44px; animation:rp516shake .5s ease-in-out 3; }
+.rp-lose516 .mascot svg{ width:100%; height:100%; }
+@keyframes rp516shake{ 0%,100%{ transform:rotate(0); } 25%{ transform:rotate(-9deg); } 75%{ transform:rotate(9deg); } }
+#rpWinner516{ position:fixed; z-index:45; display:none; background:rgba(8,8,14,.92); border:1.5px solid #ffd23c; color:#ffd23c; border-radius:99px; padding:6px 16px; font-weight:900; font-size:14px; pointer-events:none; box-shadow:0 10px 26px rgba(0,0,0,.5); white-space:nowrap; }
+#rpValid516{ position:fixed; z-index:45; display:none; transform:translateX(-50%); background:rgba(8,8,14,.92); border:1px solid rgba(255,255,255,.35); color:#fff; border-radius:99px; padding:6px 16px; font-weight:800; font-size:13px; pointer-events:none; white-space:nowrap; }
+.rp-pop516{ position:fixed; z-index:48; font-weight:900; font-size:17px; color:#ffd23c; text-shadow:0 2px 8px rgba(0,0,0,.65); pointer-events:none; animation:rp516rise 1.15s ease-out forwards; }
+@keyframes rp516rise{ from{ transform:translateY(0); opacity:0; } 18%{ opacity:1; } to{ transform:translateY(-36px); opacity:0; } }
+.lv-emoji516{ flex:none; width:38px; height:38px; border-radius:50%; border:1.5px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); font-size:18px; line-height:1; cursor:pointer; font-family:inherit; }
+.lv-emoji516:active{ transform:scale(.92); }
+#lvRailRose516:active{ transform:scale(.93); }
+.lv-sharebadge516{ position:absolute; top:-5px; right:-2px; background:#fe2c2c; color:#fff; font-size:10px; font-weight:900; border-radius:99px; padding:1px 6px; line-height:1.5; }
+body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.live-fs) #rpWinner516, body:not(.live-fs) #rpValid516, body:not(.live-fs) .rp-lose516{ display:none !important; }
+</style>
+<script>
+/* ================= RP-V7.516: BATTLE SCREEN FINISH (client) =================
+   Build A of the Nov 25 battle audit + Branden's second-recording adds.
+   Everything here DISPLAYS server-computed numbers only: battle points
+   arrive on the battle306/battle336 payloads, ranks from the daily
+   rankings tally, gift money through the untouched sendGift path.
+   Battles exist only inside regular lives (the V7.306/V7.83 gates) —
+   this layer activates solely off live battle state, so auction and
+   church lives never see it. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function live516() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function myId516() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function sock516() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function onLive516() { return !!(document.body && document.body.classList.contains("live-fs")); }
+
+  var MASCOT516 = '<svg class="lv-mascot506" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><g class="lv-mascot-arm506"><path d="M29 28 Q34.5 25 33.8 19.5" stroke="#3a3a44" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="33.8" cy="18.4" r="2.7" fill="#e02424" stroke="rgba(255,255,255,.55)" stroke-width=".8"/></g><rect x="12.5" y="28.5" width="15" height="9" rx="3.5" fill="#e02424"/><circle cx="20" cy="19" r="10.5" fill="#17171f" stroke="rgba(255,255,255,.28)" stroke-width="1"/><path d="M9.5 17.5 A10.5 10.5 0 0 1 30.5 17.5 Z" fill="#e02424"/><rect x="28.6" y="12.4" width="8" height="3.2" rx="1.6" fill="#b81c1c" transform="rotate(-14 28.6 12.4)"/><rect x="9.5" y="16.6" width="21" height="2.4" fill="#b81c1c"/><circle cx="20" cy="8.4" r="1.5" fill="#b81c1c"/><circle cx="12.6" cy="24.4" r="1.25" fill="#e02424" opacity=".75"/><circle cx="27.4" cy="24.4" r="1.25" fill="#e02424" opacity=".75"/><ellipse cx="15.8" cy="20.6" rx="2.2" ry="2.8" fill="#fff"/><ellipse cx="24.2" cy="20.6" rx="2.2" ry="2.8" fill="#fff"/><circle cx="15.8" cy="21.1" r="1.15" fill="#111"/><circle cx="24.2" cy="21.1" r="1.15" fill="#111"/><circle cx="16.2" cy="20.6" r=".45" fill="#fff"/><circle cx="24.6" cy="20.6" r=".45" fill="#fff"/><path d="M16.4 24.9 Q20 27.7 23.6 24.9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/><polygon points="20,30.7 20.72,32.45 22.6,32.55 21.18,33.72 21.62,35.5 20,34.6 18.38,35.5 18.82,33.72 17.4,32.55 19.28,32.45" fill="#ffd23c"/></svg>';
+  var ROSE516 = { id: "rose", art: "img/gifts/rose.webp", name: "Rose", icon: "\u{1F339}", cents: 5, tier: "penny", fx: "float" }; // mirrors the GIFT_SHOP entry exactly — the send rides window.sendGift untouched
+
+  /* ---------- shared overlay elements ---------- */
+  function mkEl(id, html) { var el = $(id); if (!el) { el = document.createElement("div"); el.id = id; if (html) el.innerHTML = html; document.body.appendChild(el); } return el; }
+  var countEl = mkEl("rpCount516", '<span class="n"></span>');
+  var cbEl = mkEl("rpComeback516", "COMEBACK!");
+  var winEl = mkEl("rpWinner516", "");
+  var valEl = mkEl("rpValid516", "Validating…");
+
+  /* ---------- state ---------- */
+  var boundSock = null;
+  var combos516 = {};            // sender|gift|side -> {n, at, row, timer}
+  var stamps516 = [];            // {el, getRect, until}
+  var winner516 = null;          // {text, side ("a"|"b"|"c"), until}
+  var lastEnd516 = 0;            // last battle-end timestamp (rematch window)
+  var wasOn516 = false;
+  var countN516 = -1;
+  var goRun516 = false;
+  var cbTimer516 = 0;
+  var shareCount516 = 0, lastHost516 = null;
+  var lastBarRect516 = null;
+  var lastRect516 = {};          // side -> last live pane rect (stamp fallback)
+  var last336 = null;            // last battle336 payload (sides/parts/format)
+  var teamLead516 = "";          // last strict team leader (2v2 comeback)
+  var pops516 = 0;
+  window.__rp516RankCache = {};  // name -> daily rank (server tally via /api/rankings/daily)
+  var rankFetchAt516 = 0;
+
+  /* ================= COMEBACK (scope §1) ================= */
+  window.__rpComeback516 = function () {
+    if (!onLive516()) return;
+    if (!cbEl.classList.contains("on")) cbEl.classList.add("on");
+    clearTimeout(cbTimer516);
+    cbTimer516 = setTimeout(function () { cbEl.classList.remove("on"); }, 1900);
+  };
+
+  /* ================= battle state helpers ================= */
+  function barShown516() {
+    var bb = $("rpBatBar");
+    if (bb && !bb.hidden && onLive516()) return "1v1";
+    var tb = $("rpTeamBar336");
+    if (tb && tb.style.display !== "none" && tb.offsetHeight > 0 && onLive516()) return "team";
+    return "";
+  }
+  function battleOn516() { return !!barShown516(); }
+  function batEnds516() {
+    var B = window.Bat;
+    if (B) {
+      if (B.active && B.endsAt) return B.endsAt;
+      if (B.known && B.known.endsAt) return B.known.endsAt;
+    }
+    return 0;
+  }
+  function parseClock516(txt) {
+    var m = /(\d+):(\d{2})/.exec(txt || "");
+    return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+  }
+  function battleLeft516() {
+    var ends = batEnds516();
+    if (ends) return (ends - Date.now()) / 1000;
+    var kind = barShown516();
+    if (kind === "1v1") { var t = $("bbTime"); return t ? parseClock516(t.textContent) : null; }
+    if (kind === "team") { var t2 = $("tbTime336"); return t2 ? parseClock516(t2.textContent) : null; }
+    return null;
+  }
+  function sideNames516() {
+    var B = window.Bat || {};
+    var a = B.aName || (B.known && B.known.aName) || "", b = B.bName || (B.known && B.known.bName) || "";
+    if (!a) { var na = $("bbNmA"); if (na) a = na.textContent.trim(); }
+    if (!b) { var nb = $("bbNmB"); if (nb) b = nb.textContent.trim(); }
+    return { a: a, b: b };
+  }
+  function hostName516() {
+    /* window.rpLive() returns a snapshot WITHOUT hostName — resolve
+       the room host's name from the lives directory (keyed by the
+       snapshot's hostId, else matched by room), the same payload the
+       rankings sheet reads names/photos from. */
+    var L = live516(); if (!L) return "";
+    try {
+      var dirs = window.rpDirectory ? window.rpDirectory() : [];
+      for (var i = 0; i < dirs.length; i++) if (dirs[i] && dirs[i].hostId === L.hostId && dirs[i].name) return dirs[i].name;
+      for (var j = 0; j < dirs.length; j++) if (dirs[j] && L.room && dirs[j].room === L.room && dirs[j].name) return dirs[j].name;
+    } catch (e) { }
+    return "";
+  }
+  function roomSide516() {
+    var hn = hostName516(); if (!hn) return null;
+    var n = sideNames516();
+    if (n.a && hn === n.a) return "a";
+    if (n.b && hn === n.b) return "b";
+    return null;
+  }
+  function roomSide336() {
+    var hn = hostName516(); if (!hn || !last336 || !last336.sides) return null;
+    for (var i = 0; i < last336.sides.length; i++) {
+      var mem = last336.sides[i].members || [];
+      if (mem.indexOf(hn) >= 0) return last336.sides[i].side;
+    }
+    return null;
+  }
+  function hostTile516() {
+    var grid = $("liveGrid"); if (!grid) return null;
+    var tiles = grid.querySelectorAll(".live-tile");
+    if (!tiles.length) return null;
+    var hn = hostName516();
+    if (hn) {
+      for (var i = 0; i < tiles.length; i++) {
+        var nm = tiles[i].querySelector(".lt-name");
+        if (nm && nm.textContent.indexOf(hn) >= 0) return tiles[i];
+      }
+    }
+    return tiles[0];
+  }
+  function teamTile516(name) {
+    var grid = $("liveGrid"); if (!grid || !name) return null;
+    var tiles = grid.querySelectorAll(".rp-team-tile336");
+    for (var i = 0; i < tiles.length; i++) {
+      var nm = tiles[i].querySelector(".rp-bat-name");
+      if (nm && nm.textContent.indexOf(name) >= 0) return tiles[i];
+    }
+    return null;
+  }
+  function paneForSide516(side) {
+    if (last336 && last336.sides) {
+      if (side === roomSide336()) return hostTile516();
+      var sd = null;
+      for (var i = 0; i < last336.sides.length; i++) if (last336.sides[i].side === side) sd = last336.sides[i];
+      if (sd && sd.members) { for (var j = 0; j < sd.members.length; j++) { var t = teamTile516(sd.members[j]); if (t) return t; } }
+      return null;
+    }
+    if (side === roomSide516()) return hostTile516();
+    var bt = $("rpBatTile");
+    if (bt) return bt;
+    var n = sideNames516();
+    return teamTile516(side === "a" ? n.a : n.b);
+  }
+
+  /* ================= per-pane gift banners (audit §9) =================
+     Room-side gifts keep the original rpBanner rows — art, combo
+     counting and all — MOVED into the room host's pane. Gifts landing
+     on the far side arrive only as battle gift events, so those rows
+     are rendered here from the event (sender, gift name, side) with
+     the same 5 s combo window; the battle payload carries no gift
+     art id or batch count, so the far-side row's art slot is the
+     gift glyph and its combo advances per settled event (payload
+     fields are Build B territory — see BUILD.md). */
+  function paneBannerBox516(pane) {
+    if (!pane) return null;
+    var box = pane.querySelector(".rp-paneb516");
+    if (!box) { box = document.createElement("div"); box.className = "rp-paneb516"; pane.appendChild(box); }
+    return box;
+  }
+  function moveBanners516() {
+    if (!battleOn516()) return;
+    var box = $("rpBanners"); if (!box || !box.children.length) return;
+    var pane = hostTile516(); if (!pane) return;
+    var cont = paneBannerBox516(pane); if (!cont) return;
+    var rows = box.querySelectorAll(".rp-banner");
+    rows.forEach(function (r) {
+      cont.appendChild(r);
+      while (cont.children.length > 3) cont.removeChild(cont.firstChild);
+    });
+  }
+  function photoFor516(name) {
+    try {
+      var dirs = window.rpDirectory ? window.rpDirectory() : [];
+      for (var i = 0; i < dirs.length; i++) if (dirs[i] && dirs[i].name === name && dirs[i].photo) return dirs[i].photo;
+    } catch (e) { }
+    return "";
+  }
+  function paneBanner516(side, fromName, giftName, cnt) {
+    var pane = paneForSide516(side); if (!pane) return;
+    var cont = paneBannerBox516(pane); if (!cont) return;
+    var key = (fromName || "Someone") + "|" + (giftName || "Gift") + "|" + side;
+    var now = Date.now(), c = combos516[key];
+    if (c && now - c.at < 5000) {
+      c.n += (cnt || 1); c.at = now;
+      clearTimeout(c.timer); c.timer = setTimeout(function () { expirePaneBanner516(key); }, 6500);
+      if (c.row) { var cb = c.row.querySelector(".rp-combo"); if (cb) { cb.textContent = "×" + c.n; cb.style.display = ""; } }
+      return;
+    }
+    c = combos516[key] = { n: (cnt || 1), at: now, row: null, timer: setTimeout(function () { expirePaneBanner516(key); }, 6500) };
+    var photo = photoFor516(fromName);
+    var row = document.createElement("div");
+    row.className = "rp-banner";
+    row.innerHTML = '<span class="av">' + (photo ? '<img src="' + esc(photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">' : esc((fromName || "S").slice(0, 1).toUpperCase())) + '</span><span class="rp-art-emoji">\u{1F381}</span><span><b>' + esc(fromName || "Someone") + "</b> sent <b>" + esc(giftName || "Gift") + '</b></span><span class="rp-combo"' + (c.n > 1 ? "" : ' style="display:none"') + ">" + (c.n > 1 ? "×" + c.n : "") + "</span>";
+    cont.appendChild(row);
+    while (cont.children.length > 3) cont.removeChild(cont.firstChild);
+    c.row = row;
+  }
+  function expirePaneBanner516(key) {
+    var c = combos516[key]; if (!c) return;
+    delete combos516[key];
+    if (c.row) { var row = c.row; c.row = null; row.classList.add("out"); setTimeout(function () { if (row.parentNode) row.parentNode.removeChild(row); }, 320); }
+  }
+  /* diagnostic/test readout (rig): render one far-side pane banner */
+  window.__rp516PaneBanner = function (side, fromName, giftName, photo) {
+    var keep = photoFor516;
+    if (photo) photoFor516 = function () { return photo; };
+    try { paneBanner516(side, fromName, giftName, 1); } finally { photoFor516 = keep; }
+  };
+
+  /* ================= +N score popups (scope §5) ================= */
+  function popup516(side, pts) {
+    if (!pts || pts <= 0 || pops516 >= 5) return;
+    var target = null;
+    if (last336 && last336.sides) {
+      var label = "";
+      for (var i = 0; i < last336.sides.length; i++) if (last336.sides[i].side === side) { label = last336.format === "2v2" ? (side === "a" ? "Team A" : "Team B") : ((last336.sides[i].members || [])[0] || ""); }
+      var rows = document.querySelectorAll("#tbRows336 .tb-row");
+      rows.forEach(function (r) { var nm = r.querySelector(".tb-nm"); if (!target && nm && label && nm.textContent.indexOf(label) >= 0) target = r.querySelector(".tb-pts"); });
+    } else {
+      var pt = $(side === "a" ? "bbPtA" : "bbPtB");
+      if (pt) target = pt.closest ? (pt.closest(".bb-ptwrap") || pt) : pt;
+    }
+    if (!target) return;
+    var r = target.getBoundingClientRect();
+    if (!r.width && !r.height) return;
+    var el = document.createElement("div");
+    el.className = "rp-pop516";
+    el.textContent = "+" + Number(pts).toLocaleString();
+    el.style.left = Math.max(2, r.left + r.width / 2 - 16) + "px";
+    el.style.top = Math.max(2, r.top - 8) + "px";
+    document.body.appendChild(el);
+    pops516++;
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); pops516--; }, 1250);
+  }
+
+  window.__rp516Popup = popup516; // diagnostic/test readout (rig)
+
+  /* ================= LOSE stamp (audit §20) ================= */
+  function spawnStamp516(side) {
+    var el = document.createElement("div");
+    el.className = "rp-lose516";
+    el.innerHTML = '<span class="seal">LOSE</span><span class="mascot">' + MASCOT516 + "</span>";
+    document.body.appendChild(el);
+    stamps516.push({ el: el, side: side, until: Date.now() + 12000 });
+  }
+  function stampLoser516(side) { if (side) spawnStamp516(side); }
+  function rectForStamp516(st) {
+    var pane = paneForSide516(st.side);
+    if (pane) { var r = pane.getBoundingClientRect(); if (r.width > 10 && r.height > 10) return r; }
+    return lastRect516[st.side] || lastBarRect516;
+  }
+
+  /* ================= WINNER pill + Validating (scope §3) ================= */
+  function setWinner516(side, score, label) {
+    winner516 = { side: side || "c", until: Date.now() + 12000 };
+    winEl.textContent = "\u{1F3C6} WINNER • " + (label ? label + " • " : "") + Number(score || 0).toLocaleString();
+  }
+
+  /* ================= battle end / begin hooks ================= */
+  function onBattleEnd516() {
+    lastEnd516 = Date.now();
+    countN516 = -1;
+    if (countEl.style.display !== "none") countEl.style.display = "none";
+  }
+  var wrappedFinal516 = false;
+  function wrapEnds516() {
+    if (!wrappedFinal516 && typeof window.__rpBat306Finalize === "function") {
+      wrappedFinal516 = true;
+      var origFin = window.__rpBat306Finalize;
+      window.__rpBat306Finalize = function (ap, bp, wName) {
+        var r = origFin.apply(this, arguments);
+        try {
+          onBattleEnd516();
+          if (ap !== bp) {
+            var winSide = ap > bp ? "a" : "b";
+            setWinner516(winSide, ap > bp ? ap : bp, "");
+            stampLoser516(ap > bp ? "b" : "a");
+          }
+        } catch (e) { }
+        return r;
+      };
+    }
+    if (typeof window.rpBatProto === "function" && !window.rpBatProto.__w516) {
+      var origProto = window.rpBatProto;
+      var wrapped = function (o) {
+        var r = origProto.apply(this, arguments);
+        try {
+          if (o && o.k === "bat-end") {
+            onBattleEnd516();
+            var ap = o.ap || 0, bp = o.bp || 0;
+            if (ap !== bp) { setWinner516(ap > bp ? "a" : "b", ap > bp ? ap : bp, ""); stampLoser516(ap > bp ? "b" : "a"); }
+          }
+        } catch (e) { }
+        return r;
+      };
+      wrapped.__w516 = true;
+      window.rpBatProto = wrapped;
+    }
+  }
+
+  /* ================= socket feeds: popups + far-side banners + team end ================= */
+  function on306516(p) {
+    if (!p) return;
+    var ev = p.ev;
+    if (ev && ev.kind === "gift" && ev.side) {
+      popup516(ev.side, ev.pts);
+      if (ev.side !== roomSide516()) paneBanner516(ev.side, ev.fromName, ev.giftName, 1);
+    }
+    if (p.ended) {
+      onBattleEnd516();
+      var e = p.ended;
+      if (typeof e.aPts === "number" && typeof e.bPts === "number" && e.aPts !== e.bPts) {
+        setWinner516(e.aPts > e.bPts ? "a" : "b", Math.max(e.aPts, e.bPts), "");
+        stampLoser516(e.aPts > e.bPts ? "b" : "a");
+      }
+    }
+  }
+  function on336516(p) {
+    if (!p) return;
+    if (p.sides) last336 = { sides: p.sides, parts: p.parts || [], format: p.format || "" };
+    var ev = p.ev;
+    if (ev && ev.kind === "gift" && ev.side) {
+      popup516(ev.side, ev.pts);
+      if (ev.side !== roomSide336()) paneBanner516(ev.side, ev.fromName, ev.giftName, 1);
+    }
+    if (p.ended) {
+      onBattleEnd516();
+      var e = p.ended, st = e.standings || [];
+      if (st.length) {
+        var sorted = st.slice().sort(function (x, y) { return (y.pts || 0) - (x.pts || 0); });
+        var top = sorted[0];
+        if (!e.draw && top && (sorted.length < 2 || (top.pts || 0) > (sorted[1].pts || 0))) {
+          var wSide = (e.winnerSides && e.winnerSides[0]) || top.side;
+          setWinner516(wSide, top.pts || 0, "");
+          st.forEach(function (row) { if (row.side !== wSide) stampLoser516(row.side); });
+        }
+      }
+    }
+  }
+  function bindSock516() {
+    var s = sock516();
+    if (s && boundSock !== s) {
+      boundSock = s;
+      try { s.on("battle306", on306516); } catch (e) { }
+      try { s.on("battle336", on336516); } catch (e) { }
+    }
+  }
+
+  /* ================= rematch 3-2-1 GO (scope §4) ================= */
+  function showCount516(txt, go) {
+    var n = countEl.querySelector(".n");
+    n.textContent = txt;
+    n.className = "n" + (go ? " go" : "");
+    countEl.style.display = "flex";
+    n.style.animation = "none";
+    void n.offsetWidth;
+    n.style.animation = "";
+  }
+  function goCount516() {
+    if (goRun516) return;
+    goRun516 = true;
+    var seq = ["3", "2", "1", "GO!"];
+    var i = 0;
+    (function step() {
+      if (i < seq.length) { showCount516(seq[i], seq[i] === "GO!"); i++; setTimeout(step, 700); }
+      else { countEl.style.display = "none"; goRun516 = false; }
+    })();
+  }
+
+  /* ================= rotating battle rank chips (audit §2) ================= */
+  function fetchRanks516() {
+    var now = Date.now();
+    if (now - rankFetchAt516 < 60000 || typeof fetch !== "function") return;
+    rankFetchAt516 = now;
+    var h = {};
+    try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); if (a && a.token) h["Authorization"] = "Bearer " + a.token; } catch (e) { }
+    fetch("/api/rankings/daily", { headers: h }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || !j.ok || !j.top) return;
+      var map = {};
+      j.top.forEach(function (row) { if (row && row.name) map[row.name] = row.rank; });
+      window.__rp516RankCache = map;
+    }).catch(function () { });
+  }
+  function rotateChips516() {
+    var pills = document.querySelectorAll("#rpBoostChips306 .bchip.lgpill");
+    if (!pills.length) return;
+    fetchRanks516();
+    var wins = document.querySelectorAll("#rpBoostChips306 .bchip.winlg");
+    var cache = window.__rp516RankCache || {};
+    pills.forEach(function (chip, idx) {
+      var name = "";
+      var w = wins[idx];
+      if (w) { var t = w.textContent || ""; var cut = t.indexOf(" · WIN"); name = (cut > 0 ? t.slice(0, cut) : t).replace("\u{1F3C6}", "").trim(); }
+      if (!name) { var nmEl = $(idx === 0 ? "bbNmA" : "bbNmB"); if (nmEl) name = nmEl.textContent.trim(); }
+      var cur = chip.textContent || "";
+      if (cur.indexOf("\u{1F3C6} Daily") !== 0 && cur !== "\u{1F525} Popular LIVE") chip.__lg516 = cur;
+      var rank = name ? cache[name] : 0;
+      var states = [];
+      if (rank) states.push("\u{1F3C6} Daily No. " + rank);
+      states.push(chip.__lg516 || cur);
+      if (rank && rank <= 3) states.push("\u{1F525} Popular LIVE");
+      if (states.length < 2) return;
+      var want = states[Math.floor(Date.now() / 4000) % states.length];
+      if (chip.textContent !== want) chip.textContent = want;
+    });
+  }
+
+  /* ================= bottom bar (audit §18) ================= */
+  window.__rpShare516 = function () { shareCount516++; renderShare516(); };
+  function renderShare516() {
+    var badge = $("lvShareBadge516"); if (!badge) return;
+    if (badge.hidden !== (shareCount516 <= 0)) badge.hidden = (shareCount516 <= 0);
+    var txt = String(shareCount516);
+    if (badge.textContent !== txt) badge.textContent = txt;
+  }
+  function wireBottom516() {
+    var eb = $("lvEmojiBtn516");
+    if (eb && !eb.__w516) {
+      eb.__w516 = true;
+      eb.addEventListener("click", function () {
+        var inp = $("liveCommentInput");
+        if (inp && window.rpEmojiPicker && window.rpEmojiPicker.open) window.rpEmojiPicker.open(inp);
+      });
+    }
+    var rb = $("lvRailRose516");
+    if (rb && !rb.__w516) {
+      rb.__w516 = true;
+      rb.addEventListener("click", function () {
+        var L = live516();
+        if (!L || !L.active || !L.hostId) return;
+        if (window.sendGift) window.sendGift(L.hostId, L.hostName, ROSE516, { count: 1, src: "live" }); // ledger-first normal path; self-send hard-stops inside sendGift
+      });
+    }
+  }
+
+  /* ================= the watcher ================= */
+  function tick516() {
+    try {
+      bindSock516();
+      wrapEnds516();
+      wireBottom516();
+      var L = live516();
+      var hostKey = (L && L.active && L.hostId) ? L.hostId : null;
+      if (hostKey !== lastHost516) { lastHost516 = hostKey; shareCount516 = 0; renderShare516(); }
+
+      var kind = barShown516();
+      var on = !!kind;
+      // battle begin transition -> rematch countdown if the last end is fresh
+      if (on && !wasOn516) {
+        winner516 = null;
+        if (winEl.style.display !== "none") winEl.style.display = "none";
+        stamps516.forEach(function (st) { if (st.el.parentNode) st.el.parentNode.removeChild(st.el); });
+        stamps516 = [];
+        if (lastEnd516 && Date.now() - lastEnd516 <= 180000) goCount516();
+      }
+      wasOn516 = on;
+
+      var bb = $("rpBatBar");
+      if (bb && !bb.hidden) { var br = bb.getBoundingClientRect(); if (br.width > 0) lastBarRect516 = br; }
+      if (on) {
+        moveBanners516();
+        rotateChips516();
+        ["a", "b"].forEach(function (sd) {
+          var pane = paneForSide516(sd);
+          if (pane) { var r = pane.getBoundingClientRect(); if (r.width > 10) lastRect516[sd] = r; }
+        });
+        if (last336 && last336.sides) last336.sides.forEach(function (sd) {
+          var pane = paneForSide516(sd.side);
+          if (pane) { var r2 = pane.getBoundingClientRect(); if (r2.width > 10) lastRect516[sd.side] = r2; }
+        });
+        // victory-lap leader badges (rpBatRender stands down in the lap)
+        if (bb && bb.classList.contains("rp65-lap")) {
+          var pa = parseInt(($("bbPtA") || {}).textContent || "0", 10) || 0;
+          var pb = parseInt(($("bbPtB") || {}).textContent || "0", 10) || 0;
+          var la = $("bbLeadA"), lb = $("bbLeadB");
+          if (la && la.hidden !== (pa <= pb)) la.hidden = (pa <= pb);
+          if (lb && lb.hidden !== (pb <= pa)) lb.hidden = (pb <= pa);
+        }
+        // team FINAL 10s + team comeback (2v2)
+        if (kind === "team") {
+          var left = battleLeft516();
+          var tm = $("tbTime336");
+          if (tm) {
+            var fin = (left !== null && left <= 10 && left > 0);
+            if (tm.classList.contains("rp516-final") !== fin) tm.classList.toggle("rp516-final", fin);
+            var bar = $("rpTeamBar336");
+            var tag = $("tbFinal516");
+            if (bar && !tag) { tag = document.createElement("span"); tag.id = "tbFinal516"; tag.className = "bb-final516"; tag.textContent = "FINAL 10s"; var head = bar.querySelector(".tb-head"); if (head) head.appendChild(tag); }
+            if (tag && tag.hidden !== !fin) tag.hidden = !fin;
+          }
+          if (last336 && last336.format === "2v2") {
+            var rows = document.querySelectorAll("#tbRows336 .tb-row");
+            var leadKey = "";
+            rows.forEach(function (r, i) { var nm = r.querySelector(".tb-nm"); if (nm && nm.classList.contains("lead")) leadKey = (i === 0 ? "a" : "b"); });
+            if (leadKey && teamLead516 && leadKey !== teamLead516) window.__rpComeback516();
+            if (leadKey) teamLead516 = leadKey;
+          }
+        }
+      }
+
+      /* final-10 big countdown (audit §7) — silenced the moment the
+         result overlay lands or the battle state ends */
+      if (!goRun516) {
+        var left2 = on ? battleLeft516() : null;
+        var res = $("rpBatResult");
+        if (left2 !== null && left2 > 0 && left2 <= 10.5 && !res) {
+          var n = Math.ceil(left2);
+          if (n !== countN516) { countN516 = n; showCount516(String(n), false); }
+          else if (countEl.style.display !== "flex") countEl.style.display = "flex";
+        } else {
+          if (countEl.style.display !== "none") countEl.style.display = "none";
+          countN516 = -1;
+        }
+      }
+
+      /* Validating beat (scope §3): clock at 0, bar still up, no result yet */
+      var left3 = on ? battleLeft516() : null;
+      var showVal = !!(on && left3 !== null && left3 <= 0 && !$("rpBatResult") && !winner516);
+      if (showVal) {
+        if (lastBarRect516) {
+          valEl.style.left = (lastBarRect516.left + lastBarRect516.width / 2) + "px";
+          valEl.style.top = (lastBarRect516.bottom + 8) + "px";
+        }
+        if (valEl.style.display !== "block") valEl.style.display = "block";
+      } else if (valEl.style.display !== "none") valEl.style.display = "none";
+
+      /* WINNER pill positioning */
+      if (winner516 && Date.now() < winner516.until && lastBarRect516) {
+        winEl.style.top = (lastBarRect516.bottom + 8) + "px";
+        if (winEl.style.display !== "block") winEl.style.display = "block";
+        var w = winEl.offsetWidth || 160;
+        if (winner516.side === "a") winEl.style.left = (lastBarRect516.left + 10) + "px";
+        else if (winner516.side === "b") winEl.style.left = Math.max(2, lastBarRect516.right - 10 - w) + "px";
+        else winEl.style.left = Math.max(2, lastBarRect516.left + lastBarRect516.width / 2 - w / 2) + "px";
+      } else {
+        if (winner516 && Date.now() >= winner516.until) winner516 = null;
+        if (winEl.style.display !== "none") winEl.style.display = "none";
+      }
+
+      /* LOSE stamps follow their panes (or their last known rect) */
+      var now = Date.now();
+      stamps516 = stamps516.filter(function (st) {
+        if (now >= st.until) { if (st.el.parentNode) st.el.parentNode.removeChild(st.el); return false; }
+        var r = rectForStamp516(st);
+        if (r) {
+          st.el.style.left = (r.left + r.width / 2) + "px";
+          st.el.style.top = (r.top + r.height / 2) + "px";
+          if (st.el.style.display !== "block") st.el.style.display = "block";
+        }
+        return true;
+      });
+    } catch (e) { }
+  }
+  setInterval(tick516, 250);
+  tick516();
 })();
 </script>
 
