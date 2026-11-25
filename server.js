@@ -4176,9 +4176,49 @@ function extFor(mimetype) {
 }
 
 // Returns { ok: true } or { ok: false, reason }.
-async function moderateImage(publicUrl) {
+// [RP-V7.505] The Hive class fetch, shared by the moderation gate and
+// the appropriateness screening below. Returns { classes } on a real
+// verdict, { unreviewed: true } when there is no key or the API fails
+// (the gate's fail-open rule: a third-party outage never freezes
+// posting). Rig-only stub: RP_HIVE_STUB=1 replaces the Hive call with a
+// content marker matcher over the local media file the URL names
+// (APPR505 in the file = a borderline class at 0.55, APPR505HI = a
+// reject-grade class at 0.92) — the RP_CR_SCAN_STUB pattern; never set
+// in production.
+function apprStubClasses505(publicUrl) {
+  const u = String(publicUrl || "");
+  const read = (p) => { try { return fs.readFileSync(p); } catch (e) { return null; } };
+  let buf = null;
+  try {
+    const m = u.match(/\/(reel-files|photos)\/(.+)$/);
+    if (m) {
+      const name = decodeURIComponent(m[2]).split("?")[0];
+      if (m[1] === "reel-files") {
+        if (/\.poster\.jpg$/i.test(name)) {
+          const base = name.replace(/\.poster\.jpg$/i, "");
+          const hit = fs.readdirSync(REELS_DIR).find((f) => f.startsWith(base + ".") && !/\.poster\.jpg$/i.test(f));
+          if (hit) buf = read(path.join(REELS_DIR, hit));
+        } else buf = read(path.join(REELS_DIR, name));
+      } else if (name.startsWith("feed/")) {
+        const fn = name.slice(5);
+        if (/\.poster\.jpg$/i.test(fn)) {
+          const base = fn.replace(/\.poster\.jpg$/i, "");
+          const hit = fs.readdirSync(FEED_DIR).find((f) => f.startsWith(base + ".") && !/\.poster\.jpg$/i.test(f));
+          if (hit) buf = read(path.join(FEED_DIR, hit));
+        } else buf = read(path.join(FEED_DIR, fn));
+      } else buf = read(path.join(PHOTO_DIR, name));
+    }
+  } catch (e) {}
+  if (!buf) return { classes: [] };
+  const txt = buf.toString("latin1");
+  if (txt.indexOf("APPR505HI") >= 0) return { classes: [{ class: "sexual_content", score: 0.92 }] };
+  if (txt.indexOf("APPR505") >= 0) return { classes: [{ class: "sexual_content", score: 0.55 }] };
+  return { classes: [] };
+}
+async function hiveClasses505(publicUrl) {
+  if (process.env.RP_HIVE_STUB === "1") return apprStubClasses505(publicUrl); // rig-only; never set in production
   const key = process.env.HIVE_API_KEY;
-  if (!key) return { ok: true, unreviewed: true };
+  if (!key) return { unreviewed: true };
   try {
     const res = await fetch("https://api.thehive.ai/api/v2/task/sync", {
       method: "POST",
@@ -4192,15 +4232,60 @@ async function moderateImage(publicUrl) {
     const classes = (data.status && data.status[0] && data.status[0].response
       && data.status[0].response.output && data.status[0].response.output[0]
       && data.status[0].response.output[0].classes) || [];
-    const bad = classes.find(
-      (c) => c.score > 0.7 && /sexual|nudity|explicit|porn/i.test(c.class || "")
-    );
-    if (bad) return { ok: false, reason: `flagged: ${bad.class}` };
-    return { ok: true };
+    return { classes };
   } catch (e) {
     console.log("MODERATION ERROR (accepting as unreviewed):", e.message);
-    return { ok: true, unreviewed: true };
+    return { unreviewed: true };
   }
+}
+// [RP-V7.505] The borderline band: the top sexual/nudity class landed
+// at or above 0.40 but NOT over the gate's 0.7 reject line — screening
+// saw something possibly inappropriate, not enough to refuse the post.
+// That is exactly the content Branden's TikTok-style question is for.
+// Returns the flag stamped on the record, or null.
+const APPR_BAND_LOW505 = 0.4, APPR_BAND_HIGH505 = 0.7;
+function apprBand505(classes) {
+  if (!Array.isArray(classes)) return null;
+  let top = null;
+  for (const c of classes) {
+    if (c && isFinite(c.score) && /sexual|nudity|explicit|porn/i.test(c.class || "") && (!top || c.score > top.score)) top = c;
+  }
+  if (top && top.score >= APPR_BAND_LOW505 && top.score <= APPR_BAND_HIGH505)
+    return { class: String(top.class), score: Math.round(top.score * 100) / 100, at: new Date().toISOString() };
+  return null;
+}
+async function moderateImage(publicUrl) {
+  const h = await hiveClasses505(publicUrl);
+  if (h.unreviewed) return { ok: true, unreviewed: true };
+  const bad = h.classes.find(
+    (c) => c.score > 0.7 && /sexual|nudity|explicit|porn/i.test(c.class || "")
+  );
+  if (bad) return { ok: false, reason: `flagged: ${bad.class}`, classes: h.classes };
+  return { ok: true, classes: h.classes };
+}
+// [RP-V7.505] Screen a freshly minted video poster (reels + feed
+// videos) with the same Hive mechanism: the poster frame is the
+// video's first real frame, served at a public URL Hive can fetch.
+// Fire-and-forget beside the poster pumps; unreviewed or clean frames
+// stamp nothing, a borderline frame stamps apprFlag505 on the record.
+// Fail-open throughout — a screening hiccup never touches the post.
+const RP_PUBLIC_ORIGIN505 = process.env.RP_PUBLIC_ORIGIN || "https://rizzplaza.com"; // canonical public origin (the RP_PK_ORIGIN_454 pattern)
+function apprScreenPoster505(surface, id, posterPath) {
+  (async () => {
+    try {
+      const h = await hiveClasses505(RP_PUBLIC_ORIGIN505 + posterPath);
+      if (!h || h.unreviewed) return;
+      const band = apprBand505(h.classes);
+      if (!band) return;
+      if (surface === "reel") updateReelEntry(id, { apprFlag505: band });
+      else if (surface === "feed") {
+        const db = readFeed();
+        const rec = (db.posts || {})[id];
+        if (rec && !rec.apprFlag505) { rec.apprFlag505 = band; writeFeed(db); }
+      }
+      console.log("[RP-V7.505] screening flag:", surface, id, band.class, band.score);
+    } catch (e) {}
+  })();
 }
 
 // ---------------------------------------------------------------------------
@@ -5202,6 +5287,7 @@ function rpFeedPosterPump484() {
         const rec = (db.posts || {})[job.id];
         if (rec && rec.poster484 !== 1) { rec.poster484 = 1; writeFeed(db); }
       } catch (e) {}
+      try { apprScreenPoster505("feed", job.id, "/photos/feed/" + rpPosterName482(job.file)); } catch (e) {} // [RP-V7.505] screen the minted frame; a borderline frame flags the feed video
     }
     done();
   });
@@ -5332,6 +5418,7 @@ function rpPosterMint482(src, out, cb) {
 function rpPosterFinish482(job, ok, done) {
   if (ok) {
     try { updateReelEntry(job.id, { poster482: 1 }); } catch (e) {}
+    try { apprScreenPoster505("reel", job.id, "/reel-files/" + rpPosterName482(job.file)); } catch (e) {} // [RP-V7.505] screen the minted frame; a borderline frame flags the reel
     rpPosterStats482.gen++;
   } else {
     rpPosterStats482.fail++;
@@ -5819,6 +5906,7 @@ app.get("/api/reels", (req, res) => {
       origVol: typeof r.origVol === "number" ? r.origVol : null,
       ...origCredit335("reel", r, reg335r), // [RP-V7.335] member-sound credit (used sound, else this reel's own minted sound)
       crMuted: r.crMuted || null, // [RP-V7.286] copyright mute flag — players force the reel's own audio silent and show the chip; an attached catalog track keeps playing
+      apprFlag: !!r.apprFlag505, // [RP-V7.505] Hive borderline-screening flag — the client asks a non-author viewer the appropriateness question (boolean only; class/score never leave the server)
       // [RP-V7.64] Real server-owned view count (the tile number).
       views: mediaViewCount(vdb64, "reel:" + r.id),
       // [RP-V7.51] Compact reaction summary: counts for everyone, the
@@ -11002,6 +11090,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     musicStart: typeof p.musicStart === "number" ? p.musicStart : null,
     musicVol: typeof p.musicVol === "number" ? p.musicVol : null,
     ...origCredit335("photo", p), // [RP-V7.335] member-sound credit, resolved through the registry
+    apprFlag: !!p.apprFlag505, // [RP-V7.505] boolean only, as on reels
   };
 }
 app.post("/api/photo/post", photoUploadSet(async (req, res) => {
@@ -11078,6 +11167,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       return res.status(400).json({ ok: false, error: "Pick a photo first" });
     }
     const urls = [];
+    let apprBand505photo = null; // [RP-V7.505] first borderline band across the set, if any
     for (const it of set) {
       if (it.file) {
         const u = `https://${req.get("host")}/photos/${it.file.filename}`;
@@ -11093,6 +11183,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
         if (mod.unreviewed) {
           console.log("PHOTO POST UNREVIEWED (no HIVE_API_KEY):", ctx.user.id, u);
         }
+        const band505p = apprBand505(mod.classes); if (band505p && !apprBand505photo) apprBand505photo = band505p; // [RP-V7.505]
         urls.push(u);
       } else urls.push(it.url);
     }
@@ -11120,6 +11211,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       ...((b.subsOnly === "1" || b.subsOnly === "true" || b.subsOnly === true) ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation
       ...((b.clubOnly === "1" || b.clubOnly === "true" || b.clubOnly === true) ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation
       clientKey: clientKey || null,
+      ...(apprBand505photo ? { apprFlag505: apprBand505photo } : {}), // [RP-V7.505] screening flagged this post borderline — non-author viewers get the appropriateness question
       ts: new Date().toISOString(),
       ...(musicTrackId ? { musicTrackId, musicStart: reelNum(b.musicStart, 0, 3600) || 0, musicVol: reelNum(b.musicVol, 0, 1) ?? 0.8 } : {}),
       ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart: reelNum(b.musicStart, 0, 3600) || 0, musicVol: reelNum(b.musicVol, 0, 1) ?? 0.8 } : {}), // [RP-V7.335]
@@ -16240,6 +16332,7 @@ app.get("/api/social/profile", (req, res) => {
         commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
         reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
         crMuted: r.crMuted || null, // [RP-V7.286]
+        apprFlag: !!r.apprFlag505, // [RP-V7.505] boolean only, as on reels
         myReposted: (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === ctx.user.id)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === ctx.user.id)) };
       });
   } catch (e) { }
@@ -17931,6 +18024,7 @@ function feedPublic(ctx, p, following, fanAccess296, clubAccess298, pg409) { // 
     ...(p.clubOnly ? { clubOnly: true } : {}), // [RP-V7.298]
     ...(p.shoutoutFor ? { shoutoutFor: p.shoutoutFor } : {}), // [RP-V7.300] fulfilled-shoutout marker (server record, never caption text)
     crMuted: p.crMuted || null, // [RP-V7.286]
+    apprFlag: !!p.apprFlag505, // [RP-V7.505] boolean only, as on reels
     // [RP-V7.335] attached member sound's mix + the resolved registry
     // credit, same field shape as reels and photo posts.
     musicStart: typeof p.musicStart === "number" ? p.musicStart : null,
@@ -18003,6 +18097,7 @@ app.post("/api/feed/post",
       if (!req.file && /^(photo|video|reel)$/i.test(text))
         return fail(400, "That post was just the word \"" + text + "\" with nothing attached — pick the photo or video and tap Post again.");
       let kind = "text";
+      let apprBand505feed = null; // [RP-V7.505] Hive borderline band for this upload's photo, if any
       if (req.file) {
         const isVideo = (req.file.mimetype || "").startsWith("video/");
         if (!isVideo && req.file.size > FEED_PHOTO_MAX)
@@ -18014,6 +18109,7 @@ app.post("/api/feed/post",
             console.log("FEED PHOTO REJECTED:", ctx.user.id, mod.reason);
             return fail(422, "That photo didn't pass our safety check. Please try a different one.");
           }
+          apprBand505feed = apprBand505(mod.classes); // [RP-V7.505]
         }
         kind = isVideo ? "video" : "photo";
       }
@@ -18048,6 +18144,7 @@ app.post("/api/feed/post",
         ...(((req.body || {}).clubOnly === true || (req.body || {}).clubOnly === "1" || (req.body || {}).clubOnly === "true") ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation
         ...(((req.body || {}).allowDownloads === false || (req.body || {}).allowDownloads === "0" || (req.body || {}).allowDownloads === "false") ? { allowDownloads: false } : {}), // [RP-V7.316] downloads switch: stamped only when OFF (absent = ON, TikTok's default)
         ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart: reelNum((req.body || {}).musicStart, 0, 3600) || 0, musicVol: reelNum((req.body || {}).musicVol, 0, 1) ?? 0.8, origVol: reelNum((req.body || {}).origVol, 0, 1) ?? 1 } : {}), // [RP-V7.335]
+        ...(apprBand505feed ? { apprFlag505: apprBand505feed } : {}), // [RP-V7.505] screening flagged this photo borderline — viewers get the appropriateness question
       };
       db.posts[post.id] = post;
       writeFeed(db);
@@ -24286,6 +24383,7 @@ function saved349ResolveReel(r, c) {
       (Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === c.uid)) ||
       (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === c.uid)),
     crMuted: r.crMuted || null,
+    apprFlag: !!r.apprFlag505, // [RP-V7.505] boolean only, as on reels
     allowDownloads: r.allowDownloads !== false,
   });
 }
@@ -24339,6 +24437,7 @@ function saved349ResolveFeed(p, c, ctx) {
         }
       : {}),
     crMuted: pub.crMuted || null,
+    apprFlag: !!pub.apprFlag, // [RP-V7.505] rides feedPublic's boolean
     allowDownloads: pub.allowDownloads !== false,
     // [RP-V7.409] the lightbox Feed rail paints the full canonical
     // row for saved Feed posts too — the engagement rides along.
@@ -30265,6 +30364,117 @@ app.post("/api/reports", (req, res) => {
   });
   res.json({ ok: true, filed: out.filed, deduped: !!out.deduped });
 });
+
+// ---------------------------------------------------------------------------
+// [RP-V7.505] APPROPRIATENESS QUESTION (Branden, Nov 24, 2026: "It's
+// should only be for certain type of videos that screening thinks is
+// not appropriate" — "Same way TikTok"). The screening system is Hive
+// (moderateImage above): content whose top sexual/nudity class lands
+// in the borderline band [0.40, 0.70] publishes as always but carries
+// apprFlag505 (photos at upload; reels/feed videos via their minted
+// poster frame). A non-author viewer of flagged content is asked ONCE
+// per item — "Do you think this is appropriate?" — and the answers
+// land HERE as tallies for the owner board. Answers change NOTHING
+// automatically: no auto-hide, no auto-strike (the V7.263 rule).
+// Store: appropriateness505.json beside the other stores —
+// { items: { "<surface>:<id>": { surface, id, authorId, authorName,
+//   caption, flagClass, flagScore, voters: { uid: { v, at } },
+//   updatedAt } } }
+// ---------------------------------------------------------------------------
+const APPR_FILE505 =
+  process.env.APPR_FILE505 || path.join(path.dirname(PHOTO_DIR), "appropriateness505.json");
+function readAppr505() {
+  try {
+    const d = JSON.parse(fs.readFileSync(APPR_FILE505, "utf8"));
+    if (d && d.items && typeof d.items === "object") return d;
+  } catch (e) {}
+  return { items: {} };
+}
+function writeAppr505(db) {
+  const tmp = APPR_FILE505 + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, APPR_FILE505);
+}
+function apprResolve505(adb, surface, id) {
+  if (surface === "reel") {
+    const rec = listReels().find((r) => r && r.id === id);
+    if (!rec) return null;
+    return { rec, authorId: reelAuthorKeyFor(adb, rec) || rec.authorId || null, authorName: rec.author || "", caption: rec.caption || "" };
+  }
+  if (surface === "photo") {
+    const rec = readPhotoPosts().posts.find((p) => p && p.id === id);
+    if (!rec) return null;
+    return { rec, authorId: rec.owner || null, authorName: rec.name || "", caption: rec.caption || "" };
+  }
+  if (surface === "feed") {
+    const rec = (readFeed().posts || {})[id];
+    if (!rec) return null;
+    return { rec, authorId: rec.authorId || null, authorName: rec.authorName || "", caption: rec.text || "" };
+  }
+  return null;
+}
+function rpApprBoard505() {
+  const db = readAppr505();
+  const items = Object.values(db.items || {})
+    .map((e) => {
+      const vs = Object.values(e.voters || {});
+      return {
+        surface: e.surface, id: e.id,
+        authorName: e.authorName || "", caption: e.caption || "",
+        flagClass: e.flagClass || "", flagScore: e.flagScore || 0,
+        asked: vs.length,
+        appropriate: vs.filter((x) => x.v === "appropriate").length,
+        notAppropriate: vs.filter((x) => x.v === "not").length,
+        dismissed: vs.filter((x) => x.v === "dismissed").length,
+        updatedAt: e.updatedAt || "",
+      };
+    })
+    .filter((x) => x.asked > 0)
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+    .slice(0, 50);
+  return { count: items.length, items };
+}
+// Record one viewer's answer (authed members; flagged content only;
+// never the author; one answer per viewer per item — the first stands).
+app.post("/api/appropriateness505", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const surface = String(b.surface || "");
+  const id = String(b.id || "").slice(0, 80);
+  const answer = String(b.answer || "");
+  if (["reel", "photo", "feed"].indexOf(surface) < 0 || !id)
+    return res.status(400).json({ ok: false, error: "bad-item" });
+  if (["appropriate", "not", "dismissed"].indexOf(answer) < 0)
+    return res.status(400).json({ ok: false, error: "bad-answer" });
+  const found = apprResolve505(ctx.db, surface, id);
+  if (!found) return res.status(404).json({ ok: false, error: "not-found" });
+  if (!found.rec.apprFlag505)
+    return res.status(400).json({ ok: false, error: "not-flagged" });
+  if (found.authorId && found.authorId === ctx.user.id)
+    return res.status(400).json({ ok: false, error: "own-content" });
+  const db = readAppr505();
+  const key = surface + ":" + id;
+  let entry = db.items[key];
+  if (!entry) {
+    entry = db.items[key] = {
+      surface, id,
+      authorId: found.authorId || null,
+      authorName: String(found.authorName || "").slice(0, 60),
+      caption: String(found.caption || "").slice(0, 80),
+      flagClass: String(found.rec.apprFlag505.class || ""),
+      flagScore: found.rec.apprFlag505.score || 0,
+      voters: {},
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  if (entry.voters[ctx.user.id]) return res.json({ ok: true, already: true });
+  entry.voters[ctx.user.id] = { v: answer, at: new Date().toISOString() };
+  entry.updatedAt = new Date().toISOString();
+  writeAppr505(db);
+  res.json({ ok: true });
+});
+
 // [RP-V7.286] Copyright matches — owner oversight (the teen-accounts
 // gate pattern: rpOwnerGate263, 404 for everyone else). The list
 // shows what matched; Restore clears a false positive's mute, Take
@@ -30695,6 +30905,7 @@ app.get("/api/owner/sales", (req, res) => {
     auctionClaims: rpAuctionClaims383(mdb, adb), // [RP-V7.383] open auction buyer-protection claims awaiting the owner's refund/deny
     ageReports: rpAgeReportsOpen263(),
     channelReports455: rpChannelReportsOpen455(), // [RP-V7.455] open channel-message reports, naming channel + owner
+    appr505: rpApprBoard505(), // [RP-V7.505] appropriateness-question tallies on screening-flagged content (signal only — no auto-action)
     ageSuspendedAccounts: rpAgeSuspendedList263(adb),
     pendingDeletions: rpOwnerPendingDeletions377(adb, mdb),
     referrals392: rpRefBoard392(),
