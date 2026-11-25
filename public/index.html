@@ -32749,14 +32749,45 @@
           }
           return r.blob();
         }).then(function (blob) {
-          var u = URL.createObjectURL(blob);
-          var a = document.createElement("a");
-          a.href = u;
           var seg = String(route).split("/");
-          a.download = "rizzplaza-" + (seg[3] || "video") + ".mp4";
-          document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) { } }, 4000);
-          toast("⬇ Downloading the video…");
+          var dlName510 = "rizzplaza-" + (seg[3] || "video") + ".mp4";
+          var dlAnchor510 = function () {
+            var u = URL.createObjectURL(blob);
+            var a = document.createElement("a");
+            a.href = u;
+            a.download = dlName510;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) { } }, 4000);
+            toast("⬇ Downloading the video…");
+          };
+          /* [RP-V7.510] iOS landing fix (Branden, Nov 25: "I downloaded
+             but don't see it anywhere"): inside the iPhone standalone /
+             webview app, the blob-anchor download below never lands
+             anywhere findable — no Photos entry, no Files entry. When
+             the platform can share files, hand the stamped file to the
+             share sheet instead: its "Save Video" puts the video in
+             Photos, "Save to Files" in Files — where a member looks.
+             A cancelled sheet (AbortError) is the member's choice, not
+             a failure: no error toast. A resolved share makes no claim
+             either (the sheet owns what happens next), so the
+             "Downloading…" toast stays exclusive to the anchor path.
+             Platforms without file sharing (desktop Chrome, Android —
+             whose anchor downloads land for real) keep the exact
+             V7.508 anchor path; if the share call fails for any other
+             reason, the anchor path still runs — never worse than
+             before. The no-route branch above is unchanged: it never
+             fetches, and every server video uses this routed path. */
+          try {
+            var file510 = (typeof File === "function") ? new File([blob], dlName510, { type: "video/mp4" }) : null;
+            if (file510 && navigator.share && navigator.canShare && navigator.canShare({ files: [file510] })) {
+              navigator.share({ files: [file510] }).then(function () { }, function (err510) {
+                if (err510 && err510.name === "AbortError") return;
+                try { dlAnchor510(); } catch (e) { }
+              });
+              return;
+            }
+          } catch (e) { }
+          dlAnchor510();
         }).catch(function (e) { toast((e && e.message) || "Couldn't download that video."); });
       };
       function openReelRemix(item) {
