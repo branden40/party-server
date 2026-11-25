@@ -975,6 +975,21 @@ Object.keys(RP_GIFT_ART_7221).forEach((gid) => {
   });
 });
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// [RP-V7.520] Treasure Chest's ANIMATED ART — embedded base64 WebP
+// (384x384, 30 frames @ 10fps, 3.0s infinite loop) served from the
+// sibling module giftart7520.js; the film giftfx-treasurechest.mp4 is
+// uploaded separately (file drop into public/) and the client falls
+// back to this animated art until it lands (never a still).
+const RP_GIFT_ART_7520 = require("./giftart7520.js");
+Object.keys(RP_GIFT_ART_7520).forEach((gid) => {
+  app.get("/img/gifts/" + gid + ".webp", (req, res) => {
+    const buf = Buffer.from(RP_GIFT_ART_7520[gid].split(",")[1], "base64");
+    res.set("Content-Type", "image/webp");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.send(buf);
+  });
+});
 // [RP-V7.206] Branden-approved gift-art redos #2 (Nov 2, 2026):
 // Golden Lion (new fantasy art) and Whale Dive (real-life art).
 // Same recipe as the RP-V7.204 routes: art embedded as data URIs in
@@ -22144,6 +22159,90 @@ function liveGoal519OnGift(info) {
     try { io.to(room).emit("chat-message", { id: "", name: "", text: "\u{1F3AF} GOAL COMPLETE! " + g.target + " \u00D7 " + g.giftName + " collected \u2014 the room did it together!", sys: true, at: Date.now() }); } catch (e) { }
   }
 }
+// ---- [RP-V7.520] TREASURE CHEST — CHARM DROP ----
+// When a Treasure Chest settles on the REAL rail inside a live
+// (regular live or battle), a fixed pool is carved from its price
+// BEFORE the earn split (see the /api/money/gift carve) and drops to
+// the room: viewers tap to claim inside a ~30s window; at close the
+// pool splits EQUALLY among claimers — no randomness anywhere — and
+// the integer remainder, or the whole pool when nobody claims, goes
+// to the host. Charms are conserved: the sender pays the price once;
+// host earn (70% of price-pool) + platform (30% of price-pool) +
+// pool = the price, exactly. The escrow record lives in the money
+// db (db.chestDrops520), written in the SAME writeMoney as the gift
+// settlement, so a restart can neither strand nor duplicate a pool:
+// the boot sweep re-arms live windows and settles expired ones.
+// Promo (test-funds) and charms-only sends never open a drop — they
+// settle as plain gifts (the battle-scoring exclusion family).
+const CHEST_POOL520 = 200;         // charms carved per chest unit
+const CHEST_WINDOW520 = 30000;     // claim window, ms
+const CHEST_MAX_CLAIMS520 = 10;    // first-come claimer cap
+const chestTimers520 = new Map();  // dropId -> timeout handle (process-local only; escrow is in the money db)
+function chestDrop520View(r) {
+  return { dropId: r.id, pool: r.pool, endsAt: r.endsAt, claims: Object.keys(r.claims || {}).length, maxClaims: CHEST_MAX_CLAIMS520, fromName: r.senderName, hostName: r.hostName, giftId: "treasurechest" };
+}
+function chestDrop520Emit(r, ev, extra) {
+  const payload = Object.assign(chestDrop520View(r), { ev: ev }, extra || {});
+  for (const room of r.rooms || []) { try { io.to(room).emit("chest-drop520", payload); } catch (e) { } }
+}
+function chestDrop520Arm(r) {
+  if (chestTimers520.has(r.id)) clearTimeout(chestTimers520.get(r.id));
+  const wait = Math.max(0, (r.endsAt || 0) - Date.now());
+  chestTimers520.set(r.id, setTimeout(() => { try { chestDrop520Settle(r.id); } catch (e) { } }, wait));
+}
+function chestDrop520Settle(dropId) {
+  const db = readMoney();
+  const all = db.chestDrops520 && typeof db.chestDrops520 === "object" && !Array.isArray(db.chestDrops520) ? db.chestDrops520 : null;
+  const r = all && all[dropId];
+  if (!r || r.settled) return;
+  r.settled = true;
+  r.settledAt = Date.now();
+  const claimers = Object.keys(r.claims || {});
+  let each = 0, hostGets = r.pool;
+  if (claimers.length) {
+    each = Math.floor(r.pool / claimers.length);
+    hostGets = r.pool - each * claimers.length;
+    for (const a of claimers) db.balances[a] = (db.balances[a] || 0) + each;
+  }
+  if (hostGets > 0) db.balances[r.hostId] = (db.balances[r.hostId] || 0) + hostGets;
+  r.each = each; r.hostGets = hostGets; r.claimCount = claimers.length;
+  writeMoney(db);
+  if (chestTimers520.has(dropId)) { clearTimeout(chestTimers520.get(dropId)); chestTimers520.delete(dropId); }
+  chestDrop520Emit(r, "settled", { each: each, claimers: claimers.length });
+  const line = claimers.length
+    ? "\u{1F9F0} Treasure Chest drop: " + claimers.length + (claimers.length === 1 ? " viewer" : " viewers") + " claimed " + each + " charms each!"
+    : "\u{1F9F0} Treasure Chest drop: no claims \u2014 the host keeps the " + r.pool + " charms.";
+  for (const room of r.rooms || []) { try { io.to(room).emit("chat-message", { id: "", name: "", text: line, sys: true, at: Date.now() }); } catch (e) { } }
+  console.log("[chest520] settled", dropId, "pool", r.pool, "claimers", claimers.length, "each", each, "hostGets", hostGets);
+}
+function chestDrop520Claim(dropId, acct, name, room) {
+  const db = readMoney();
+  const all = db.chestDrops520 && typeof db.chestDrops520 === "object" && !Array.isArray(db.chestDrops520) ? db.chestDrops520 : null;
+  const r = all && all[dropId];
+  if (!r) return { ok: false, error: "no-drop" };
+  if (r.settled) return { ok: false, error: "closed" };
+  if (Date.now() > r.endsAt) { try { chestDrop520Settle(dropId); } catch (e) { } return { ok: false, error: "closed" }; }
+  if (acct === r.senderId) return { ok: false, error: "sender" };
+  if (acct === r.hostId) return { ok: false, error: "host" };
+  if (!room || (r.rooms || []).indexOf(room) < 0) return { ok: false, error: "not-in-room" };
+  if (!r.claims || typeof r.claims !== "object" || Array.isArray(r.claims)) r.claims = {};
+  if (r.claims[acct]) return { ok: false, error: "already" };
+  if (Object.keys(r.claims).length >= CHEST_MAX_CLAIMS520) return { ok: false, error: "full" };
+  r.claims[acct] = name || "";
+  writeMoney(db);
+  chestDrop520Emit(r, "claim");
+  return { ok: true, claims: Object.keys(r.claims).length };
+}
+function chestDrop520Sweep() {
+  try {
+    const db = readMoney();
+    const all = db.chestDrops520 && typeof db.chestDrops520 === "object" && !Array.isArray(db.chestDrops520) ? db.chestDrops520 : {};
+    for (const id of Object.keys(all)) {
+      const r = all[id];
+      if (r && !r.settled) { if (Date.now() > (r.endsAt || 0)) chestDrop520Settle(id); else chestDrop520Arm(r); }
+    }
+  } catch (e) { }
+}
 // ---- Plaza Spark (earned only; zero value; boosters.json pattern) ----
 const SPARKS_FILE519 =
   process.env.SPARKS_FILE || path.join(path.dirname(PHOTO_DIR), "sparks519.json");
@@ -22784,6 +22883,7 @@ const MONEY_GIFT_TABLE = {
   lanternturtle: 15, discosnail: 88, tornadodancer: 370, crystaloctopus: 690, wingedlion: 1700,
   // [RP-V7.490] +2 gifts (Nov 23, 2026) — ids + prices mirror the client's GIFT_SHOP exactly; catalog now 124 gifts.
   shellsensei: 440, auraclash: 2200,
+  treasurechest: 1900, // [RP-V7.520] Treasure Chest $19 — free price in the premium band (nearest used: 1800 tidalwave / 2000 volcano); the 200-charm drop pool needs the headroom
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
   // tier line above, after galaxy); catalog now 42 gifts.
@@ -22888,6 +22988,7 @@ const MONEY_GIFT_INFO = {
   wingedlion: { name: "Winged Lion", tier: "big" },
   shellsensei: { name: "Shell Sensei", tier: "medium" }, // [RP-V7.490] +2 gifts Nov 23, 2026
   auraclash: { name: "Aura Clash", tier: "big" },
+  treasurechest: { name: "Treasure Chest", tier: "big" }, // [RP-V7.520]
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
   fattuesday: { name: "Fat Tuesday Frenzy", tier: "big" },
@@ -25962,6 +26063,35 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   } else {
     db.balances[ctx.user.id] = balance - totalCost;
   }
+  // [RP-V7.520] TREASURE CHEST drop decision — made BEFORE the
+  // settlement loop because the pool is carved out of the earn
+  // split. Real rail only (never promo, never charms-only), and
+  // only when the recipient is actually standing in a live: hosting
+  // one, or a part of the active battle this send carries. Any
+  // other chest send settles as a completely plain gift.
+  let chestDropRec520 = null;
+  if (giftId === "treasurechest" && !charmsOnly && !promo321) {
+    try {
+      let rooms520 = null;
+      const bb520 = b.battleId ? battles306.get(String(b.battleId)) : null;
+      if (bb520 && !bb520.ended && bb520.parts && bb520.parts.some((pt) => pt.acct === recipient.id)) {
+        rooms520 = bb520.parts.map((pt) => pt.room).filter(Boolean);
+      } else {
+        const lv520 = livesSnapshot().find((e) => e.hostAccountId && e.hostAccountId === recipient.id);
+        if (lv520 && lv520.room) rooms520 = [lv520.room];
+      }
+      if (rooms520 && rooms520.length) {
+        chestDropRec520 = {
+          id: "drop" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
+          hostId: recipient.id, hostName: recipient.name,
+          senderId: ctx.user.id, senderName: ctx.user.name,
+          pool: CHEST_POOL520 * count, rooms: [...new Set(rooms520)],
+          claims: {}, openedAt: Date.now(), endsAt: Date.now() + CHEST_WINDOW520,
+          settled: false, battleId: b.battleId ? String(b.battleId) : null,
+        };
+      }
+    } catch (e) { chestDropRec520 = null; }
+  }
   // [RP-V7.219] per-unit settlement: the loop body IS the pre-V7.219
   // single-gift logic — each unit credits the recipient (charms for a
   // charms-only unit; the 70/30 earnings split with the large-gift
@@ -25983,7 +26113,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
       // pair records cents: 0 / cut: 0 and no money figure moves.
       db.balances[recipient.id] = (db.balances[recipient.id] || 0) + promoShareCharms321(cost, GIFT_HOST_PCT);
     } else {
-      uValue = cost * CHARM_CENT_VALUE;
+      uValue = (chestDropRec520 ? cost - CHEST_POOL520 : cost) * CHARM_CENT_VALUE; // [RP-V7.520] the drop pool is carved BEFORE the split — host/platform split (price - pool); the sender still pays the full price once
       uShare = Math.floor((uValue * GIFT_HOST_PCT) / 100);
       uCut = uValue - uShare;
       const earn = moneyEarningsFor(db, recipient.id);
@@ -26130,6 +26260,15 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
         delete db.giftIdem[idemKeys[i]];
     }
   }
+  // [RP-V7.520] the drop escrow lands in the SAME write as the
+  // settlement (staged on the db above, before this write): the pool
+  // can never exist without its send, nor a send settle with a
+  // promised pool unrecorded.
+  if (chestDropRec520) {
+    if (!db.chestDrops520 || typeof db.chestDrops520 !== "object" || Array.isArray(db.chestDrops520)) db.chestDrops520 = {};
+    db.chestDrops520[chestDropRec520.id] = chestDropRec520;
+    giftResponse.chestDrop = { pool: chestDropRec520.pool, windowMs: CHEST_WINDOW520 };
+  }
   writeMoney(db);
   // [RP-V7.306] Battle scoring: a settled gift that carried a battle
   // id scores HERE — server-side, from the settled batch total — and
@@ -26146,6 +26285,10 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   try { leagueOnLiveGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, promo: promo321, charmsOnly, src: giftSrc233, postKey: postKey262 }); } catch (e) { }
   try { battle306OnGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, giftName: (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId, giftId, count, promo: promo321, charmsOnly, lvlUpTo: (giftResponse.gifter && giftResponse.gifter.leveledUp) ? giftResponse.gifter.level : 0 }); } catch (e) { } // [RP-V7.517] gift id + batch count + promo/charms-only flags + the level-up ride along (podium tracking, pane banners, level-up line)
   try { liveGoal519OnGift({ sender: ctx.user, recipient, giftId, count, promo: promo321, charmsOnly, src: giftSrc233, postKey: postKey262, battleId: b.battleId }); } catch (e) { } // [RP-V7.519] Live Goals + Gallery counting — real live settles only, enforced inside
+  // [RP-V7.520] the chest drop opens as the gift lands: the rooms
+  // hear it now, the settle timer is armed, and the window runs
+  // from the settle — never from a client clock.
+  if (chestDropRec520) { try { chestDrop520Emit(chestDropRec520, "open"); chestDrop520Arm(chestDropRec520); console.log("[chest520] drop opened", chestDropRec520.id, "pool", chestDropRec520.pool, "rooms", chestDropRec520.rooms.join(",")); } catch (e) { } }
   // [RP-V7.517] Room-wide gifter level-up line: when a settle levels
   // the sender up and the recipient is live, the host's room hears it
   // (TikTok announces level-ups to the room; Plaza told only the
@@ -35623,6 +35766,19 @@ io.on("connection", (socket) => {
     ack({ ok: true, stock: e.stock });
   });
 
+  // [RP-V7.520] TREASURE CHEST claim: a viewer standing in one of
+  // the drop's rooms taps the chip. Every validation (window, room
+  // membership, once-only, sender/host exclusion, the 10-claimer
+  // cap) is server-side in chestDrop520Claim; the ack carries only
+  // the outcome.
+  socket.on("chest-claim520", (data = {}) => {
+    const ack = (r) => { try { socket.emit("chest-claim-ack520", r); } catch (e) { } };
+    const p = players.get(socket.id);
+    const acct = socket.data && socket.data.accountId;
+    if (!p || !acct) return ack({ ok: false, error: "no-account" });
+    ack(chestDrop520Claim(String((data && data.dropId) || ""), acct, p.name || "", p.room || ""));
+  });
+
   // [RP-V7.52] Stage requests ride a DEDICATED relay (audit H3).
   // The legacy path folds the request into the rate-limited chat
   // proto stream, where a busy room can silently eat it — the
@@ -36357,9 +36513,10 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () =>
-  console.log(`Party server listening on port ${PORT} [RP-V7.313]`)
-);
+server.listen(PORT, () => {
+  console.log(`Party server listening on port ${PORT} [RP-V7.313]`);
+  chestDrop520Sweep(); // [RP-V7.520] re-arm / settle any chest drops left open by a restart — escrow lives in the money db, so no pool is ever stranded
+});
 
 /* ---------- [RP-V7.94] Seed/demo content sweep (boot, idempotent) ----------
    The Plaza no longer ships fake content (Branden, Oct 28, 2026:
