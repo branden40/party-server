@@ -29156,11 +29156,25 @@
         } catch (e) { }
       })();
       function reelTryUpload(localId) {
+        /* [RP-POSTFIX] Now returns a promise that RESOLVES a result —
+           { ok:true, id, url } only when the server has confirmed the
+           reel, { ok:false, error } for every other outcome (network
+           failure, a server refusal, an unreadable response, a missing
+           on-device blob). It never rejects, so the fire-and-forget
+           caller (the feed-fetch retry sweep) behaves exactly as
+           before; the publish flows await the result and only then say
+           "posted". Before, this function swallowed every failure in
+           silence — the publish tail had already toasted success and
+           navigated away, so a dead upload looked exactly like a post.
+           Reels.uploading now holds the in-flight attempt's promise,
+           so a second caller joins the same attempt instead of
+           double-posting. */
         var meta = reelMetaById(localId);
-        if (!meta || meta.serverId || Reels.uploading[localId]) return;
-        Reels.uploading[localId] = true;
-        reelDbGet(localId).then(function (blob) {
-          if (!blob) { delete Reels.uploading[localId]; return null; }
+        if (!meta) return Promise.resolve({ ok: false, error: "That post is no longer on this device." });
+        if (meta.serverId) return Promise.resolve({ ok: true, id: meta.serverId, url: meta.url || "" });
+        if (Reels.uploading[localId]) return Reels.uploading[localId];
+        var p = reelDbGet(localId).then(function (blob) {
+          if (!blob) return { ok: false, error: "The video file is no longer on this device." };
           var type = blob.type || "video/mp4";
           var ext = type.indexOf("webm") >= 0 ? "webm" : (type.indexOf("quicktime") >= 0 ? "mov" : "mp4");
           var fd = new FormData();
@@ -29188,15 +29202,26 @@
           var headers = {};
           var tok = reelToken(); if (tok) headers["Authorization"] = "Bearer " + tok;
           return fetch("/api/reel", { method: "POST", headers: headers, body: fd })
-            .then(function (r) { return r.json().catch(function () { return null; }); });
-        }).then(function (j) {
-          delete Reels.uploading[localId];
-          if (j && j.ok && j.id) {
-            reelUpdateMeta(localId, { serverId: j.id, url: j.url || "" });
-            if (j.shoutout && window.rpShoutoutPosted300) window.rpShoutoutPosted300(j); // [RP-V7.300] settle result: clear the armed link + report
-            if (Reels.mode === "reels") reelFetchFeed();
-          }
-        }).catch(function () { delete Reels.uploading[localId]; });
+            .then(function (r) { return r.json().catch(function () { return null; }); })
+            .then(function (j) {
+              if (j && j.ok && j.id) {
+                reelUpdateMeta(localId, { serverId: j.id, url: j.url || "" });
+                if (j.shoutout && window.rpShoutoutPosted300) window.rpShoutoutPosted300(j); // [RP-V7.300] settle result: clear the armed link + report
+                if (Reels.mode === "reels") reelFetchFeed();
+                return { ok: true, id: j.id, url: j.url || "" };
+              }
+              return { ok: false, error: (j && j.error) ? String(j.error) : "The Plaza server couldn't accept that video." };
+            })
+            .catch(function () { return { ok: false, error: "network" }; }); // [RP-POSTFIX] a dead connection is a result, not a silent catch
+        }).then(function (res) {
+          if (Reels.uploading[localId] === p) delete Reels.uploading[localId];
+          return res;
+        }, function () {
+          if (Reels.uploading[localId] === p) delete Reels.uploading[localId];
+          return { ok: false, error: "network" };
+        });
+        Reels.uploading[localId] = p;
+        return p;
       }
 
       /* ---- Feed ---- */
@@ -31872,6 +31897,7 @@
         Reels.pendingSound = null; /* [RP-V7.90] */
         Reels.trimStart = null; Reels.trimEnd = null; Reels.mustTrim = false; Reels.trimOpen = false; /* [RP-V7.169] */
         Reels.pendingFitStart = null; Reels.fitTrim = null; /* [RP-TRIM] */
+        Reels._pubRetryId = null; /* [RP-POSTFIX] clearing the pending pick ends any failed-post retry — a new video never reuses the old post's record */
       }
       /* [RP-V7.169] Reel trimmer — the YouTube/TikTok cut: pick a start and
          an end, only that part posts. The record stores the window and
@@ -32281,12 +32307,15 @@
         });
       }
       function reelPublishReal153() {
+        if (Reels._publishingPostfix) return; // [RP-POSTFIX] a post is already uploading — extra taps change nothing
         if (!Reels.pendingBlob) { toast("Record or upload a video first! 🎬"); return; }
         var capEl = $("reelCapInput");
         var cap = capEl ? (capEl.value || "").trim() : (Reels.pendingCaption || "");
         var blob = Reels.pendingBlob;
         var draftId = Reels.editingDraftId;
-        var meta = reelPublishBlob(blob, cap);
+        var meta = null;
+        if (Reels._pubRetryId) { meta = reelMetaById(Reels._pubRetryId); if (!meta) Reels._pubRetryId = null; } // [RP-POSTFIX] a re-tap after a failed upload retries THIS post — it must never mint a second copy of it
+        if (!meta) { meta = reelPublishBlob(blob, cap); Reels._pubRetryId = meta.id; }
         postDetailsSync156("reel"); // [RP-V7.156]
         reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, shoutoutId: postMeta156.shoutoutId || "", collabUser: postMeta156.collabUser || "" }); // [RP-GAMING] gaming rides the reel meta into the upload // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload // [RP-V7.316] allowDownloads rides too // [RP-V7.453] the optional collaborator invite rides too
         reelTrimMeta169(meta.id); // [RP-V7.169]
@@ -32299,16 +32328,44 @@
           Reels.remix = null;
         }
         if (draftId) { reelRemoveMeta(draftId); reelDbDel(draftId); Reels.editingDraftId = null; }
-        reelClearPending();
-        Reels.pendingCaption = "";
-        Reels.stage = "pick";
-        closeSheet();
-        setMomMode("reels");
-        toast("🎬 Your Reel is posted!", 3200);
-        postMetaReset156(); // [RP-V7.156]
-        reelTryUpload(meta.id);
-        try { var mm401 = reelMetaById(meta.id); if (!(mm401 && mm401.musicTrackId && mm401.origVol === 0)) rpScanNotice401(3400); } catch (e) { } // [RP-V7.401] scan notice cycles in after the posted toast — skipped only when a Plaza catalog track fully replaced the video's audio (the one case the server doesn't scan)
-        try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
+        /* [RP-POSTFIX] THE POST IS NOT POSTED UNTIL THE SERVER SAYS SO.
+           The old tail ran reelClearPending + closeSheet + navigation +
+           the "🎬 Your Reel is posted!" toast BEFORE reelTryUpload was
+           even called, and reelTryUpload swallowed every failure
+           (network, refusal, missing blob) without a word — so a dead
+           upload looked exactly like a post: success toast, a landing
+           on whatever screen sat under the composer (Home, Auctions —
+           anywhere but the new reel), and no reel on the server
+           (Branden, Nov 24, 2026: a 2:18 upload that never landed).
+           Now the composer stays open in a Posting… state and the
+           upload result decides: success runs the old teardown and
+           lands the member on the Reels feed where the post is;
+           failure restores the Post button and says plainly that it
+           didn't post — the caption, the video and every setting are
+           still right there, and Post retries the same record. */
+        Reels._publishingPostfix = true;
+        var pubBtnPostfix = $("btnReelPublish");
+        var pubBtnHtmlPostfix = pubBtnPostfix ? pubBtnPostfix.innerHTML : "";
+        if (pubBtnPostfix) { pubBtnPostfix.disabled = true; pubBtnPostfix.textContent = "Posting…"; }
+        reelTryUpload(meta.id).then(function (resPostfix) {
+          Reels._publishingPostfix = false;
+          if (resPostfix && resPostfix.ok) {
+            Reels._pubRetryId = null;
+            reelClearPending();
+            Reels.pendingCaption = "";
+            Reels.stage = "pick";
+            postMetaReset156(); // [RP-V7.156]
+            closeSheet();
+            if (window.rpReelsOpen) { try { window.rpReelsOpen(); } catch (e) { setMomMode("reels"); } } else setMomMode("reels"); // [RP-POSTFIX] the Reels feed, where the new post is — never the screen that happened to sit under the composer
+            toast("🎬 Your Reel is posted!", 3200);
+            try { var mm401 = reelMetaById(meta.id); if (!(mm401 && mm401.musicTrackId && mm401.origVol === 0)) rpScanNotice401(3400); } catch (e) { } // [RP-V7.401] scan notice cycles in after the posted toast — skipped only when a Plaza catalog track fully replaced the video's audio (the one case the server doesn't scan)
+            try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
+          } else {
+            if (pubBtnPostfix && document.getElementById("btnReelPublish") === pubBtnPostfix) { pubBtnPostfix.disabled = false; pubBtnPostfix.innerHTML = pubBtnHtmlPostfix; }
+            var errPostfix = (resPostfix && resPostfix.error && resPostfix.error !== "network") ? String(resPostfix.error) : "";
+            toast(errPostfix ? ("That video didn't post — " + errPostfix) : "That video didn't post — check your connection and tap Post to try again.", 5200);
+          }
+        });
       }
       function reelSaveDraft() {
         if (!Reels.pendingBlob) { toast("Record or upload a video first! 🎬"); return; }
@@ -32372,18 +32429,36 @@
         });
       }
       function reelPostDraftGo156(id, m, blob) {
+          if (Reels._draftPostingPostfix) return; // [RP-POSTFIX] one draft post at a time — extra taps change nothing
           var meta = reelPublishBlob(blob, m.caption || "");
           reelUpdateMeta(meta.id, { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false }); // [RP-V7.156] // [RP-V7.316]
           if (m.kind) reelUpdateMeta(meta.id, { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur });
           if (typeof m.trimStart === "number" && typeof m.trimEnd === "number") reelUpdateMeta(meta.id, { trimStart: m.trimStart, trimEnd: m.trimEnd }); // [RP-V7.169]
           if (typeof m.fitStart === "number") reelUpdateMeta(meta.id, { fitStart: m.fitStart, trimStart: undefined, trimEnd: undefined }); // [RP-TRIM]
-          reelRemoveMeta(id); reelDbDel(id);
-          closeSheet();
-          setMomMode("reels");
-          toast("🎬 Your Reel is posted!", 3200);
-          reelTryUpload(meta.id);
-          try { var md401 = reelMetaById(meta.id); if (!(md401 && md401.musicTrackId && md401.origVol === 0)) rpScanNotice401(3400); } catch (e) { } // [RP-V7.401] same scan notice on the draft-post path
-          try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
+          /* [RP-POSTFIX] Same rule as the composer publish: the draft
+             leaves the list and the member hears "posted" only once
+             the server confirms. The old tail deleted the draft,
+             toasted success and navigated BEFORE the upload fired,
+             and the upload's failures were swallowed — a dead upload
+             cost the member the draft AND the post. On failure now,
+             the fresh record is removed again, so the only copy left
+             is the intact draft, ready to retry. */
+          Reels._draftPostingPostfix = true;
+          reelTryUpload(meta.id).then(function (resPostfix) {
+            Reels._draftPostingPostfix = false;
+            if (resPostfix && resPostfix.ok) {
+              reelRemoveMeta(id); reelDbDel(id);
+              closeSheet();
+              if (window.rpReelsOpen) { try { window.rpReelsOpen(); } catch (e) { setMomMode("reels"); } } else setMomMode("reels"); // [RP-POSTFIX] land on the Reels feed, like the composer publish
+              toast("🎬 Your Reel is posted!", 3200);
+              try { var md401 = reelMetaById(meta.id); if (!(md401 && md401.musicTrackId && md401.origVol === 0)) rpScanNotice401(3400); } catch (e) { } // [RP-V7.401] same scan notice on the draft-post path
+              try { if (window.rpShareInPosted133) window.rpShareInPosted133(); } catch (e) { } // [RP-V7.133] a posted share-in is consumed
+            } else {
+              reelRemoveMeta(meta.id); reelDbDel(meta.id);
+              var errPostfix = (resPostfix && resPostfix.error && resPostfix.error !== "network") ? String(resPostfix.error) : "";
+              toast(errPostfix ? ("That video didn't post — " + errPostfix) : "That video didn't post — check your connection and tap Post to try again.", 5200);
+            }
+          });
       }
       function reelDeleteDraft(id) {
         reelRemoveMeta(id);
