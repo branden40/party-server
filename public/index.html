@@ -28,7 +28,7 @@
     <title>Rizz Plaza</title>
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
-<meta name="rp-build" content="RP-V7.515" />
+<meta name="rp-build" content="RP-V7.517" />
 <!-- [RP-V7.506] FAN CLUB FILTER (Branden, Nov 24, 2026 — his Loozecannon TikTok LIVE recording: "I need that filter join my club"): a Plaza-ORIGINAL animated mascot (inline SVG, drawn in code: round black body, red backwards cap, gold star badge, waving arm — never TikTok's character, never anyone's likeness) bobbing over a glowing red "Join my Fan Club" pill that floats at the top of the host's live for the whole show — under the top bar, stacked below the V7.490 label when both are up. It is part of the show, not lv-idle chrome: like the deco layer it never auto-fades. TAP = JOIN through the existing V6.5 live fan-club path (rpFanJoin65 -> joinFan -> the room fan-join proto; free, instant, no confirm, the host's client assigns the fan number) — the identical call the live More-sheet row and the host-card buttons make. Joined viewers see their real state ("Fan No. N" once the host's fan-count lands, "Fan Club member" before it); the host sees a non-tappable preview of their own pill; signed-out viewers see it display-only. The host turns it off/on for their live from the More sheet ("Fan Club filter" row, default ON); the flag rides the V7.490 deco room state (fanFilter on liveDeco490, broadcast on live-deco490, pulled by late joiners via live-deco-get490, dies with the live; a viewer renders the pill only once that payload has landed, so a host's OFF never flashes at a late joiner — the 5s deco tick re-asks until it lands) — the server change is exactly that one field plus one host-only socket intent (live-fanfilter-set506). Battles: the pill dresses the live you are in, half-width over your host's side of the split — the fan-join proto is room-local and every existing fan button joins only that host, so the opponent's pill is not rendered (joining them happens from their own live, as today). Church lives included: a fan club is not selling or auctions (the V7.490 deco precedent — gifting is likewise allowed). No counts on the pill (the existing live fan buttons show none either). New strings fanpill_*506 / more_fanfilter506 in all 9 languages. Everything V7.505 preserved. -->
 <!-- [RP-V7.490] LIVE LABEL + LIVE STICKERS + 2 GIFTS (Branden, Nov 23, 2026): (1) LIVE LABEL — the host sets a short custom label (plain text, max 40 chars) that rides as a bold banner near the top of the live screen for the host AND every viewer, modeled on the "MEDIA HIGHLIGHTS & RECAPS" banner on TikTok recap clips; set/clear from the host's ••• sheet ("Live label" row). (2) LIVE STICKERS "like TikTok" + Instagram-style cards — the host sticks up to 3 stickers on the live from the ••• sheet ("Stickers" row): a glyph pack of 12 large emoji (🔥 ⭐ ❤️ 🎉 👑 🎵 ⚡ 💯 🎁 🙌 😂 🎤) AND Instagram-style white rounded cards (❓ Ask me anything · 📊 POLL · ⏰ COUNTDOWN · #️⃣ hashtag (host text, max 24) · 📍 location (host text, max 24) · 🎵 MUSIC), rendered as styled DOM, fixed slots in the corners/lower area, never center-face. Label + stickers live on the server room state (liveDeco490, keyed by live key, beside the V7.389 show note), broadcast over the live socket flow (live-deco490; battle rooms cross-emit like battle306Emit so each host's deco lands on their own side of the split), late joiners pull it with live-deco-get490 on the Lk389 sync, and everything clears when the live ends. The banner layer is NOT part of the lv-idle chrome — it never auto-fades. All user text renders via textContent only. Works in every live type (a label/sticker is not commerce — church lives included). (3) +2 GIFTS: shellsensei "Shell Sensei" 440 medium (film 5.583 s) + auraclash "Aura Clash" 2200 big (film 4.500 s) — catalog 122 -> 124, prices unique; client GIFT_SHOP + GIFT_FILM_IDS, server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entries (the V7.474 film clock self-corrects past the tier defaults: medium 8000 / big 10000 both exceed film + 250 ms). Everything V7.489 preserved. --> <!-- [RP-V7.489] WEEKLY GIFTS (Nov 23, 2026): +5 gifts, catalog 117 -> 122, all prices unique — lanternturtle "Lantern Turtle" 15 small, discosnail "Disco Snail" 88 small, tornadodancer "Tornado Dancer" 370 medium, crystaloctopus "Crystal Octopus" 690 medium, wingedlion "Winged Lion" 1700 big; each with an HD film (giftfx-<id>.mp4) + animated art; ids added to GIFT_FILM_IDS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly. --> <!-- [RP-V7.486] THREE SURGICAL FIXES (Branden, Nov 22, 2026): (1) the Friends/Moments feed-card rail overflowed the card top and clipped its first slot — the LIKE button (his circled screenshot: only the bottom arc + its "0" showed; the 🤝 near the rail's bottom was fine) — .mom-acts was bottom-anchored at 84px with no top bound, so a full rail (7 slots on author/collaborator/owner seats) stood taller than the photo box and .mom-card's overflow:hidden cut slot 1; the rail now lives in a bounded top:10px/bottom:48px region and its buttons compress (flex-shrink + min-height, tighter still under 375px) instead of spilling — rig-measured worst top inset +18.9px across 360/390/430px and every seat. (2) REELS get the Collaborator 🤝 (V7.453 shipped it on photo cards only — "I don't see it on reels"): the slot joins all three reel rails (pager card, grid/swipe player, media viewer) immediately before Delete, as the real button for the reel's author/collaborator and an rpRailPh462 stand-in otherwise; the server collab endpoints and the composer collabUser were already kind-generic. Two latent V7.453 identity reads repaired on the way: renderMoments compared collabId to Online.myId (the SOCKET id — the photo 🤝 could never render for a collaborator), and the collab bridge's myId453 read only a.user.id from a session record that is saved FLAT ({userId,...}), so rpCollabManage453 returned false for everyone and the sheet could never open; both now use the session-record chain. (3) Server: the Golden Confetti reel's poster never minted because rpPosterExtract482 required the extracted JPEG to be >=1024 bytes and that clip's near-solid-gold first frames compress to 651 valid bytes — the mint now walks a seek ladder (0.1/0.5/1.0/2.0s) preferring a rich frame, accepts any structurally valid JPEG as the fallback, and both poster pumps log per-item failures by id instead of silence. Everything V7.481–485 preserved. --> <!-- [RP-V7.483] GRID PLAYER SWIPE — Branden first declined swipe-to-next when he chose the grid (RP-V7.481), used the shipped grid, then asked for it back (Nov 22, 2026: "There's no swiping to the next video" → "Add swipe-to-next in the player"). The Reels grid's opener (rpGridOpenReel481) was the one fillGrid consumer dropping the nav context fillGrid hands every opener; it now hands openReel the grid's current ordered list — read from the grid's live state (Reels._gridItems481) at tap time, so an in-place reorder of the tiles is honoured — and the V7.461 list-swipe machinery (lbReelList461 / lbGo461 / rpWireSwipe461 — audited sound, already live on the Home strip, search and member grids since Nov 20) walks the grid's list in displayed order: swipe up = next playable reel, swipe down = previous, no wrap at the ends, and every landing is a full paintReel461 (plays, rail rebinds to the shown reel, view counted by the existing once-per-app-session rpViewsPing, V7.478 telemetry fires — every item of a grid session now carries the __rpFromGrid481 mark, not just the tapped one). Chained swipes stay warm: a grid session's landings warm the neighbouring reels' bytes through the V7.482 fetcher (window.rpWarmReelBytes483 → rpWarmVid482 — same URL dedupe, same 2-concurrent pump, same 96 MB session budget; data-only, never a play(), never a decoder). paintReel461 also writes the server's authoritative view count back onto the item, so swiping back to an already-counted reel shows its true count even though the deduped ping does not fire again. Untouched: the grid itself, a tap-open with no swipe, back-to-grid scroll restore, deep-link opens (no nav — swipe stays inert), the profile player (rpOpenReelPlayer — already swiped), Home, and everything else. --> <!-- [RP-V7.488] HOME FOR YOU = GRID + PLAYER SWIPE (Branden, Nov 22, 2026): his recording showed the Home For You pager landing on pure black for ~5 s and a reel sitting frozen; ordered corrected "like the other reels", chose the grid, added "Plus swipe", then scoped it himself — "This is on the for you button": the FOR YOU tab's mixed stream (reels + photo posts + text posts, the pager's own homeItems() list, same order) now paints as a poster/thumbnail grid in #homeGrid488 (fillGrid tiles — reel posters from V7.482, photo ~720px variants from V7.485, text tiles in the RPText278 style), pre-warmed the V7.482 way (reel posters already ride rpPrewarm482; photo variants now warm inside pagerPhotosFetch123; a scroll-ahead wire keeps the window ahead of the member). Tap a tile -> the sheet player (reels play with the full V7.462/V7.486 rail incl. the handshake; photos and text posts open in the same media viewer they always did); PLUS SWIPE inside the player walks the GRID'S list across types (reel -> photo -> text -> reel) via a mixed session in the lightbox (lbHomeNav488) built on the V7.461 gesture wire — every landing behaves exactly as if tapped (view-once is the existing rpViewsPing per-session dedupe for reels and photo posts; text posts never ping, as today), no wrap at the ends, neighbours warm through the V7.483 fetcher hook, Back returns to the grid at the same scroll position (the grid is never unloaded under the sheet). FOLLOWING KEEPS ITS PAGER, byte for byte: renderHomePager branches on the tab — foryou goes to rpHomeGridRender488, following runs the original pager body untouched, and the V7.468 snap machinery retires only where the pager no longer renders (For You). One mapper repair rides along: pagerPhotoMap123 silently DROPPED text posts (a text post has no photo URLs, and the mapper returned null on an empty url list), so text posts never reached the Home pager at all; the mapper now carries them (kind/text/tstyle ride the item, plus photoThumb/thumbUrls for the tiles), so no content type is missing from Home. GLOW RULE CHANGE (Branden, same night, superseding the Nov 6 exception): "Plaza button should only be glowing if it's clicked on so any button that's clicked on should be glowing" — the Home strip's Plaza tab loses its always-on strongest-red glow; its glow rule now keys off .on like every other tab (the true-red look is kept for the active state; Following/For You and the bottom bar are untouched). Client-only; the V7.487 server already returns every field the grid reads. -->
 <!-- [RP-V7.484] TILE-FREEZE SWEEP — Branden, Nov 22, 2026, on his screen recording of the V7.482 grid: "Fix the rest of the lagging and pauses and freezes." The Reels grid itself was fixed; the remaining freezes were (a) the PROFILE grid going fully black for ~5 s mid-scroll (~37-43 s) and flooding back, and (b) the FRIENDS list blanking while scrolling (~21-23 s). Diagnosis (rig-measured, build-7484): fillGrid rebuilt the whole grid via innerHTML on every call, and the profile paints TWICE — payload first, then again when the V7.426 reels top-up lands — so on a phone every painted tile (photos included) was destroyed and repainted seconds after first paint; tile-node survival across the delayed top-up measured 0%. Fixes here: fillGrid reconciles by key (kind+id+src+poster+lock) and reuses unchanged tile nodes — paint, poster and gate state survive re-renders and re-sorts; profile feed-post videos now carry a poster (server stamps feed posters, RP-V7.484 server) so the last seek-paint tiles on the profile grid paint from images; the Gaming grid's poster tiles take the V7.482 probe path instead of the blanket seek gate. SECOND RECORDING (same day, ~14:28 ET): "The reels carry the page with it" — on Friends and Reels the grid scroll dragged the whole page header (stories, explainer, tabs) with it and header pieces painted over tiles: the grid wrap was sized max-height: calc(100dvh - 190px) while the header stack above it measures ~228 px (Reels) / ~318 px (Friends), leaving 122-212 px of document scroll room (rig-measured). Grid mode now takes the Gaming screen's proven structure: the screen is a fixed 100dvh flex column while active, the wrap flexes into exactly the space under the header and scrolls alone; the header cannot move and cannot overlap. Untouched: Reels grid + player semantics (V7.481-483, swipe included), view counting, telemetry. Proof: swept before/after on his route (Reels, Home, Live, Friends, Profile, Auctions) in build-7484/BUILD.md; his phone is final proof. -->
@@ -22693,6 +22693,7 @@
             // someone in the room shared this live to the outside —
             // one of the strongest 🔥 engagement signals there is
             if (Live.active && Live.hostId) engRecord(Live.hostId, fromId, "share", 1);
+            if (fromId && fromId !== Online.myId) addChatSystem("↗ " + fromName + " shared the LIVE"); // [RP-V7.517] the room hears a share (it only fed the host's engagement tally before)
             break;
           }
           case "live-mute": {
@@ -25917,6 +25918,7 @@
         else if (o.k === "follow") {
           // 🔥 a new follow of the host mid-live counts toward that live's engagement score
           if (fromId && typeof Live !== "undefined" && Live.active && Live.hostId && o.to === Live.hostId) engRecord(Live.hostId, fromId, "follow", 1);
+          if (fromId && fromId !== Online.myId && o.to !== Online.myId && typeof Live !== "undefined" && Live.active && Live.hostId && o.to === Live.hostId) addChatSystem("⭐ " + fromName + " started following " + (Live.hostName || "the host")); // [RP-V7.517] the room hears a mid-live follow (it reached only the host's screen before)
           if (o.to === Online.myId && fromId && fromId !== Online.myId) {
             var flw = followerList(), flk = followKey(fromName);
             if (!flw.some(function (n) { return followKey(n) === flk; })) {
@@ -101760,7 +101762,19 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
     var bt = $("rpBatTile");
     if (bt) return bt;
     var n = sideNames516();
-    return teamTile516(side === "a" ? n.a : n.b);
+    var tt = teamTile516(side === "a" ? n.a : n.b);
+    if (tt) return tt;
+    // [RP-V7.517] 1v1: the opponent's pane is a plain .live-tile stage
+    // tile — teamTile516 only matches team-format tiles, so the far
+    // pane (and its gift banner) was unreachable in real 1v1 battles.
+    // Find it by the side's host name, the match hostTile516 uses.
+    var want = side === "a" ? n.a : n.b;
+    var grid = $("liveGrid");
+    if (want && grid) {
+      var lts = grid.querySelectorAll(".live-tile");
+      for (var i = 0; i < lts.length; i++) { var nm2 = lts[i].querySelector(".lt-name"); if (nm2 && nm2.textContent.indexOf(want) >= 0) return lts[i]; }
+    }
+    return null;
   }
 
   /* ================= per-pane gift banners (audit §9) =================
@@ -101796,7 +101810,7 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
     } catch (e) { }
     return "";
   }
-  function paneBanner516(side, fromName, giftName, cnt) {
+  function paneBanner516(side, fromName, giftName, cnt, giftId, photo) { // [RP-V7.517] giftId + photo arrive on the enriched battle event
     var pane = paneForSide516(side); if (!pane) return;
     var cont = paneBannerBox516(pane); if (!cont) return;
     var key = (fromName || "Someone") + "|" + (giftName || "Gift") + "|" + side;
@@ -101808,10 +101822,19 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
       return;
     }
     c = combos516[key] = { n: (cnt || 1), at: now, row: null, timer: setTimeout(function () { expirePaneBanner516(key); }, 6500) };
-    var photo = photoFor516(fromName);
+    var photo = photo || photoFor516(fromName); // [RP-V7.517] the payload's sender photo wins over the directory lookup
+    // [RP-V7.517] real gift art from the payload's catalog id (Build A
+    // deferred this to Build B's payload fields); emoji fallback.
+    var artHtml517 = "\u{1F381}";
+    try {
+      if (giftId && window.rpShowArtHtml) {
+        var cat517 = (window.rpGiftCatalog325 && window.rpGiftCatalog325.byId) ? window.rpGiftCatalog325.byId(giftId) : null;
+        artHtml517 = window.rpShowArtHtml(giftId, (cat517 && cat517.icon) || "\u{1F381}", 26);
+      }
+    } catch (e) { artHtml517 = "\u{1F381}"; }
     var row = document.createElement("div");
     row.className = "rp-banner";
-    row.innerHTML = '<span class="av">' + (photo ? '<img src="' + esc(photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">' : esc((fromName || "S").slice(0, 1).toUpperCase())) + '</span><span class="rp-art-emoji">\u{1F381}</span><span><b>' + esc(fromName || "Someone") + "</b> sent <b>" + esc(giftName || "Gift") + '</b></span><span class="rp-combo"' + (c.n > 1 ? "" : ' style="display:none"') + ">" + (c.n > 1 ? "×" + c.n : "") + "</span>";
+    row.innerHTML = '<span class="av">' + (photo ? '<img src="' + esc(photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">' : esc((fromName || "S").slice(0, 1).toUpperCase())) + '</span><span class="rp-art-emoji">' + artHtml517 + '</span><span><b>' + esc(fromName || "Someone") + "</b> sent <b>" + esc(giftName || "Gift") + '</b></span><span class="rp-combo"' + (c.n > 1 ? "" : ' style="display:none"') + ">" + (c.n > 1 ? "×" + c.n : "") + "</span>";
     cont.appendChild(row);
     while (cont.children.length > 3) cont.removeChild(cont.firstChild);
     c.row = row;
@@ -101925,7 +101948,7 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
     var ev = p.ev;
     if (ev && ev.kind === "gift" && ev.side) {
       popup516(ev.side, ev.pts);
-      if (ev.side !== roomSide516()) paneBanner516(ev.side, ev.fromName, ev.giftName, 1);
+      if (ev.side !== roomSide516()) paneBanner516(ev.side, ev.fromName, ev.giftName, Math.max(1, ev.count || 1), ev.giftId || null, ev.fromPhoto || ""); // [RP-V7.517] batch count + art id + sender photo
     }
     if (p.ended) {
       onBattleEnd516();
@@ -101942,7 +101965,7 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
     var ev = p.ev;
     if (ev && ev.kind === "gift" && ev.side) {
       popup516(ev.side, ev.pts);
-      if (ev.side !== roomSide336()) paneBanner516(ev.side, ev.fromName, ev.giftName, 1);
+      if (ev.side !== roomSide336()) paneBanner516(ev.side, ev.fromName, ev.giftName, Math.max(1, ev.count || 1), ev.giftId || null, ev.fromPhoto || ""); // [RP-V7.517] batch count + art id + sender photo
     }
     if (p.ended) {
       onBattleEnd516();
@@ -102174,6 +102197,352 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
   }
   setInterval(tick516, 250);
   tick516();
+})();
+</script>
+<style>
+/* ================= RP-V7.517: BATTLE CROWD PACK (Build B) =================
+   Per-side gifter podium + MVP · pane league badges + identity/follow
+   chips · pane mute badge · No. 1 gifter tag · viewer-stack gem
+   badges. Everything renders SERVER-computed values from the
+   battle306/battle336 payloads (gifters, mvps, leagues, mute) and the
+   players payload (glv) — nothing is tallied on the client.
+   Black UI, true-red accent, gold reserved for MVP/leader marks. */
+.rp-pod517{ position:absolute; right:6px; bottom:5px; z-index:4; display:flex; flex-direction:column; align-items:flex-end; gap:3px; pointer-events:none; max-width:92%; }
+.rp-pod-chip517{ display:flex; align-items:center; gap:5px; background:rgba(8,8,14,.82); border:1px solid rgba(255,255,255,.22); color:#fff; border-radius:99px; padding:2px 8px 2px 2px; font-size:10.5px; font-weight:800; max-width:100%; }
+.rp-pod-chip517 b{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:110px; }
+.rp-pod-chip517 .pc-amt{ color:#ffd23c; font-weight:900; white-space:nowrap; }
+.rp-pod-chip517.mvp{ border-color:#ffd23c; box-shadow:0 0 10px rgba(255,210,60,.45); }
+.rp-pod-av517{ position:relative; flex:none; width:26px; height:26px; border-radius:50%; overflow:visible; background:linear-gradient(135deg,#7b2ff7,#fe2c2c); color:#fff; font-weight:900; font-size:11px; display:flex; align-items:center; justify-content:center; }
+.rp-pod-av517 img{ width:100%; height:100%; border-radius:50%; object-fit:cover; display:block; }
+.rp-pod-av517 .rk{ position:absolute; right:-5px; bottom:-4px; min-width:14px; height:14px; line-height:14px; padding:0 2px; border-radius:99px; background:#ffd23c; color:#231a00; font-size:9.5px; font-weight:900; text-align:center; border:1.5px solid #12121c; box-sizing:border-box; }
+.rp-pod-av517.big{ width:30px; height:30px; font-size:12.5px; }
+.rp-pod-slots517{ display:flex; gap:9px; align-items:flex-end; padding-right:2px; }
+.rp-pod-slot517{ display:flex; flex-direction:column; align-items:center; gap:1px; }
+.rp-pod-slot517 .gm{ transform:scale(.82); line-height:0; }
+.rp-pod-slot517.mvp .rp-pod-av517{ box-shadow:0 0 0 2px #ffd23c, 0 0 12px rgba(255,210,60,.6); }
+.rp-mvp-tag517{ background:#ffd23c; color:#231a00; font-size:9px; font-weight:900; border-radius:99px; padding:1px 6px; letter-spacing:.04em; white-space:nowrap; }
+.rp-lgbadge517{ position:absolute; top:6px; left:6px; z-index:4; background:rgba(8,8,14,.82); border:1px solid rgba(255,210,60,.55); color:#ffd23c; font-size:10px; font-weight:900; letter-spacing:.05em; border-radius:7px; padding:2px 6px; pointer-events:none; }
+.rp-mute517{ position:absolute; top:6px; right:6px; z-index:4; background:rgba(8,8,14,.82); border:1px solid rgba(255,255,255,.25); border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:12px; pointer-events:none; }
+.rp-idchip517{ position:absolute; top:36px; right:6px; z-index:4; display:flex; align-items:center; gap:5px; background:rgba(8,8,14,.82); border:1px solid rgba(255,255,255,.22); border-radius:99px; padding:2px 3px 2px 8px; color:#fff; font-size:10.5px; font-weight:800; max-width:92%; }
+.rp-idchip517 .rp-idn517{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:96px; }
+.rp-idchip517 .follow-btn{ flex:none; font-size:10px; padding:2px 8px; }
+#rpPodTeam517{ margin-top:6px; border-top:1px solid rgba(255,255,255,.12); padding-top:5px; display:flex; flex-direction:column; gap:4px; }
+.rp-podteam-row517{ display:flex; align-items:center; gap:7px; }
+.rp-podteam-row517 .rp-pt-lab{ font-size:10.5px; font-weight:900; color:#ffb3b3; min-width:52px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rp-podteam-row517 .rp-pod-slots517{ padding-right:0; }
+.rp-podteam-row517 .rp-pt-amt{ color:#ffd23c; font-size:10.5px; font-weight:900; white-space:nowrap; }
+.rp-no1-517{ display:inline-block; margin-left:5px; background:#ffd23c; color:#231a00; font-size:9.5px; font-weight:900; border-radius:99px; padding:0 6px; line-height:1.6; vertical-align:1px; white-space:nowrap; }
+.lv-vav{ position:relative; }
+.rp-stackglv517{ position:absolute; right:-4px; bottom:-5px; line-height:0; transform:scale(.85); pointer-events:none; }
+</style>
+<script>
+/* ================= RP-V7.517: BATTLE CROWD PACK (client) =================
+   Build B of the Nov 25 battle audit. The server now tracks per-side
+   gifters inside battle306OnGift and rides the top 3 + the MVP on the
+   battle payloads; this layer renders them — podium, pane furniture,
+   stack badges — and prints the room-wide level-up line from the
+   battle event. Follow/share room lines are small hooks in the core
+   proto handlers (tagged RP-V7.517 there); the non-battle level-up
+   line is server-emitted. Display only: no number is computed here
+   beyond picking which server row renders where. Battles live only
+   inside regular lives, so auction/church rooms never see any of it. */
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function live517() { try { return window.rpLive ? window.rpLive() : null; } catch (e) { return null; } }
+  function myId517() { try { return window.rpMyId ? window.rpMyId() : ""; } catch (e) { return ""; } }
+  function myName517() { try { return window.rpMyName ? window.rpMyName() : ""; } catch (e) { return ""; } }
+  function sock517() { try { return window.rpSocket ? window.rpSocket() : null; } catch (e) { return null; } }
+  function onLive517() { return !!(document.body && document.body.classList.contains("live-fs")); }
+  function badge517(glv) { try { return (glv > 0 && typeof window.rpGifterBadge338 === "function") ? window.rpGifterBadge338(glv) : ""; } catch (e) { return ""; } }
+  function fmt517(n) { return Number(n || 0).toLocaleString(); }
+
+  var boundSock = null;
+  var last306 = null;            // latest battle306 payload
+  var last336 = null;            // latest battle336 payload
+  var final517 = null;           // {kind, battleId, gifters306| sides336, mvp|mvps, at} — the end state, held through the victory lap
+
+  /* ---------- shared feed line (the 306 layer's idiom) ---------- */
+  function feedLine517(text) {
+    try {
+      var log = $("onlineChatLog"); if (!log) return;
+      var row = document.createElement("div");
+      row.className = "chat-row sys";
+      row.innerHTML = "<span>" + esc(text) + "</span>";
+      log.appendChild(row);
+      while (log.children.length > 60) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    } catch (e) { }
+  }
+
+  /* ---------- socket feeds ---------- */
+  function on306517(p) {
+    if (!p || !p.battleId) return;
+    if (final517 && final517.battleId !== p.battleId && !p.ended) final517 = null; // a new battle clears the held end state
+    last306 = p;
+    var ev = p.ev;
+    if (ev && ev.kind === "gift" && ev.lvlUp) feedLine517("\u{1F3C6} " + (ev.fromName || "A gifter") + " reached Gifter Lv." + ev.lvlUp);
+    if (p.ended) final517 = { kind: "1v1", battleId: p.battleId, gifters: p.gifters || { a: [], b: [] }, mvp: p.ended.mvp || null, winnerSide: p.ended.winnerSide || null, at: Date.now() };
+  }
+  function on336517(p) {
+    if (!p || !p.battleId) return;
+    if (final517 && final517.battleId !== p.battleId && !p.ended) final517 = null;
+    last336 = p;
+    var ev = p.ev;
+    if (ev && ev.kind === "gift" && ev.lvlUp) feedLine517("\u{1F3C6} " + (ev.fromName || "A gifter") + " reached Gifter Lv." + ev.lvlUp);
+    if (p.ended) final517 = { kind: "team", battleId: p.battleId, sides: (p.sides || []).map(function (s) { return { side: s.side, members: s.members || [], gifters: s.gifters || [] }; }), mvps: p.ended.mvps || {}, at: Date.now() };
+  }
+  // [RP-V7.517] seat gifter levels: the server stamps glv on the
+  // room-state players payload and on player-joined (V7.517 server),
+  // but the core player records don't retain the field — keep our own
+  // id -> level map from those two events for the viewer stack.
+  var glvById517 = {};
+  function noteGlv517(p) { if (p && p.id && typeof p.glv === "number") glvById517[p.id] = p.glv; }
+  function onRoomState517(d) { try { ((d && d.players) || []).forEach(noteGlv517); } catch (e) { } }
+  function bindSock517() {
+    var s = sock517();
+    if (s && boundSock !== s) {
+      boundSock = s;
+      try { s.on("battle306", on306517); } catch (e) { }
+      try { s.on("battle336", on336517); } catch (e) { }
+      try { s.on("room-state", onRoomState517); } catch (e) { }
+      try { s.on("player-joined", noteGlv517); } catch (e) { }
+    }
+  }
+
+  /* ---------- pane resolution ---------- */
+  function hostName517() {
+    var L = live517(); if (!L) return "";
+    try {
+      var dirs = window.rpDirectory ? window.rpDirectory() : [];
+      for (var i = 0; i < dirs.length; i++) if (dirs[i] && dirs[i].hostId === L.hostId && dirs[i].name) return dirs[i].name;
+      for (var j = 0; j < dirs.length; j++) if (dirs[j] && L.roomId && dirs[j].room === L.roomId && dirs[j].name) return dirs[j].name;
+    } catch (e) { }
+    return "";
+  }
+  function hostTile517() {
+    var grid = $("liveGrid"); if (!grid) return null;
+    var tiles = grid.querySelectorAll(".live-tile");
+    if (!tiles.length) return null;
+    var hn = hostName517();
+    if (hn) for (var i = 0; i < tiles.length; i++) { var nm = tiles[i].querySelector(".lt-name"); if (nm && nm.textContent.indexOf(hn) >= 0) return tiles[i]; }
+    return tiles[0];
+  }
+  function hostSide306() {
+    var L = live517(); if (!L || !L.hostId) return null;
+    if (last306) { if (last306.aId === L.hostId) return "a"; if (last306.bId === L.hostId) return "b"; }
+    var B = window.Bat || {};
+    if (B.aId && B.aId === L.hostId) return "a";
+    if (B.bId && B.bId === L.hostId) return "b";
+    return null;
+  }
+  function oppTile306() {
+    // the opponent's pane: the grid tile carrying their name (the real
+    // client renders both battlers as .live-tile stage tiles); fall
+    // back to the non-host tile, then to a dedicated battle tile.
+    var grid = $("liveGrid"); if (!grid) return $("rpBatTile");
+    var tiles = grid.querySelectorAll(".live-tile");
+    var hs = hostSide306();
+    var oppName = "";
+    if (last306 && hs) oppName = hs === "a" ? (last306.bName || "") : (last306.aName || "");
+    if (oppName) for (var i = 0; i < tiles.length; i++) { var nm = tiles[i].querySelector(".lt-name"); if (nm && nm.textContent.indexOf(oppName) >= 0) return tiles[i]; }
+    var ht = hostTile517();
+    for (var j = 0; j < tiles.length; j++) if (tiles[j] !== ht) return tiles[j];
+    return $("rpBatTile");
+  }
+  function paneForSide306(side) {
+    var hs = hostSide306();
+    if (hs && side === hs) return hostTile517();
+    if (hs) return oppTile306();
+    return null;
+  }
+  function teamTiles517() {
+    var grid = $("liveGrid"); if (!grid) return [];
+    return Array.prototype.slice.call(grid.querySelectorAll(".rp-team-tile336"));
+  }
+  function tileName517(tile) {
+    var nm = tile.querySelector(".rp-bat-name") || tile.querySelector(".lt-name");
+    return nm ? nm.textContent.trim() : "";
+  }
+
+  /* ---------- podium rendering ---------- */
+  function avHtml517(g, big) {
+    var inner = g.photo ? '<img src="' + esc(g.photo) + '" alt="">' : esc((g.name || "S").slice(0, 1).toUpperCase());
+    return '<span class="rp-pod-av517' + (big ? " big" : "") + '">' + inner + "</span>";
+  }
+  function slotHtml517(g, rank, isMvp) {
+    return '<span class="rp-pod-slot517' + (isMvp ? " mvp" : "") + '"><span class="rp-pod-av517' + (rank === 1 ? " big" : "") + '">' +
+      (g.photo ? '<img src="' + esc(g.photo) + '" alt="">' : esc((g.name || "S").slice(0, 1).toUpperCase())) +
+      '<span class="rk">' + rank + "</span></span>" +
+      (g.glv ? '<span class="gm">' + badge517(g.glv) + "</span>" : "") +
+      (isMvp ? '<span class="rp-mvp-tag517">⭐ MVP</span>' : "") + "</span>";
+  }
+  function podiumHtml517(list, mvp) {
+    if (!list || !list.length) return "";
+    var top = list[0];
+    var isMvpTop = !!(mvp && top.name === mvp.name);
+    var html = '<div class="rp-pod-chip517' + (isMvpTop ? " mvp" : "") + '">' + avHtml517(top, false) + "<b>" + esc(top.name) + '</b><span class="pc-amt">' + fmt517(top.charms) + "</span>" + (top.glv ? badge517(top.glv) : "") + (isMvpTop ? '<span class="rp-mvp-tag517">⭐ MVP</span>' : "") + "</div>";
+    html += '<div class="rp-pod-slots517">';
+    for (var i = 0; i < list.length; i++) html += slotHtml517(list[i], i + 1, !!(mvp && list[i].name === mvp.name));
+    html += "</div>";
+    return html;
+  }
+  function setPaneBox517(pane, cls, html) {
+    if (!pane) return;
+    var box = pane.querySelector(":scope > ." + cls);
+    if (!html) { if (box) box.remove(); return; }
+    if (!box) { box = document.createElement("div"); box.className = cls; pane.appendChild(box); }
+    if (box.__sig517 !== html) { box.__sig517 = html; box.innerHTML = html; }
+  }
+  function setPaneBadge517(pane, cls, text, title) {
+    if (!pane) return;
+    var el = pane.querySelector(":scope > ." + cls);
+    if (!text) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement("div"); el.className = cls; pane.appendChild(el); }
+    if (el.textContent !== text) el.textContent = text;
+    if (title && el.title !== title) el.title = title;
+  }
+
+  function renderPodium306() {
+    var active = !!(last306 && last306.battleId && !last306.ended);
+    var fin = (!active && final517 && final517.kind === "1v1" && Date.now() - final517.at < 185000) ? final517 : null;
+    var gifters = active ? (last306.gifters || {}) : (fin ? fin.gifters : null);
+    ["a", "b"].forEach(function (side) {
+      var pane = paneForSide306(side);
+      if (!pane) return;
+      if (!gifters) { setPaneBox517(pane, "rp-pod517", ""); return; }
+      var mvp = null;
+      if (fin && fin.winnerSide === side) mvp = fin.mvp;
+      setPaneBox517(pane, "rp-pod517", podiumHtml517(gifters[side] || [], mvp));
+      // pane league badge (the host's division, server view)
+      var lg = active ? (side === "a" ? last306.aLeague : last306.bLeague) : null;
+      setPaneBadge517(pane, "rp-lgbadge517", lg && lg.div ? lg.div : "", lg && lg.label ? lg.label : "");
+      // mute badge: mute.a means side a muted side b — the badge sits on the MUTED pane
+      var muted = active && last306.mute && ((side === "b" && last306.mute.a) || (side === "a" && last306.mute.b));
+      setPaneBadge517(pane, "rp-mute517", muted ? "🔇" : "", muted ? "Muted by the other creator" : "");
+    });
+    // opponent identity chip + follow, on the opponent's pane
+    var bt = oppTile306();
+    if (bt) {
+      var hs = hostSide306();
+      var oppSide = hs === "a" ? "b" : (hs === "b" ? "a" : null);
+      var oppName = "";
+      if (last306 && oppSide) oppName = oppSide === "a" ? (last306.aName || "") : (last306.bName || "");
+      if (!oppName) { var B = window.Bat || {}; oppName = oppSide === "a" ? (B.aName || "") : (B.bName || ""); }
+      var show = !!(active && oppName && oppName !== myName517());
+      setPaneBox517(bt, "rp-idchip517", show ? '<span class="rp-idn517">' + esc(oppName) + '</span><button type="button" class="follow-btn" data-follow="' + esc(oppName) + '">Follow</button>' : "");
+    }
+  }
+
+  function renderPodium336() {
+    var bar = $("rpTeamBar336");
+    var active = !!(last336 && last336.battleId && !last336.ended);
+    var fin = (!active && final517 && final517.kind === "team" && Date.now() - final517.at < 185000) ? final517 : null;
+    if (bar) {
+      var wrap = bar.querySelector(":scope > #rpPodTeam517");
+      var sides = active ? (last336.sides || []) : (fin ? fin.sides : null);
+      if (!sides || !sides.length) { if (wrap) wrap.remove(); }
+      else {
+        if (!wrap) { wrap = document.createElement("div"); wrap.id = "rpPodTeam517"; bar.appendChild(wrap); }
+        var html = "";
+        sides.forEach(function (s) {
+          var list = s.gifters || [];
+          if (!list.length) return;
+          var mvp = fin ? (fin.mvps || {})[s.side] : null;
+          var lab = (s.members && s.members[0]) || s.side;
+          html += '<div class="rp-podteam-row517"><span class="rp-pt-lab">' + esc(lab) + '</span><span class="rp-pod-slots517">' +
+            list.map(function (g, i) { return slotHtml517(g, i + 1, !!(mvp && g.name === mvp.name)); }).join("") +
+            '</span><span class="rp-pt-amt">' + fmt517(list[0].charms) + "</span></div>";
+        });
+        if (wrap.__sig517 !== html) { wrap.__sig517 = html; wrap.innerHTML = html; }
+        if (!html && wrap) wrap.remove();
+      }
+    }
+    // per-tile league badges + identity chips (skip my own tile)
+    if (active && last336.parts) {
+      var me = myName517();
+      teamTiles517().forEach(function (tile) {
+        var tn = tileName517(tile);
+        var part = null;
+        for (var i = 0; i < last336.parts.length; i++) if (tn && tn.indexOf(last336.parts[i].name) >= 0) { part = last336.parts[i]; break; }
+        if (!part) { setPaneBadge517(tile, "rp-lgbadge517", "", ""); return; }
+        setPaneBadge517(tile, "rp-lgbadge517", part.league && part.league.div ? part.league.div : "", part.league && part.league.label ? part.league.label : "");
+        var mine = !!(me && tn.indexOf(me) >= 0);
+        setPaneBox517(tile, "rp-idchip517", mine ? "" : '<span class="rp-idn517">' + esc(part.name) + '</span><button type="button" class="follow-btn" data-follow="' + esc(part.name) + '">Follow</button>');
+      });
+    }
+  }
+
+  /* ---------- No. 1 gifter tag on gift-feed rows ---------- */
+  function no1Name517() {
+    var best = null;
+    function consider(g) { if (!g) return; if (!best || (g.charms || 0) > (best.charms || 0) || ((g.charms || 0) === (best.charms || 0) && (g.pts || 0) > (best.pts || 0))) best = g; }
+    if (last306 && !last306.ended && last306.gifters) { consider((last306.gifters.a || [])[0]); consider((last306.gifters.b || [])[0]); }
+    if (last336 && !last336.ended && last336.sides) last336.sides.forEach(function (s) { consider((s.gifters || [])[0]); });
+    return best ? best.name : "";
+  }
+  function tagNo1Rows517() {
+    var feed = $("liveGiftFeed"); if (!feed) return;
+    var no1 = no1Name517(); if (!no1) return;
+    var rows = feed.querySelectorAll(".lgf-row:not([data-n517])");
+    rows.forEach(function (row) {
+      row.setAttribute("data-n517", "1");
+      var b = row.querySelector("b");
+      if (b && b.textContent === no1) {
+        var tag = document.createElement("span");
+        tag.className = "rp-no1-517";
+        tag.textContent = "👑 No. 1";
+        b.parentNode.insertBefore(tag, b.nextSibling);
+      }
+    });
+  }
+
+  /* ---------- viewer-stack gem badges (server glv on the seat) ---------- */
+  function stackBadges517() {
+    var vrow = $("liveViewerRow"); if (!vrow) return;
+    var spans = Array.prototype.slice.call(vrow.querySelectorAll(".lv-vav"));
+    if (!spans.length) return;
+    var glvByName = {};
+    try {
+      var vs = window.rpViewers ? window.rpViewers() : [];
+      vs.forEach(function (v) { var lv = glvById517[v.id]; if (!lv) { var p = window.rpPlayerById ? window.rpPlayerById(v.id) : null; if (p && p.glv) lv = p.glv; } if (lv) glvByName[v.name] = lv; });
+    } catch (e) { }
+    spans.forEach(function (s) {
+      var glv = glvByName[s.title] || 0;
+      var cur = s.querySelector(":scope > .rp-stackglv517");
+      if (!glv) { if (cur) cur.remove(); return; }
+      if (cur && cur.getAttribute("data-glv") === String(glv)) return;
+      if (cur) cur.remove();
+      var b = document.createElement("span");
+      b.className = "rp-stackglv517";
+      b.setAttribute("data-glv", String(glv));
+      b.innerHTML = badge517(glv);
+      s.appendChild(b);
+    });
+    // the crowns sit on the real top gifters: highest server level first (stable)
+    var order = spans.map(function (s) { return s.title; });
+    var sorted = spans.slice().sort(function (x, y) { return (glvByName[y.title] || 0) - (glvByName[x.title] || 0); }).map(function (s) { return s.title; });
+    if (order.join("|") !== sorted.join("|")) {
+      var byTitle = {};
+      spans.forEach(function (s) { byTitle[s.title] = s; });
+      sorted.forEach(function (t) { if (byTitle[t]) vrow.appendChild(byTitle[t]); });
+    }
+  }
+
+  /* ---------- the watcher ---------- */
+  function tick517() {
+    try {
+      bindSock517();
+      if (!onLive517()) return;
+      renderPodium306();
+      renderPodium336();
+      tagNo1Rows517();
+      stackBadges517();
+    } catch (e) { }
+  }
+  setInterval(tick517, 650);
+  tick517();
 })();
 </script>
 
