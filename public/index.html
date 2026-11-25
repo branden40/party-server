@@ -10841,6 +10841,7 @@
            govern the member's own mute choice. */
         var pv330 = document.querySelector("#sheet .pprof-player video");
         if (pv330) { var pp330 = null; try { pp330 = pv330.play(); } catch (e) { } if (pp330 && pp330.catch) pp330.catch(function () { }); }
+        try { if (window.rpAppr505) window.rpAppr505.consider(document.querySelector("#sheet .pprof-player"), meta.feedPost ? "feed" : "reel", meta.id, it.owner || null, fi241 && fi241.apprFlag); } catch (e) { } // [RP-V7.505]
         if (fi241) { // [RP-V7.241] wire the rail to the feed handlers
           var wrap241 = $("sheet").querySelector(".rpmedia-wrap");
           if (wrap241) {
@@ -27731,7 +27732,7 @@
             if (pim243) pim243.addEventListener("click", function () {
               if (typeof window.rpViewsOpenPhoto === "function") {
                 var urls243 = (p.urls && p.urls.length) ? p.urls : (p.photo ? [p.photo] : []);
-                window.rpViewsOpenPhoto({ kind: "photopost", id: p.id, owner: p.authorId || null, ownerName: p.name || "", src: p.photo || "", views: 0, photoCount: urls243.length || 1, caption: p.caption || "", likes: p.srvLikes || 0, myLiked: !!p.liked, comments: p.comments || [], commentCount: (typeof p.commentCount === "number" ? p.commentCount : (p.comments || []).length), reposts: p.srvReposts || 0, myReposted: !!p.reposted, giftCount: p.giftCount || 0 /* [RP-V7.262] */ }, null);
+                window.rpViewsOpenPhoto({ kind: "photopost", id: p.id, apprFlag: !!p.apprFlag, /* [RP-V7.505] */ owner: p.authorId || null, ownerName: p.name || "", src: p.photo || "", views: 0, photoCount: urls243.length || 1, caption: p.caption || "", likes: p.srvLikes || 0, myLiked: !!p.liked, comments: p.comments || [], commentCount: (typeof p.commentCount === "number" ? p.commentCount : (p.comments || []).length), reposts: p.srvReposts || 0, myReposted: !!p.reposted, giftCount: p.giftCount || 0 /* [RP-V7.262] */ }, null);
               }
             });
           }
@@ -28343,6 +28344,7 @@
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
           music: sp.music || (sp.soundId ? { origId: sp.soundId, name: sp.soundName || "original sound", ownerName: sp.soundOwnerName || "" } : null), // [RP-V7.335] member sound carried into the pager item
           giftCount: sp.giftCount || 0, // [RP-V7.262]
+          apprFlag: !!sp.apprFlag, // [RP-V7.505] Hive borderline flag off the photo-post payload
           photoThumb: sp.photoThumb || "", thumbUrls: (Array.isArray(sp.thumbUrls) ? sp.thumbUrls.slice() : []), // [RP-V7.488] the ~720px variants (V7.485) ride for the Home grid tiles — grids paint variants, the viewer keeps the original
           textPost: sp.kind === "text", text: sp.text || "", tstyle: sp.tstyle || null, kind: sp.kind || "photo", // [RP-V7.488] text posts carry their body + style (RP-V7.278 fields, straight off the payload)
           collabId: sp.collabId || null, collabName: sp.collabName || "", collabUsername: sp.collabUsername || "", collabStatus: sp.collabStatus || null // [RP-V7.488] collab byline parity with the reel items (V7.453 fields were already on the payload)
@@ -28605,6 +28607,7 @@
         while (rest.firstChild) card.appendChild(rest.firstChild);
         rpPhotoActsWire123(item, card);
         card._rpPlay = function () { if (ctl) ctl.start(); rpWarmPhoto480(card); }; // [RP-V7.480] landing on a photo card promotes its own image too (the entry-card backstop — the runway normally pre-warms it)
+        var _apprPlay505 = card._rpPlay; card._rpPlay = function () { _apprPlay505(); try { if (window.rpAppr505) window.rpAppr505.consider(card, "photo", item.postId, item.authorId || null, item.apprFlag); } catch (e) { } }; // [RP-V7.505] appropriateness question on flagged photo cards
         card._rpPause = function () { if (ctl) ctl.stop(); var cn = card.querySelector(".pp-cmt .cc"); if (cn) cn.textContent = item.commentCount || 0; };
         return card;
       }
@@ -29230,7 +29233,7 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ /* [RP-V7.335] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.296] */ /* [RP-V7.451] */ /* [RP-V7.298] */ /* [RP-V7.300] */ /* [RP-GAMING] */ /* [RP-V7.453] */ });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ /* [RP-V7.335] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.296] */ /* [RP-V7.451] */ /* [RP-V7.298] */ /* [RP-V7.300] */ /* [RP-GAMING] */ /* [RP-V7.453] */ });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
@@ -29625,7 +29628,7 @@
         // pager item -> the media-item shape the tile family and
         // the lightbox rail consume (the itemsFromProfile reel
         // mapping, plus the pager's own fields the rail reads).
-        return { kind: "reel", id: it.id, server: !!it.server, owner: it.authorId || "", ownerName: it.author || "", src: it.url || "", poster: it.poster || "", locked: !!it.locked, subsOnly: !!it.subsOnly, clubOnly: !!it.clubOnly, views: it.views || 0, caption: it.caption || "", heartLikes: it.heartLikes || 0, giftCount: it.giftCount || 0, myHeart: !!it.myHeart, comments: Array.isArray(it.comments) ? it.comments : [], commentCount: (typeof it.commentCount === "number" ? it.commentCount : 0), reposts: it.reposts || 0, myReposted: !!it.myReposted, crMuted: it.crMuted || null, allowDownloads: it.allowDownloads !== false, collabId: it.collabId || null, collabName: it.collabName || "", collabUsername: it.collabUsername || "", collabStatus: it.collabStatus || null };
+        return { kind: "reel", id: it.id, server: !!it.server, owner: it.authorId || "", ownerName: it.author || "", src: it.url || "", poster: it.poster || "", locked: !!it.locked, subsOnly: !!it.subsOnly, clubOnly: !!it.clubOnly, views: it.views || 0, caption: it.caption || "", heartLikes: it.heartLikes || 0, giftCount: it.giftCount || 0, myHeart: !!it.myHeart, comments: Array.isArray(it.comments) ? it.comments : [], commentCount: (typeof it.commentCount === "number" ? it.commentCount : 0), reposts: it.reposts || 0, myReposted: !!it.myReposted, crMuted: it.crMuted || null, apprFlag: !!it.apprFlag, /* [RP-V7.505] */ allowDownloads: it.allowDownloads !== false, collabId: it.collabId || null, collabName: it.collabName || "", collabUsername: it.collabUsername || "", collabStatus: it.collabStatus || null };
       }
       function rpGridItems481(items) {
         // Only items a tile can honestly show: a playable URL, or a
@@ -30588,6 +30591,7 @@
         card._rpPlay = function () {
           try { if (window.__rpTel478) window.__rpTel478(card, item, vMine); } catch (e) { } // [RP-V7.478] measurement only: records this landing (listeners attach BEFORE cardPlay runs); never touches playback
           cardPlay();
+          try { if (window.rpAppr505) window.rpAppr505.consider(card, "reel", item.id, item.authorId || null, item.apprFlag); } catch (e) { } // [RP-V7.505] appropriateness question — flagged reels only, never the author, once per viewer
           if (item.server) {
             trkStart();
             Reels.activeView = { item: item, trk: viewTrk, video: vMine, stop: trkStopAcc };
@@ -31645,7 +31649,7 @@
          on the same scroll position. */
       function rpHomeGridItem488(it) {
         if (it.photoPost) { // the gridItem243 shape, fed from the pager item + the V7.485 variants
-          return { kind: "photopost", id: it.postId, owner: it.authorId || "", ownerName: it.author || "", src: it.url || "", thumb: (it.thumbUrls && it.thumbUrls[0]) || it.photoThumb || it.url || "", textPost: !!it.textPost, text: it.text || "", tstyle: it.tstyle || null, locked: !!it.locked, subsOnly: !!it.subsOnly, clubOnly: !!it.clubOnly, views: 0, photoCount: it.locked ? 1 : ((it.urls && it.urls.length) || 1), caption: it.caption || "", likes: it.likes || 0, giftCount: it.giftCount || 0, myLiked: !!it.myLiked, comments: Array.isArray(it.comments) ? it.comments : [], commentCount: (typeof it.commentCount === "number" ? it.commentCount : 0), reposts: it.reposts || 0, myReposted: !!it.myReposted, mine: !!it.mine, collabId: it.collabId || null, collabName: it.collabName || "", collabUsername: it.collabUsername || "", collabStatus: it.collabStatus || null, __rpHome488: true };
+          return { kind: "photopost", id: it.postId, apprFlag: !!it.apprFlag, /* [RP-V7.505] */ owner: it.authorId || "", ownerName: it.author || "", src: it.url || "", thumb: (it.thumbUrls && it.thumbUrls[0]) || it.photoThumb || it.url || "", textPost: !!it.textPost, text: it.text || "", tstyle: it.tstyle || null, locked: !!it.locked, subsOnly: !!it.subsOnly, clubOnly: !!it.clubOnly, views: 0, photoCount: it.locked ? 1 : ((it.urls && it.urls.length) || 1), caption: it.caption || "", likes: it.likes || 0, giftCount: it.giftCount || 0, myLiked: !!it.myLiked, comments: Array.isArray(it.comments) ? it.comments : [], commentCount: (typeof it.commentCount === "number" ? it.commentCount : 0), reposts: it.reposts || 0, myReposted: !!it.myReposted, mine: !!it.mine, collabId: it.collabId || null, collabName: it.collabName || "", collabUsername: it.collabUsername || "", collabStatus: it.collabStatus || null, __rpHome488: true };
         }
         var g = rpGridItem481(it); // the Reels grid's own pager->tile mapping, reused whole
         g.__rpHome488 = true;
@@ -41659,6 +41663,13 @@ function stageStreakBump(key, add) {
     stk_votes_one: "{n} vote",
     stk_who_voted: "Who voted",
     stk_you_voted: "You voted {choice} · {pct}%",
+    appr_q505: "Do you think this is appropriate?",
+    appr_yes505: "Appropriate",
+    appr_no505: "Not appropriate",
+    appr_thanks505: "Thanks for your feedback",
+    own_appr_head505: "Appropriateness checks",
+    own_appr_flag505: "Screening flag",
+    own_appr_counts505: "Asked {asked} · Appropriate {yes} · Not appropriate {no}",
     stk_youre_set: "🔔 You're set ✓",
     story_by_aria: "Story by {name}",
     story_create: "Create story",
@@ -45439,6 +45450,13 @@ function stageStreakBump(key, add) {
     stk_votes_one: "{n} voto",
     stk_who_voted: "Quién votó",
     stk_you_voted: "Votaste {choice} · {pct}%",
+    appr_q505: "¿Crees que esto es apropiado?",
+    appr_yes505: "Apropiado",
+    appr_no505: "No apropiado",
+    appr_thanks505: "Gracias por tu comentario",
+    own_appr_head505: "Revisiones de idoneidad",
+    own_appr_flag505: "Marca de revisión",
+    own_appr_counts505: "Preguntados {asked} · Apropiado {yes} · No apropiado {no}",
     stk_youre_set: "🔔 Ya estás listo ✓",
     story_by_aria: "Historia de {name}",
     story_create: "Crear historia",
@@ -49219,6 +49237,13 @@ function stageStreakBump(key, add) {
     stk_votes_one: "{n} vote",
     stk_who_voted: "Qui a voté",
     stk_you_voted: "Vous avez voté {choice} · {pct}%",
+    appr_q505: "Pensez-vous que ceci est approprié ?",
+    appr_yes505: "Approprié",
+    appr_no505: "Non approprié",
+    appr_thanks505: "Merci pour votre avis",
+    own_appr_head505: "Contrôles de pertinence",
+    own_appr_flag505: "Signal de contrôle",
+    own_appr_counts505: "Demandé {asked} · Approprié {yes} · Non approprié {no}",
     stk_youre_set: "🔔 C'est noté ✓",
     story_by_aria: "Story de {name}",
     story_create: "Créer une story",
@@ -52999,6 +53024,13 @@ function stageStreakBump(key, add) {
     stk_votes_one: "{n} voto",
     stk_who_voted: "Quem votou",
     stk_you_voted: "Você votou {choice} · {pct}%",
+    appr_q505: "Você acha que isto é apropriado?",
+    appr_yes505: "Apropriado",
+    appr_no505: "Não apropriado",
+    appr_thanks505: "Obrigado pelo seu comentário",
+    own_appr_head505: "Verificações de adequação",
+    own_appr_flag505: "Sinal de triagem",
+    own_appr_counts505: "Perguntados {asked} · Apropriado {yes} · Não apropriado {no}",
     stk_youre_set: "🔔 Tudo certo ✓",
     story_by_aria: "História de {name}",
     story_create: "Criar história",
@@ -56779,6 +56811,13 @@ function stageStreakBump(key, add) {
     stk_votes_one: "{n} Stimme",
     stk_who_voted: "Wer abgestimmt hat",
     stk_you_voted: "Deine Stimme: {choice} · {pct}%",
+    appr_q505: "Findest du das angemessen?",
+    appr_yes505: "Angemessen",
+    appr_no505: "Nicht angemessen",
+    appr_thanks505: "Danke für deine Rückmeldung",
+    own_appr_head505: "Angemessenheitsprüfungen",
+    own_appr_flag505: "Prüfvermerk",
+    own_appr_counts505: "Gefragt {asked} · Angemessen {yes} · Nicht angemessen {no}",
     stk_youre_set: "🔔 Du bist dabei ✓",
     story_by_aria: "Story von {name}",
     story_create: "Story erstellen",
@@ -60559,6 +60598,13 @@ function stageStreakBump(key, add) {
     stk_votes_one: "{n} voto",
     stk_who_voted: "Chi ha votato",
     stk_you_voted: "Hai votato {choice} · {pct}%",
+    appr_q505: "Pensi che questo sia appropriato?",
+    appr_yes505: "Appropriato",
+    appr_no505: "Non appropriato",
+    appr_thanks505: "Grazie per il tuo feedback",
+    own_appr_head505: "Controlli di appropriatezza",
+    own_appr_flag505: "Segnalazione di controllo",
+    own_appr_counts505: "Chiesto {asked} · Appropriato {yes} · Non appropriato {no}",
     stk_youre_set: "🔔 Fatto ✓",
     story_by_aria: "Storia di {name}",
     story_create: "Crea storia",
@@ -64339,6 +64385,13 @@ function stageStreakBump(key, add) {
     stk_votes_one: "{n} صوت",
     stk_who_voted: "من صوّت",
     stk_you_voted: "صوتك: {choice} · {pct}%",
+    appr_q505: "هل تعتقد أن هذا مناسب؟",
+    appr_yes505: "مناسب",
+    appr_no505: "غير مناسب",
+    appr_thanks505: "شكرًا على ملاحظاتك",
+    own_appr_head505: "فحوصات الملاءمة",
+    own_appr_flag505: "إشارة الفحص",
+    own_appr_counts505: "سُئل {asked} · مناسب {yes} · غير مناسب {no}",
     stk_youre_set: "🔔 تم تعيينك ✓",
     story_by_aria: "قصة من {name}",
     story_create: "إنشاء قصة",
@@ -68119,6 +68172,13 @@ function stageStreakBump(key, add) {
     stk_votes_one: "{n} 票",
     stk_who_voted: "投票者",
     stk_you_voted: "你投了{choice} · {pct}%",
+    appr_q505: "你认为这合适吗？",
+    appr_yes505: "合适",
+    appr_no505: "不合适",
+    appr_thanks505: "感谢你的反馈",
+    own_appr_head505: "适宜性检查",
+    own_appr_flag505: "筛查标记",
+    own_appr_counts505: "已询问 {asked} · 合适 {yes} · 不合适 {no}",
     stk_youre_set: "🔔 已设置 ✓",
     story_by_aria: "{name} 的故事",
     story_create: "创建故事",
@@ -71899,6 +71959,13 @@ function stageStreakBump(key, add) {
     stk_votes_one: "{n} वोट",
     stk_who_voted: "किसने वोट किया",
     stk_you_voted: "आपने {choice} को वोट किया · {pct}%",
+    appr_q505: "क्या आपको लगता है कि यह उचित है?",
+    appr_yes505: "उचित",
+    appr_no505: "उचित नहीं",
+    appr_thanks505: "आपकी प्रतिक्रिया के लिए धन्यवाद",
+    own_appr_head505: "उपयुक्तता जांच",
+    own_appr_flag505: "स्क्रीनिंग फ़्लैग",
+    own_appr_counts505: "पूछा गया {asked} · उचित {yes} · उचित नहीं {no}",
     stk_youre_set: "🔔 आप सेट हैं ✓",
     story_by_aria: "{name} की स्टोरी",
     story_create: "स्टोरी बनाएं",
@@ -78383,6 +78450,17 @@ button.rp72-chip{ cursor:pointer; }
 .rpmedia-photo-view img { width: 100%; display: block; border-radius: 12px; }
 .rpmedia-photo-count { position: absolute; left: 10px; bottom: 10px; color: #fff; font-size: 14px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.65); }
 .rpmedia-player { position: relative; }
+/* [RP-V7.505] appropriateness question card — renders ONLY on
+   screening-flagged content (the module returns before any DOM write
+   otherwise). Black card, red accent on the negative answer, TikTok
+   overlay placement above the bottom chrome. */
+.rp-appr505 { position: absolute; left: 50%; transform: translateX(-50%); bottom: 92px; z-index: 40; width: min(86%, 340px); background: rgba(10,10,10,.94); border: 1px solid #2b2b2b; border-radius: 14px; padding: 10px 12px; color: #fff; font: 600 13px/1.35 -apple-system, "Segoe UI", Roboto, sans-serif; box-shadow: 0 8px 28px rgba(0,0,0,.5); }
+.rp-appr505-q { display: block; text-align: center; margin: 0 18px 8px; }
+.rp-appr505-btns { display: flex; gap: 8px; }
+.rp-appr505-btns button { flex: 1; appearance: none; border: 1px solid #3a3a3a; background: #1c1c1c; color: #fff; border-radius: 999px; padding: 8px 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.rp-appr505-btns button.rp-appr505-no { border-color: #e02424; color: #ff6b6b; }
+.rp-appr505-x { position: absolute; top: 4px; right: 6px; appearance: none; border: none; background: transparent; color: #9a9a9a; font-size: 15px; line-height: 1; padding: 4px; cursor: pointer; }
+.pprof-player { position: relative; } /* [RP-V7.505] anchor for the question card in the profile/saved player */
 .rpmedia-player video { width: 100%; max-height: 62vh; border-radius: 12px; background: #000; display: block; }
 .rpmedia-player-count { position: absolute; left: 10px; bottom: 10px; color: #fff; font-size: 14px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.65); }
 /* [RP-V7.114] Media-player close fix: the floated .close-x could sit
@@ -78950,6 +79028,7 @@ button.rp72-chip{ cursor:pointer; }
     );
     wireSheetClose();
     rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
+    try { if (window.rpAppr505 && it.kind === "photopost") window.rpAppr505.consider(document.querySelector("#sheet .rpmedia-photo-view"), "photo", it.id, it.owner || null, it.apprFlag); } catch (e) { } // [RP-V7.505]
     var span = document.querySelector("[data-rpvcount]");
     // [RP-V7.303] your own photo / photo post: the 👁 count opens
     // Who watched. Text posts never wire (no photo, no view list).
@@ -79120,6 +79199,7 @@ button.rp72-chip{ cursor:pointer; }
     );
     wireSheetClose();
     rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
+    try { if (window.rpAppr505 && it.kind === "photopost") window.rpAppr505.consider(document.querySelector("#sheet .rpmedia-photo-view"), "photo", it.id, it.owner || null, it.apprFlag); } catch (e) { } // [RP-V7.505]
     var span = document.querySelector("[data-rpvcount]");
     // [RP-V7.303] your own photo / photo post: the 👁 count opens
     // Who watched. Text posts never wire (no photo, no view list).
@@ -79191,6 +79271,7 @@ button.rp72-chip{ cursor:pointer; }
     try { if (vid254 && it && it.__rpFromGrid481 && window.__rpTel478) window.__rpTel478(document.querySelector("#sheet .rpmedia-player"), it, vid254); } catch (e) { } // [RP-V7.481] a Reels-grid open beacons its start the way a pager landing did (V7.478): the hook attaches in the same task as play(), so its msPlay measures tap -> playing. Gated to grid opens by the __rpFromGrid481 flag (set only in rpGridOpenReel481 and rpReelsOpenOne481) — every other surface's opens are untouched, and the hook itself still refuses non-server items. The card argument is the player element: it carries no feed id, so the record's feed reads "" — a player open, not a feed landing.
     if (vid254 && it.crMuted) { vid254.muted = true; vid254.volume = 0; vid254.addEventListener("volumechange", function () { if (!vid254.muted) { vid254.muted = true; vid254.volume = 0; } }); } // [RP-V7.286] the native controls cannot unmute a copyright-muted video
     rail241.wire(document.querySelector("#sheet .rpmedia-wrap")); // [RP-V7.241]
+    try { if (window.rpAppr505) window.rpAppr505.consider(document.querySelector("#sheet .rpmedia-player"), it.feedPost ? "feed" : "reel", it.id, it.owner || null, it.apprFlag); } catch (e) { } // [RP-V7.505]
     var span = document.querySelector("[data-rpvcount]");
     // [RP-V7.303] your own reel: the 👁 count opens Who watched
     // (Feed posts never wire — their views are not reel records).
@@ -79588,7 +79669,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.reels || []).forEach(function (r) {
       items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", poster: r.poster || "", locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: r.views || 0,
         // [RP-V7.241] rail state rides along for the lightbox
-        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ allowDownloads: r.allowDownloads !== false /* [RP-V7.316] */ });
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ allowDownloads: r.allowDownloads !== false /* [RP-V7.316] */ });
     });
     return items;
   }
@@ -79628,7 +79709,7 @@ button.rp72-chip{ cursor:pointer; }
   // the profile page so both render the same profile.
   function profItems(j) {
     var items = itemsFromProfile(j);
-    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, thumb: pp.photoThumb || (pp.thumbUrls && pp.thumbUrls[0]) || "", /* [RP-V7.485] */ locked: !!pp.locked, subsOnly: !!pp.subsOnly, clubOnly: !!pp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: pp.locked ? 1 : ((pp.urls || []).length || 1) /* [RP-V7.123] */,
+    (j.photoPosts || []).forEach(function (pp) { items.push({ kind: "photopost", id: pp.id, apprFlag: !!pp.apprFlag, /* [RP-V7.505] */ owner: j.id, ownerName: pp.author || j.name || "", src: pp.photo, thumb: pp.photoThumb || (pp.thumbUrls && pp.thumbUrls[0]) || "", /* [RP-V7.485] */ locked: !!pp.locked, subsOnly: !!pp.subsOnly, clubOnly: !!pp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: pp.locked ? 1 : ((pp.urls || []).length || 1) /* [RP-V7.123] */,
       // [RP-V7.241] the full feed-item shape, for the lightbox rail
       caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: pp.commentCount || 0, reposts: pp.reposts || 0, myReposted: !!pp.myReposted, mine: !!pp.mine }); });
     (j.feedPosts || []).forEach(function (fp) { items.push({ kind: fp.kind === "video" ? "reel" : "photo", id: fp.id, owner: j.id, ownerName: j.name || "", src: fp.src, poster: fp.poster || "", /* [RP-V7.484] feed videos carry their server poster into the tile */ thumb: fp.thumb || "", /* [RP-V7.485] feed photos carry their server variant into the tile */ locked: !!fp.locked, subsOnly: !!fp.subsOnly, clubOnly: !!fp.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: fp.views || 0, crMuted: fp.crMuted || null, /* [RP-V7.286] */ allowDownloads: fp.allowDownloads !== false, /* [RP-V7.316] */ caption: fp.text || "", likes: fp.likes || 0, myLiked: !!fp.likedByMe, comments: Array.isArray(fp.comments) ? fp.comments : [], commentCount: fp.commentCount || 0, reposts: fp.reposts || 0, myReposted: !!fp.myReposted, giftCount: fp.giftCount || 0, /* [RP-V7.409] the lightbox/player Feed rail state */ feedPost: true /* [RP-V7.241] */ }); }); // [RP-V7.109] their Feed posts too — all posts they made
@@ -79818,7 +79899,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.reels || []).forEach(function (r) {
       items.push({ kind: "reel", id: r.id, owner: r.authorId || null, ownerName: r.author || "", src: r.url || "", poster: r.poster || "", views: r.views || 0, createdAt: r.createdAt || "",
         // [RP-V7.241] rail state rides along for the lightbox
-        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ allowDownloads: r.allowDownloads !== false /* [RP-V7.316] */ });
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ allowDownloads: r.allowDownloads !== false /* [RP-V7.316] */ });
     });
     (j.photos || []).forEach(function (p) {
       items.push({ kind: "photo", id: p.url, owner: p.ownerId, ownerName: p.ownerName || "", src: p.url, views: p.views || 0, createdAt: "" });
@@ -85440,6 +85521,18 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     susp263.forEach(function (a) {
       h += '<div class="rp-os-note" style="opacity:.95">⏸️ <b>' + esc2(a.name || "?") + '</b> (@' + esc2(a.username || "") + ')' + rpT("own_suspended_line") + '<button type="button" class="rp-age-restore" data-acct="' + esc2(a.id || "") + '" style="margin-left:8px; background:#2a7ab5; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-weight:800; cursor:pointer">' + rpT("own_restore_btn") + '</button></div>';
     });
+    // [RP-V7.505] APPROPRIATENESS — viewer answers on screening-
+    // flagged content (payload: d.appr505 from /api/owner/sales).
+    // Signal only: answers never hide or strike anything by
+    // themselves; the owner's judgment is the act, as everywhere
+    // else on this board.
+    var ap505 = d.appr505 || { count: 0, items: [] };
+    if (ap505.count) {
+      h += '<div class="rp-os-rows" style="margin-top:12px"><div class="rp-os-row"><span>' + rpT("own_appr_head505") + '</span><b>' + rpTf("own_open_n", { n: ap505.count }) + '</b></div></div>';
+      (ap505.items || []).forEach(function (r) {
+        h += '<div class="rp-os-note" style="opacity:.95">🧭 <b>' + esc2(r.surface || "") + '</b> · ' + esc2(r.authorName || "?") + (r.caption ? ' — &ldquo;' + esc2(r.caption) + '&rdquo;' : '') + '<br>' + rpT("own_appr_flag505") + ': ' + esc2(r.flagClass || "") + ' ' + esc2(String(r.flagScore != null ? r.flagScore : "")) + ' · ' + rpTf("own_appr_counts505", { asked: r.asked || 0, yes: r.appropriate || 0, no: r.notAppropriate || 0 }) + '</div>';
+      });
+    }
     // [OWNER-DELETE] Pending deletions — the 30-day appeal + funds
     // window (payload: d.pendingDeletions from /api/owner/sales).
     // An entry holding a fresh appeal is flagged loud: it is
@@ -89964,7 +90057,7 @@ html, body { overflow-x: clip; }
     /* ---------------- the photo-post flow -------------------------- */
     function gridItem243(pp) {
       var urls = (Array.isArray(pp.urls) && pp.urls.length) ? pp.urls : (pp.photo ? [pp.photo] : []);
-      return { kind: "photopost", id: pp.id, owner: pp.authorId || null, ownerName: pp.author || "", src: pp.photo || "", textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: urls.length || 1, caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted };
+      return { kind: "photopost", id: pp.id, apprFlag: !!pp.apprFlag, /* [RP-V7.505] */ owner: pp.authorId || null, ownerName: pp.author || "", src: pp.photo || "", textPost: pp.kind === "text", text: pp.text || "", tstyle: pp.tstyle || null, /* [RP-V7.278] */ views: 0, photoCount: urls.length || 1, caption: pp.caption || "", likes: pp.likes || 0, giftCount: pp.giftCount || 0, /* [RP-V7.262] */ myLiked: !!pp.myLiked, comments: Array.isArray(pp.comments) ? pp.comments : [], commentCount: (typeof pp.commentCount === "number" ? pp.commentCount : (Array.isArray(pp.comments) ? pp.comments.length : 0)), reposts: pp.reposts || 0, myReposted: !!pp.myReposted };
     }
     function share243(pp) {
       var url = (window.rpShareUrl269 && window.rpShareUrl269("post", pp.id)) || (location.origin + "/#photo-" + pp.id); // [RP-V7.269] Home-stream photo posts are server posts: share the share page
@@ -90588,7 +90681,7 @@ html, body { overflow-x: clip; }
        (the server branch and the on-device branch), so reelCard and
        every rail handler read exactly what they read on Reels. */
     function gameServerItem(r, myServerIds) {
-      return { key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, crMuted: r.crMuted || null, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */ }; /* [RP-V7.451] */
+      return { key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, crMuted: r.crMuted || null, apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */ }; /* [RP-V7.451] */
     }
     function gameLocalItem(m) {
       return { key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || (typeof reelMyName === "function" ? reelMyName() : "You"), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, musicTrackId: m.musicTrackId || null, origSoundId: m.origSoundId || null, soundId: null, soundName: null, soundOwnerName: null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol, category: m.gaming ? "gaming" : null };
@@ -100539,6 +100632,71 @@ window.rpOpenSavedSheet349 = function () {
       setTimeout(fin478, 10000); // a landing that never plays still reports (msPlay/msTu stay null)
     } catch (e) { }
   };
+})();
+</script>
+
+<script>
+/* [RP-V7.505] APPROPRIATENESS QUESTION (Branden, Nov 24, 2026:
+   "It's should only be for certain type of videos that screening
+   thinks is not appropriate" — "Same way TikTok"). The server stamps
+   apprFlag505 on content whose Hive screening landed in the
+   borderline band and serves a boolean apprFlag; this module asks a
+   signed-in NON-AUTHOR viewer, once per item, "Do you think this is
+   appropriate?" Answers POST to /api/appropriateness505 and land as
+   tallies on the owner board — a signal only; nothing auto-hides or
+   auto-strikes. One ask per viewer per item: the verdict is kept in
+   per-account client storage (rpAppr505.v1) AND server-side (the
+   endpoint keeps the first answer per account), so a re-ask cannot
+   happen from either side. Unflagged content never renders the card:
+   consider() returns before any DOM write unless apprFlag is true.
+   Lives carry no screening signal in this build, so no live surface
+   ever calls consider(). */
+(function () {
+  "use strict";
+  var LS = "rpAppr505.v1";
+  function acct() { try { return JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); } catch (e) { return null; } }
+  function myId() { var a = acct(); return a ? ((a.user && a.user.id) || a.userId || a.id || null) : null; }
+  function seen() { try { return JSON.parse(localStorage.getItem(LS) || "{}") || {}; } catch (e) { return {}; } }
+  function mark(key) { try { var m = seen(); m[key] = 1; localStorage.setItem(LS, JSON.stringify(m)); } catch (e) { } }
+  function send(surface, id, answer) {
+    try {
+      var a = acct(); if (!a || !a.token) return;
+      fetch("/api/appropriateness505", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + a.token }, body: JSON.stringify({ surface: surface, id: id, answer: answer }) }).catch(function () { });
+    } catch (e) { }
+  }
+  function consider(host, surface, id, authorId, apprFlag) {
+    try {
+      if (!host || !apprFlag || !id) return; // unflagged content: the question NEVER renders
+      if (host.querySelector(".rp-appr505")) return; // already up on this card
+      var me = myId(); if (!me) return; // signed-in viewers only
+      if (authorId && String(authorId) === String(me)) return; // never the author
+      var key = surface + ":" + id;
+      if (seen()[key]) return; // asked once — answered or dismissed, never again
+      var card = document.createElement("div");
+      card.className = "rp-appr505";
+      var q = document.createElement("span"); q.className = "rp-appr505-q"; q.textContent = rpT("appr_q505");
+      var x = document.createElement("button"); x.type = "button"; x.className = "rp-appr505-x"; x.setAttribute("aria-label", "Dismiss"); x.textContent = "✕";
+      var btns = document.createElement("div"); btns.className = "rp-appr505-btns";
+      var by = document.createElement("button"); by.type = "button"; by.textContent = rpT("appr_yes505");
+      var bn = document.createElement("button"); bn.type = "button"; bn.className = "rp-appr505-no"; bn.textContent = rpT("appr_no505");
+      btns.appendChild(by); btns.appendChild(bn);
+      card.appendChild(x); card.appendChild(q); card.appendChild(btns);
+      function done(answer, thanks) {
+        mark(key); send(surface, id, answer); // marked first: even a failed POST never re-asks this viewer
+        if (thanks) {
+          q.textContent = rpT("appr_thanks505");
+          if (btns.parentNode === card) card.removeChild(btns);
+          if (x.parentNode === card) card.removeChild(x);
+          setTimeout(function () { if (card.parentNode) card.parentNode.removeChild(card); }, 1400);
+        } else if (card.parentNode) card.parentNode.removeChild(card);
+      }
+      by.addEventListener("click", function (ev) { ev.stopPropagation(); done("appropriate", true); });
+      bn.addEventListener("click", function (ev) { ev.stopPropagation(); done("not", true); });
+      x.addEventListener("click", function (ev) { ev.stopPropagation(); done("dismissed", false); });
+      host.appendChild(card);
+    } catch (e) { }
+  }
+  window.rpAppr505 = { consider: consider };
 })();
 </script>
 
