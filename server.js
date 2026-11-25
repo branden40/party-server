@@ -7788,7 +7788,12 @@ app.post("/api/reel/downloads", (req, res) => {
 // wm3 cache tag stays. V7.317 thread caps and the V7.318 self-heal
 // are untouched.
 // ---------------------------------------------------------------------------
-const WM_STAMP_VER_316 = "wm3";
+// [RP-V7.507] wm7: the stamp design changed (red glow baked into
+// the stamp PNG — see wmGlowGraph507 — and the mark now hops
+// spot to spot in the encode). Per the V7.316 rule, the version
+// tag is what stops files stamped by an older design from ever
+// being served.
+const WM_STAMP_VER_316 = "wm7";
 // [RP-V7.321.1] EMERGENCY KILL-SWITCH (Branden approved Nov 10, 2026):
 // the V7.320 stamp render crashes the origin process on real
 // production downloads (proxy 502 + ~1 min full-site outage per
@@ -8074,6 +8079,40 @@ function wmErrInfo318(e) {
     message: String(e.message || e).slice(-1000),
   };
 }
+// [RP-V7.507] THE GLOW (Branden, Nov 24, 2026: "Just make ours
+// have a glow"). The assembled stamp is wrapped in a red halo
+// before it is cached: the stamp stream is split nine ways — eight
+// branches are reduced to a pure-red silhouette of the stamp's own
+// alpha (colorchannelmixer ra=1: the red channel IS the alpha,
+// green/blue ride at a tenth of it for a deep red, alpha halved)
+// and overlaid around the centre at a 5 px offset in every
+// direction on a canvas padded by WM_GLOW_PAD_507; the untouched
+// stamp lands in the middle last. Eight offset copies of a soft
+// alpha silhouette read as a blur halo without a blur filter —
+// deliberately, because every filter used here (split,
+// colorchannelmixer, color, overlay, format) is already on the
+// V7.320 boot-verified list, so the capability gate needs no new
+// trust. The pad is transparent, so position math in the encode
+// folds it back in and the VISIBLE mark lands exactly on the
+// intended margin.
+function wmGlowGraph507(W, H) {
+  const G = WM_GLOW_PAD_507, D = 5;
+  const offs = [[-D, -D], [0, -D], [D, -D], [-D, 0], [D, 0], [-D, D], [0, D], [D, D]];
+  let g = "[wmplain507]split=9[pm507]";
+  for (let i = 0; i < 8; i++) g += "[pg" + (i + 1) + "507]";
+  g += ";";
+  for (let i = 0; i < 8; i++)
+    g += "[pg" + (i + 1) + "507]colorchannelmixer=rr=0:rg=0:rb=0:ra=1:gr=0:gg=0:gb=0:ga=0.10:br=0:bg=0:bb=0:ba=0.10:aa=0.55,format=rgba[pgc" + (i + 1) + "507];";
+  g += "color=c=black@0.0:s=" + (W + G * 2) + "x" + (H + G * 2) + ",format=rgba[gc0507];";
+  let prev = "gc0507";
+  for (let i = 0; i < 8; i++) {
+    const nx = "gc" + (i + 1) + "507";
+    g += "[" + prev + "][pgc" + (i + 1) + "507]overlay=x=" + (G + offs[i][0]) + ":y=" + (G + offs[i][1]) + ":format=rgb[" + nx + "];";
+    prev = nx;
+  }
+  g += "[" + prev + "][pm507]overlay=x=" + G + ":y=" + G + ":format=rgb,format=rgba";
+  return g;
+}
 // The stamp image is Branden's logo lockup and renders once per
 // creator (cached): the neon RP-and-slash mark screen-keyed out of
 // the real icon-512 PNG — NO black chip (Branden: "Take the black
@@ -8163,7 +8202,8 @@ function wmStampFor316(handle) {
       "[wmbase320][1:v]overlay=x=" + TEXTX + ":y=0:format=rgb[wmword320];" +
       labelGraph +
       "[wmword320][lab" + n + "]overlay=x=" + TEXTX + ":y=122:format=rgb," +
-      "format=rgba";
+      "format=rgba[wmplain507];" +
+      wmGlowGraph507(W, H); // [RP-V7.507] the red glow, baked into the cached stamp
     const tmp = out + ".tmp-" + process.pid + ".png";
     // [RP-V7.317] bound the filter graph's threads too (see the
     // hotfix note at WM_STAMP_VER_316); a failed render unlinks tmp.
@@ -8177,23 +8217,65 @@ function wmStampFor316(handle) {
   job.catch(() => {}).finally(() => wmInflight316.delete(inflightKey));
   return job;
 }
+// [RP-V7.507] Export bounds, set by the Nov 10 lesson: the V7.320
+// stamp transcode was the memory bomb behind the OOM restarts
+// (Branden retired the watermark over it on Nov 12). The re-stamp
+// therefore runs on a SINGLE-FILE LANE — one ffmpeg encode at a
+// time across the whole process, however many downloads arrive —
+// inside the V7.317 thread bounds (threads 2, veryfast), and only
+// for exports the 512 MB instance can honestly carry: at most
+// WM_MAX_DUR_507 seconds (reels are already <=300 s by the V7.179
+// fit-trim, so the cap only ever bites an over-long feed video,
+// which gets the honest 503 from wmServe507 instead of an
+// unstamped copy) and at most WM_MAX_W_507 wide (the ORIGINAL is
+// never touched — only the export copy is scaled).
+const WM_MAX_DUR_507 = 300;
+const WM_MAX_W_507 = 1080;
+const WM_GLOW_PAD_507 = 14; // transparent glow margin baked into every stamp PNG (wmGlowGraph507)
+let wmLaneTail507 = Promise.resolve();
+function wmLane507(job) {
+  const run = wmLaneTail507.then(job, job);
+  wmLaneTail507 = run.catch(() => {});
+  return run;
+}
 function wmStampedFor316(cacheName, srcPath, handle) {
   const out = path.join(WM_DIR_316, cacheName);
   if (fs.existsSync(out)) return Promise.resolve(out);
   const inflightKey = "file:" + cacheName;
   if (wmInflight316.has(inflightKey)) return wmInflight316.get(inflightKey);
-  const job = (async () => {
+  const job = wmLane507(async () => {
     const meta = await wmProbe316(srcPath);
     if (!meta.w || !meta.h) throw wmStepErr316("probe", new Error("could not read the video's dimensions"));
     const stampPath = await wmStampFor316(handle);
     const smeta = await wmProbe316(stampPath);
     if (!smeta.w || !smeta.h) throw wmStepErr316("probe", new Error("could not read the watermark stamp"));
-    const tw = Math.max(240, Math.min(680, Math.round(meta.w * 0.42)));
+    // [RP-V7.507] Over the duration cap the route answers the
+    // honest 503 (wmServe507 maps step "cap") — never an unstamped
+    // copy, never a held-hostage instance.
+    if (meta.dur && meta.dur > WM_MAX_DUR_507) throw wmStepErr316("cap", new Error("video is " + Math.round(meta.dur) + "s — over the " + WM_MAX_DUR_507 + "s watermark export cap"));
+    const ew = Math.min(meta.w, WM_MAX_W_507);
+    const eh = Math.max(2, Math.round((meta.h * ew) / meta.w / 2) * 2);
+    const tw = Math.max(240, Math.min(680, Math.round(ew * 0.42)));
     const th = Math.max(2, Math.round((tw * smeta.h) / smeta.w / 2) * 2);
-    const mgn = Math.max(10, Math.round(meta.w * 0.032));
+    const mgn = Math.max(10, Math.round(ew * 0.032));
+    // The stamp PNG carries WM_GLOW_PAD_507 px of transparent glow
+    // margin around the visible mark; seats are computed for the
+    // VISIBLE mark, so the scaled pad is folded back in.
+    const gPad = Math.round((tw * WM_GLOW_PAD_507) / smeta.w);
+    const xL = mgn - gPad, xR = ew - tw - mgn + gPad, yT = mgn - gPad, yB = eh - th - mgn + gPad;
+    // [RP-V7.507] THE HOP (Branden, Nov 24: "make it move spot to
+    // spot like TikTok"): four corner seats, 4 s each, cycling on
+    // mod(t,16) — bottom-right first (the classic seat), then
+    // top-left, top-right, bottom-left — so no single crop can
+    // remove the mark. The stamp is split four ways because an
+    // overlay consumes its overlay input.
     const fc =
-      "[1:v]scale=" + tw + ":" + th + ",format=rgba,colorchannelmixer=aa=0.90[wm];" +
-      "[0:v][wm]overlay=x=W-w-" + mgn + ":y=H-h-" + mgn + ",pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p[v]";
+      (ew < meta.w ? "[0:v]scale=" + ew + ":" + eh + ":flags=lanczos,format=yuv420p[vin507];" : "") +
+      "[1:v]scale=" + tw + ":" + th + ",format=rgba,colorchannelmixer=aa=0.92,split=4[ws0507][ws1507][ws2507][ws3507];" +
+      "[" + (ew < meta.w ? "vin507" : "0:v") + "][ws0507]overlay=x=" + xR + ":y=" + yB + ":enable='lt(mod(t\\,16)\\,4)'[v0507];" +
+      "[v0507][ws1507]overlay=x=" + xL + ":y=" + yT + ":enable='between(mod(t\\,16)\\,4\\,8)'[v1507];" +
+      "[v1507][ws2507]overlay=x=" + xR + ":y=" + yT + ":enable='between(mod(t\\,16)\\,8\\,12)'[v2507];" +
+      "[v2507][ws3507]overlay=x=" + xL + ":y=" + yB + ":enable='gte(mod(t\\,16)\\,12)',pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p[v]";
     const tmp = out + ".tmp-" + process.pid + ".mp4";
     // [RP-V7.317] THE hotfix (see the note at WM_STAMP_VER_316):
     // "-threads 2" caps libx264's pool — unbounded, it sized itself
@@ -8213,7 +8295,7 @@ function wmStampedFor316(cacheName, srcPath, handle) {
       }
     } catch (e) {}
     return out;
-  })();
+  });
   wmInflight316.set(inflightKey, job);
   job.catch(() => {}).finally(() => wmInflight316.delete(inflightKey));
   return job;
@@ -8248,6 +8330,91 @@ function wmServe316(res, cacheName, srcPath, handle, dlName) {
       .then((p) => { if (!res.headersSent) res.download(p, dlName); })
       .catch((e) => {
         console.log("[watermark] stamp failed for", cacheName, ":: step=" + (e.wmStep316 || "unknown"), "::", e.message);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: "Couldn't prepare that download — please try again." });
+      });
+  });
+}
+// [RP-V7.507] The serve path the download routes use again from
+// this build (supersedes wmServe316, which stays for the diag
+// endpoint's own history): same capability guards, plus the
+// duration cap answered as an honest 503.
+function wmServe507(res, cacheName, srcPath, handle, dlName) {
+  wmFfmpegReady318().then(async (ok) => {
+    if (!ok || !wmAssetsOk316)
+      return res.status(503).json({ ok: false, error: "Downloads are being set up — please try again shortly." });
+    const caps320 = await wmFilterCaps320P;
+    if (caps320 && !caps320.ok) {
+      console.log("[watermark] download refused: ffmpeg capability mismatch (missing filters: " + caps320.missing.join(", ") + ")");
+      return res.status(503).json({ ok: false, error: "Downloads are being set up — please try again shortly." });
+    }
+    wmStampedFor316(cacheName, srcPath, handle)
+      .then((p) => { if (!res.headersSent) res.download(p, dlName); })
+      .catch((e) => {
+        if (e && e.wmStep316 === "cap") {
+          console.log("[watermark] export refused (over duration cap) for", cacheName);
+          if (!res.headersSent) res.status(503).json({ ok: false, error: "That video is too long to watermark for download — it still plays in the app." });
+          return;
+        }
+        console.log("[watermark] stamp failed for", cacheName, ":: step=" + (e.wmStep316 || "unknown"), "::", e.message);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: "Couldn't prepare that download — please try again." });
+      });
+  });
+}
+// [RP-V7.507] The photo stamp: the same glowing mark, one frame,
+// bottom-right corner (a still has nowhere to hop to — TikTok's
+// photo mark sits still too). Cached per photo exactly like the
+// videos; the original is never touched.
+function wmStampedPhoto507(cacheName, srcPath, handle) {
+  const out = path.join(WM_DIR_316, cacheName);
+  if (fs.existsSync(out)) return Promise.resolve(out);
+  const inflightKey = "file:" + cacheName;
+  if (wmInflight316.has(inflightKey)) return wmInflight316.get(inflightKey);
+  const job = wmLane507(async () => {
+    const meta = await wmProbe316(srcPath);
+    if (!meta.w || !meta.h) throw wmStepErr316("probe", new Error("could not read the photo's dimensions"));
+    const stampPath = await wmStampFor316(handle);
+    const smeta = await wmProbe316(stampPath);
+    if (!smeta.w || !smeta.h) throw wmStepErr316("probe", new Error("could not read the watermark stamp"));
+    const tw = Math.max(200, Math.min(680, Math.round(meta.w * 0.42)));
+    const th = Math.max(2, Math.round((tw * smeta.h) / smeta.w / 2) * 2);
+    const mgn = Math.max(10, Math.round(meta.w * 0.032));
+    const gPad = Math.round((tw * WM_GLOW_PAD_507) / smeta.w);
+    const fc =
+      "[1:v]scale=" + tw + ":" + th + ",format=rgba,colorchannelmixer=aa=0.92[wm];" +
+      "[0:v][wm]overlay=x=W-w-" + (mgn - gPad) + ":y=H-h-" + (mgn - gPad) + "[v]";
+    const tmp = out + ".tmp-" + process.pid + (cacheName.endsWith(".png") ? ".png" : ".jpg");
+    const args = ["-y", "-v", "error", "-filter_complex_threads", "2", "-i", srcPath, "-i", stampPath, "-filter_complex", fc, "-map", "[v]", "-frames:v", "1"];
+    if (!cacheName.endsWith(".png")) args.push("-q:v", "3");
+    args.push(tmp);
+    try { await wmRun316(args, 60000); }
+    catch (e) { try { fs.unlinkSync(tmp); } catch (e2) {} throw wmStepErr316("encode", e); }
+    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 512) throw wmStepErr316("encode", new Error("photo stamp produced no file"));
+    fs.renameSync(tmp, out);
+    try {
+      const prefix = cacheName.replace(/-\d+-\d+\.[a-z]+$/, "") + "-";
+      for (const f of fs.readdirSync(WM_DIR_316)) {
+        if (f.startsWith(prefix) && f !== cacheName && !f.includes(".tmp-")) { try { fs.unlinkSync(path.join(WM_DIR_316, f)); } catch (e) {} }
+      }
+    } catch (e) {}
+    return out;
+  });
+  wmInflight316.set(inflightKey, job);
+  job.catch(() => {}).finally(() => wmInflight316.delete(inflightKey));
+  return job;
+}
+function wmServePhoto507(res, cacheName, srcPath, handle, dlName) {
+  wmFfmpegReady318().then(async (ok) => {
+    if (!ok || !wmAssetsOk316)
+      return res.status(503).json({ ok: false, error: "Downloads are being set up — please try again shortly." });
+    const caps320 = await wmFilterCaps320P;
+    if (caps320 && !caps320.ok) {
+      console.log("[watermark] photo download refused: ffmpeg capability mismatch (missing filters: " + caps320.missing.join(", ") + ")");
+      return res.status(503).json({ ok: false, error: "Downloads are being set up — please try again shortly." });
+    }
+    wmStampedPhoto507(cacheName, srcPath, handle)
+      .then((p) => { if (!res.headersSent) res.download(p, dlName); })
+      .catch((e) => {
+        console.log("[watermark] photo stamp failed for", cacheName, ":: step=" + (e.wmStep316 || "unknown"), "::", e.message);
         if (!res.headersSent) res.status(500).json({ ok: false, error: "Couldn't prepare that download — please try again." });
       });
   });
@@ -8461,6 +8628,9 @@ app.get("/api/diag/wm316", async (req, res) => {
 // below is byte-identical to V7.316–V7.321.1 (author always may;
 // anyone else needs allowDownloads on, plus the audience /
 // subscriber / club locks); only the final serve changed.
+// [RP-V7.507] The final serve changed again — the stamped export
+// is back (see the serve block at the bottom of this route and
+// the note at wmServe507). Gates unchanged.
 app.get("/api/reel/:id/download", (req, res) => {
   const id = reelCleanId(req.params.id);
   if (!id) return res.status(400).json({ ok: false, error: "Missing reel id" });
@@ -8487,14 +8657,17 @@ app.get("/api/reel/:id/download", (req, res) => {
   }
   const srcPath = path.join(REELS_DIR, path.basename(String(entry.file)));
   if (!fs.existsSync(srcPath)) return res.status(404).json({ ok: false, error: "That video's file is gone" });
-  // [RP-V7.348] Serve the ORIGINAL bytes, streamed by res.download
-  // (Express's send stream: chunked off disk, Range-capable, never
-  // buffered whole into memory) — no ffmpeg, no stamp cache, so the
-  // Nov 10 OOM path is gone by construction.
-  return res.download(srcPath, "rizzplaza-" + id + ".mp4", (err) => {
-    if (err && !res.headersSent)
-      res.status(500).json({ ok: false, error: "Couldn't prepare that download — please try again." });
-  });
+  // [RP-V7.507] The stamped export (Branden's Nov 24 spec: the
+  // glowing mark, hopping spot to spot) — V7.348's original-bytes
+  // serve is retired for this route. The stamp runs on the
+  // single-file lane inside the V7.317 thread bounds, so the
+  // Nov 10 OOM path stays closed; in-app playback never touches
+  // this route and the original file is never modified.
+  let handle507 = entry.author || "rizzplaza";
+  try { const au507 = (adb && aKey) ? adb.users.find((x) => x && x.id === aKey) : null; if (au507 && au507.username) handle507 = au507.username; } catch (e) {}
+  let st507 = null; try { st507 = fs.statSync(srcPath); } catch (e) {}
+  const cache507 = "reel-" + id + "-" + (st507 ? st507.size : 0) + "-" + (st507 ? Math.round(st507.mtimeMs) : 0) + ".mp4";
+  return wmServe507(res, cache507, srcPath, wmHandle316(handle507), "rizzplaza-" + id + ".mp4");
 });
 
 // ---------------------------------------------------------------------------
@@ -18575,11 +18748,13 @@ app.post("/api/feed/downloads", (req, res) => {
 // /api/reel/:id/download (same gates).
 // [RP-V7.348] No longer stamped: serves the post's ORIGINAL file,
 // streamed, exactly like the reel route (see the note there).
+// [RP-V7.507] Stamped again (see the serve block), and photo posts
+// join the route — before this build a photo here answered 404.
 app.get("/api/feed/:id/download", (req, res) => {
   const db = readFeed();
   const p = db.posts[String(req.params.id || "")];
-  if (!p || !p.file || p.kind !== "video")
-    return res.status(404).json({ ok: false, error: "Video not found" });
+  if (!p || !p.file || (p.kind !== "video" && p.kind !== "photo"))
+    return res.status(404).json({ ok: false, error: "Post not found" });
   let adb = null, user = null;
   try { adb = readAccounts(); user = accountForToken(adb, req); } catch (e) { adb = null; user = null; }
   const isAuthor = !!(user && p.authorId && user.id === p.authorId);
@@ -18599,11 +18774,62 @@ app.get("/api/feed/:id/download", (req, res) => {
   const srcPath = path.join(FEED_DIR, path.basename(String(p.file)));
   if (!fs.existsSync(srcPath)) return res.status(404).json({ ok: false, error: "That video's file is gone" });
   const safeId = String(p.id).replace(/[^A-Za-z0-9._-]/g, "").slice(0, 64) || "post";
-  // [RP-V7.348] Original bytes, streamed (see the reel route's note).
-  return res.download(srcPath, "rizzplaza-" + safeId + ".mp4", (err) => {
-    if (err && !res.headersSent)
-      res.status(500).json({ ok: false, error: "Couldn't prepare that download — please try again." });
-  });
+  // [RP-V7.507] The stamped export, same design as the reel route:
+  // videos get the hopping glowing mark; photos take the mark in
+  // the corner. The original file is never modified.
+  let handle507 = p.authorName || "rizzplaza";
+  try { const adb507 = readAccounts(); const au507 = p.authorId ? adb507.users.find((x) => x && x.id === p.authorId) : null; if (au507 && au507.username) handle507 = au507.username; } catch (e) {}
+  let st507 = null; try { st507 = fs.statSync(srcPath); } catch (e) {}
+  const key507 = (st507 ? st507.size : 0) + "-" + (st507 ? Math.round(st507.mtimeMs) : 0);
+  if (p.kind === "photo") {
+    const ext507 = path.extname(String(p.file)).toLowerCase() === ".png" ? ".png" : ".jpg";
+    return wmServePhoto507(res, "feedphoto-" + safeId + "-" + key507 + ext507, srcPath, wmHandle316(handle507), "rizzplaza-" + safeId + ext507);
+  }
+  return wmServe507(res, "feed-" + safeId + "-" + key507 + ".mp4", srcPath, wmHandle316(handle507), "rizzplaza-" + safeId + ".mp4");
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.507] Photo-post export — the photo twin of the download
+// routes above. Photo posts never had a download route (their only
+// way out of the app was the V7.493 file share of the RAW file);
+// now the photo viewer's Download button and the file share both
+// land here, and the copy that leaves carries the glowing mark in
+// the corner. Gates mirror the photo stream's own visibility
+// (GET /api/photo/posts): everyone-posts are public, onlyme is
+// the owner alone, followers is the owner + their followers (+ an
+// accepted collaborator, as in the stream). There is no
+// allowDownloads flag on photo posts — the downloads switch is a
+// video-post control — so visibility is the only gate, exactly as
+// the stream itself applies it. In-app display never touches this
+// route; the original file is never modified.
+// ---------------------------------------------------------------------------
+app.get("/api/photo/:id/download", (req, res) => {
+  const db = readPhotoPosts();
+  const p = (db.posts || []).find((x) => x && x.id === String(req.params.id || ""));
+  if (!p) return res.status(404).json({ ok: false, error: "Photo not found" });
+  let adb = null, user = null;
+  try { adb = readAccounts(); user = accountForToken(adb, req); } catch (e) { adb = null; user = null; }
+  const aud507 = p.audience || "everyone";
+  if (aud507 !== "everyone") {
+    let ok507 = !!(user && p.owner && user.id === p.owner);
+    if (!ok507 && user && aud507 === "followers") {
+      try { ok507 = socialFollowingIds(readSocial(), user.id).includes(p.owner); } catch (e) {}
+      if (!ok507) { try { ok507 = collabAccId453(p) === user.id; } catch (e) {} }
+    }
+    if (!ok507) return res.status(403).json({ ok: false, error: "That photo isn't available for download" });
+  }
+  const url507 = p.photo || (Array.isArray(p.urls) ? p.urls[0] : null);
+  if (!url507) return res.status(404).json({ ok: false, error: "That photo's file is gone" });
+  const base507 = path.basename(String(url507).split("?")[0]);
+  const srcPath = path.join(PHOTO_DIR, base507);
+  if (!fs.existsSync(srcPath)) return res.status(404).json({ ok: false, error: "That photo's file is gone" });
+  let handle507 = p.name || "rizzplaza";
+  try { const au507 = (adb && p.owner) ? adb.users.find((x) => x && x.id === p.owner) : null; if (au507 && au507.username) handle507 = au507.username; } catch (e) {}
+  const safeId = String(p.id).replace(/[^A-Za-z0-9._-]/g, "").slice(0, 64) || "photo";
+  const ext507 = path.extname(base507).toLowerCase() === ".png" ? ".png" : ".jpg";
+  let st507 = null; try { st507 = fs.statSync(srcPath); } catch (e) {}
+  const cache507 = "photo-" + safeId + "-" + (st507 ? st507.size : 0) + "-" + (st507 ? Math.round(st507.mtimeMs) : 0) + ext507;
+  return wmServePhoto507(res, cache507, srcPath, wmHandle316(handle507), "rizzplaza-" + safeId + ext507);
 });
 
 // Delete one of my own Feed posts (and its media file).
