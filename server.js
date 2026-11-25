@@ -356,7 +356,7 @@ setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [k, e] of [...liveRegistry]) {
-    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); pollLiveEnded319(k); ticketLiveEnded299(k); gwLiveEnded389(k); bstLiveEnded394(k); } // [RP-V7.394] the boost pool dies with the live; the narrow refund runs // [RP-V7.389] giveaway settles with the live // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
+    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); pollLiveEnded319(k); ticketLiveEnded299(k); gwLiveEnded389(k); bstLiveEnded394(k); liveGoal519Ended(("live-" + k).slice(0, 40)); } // [RP-V7.394] the boost pool dies with the live; the narrow refund runs // [RP-V7.519] goal + gallery die with the stale live too // [RP-V7.389] giveaway settles with the live // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
   }
   for (const k of [...liveAccess138.keys()]) if (!liveRegistry.has(k) && changed) endLiveAccess138(k); // [RP-V7.138] access state dies with its live
   if (changed) broadcastLives();
@@ -759,7 +759,7 @@ function roomState(room) {
   // [RP-V7.517] each seat carries the member's server-computed gifter
   // level (0 = no badge) so the live viewer stack can wear the gem
   // badges — the chat relay's V7.338 stamp, on the players payload.
-  return [...players.values()].filter((p) => p.room === room).map((p) => Object.assign({}, p, { glv: p.acctId ? gifterLevelOf338(p.acctId) : 0 }));
+  return [...players.values()].filter((p) => p.room === room).map((p) => Object.assign({}, p, { glv: p.acctId ? gifterLevelOf338(p.acctId) : 0, spark519: p.acctId ? sparkStock519(p.acctId) : 0 })); // [RP-V7.519] spark stock rides the seat too
 }
 
 // ---------------------------------------------------------------------------
@@ -21935,7 +21935,9 @@ function battle306Payload(b, forSide, forHostAcct, ev) {
     youSide: forSide,
     mute: battle458View(b), // [RP-V7.458] opponent-mute state (see battle458SetMute)
     effects: { a: battle306EffectsView(b, "a", now), b: battle306EffectsView(b, "b", now) },
-    mission: b.mission ? { active: now >= b.mission.startsAt && now < b.mission.endsAt, opensAt: b.mission.startsAt, endsAt: b.mission.endsAt } : null,
+    mission: battle519MissionView(b, now), // [RP-V7.519] kind/target/got/done ride along (the V7.306 fields are unchanged)
+    away: battle519AwayView(b, now), // [RP-V7.519] sides inside reconnect grace
+    rush: battle519RushView(b, now), // [RP-V7.519] the room-wide Rush Window, when open
     ev: ev || null,
   };
   // [RP-V7.517] per-side top gifters (the podium). A side whose score
@@ -22001,6 +22003,200 @@ function battle518DirRefresh(force) {
   battle518DirAt = now;
   try { broadcastLives(); } catch (e) { }
 }
+// ---------------------------------------------------------------------------
+// [RP-V7.519] BATTLE EVENTS & GRACE (Build C of the Nov 25 battle audit —
+// the final battle build). Four systems, all server-authoritative:
+//
+// 1) RECONNECT GRACE (audit §19): a battling host whose socket dies no
+//    longer ends the battle on the spot. The part is marked away for
+//    30s (payload field "away"); that side's score FREEZES — gifts to
+//    it still settle for the host's wallet (money never depends on the
+//    battle) but score 0, the Hammer-freeze precedent. A reconnect
+//    inside grace (matched by account id, or by device key for a
+//    guest host) rebinds the part to the new socket and the battle
+//    resumes as the same battle id. Grace expiry ends the battle
+//    through the existing battle306End "host-gone" path (the clock
+//    sweep checks expiries; the battle clock itself never pauses, so
+//    a battle can also end "time" mid-grace). An explicit host "end"
+//    still ends instantly — grace covers drops, not decisions.
+//
+// 2) LIVE GOALS + GALLERY (audit §4 + addendum): a host sets ONE goal
+//    per live (gift + target count) from inside their own live room;
+//    counting rides the /api/money/gift settle beside the battle and
+//    league hooks and counts REAL live settles only — promo/test-funds
+//    and charms-only settles never count, post/reel/story gifts never
+//    count (the league rule). The Gallery count is the number of
+//    DISTINCT gift types the live has collected from those same real
+//    settles. Completion fires one room line. Goals pay nothing —
+//    display quests, never a money faucet.
+//
+// 3) PLAZA SPARK (audit §21): an earned-only, zero-value support
+//    token. +1 for joining a live (once per ET day per account), +1
+//    for every REAL gifter on a battle's winning side (the V7.517
+//    gifter record, which already excludes promo/charms-only).
+//    Sending one in a live room is a chat-visible line + a burst
+//    event. No charms, no points, no LP, no purchase path, no
+//    cash-out — the stock counter is the only number, and it is real.
+//    Stock persists in sparks519.json (the boosters.json pattern),
+//    capped at 99.
+//
+// (The gifter-target Bonus Mission + Rush Window live in the battle
+// section below — battleBuild336 / battle306OnGift — and bulk gift
+// sends needed nothing: the V7.219 combo batch already settles
+// x1/x10/x50/x100/x500/x1000 atomically under a per-batch
+// idempotency key, validated whole up front.)
+// ---------------------------------------------------------------------------
+function battle519AwayView(b, now) {
+  const out = [];
+  for (const pt of b.parts) if (pt.awayUntil519 && pt.awayUntil519 > now) out.push({ side: pt.side, name: pt.name, until: pt.awayUntil519 });
+  return out;
+}
+function battle519MissionView(b, now) {
+  if (!b.mission) return null;
+  const m = b.mission;
+  return {
+    active: now >= m.startsAt && now < m.endsAt && !m.done,
+    opensAt: m.startsAt, endsAt: m.endsAt,
+    kind: m.kind || "first", target: m.target || 1,
+    got: m.gifters ? Object.keys(m.gifters).length : 0, done: !!m.done,
+  };
+}
+function battle519RushView(b, now) {
+  if (!b.rush519 || now >= b.rush519.endsAt) return null;
+  return { active: now >= b.rush519.startsAt, endsAt: b.rush519.endsAt };
+}
+// A battling host's socket died: hold the battle open for 30s instead
+// of ending it (the disconnect handler calls this with the device key
+// it captured before the key map was cleaned).
+function battle519HostGone(sockId, devKey) {
+  const bid = battleBySocket306.get(sockId);
+  const b = bid ? battles306.get(bid) : null;
+  if (!b || b.ended) return;
+  const pt = battle306PartOf(b, sockId);
+  if (!pt || pt.awayUntil519) return;
+  if (pt.key519 == null && devKey) pt.key519 = devKey;
+  pt.awayUntil519 = Date.now() + 30000;
+  battleBySocket306.delete(sockId); // the dead socket keeps no battle rights; the resume rebinds
+  battleEmit336(b, { kind: "away", side: pt.side, name: pt.name });
+  console.log("[battle519] grace", b.id, pt.side, pt.name, "until", pt.awayUntil519);
+}
+// A socket that just joined (or just announced its account) may be a
+// battling host coming back inside grace: rebind their part.
+function battle519TryResume(socket, player, devKey) {
+  if (!player) return false;
+  const now = Date.now();
+  for (const b of battles306.values()) {
+    if (b.ended) continue;
+    for (const pt of b.parts) {
+      if (!pt.awayUntil519 || pt.awayUntil519 <= now) continue;
+      const acctMatch = !!(pt.acct && player.acctId && pt.acct === player.acctId);
+      const keyMatch = !!(pt.key519 && devKey && pt.key519 === devKey);
+      if (!acctMatch && !keyMatch) continue;
+      pt.sock = socket.id;
+      const ownRoom519 = devKey ? ("live-" + devKey).slice(0, 40) : "";
+      if (ownRoom519 && player.room === ownRoom519) pt.room = player.room; // their live room name is device-key stable; only adopt it when it is provably theirs
+      pt.awayUntil519 = 0;
+      battleBySocket306.set(socket.id, b.id);
+      battleEmit336(b, { kind: "back", side: pt.side, name: pt.name });
+      console.log("[battle519] resumed", b.id, pt.side, pt.name);
+      return true;
+    }
+  }
+  return false;
+}
+// ---- Live Goals + Gallery (per live room; die with the live) ----
+const liveGoals519 = new Map();   // room -> { room, hostAcct, giftId, giftName, target, count, done, setAt }
+const liveGallery519 = new Map(); // room -> Set of gift ids collected this live (real settles only)
+function liveGoal519View(g) { return g ? { giftId: g.giftId, name: g.giftName, target: g.target, count: g.count, done: !!g.done } : null; }
+function liveGallery519Count(room) { const st = liveGallery519.get(room); return st ? st.size : 0; }
+function liveGoal519Ended(room) { if (room) { liveGoals519.delete(room); liveGallery519.delete(room); } }
+function liveGoal519Join(socket, room) {
+  const g = liveGoals519.get(room);
+  if (g) { try { socket.emit("live-goal519", { goal: liveGoal519View(g), gallery: liveGallery519Count(room), ev: "state" }); } catch (e) { } }
+}
+// The counting hook: called from /api/money/gift AFTER settlement,
+// beside the battle + league hooks. Real live settles only.
+function liveGoal519OnGift(info) {
+  if (!info || info.promo || info.charmsOnly) return; // test-funds + charms-only never count (the league rule)
+  if (info.postKey) return;                            // a post/reel/story settle — not a live gift
+  if (info.src === "picture" || info.src === "video") return;
+  const recipientId = info.recipient && info.recipient.id;
+  const senderId = info.sender && info.sender.id;
+  if (!recipientId || !senderId || recipientId === senderId) return;
+  const entry = livesSnapshot().find((e) => e.hostAccountId && e.hostAccountId === recipientId);
+  if (!entry || !entry.room) return; // the recipient is not hosting a live right now
+  const room = entry.room;
+  let set = liveGallery519.get(room);
+  if (!set) { set = new Set(); liveGallery519.set(room, set); }
+  const isNewType = !set.has(info.giftId);
+  if (isNewType) set.add(info.giftId);
+  const g = liveGoals519.get(room);
+  let evName = null;
+  if (g && !g.done && g.giftId === info.giftId) {
+    g.count += Math.max(1, Math.floor(Number(info.count) || 1));
+    evName = "progress";
+    if (g.count >= g.target) { g.done = true; evName = "complete"; }
+  }
+  if (evName || isNewType) {
+    try { io.to(room).emit("live-goal519", { goal: liveGoal519View(g || null), gallery: set.size, ev: evName || "gallery" }); } catch (e) { }
+  }
+  if (evName === "complete") {
+    try { io.to(room).emit("chat-message", { id: "", name: "", text: "\u{1F3AF} GOAL COMPLETE! " + g.target + " \u00D7 " + g.giftName + " collected \u2014 the room did it together!", sys: true, at: Date.now() }); } catch (e) { }
+  }
+}
+// ---- Plaza Spark (earned only; zero value; boosters.json pattern) ----
+const SPARKS_FILE519 =
+  process.env.SPARKS_FILE || path.join(path.dirname(PHOTO_DIR), "sparks519.json");
+const SPARK_CAP519 = 99;
+function emptySparks519() { return { accts: {} }; }
+function readSparks519() {
+  const d = storeReadJson(SPARKS_FILE519, (x) => !!(x && x.accts && typeof x.accts === "object" && !Array.isArray(x.accts)), emptySparks519(), "sparks519");
+  if (!d.accts || typeof d.accts !== "object" || Array.isArray(d.accts)) d.accts = {};
+  return d;
+}
+function writeSparks519(db) { storeWriteJson(SPARKS_FILE519, db); }
+function sparkEntry519(db, acctId) {
+  let e = db.accts[acctId];
+  if (!e || typeof e !== "object") e = db.accts[acctId] = { stock: 0, lastJoinDay: "", earned: 0 };
+  return e;
+}
+function sparkStock519(acctId) {
+  if (!acctId) return 0;
+  try { return sparkEntry519(readSparks519(), acctId).stock || 0; } catch (e) { return 0; }
+}
+function sparkAward519(acctId, why) {
+  if (!acctId) return 0;
+  const db = readSparks519();
+  const e = sparkEntry519(db, acctId);
+  e.stock = Math.min(SPARK_CAP519, (e.stock || 0) + 1);
+  e.earned = (e.earned || 0) + 1;
+  writeSparks519(db);
+  try {
+    const sids = acctSockets.get(acctId);
+    if (sids) for (const sid of [...sids]) { const s2 = io.sockets.sockets.get(sid); if (s2) s2.emit("spark519-state", { stock: e.stock }); }
+  } catch (e) { }
+  console.log("[spark519] award", why, "->", acctId, "stock", e.stock);
+  return e.stock;
+}
+// Joining a live earns +1, once per ET day; every join also hands the
+// socket its current stock so its chip is never stale.
+function spark519JoinEarn(socket, player) {
+  try {
+    if (!player || !player.acctId) return;
+    if (!String(player.room || "").startsWith("live-")) return;
+    const day = rpCpDayKey(Date.now());
+    const db = readSparks519();
+    const e = sparkEntry519(db, player.acctId);
+    if (e.lastJoinDay !== day) {
+      e.lastJoinDay = day;
+      e.stock = Math.min(SPARK_CAP519, (e.stock || 0) + 1);
+      e.earned = (e.earned || 0) + 1;
+      writeSparks519(db);
+      console.log("[spark519] join earn ->", player.acctId, "stock", e.stock);
+    }
+    socket.emit("spark519-state", { stock: e.stock || 0 });
+  } catch (e) { }
+}
 function battle306Emit(b, ev) {
   // Both rooms (each gets its own mist-tailored copy) + both hosts
   // directly (their copy also carries their stock).
@@ -22039,7 +22235,9 @@ function battle336Payload(b, forSide, forHostAcct, ev) {
   const p = {
     battleId: b.id, format: b.format, endsAt: b.endsAt, youSide: forSide,
     parts, sides,
-    mission: b.mission ? { active: now >= b.mission.startsAt && now < b.mission.endsAt, opensAt: b.mission.startsAt, endsAt: b.mission.endsAt } : null,
+    mission: battle519MissionView(b, now), // [RP-V7.519] kind/target/got/done ride along (the V7.306 fields are unchanged)
+    away: battle519AwayView(b, now), // [RP-V7.519] sides inside reconnect grace
+    rush: battle519RushView(b, now), // [RP-V7.519] the room-wide Rush Window, when open
     ev: ev || null,
   };
   if (forHostAcct) {
@@ -22092,10 +22290,16 @@ function battleBuild336(format, parts, endsAt) {
   const dur = Math.max(30000, endsAt - now);
   // Bonus mission: random point in the first half; the 30s window
   // must close before the final 5s, so the open offset is capped.
+  // [RP-V7.519] the one mission slot has two variants: "first" (the
+  // V7.306 first-gift x3) and "gifters" (Build C: N distinct gifters
+  // inside the window unlock the room-wide x3 Rush Window). One slot,
+  // one mission per battle — never both, never together.
+  const mKind519 = Math.random() < 0.5 ? "gifters" : "first";
+  const mWin519 = mKind519 === "gifters" ? 60000 : 30000;
   let mStart = now + Math.round(dur * (0.15 + Math.random() * 0.25));
   // The window must OPEN inside the first half and CLOSE before the
-  // final 5s: latest legal open = min(first-half mark, endsAt - 35s).
-  const mLatest = Math.min(now + Math.round(dur / 2), endsAt - 35000);
+  // final 5s: latest legal open = min(first-half mark, endsAt - (window + 5s)).
+  const mLatest = Math.min(now + Math.round(dur / 2), endsAt - (mWin519 + 5000));
   if (mStart > mLatest) mStart = mLatest;
   // A battle too short to fit the window legally gets no mission.
   const mSkip = mLatest <= now + 1000;
@@ -22112,11 +22316,16 @@ function battleBuild336(format, parts, endsAt) {
     id, format, parts, sidePts, effects, timerUsed,
     mutes458: {}, // [RP-V7.458] opponent-mute state: muter socket id -> { target socket id: true }; dies with the record
     endsAt, startedAt: now, ended: false, winnerSide: null, winnerSides: null,
-    mission: { startsAt: mSkip ? endsAt + 1 : mStart, endsAt: mStart + 30000, announced: false, closed: mSkip, usedBy: {} },
+    mission: { kind: mKind519, startsAt: mSkip ? endsAt + 1 : mStart, endsAt: mStart + mWin519, announced: false, closed: mSkip, usedBy: {}, gifters: {}, target: 1, done: false }, // [RP-V7.519] kind/gifters/target/done: the gifter variant's state (target 1 = the recorded spec, third recording's 0/1 pill)
+    rush519: null, // [RP-V7.519] the Rush Window unlocked by the gifter mission: { startsAt, endsAt, announcedEnd }
     gifters517: {}, // [RP-V7.517] per-side gifter totals: side -> acctId -> {acct,name,photo,glv,charms,pts,firstAt}; the podium/MVP source — real settles only, written in battle306OnGift
   };
   battles306.set(id, b);
-  for (const pt of parts) battleBySocket306.set(pt.sock, id);
+  for (const pt of parts) {
+    battleBySocket306.set(pt.sock, id);
+    pt.awayUntil519 = 0; // [RP-V7.519] reconnect grace state
+    try { pt.key519 = clientKeys.get(pt.sock) || null; } catch (e) { pt.key519 = null; } // [RP-V7.519] device key, captured while the socket is alive
+  }
   return b;
 }
 function battle306Create306(aSock, aPlayer, bSock, bPlayer, endsAt) {
@@ -22152,6 +22361,16 @@ function battle306End(b, reason) {
       }
     }
   }
+  // [RP-V7.519] Plaza Spark: every REAL gifter on a winning side
+  // earns +1. The gifters517 record is the source — it already
+  // excludes promo/test-funds and charms-only settles, so no
+  // parallel exclusion is needed (or possible to get wrong) here.
+  if (b.winnerSides.length && b.gifters517) {
+    for (const sWin of b.winnerSides) {
+      const gm519 = b.gifters517[sWin] || {};
+      for (const acctId519 of Object.keys(gm519)) { try { sparkAward519(acctId519, "battle-win"); } catch (e) { } }
+    }
+  }
   if (b.format === "1v1") {
     const wp = b.winnerSide ? b.parts.find((pt) => pt.side === b.winnerSide) : null;
     battle306Emit(b, { kind: "end", reason: reason || "time", winnerSide: b.winnerSide, awardItem: wp ? (awards[wp.sock] || null) : null, awardSide: b.winnerSide });
@@ -22185,6 +22404,7 @@ function battle306OnGift(info) {
     // Booster drop for the receiving host (the sender's team host) —
     // rolled on the settled gift regardless of freeze/multipliers.
     let dropItem = null;
+    let missionRush519 = false; // [RP-V7.519] this gift completed the gifter mission (announced after the gift emit)
     if (Math.random() < boosterDropChance306(total)) {
       dropItem = battle306Award(recipientId, "gift-drop");
     }
@@ -22192,12 +22412,39 @@ function battle306OnGift(info) {
     let pts = 0, mults = [];
     if ((e.freezeUntil || 0) > now) {
       pts = 0; mults.push("frozen");
+    } else if (rPart.awayUntil519 && rPart.awayUntil519 > now) {
+      // [RP-V7.519] reconnect grace: the away side's score freezes
+      // (the gift still settles for the host's wallet and still
+      // counts on the podium — the Hammer-freeze precedent below).
+      pts = 0; mults.push("away");
     } else {
       pts = total;
-      if (b.mission && now >= b.mission.startsAt && now < b.mission.endsAt && senderId && !b.mission.usedBy[senderId]) {
-        b.mission.usedBy[senderId] = 1;
-        pts *= 3; mults.push("firstgift3");
+      if (b.mission && now >= b.mission.startsAt && now < b.mission.endsAt && senderId) {
+        if ((b.mission.kind || "first") === "gifters") {
+          // [RP-V7.519] gifter-target variant: count DISTINCT gifters
+          // on score-eligible gifts (this branch only runs unfrozen,
+          // side connected). Honor counting — promo/test-funds and
+          // charms-only settles never count, the podium rule. Hitting
+          // the target closes the mission and opens the Rush Window.
+          if (!info.promo && !info.charmsOnly && !b.mission.gifters[senderId]) {
+            b.mission.gifters[senderId] = 1;
+            if (Object.keys(b.mission.gifters).length >= (b.mission.target || 1) && !b.mission.done) {
+              b.mission.done = true; b.mission.closed = true;
+              b.rush519 = { startsAt: now, endsAt: now + 30000, announcedEnd: false };
+              missionRush519 = true;
+            }
+          }
+        } else if (!b.mission.usedBy[senderId]) {
+          b.mission.usedBy[senderId] = 1;
+          pts *= 3; mults.push("firstgift3");
+        }
       }
+      // [RP-V7.519] Rush Window: EVERY settled gift scores x3, both
+      // sides, while it runs. Multiplier order (documented): mission
+      // first-gift x3 -> rush x3 -> booster -> gloves. The two mission
+      // multipliers can never stack — one mission slot per battle,
+      // and the rush only ever follows the gifter variant.
+      if (b.rush519 && now >= b.rush519.startsAt && now < b.rush519.endsAt) { pts *= 3; mults.push("rush3"); }
       if ((e.boosterUntil || 0) > now && e.boosterMult) { pts *= e.boosterMult; mults.push("boost" + e.boosterMult); }
       if ((e.glovesUntil || 0) > now && Math.random() < 0.30) { pts *= 5; mults.push("gloves5"); }
     }
@@ -22228,6 +22475,12 @@ function battle306OnGift(info) {
       giftId: info.giftId || null, count: Math.max(1, Math.floor(Number(info.count) || 1)), fromPhoto: (info.sender && info.sender.photo) || null, fromGlv: 0, lvlUp: Math.max(0, Math.floor(Number(info.lvlUpTo) || 0)) };
     try { ev.fromGlv = gifterLevelOf338(senderId); } catch (e) { }
     battleEmit336(b, ev);
+    if (missionRush519) {
+      // [RP-V7.519] the completing gift just landed: close the mission
+      // out loud and open the Rush Window for the whole room.
+      battleEmit336(b, { kind: "mission-end", missionKind: "gifters", completed: true });
+      battleEmit336(b, { kind: "rush-start", endsAt: b.rush519.endsAt });
+    }
     return pts;
   } catch (e) { return 0; }
 }
@@ -22317,12 +22570,22 @@ setInterval(() => {
       if (b.ended) continue;
       if (b.mission && !b.mission.announced && now >= b.mission.startsAt && now < b.mission.endsAt) {
         b.mission.announced = true;
-        battleEmit336(b, { kind: "mission-start" });
+        battleEmit336(b, { kind: "mission-start", missionKind: b.mission.kind || "first", target: b.mission.target || 1 }); // [RP-V7.519] the variant rides the announcement
       }
       if (b.mission && b.mission.announced && !b.mission.closed && now >= b.mission.endsAt) {
         b.mission.closed = true;
-        battleEmit336(b, { kind: "mission-end" });
+        battleEmit336(b, { kind: "mission-end", missionKind: b.mission.kind || "first", completed: !!b.mission.done }); // [RP-V7.519]
       }
+      // [RP-V7.519] Rush Window close announcement (once).
+      if (b.rush519 && !b.rush519.announcedEnd && now >= b.rush519.endsAt) {
+        b.rush519.announcedEnd = true;
+        battleEmit336(b, { kind: "rush-end" });
+      }
+      // [RP-V7.519] reconnect grace expiry: a host who never came
+      // back forfeits — the battle ends by the long-standing path.
+      let awayExpired519 = false;
+      for (const pt of b.parts) if (pt.awayUntil519 && now > pt.awayUntil519) awayExpired519 = true;
+      if (awayExpired519) { battle306End(b, "host-gone"); continue; }
       if (now >= b.endsAt) battle306End(b, "time");
     }
   } catch (e) { }
@@ -25882,6 +26145,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // already carry the LP it just earned.
   try { leagueOnLiveGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, promo: promo321, charmsOnly, src: giftSrc233, postKey: postKey262 }); } catch (e) { }
   try { battle306OnGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, giftName: (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId, giftId, count, promo: promo321, charmsOnly, lvlUpTo: (giftResponse.gifter && giftResponse.gifter.leveledUp) ? giftResponse.gifter.level : 0 }); } catch (e) { } // [RP-V7.517] gift id + batch count + promo/charms-only flags + the level-up ride along (podium tracking, pane banners, level-up line)
+  try { liveGoal519OnGift({ sender: ctx.user, recipient, giftId, count, promo: promo321, charmsOnly, src: giftSrc233, postKey: postKey262, battleId: b.battleId }); } catch (e) { } // [RP-V7.519] Live Goals + Gallery counting — real live settles only, enforced inside
   // [RP-V7.517] Room-wide gifter level-up line: when a settle levels
   // the sender up and the recipient is live, the host's room hears it
   // (TikTok announces level-ups to the room; Plaza told only the
@@ -34602,8 +34866,11 @@ io.on("connection", (socket) => {
     socket.join(room);
     socket.emit("room-state", roomState(room)); // everyone already here
     socket.emit("lives-update", livesPayloadFor(socket)); // [RP-V7.28] current live registry, so a fresh client sees ongoing lives immediately ([RP-V7.40] in the recipient's own order)
-    socket.to(room).emit("player-joined", Object.assign({}, player, { glv: player.acctId ? gifterLevelOf338(player.acctId) : 0 })); // tell the room // [RP-V7.517] gifter level rides the seat
+    socket.to(room).emit("player-joined", Object.assign({}, player, { glv: player.acctId ? gifterLevelOf338(player.acctId) : 0, spark519: player.acctId ? sparkStock519(player.acctId) : 0 })); // tell the room // [RP-V7.517] gifter level rides the seat // [RP-V7.519] Plaza Spark stock rides it too
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
+    battle519TryResume(socket, player, devKey); // [RP-V7.519] a battling host back inside grace rebinds to their battle here
+    liveGoal519Join(socket, room); // [RP-V7.519] the room's current goal state, if one is set
+    spark519JoinEarn(socket, player); // [RP-V7.519] +1 Plaza Spark for joining a live (once per ET day)
   });
 
   // [RP-V7.30] Account presence: a signed-in client announces which
@@ -34639,6 +34906,9 @@ io.on("connection", (socket) => {
         p305.acctId = user.id;
         evictAcctGhosts305(p305.room, user.id, socket.id);
       }
+      // [RP-V7.519] presence landed after the join: the battle resume
+      // and the spark join-earn key on the account, so they retry here.
+      try { const p519 = players.get(socket.id); if (p519) { battle519TryResume(socket, p519, clientKeys.get(socket.id)); spark519JoinEarn(socket, p519); } } catch (e) { }
     } catch (e) { }
     // [RP-V7.50] The account's photo rides the socket: stashed for the
     // join handler (announce-before-join), and seeded onto an
@@ -34792,8 +35062,11 @@ io.on("connection", (socket) => {
       const reg = liveRegistry.get(swKey);
       if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); pollLiveEnded319(swKey); ticketLiveEnded299(swKey); gwLiveEnded389(swKey); bstLiveEnded394(swKey); } // [RP-V7.394] boost pool ends too // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
     }
-    socket.to(room).emit("player-joined", Object.assign({}, p, { glv: p.acctId ? gifterLevelOf338(p.acctId) : 0 })); // [RP-V7.517] gifter level rides the seat
+    socket.to(room).emit("player-joined", Object.assign({}, p, { glv: p.acctId ? gifterLevelOf338(p.acctId) : 0, spark519: p.acctId ? sparkStock519(p.acctId) : 0 })); // [RP-V7.517] gifter level rides the seat // [RP-V7.519] Plaza Spark stock rides it too
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
+    battle519TryResume(socket, p, swKey); // [RP-V7.519] the switch door resumes a grace battle too
+    liveGoal519Join(socket, room); // [RP-V7.519] the room's current goal state, if one is set
+    spark519JoinEarn(socket, p); // [RP-V7.519] +1 Plaza Spark for entering a live (once per ET day)
   });
 
   // [RP-V7.28] Live registry: hosts register on Go LIVE, heartbeat while
@@ -34906,7 +35179,7 @@ io.on("connection", (socket) => {
     if (!devKey) return;
     const unregEntry469 = liveRegistry.get(devKey); // [RP-V7.469] the invite ledger dies with the live
     if (unregEntry469) liveInvited469.delete(unregEntry469.room);
-    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); gwLiveEnded389(devKey); bstLiveEnded394(devKey); } // [RP-V7.394] boost pool ends too // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
+    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); gwLiveEnded389(devKey); bstLiveEnded394(devKey); liveGoal519Ended(("live-" + devKey).slice(0, 40)); } // [RP-V7.394] boost pool ends too // [RP-V7.519] goal + gallery end too // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
   });
 
   // [RP-V7.138] PRIVATE LIVE controls — invite / un-invite / link
@@ -35295,6 +35568,59 @@ io.on("connection", (socket) => {
   socket.on("battle-mute", (data = {}) => {
     const r = battle458SetMute(socket.id, data.battleId, data.muted);
     socket.emit("battle-mute-ack", r);
+  });
+
+  // [RP-V7.519] LIVE GOALS — host-only set/clear, validated exactly
+  // like the V7.138 live controls (the sender must be standing in
+  // their OWN live room). Setting replaces any current goal and
+  // restarts its count — a goal is a fresh quest, never edited
+  // mid-flight. The counting itself lives in liveGoal519OnGift.
+  socket.on("live-goal-set519", (data = {}) => {
+    const ack = (r) => { try { socket.emit("live-goal-ack519", r); } catch (e) { } };
+    const ctx519 = hostLiveCtx138();
+    if (!ctx519) return ack({ ok: false, error: "not-host" });
+    const giftId = String((data && data.giftId) || "");
+    if (!MONEY_GIFT_TABLE[giftId]) return ack({ ok: false, error: "bad-gift" });
+    let target = Math.floor(Number(data && data.target) || 0);
+    if (!isFinite(target) || target < 1) target = 1;
+    if (target > 100000) target = 100000;
+    const g519 = { room: ctx519.p.room, hostAcct: (socket.data && socket.data.accountId) || null, giftId, giftName: (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId, target, count: 0, done: false, setAt: Date.now() };
+    liveGoals519.set(ctx519.p.room, g519);
+    try { io.to(ctx519.p.room).emit("live-goal519", { goal: liveGoal519View(g519), gallery: liveGallery519Count(ctx519.p.room), ev: "set" }); } catch (e) { }
+    ack({ ok: true });
+  });
+  socket.on("live-goal-clear519", () => {
+    const ack = (r) => { try { socket.emit("live-goal-ack519", r); } catch (e) { } };
+    const ctx519 = hostLiveCtx138();
+    if (!ctx519) return ack({ ok: false, error: "not-host" });
+    liveGoals519.delete(ctx519.p.room);
+    try { io.to(ctx519.p.room).emit("live-goal519", { goal: null, gallery: liveGallery519Count(ctx519.p.room), ev: "clear" }); } catch (e) { }
+    ack({ ok: true });
+  });
+
+  // [RP-V7.519] PLAZA SPARK send: spend one earned Spark in the live
+  // room you are standing in. The room hears a support line and sees
+  // the burst event; nothing else moves — no charms, no points, no
+  // LP, ever. One send per second per socket.
+  let sparkLast519 = 0;
+  socket.on("spark-send519", () => {
+    const ack = (r) => { try { socket.emit("spark-ack519", r); } catch (e) { } };
+    const p = players.get(socket.id);
+    const acct = socket.data && socket.data.accountId;
+    if (!p || !acct) return ack({ ok: false, error: "no-account" });
+    if (!String(p.room || "").startsWith("live-")) return ack({ ok: false, error: "not-live" });
+    const now = Date.now();
+    if (now - sparkLast519 < 1000) return ack({ ok: false, error: "too-fast" });
+    const db = readSparks519();
+    const e = sparkEntry519(db, acct);
+    if ((e.stock || 0) < 1) return ack({ ok: false, error: "no-stock" });
+    e.stock -= 1;
+    writeSparks519(db);
+    sparkLast519 = now;
+    try { io.to(p.room).emit("chat-message", { id: "", name: "", text: "✦ " + p.name + " sent 1 Plaza Spark", sys: true, at: now }); } catch (e2) { }
+    try { io.to(p.room).emit("spark519", { from: p.name, room: p.room, at: now }); } catch (e2) { }
+    try { socket.emit("spark519-state", { stock: e.stock }); } catch (e2) { }
+    ack({ ok: true, stock: e.stock });
   });
 
   // [RP-V7.52] Stage requests ride a DEDICATED relay (audit H3).
@@ -35990,7 +36316,7 @@ io.on("connection", (socket) => {
     try {
       const discBid306 = battleBySocket306.get(socket.id);
       const discB306 = discBid306 ? battles306.get(discBid306) : null;
-      if (discB306) battle306End(discB306, "host-gone");
+      if (discB306) battle519HostGone(socket.id, discKey); // [RP-V7.519] 30s reconnect grace replaces the instant end; the clock sweep ends it "host-gone" if the host never returns
     } catch (e) { }
     // [RP-V7.336] the lobby footprint dies with the socket too: a
     // host disconnect destroys the lobby, a member disconnect
@@ -36013,6 +36339,7 @@ io.on("connection", (socket) => {
         }
       if (!otherHoldsKey) {
         liveRegistry.delete(discKey);
+        liveGoal519Ended(("live-" + discKey).slice(0, 40)); // [RP-V7.519] the live's goal + gallery die with the live
         endLiveAccess138(discKey); // [RP-V7.138] access state ends with the live
         broadcastLives();
         potLiveEnded(discKey); pollLiveEnded319(discKey);
