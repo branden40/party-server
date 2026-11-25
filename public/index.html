@@ -79174,6 +79174,8 @@ button.rp72-chip{ cursor:pointer; }
     var mine = lbMine241(ownerId, ownerName);
     var myId486 = myAccountId(); // [RP-V7.486] the session account id (the same source lbMine241 reads)
     var collabMe486 = !!(it.collabId && myId486 && String(it.collabId) === String(myId486)); // [RP-V7.486] the reel's collaborator
+    var dlOk508 = it.allowDownloads !== false || mine; // [RP-V7.508] the profile player's download gate (RP-V7.316), decided on this rail's own mine test
+    var dlBtn508 = dlOk508 ? '<button class="reel-act pp-dl316" type="button"><span style="font-size:19px;line-height:1;">⬇</span><span data-i18n="act_save">Save</span></button>' : window.rpRailPh462("dl"); // [RP-V7.508] downloads off for this viewer: the download-Save slot holds its place, so the rail's geometry never moves
     if (it.feedPost) {
       // [RP-V7.409] A Feed video post: its engagement lives in the
       // Feed store, not the reel store — and it now carries the
@@ -79186,6 +79188,7 @@ button.rp72-chip{ cursor:pointer; }
       fhtml += lbShareBtn241();
       fhtml += '<button class="reel-act repost pp-repost' + (ffi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + ffi.reposts + "</span></button>";
       fhtml += '<button class="reel-act rp-save349" type="button" aria-label="Save" data-i18n-al="act_save" data-save349="reel:' + esc(String(it.id)) + '">' + lbIco241("bookmark") + '<span class="sv-lb349 sv-lb413" data-i18n="act_save">Save</span></button>'; // [RP-V7.349]
+      fhtml += dlBtn508; // [RP-V7.508] the ⬇ download Save rides immediately after the bookmark, exactly as in the profile player
       if ((ownerId || ownerName) && !mine) fhtml += lbGiftBtn262("feed", it.id, it.giftCount || 0);
       else if (mine) fhtml += lbGiftMine262("feed", it.id, it.giftCount || 0);
       else fhtml += window.rpRailPh462("giftFlat"); // [RP-V7.462] no owner on record: the Gift slot holds its place
@@ -79201,6 +79204,7 @@ button.rp72-chip{ cursor:pointer; }
           var s = root.querySelector(".pp-share");
           if (s) s.addEventListener("click", function () { lbShare241("🎬", "Reel", ffi.caption || ""); });
           var fr = root.querySelector(".pp-repost"); if (fr) fr.addEventListener("click", function () { lbFeedRepost409(ffi, fr); });
+          var fdl508 = root.querySelector(".pp-dl316"); if (fdl508) fdl508.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute508 = null; if (it && it.id && (String(it.src || "").indexOf("/reel-files/") >= 0 || String(it.src || "").indexOf("/photos/feed/") >= 0)) dlRoute508 = (it.feedPost ? "/api/feed/" : "/api/reel/") + encodeURIComponent(it.id) + "/download"; window.rpDownloadVideo316(dlRoute508, it.src || ""); } }); // [RP-V7.508] the profile player's dlb316 route logic: server files go through the stamped export route, anything else falls back to the raw URL
           var fd243 = root.querySelector(".pp-del243");
           if (fd243) fd243.addEventListener("click", function () { lbDel243("feed", it.id, fd243); });
         },
@@ -79214,6 +79218,7 @@ button.rp72-chip{ cursor:pointer; }
     html += lbShareBtn241();
     html += '<button class="reel-act repost' + (fi.myReposted ? " reposted" : "") + '" type="button">' + lbIco241("repost") + '<span class="rc">' + fi.reposts + "</span></button>";
     html += '<button class="reel-act rp-save349" type="button" aria-label="Save" data-i18n-al="act_save" data-save349="reel:' + esc(String(it.id)) + '">' + lbIco241("bookmark") + '<span class="sv-lb349 sv-lb413" data-i18n="act_save">Save</span></button>'; // [RP-V7.349]
+    html += dlBtn508; // [RP-V7.508] the ⬇ download Save rides immediately after the bookmark, exactly as in the profile player
     if ((ownerId || ownerName) && !mine) html += lbGiftBtn262("reel", it.id, it.giftCount || 0); // [RP-V7.262] server reels carry their count
     else if (mine) html += lbGiftMine262("reel", it.id, it.giftCount || 0); // [RP-V7.262] your own reel: the count alone
     else html += window.rpRailPh462("gift"); // [RP-V7.462] no owner on record: the Gift slot holds its place
@@ -79228,6 +79233,7 @@ button.rp72-chip{ cursor:pointer; }
         var g = root.querySelector(".pp-gift"); if (g) g.addEventListener("click", function () { if (typeof window.openGiftSheet === "function") window.openGiftSheet(ownerId || ownerName, ownerName, { src: "video", post: { kind: "reel", id: it.id } }); }); // [RP-V7.262] the reel rides as the gift's post
         var s = root.querySelector(".pp-share"); if (s && acts.reelShare) s.addEventListener("click", function () { acts.reelShare(fi); });
         var r = root.querySelector(".repost"); if (r && acts.reelToggleRepost) r.addEventListener("click", function () { acts.reelToggleRepost(fi, root); });
+        var rdl508 = root.querySelector(".pp-dl316"); if (rdl508) rdl508.addEventListener("click", function () { if (window.rpDownloadVideo316) { var dlRoute508 = null; if (it && it.id && (String(it.src || "").indexOf("/reel-files/") >= 0 || String(it.src || "").indexOf("/photos/feed/") >= 0)) dlRoute508 = (it.feedPost ? "/api/feed/" : "/api/reel/") + encodeURIComponent(it.id) + "/download"; window.rpDownloadVideo316(dlRoute508, it.src || ""); } }); // [RP-V7.508] the profile player's dlb316 route logic: server files go through the stamped export route, anything else falls back to the raw URL
         var d243 = root.querySelector(".pp-del243");
         if (d243) d243.addEventListener("click", function () { lbDel243("reel", it.id, d243); });
         var cb486 = root.querySelector(".collab453"); // [RP-V7.486] the viewer rail's Collaborator button — the same sheet the reel About row opens
