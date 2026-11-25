@@ -735,7 +735,10 @@ function filterProfanity(text) {
 }
 
 function roomState(room) {
-  return [...players.values()].filter((p) => p.room === room);
+  // [RP-V7.517] each seat carries the member's server-computed gifter
+  // level (0 = no badge) so the live viewer stack can wear the gem
+  // badges — the chat relay's V7.338 stamp, on the players payload.
+  return [...players.values()].filter((p) => p.room === room).map((p) => Object.assign({}, p, { glv: p.acctId ? gifterLevelOf338(p.acctId) : 0 }));
 }
 
 // ---------------------------------------------------------------------------
@@ -21874,6 +21877,23 @@ function battle306EffectsView(b, side, now) {
     timerUsed: !!b.timerUsed[side],
   };
 }
+// [RP-V7.517] BATTLE CROWD PACK — the per-side gifter podium + MVP.
+// Ranking: settled charms desc, then battle points desc, then first
+// gift first (a tie keeps the earlier supporter ahead — deterministic
+// on every screen because it derives from the server's own record).
+function battle517GifterList(b, side) {
+  const m = (b.gifters517 || {})[side] || {};
+  return Object.values(m).sort((x, y) => (y.charms - x.charms) || (y.pts - x.pts) || (x.firstAt - y.firstAt));
+}
+function battle517Top(b, side, misted) {
+  if (misted) return []; // Mist hides the score — the podium must not leak it back as gifter totals
+  return battle517GifterList(b, side).slice(0, 3).map((g) => ({ name: g.name, photo: g.photo || null, glv: g.glv || 0, charms: g.charms, pts: g.pts }));
+}
+function battle517Mvp(b, side) {
+  if (!side) return null;
+  const top = battle517GifterList(b, side)[0];
+  return top ? { name: top.name, photo: top.photo || null, glv: top.glv || 0, charms: top.charms, pts: top.pts } : null;
+}
 // The payload for ONE audience: "forSide" is the side whose room / host
 // is receiving (their own score is always true; the opponent's score
 // is null while the opponent's Mist is up). Stock rides ONLY in the
@@ -21897,6 +21917,14 @@ function battle306Payload(b, forSide, forHostAcct, ev) {
     mission: b.mission ? { active: now >= b.mission.startsAt && now < b.mission.endsAt, opensAt: b.mission.startsAt, endsAt: b.mission.endsAt } : null,
     ev: ev || null,
   };
+  // [RP-V7.517] per-side top gifters (the podium). A side whose score
+  // is Mist-hidden from this audience sends an EMPTY list — the real
+  // number never leaves the server in any shape (the V7.306 rule).
+  // Ended payloads are built after settlement, when scores are public.
+  p.gifters = {
+    a: battle517Top(b, "a", forSide !== "a" && !b.ended && (b.effects.a.mistUntil || 0) > now),
+    b: battle517Top(b, "b", forSide !== "b" && !b.ended && (b.effects.b.mistUntil || 0) > now),
+  };
   // [RP-LEAGUE] WIN streaks + league badges for both hosts, from the
   // server's league store — clients render these, never compute them.
   try {
@@ -21909,7 +21937,7 @@ function battle306Payload(b, forSide, forHostAcct, ev) {
     const db = readBoosters306();
     p.stock = Object.assign({}, boosterStockOf306(db, forHostAcct));
   }
-  if (b.ended) { p.ended = { winnerSide: b.winnerSide || null, aPts: b.sidePts.a || 0, bPts: b.sidePts.b || 0 }; }
+  if (b.ended) { p.ended = { winnerSide: b.winnerSide || null, aPts: b.sidePts.a || 0, bPts: b.sidePts.b || 0, mvp: battle517Mvp(b, b.winnerSide) }; } // [RP-V7.517] MVP: the winning side's top gifter, server-decided (null on a draw or an ungifted win)
   return p;
 }
 function battle306Emit(b, ev) {
@@ -21941,6 +21969,7 @@ function battle336Payload(b, forSide, forHostAcct, ev) {
     const masked = maskedFor(side);
     return {
       side, pts: masked ? null : (b.sidePts[side] || 0), masked,
+      gifters: battle517Top(b, side, masked && !b.ended), // [RP-V7.517] this side's podium (empty while its score is Mist-hidden from this audience)
       effects: battle306EffectsView(b, side, now), timerUsed: !!b.timerUsed[side],
       members: b.parts.filter((pt) => pt.side === side).map((pt) => pt.name),
     };
@@ -21958,10 +21987,13 @@ function battle336Payload(b, forSide, forHostAcct, ev) {
   if (b.ended) {
     const winnerNames = [];
     for (const s of (b.winnerSides || [])) for (const pt of b.parts) if (pt.side === s) winnerNames.push(pt.name);
+    const mvps517 = {}; // [RP-V7.517] one MVP per winning side, from the same per-side gifter record
+    for (const s of (b.winnerSides || [])) mvps517[s] = battle517Mvp(b, s);
     p.ended = {
       winnerSides: b.winnerSides || [],
       draw: !(b.winnerSides && b.winnerSides.length),
       winnerNames,
+      mvps: mvps517, // [RP-V7.517]
       standings: battle336Sides(b).map((side) => ({ side, pts: b.sidePts[side] || 0, names: b.parts.filter((pt) => pt.side === side).map((pt) => pt.name) })).sort((x, y) => y.pts - x.pts),
     };
   }
@@ -22018,6 +22050,7 @@ function battleBuild336(format, parts, endsAt) {
     mutes458: {}, // [RP-V7.458] opponent-mute state: muter socket id -> { target socket id: true }; dies with the record
     endsAt, startedAt: now, ended: false, winnerSide: null, winnerSides: null,
     mission: { startsAt: mSkip ? endsAt + 1 : mStart, endsAt: mStart + 30000, announced: false, closed: mSkip, usedBy: {} },
+    gifters517: {}, // [RP-V7.517] per-side gifter totals: side -> acctId -> {acct,name,photo,glv,charms,pts,firstAt}; the podium/MVP source — real settles only, written in battle306OnGift
   };
   battles306.set(id, b);
   for (const pt of parts) battleBySocket306.set(pt.sock, id);
@@ -22106,7 +22139,30 @@ function battle306OnGift(info) {
     }
     b.sidePts[side] = (b.sidePts[side] || 0) + pts;
     rPart.pts += pts;
-    const ev = { kind: "gift", side, partSock: rPart.sock, pts, base: total, mults, fromName: (info.sender && info.sender.name) || "A fan", giftName: info.giftName || "gift", dropItem, dropSide: dropItem ? side : null };
+    // [RP-V7.517] Podium tracking: settled gifts only, and promo /
+    // test-funds + charms-only settles never mint honors (the league
+    // and gifter-XP rule) — one map write per gift event, the top 3
+    // are derived at payload time. A frozen gift still counts its
+    // charms: the money really settled for the host even when the
+    // freeze zeroed the battle points.
+    if (!info.promo && !info.charmsOnly && senderId) {
+      if (!b.gifters517) b.gifters517 = {};
+      const gm517 = b.gifters517[side] || (b.gifters517[side] = {});
+      const ge517 = gm517[senderId] || (gm517[senderId] = { acct: senderId, name: (info.sender && info.sender.name) || "A fan", photo: (info.sender && info.sender.photo) || null, glv: 0, charms: 0, pts: 0, firstAt: now });
+      ge517.charms += total; ge517.pts += pts;
+      if (info.sender && info.sender.name) ge517.name = info.sender.name;
+      if (info.sender && info.sender.photo) ge517.photo = info.sender.photo;
+      try { ge517.glv = gifterLevelOf338(senderId); } catch (e) { }
+    }
+    const ev = { kind: "gift", side, partSock: rPart.sock, pts, base: total, mults, fromName: (info.sender && info.sender.name) || "A fan", giftName: info.giftName || "gift", dropItem, dropSide: dropItem ? side : null,
+      // [RP-V7.517] event enrichment for the crowd pack: the settled
+      // send's catalog id + batch count (per-pane banners show real
+      // art and true combo counts), the sender's photo + gifter
+      // level, and the level this settle carried them to (0 = no
+      // level-up; battle rooms print the room-wide line from it).
+      // Old clients ignore every added field — wire-compatible.
+      giftId: info.giftId || null, count: Math.max(1, Math.floor(Number(info.count) || 1)), fromPhoto: (info.sender && info.sender.photo) || null, fromGlv: 0, lvlUp: Math.max(0, Math.floor(Number(info.lvlUpTo) || 0)) };
+    try { ev.fromGlv = gifterLevelOf338(senderId); } catch (e) { }
     battleEmit336(b, ev);
     return pts;
   } catch (e) { return 0; }
@@ -25761,7 +25817,21 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // the battle hook so the payloads that hook emits for this gift
   // already carry the LP it just earned.
   try { leagueOnLiveGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, promo: promo321, charmsOnly, src: giftSrc233, postKey: postKey262 }); } catch (e) { }
-  try { battle306OnGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, giftName: (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId }); } catch (e) { }
+  try { battle306OnGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, giftName: (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId, giftId, count, promo: promo321, charmsOnly, lvlUpTo: (giftResponse.gifter && giftResponse.gifter.leveledUp) ? giftResponse.gifter.level : 0 }); } catch (e) { } // [RP-V7.517] gift id + batch count + promo/charms-only flags + the level-up ride along (podium tracking, pane banners, level-up line)
+  // [RP-V7.517] Room-wide gifter level-up line: when a settle levels
+  // the sender up and the recipient is live, the host's room hears it
+  // (TikTok announces level-ups to the room; Plaza told only the
+  // sender). Battle gifts skip this — battle rooms get the line from
+  // the battle event's lvlUp field, so nobody hears it twice. The
+  // snapshot lookup runs only on an actual level-up (a rare event).
+  if (!b.battleId && giftResponse.gifter && giftResponse.gifter.leveledUp) {
+    try {
+      const lvEntry517 = livesSnapshot().find((e) => e.hostAccountId && e.hostAccountId === recipient.id);
+      if (lvEntry517 && lvEntry517.room) {
+        io.to(lvEntry517.room).emit("chat-message", { id: "", name: "", text: "🏆 " + (ctx.user.name || "A gifter") + " reached Gifter Lv." + giftResponse.gifter.level, sys: true, at: Date.now() });
+      }
+    } catch (e) { }
+  }
   // [RP-V7.219] the daily-rank credit is per unit, exactly as if the
   // sender had tapped N times (rankCreditDaily counts gifts +1 each).
   for (let u = 0; u < count; u++) rankCreditDaily(recipient.id, recipient.name, cost);
@@ -34468,7 +34538,7 @@ io.on("connection", (socket) => {
     socket.join(room);
     socket.emit("room-state", roomState(room)); // everyone already here
     socket.emit("lives-update", livesPayloadFor(socket)); // [RP-V7.28] current live registry, so a fresh client sees ongoing lives immediately ([RP-V7.40] in the recipient's own order)
-    socket.to(room).emit("player-joined", player); // tell the room
+    socket.to(room).emit("player-joined", Object.assign({}, player, { glv: player.acctId ? gifterLevelOf338(player.acctId) : 0 })); // tell the room // [RP-V7.517] gifter level rides the seat
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
   });
 
@@ -34658,7 +34728,7 @@ io.on("connection", (socket) => {
       const reg = liveRegistry.get(swKey);
       if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); pollLiveEnded319(swKey); ticketLiveEnded299(swKey); gwLiveEnded389(swKey); bstLiveEnded394(swKey); } // [RP-V7.394] boost pool ends too // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
     }
-    socket.to(room).emit("player-joined", p);
+    socket.to(room).emit("player-joined", Object.assign({}, p, { glv: p.acctId ? gifterLevelOf338(p.acctId) : 0 })); // [RP-V7.517] gifter level rides the seat
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
   });
 
