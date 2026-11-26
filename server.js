@@ -35757,6 +35757,7 @@ io.on("connection", (socket) => {
     if (!acctId) return;
     for (const [sid, gp] of [...players]) {
       if (sid === keepSocketId || !gp || gp.room !== room || gp.acctId !== acctId) continue;
+      if (gp.live) continue; // [RP-V7.537] never evict a seat carrying a live flag: a same-account viewer seat joining the host's own room used to silently delete the HOST's player record (rizz-battle-who diagnosis S3) — the host stayed live everywhere else but vanished from battle discovery, and its own who queries went unanswered (no record, no reply). The newcomer keeps its own seat; the hosting seat stays. Once the live ends (reg off / live-unregister clears the flag) the seat is evictable again, exactly as before.
       const ga = auctions.get(room);
       if (ga && ga.hostId === sid) endAuction(room, true);
       releaseFloorsHeldBy(floorHolderId(sid), sid); // self-guards: no release while another live socket carries this device identity
@@ -36120,6 +36121,21 @@ io.on("connection", (socket) => {
     if (!prev) showOnLiveStart385(socket, liveRegistry.get(devKey)); // [RP-V7.385] flip a matching scheduled show live + notify its bookmarkers
     broadcastLives();
     emitLiveAccess138(socket, devKey);
+    // [RP-V7.537] battle discovery rides the directory's proof of
+    // hosting (defense in depth): this handler has already proven the
+    // sender is standing in their OWN live room, so assert the
+    // player's battle-live flag — the same { name, at } shape the
+    // battle "reg" message writes (battle handler below). The
+    // directory registration is idempotent and self-healing
+    // (reconnect + 20s re-assert), so battle visibility inherits
+    // that healing even when the client's one-shot reg was lost
+    // (socket replacement, server restart — rizz-battle-who
+    // diagnosis S2/S5). Placed LAST in the handler on purpose: the
+    // first-register ticket decision above reads p.live as it stood
+    // BEFORE this register, exactly as it did when only reg wrote
+    // the flag. Cleared in live-unregister; a disconnect deletes the
+    // player record outright, flag and all.
+    p.live = { name: p.name, at: now };
   });
 
   socket.on("live-beat", (data = {}) => {
@@ -36161,6 +36177,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("live-unregister", () => {
+    const pUnreg537 = players.get(socket.id);
+    if (pUnreg537) pUnreg537.live = null; // [RP-V7.537] the battle-live flag that live-register asserts dies with the live — the same clear the battle "reg" off message performs. (A disconnect needs no clear here: its handler deletes the player record outright.)
     const devKey = clientKeys.get(socket.id);
     if (!devKey) return;
     const unregEntry469 = liveRegistry.get(devKey); // [RP-V7.469] the invite ledger dies with the live
