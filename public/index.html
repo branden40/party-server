@@ -29,6 +29,7 @@
     <!-- [RP-V7.444] DM chat colors (Branden, Nov 19, 2026 — a video of an iMessage chat tinted pink: "Should be able to change colors"): every DM conversation gets a COLOR THEME the pair picks together — Default (the app's black + true-red, unchanged) · Pink · Purple · Blue · Green · Orange · Gold. The setting follows the RP-V7.442 disappearing pattern exactly: stored server-side on the thread pair (POST /api/dm/theme; the thread fetch and the threads list carry it), EITHER participant can change it, and every change lands a centered system note in the thread for both sides ("<name> changed the chat color to Pink") — never a silent change. The tint reaches ONLY the open thread: a deep, saturated wash over the thread background, the signed-in member's own bubbles in the theme color, the other side's bubbles in a deep tint of the same hue; white text on every preset (the pairs are measured in the rig). The inbox list, every other surface and the black-only appearance rule are untouched, and the theme is fully independent of the disappearing setting — changing one never touches the other. Existing threads carry no theme field, which reads as Default: no migration, no visual change anywhere until someone picks a color. -->
     <!-- [RP-V7.442] DM hold-for-options + disappearing messages (Branden, Nov 19, 2026 — "Can I hold the conversation to have options to delete" + "have a disappearing message option — disappears after a certain time like Snapchat"): press-and-hold (~500ms of still contact; a scroll/move cancels; the click trailing a fired hold is swallowed so the hold never ALSO does the tap) on a message bubble opens the standard sheet — his OWN messages get 🗑 Delete (an unsend: removed for BOTH sides, two-tap confirm in the app's Block-button idiom) + Copy text; the OTHER person's messages get Copy only; media messages carry no Copy row. Press-and-hold on an Inbox conversation row opens Delete conversation — a HARD delete for everyone (the whole thread record goes for both participants; a later message starts a fresh thread). Disappearing messages: a per-conversation setting in the thread's ••• menu (Off · After viewing · 1 hour · 24 hours · 7 days; default when first enabled = After viewing), stored server-side on the thread pair; either participant can change it and every change lands a centered system note in the thread for both sides, never a silent change. Only messages sent WHILE the setting is on expire (earlier history untouched; turning it off never un-stamps a sent message): timed modes expire at send + duration, After viewing stamps the expiry (read + 5 min) when the recipient's thread fetch views it; the thread shows a slim chip with the active mode and expiring bubbles carry a ⏳. Expired messages are physically deleted server-side and filtered from every read path (thread fetch, inbox preview, unread counts). Server: POST /api/dm/delete-message (author only — 403 otherwise, 404 unknown), POST /api/dm/delete-conversation, POST /api/dm/disappear; GET /api/dm/thread returns the pair's setting as `disappear`. Bubbles and rows render identically at rest. -->
 <!-- [RP-V7.532] BOOST OVERLAP, DESKTOP (Branden, Nov 26, 2026 - circled photo of his COMPUTER in a live: "The boost is still overlapping"): in fullscreen lives the giveaway/boost chip row (.lk-gwrow389, holding #bstChip394) sat at bottom:120px - the exact band the stage tile's name tag (.lt-name) lands in (the V7.524 two-row bar reserves a 112px strip; the tag's 8px tile inset puts its 22px pill at bottom 120-143, left 8px, vs the chip row at left 10px). Rig-measured on the V7.529 client at 1600/1280/768/430px: intersection 80.5x22 = 1,771 sq px at EVERY width, elementFromPoint at the tag's centre = the Boost button (the tag's name is covered; only its HOST / " - You" tail peeks out, exactly his photo). V7.524/527 stacked the bar, comments and lobby card around the 120 slot but never accounted for the tile name tag in that stack. FIX (layout only, four seats lifted by the same +32 so every designed gap is preserved): chip row 120 -> 152 (clears the tag band by 9px); the chip-visible comments lift 156 -> 188; the team lobby card 158 -> 190; the lobby-state comments seat 262 -> 294. The two-row phone bar is otherwise untouched (same seats relative to each other), Boost's function/price/behaviour unchanged, no other element moves. Client-only. --> <!-- [RP-V7.525] PHANTOM BATTLE FIX (Branden, Nov 25, 2026 — his recording: "Battle don't show": he challenged Jesusisking from a co-host split live, got "declined" in ~1s, was then refused a 2v2 lobby with "battles need you live, and not already in one" while live and visibly battle-free, and a 10→1 countdown + "IT'S A DRAW! 0 — 0" result card ran over the plain co-host live for a battle no screen ever showed). ROOT CAUSE (rig-proven, before 31/31): the server kept NO record of a 1v1 challenge — invite/decline were blind relays and ANY client could emit "accept" at any time (after a decline, with no invite at all, or twice) and a real server battle was created each time; the invitee's client also never cleared Bat.pending on decline, so a stale accept could always be replayed. The phantom battle then blocked team-lobby creation (battleBySocket306) and ended invisibly — its end payload minted the full legacy result card + streak reset on a client that had never seen it run. FIXES: (server) a pending-challenge registry (batChal525): invite records {from,to,mins,30s expiry}, decline deletes it, accept consumes it — a declined/expired/consumed/duplicated/invented accept is refused with a t:"stale" notice and creates NOTHING; the battle length comes from the recorded challenge, never the accept; disconnects delete the socket's challenges; tcreate refusals now answer t:"terror" with the true reason (in-battle / in-lobby / not-live / bad-format) instead of silence. (client) Bat.pending is cleared on decline (both sides), on accept, and on a stale notice (new rpBatMsg branch with its own toast); createLobby336 shows the terror reason and the generic 4s guess-toast only fires if the server never answered; the 306 layer marks a battle first learned from its END payload quiet525 — it ends with one room line, NO result card, NO streak, NO winner pill/LOSE stamp (516 layer consults __rpBat306Quiet525); a 306 watchdog clears a managed battle whose end payload never arrived (past endsAt+10s) quietly via __rpBat525QuietReset, ending the stuck Bat.active state that auto-declined every future invite; __rpBat306Finalize swaps server-order points into the legacy layer's challenger-first order — the result card previously paired each name with the OTHER host's points (rig-proven: card "hosta525 0 — 5 hostb525" for a 5—0 win) and the streak math inverted with it. Everything V7.524 preserved; money, scoring, grace, FFA and lobby mechanics untouched. -->
+<!-- [RP-V7.533] "NO BATTLE" FIX (Branden, Nov 26, 2026 — his ~112s recording: a live sitting in split/battle layout for two minutes, opponent tile solid black with a "⚔ RP" tag, a Bonus Mission banner running, but no opponent video, no score bar, no battle timer — battle LAYOUT with no battle SESSION). DIAGNOSIS (rig-proven on the V7.529 client + V7.531 server, BEFORE 23 pass / the defect checks failing exactly as recorded): the client's battle layers could diverge and NOTHING reconciled them. (1) The V5 "battle" channel binder latched ONCE (Bat.bound) while cleanupOnline/connectOnline replace the socket object on account switch (V7.528) and reconnect recovery — after any replacement, rpBatMsg stayed bound to the dead socket and invites/accepts/starts were unreachable for the rest of the session, while the ungated 517/519 layers kept adopting room battle payloads (mission banner, chips) — furniture with no session. (2) The bat-view proto case in liveProto was UNREACHABLE DEAD CODE: handleProto dispatched only bat/bat-end/live-*/auc-*/shop-*, so Live.batOpp was never set from its own signal and the V7.174 viewer split could never engage or clear through it (independently found by the V7.534 build as its F2). (3) batOpp had NO hygiene and NO watchdog: once set (any stale/legacy writer), nothing cleared it when the live ended or the host changed, and an unbacked split tile — no media, no session — persisted indefinitely with no explanation (rig: still up at +36s, no room line). (4) The 517/519 layers treated any payload with !ended as active forever (no endsAt freshness), and the 336 team layer had no endsAt watchdog (the 306 layer has had one since V7.525). FIXES (client only; the server audit found the challenge registry, lobby start and payload emission sound — rig N1–N4 re-verified): the V5 binder now binds per socket object (Bat.boundSock), mirroring every other battle layer; handleProto routes "bat-view" to liveProto, and the case now trusts ONLY the room host, never fires on the host's own screen, and honors opp:null as a clear; the 174 layer clears batOpp when the live ends or the host changes, its view path excludes the host's own screen, and a watchdog tears down any split tile that has had no media and no backing session (V5 / managed-306 / team-336) for 12s, printing one honest room line ("⚔️ That battle didn't connect — the split view was closed."); 517/519 payload freshness (past endsAt+10s counts as ended); a 336 endsAt watchdog mirroring the 306 one. V7.525 phantom fix, V7.527 short-handed lobby starts, V7.519 grace, V7.516 finish, V7.521 FFA all preserved — rig AFTER re-verifies end-to-end battles, decline behavior and zero page errors. -->
 <meta name="rp-build" content="RP-V7.521" />
 <!-- [RP-V7.506] FAN CLUB FILTER (Branden, Nov 24, 2026 — his Loozecannon TikTok LIVE recording: "I need that filter join my club"): a Plaza-ORIGINAL animated mascot (inline SVG, drawn in code: round black body, red backwards cap, gold star badge, waving arm — never TikTok's character, never anyone's likeness) bobbing over a glowing red "Join my Fan Club" pill that floats at the top of the host's live for the whole show — under the top bar, stacked below the V7.490 label when both are up. It is part of the show, not lv-idle chrome: like the deco layer it never auto-fades. TAP = JOIN through the existing V6.5 live fan-club path (rpFanJoin65 -> joinFan -> the room fan-join proto; free, instant, no confirm, the host's client assigns the fan number) — the identical call the live More-sheet row and the host-card buttons make. Joined viewers see their real state ("Fan No. N" once the host's fan-count lands, "Fan Club member" before it); the host sees a non-tappable preview of their own pill; signed-out viewers see it display-only. The host turns it off/on for their live from the More sheet ("Fan Club filter" row, default ON); the flag rides the V7.490 deco room state (fanFilter on liveDeco490, broadcast on live-deco490, pulled by late joiners via live-deco-get490, dies with the live; a viewer renders the pill only once that payload has landed, so a host's OFF never flashes at a late joiner — the 5s deco tick re-asks until it lands) — the server change is exactly that one field plus one host-only socket intent (live-fanfilter-set506). Battles: the pill dresses the live you are in, half-width over your host's side of the split — the fan-join proto is room-local and every existing fan button joins only that host, so the opponent's pill is not rendered (joining them happens from their own live, as today). Church lives included: a fan club is not selling or auctions (the V7.490 deco precedent — gifting is likewise allowed). No counts on the pill (the existing live fan buttons show none either). New strings fanpill_*506 / more_fanfilter506 in all 9 languages. Everything V7.505 preserved. -->
 <!-- [RP-V7.520] TREASURE CHEST + CHARM DROP (Branden, Nov 25, 2026 — from his 4th TikTok battle recording: "Add those gifts in our own way"; the catalog audit found Wonderland/Galaxy/gloves/drums/Money Gun/Universe already Plaza-style, the one gap was the Treasure Box): +1 gift — treasurechest "Treasure Chest" 1900 big (free price in the premium band; film 5.625 s portrait, animated art via giftart7520.js) — catalog 124 -> 125, price unique; client GIFT_SHOP (+drop: 200 disclosure in the panel cell) + GIFT_ART_IDS + GIFT_ICONS + GIFT_FILM_IDS + RP_PORTRAIT_FILMS; server MONEY_GIFT_TABLE + MONEY_GIFT_INFO mirror exactly; no RP_SHOW_DUR entry (the V7.474 film clock self-corrects past the big-tier default 10000 > film + 250 ms). CHARM DROP: a real-rail chest sent in a live (regular or battle) carves a fixed 200 charms per unit from the price BEFORE the 70/30 split (host/platform split price-pool; battle score stays the FULL price) and drops it to the room — ~30s claim window, viewers only (never sender/host), one claim each, first-come cap 10; at close the pool splits EQUALLY among claimers (no randomness), integer remainder — or the whole pool on zero claims — to the host; claims credit the normal charm balance; escrow persists in the money db in the same writeMoney as the settle, boot sweep re-arms/settles; promo + charms-only sends settle plain with NO drop. Charms conserved exactly: sender pays the price once, host + platform + claimers together receive exactly the price. Everything V7.519 preserved. -->
@@ -22691,7 +22692,10 @@
             break;
           }
           case "bat-view": { // [RP-V7.174] my host is in a battle: remember the opponent so this screen can open the split-screen tile
-            Live.batOpp = o.opp ? String(o.opp) : null; Live.batOppName = o.oppName || "Host"; Live.batEnds = +o.ends || 0;
+            // [RP-V7.533] trust only the room host's word, and never on the host's own screen (the battler path owns that side): any room member could otherwise pin a fake split — black tile, no battle behind it — onto every viewer. opp:null is the host's clear.
+            if (fromId !== Live.hostId || Live.hostId === Online.myId) return;
+            if (!o.opp) { Live.batOpp = null; Live.batOppName = null; Live.batEnds = 0; break; }
+            Live.batOpp = String(o.opp); Live.batOppName = o.oppName || "Host"; Live.batEnds = +o.ends || 0;
             break;
           }
           case "live-unreq": { // [RP-V7.173] a viewer withdrew their join request
@@ -26070,6 +26074,7 @@
         }
         else if (o.k === "gift") giftObserved(o, fromId, fromName, (d && d.glv) || 0); // [RP-V7.338] sender's gifter level rides the chat envelope
         else if (o.k === "giftc262") { try { if (window.rpGiftCount262) window.rpGiftCount262.bumpFromProto(o, fromId); } catch (e) { } } // [RP-V7.262] post gift counts update in place
+        else if (o.k === "bat-view") liveProto(o, fromId, fromName); // [RP-V7.533] was unreachable dead code: the router dispatched only bat/bat-end/live-*/auc-*/shop-*, so "bat-view" never reached liveProto's case, Live.batOpp was never set, and the V7.174 viewer split could never engage from its own signal (rig-proven)
         else if (o.k === "bat" || o.k === "bat-end") { try { if (window.rpBatProto) window.rpBatProto(o); } catch (e) { } }
         else if (typeof o.k === "string" && o.k.indexOf("live-") === 0) liveProto(o, fromId, fromName);
         else if (typeof o.k === "string" && o.k.indexOf("auc-") === 0) aucProto(o, fromId, fromName);
@@ -37694,7 +37699,7 @@ function stageStreakBump(key, add) {
   /* socket binder + heartbeat (unchanged from RP-V5) */
   setInterval(function () {
     var s = sock();
-    if (s && !Bat.bound) { Bat.bound = true; s.on("battle", rpBatMsg); }
+    if (s && Bat.boundSock !== s) { Bat.boundSock = s; s.on("battle", rpBatMsg); } // [RP-V7.533] bind per socket OBJECT, not once ever: cleanupOnline/connectOnline replace the socket object (account switch, reconnect recovery), and the old one-shot Bat.bound latch left rpBatMsg bound to the dead socket — battle invites/accepts/starts were silently unreachable for the rest of the session (rig-proven)
     var L = liveInfo();
     var hosting = !!(L && L.active && L.mine);
     if (hosting !== Bat.regState) { Bat.regState = hosting; if (s) s.emit("battle", { t: "reg", on: hosting }); }
@@ -89787,6 +89792,9 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
   var tilePeer = null;   // whose stream fills the battle tile
   var tileStream = null;
   var boundSock = null, cssDone = false, lastViewSend = 0;
+  var tileSince533 = 0, lineShown533 = false, lastHost533 = null; // [RP-V7.533] split-tile watchdog state
+  function backed533() { var B = bat(); if (B && B.active) return true; try { if (window.__rpBat306Managed && window.__rpBat306Managed()) return true; } catch (e) { } try { if (window.__rpTeamBattleId336 && window.__rpTeamBattleId336()) return true; } catch (e) { } return false; }
+  function feedLine533(text) { try { var log = $("onlineChatLog") || $("liveComments"); if (!log) return; var row = document.createElement("div"); row.className = "chat-row sys"; row.textContent = text; log.appendChild(row); while (log.children.length > 60) log.removeChild(log.firstChild); log.scrollTop = log.scrollHeight; } catch (e) { } }
   function $(id) { return document.getElementById(id); }
   function sock() { try { return Online && Online.socket; } catch (e) { return null; } }
   function me() { try { return Online && Online.myId; } catch (e) { return null; } }
@@ -89806,8 +89814,12 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
     if (m.kind === "offer") { if (!(B && B.active)) return; if (Object.keys(pcs).length >= 14 && !pcs[id]) return; var rec = pcs[id] || mkPc(id); if (!rec) return; rec.pc.setRemoteDescription(m.sdp).then(function () { rec.remoteSet = true; flushIce(rec); addMine(rec); return rec.pc.createAnswer(); }).then(function (a) { return rec.pc.setLocalDescription(a); }).then(function () { sendRtc(id, "answer", rec.pc.localDescription, 0); }).catch(function () { });
     } else if (m.kind === "answer") { var r2 = pcs[id]; if (!r2) return; r2.pc.setRemoteDescription(m.sdp).then(function () { r2.remoteSet = true; flushIce(r2); }).catch(function () { });
     } else if (m.kind === "ice" && m.ice) { var r3 = pcs[id]; if (!r3) return; if (r3.remoteSet) r3.pc.addIceCandidate(m.ice).catch(function () { }); else r3.ice.push(m.ice); } }
-  function desired() { var B = bat(); var my = me(); if (!my) return null; if (B && B.active && B.oppId) return { id: B.oppId, init: String(my) < String(B.oppId), view: false }; try { if (typeof Live !== "undefined" && Live.active && Live.batOpp && Live.batOpp !== my && Date.now() < (Live.batEnds || 0) + 4000) return { id: Live.batOpp, init: true, view: true }; } catch (e) { } return null; }
+  function desired() { var B = bat(); var my = me(); if (!my) return null; if (B && B.active && B.oppId) return { id: B.oppId, init: String(my) < String(B.oppId), view: false }; try { if (typeof Live !== "undefined" && Live.active && Live.hostId && Live.hostId !== my && Live.batOpp && Live.batOpp !== my && Date.now() < (Live.batEnds || 0) + 4000) return { id: Live.batOpp, init: true, view: true }; } catch (e) { } return null; } // [RP-V7.533] the view path never engages on the room host's own screen (hostId === my)
   setInterval(function () { var s = sock(); if (s && boundSock !== s) { boundSock = s; try { s.on("battle", onRtc); } catch (e) { } }
+    // [RP-V7.533] batOpp hygiene: it belongs to one live and one host — it
+    // must not survive the live ending or follow the viewer into another
+    // host's room, where it would split a screen behind no battle at all.
+    try { if (typeof Live !== "undefined") { if (!Live.active) { if (Live.batOpp) { Live.batOpp = null; Live.batOppName = null; Live.batEnds = 0; } lastHost533 = null; } else if (Live.hostId) { if (lastHost533 && Live.hostId !== lastHost533 && Live.batOpp) { Live.batOpp = null; Live.batOppName = null; Live.batEnds = 0; } lastHost533 = Live.hostId; } } } catch (e) { }
     var B = bat(); var my = me();
     if (B && B.active && B.oppId && my) { try { if (typeof Live !== "undefined" && Live.active && Live.hostId === my && Date.now() - lastViewSend > 5000) { lastViewSend = Date.now(); if (window.rpProtoSend) rpProtoSend({ k: "bat-view", opp: B.oppId, oppName: B.oppName || "Host", ends: B.endsAt || 0 }); } } catch (e) { } }
     var d = desired();
@@ -89816,6 +89828,22 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
     else if (!pcs[d.id] && d.init) offerTo(d.id, d.view);
     if (!$("rpBatTile") || !$("liveGrid") || !$("liveGrid").classList.contains("rp-split")) showTile(); else if (tileStream) showTile();
     if (!(B && B.active)) { Object.keys(pcs).forEach(function (id) { if (id !== tilePeer) closePc(id); }); }
+    // [RP-V7.533] watchdog: a split tile with no media and NO battle
+    // session behind it (no V5 session, no managed 306 battle, no team
+    // 336 battle) is a dead layout, not a battle — after 12s it is torn
+    // down and the room gets one honest line. A backed tile is never
+    // touched, however long its media takes.
+    var tEl533 = $("rpBatTile");
+    if (tEl533 && !tileStream) {
+      if (!tileSince533) { tileSince533 = Date.now(); lineShown533 = false; }
+      if (Date.now() - tileSince533 > 12000 && !backed533()) {
+        try { if (typeof Live !== "undefined") { Live.batOpp = null; Live.batOppName = null; Live.batEnds = 0; } } catch (e) { }
+        if (tilePeer) closePc(tilePeer);
+        hideTile();
+        tileSince533 = 0;
+        if (!lineShown533) { lineShown533 = true; feedLine533("⚔️ That battle didn't connect — the split view was closed."); }
+      }
+    } else { tileSince533 = 0; }
   }, 1000);
 })();
 </script>
@@ -95414,6 +95442,15 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     }
     if (T.lobbyView) renderLobby336();
     renderChip336();
+    // [RP-V7.533] watchdog mirroring the 306 layer's: a team battle whose
+    // end payload never arrived must not pin its tiles and bar on this
+    // screen forever — past endsAt + 10s it clears quietly, one room line.
+    if (T.id && T.active && !T.ended && T.endsAt && Date.now() > T.endsAt + 10000) {
+      T.active = false; T.ended = { quiet533: true }; T.id = null;
+      teardownTiles();
+      renderBar(); renderChips(); renderTray();
+      try { feedLine("⚔️ That battle's connection was lost — it has been cleared."); } catch (e) { }
+    }
     if (T.id) { renderBar(); renderChips(); renderTray(); renderTiles(); }
   }
   if (window.rpGate314 && window.rpGate314.add) {
@@ -103074,6 +103111,7 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
 
   var boundSock = null;
   var last306 = null;            // latest battle306 payload
+  function fresh517(p) { return !!(p && p.battleId && !p.ended && !(p.endsAt && Date.now() > p.endsAt + 10000)); } // [RP-V7.533] a payload whose end was missed is not "active" forever: past endsAt+10s it counts as ended, so stale battle furniture (podium, identity chip) cannot pin to the panes
   var last336 = null;            // latest battle336 payload
   var final517 = null;           // {kind, battleId, gifters306| sides336, mvp|mvps, at} — the end state, held through the victory lap
 
@@ -103230,7 +103268,7 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
   }
 
   function renderPodium306() {
-    var active = !!(last306 && last306.battleId && !last306.ended);
+    var active = fresh517(last306);
     var fin = (!active && final517 && final517.kind === "1v1" && Date.now() - final517.at < 185000) ? final517 : null;
     var gifters = active ? (last306.gifters || {}) : (fin ? fin.gifters : null);
     ["a", "b"].forEach(function (side) {
@@ -103262,7 +103300,7 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
 
   function renderPodium336() {
     var bar = $("rpTeamBar336");
-    var active = !!(last336 && last336.battleId && !last336.ended);
+    var active = fresh517(last336);
     var fin = (!active && final517 && final517.kind === "team" && Date.now() - final517.at < 185000) ? final517 : null;
     if (bar) {
       var wrap = bar.querySelector(":scope > #rpPodTeam517");
@@ -103634,6 +103672,7 @@ body:not(.live-fs) #rpLive519, body:not(.live-fs) #rpGoalLadder519, body:not(.li
   /* ---------- state ---------- */
   var boundSock = null;
   var last306 = null, last336 = null;
+  function fresh519(p) { return !!(p && p.battleId && !p.ended && !(p.endsAt && Date.now() > p.endsAt + 10000)); } // [RP-V7.533] same freshness rule as the 517 layer: a missed end payload must not pin the mission banner / away overlays past endsAt+10s
   var goal519 = null;        // { goal: view|null, gallery: n } for the room I am standing in
   var goalRoom519 = "";      // the live room that state belongs to
   var mySpark519 = 0;
@@ -103771,8 +103810,8 @@ body:not(.live-fs) #rpLive519, body:not(.live-fs) #rpGoalLadder519, body:not(.li
     var now = Date.now();
     var away = [];
     var active = false;
-    if (last306 && last306.battleId && !last306.ended) { active = true; away = last306.away || []; }
-    else if (last336 && last336.battleId && !last336.ended) { active = true; away = last336.away || []; }
+    if (fresh519(last306)) { active = true; away = last306.away || []; }
+    else if (fresh519(last336)) { active = true; away = last336.away || []; }
     var bySide = {}, byName = {};
     away.forEach(function (a) { bySide[a.side] = a; byName[a.name] = a; });
     if (last306 && active) {
@@ -103801,8 +103840,8 @@ body:not(.live-fs) #rpLive519, body:not(.live-fs) #rpGoalLadder519, body:not(.li
 
   /* ---------- gifter mission banner + rush ---------- */
   function missionOf519() {
-    if (last306 && last306.battleId && !last306.ended) return { m: last306.mission, rush: last306.rush };
-    if (last336 && last336.battleId && !last336.ended) return { m: last336.mission, rush: last336.rush };
+    if (fresh519(last306)) return { m: last306.mission, rush: last306.rush };
+    if (fresh519(last336)) return { m: last336.mission, rush: last336.rush };
     return { m: null, rush: null };
   }
   function renderMission519() {
