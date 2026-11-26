@@ -195,6 +195,8 @@ function livesSnapshot() {
   // shared by every entry (the badge view itself is leagueView).
   let leagueDb = null, leagueStand = null;
   try { leagueDb = readLeague(); leagueStand = leagueStandings(leagueDb.weeks[leagueWeekKey(Date.now())] || {}); } catch (e) { leagueDb = null; leagueStand = null; }
+  let clv531Db = null; // [RP-V7.531] the Star Ladder store rides the same snapshot pass as the league's
+  try { clv531Db = readClv531(); } catch (e) { clv531Db = null; }
   return [...liveRegistry.values()].map((e) => {
     const sid = byKey.get(e.key) || null;
     // [RP-V7.52] Resolve the host's ACCOUNT id ONLY from the host
@@ -224,6 +226,7 @@ function livesSnapshot() {
       priv: !!e.priv, // [RP-V7.138] private lives are badged for the people allowed to see them
       gaming: !!e.gaming, // [RP-GAMING] the host's Gaming toggle — the Gaming page's Live-now section filters on it
       league: hostAccountId && leagueDb ? leagueView(leagueDb, hostAccountId, leagueStand) : null, // [RP-LEAGUE] the host's WIN streak + league badge, server-computed
+      clv531: hostAccountId && clv531Db ? clv531ViewFrom(clv531Db, hostAccountId) : null, // [RP-V7.531] the host's Star Ladder tier view, server-computed — the live host chip renders its gem from this
       ticketPrice: e.ticketPrice || 0, // [RP-V7.299] ticketed lives still SHOW in discovery — badge + price ride the snapshot
       ticketSold: liveTicketSold299(e.key, e.startedAt), // [RP-V7.299] gross tickets sold for this live instance
       pot: potSnapshotFrom(potsDb, e.key, e.startedAt), // [RP-V7.41] null unless a pot is open/drawn here; [RP-V7.49] terminal pots from a previous live are scoped out
@@ -2944,7 +2947,7 @@ function accountMeHandler(req, res) {
   // [OWNER-DELETE] A session restore carries the same deletion
   // notice as sign-in, so the client's blocking notice re-appears
   // on every boot for the whole recovery window.
-  res.json({ ok: true, user: publicAccount(ctx.user), unread, ownerDeletionNotice: rpOwnerDeletionNotice377(ctx.user) });
+  res.json({ ok: true, user: publicAccount(ctx.user), unread, ownerDeletionNotice: rpOwnerDeletionNotice377(ctx.user), creatorLv531: clv531View(ctx.user.id) }); // [RP-V7.531] the caller's Star Ladder view rides the session payload (additive — older clients ignore it)
 }
 app.get("/api/account/me", accountMeHandler);
 // [RP-V7.52] Short alias (audit H5): the canonical account payload
@@ -22153,6 +22156,318 @@ function leagueOnLiveGift(info) {
     writeLeague(db);
   } catch (e) { /* league bookkeeping must never break a gift */ }
 }
+/* ===========================================================================
+   [RP-V7.531] STAR LADDER — CREATOR LEVELS, PHASE 1 (Branden, Nov 26, 2026:
+   "Build Phase 1 — the ladder core", from the creator-levels audit modeled
+   on TikTok's "Start to Star"). ONE persistent, cumulative creator level
+   per host — the thing the weekly league (sender of LP, resets Mondays),
+   the gifter levels (sender-side) and Live Goals (per-live) never were.
+
+   STAR POINTS (SP) — credited SERVER-SIDE ONLY, inside the same settle
+   passes that already credit League Points, with the audit's §4.5
+   anti-gaming rules enforced at credit time:
+     - real-rail gifts RECEIVED WHILE LIVE (hosting, or a part of the
+       live battle the send carries): 1 SP per charm of settled value —
+       the leagueOnLiveGift hook point in /api/money/gift, mirrored
+       exactly (post/reel/story gifts earn 0; lives only).
+     - a battle WIN: +100 SP per winning host, settled in battle306End
+       beside leagueSettleBattle (b.ended-guarded = exactly once; a
+       draw pays 0; an opponent sharing a device key with the winner
+       zeroes that winner's credit).
+     - time on air: +10 SP per full 30 minutes live, max 60 SP per ET
+       day, counted by the 60s ticker below ONLY for minutes with at
+       least one real viewer in the room (a signed-in, non-owner,
+       non-test-funds account on a different device than the host's).
+     - a NEW FAN: +25 SP the first time a unique real gifter gifts the
+       creator in an ET calendar month (the fans seen-set below).
+   NEVER counted: promo321 / test-funds settles, charms-only settles,
+   self-gifts, gifts where sender OR recipient is one of the owner's
+   accounts (RP / @Jesusisking / @A1Thrills — the owner's lanes farm
+   nothing, for anyone), and gifts across two accounts sharing one
+   device key (the V7.528 switcher device-link store is the device
+   map). Every credit keys on the settle's idempotency key (the
+   gifter-338 seen-set pattern), so a replayed request can never
+   double-pay; the gift handler's own replay return is the first wall.
+   SP is a status ledger only — never charms, never spendable, never
+   convertible (the Plaza Spark / gifter-XP discipline). Tiers are
+   CUMULATIVE and kept once earned: New Face 0 · Charmer 500 ·
+   Crowd Builder 2,000 · Plaza Favorite 5,000 · Plaza Star 12,000 ·
+   Headliner 30,000 · Royalty 75,000 · Plaza Legend 200,000.
+   Phase 1 surfaces: the Profile Creator Level card + the live host
+   chip's tier gem (both render the server-computed view below — the
+   client never computes a tier) and one additive owner-board key
+   (ladder531 on /api/owner/sales). Missions, monthly boards, frames
+   and the showcase are Phases 2–3 and are NOT built here.
+   =========================================================================== */
+const CREATORLV531_FILE =
+  process.env.CREATORLV531_FILE || path.join(path.dirname(PHOTO_DIR), "creatorlv531.json");
+const CLV531_TIERS = [
+  ["New Face", 0], ["Charmer", 500], ["Crowd Builder", 2000], ["Plaza Favorite", 5000],
+  ["Plaza Star", 12000], ["Headliner", 30000], ["Royalty", 75000], ["Plaza Legend", 200000],
+];
+const CLV531_GEMS = ["\u{1F331}", "\u{1F539}", "\u{1F537}", "\u{1F4A0}", "\u2B50", "\u{1F31F}", "\u{1F451}", "\u{1F3C6}"];
+const CLV531_WIN_SP = 100; // per battle win, per winning host (mirrors LEAGUE_WIN_LP)
+const CLV531_NEW_FAN_SP = 25; // first gift from a unique real fan in a calendar month
+const CLV531_LIVE_BLOCK_SP = 10; // per full 30 minutes on air with a real viewer present
+const CLV531_LIVE_DAY_CAP = 60; // max live-time SP per ET day
+function clv531Empty() { return { accts: {}, totalIssued: 0 }; }
+function readClv531() {
+  const d = storeReadJson(CREATORLV531_FILE, (x) => !!(x && typeof x === "object" && x.accts && typeof x.accts === "object" && !Array.isArray(x.accts)), clv531Empty(), "creatorlv531");
+  if (!d.accts || typeof d.accts !== "object" || Array.isArray(d.accts)) d.accts = {};
+  if (typeof d.totalIssued !== "number" || !(d.totalIssued >= 0)) d.totalIssued = 0;
+  return d;
+}
+function writeClv531(db) {
+  try { // prune fan seen-sets to the current + previous ET month (the league-week pruning pattern)
+    const mk = rpCpDayKey(Date.now()).slice(0, 7);
+    const pm = rpCpDayKey(Date.now() - 32 * 86400000).slice(0, 7);
+    for (const id of Object.keys(db.accts || {})) {
+      const f = db.accts[id] && db.accts[id].fans;
+      if (f && typeof f === "object") for (const k of Object.keys(f)) if (k !== mk && k !== pm) delete f[k];
+    }
+  } catch (e) { }
+  storeWriteJson(CREATORLV531_FILE, db);
+}
+function clv531Rec(store, acctId) {
+  let r = store.accts[acctId];
+  if (!r || typeof r !== "object" || Array.isArray(r)) r = store.accts[acctId] = { sp: 0, seen: {}, fans: {}, live: { day: "", minutes: 0, blocks: 0 } };
+  if (typeof r.sp !== "number" || !(r.sp >= 0)) r.sp = 0;
+  if (!r.seen || typeof r.seen !== "object" || Array.isArray(r.seen)) r.seen = {};
+  if (!r.fans || typeof r.fans !== "object" || Array.isArray(r.fans)) r.fans = {};
+  if (!r.live || typeof r.live !== "object" || Array.isArray(r.live)) r.live = { day: "", minutes: 0, blocks: 0 };
+  return r;
+}
+function clv531TierIdx(sp) {
+  let i = 0;
+  for (let k = 0; k < CLV531_TIERS.length; k++) if (sp >= CLV531_TIERS[k][1]) i = k;
+  return i;
+}
+// The view every surface renders (Profile card, host chip, /me) —
+// computed HERE from the store, exactly like leagueView.
+function clv531ViewFrom(store, acctId) {
+  const rec = (store && store.accts && acctId) ? store.accts[acctId] : null;
+  const sp = rec && typeof rec.sp === "number" && rec.sp > 0 ? Math.floor(rec.sp) : 0;
+  const ti = clv531TierIdx(sp);
+  const cur = CLV531_TIERS[ti][1];
+  const next = ti + 1 < CLV531_TIERS.length ? CLV531_TIERS[ti + 1][1] : null;
+  return {
+    sp, tier: ti + 1, tierName: CLV531_TIERS[ti][0], gem: CLV531_GEMS[ti],
+    progress: next == null
+      ? { into: sp - cur, span: 0, nextAt: null, remaining: 0, pct: 100 }
+      : { into: sp - cur, span: next - cur, nextAt: next, remaining: next - sp, pct: Math.max(0, Math.min(100, Math.floor(((sp - cur) / Math.max(1, next - cur)) * 100))) },
+  };
+}
+function clv531View(acctId) { // fresh read, single account (/me + card endpoints)
+  if (!acctId) return clv531ViewFrom(null, null);
+  return clv531ViewFrom(readClv531(), acctId);
+}
+function clv531Card(acctId) { // the card payload: the view + the full tier track
+  const v = clv531View(acctId);
+  return Object.assign({ ok: true }, v, {
+    tiers: CLV531_TIERS.map((t, i) => ({ tier: i + 1, name: t[0], at: t[1], gem: CLV531_GEMS[i], active: i + 1 === v.tier })),
+  });
+}
+// The owner's account set (audit §4.5 rule 2): RP by owner id, plus
+// @Jesusisking and @A1Thrills by username — these accounts earn no SP,
+// hold no tier, and a gift FROM one of them credits nobody.
+function clv531OwnerIds(adb) {
+  const out = new Set();
+  try {
+    const rp = rpOwnerUserId(adb);
+    if (rp) out.add(rp);
+    for (const u of (adb && adb.users) || []) {
+      if (!u || !u.id) continue;
+      const un = String(u.username || "").toLowerCase();
+      if (un === "jesusisking" || un === "a1thrills") out.add(u.id);
+    }
+  } catch (e) { }
+  return out;
+}
+// Do two accounts share a device key? The V7.528 switcher store maps
+// deviceKey -> the accounts linked on that device; a device holding
+// BOTH accounts is one physical device running both (audit §4.5 rule 4).
+function clv531SharedDevice(idA, idB, preRead) {
+  if (!idA || !idB || idA === idB) return false;
+  try {
+    const sw = preRead || readSwitch528();
+    for (const dk of Object.keys(sw.links || {})) {
+      const m = sw.links[dk];
+      if (m && m[idA] && m[idB]) return true;
+    }
+  } catch (e) { }
+  return false;
+}
+// One SP credit — idempotency-keyed on the settle's own key (the
+// gifter-338 seen-set pattern, pruned the same way). Returns what landed.
+function clv531Credit(store, acctId, amount, idemKey) {
+  amount = Math.floor(Number(amount) || 0);
+  if (!acctId || !(amount > 0)) return 0;
+  const rec = clv531Rec(store, acctId);
+  if (idemKey) {
+    if (rec.seen[idemKey]) return 0;
+    rec.seen[idemKey] = Date.now();
+    const ks = Object.keys(rec.seen);
+    if (ks.length > 300) {
+      ks.sort((a, b2) => (rec.seen[a] || 0) - (rec.seen[b2] || 0));
+      for (let i = 0; i < ks.length - 300; i++) delete rec.seen[ks[i]];
+    }
+  }
+  rec.sp += amount;
+  store.totalIssued = (typeof store.totalIssued === "number" && store.totalIssued >= 0 ? store.totalIssued : 0) + amount;
+  return amount;
+}
+// SP for gifts received in a live — called from /api/money/gift beside
+// leagueOnLiveGift with the settled batch. The live determination is
+// the league's, verbatim; the ladder then applies §4.5's extra guards
+// (owner lanes, same-device) the league never needed.
+function clv531OnLiveGift(info) {
+  try {
+    if (!info || info.promo || info.charmsOnly) return;
+    if (info.postKey) return; // settled on a post/reel/feed/story — not a live gift
+    if (info.src === "picture" || info.src === "video") return; // post-surface tag — not a live gift
+    const recipientId = info.recipient && info.recipient.id;
+    const senderId = info.sender && info.sender.id;
+    if (!recipientId || !senderId || recipientId === senderId) return;
+    const total = Math.max(0, Math.floor(Number(info.totalCharms) || 0));
+    if (total <= 0) return;
+    let live = false;
+    if (info.battleId) {
+      const bb = battles306.get(String(info.battleId));
+      if (bb && !bb.ended && battle306PartByAcct(bb, recipientId)) live = true;
+    }
+    if (!live && info.src === "live") live = leagueHostIsLive(recipientId);
+    if (!live) return;
+    const ownerIds = clv531OwnerIds(info.adb || readAccounts());
+    if (ownerIds.has(recipientId) || ownerIds.has(senderId)) return; // the owner's lanes farm nothing
+    if (clv531SharedDevice(senderId, recipientId)) return; // one device, two accounts — no credit
+    const store = readClv531();
+    clv531Credit(store, recipientId, total, info.idemStoreKey || null); // 1 SP per charm
+    // New-fan bonus: the first time THIS gifter gifts this creator in
+    // the ET calendar month (the fans seen-set is itself the guard).
+    const monthKey = rpCpDayKey(Date.now()).slice(0, 7);
+    const rec = clv531Rec(store, recipientId);
+    let fm = rec.fans[monthKey];
+    if (!fm || typeof fm !== "object" || Array.isArray(fm)) fm = rec.fans[monthKey] = {};
+    if (!fm[senderId]) {
+      fm[senderId] = 1;
+      clv531Credit(store, recipientId, CLV531_NEW_FAN_SP, info.idemStoreKey ? info.idemStoreKey + ":fan531" : null);
+    }
+    writeClv531(store);
+  } catch (e) { /* ladder bookkeeping must never break a gift */ }
+}
+// Battle-win SP — called from battle306End beside leagueSettleBattle;
+// that function is b.ended-guarded, so this lands exactly once per
+// battle. Draws pay 0 (no winnerSides). A winner whose device is
+// shared with ANY opponent earns 0 (audit §4.5 rule 7).
+function clv531SettleBattle(b) {
+  try {
+    if (!b || !b.winnerSides || !b.winnerSides.length) return;
+    const ownerIds = clv531OwnerIds(readAccounts());
+    const sw = readSwitch528();
+    const store = readClv531();
+    let dirty = false;
+    for (const pt of b.parts) {
+      if (!pt.acct || !b.winnerSides.includes(pt.side)) continue;
+      if (ownerIds.has(pt.acct)) continue;
+      let blocked = false;
+      for (const op of b.parts) {
+        if (!op.acct || b.winnerSides.includes(op.side)) continue;
+        if (clv531SharedDevice(pt.acct, op.acct, sw)) { blocked = true; break; }
+      }
+      if (blocked) continue;
+      if (clv531Credit(store, pt.acct, CLV531_WIN_SP, b.id ? "battle531:" + b.id + ":" + pt.acct : null) > 0) dirty = true;
+    }
+    if (dirty) writeClv531(store);
+  } catch (e) { /* ladder bookkeeping must never break a battle end */ }
+}
+// Time-on-air SP: a 60s sweep over the live registry (the presence
+// flush's cadence + unref pattern). A minute counts only while at
+// least one QUALIFYING viewer is in the room: signed-in (players'
+// token-verified acctId), not the host, not an owner account, not a
+// test-funds account, and on a different device (the room connection
+// device key differs from the host's live key, and the two accounts
+// share no switcher device). Blocks of 30 counted minutes pay 10 SP,
+// capped at 60 SP per ET day, all server-enforced in the store.
+function clv531Tick() {
+  try {
+    if (!liveRegistry || !liveRegistry.size) return;
+    const adb = readAccounts();
+    const byId = {};
+    for (const u of adb.users || []) if (u && u.id) byId[u.id] = u;
+    const ownerIds = clv531OwnerIds(adb);
+    const sw = readSwitch528();
+    const byKey = new Map();
+    for (const [sid, k] of clientKeys) byKey.set(k, sid);
+    const store = readClv531();
+    const dayKey = rpCpDayKey(Date.now());
+    let dirty = false;
+    for (const e of liveRegistry.values()) {
+      const sid = byKey.get(e.key);
+      if (!sid) continue;
+      const hs = io.sockets.sockets.get(sid);
+      if (!hs || !hs.data || !hs.data.accountId) continue;
+      const hostId = hs.data.accountId;
+      if (ownerIds.has(hostId)) continue;
+      let qual = false;
+      for (const p of players.values()) {
+        if (p.room !== e.room || !p.acctId || p.acctId === hostId) continue;
+        if (ownerIds.has(p.acctId)) continue;
+        const vu = byId[p.acctId];
+        if (!vu || testFunds321(vu)) continue;
+        const vDev = clientKeys.get(p.id);
+        if (vDev && vDev === e.key) continue;
+        if (clv531SharedDevice(p.acctId, hostId, sw)) continue;
+        qual = true; break;
+      }
+      if (!qual) continue;
+      const rec = clv531Rec(store, hostId);
+      if (!rec.live || rec.live.day !== dayKey) rec.live = { day: dayKey, minutes: 0, blocks: 0 };
+      rec.live.minutes = (typeof rec.live.minutes === "number" && rec.live.minutes >= 0 ? Math.floor(rec.live.minutes) : 0) + 1;
+      if (typeof rec.live.blocks !== "number" || !(rec.live.blocks >= 0)) rec.live.blocks = 0;
+      const blocks = Math.floor(rec.live.minutes / 30);
+      if (blocks > rec.live.blocks) {
+        const want = (blocks - rec.live.blocks) * CLV531_LIVE_BLOCK_SP;
+        const capLeft = CLV531_LIVE_DAY_CAP - rec.live.blocks * CLV531_LIVE_BLOCK_SP;
+        const give = Math.max(0, Math.min(want, capLeft));
+        rec.live.blocks = blocks;
+        if (give > 0) { rec.sp += give; store.totalIssued = (typeof store.totalIssued === "number" && store.totalIssued >= 0 ? store.totalIssued : 0) + give; }
+      }
+      dirty = true;
+    }
+    if (dirty) writeClv531(store);
+  } catch (e) { /* the ladder ticker must never break the server */ }
+}
+try { const iv531 = setInterval(clv531Tick, 60000); if (iv531 && iv531.unref) iv531.unref(); } catch (e) { }
+// The card endpoints (the gifter /api/gifter/me + /level pattern):
+// own card by session; any member's standing by account id.
+app.get("/api/creatorlv/me", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  res.json(clv531Card(ctx.user.id));
+});
+app.get("/api/creatorlv/level", (req, res) => {
+  const id = String((req.query && req.query.id) || "");
+  if (!id) return res.json({ ok: false, error: "missing-id" });
+  const adb = readAccounts();
+  const u = (adb.users || []).find((x) => x && x.id === id);
+  if (!u) return res.json({ ok: false, error: "no-such-account" });
+  res.json(clv531Card(id));
+});
+// Owner-board line (Branden's standing rule: every money-adjacent
+// feature reports into the owner board — the ladder moves no money,
+// but its issuance is reported): earners, SP issued, heads per tier.
+function rpLadderBoard531() {
+  try {
+    const store = readClv531();
+    const byTier = {};
+    let earners = 0;
+    for (const id of Object.keys(store.accts || {})) {
+      const sp = Math.floor(Number(store.accts[id] && store.accts[id].sp) || 0);
+      if (sp > 0) { earners++; const nm = CLV531_TIERS[clv531TierIdx(sp)][0]; byTier[nm] = (byTier[nm] || 0) + 1; }
+    }
+    return { earners, totalSpIssued: Math.floor(Number(store.totalIssued) || 0), byTier };
+  } catch (e) { return { earners: 0, totalSpIssued: 0, byTier: {} }; }
+}
 const BOOSTERS_FILE306 =
   process.env.BOOSTERS_FILE || path.join(path.dirname(PHOTO_DIR), "boosters.json");
 const BOOSTER_ITEMS306 = ["mist", "gloves", "boost2", "boost3", "hammer", "timer"];
@@ -22828,6 +23143,7 @@ function battle306End(b, reason) {
   // battle, and it runs BEFORE the end payloads below are built, so
   // both battle screens show the settled streaks on the end state.
   leagueSettleBattle(b);
+  clv531SettleBattle(b); // [RP-V7.531] Star Ladder win SP settles at the same exactly-once point (draws pay 0; owner lanes + same-device opponents earn 0 — enforced inside)
   // Win award: EVERY host on the winning side earns one (2v2 pays
   // both teammates; FFA pays the single winner; 1v1 is unchanged).
   const awards = {};
@@ -26690,6 +27006,7 @@ app.post("/api/money/gift", lockedHandler("gift", (req, res) => {
   // the battle hook so the payloads that hook emits for this gift
   // already carry the LP it just earned.
   try { leagueOnLiveGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, promo: promo321, charmsOnly, src: giftSrc233, postKey: postKey262 }); } catch (e) { }
+  try { clv531OnLiveGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, promo: promo321, charmsOnly, src: giftSrc233, postKey: postKey262, idemStoreKey, adb: ctx.db }); } catch (e) { } // [RP-V7.531] Star Ladder SP — same settled batch, same live determination as the league; §4.5's extra guards (owner lanes, same-device, idempotency key) live inside
   try { battle306OnGift({ sender: ctx.user, recipient, totalCharms: totalCost, battleId: b.battleId, giftName: (MONEY_GIFT_INFO[giftId] && MONEY_GIFT_INFO[giftId].name) || giftId, giftId, count, promo: promo321, charmsOnly, lvlUpTo: (giftResponse.gifter && giftResponse.gifter.leveledUp) ? giftResponse.gifter.level : 0 }); } catch (e) { } // [RP-V7.517] gift id + batch count + promo/charms-only flags + the level-up ride along (podium tracking, pane banners, level-up line)
   try { liveGoal519OnGift({ sender: ctx.user, recipient, giftId, count, promo: promo321, charmsOnly, src: giftSrc233, postKey: postKey262, battleId: b.battleId }); } catch (e) { } // [RP-V7.519] Live Goals + Gallery counting — real live settles only, enforced inside
   // [RP-V7.520] the chest drop opens as the gift lands: the rooms
@@ -32441,6 +32758,7 @@ app.get("/api/owner/sales", (req, res) => {
     referrals392: rpRefBoard392(),
     rewardsClub393: rpRewardsBoard393(),
     boost394: bstBoard394(), // [RP-V7.394] Community Boost summary (Branden's every-stream-reports rule) // [RP-V7.393] rewards-club summary (Branden's every-stream-reports rule) // [RP-V7.392] referrals + points + coupons summary (Branden's every-stream-reports rule) // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
+    ladder531: rpLadderBoard531(), // [RP-V7.531] Star Ladder: earners, SP issued, heads per tier (the ladder moves no money; its issuance still reports here per the every-stream rule)
   });
 });
 // ---------------------------------------------------------------------------
