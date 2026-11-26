@@ -2358,7 +2358,10 @@ app.post("/api/account/signup", (req, res) => {
     sendAccountSms(user, "welcome"); // [RP-V7.55] email AND phone, per Branden's rule
     notifyOwnerOfSignup307(user, fresh.users.length); // [RP-V7.307] the owner hears about every new member
     console.log("[accounts] signup", user.email || user.phone);
-    res.status(201).json({ ok: true, token, user: publicAccount(user) });
+    const sw528 = rpSwitch528Link(user, b.deviceId); // [RP-V7.528] sign-up is a proven first sign-in — link the device too
+    const out528 = { ok: true, token, user: publicAccount(user) };
+    if (sw528) out528.switch528 = sw528;
+    res.status(201).json(out528);
   } finally {
     for (const k of resKeys) signupReservations.delete(k);
   }
@@ -2474,7 +2477,10 @@ app.post("/api/account/login", (req, res) => {
   const token = newAccountToken(db, user.id);
   writeAccounts(db);
   console.log("[accounts] login", user.email || user.phone || user.username);
-  res.json({ ok: true, token, user: publicAccount(user), deletionCancelled, ownerDeletionNotice: rpOwnerDeletionNotice377(user) });
+  const sw528 = rpSwitch528Link(user, b.deviceId); // [RP-V7.528] a proven sign-in links this account to the device for the switcher
+  const out528 = { ok: true, token, user: publicAccount(user), deletionCancelled, ownerDeletionNotice: rpOwnerDeletionNotice377(user) };
+  if (sw528) out528.switch528 = sw528;
+  res.json(out528);
 });
 // ---------------------------------------------------------------------------
 // [RP-V7.454] PASSKEY SIGN-IN — WebAuthn fingerprint / face (Branden,
@@ -2918,7 +2924,10 @@ app.post("/api/account/passkey/auth/verify", (req, res) => {
   const sess = googleSessionFor(user, db); // the shared session door: deletion semantics + token + writeAccounts
   if (!sess) return generic();
   console.log("[accounts] login (passkey)", user.email || user.username);
-  res.json({ ok: true, token: sess.token, user: publicAccount(user), deletionCancelled: sess.deletionCancelled, ownerDeletionNotice: sess.ownerDeletionNotice });
+  const sw528pk = rpSwitch528Link(user, (req.body || {}).deviceId); // [RP-V7.528] link the device on the passkey door too
+  const out528pk = { ok: true, token: sess.token, user: publicAccount(user), deletionCancelled: sess.deletionCancelled, ownerDeletionNotice: sess.ownerDeletionNotice };
+  if (sw528pk) out528pk.switch528 = sw528pk;
+  res.json(out528pk);
 });
 
 function accountMeHandler(req, res) {
@@ -2976,6 +2985,316 @@ app.post("/api/account/logout", (req, res) => {
     if (db.tokens[key]) {
       delete db.tokens[key];
       writeAccounts(db);
+    }
+  }
+  res.json({ ok: true });
+});
+/* ---------- [RP-V7.528] ACCOUNT SWITCHER — device-linked accounts ----------
+   Branden, Nov 25, 2026 (approved): he runs three accounts (RP,
+   @Jesusisking, @A1Thrills) and kept landing in the wrong one —
+   the app holds ONE session per browser, there was no switcher,
+   and saved-login auto-fill grabbed the wrong account first.
+   TikTok pattern: accounts that have signed in on THIS device are
+   listed in one place; a tap switches, no password.
+
+   Built on the existing auth rails — no parallel system:
+   - The client holds a random device id (localStorage, minted
+     once). Every PROVEN sign-in on that device presents it —
+     password login, sign-up, Google exchange/complete, passkey
+     verify, password-reset verify — and the server records a
+     SWITCH CREDENTIAL for that account under that device: 32
+     random bytes, returned to the client once inside that
+     sign-in's response; the server keeps only its sha256 (the
+     session-token discipline). NEVER a password, never the
+     password hash. One credential per account+device; a fresh
+     sign-in replaces it.
+   - POST /api/account/switch { deviceId, targetId, credential }
+     checks the hash, then issues the session through the SAME
+     shared door as Google/passkey sign-in (googleSessionFor) —
+     identical session shape, identical deletion semantics. Every
+     attempt, success or refusal, is logged in the switch store.
+     Attempts are paced per IP+device (failures, loginAttempts
+     pattern).
+   - Guards, all NAMED refusals: a teen-disabled account
+     (age-locked), an age-suspended account, and an
+     owner-delete-locked account can NOT be switched into (a
+     password sign-in stays the way into the owner-delete
+     recovery window). A removed link, a credential minted on
+     another device, or a link whose account is gone falls back
+     to one plain message: sign in with the password to link
+     again.
+   - GET /api/account/switch/list (session required) lists the
+     device's linked accounts — only to a caller whose own
+     account is linked on that device, so a device id alone
+     never enumerates anybody. POST /api/account/switch/remove
+     (session required) unlinks one account from the device.
+     POST /api/account/switch/logout-all (session required)
+     revokes EVERY link for the device and kills the presented
+     session token.
+   Store: switch528.json beside accounts.json, same hardened
+   read/write as password-resets.json. Links carry no expiry of
+   their own — they die on remove / logout-all / account
+   deletion, and any fresh sign-in on the device refreshes them.
+   The Apple door mints sessions through a redirect and never
+   presents a device id, so it does not link; the account links
+   on its next in-app sign-in like any other. */
+const SWITCH528_FILE =
+  process.env.SWITCH528_FILE ||
+  path.join(path.dirname(ACCOUNTS_FILE), "switch528.json");
+function emptySwitch528() {
+  return { links: {}, log: [] };
+}
+function readSwitch528() {
+  return storeReadJson(
+    SWITCH528_FILE,
+    (d) => !!(d && d.links && typeof d.links === "object" && !Array.isArray(d.links) && Array.isArray(d.log)),
+    emptySwitch528(),
+    "switch528"
+  );
+}
+function writeSwitch528(db) {
+  storeWriteJson(SWITCH528_FILE, db);
+}
+function rpSwitch528DeviceOk(v) {
+  return typeof v === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(v);
+}
+function rpSwitch528DeviceKey(deviceId) {
+  return crypto.createHash("sha256").update(String(deviceId)).digest("hex");
+}
+function rpSwitch528CredHash(cred) {
+  return crypto.createHash("sha256").update(String(cred)).digest("hex");
+}
+function rpSwitch528Log(store, entry) {
+  store.log.push(entry);
+  while (store.log.length > 500) store.log.shift();
+}
+// Record (or refresh) the switch credential for a proven sign-in.
+// Returns the payload the sign-in response carries back to the
+// client, or null when no valid device id rode along.
+function rpSwitch528Link(user, deviceId) {
+  if (!user || !rpSwitch528DeviceOk(deviceId)) return null;
+  try {
+    const store = readSwitch528();
+    const dk = rpSwitch528DeviceKey(deviceId);
+    if (!store.links[dk]) store.links[dk] = {};
+    const prev = store.links[dk][user.id] || null;
+    const cred = crypto.randomBytes(32).toString("hex");
+    const now = Date.now();
+    store.links[dk][user.id] = {
+      hash: rpSwitch528CredHash(cred),
+      createdAt: prev ? prev.createdAt : now,
+      refreshedAt: now,
+      lastSwitchAt: prev ? prev.lastSwitchAt : null,
+    };
+    writeSwitch528(store);
+    return {
+      deviceId,
+      credential: cred,
+      user: { id: user.id, name: user.name, username: user.username || "", photo: user.photo || null },
+    };
+  } catch (e) {
+    return null;
+  }
+}
+// The device's linked accounts as the list endpoint shows them.
+// A link whose account no longer exists is pruned on read.
+function rpSwitch528ListFor(store, db, deviceId) {
+  const dk = rpSwitch528DeviceKey(deviceId);
+  const dev = store.links[dk] || {};
+  const out = [];
+  let pruned = false;
+  for (const uid of Object.keys(dev)) {
+    const u = db.users.find((x) => x.id === uid);
+    if (!u) {
+      delete dev[uid];
+      pruned = true;
+      continue;
+    }
+    out.push({ id: u.id, name: u.name, username: u.username || "", photo: u.photo || null });
+  }
+  if (pruned) {
+    store.links[dk] = dev;
+    writeSwitch528(store);
+  }
+  return out;
+}
+const rpSwitch528Hits = new Map(); // "ip|deviceKey" -> [timestamps of FAILED attempts]
+function rpSwitch528Limited(key) {
+  const now = Date.now();
+  const arr = (rpSwitch528Hits.get(key) || []).filter((t) => now - t < 10 * 60 * 1000);
+  rpSwitch528Hits.set(key, arr);
+  return arr.length >= 15;
+}
+function rpSwitch528NoteFail(key) {
+  const arr = rpSwitch528Hits.get(key) || [];
+  arr.push(Date.now());
+  rpSwitch528Hits.set(key, arr);
+}
+app.get("/api/account/switch/list", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const deviceId = String((req.query || {}).deviceId || "");
+  if (!rpSwitch528DeviceOk(deviceId)) return res.json({ ok: true, accounts: [] });
+  const store = readSwitch528();
+  const dk = rpSwitch528DeviceKey(deviceId);
+  const dev = store.links[dk] || {};
+  if (!dev[ctx.user.id]) return res.json({ ok: true, accounts: [] });
+  const accounts = rpSwitch528ListFor(store, ctx.db, deviceId).map((a) =>
+    Object.assign({}, a, { current: a.id === ctx.user.id })
+  );
+  res.json({ ok: true, accounts });
+});
+app.post("/api/account/switch", (req, res) => {
+  const b = req.body || {};
+  const deviceId = String(b.deviceId || "");
+  const targetId = String(b.targetId || "");
+  const credential = String(b.credential || "");
+  const ip = req.ip || "unknown";
+  const FALLBACK528 =
+    "That account is no longer linked on this device — sign in with its password to link it again.";
+  const paceKey = ip + "|" + (rpSwitch528DeviceOk(deviceId) ? rpSwitch528DeviceKey(deviceId) : "?");
+  const fail = (status, reason, error, extra) => {
+    try {
+      const store = readSwitch528();
+      rpSwitch528Log(store, {
+        at: new Date().toISOString(),
+        device: rpSwitch528DeviceOk(deviceId) ? rpSwitch528DeviceKey(deviceId).slice(0, 12) : "?",
+        from: null,
+        to: targetId || null,
+        ok: false,
+        reason,
+      });
+      writeSwitch528(store);
+    } catch (e) {}
+    rpSwitch528NoteFail(paceKey);
+    return res.status(status).json(Object.assign({ ok: false, reason, error }, extra || {}));
+  };
+  if (!rpSwitch528DeviceOk(deviceId) || !targetId || !credential)
+    return fail(400, "bad-request", FALLBACK528);
+  if (rpSwitch528Limited(paceKey))
+    return res.status(429).json({
+      ok: false,
+      reason: "rate-limited",
+      error: "Too many switch attempts — try again in a few minutes",
+    });
+  const store = readSwitch528();
+  const dk = rpSwitch528DeviceKey(deviceId);
+  const link = (store.links[dk] || {})[targetId] || null;
+  if (!link) return fail(401, "not-linked", FALLBACK528);
+  let credOk = false;
+  try {
+    const calc = Buffer.from(rpSwitch528CredHash(credential), "hex");
+    const stored = Buffer.from(String(link.hash || ""), "hex");
+    credOk = calc.length === stored.length && crypto.timingSafeEqual(calc, stored);
+  } catch (e) {}
+  if (!credOk) return fail(401, "bad-credential", FALLBACK528);
+  const db = readAccounts();
+  const user = db.users.find((u) => u.id === targetId) || null;
+  if (!user) {
+    // The account is gone (deleted): its link dies with it.
+    delete store.links[dk][targetId];
+    writeSwitch528(store);
+    return fail(401, "account-gone", FALLBACK528);
+  }
+  // Named guards — a switch never lands in a locked account.
+  if (teenAccountDisabled(user))
+    return fail(403, "age-locked", RP_AGE_LOCK_NOTICE_263, { ageLocked: true });
+  if (user.ageSuspended)
+    return fail(403, "age-suspended", RP_AGE_SUSPEND_NOTICE_263, { ageSuspended: true });
+  if (user.ownerDeletion)
+    return fail(
+      403,
+      "owner-delete-locked",
+      "This account is scheduled for deletion, so it can't be switched into — sign in with its password to see the recovery options."
+    );
+  // A caller who also presents a valid session is logged as the source.
+  let fromId = null;
+  try {
+    const fu = accountForTokenRaw(db, req);
+    if (fu) fromId = fu.id;
+  } catch (e) {}
+  const sess = googleSessionFor(user, db); // the shared session door: deletion semantics + token + writeAccounts
+  if (!sess) return fail(401, "account-gone", FALLBACK528); // a past-due pending deletion was just finalized by the door
+  link.lastSwitchAt = Date.now();
+  store.links[dk][targetId] = link;
+  rpSwitch528Log(store, {
+    at: new Date().toISOString(),
+    device: dk.slice(0, 12),
+    from: fromId,
+    to: user.id,
+    ok: true,
+    reason: "ok",
+  });
+  writeSwitch528(store);
+  console.log("[accounts] switch ->", user.email || user.username);
+  res.json({
+    ok: true,
+    token: sess.token,
+    user: publicAccount(user),
+    deletionCancelled: sess.deletionCancelled,
+    ownerDeletionNotice: sess.ownerDeletionNotice,
+    switched: true,
+  });
+});
+app.post("/api/account/switch/remove", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const deviceId = String(b.deviceId || "");
+  const userId = String(b.userId || "");
+  if (!rpSwitch528DeviceOk(deviceId) || !userId)
+    return res.status(400).json({ ok: false, error: "That unlink didn't go through — try again." });
+  const store = readSwitch528();
+  const dk = rpSwitch528DeviceKey(deviceId);
+  const dev = store.links[dk] || {};
+  // Only a member linked on this device (or unlinking themselves)
+  // may prune its list.
+  if (!dev[ctx.user.id] && userId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "That account isn't linked on this device." });
+  if (dev[userId]) {
+    delete dev[userId];
+    store.links[dk] = dev;
+    rpSwitch528Log(store, {
+      at: new Date().toISOString(),
+      device: dk.slice(0, 12),
+      from: ctx.user.id,
+      to: userId,
+      ok: true,
+      reason: "removed",
+    });
+    writeSwitch528(store);
+  }
+  res.json({ ok: true });
+});
+app.post("/api/account/switch/logout-all", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const deviceId = String(b.deviceId || "");
+  if (rpSwitch528DeviceOk(deviceId)) {
+    const store = readSwitch528();
+    const dk = rpSwitch528DeviceKey(deviceId);
+    if (store.links[dk]) {
+      delete store.links[dk];
+      rpSwitch528Log(store, {
+        at: new Date().toISOString(),
+        device: dk.slice(0, 12),
+        from: ctx.user.id,
+        to: null,
+        ok: true,
+        reason: "logout-all",
+      });
+      writeSwitch528(store);
+    }
+  }
+  // Kill the presented session too (the /api/account/logout move).
+  const h = String(req.headers.authorization || "");
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  if (m) {
+    const key = crypto.createHash("sha256").update(m[1].trim()).digest("hex");
+    if (ctx.db.tokens[key]) {
+      delete ctx.db.tokens[key];
+      writeAccounts(ctx.db);
     }
   }
   res.json({ ok: true });
@@ -3187,7 +3506,10 @@ app.post("/api/account/password-reset/verify", (req, res) => {
   const token = newAccountToken(db, user.id);
   writeAccounts(db);
   console.log("[accounts] password reset completed for", user.email || user.username);
-  res.json({ ok: true, token, user: publicAccount(user) });
+  const sw528 = rpSwitch528Link(user, b.deviceId); // [RP-V7.528] a completed reset is a proven sign-in — link the device
+  const out528 = { ok: true, token, user: publicAccount(user) };
+  if (sw528) out528.switch528 = sw528;
+  res.json(out528);
 });
 app.post("/api/account/welcome-resend", (req, res) => {
   const ctx = requireAccount(req, res);
@@ -21414,7 +21736,10 @@ app.post("/api/account/google/exchange", (req, res) => {
   const sess = googleSessionFor(user, db);
   if (!sess)
     return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
-  res.json({ ok: true, token: sess.token, user: publicAccount(user), deletionCancelled: sess.deletionCancelled, ownerDeletionNotice: sess.ownerDeletionNotice });
+  const sw528ex = rpSwitch528Link(user, (req.body || {}).deviceId); // [RP-V7.528] link the device on the Google door too
+  const out528ex = { ok: true, token: sess.token, user: publicAccount(user), deletionCancelled: sess.deletionCancelled, ownerDeletionNotice: sess.ownerDeletionNotice };
+  if (sw528ex) out528ex.switch528 = sw528ex;
+  res.json(out528ex);
 });
 app.post("/api/account/google/complete", (req, res) => {
   const b = req.body || {};
@@ -21447,7 +21772,10 @@ app.post("/api/account/google/complete", (req, res) => {
     const sess = googleSessionFor(existing, db);
     if (!sess)
       return res.status(401).json({ ok: false, error: "That Google sign-in expired — tap Continue with Google again" });
-    return res.json({ ok: true, token: sess.token, user: publicAccount(existing), deletionCancelled: sess.deletionCancelled, ownerDeletionNotice: sess.ownerDeletionNotice, linked: true });
+    const sw528gc = rpSwitch528Link(existing, b.deviceId); // [RP-V7.528] link the device on the Google door too
+    const out528gc = { ok: true, token: sess.token, user: publicAccount(existing), deletionCancelled: sess.deletionCancelled, ownerDeletionNotice: sess.ownerDeletionNotice, linked: true };
+    if (sw528gc) out528gc.switch528 = sw528gc;
+    return res.json(out528gc);
   }
   if (usernameTaken(db, username))
     return res.status(409).json({ ok: false, error: "That username is taken — try another" });
@@ -21482,7 +21810,10 @@ app.post("/api/account/google/complete", (req, res) => {
   sendAccountEmail(user, "welcome");
   notifyOwnerOfSignup307(user, db.users.length); // [RP-V7.307] same owner alert for Google sign-ups
   console.log("[accounts] signup (google)", user.email);
-  res.status(201).json({ ok: true, token, user: publicAccount(user) });
+  const sw528gn = rpSwitch528Link(user, b.deviceId); // [RP-V7.528] a Google sign-up is a proven first sign-in — link the device
+  const out528gn = { ok: true, token, user: publicAccount(user) };
+  if (sw528gn) out528gn.switch528 = sw528gn;
+  res.status(201).json(out528gn);
 });
 app.get("/auth/apple", (req, res) => {
   const cid = process.env.APPLE_CLIENT_ID;
