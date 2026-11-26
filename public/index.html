@@ -10595,6 +10595,7 @@
           '<p class="pprof-pres471" id="pprofPres471" hidden></p>' + // [RP-V7.471] Active line
           '<p class="pprof-type" id="pprofType" hidden></p>' +
           '<p class="pprof-gifter338" id="pprofGifter338"></p>' + // [RP-V7.338] gifter badge + persona line (painted by RpGifter338.paintProfile)
+          '<p class="pprof-ladder531" id="pprofLadder531"></p>' + // [RP-V7.531] Creator Level (Star Ladder) line — gem + tier + SP, painted by RpLadder531.paintProfile from the server view
           '<div class="pprof-stats">' +
           '<div class="pprof-stat"><b id="pprofFollowing">–</b><small>' + rpT("act_following") + '</small></div>' +
           '<div class="pprof-stat"><b id="pprofFollowers">–</b><small>' + rpT("act_followers") + '</small></div>' +
@@ -10655,6 +10656,7 @@
           });
         });
         try { if (window.RpGifter338) RpGifter338.paintProfile(p, isSelf); } catch (e) { } // [RP-V7.338]
+        try { if (window.RpLadder531) RpLadder531.paintProfile(p, isSelf); } catch (e) { } // [RP-V7.531]
         if (isSelf) { // [RP-V7.89b] your own face opens the rack — tap it, pick, done (other members' faces keep the story tap)
           var hav89 = document.querySelector("#sheet .pprof-avatar");
           if (hav89) {
@@ -12278,7 +12280,7 @@
         });
         var list = Object.keys(Live.directory).map(function (id) {
           var e = Live.directory[id];
-          var o = { hostId: id, room: e.room, name: e.name || rpT("name_host"), title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0, regKey: e.regKey || "", hostAccountId: e.hostAccountId || null, priv: !!e.priv, gaming: !!e.gaming /* [RP-GAMING] */, pot: e.pot || null, poll: e.poll || null, startedAt: e.startedAt || 0, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0, boost: e.boost || 0, league: e.league || null }; // [RP-LEAGUE] league badge rides the render object // [RP-V7.299] registry fields ride the render object // [RP-V7.394] + the boost pool — the ticket badge/door (and the priv/pot lines liveRowHTML already draws) read them from here
+          var o = { hostId: id, room: e.room, name: e.name || rpT("name_host"), title: e.title || "", topic: e.topic || "Chatting", photo: e.photo || null, n: e.n || 1, seen: e.seen || 0, mine: id === Online.myId, city: e.city || "", state: e.state || "", ints: Array.isArray(e.ints) ? e.ints : [], er: (typeof e.er === "number" ? e.er : 0), erAt: e.erAt || 0, regKey: e.regKey || "", hostAccountId: e.hostAccountId || null, priv: !!e.priv, gaming: !!e.gaming /* [RP-GAMING] */, pot: e.pot || null, poll: e.poll || null, startedAt: e.startedAt || 0, ticketPrice: e.ticketPrice || 0, ticketSold: e.ticketSold || 0, boost: e.boost || 0, league: e.league || null, clv531: e.clv531 || null }; // [RP-LEAGUE] league badge rides the render object // [RP-V7.299] registry fields ride the render object // [RP-V7.394] + the boost pool — the ticket badge/door (and the priv/pot lines liveRowHTML already draws) read them from here // [RP-V7.531] + the Star Ladder tier view
           // the host's own announced home + interests win over any
           // fallback location guessed from the room they announced in
           var hm = Live.hostMeta[id];
@@ -12375,11 +12377,12 @@
             if (typeof lv.ticketSold === "number") e.ticketSold = lv.ticketSold; // [RP-V7.299]
             if (typeof lv.boost === "number") e.boost = lv.boost; // [RP-V7.394] boost pool refreshes on existing entries too
             if (lv.league !== undefined) e.league = lv.league || null; // [RP-LEAGUE] the host's league badge refreshes with the snapshot
+            if (lv.clv531 !== undefined) e.clv531 = lv.clv531 || null; // [RP-V7.531] the host's Star Ladder tier view refreshes with the snapshot
             e.battle = lv.battle || null; // [RP-V7.518] the room's live battle (server directory view) rides the entry; null clears it when the battle ends
             e.seen = now; e.reg = true; e.regKey = lv.key || e.regKey || "";
             if (foundId !== key && lv.hostId) { Live.directory[key] = e; delete Live.directory[foundId]; }
           } else {
-            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, gaming: !!lv.gaming /* [RP-GAMING] */, pot: lv.pot || null, poll: lv.poll || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0, boost: lv.boost || 0, league: lv.league || null, battle: lv.battle || null /* [RP-V7.518] */ }; // [RP-LEAGUE] league badge rides the directory entry // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.394] + boost pool // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge
+            Live.directory[key] = { room: lv.room, name: lv.name || "Host", title: lv.title || "", topic: lv.topic || "Chatting", photo: lv.photo || null, n: 1, seen: now, reg: true, regKey: lv.key || "", hostAccountId: lv.hostAccountId || null, priv: !!lv.priv, gaming: !!lv.gaming /* [RP-GAMING] */, pot: lv.pot || null, poll: lv.poll || null, watchers: (typeof lv.watchers === "number" ? lv.watchers : 1), startedAt: lv.startedAt || 0, ticketPrice: lv.ticketPrice || 0, ticketSold: lv.ticketSold || 0, boost: lv.boost || 0, league: lv.league || null, clv531: lv.clv531 || null, battle: lv.battle || null /* [RP-V7.518] */ }; // [RP-LEAGUE] league badge rides the directory entry // [RP-V7.299] ticket badge + price ride the directory entry // [RP-V7.394] + boost pool // [RP-V7.41] pot rides along // [RP-V7.63] + watchers/startedAt for the signup invite // [RP-V7.138] + priv badge // [RP-V7.531] + the Star Ladder tier view
           }
         });
         Live.regRooms = rooms;
@@ -19190,9 +19193,11 @@
         var n = Object.keys(Online.players).length + 1;
         var lgPillHtml = ""; // [RP-LEAGUE] the host's league pill — read from the server snapshot's directory entry for THIS room (server-computed; never derived here)
         try { Object.keys(Live.directory).forEach(function (lgk) { var lge = Live.directory[lgk]; if (!lgPillHtml && lge && lge.room === Online.room && lge.league && lge.league.label) lgPillHtml = '<span class="lhc-league">🏆 ' + escHtml(lge.league.label) + "</span>"; }); } catch (e) { }
+        var clvPillHtml531 = ""; // [RP-V7.531] the host's Star Ladder tier gem — same directory entry, same server-computed rule (the view rides the lives snapshot as lv.clv531)
+        try { Object.keys(Live.directory).forEach(function (ck531) { var ce531 = Live.directory[ck531]; if (!clvPillHtml531 && ce531 && ce531.room === Online.room && ce531.clv531 && ce531.clv531.tierName) clvPillHtml531 = '<span class="lhc-clv531" title="Creator Level — ' + escHtml(ce531.clv531.tierName) + '">' + escHtml(ce531.clv531.gem || "") + " " + escHtml(ce531.clv531.tierName) + "</span>"; }); } catch (e) { }
         if (chip) {
           chip.hidden = false;
-          chip.innerHTML = '<span class="lhc-av">' + hostAv + '</span><span class="lhc-meta"><span class="lhc-nameline">' + (Live.hostId ? '<span class="lv-crown">👑</span>' : "") + '<b>' + escHtml(Live.hostName || rpT("live_host_cap")) + '</b></span><i>' + rpTf("live_chip_line", { n: n, h: Live.hearts, topic: escHtml(rpTopic500(Live.topic)) }) + "</i>" + lgPillHtml + "</span>" + // [RP-LEAGUE] league pill sits under the host's name line // [RP-V7.39] 👑 crowns the host in the top bar — keyed off Live.hostId; the <b> stays the plain name (chipName() reads it)
+          chip.innerHTML = '<span class="lhc-av">' + hostAv + '</span><span class="lhc-meta"><span class="lhc-nameline">' + (Live.hostId ? '<span class="lv-crown">👑</span>' : "") + '<b>' + escHtml(Live.hostName || rpT("live_host_cap")) + '</b></span><i>' + rpTf("live_chip_line", { n: n, h: Live.hearts, topic: escHtml(rpTopic500(Live.topic)) }) + "</i>" + lgPillHtml + clvPillHtml531 + "</span>" + // [RP-LEAGUE] league pill sits under the host's name line // [RP-V7.531] the Star Ladder gem sits beside it // [RP-V7.39] 👑 crowns the host in the top bar — keyed off Live.hostId; the <b> stays the plain name (chipName() reads it)
             (Live.hostId && Live.hostId !== Online.myId ? followBtnHTML(Live.hostName || rpT("live_host_cap"), "lhc") : "");
         }
         if (titleEl) titleEl.textContent = Live.title ? "\u201C" + Live.title + "\u201D" : "";
@@ -22558,7 +22563,7 @@
         if (topic) Live.topic = topic;
         Live.stage = newStage;
         var prevDir = Live.directory[host];
-        Live.directory[host] = { room: Online.room, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: (Online.players[host] && Online.players[host].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), er: (typeof er === "number" ? er : (prevDir && prevDir.er) || 0), erAt: (typeof er === "number" ? Date.now() : (prevDir && prevDir.erAt) || 0), hostAccountId: (prevDir && prevDir.hostAccountId) || null, reg: !!(prevDir && prevDir.reg), regKey: (prevDir && prevDir.regKey) || "", pot: (prevDir && prevDir.pot) || null, poll: (prevDir && prevDir.poll) || null, league: (prevDir && prevDir.league) || null }; // [RP-LEAGUE] league rides through the heartbeat rebuild too, same rule as pot // [RP-V7.48] pot rides through the 8s heartbeat rebuild — dropping it here is what hid the chip from viewers
+        Live.directory[host] = { room: Online.room, name: Live.hostName, title: Live.title || "", topic: Live.topic || "Chatting", photo: (Online.players[host] && Online.players[host].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), er: (typeof er === "number" ? er : (prevDir && prevDir.er) || 0), erAt: (typeof er === "number" ? Date.now() : (prevDir && prevDir.erAt) || 0), hostAccountId: (prevDir && prevDir.hostAccountId) || null, reg: !!(prevDir && prevDir.reg), regKey: (prevDir && prevDir.regKey) || "", pot: (prevDir && prevDir.pot) || null, poll: (prevDir && prevDir.poll) || null, league: (prevDir && prevDir.league) || null, clv531: (prevDir && prevDir.clv531) || null }; // [RP-V7.531] the Star Ladder view rides the heartbeat rebuild too // [RP-LEAGUE] league rides through the heartbeat rebuild too, same rule as pot // [RP-V7.48] pot rides through the 8s heartbeat rebuild — dropping it here is what hid the chip from viewers
         pruneDirRoom(Online.room, host); // [RP-V7.24]
         clearTimeout(Live.staleTimer); clearTimeout(Live.hostGraceTimer); Live.hostGraceTimer = null; // [RP-V7.24] host is demonstrably back
         oldStage.forEach(function (id) { if (id !== Online.myId && newStage.indexOf(id) < 0) closeLivePeer(id); });
@@ -22610,7 +22615,7 @@
             Live.title = o.title || ""; Live.topic = o.topic || "Chatting";
             Live.stage = [fromId]; Live.hearts = 0;
             EngLog[fromId] = []; // fresh broadcast: clean engagement log
-            Live.directory[fromId] = { room: Online.room, name: Live.hostName, title: Live.title, topic: Live.topic, photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, pot: (Live.directory[fromId] && Live.directory[fromId].pot) || null, poll: (Live.directory[fromId] && Live.directory[fromId].poll) || null, league: (Live.directory[fromId] && Live.directory[fromId].league) || null }; // [RP-LEAGUE] league carried // [RP-V7.48] pot carried // [RP-V7.319] poll carried
+            Live.directory[fromId] = { room: Online.room, name: Live.hostName, title: Live.title, topic: Live.topic, photo: (Online.players[fromId] && Online.players[fromId].photoUrl) || null, n: Object.keys(Online.players).length + 1, seen: Date.now(), hostAccountId: (Live.directory[fromId] && Live.directory[fromId].hostAccountId) || null, pot: (Live.directory[fromId] && Live.directory[fromId].pot) || null, poll: (Live.directory[fromId] && Live.directory[fromId].poll) || null, league: (Live.directory[fromId] && Live.directory[fromId].league) || null, clv531: (Live.directory[fromId] && Live.directory[fromId].clv531) || null }; // [RP-V7.531] the Star Ladder view is carried too // [RP-LEAGUE] league carried // [RP-V7.48] pot carried // [RP-V7.319] poll carried
             addChatSystem(rpTf("lk_went_live", { name: Live.hostName }));
             renderLivePanel();
             maybeSendWatch();
@@ -96645,6 +96650,70 @@ var RpGifter338 = (function () {
   return { refresh: refresh338, myLevel: myLevel338, onAward: onAward338, gateBlocked: gateBlocked338, paintProfile: paintProfile338, openCard: openCard338, badge: rpGifterBadge338 };
 })();
 window.RpGifter338 = RpGifter338;
+</script>
+<style>
+/* [RP-V7.531] Star Ladder — Creator Level surfaces: the profile line,
+   the tap-to-open card, and the live host chip's tier gem. Black
+   appearance, true-red accent; the active tier cell carries the glow
+   (buttons/cells glow only when active — the standing rule). */
+.pprof-ladder531 { min-height: 20px; margin: 2px 0 0; font-weight: 700; }
+.clv531-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #1a1a1f; border: 1px solid #33333d; font-size: 12.5px; }
+.clv531-sp { color: var(--ink-soft); font-size: 12.5px; font-weight: 700; }
+.lhc-clv531 { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.25); font-size: 11px; font-weight: 800; vertical-align: 2px; }
+.clv531-bar { height: 10px; border-radius: 999px; background: #26262e; overflow: hidden; margin: 8px 0; }
+.clv531-bar > i { display: block; height: 100%; background: #fe2c2c; border-radius: 999px; }
+.clv531-tiers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.clv531-tiers .ctier531 { border: 1px solid #33333d; border-radius: 10px; padding: 6px 4px; text-align: center; font-size: 11.5px; }
+.clv531-tiers .ctier531.on { border-color: #fe2c2c; box-shadow: 0 0 8px rgba(254,44,44,.55); }
+</style>
+<script>
+/* [RP-V7.531] STAR LADDER — Creator Levels, Phase 1 (client render
+   only). The server computes every number (SP, tier, progress) and
+   this module only paints it: the Profile line under the gifter line
+   and the tap-to-open Creator Level card. SP and tiers are pure
+   status — never charms, never cash (the gifter-338 discipline). */
+var RpLadder531 = (function () {
+  function tok531() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) || ""; } catch (e) { return ""; } }
+  function api531(path) {
+    return fetch(path, { method: "GET", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok531() } })
+      .then(function (r) { return r.json().catch(function () { return null; }); }).catch(function () { return null; });
+  }
+  function esc531(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function badge531(j) { return '<span class="clv531-badge">' + esc531(j.gem || "") + " " + esc531(j.tierName || "") + "</span>"; }
+  function paintProfile(p, isSelf) {
+    var el = document.getElementById("pprofLadder531");
+    if (!el || !p) return;
+    function paint(j) {
+      if (!j || !j.ok) { el.innerHTML = ""; return; }
+      el.innerHTML = badge531(j) + ' <span class="clv531-sp">' + Number(j.sp || 0).toLocaleString("en-US") + " SP</span>" + (isSelf ? ' <span style="text-decoration:underline;">My Creator Level</span>' : "");
+      if (isSelf) { el.style.cursor = "pointer"; el.onclick = function () { openCard531(j); }; }
+    }
+    if (isSelf) api531("/api/creatorlv/me").then(paint);
+    else if (p.acctId || p.id) api531("/api/creatorlv/level?id=" + encodeURIComponent(p.acctId || p.id)).then(paint);
+  }
+  function openCard531(j) {
+    if (!j || !j.ok) return;
+    var pr = j.progress || { remaining: 0, pct: 0, nextAt: null };
+    var tiers = (j.tiers || []).map(function (t) {
+      return '<div class="ctier531' + (t.active ? " on" : "") + '"><b>' + esc531(t.gem || "") + " " + esc531(t.name) + "</b><br>" + Number(t.at || 0).toLocaleString("en-US") + " SP</div>";
+    }).join("");
+    var html =
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      '<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">⭐ My Creator Level</h3>' +
+      '<p style="text-align:center; font-size:16px;">' + badge531(j) + ' · <b>' + Number(j.sp || 0).toLocaleString("en-US") + " SP</b></p>" +
+      '<div class="clv531-bar"><i style="width:' + (pr.pct || 0) + '%;"></i></div>' +
+      '<p style="text-align:center; margin:0;">' + (pr.nextAt != null ? "<b>" + Number(pr.remaining || 0).toLocaleString("en-US") + " more SP</b> to reach the next tier at " + Number(pr.nextAt).toLocaleString("en-US") + " SP" : "Top of the ladder — Plaza Legend. Pure legend.") + "</p>" +
+      '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">Earn Star Points when real fans gift you in lives (1 SP per charm), when you win battles (+100 SP), from a brand-new fan (+25 SP), and for time on air (+10 SP per 30 min, up to 60 a day). Your tier, once earned, is yours to keep. SP is pure status: never charms, never cash.</p>' +
+      '<h4 style="margin:12px 0 2px;">The Star Ladder</h4><div class="clv531-tiers">' + tiers + "</div>" +
+      "</div>";
+    if (typeof window.openSheet === "function") window.openSheet(html);
+    else { try { if (window.toast) window.toast(j.tierName + " · " + (j.sp || 0) + " SP", 3200); } catch (e) { } return; }
+    var sh = document.getElementById("sheet");
+    if (sh) { var cx = sh.querySelector("[data-act=close]"); if (cx) cx.addEventListener("click", function () { try { if (window.closeSheet) window.closeSheet(); } catch (e) { } }); }
+  }
+  return { paintProfile: paintProfile, openCard: openCard531, badge: badge531 };
+})();
+window.RpLadder531 = RpLadder531;
 </script>
 <style>
 /* [RP-V7.349] Save (bookmark) buttons: the saved state fills the
