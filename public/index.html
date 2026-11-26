@@ -35540,7 +35540,19 @@ body:not(.live-fs) #rp65How { display:none !important; }
       fetch(window.rpEventFilmUrl(id), { method: "HEAD" }).then(function (r) { rpEvProbe464[id] = (r && r.ok) ? "ok" : "bad"; }).catch(function () { rpEvProbe464[id] = "bad"; });
     } catch (e) { rpEvProbe464[id] = "bad"; }
   }
+  /* [RP-V7.529] THE THANKSGIVING FILMS ARE THE STANDING FILMS for these
+     six gifts (Branden, Nov 26, 2026: "No delete" — the date-gated
+     expiry is dropped). universe / lion / phoenix / dragon / moneygun /
+     rocket resolve to giftfx-<id>-thanksgiving.mp4 permanently: no
+     window math, no clock, no event slug — the override wins over the
+     event chain in every season. The regular giftfx-<id>.mp4 files stay
+     on the server untouched and remain the step-down fallback
+     (rpFilmStepDown) if a thanksgiving file ever fails. Art, prices,
+     names and drops are unchanged — only the film source moves. */
+  var RP_TGIF529 = { universe: 1, lion: 1, phoenix: 1, dragon: 1, moneygun: 1, rocket: 1 };
+  window.rpTgFilmUrl529 = function (id) { return rpFilmBase() + "giftfx-" + id + "-thanksgiving.mp4" + RP_FILM_V464; };
   window.rpResolveGiftFilm = function (id) {
+    if (RP_TGIF529[id]) return window.rpTgFilmUrl529(id);
     if (!rpEventSlug) return window.rpStdFilmUrl(id);
     var st = rpEvProbe464[id];
     if (st === "ok") return window.rpEventFilmUrl(id);
@@ -35568,6 +35580,16 @@ body:not(.live-fs) #rp65How { display:none !important; }
         if (!gid) return false;
         v.setAttribute("data-evfb", "1");
         v.src = window.rpStdFilmUrl(gid);
+        return true;
+      }
+      /* [RP-V7.529] a standing thanksgiving film that fails outside the
+         event window (where the branch above cannot see it) steps down
+         to the gift's standard film, which stays on the server. */
+      if (src.indexOf("-thanksgiving.mp4") >= 0) {
+        var gid529 = v.getAttribute("data-gid");
+        if (!gid529 || !RP_TGIF529[gid529]) return false;
+        v.setAttribute("data-evfb", "1");
+        v.src = window.rpStdFilmUrl(gid529);
         return true;
       }
     } catch (e) { }
