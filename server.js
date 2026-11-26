@@ -21866,6 +21866,11 @@ function boosterDropChance306(totalCharms) {
 // "battle306", a/b fields) is byte-for-byte the shape it always was.
 const battles306 = new Map();
 const battleBySocket306 = new Map(); // host socket id -> battleId
+// [RP-V7.525] Pending 1v1 challenges live ONLY here, server-side:
+// an invite writes one record, a decline deletes it, an accept
+// consumes it. An accept with no live record is refused — a battle
+// can never be born from a declined, expired or invented challenge.
+const batChal525 = new Map(); // challengerSock + ">" + targetSock -> { from, to, mins, exp }
 function battle306PartOf(b, socketId) {
   for (const pt of b.parts) if (pt.sock === socketId) return pt;
   return null;
@@ -35746,8 +35751,12 @@ io.on("connection", (socket) => {
       if (t === "tcreate") {
         const format = String(data.format || "");
         const need = TEAM_NEED336[format];
-        if (!need || !p.live) return;
-        if (battleBySocket306.has(socket.id) || lobbyMember336.has(socket.id)) return;
+        // [RP-V7.525] refusals now NAME their reason — the client
+        // shows it instead of guessing "live, and not already in one".
+        if (!need) { socket.emit("battle", { t: "terror", reason: "bad-format" }); return; }
+        if (!p.live) { socket.emit("battle", { t: "terror", reason: "not-live" }); return; }
+        if (battleBySocket306.has(socket.id)) { socket.emit("battle", { t: "terror", reason: "in-battle" }); return; }
+        if (lobbyMember336.has(socket.id)) { socket.emit("battle", { t: "terror", reason: "in-lobby" }); return; }
         battle336LobbyEvict(socket.id); // clear any stale invite footprint
         const id = "lob" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         const l = { id, format, need, mins: Math.min(10, Math.max(1, parseInt(data.mins, 10) || 5)), hostSock: socket.id, hostName: p.name, members: [{ sock: socket.id, acct: p.acctId || null, name: p.name, room: p.room }], invited: new Set() };
@@ -35820,8 +35829,14 @@ io.on("connection", (socket) => {
     const other = players.get(String(data.to || ""));
     if (!other) { socket.emit("battle", { t: "gone" }); return; }
     const mins = Math.min(10, Math.max(1, parseInt(data.mins, 10) || 5));
-    if (t === "invite") io.to(other.id).emit("battle", { t: "invite", from: socket.id, fromName: p.name, mins });
-    else if (t === "decline") io.to(other.id).emit("battle", { t: "decline", from: socket.id, fromName: p.name });
+    if (t === "invite") {
+      batChal525.set(socket.id + ">" + other.id, { from: socket.id, to: other.id, mins, exp: Date.now() + 30000 }); // [RP-V7.525] the server records the challenge
+      io.to(other.id).emit("battle", { t: "invite", from: socket.id, fromName: p.name, mins });
+    }
+    else if (t === "decline") {
+      batChal525.delete(other.id + ">" + socket.id); // [RP-V7.525] a decline deletes the challenge for good — nothing can resurrect it
+      io.to(other.id).emit("battle", { t: "decline", from: socket.id, fromName: p.name });
+    }
     else if (t === "score") {
       // [RP-V7.306] managed battles are scored by the server — a
       // client's own tally is dropped, never relayed.
@@ -35838,7 +35853,20 @@ io.on("connection", (socket) => {
     // battle relay untouched — SDP/ICE payloads pass through as-is.
     else if (t === "rtc") io.to(other.id).emit("battle", { t: "rtc", from: socket.id, kind: String(data.kind || ""), view: data.view ? 1 : 0, sdp: data.sdp || null, ice: data.ice || null });
     else if (t === "accept") {
-      const endsAt = Date.now() + mins * 60000;
+      // [RP-V7.525] an accept is honored ONLY against a live pending
+      // challenge this server recorded at invite time — declined,
+      // expired, consumed, duplicated or invented accepts are refused
+      // with a "stale" notice and create NOTHING. The battle length
+      // comes from the recorded challenge, never from the accept.
+      const chalKey525 = other.id + ">" + socket.id;
+      const chal525 = batChal525.get(chalKey525);
+      batChal525.delete(chalKey525);
+      if (!chal525 || chal525.exp < Date.now() || battleBySocket306.has(socket.id) || battleBySocket306.has(other.id)) {
+        console.log("[battle525] accept refused (stale) from=" + socket.id + " to=" + other.id + " had=" + !!chal525);
+        socket.emit("battle", { t: "stale", from: other.id, fromName: other.name });
+        return;
+      }
+      const endsAt = Date.now() + chal525.mins * 60000;
       // [RP-V7.306] the server opens the battle record: side "a" is
       // the acceptor (this socket), side "b" the challenger — the
       // client's rpBatBegin convention.
@@ -36652,6 +36680,8 @@ io.on("connection", (socket) => {
     // host disconnect destroys the lobby, a member disconnect
     // collapses it back to the host alone.
     try { battle336LobbyEvict(socket.id, "host-gone"); } catch (e) { }
+    // [RP-V7.525] pending challenges die with the socket too.
+    try { for (const k of [...batChal525.keys()]) { const c525 = batChal525.get(k); if (c525 && (c525.from === socket.id || c525.to === socket.id)) batChal525.delete(k); } } catch (e) { }
     // [RP-V7.52] Host disconnect teardown (audit H13): a host whose
     // socket dies (tab close, crash, deploy) deregisters their live
     // NOW — settle its pot by the lifecycle rule and broadcast the
