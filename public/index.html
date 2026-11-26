@@ -74421,6 +74421,193 @@ function stageStreakBump(key, add) {
     });
   }
   function signOutLocal() { acct = null; saveAcct(); reminders = []; setUnread(0); acctBoxSig = "x"; renderAcctBox(); try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(null); } catch (e) { } try { if (window.rpEnforceWall) setTimeout(window.rpEnforceWall, 0); } catch (e) { } } // [RP-V7.48] signed out -> back behind the startup wall // [RP-V7.50] only this device's photo copy clears — the account keeps it
+  /* ---------- [RP-V7.528] Account switcher (Branden, Nov 25, 2026) ----------
+     The device half of the switcher. This device holds a random id
+     (minted once, kept in localStorage) and, for every account the
+     server has linked to it, that account's switch credential —
+     handed over once inside a proven sign-in's response and kept
+     ONLY here. The server keeps the credential's sha256; a switch
+     posts { deviceId, targetId, credential } and, on success, this
+     module saves the fresh session and RELOADS, so the app boots
+     through the normal restore path as the new account — no state
+     from the previous account can leak (feed, profile, balances,
+     sockets all re-init), and landing is Home, the standing rule.
+     Logging out does NOT unlink (TikTok keeps the list too);
+     unlinking is Remove in this sheet, or Settings → "Log out of
+     all accounts", which revokes every credential for the device
+     server-side and clears this store. */
+  var DEVICE_KEY528 = "rpDevice.v1", SWITCH_KEY528 = "rpSwitch.v1";
+  function T528(key, en) { try { var v = window.rpT ? window.rpT(key) : key; return (v && v !== key) ? v : en; } catch (e) { return en; } }
+  function rpDeviceId528() {
+    var d = "";
+    try { d = localStorage.getItem(DEVICE_KEY528) || ""; } catch (e) { }
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(d)) {
+      d = "";
+      try {
+        var buf = new Uint8Array(16); crypto.getRandomValues(buf);
+        for (var i = 0; i < buf.length; i++) d += ("0" + buf[i].toString(16)).slice(-2);
+      } catch (e) { d = "dev" + Date.now().toString(36) + Math.random().toString(36).slice(2, 14); }
+      try { localStorage.setItem(DEVICE_KEY528, d); } catch (e) { }
+    }
+    return d;
+  }
+  window.rpDeviceId528 = rpDeviceId528;
+  function rpSwitchStore528() { try { var s = JSON.parse(localStorage.getItem(SWITCH_KEY528) || "null"); if (s && s.accounts && typeof s.accounts === "object") return s; } catch (e) { } return { accounts: {} }; }
+  function rpSwitchSave528(s) { try { if (s && s.accounts && Object.keys(s.accounts).length) localStorage.setItem(SWITCH_KEY528, JSON.stringify(s)); else localStorage.removeItem(SWITCH_KEY528); } catch (e) { } }
+  function rpSwitchRemember528(sw) {
+    if (!sw || !sw.credential || !sw.user || !sw.user.id) return;
+    var s = rpSwitchStore528();
+    s.deviceId = sw.deviceId || rpDeviceId528();
+    s.accounts[sw.user.id] = { cred: sw.credential, name: sw.user.name || "", username: sw.user.username || "", photo: sw.user.photo || "" };
+    rpSwitchSave528(s);
+  }
+  function rpSwitchForget528(userId) { var s = rpSwitchStore528(); if (s.accounts) delete s.accounts[userId]; rpSwitchSave528(s); }
+  function rpSwitchClear528() { try { localStorage.removeItem(SWITCH_KEY528); } catch (e) { } }
+  var rpSwitchBusy528 = false;
+  var rpSwitchSheetGen528 = 0; // [RP-V7.528] bumped per sheet open; a list fetch from an older open may not re-render over a newer one (remove race)
+  function rpSwitchAvatar528(a) {
+    if (a.photo) return '<img src="' + esc(a.photo) + '" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex:none;" />';
+    var ch = esc(String(a.name || a.username || "?").slice(0, 1).toUpperCase());
+    return '<span style="width:42px;height:42px;border-radius:50%;background:rgba(254,44,44,.18);border:1.5px solid rgba(254,44,44,.55);display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;flex:none;">' + ch + "</span>";
+  }
+  function renderSwitchSheet528(list) {
+    var sheetEl = $("sheet");
+    if (!sheetEl) return;
+    // A background refresh only re-renders while OUR sheet is open.
+    if (list && !document.getElementById("rpSwitchSheet528")) return;
+    var s = rpSwitchStore528();
+    var local = s.accounts || {};
+    var byId = {};
+    if (Array.isArray(list)) list.forEach(function (a) {
+      byId[a.id] = { id: a.id, name: a.name || "", username: a.username || "", photo: a.photo || "", current: !!a.current };
+      // Keep the local display copy fresh from the server's truth.
+      if (local[a.id]) { local[a.id].name = a.name || local[a.id].name; local[a.id].username = a.username || local[a.id].username; local[a.id].photo = a.photo || local[a.id].photo; }
+    });
+    Object.keys(local).forEach(function (id) {
+      if (!byId[id]) byId[id] = { id: id, name: local[id].name || "", username: local[id].username || "", photo: local[id].photo || "", current: !!(acct && acct.userId === id) };
+    });
+    if (acct && acct.userId && !byId[acct.userId])
+      byId[acct.userId] = { id: acct.userId, name: acct.name || "", username: acct.username || "", photo: acct.photo || "", current: true };
+    if (acct && acct.userId && byId[acct.userId]) byId[acct.userId].current = true;
+    rpSwitchSave528(s);
+    var rows = Object.keys(byId).map(function (id) { return byId[id]; }).sort(function (x, y) {
+      if (x.current !== y.current) return x.current ? -1 : 1;
+      return String(x.name || x.username).localeCompare(String(y.name || y.username));
+    });
+    var html = '<div id="rpSwitchSheet528">' +
+      '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+      "<h3 style=\"margin:4px 0\">🔀 " + esc(T528("switch_title", "Switch account")) + "</h3>" +
+      '<p class="age-note" style="margin:2px 0 8px;">' + esc(T528("switch_note", "Accounts that have signed in on this device. Tap one to switch — no password needed.")) + "</p>";
+    rows.forEach(function (a) {
+      var hasCred = !!(local[a.id] && local[a.id].cred);
+      var sub = "@" + esc(a.username || "");
+      if (!a.current && !hasCred) sub += " · " + esc(T528("switch_needs_pw", "sign in with its password once to finish linking"));
+      html += '<div class="rp-sw-row528" data-swid="' + esc(a.id) + '" style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid rgba(255,255,255,.08);' + (a.current || !hasCred ? "" : "cursor:pointer;") + '">' +
+        rpSwitchAvatar528(a) +
+        '<div style="flex:1;min-width:0;"><div style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(a.name || a.username || "") + '</div>' +
+        '<div class="age-note" style="margin:0;">' + sub + "</div></div>" +
+        (a.current ? '<span class="btn-mini" style="cursor:default;">✓ ' + esc(T528("switch_current", "Current")) + "</span>" : (hasCred ? '<span style="opacity:.6;font-weight:900;">›</span>' : "")) +
+        '<button class="btn-mini" type="button" data-swrm="' + esc(a.id) + '" aria-label="Remove" title="' + esc(T528("switch_remove", "Remove from this device")) + '">✕</button>' +
+        "</div>";
+    });
+    html += '<button class="btn-mini" id="rpSwAdd528" type="button" style="width:100%;padding:12px;margin-top:12px;">＋ ' + esc(T528("switch_add", "Add account")) + "</button>" +
+      '<div id="rpSwAddForm528" hidden>' +
+      '<div class="field" style="margin-top:10px;"><label for="rpSwAddId">' + esc(T528("acct_login_id_label", "Username, email or phone")) + '</label><input type="text" id="rpSwAddId" autocomplete="username" /></div>' +
+      '<div class="field"><label for="rpSwAddPw">' + esc(T528("acct_password", "Password")) + '</label><input type="password" id="rpSwAddPw" autocomplete="current-password" /></div>' +
+      '<p class="age-note su-err" id="rpSwAddErr" hidden></p>' +
+      '<button class="btn-primary" id="rpSwAddGo" type="button" style="width:100%;padding:13px;">' + esc(T528("switch_add_go", "Log in & add")) + "</button>" +
+      "</div>" +
+      '<p class="age-note" style="margin:12px 0 2px;">' + esc(T528("switch_foot", "Accounts stay linked on this device until you remove them here, or log out of all accounts in Settings.")) + "</p>" +
+      "</div>";
+    window.openSheet(html);
+    var cx = sheetEl.querySelector("[data-act=close]");
+    if (cx) cx.addEventListener("click", function () { if (typeof window.closeSheet === "function") window.closeSheet(); });
+    sheetEl.querySelectorAll("[data-swid]").forEach(function (row) {
+      row.addEventListener("click", function (ev) {
+        if (ev.target && ev.target.closest && ev.target.closest("[data-swrm]")) return;
+        var id = row.getAttribute("data-swid");
+        if (!id || (acct && acct.userId === id)) return;
+        doSwitch528(id);
+      });
+    });
+    sheetEl.querySelectorAll("[data-swrm]").forEach(function (btn) {
+      btn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        doSwitchRemove528(btn.getAttribute("data-swrm"));
+      });
+    });
+    var addBtn = $("rpSwAdd528");
+    if (addBtn) addBtn.addEventListener("click", function () {
+      var f = $("rpSwAddForm528"); if (f) f.hidden = !f.hidden;
+      var i1 = $("rpSwAddId"); if (i1 && f && !f.hidden) { try { i1.focus(); } catch (e) { } }
+    });
+    var addGo = $("rpSwAddGo");
+    if (addGo) addGo.addEventListener("click", function () {
+      var idv = $("rpSwAddId") ? $("rpSwAddId").value.trim().toLowerCase() : "";
+      var pw = $("rpSwAddPw") ? $("rpSwAddPw").value : "";
+      // The shared login: on success the new account is adopted AND
+      // linked (its switch528 rides the response); then reload so
+      // the app boots clean as the added account.
+      submitLogin(idv, pw, $("rpSwAddErr"), function () {
+        toast2("✅ " + T528("switch_added", "Account added — switching you over…"), 2600);
+        setTimeout(function () { try { location.reload(); } catch (e) { } }, 600);
+      });
+    });
+  }
+  function openSwitchSheet528() {
+    if (!acct || !acct.token) { toast2(T528("switch_need_login", "Sign in first — then your linked accounts live here."), 3200); return; }
+    if (typeof window.openSheet !== "function") return;
+    renderSwitchSheet528(null);
+    var gen528 = ++rpSwitchSheetGen528;
+    api("/api/account/switch/list?deviceId=" + encodeURIComponent(rpDeviceId528()), "GET").then(function (r) {
+      if (gen528 !== rpSwitchSheetGen528) return; // a newer open (e.g. after Remove) already owns the sheet
+      if (r.json && r.json.ok && Array.isArray(r.json.accounts)) renderSwitchSheet528(r.json.accounts);
+    });
+  }
+  window.rpOpenSwitch528 = openSwitchSheet528;
+  function doSwitch528(userId) {
+    if (rpSwitchBusy528) return;
+    var s = rpSwitchStore528();
+    var rec = s.accounts && s.accounts[userId];
+    if (!rec || !rec.cred) { toast2(T528("switch_needs_pw2", "That account needs its password once to link on this device."), 3600); return; }
+    rpSwitchBusy528 = true;
+    api("/api/account/switch", "POST", { deviceId: rpDeviceId528(), targetId: userId, credential: rec.cred }).then(function (r) {
+      rpSwitchBusy528 = false;
+      if (r.json && r.json.ok && r.json.token) {
+        acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", lang: r.json.user.lang || "en", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice() : [] };
+        saveAcct();
+        if (r.json.deletionCancelled) toast2(T528("toast_del_cancelled", "Welcome back — your scheduled deletion was cancelled."), 5000);
+        else toast2("👋 " + T528("switch_done", "Switched to") + " " + (r.json.user.name || "") + "…", 2600);
+        // FULL clean re-init: reload through the normal restore
+        // path so nothing from the previous account can leak.
+        setTimeout(function () { try { location.reload(); } catch (e) { } }, 450);
+      } else {
+        var reason = r.json && r.json.reason;
+        toast2((r.json && r.json.error) || T528("switch_fail", "That switch didn't go through — try again."), 4600);
+        if (reason === "not-linked" || reason === "bad-credential" || reason === "account-gone") { rpSwitchForget528(userId); openSwitchSheet528(); }
+      }
+    });
+  }
+  function doSwitchRemove528(userId) {
+    if (!userId) return;
+    api("/api/account/switch/remove", "POST", { deviceId: rpDeviceId528(), userId: userId }).then(function (r) {
+      if (r.json && r.json.ok) {
+        rpSwitchForget528(userId);
+        toast2(T528("switch_removed", "Removed from this device — it can be linked again at its next sign-in."), 3000);
+        openSwitchSheet528();
+      } else {
+        toast2((r.json && r.json.error) || T528("switch_remove_fail", "That remove didn't go through."), 3200);
+      }
+    });
+  }
+  window.rpSwitchLogoutAll528 = function () {
+    if (!acct || !acct.token) return;
+    api("/api/account/switch/logout-all", "POST", { deviceId: rpDeviceId528() }).then(function () {
+      rpSwitchClear528();
+      signOutLocal();
+      toast2(T528("switch_logged_all", "Logged out of all accounts on this device."), 3400);
+    });
+  };
   function profileName() {
     try { var P = JSON.parse(localStorage.getItem("datingGameProfile.v1") || "{}"); return (P.name || "").trim(); } catch (e) { return ""; }
   }
@@ -74613,11 +74800,12 @@ function stageStreakBump(key, add) {
     var pw = $("suPass") ? $("suPass").value : "";
     if (un && !/^[A-Za-z0-9_]{3,20}$/.test(un)) { showAcctErr(window.rpT ? window.rpT("err_user_fmt") : "Usernames are 3–20 characters — letters, numbers and underscores only."); return; } // [RP-V7.499]
     acctBusy = true;
-    api("/api/account/signup", "POST", { name: profileName(), username: un, email: em, phone: ph, password: pw, dob: dobOnFile(), lang: (window.rpI18nCurrent499 ? window.rpI18nCurrent499() : "en"), ref: (window.rpRefCode392 ? window.rpRefCode392() : "") }).then(function (r) { // [RP-V7.499] the 🌐 pick rides the sign-up
+    api("/api/account/signup", "POST", { name: profileName(), username: un, email: em, phone: ph, password: pw, dob: dobOnFile(), lang: (window.rpI18nCurrent499 ? window.rpI18nCurrent499() : "en"), ref: (window.rpRefCode392 ? window.rpRefCode392() : ""), deviceId: rpDeviceId528() }).then(function (r) { // [RP-V7.499] the 🌐 pick rides the sign-up // [RP-V7.528] the device id rides it too, so the new account links for the switcher
       acctBusy = false;
       if (r.json && r.json.ok) {
         acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || un, phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", lang: r.json.user.lang || "en", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice() : [] }; // [RP-V7.61] bio rides the saved session too // [RP-V7.62] + the gallery // [RP-V7.499] lang rides it too
         saveAcct();
+        if (r.json.switch528) rpSwitchRemember528(r.json.switch528); // [RP-V7.528] link this device for the switcher
         try { if (window.rpI18nAccountLang499) window.rpI18nAccountLang499(r.json.user.lang); } catch (e) { } // [RP-V7.499] the account's language is now the app's
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
@@ -74653,11 +74841,12 @@ function stageStreakBump(key, add) {
     if (!idv || !pw) { if (er) { er.textContent = window.rpT ? window.rpT("err_login_empty") : "Enter your username, email or phone and password."; er.hidden = false; } return; } // [RP-V7.499]
     if (acctBusy) return;
     acctBusy = true;
-    api("/api/account/login", "POST", { id: idv, username: idv, email: idv, password: pw }).then(function (r) {
+    api("/api/account/login", "POST", { id: idv, username: idv, email: idv, password: pw, deviceId: rpDeviceId528() }).then(function (r) { // [RP-V7.528] the device id rides the login, so a proven sign-in links the account for the switcher
       acctBusy = false;
       if (r.json && r.json.ok) {
         acct = { token: r.json.token, userId: r.json.user.id, email: r.json.user.email, name: r.json.user.name, username: r.json.user.username || "", phone: r.json.user.phone || "", profileType: r.json.user.profileType || "member", lang: r.json.user.lang || "en", photo: r.json.user.photo || "", bio: r.json.user.bio || "", photos: Array.isArray(r.json.user.photos) ? r.json.user.photos.slice() : [] }; // [RP-V7.61] bio rides the saved session too // [RP-V7.62] + the gallery // [RP-V7.499] lang rides it too
         saveAcct();
+        if (r.json.switch528) rpSwitchRemember528(r.json.switch528); // [RP-V7.528] link this device for the switcher
         try { if (window.rpI18nAccountLang499) window.rpI18nAccountLang499(r.json.user.lang); } catch (e) { } // [RP-V7.499] the app comes up in the account's language
         try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { } // [RP-V7.24]
         try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(r.json.user.photo || null); } catch (e) { } // [RP-V7.50]
@@ -74788,7 +74977,7 @@ function stageStreakBump(key, add) {
     if (p1 !== p2) { if (er) { er.textContent = window.rpT ? window.rpT("err_reset_match") : "The two passwords don't match — type the same one twice."; er.hidden = false; } return; } // [RP-V7.499]
     if (acctBusy) return;
     acctBusy = true;
-    api("/api/account/password-reset/verify", "POST", { id: rpResetIdent, code: code, newPassword: p1 }).then(function (r) {
+    api("/api/account/password-reset/verify", "POST", { id: rpResetIdent, code: code, newPassword: p1, deviceId: rpDeviceId528() }).then(function (r) { // [RP-V7.528] the device id rides the reset too
       acctBusy = false;
       if (r.json && r.json.ok && r.json.token) {
         showResetPanel(false);
@@ -74818,6 +75007,7 @@ function stageStreakBump(key, add) {
   function adoptSession(j, isNew) {
     acct = { token: j.token, userId: j.user.id, email: j.user.email, name: j.user.name, username: j.user.username || "", phone: j.user.phone || "", profileType: j.user.profileType || "member", lang: j.user.lang || "en", photo: j.user.photo || "", bio: j.user.bio || "", photos: Array.isArray(j.user.photos) ? j.user.photos.slice() : [] }; // [RP-V7.499] lang rides the session
     saveAcct();
+    if (j.switch528) rpSwitchRemember528(j.switch528); // [RP-V7.528] every door landing here (Google / passkey / reset) links the device when the server minted a credential
     try { if (window.rpI18nAccountLang499) window.rpI18nAccountLang499(j.user.lang); } catch (e) { } // [RP-V7.499] the app comes up in the account's language
     try { if (window.rpApplyAccountName) window.rpApplyAccountName(acct.name); } catch (e) { }
     try { if (window.rpApplyAccountPhoto) window.rpApplyAccountPhoto(j.user.photo || null); } catch (e) { }
@@ -74870,7 +75060,7 @@ function stageStreakBump(key, add) {
     if (!dob) { if (eD) { eD.textContent = window.rpT ? window.rpT("err_dob_add") : "Add your date of birth — one time, for your account."; eD.hidden = false; } return; } // [RP-V7.499]
     if (acctBusy) return;
     acctBusy = true;
-    api("/api/account/google/complete", "POST", { code: googleCode, username: un, dob: dob, lang: (window.rpI18nCurrent499 ? window.rpI18nCurrent499() : "en"), ref: (window.rpRefCode392 ? window.rpRefCode392() : "") }).then(function (r) { // [RP-V7.499] the 🌐 pick rides the Google finish too
+    api("/api/account/google/complete", "POST", { code: googleCode, username: un, dob: dob, lang: (window.rpI18nCurrent499 ? window.rpI18nCurrent499() : "en"), ref: (window.rpRefCode392 ? window.rpRefCode392() : ""), deviceId: rpDeviceId528() }).then(function (r) { // [RP-V7.499] the 🌐 pick rides the Google finish too // [RP-V7.528] + the device id
       acctBusy = false;
       if (r.json && r.json.ok && r.json.token) {
         try { localStorage.setItem(DOB_KEY, dob); } catch (e) { } // so the age hydrate sees the DOB the gate pass is about to read
@@ -74897,7 +75087,7 @@ function stageStreakBump(key, add) {
     buildSignupUI();
     if (acctBusy) return;
     acctBusy = true;
-    api("/api/account/google/exchange", "POST", { code: code }).then(function (r) {
+    api("/api/account/google/exchange", "POST", { code: code, deviceId: rpDeviceId528() }).then(function (r) { // [RP-V7.528] the device id rides the exchange, so the Google door links too
       acctBusy = false;
       if (r.json && r.json.ok && r.json.token) {
         if (r.json.deletionCancelled) toast2(window.rpT ? window.rpT("toast_del_cancelled") : "Welcome back — your scheduled deletion was cancelled.", 6000); // [RP-V7.499]
@@ -75195,11 +75385,11 @@ function stageStreakBump(key, add) {
       // [RP-V7.94] Messages moved OUT of Profile into the bottom-bar
       // Inbox tab (Branden, Oct 27 — supersedes the V7.91 Profile
       // pill). No Messages entry renders in the account box anymore.
-      box.innerHTML = '<p class="age-note" style="margin:0 0 4px;">' + rpT("acct_signed_in") + ' <b>' + esc(acct.name) + '</b>' + (acct.username ? ' <b>@' + esc(acct.username) + '</b>' : '') + '</p>' +
+      box.innerHTML = '<p class="age-note" id="rpAcctIdLine528" title="Switch account" style="margin:0 0 4px; cursor:pointer;">' + rpT("acct_signed_in") + ' <b>' + esc(acct.name) + '</b>' + (acct.username ? ' <b>@' + esc(acct.username) + '</b>' : '') + ' <span style="opacity:.6;">›</span></p>' + // [RP-V7.528] the identity line itself opens the switcher (the TikTok pattern)
         '<p class="age-note" style="margin:0 0 8px;">📧 ' + esc(acct.email) + (acct.phone ? ' · 📱 ' + esc(acct.phone) : '') + '</p>' +
         '<p class="age-note" style="margin:8px 0 4px;">' + rpT("acct_type_note") + '</p>' +
         '<div class="btn-row" style="margin:0 0 10px; flex-wrap:wrap;">' + typeChips + '</div>' +
-        '<div class="btn-row"><button class="btn-mini" id="rpAcctRem" type="button">' + rpT("acct_reminders") + '</button><button class="btn-mini" id="rpAcctOut" type="button">' + rpT("act_logout") + '</button></div>' +
+        '<div class="btn-row"><button class="btn-mini" id="rpAcctRem" type="button">' + rpT("acct_reminders") + '</button><button class="btn-mini" id="rpAcctSwitch528" type="button">🔀 ' + esc(T528("switch_account", "Switch account")) + '</button><button class="btn-mini" id="rpAcctOut" type="button">' + rpT("act_logout") + '</button></div>' +
         '<div style="margin-top:12px;"><button class="btn-mini" id="rpAcctDel" type="button" style="color:#ff5c5c;">' + rpT("set_delete") + '</button></div>';
       // [RP-V7.39] tapping a type chip saves immediately (POST /api/account/profile-type).
       box.querySelectorAll("[data-rptype]").forEach(function (chip) {
@@ -75220,6 +75410,10 @@ function stageStreakBump(key, add) {
       });
       var rb = $("rpAcctRem"), ob = $("rpAcctOut");
       if (rb) rb.addEventListener("click", openReminders);
+      var swb528 = $("rpAcctSwitch528"); // [RP-V7.528] switcher entry points: the button AND the identity line
+      if (swb528) swb528.addEventListener("click", openSwitchSheet528);
+      var idl528 = $("rpAcctIdLine528");
+      if (idl528) idl528.addEventListener("click", openSwitchSheet528);
       if (ob) ob.addEventListener("click", function () {
         api("/api/account/logout", "POST", {});
         signOutLocal();
@@ -88975,6 +89169,8 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
       '<p class="rp-set-sec">' + rpT("set_account_sec") + '</p>' +
       '<button type="button" class="rp-set-row" id="rpSetPw"><span>' + rpT("set_change_pw") + '</span><span class="rp-set-cur">›</span></button>' +
       '<button type="button" class="rp-set-row" id="rpSetOut"><span>' + (window.rpT ? window.rpT("act_logout") : "Log out") + '</span><span class="rp-set-cur">›</span></button>' + // [RP-V7.499]
+      '<button type="button" class="rp-set-row" id="rpSetSwitch528"><span>🔀 ' + ((window.rpT && window.rpT("switch_account") !== "switch_account") ? window.rpT("switch_account") : "Switch account") + '</span><span class="rp-set-cur">›</span></button>' + // [RP-V7.528]
+      '<button type="button" class="rp-set-row" id="rpSetOutAll528"><span>' + ((window.rpT && window.rpT("switch_logout_all") !== "switch_logout_all") ? window.rpT("switch_logout_all") : "Log out of all accounts") + '</span><span class="rp-set-cur">›</span></button>' + // [RP-V7.528]
       '<button type="button" class="rp-set-row" id="rpSetDel"><span style="color:#ff5c5c;">' + rpT("set_delete") + '</span><span class="rp-set-cur">›</span></button>';
     window.openSheet(html);
     wireSettings(false);
@@ -89045,6 +89241,16 @@ body[data-holiday]:not([data-holiday=""]) #screen-online .scene { box-shadow: no
     if (out) out.addEventListener("click", function () {
       if (typeof window.closeSheet === "function") window.closeSheet();
       if (window.rpSignOut) window.rpSignOut();
+    });
+    var sw528 = $("rpSetSwitch528"); // [RP-V7.528] the switcher opens from Settings too
+    if (sw528) sw528.addEventListener("click", function () {
+      if (typeof window.closeSheet === "function") window.closeSheet();
+      if (window.rpOpenSwitch528) window.rpOpenSwitch528();
+    });
+    var oa528 = $("rpSetOutAll528"); // [RP-V7.528] revoke every device link + log out
+    if (oa528) oa528.addEventListener("click", function () {
+      if (typeof window.closeSheet === "function") window.closeSheet();
+      if (window.rpSwitchLogoutAll528) window.rpSwitchLogoutAll528();
     });
     var del = $("rpSetDel");
     if (del) del.addEventListener("click", function () {
@@ -100883,6 +101089,7 @@ window.rpOpenSavedSheet349 = function () {
             },
           },
         };
+        body.deviceId = (window.rpDeviceId528 ? window.rpDeviceId528() : ""); // [RP-V7.528] link this device on the passkey door too
         api454("/api/account/passkey/auth/verify", "POST", body).then(function (r2) {
           busy454 = false;
           if (r2.json && r2.json.ok && r2.json.token) {
