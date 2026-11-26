@@ -36332,12 +36332,48 @@ var RpKey = (function () {
     "  gl_FragColor = vec4(col, alpha);",
     "}"
   ].join("\n");
-  function makeGL(cv) {
+  /* [RP-V7.530] SOLID key profile — Branden (Nov 26, 2026): "since I
+     mentioned the gifts should be see through I didn't mean literally."
+     The legacy profile's grade() crush + keyA ramp leaves a mid-tone
+     subject pixel (raw luma ~0.15) at alpha ~0.20 — a ghost over a
+     bright room. The solid profile keys the RAW frame: alpha is 0 at
+     or below 0.035 (the true-black floor — above H.264 background
+     noise, below any visible subject), reaches FULL alpha at 0.165,
+     and the output color is the film's own color, ungraded. Only the
+     film's black goes transparent; the subject renders at full
+     opacity, full color, full strength on every backdrop. 5 taps
+     (centre + 4 neighbours) instead of the legacy 9 — the soft term
+     only feathers the subject's edge. */
+  var FSH530 = [
+    "precision mediump float;",
+    "varying vec2 vUv;",
+    "uniform sampler2D uTex;",
+    "uniform vec2 uTexel;",
+    "float lum(vec3 c){ return dot(c, vec3(0.213,0.715,0.072)); }",
+    "float keyS(float l){ if (l <= 0.035) return 0.0; if (l >= 0.165) return 1.0; return smoothstep(0.035, 0.165, l); }",
+    "void main(){",
+    "  vec3 c = texture2D(uTex, vUv).rgb;",
+    "  float aCore = keyS(lum(c));",
+    "  vec2 t = uTexel * 1.5;",
+    "  vec3 cb = vec3(0.0); float lb = 0.0; vec3 s;",
+    "  s = texture2D(uTex, vUv + vec2( t.x, 0.0)).rgb; cb += s; lb += lum(s);",
+    "  s = texture2D(uTex, vUv + vec2(-t.x, 0.0)).rgb; cb += s; lb += lum(s);",
+    "  s = texture2D(uTex, vUv + vec2(0.0,  t.y)).rgb; cb += s; lb += lum(s);",
+    "  s = texture2D(uTex, vUv + vec2(0.0, -t.y)).rgb; cb += s; lb += lum(s);",
+    "  cb /= 4.0; lb /= 4.0;",
+    "  float aSoft = keyS(lb);",
+    "  float alpha = max(aCore, aSoft * 0.96);",
+    "  float fringe = clamp(aSoft - aCore, 0.0, 1.0);",
+    "  vec3 col = c + cb * fringe * 0.35;",
+    "  gl_FragColor = vec4(col, alpha);",
+    "}"
+  ].join("\n");
+  function makeGL(cv, solid530) {
     var gl = null;
     try { gl = cv.getContext("webgl", { alpha: true, premultipliedAlpha: false, antialias: false, depth: false, stencil: false }) || cv.getContext("experimental-webgl", { alpha: true, premultipliedAlpha: false, antialias: false, depth: false, stencil: false }); } catch (e) { }
     if (!gl) return null;
     function sh(type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) return null; return s; }
-    var vs = sh(gl.VERTEX_SHADER, VSH), fs = sh(gl.FRAGMENT_SHADER, FSH);
+    var vs = sh(gl.VERTEX_SHADER, VSH), fs = sh(gl.FRAGMENT_SHADER, solid530 ? FSH530 : FSH); /* [RP-V7.530] solid profile when attach opts in */
     if (!vs || !fs) return null;
     var pr = gl.createProgram();
     gl.attachShader(pr, vs); gl.attachShader(pr, fs); gl.linkProgram(pr);
@@ -36366,7 +36402,7 @@ var RpKey = (function () {
      wasted fill-rate past the source raster). */
   function fit(cv, src) {
     var cw = cv.clientWidth || 0, ch = cv.clientHeight || 0;
-    if (!cw || !ch) return;
+    if (!cw || !ch) return false; /* [RP-V7.530] fit reports whether the backing store changed (attach's frame gate consumes it) */
     var vw = src.videoWidth || src.naturalWidth || 0, vh = src.videoHeight || src.naturalHeight || 0;
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
     var s = dpr;
@@ -36380,16 +36416,18 @@ var RpKey = (function () {
        (full-frame texImage2D + 9-tap shader every rAF at that size
        is the stage's jank budget). Scale down proportionally. */
     if (w > 960 || h > 1280) { var ks492 = Math.min(960 / w, 1280 / h); w = Math.max(2, Math.round(w * ks492)); h = Math.max(2, Math.round(h * ks492)); }
-    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; return true; } /* [RP-V7.530] a backing-store change forces attach() to redraw even an unadvanced frame */
+    return false;
   }
   function attach(src, opts) {
     opts = opts || {};
     if (!supported() || !src) return null;
     var cv = document.createElement("canvas");
     cv.className = "rp-key-canvas" + (opts.cls ? " " + opts.cls : "");
-    var G = makeGL(cv);
+    var G = makeGL(cv, opts.key530 === "solid"); /* [RP-V7.530] the solid key profile when the caller opts in (film heroes + the stage) */
     if (!G) return null;
     var cur = src, dead = false, raf = 0, frames = 0;
+    var gateT530 = -1, gateDrawn530 = false; /* [RP-V7.530] frame gate: the last uploaded video time + whether anything has been drawn yet */
     function loop() {
       if (dead) return;
       raf = requestAnimationFrame(loop);
@@ -36398,8 +36436,21 @@ var RpKey = (function () {
       if (cur.tagName === "VIDEO") ready = cur.readyState >= 2 && cur.videoWidth > 0;
       else ready = !!cur.complete && (cur.naturalWidth || 0) > 0;
       if (!ready) return;
-      fit(cv, cur);
+      var resized530 = fit(cv, cur);
       if (!cv.width || !cv.height) return;
+      /* [RP-V7.530] FRAME GATE — the FREEZE-FIX (V7.375) measured the
+         old loop re-uploading the full frame on EVERY rAF for the
+         whole show (rAF 60 -> 5/s, 5.5-7.7s of longtasks per send).
+         A film advances at 24-30fps under a 60Hz rAF, and a paused
+         or stalled film does not advance at all: when the source
+         frame has not advanced and the backing store has not
+         changed, the canvas already holds exactly this frame — skip
+         the upload and the draw. Uploads now track the film's own
+         frame rate, never the display's. */
+      if (gateDrawn530 && !resized530) {
+        if (cur.tagName === "VIDEO") { if (cur.currentTime === gateT530) return; }
+        else return;
+      }
       var gl = G.gl;
       gl.viewport(0, 0, cv.width, cv.height);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -36424,12 +36475,13 @@ var RpKey = (function () {
       gl.uniform2f(G.uTexel, 1 / (cur.videoWidth || cur.naturalWidth || 2), 1 / (cur.videoHeight || cur.naturalHeight || 2));
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       frames++;
+      gateDrawn530 = true; if (cur.tagName === "VIDEO") gateT530 = cur.currentTime; /* [RP-V7.530] frame gate bookkeeping */
     }
     loop();
     return {
       canvas: cv,
       frames: function () { return frames; },
-      setSource: function (el) { cur = el; frames = 0; },
+      setSource: function (el) { cur = el; frames = 0; gateT530 = -1; gateDrawn530 = false; }, /* [RP-V7.530] a new source resets the frame gate */
       source: function () { return cur; },
       destroy: function () {
         dead = true;
@@ -36442,6 +36494,63 @@ var RpKey = (function () {
 })();
 window.RpKey = RpKey;
 
+/* [RP-V7.530] AMBIENT FILL — Branden (Nov 26, 2026): "I can't have
+   any boxes in gifts." A landscape film keyed on a portrait screen
+   leaves the screen above and below its frame reading as a black
+   box (his circled Volcano). The fill paints exactly that
+   outside-the-frame area with the film's OWN imagery — a blurred,
+   cover-fit clone of the same film playing in sync — never solid
+   black bars, never an opaque backdrop card. It is clipped to the
+   OUTSIDE of the hero's box (an even-odd clip path with the hero
+   rect cut out), so inside the frame the keyed transparency still
+   shows the room/post exactly as V7.526 ordered, and the subject
+   stays whole, uncropped and solid. Where clip-path path() is
+   unavailable the fill is not installed at all and today's
+   presentation stands. The fill is a child of the show overlay,
+   so it dies with the show; its resize listener removes itself
+   once the fill leaves the document, and every style write is
+   change-guarded. */
+window.RpKeyFill530 = function (feeder, hero, overlay) {
+  try {
+    if (!feeder || feeder.tagName !== "VIDEO" || !hero || !overlay) return null;
+    if (!(window.CSS && CSS.supports && CSS.supports("clip-path", "path('M0 0 H10 V10 H0 Z')"))) return null;
+    var src = feeder.currentSrc || feeder.src || "";
+    if (!src) return null;
+    var fill = document.createElement("div");
+    fill.className = "rp-fill530";
+    fill.setAttribute("aria-hidden", "true");
+    fill.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;pointer-events:none;z-index:-1;";
+    var fv = document.createElement("video");
+    fv.className = "rp-fill530-v";
+    fv.muted = true; fv.loop = true; fv.playsInline = true; fv.autoplay = true; fv.preload = "auto";
+    fv.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;filter:blur(46px) saturate(1.3) brightness(1.07);transform:scale(1.18);";
+    fv.src = src;
+    fill.appendChild(fv);
+    overlay.insertBefore(fill, overlay.firstChild);
+    try { fv.currentTime = feeder.currentTime || 0; } catch (e) { }
+    try { fv.playbackRate = feeder.playbackRate || 1; } catch (e) { }
+    var fp = fv.play(); if (fp && fp.catch) fp.catch(function () { });
+    var aim = function () {
+      try {
+        if (!fill.isConnected) { window.removeEventListener("resize", aim); return; }
+        var or = overlay.getBoundingClientRect(), cr = hero.getBoundingClientRect();
+        if (!or.width || !or.height || !cr.width || !cr.height) return;
+        var x = Math.max(0, Math.round(cr.left - or.left)), y = Math.max(0, Math.round(cr.top - or.top));
+        var w = Math.min(Math.round(or.width) - x, Math.round(cr.width)), h = Math.min(Math.round(or.height) - y, Math.round(cr.height));
+        var W = Math.round(or.width), H = Math.round(or.height);
+        if (w <= 0 || h <= 0) return;
+        var d = "path(evenodd, 'M0 0 H" + W + " V" + H + " H0 Z M" + x + " " + y + " H" + (x + w) + " V" + (y + h) + " H" + x + " Z')";
+        if (fill.style.clipPath !== d) fill.style.clipPath = d;
+      } catch (e) { }
+    };
+    feeder.addEventListener("loadedmetadata", aim);
+    try { requestAnimationFrame(aim); } catch (e) { }
+    setTimeout(aim, 120); setTimeout(aim, 400); setTimeout(aim, 950);
+    window.addEventListener("resize", aim);
+    return fill;
+  } catch (e) { return null; }
+};
+
 /* Upgrade an existing show media element (float copy, burst hero) to
    a keyed canvas in place: the canvas inherits the element's classes
    and inline style (size, position, CSS animation); the original
@@ -36452,10 +36561,48 @@ window.RpKeyUpgrade = function (el, g, opts327) {
        (the keyer erases them — see RP_SCREEN_FILMS337). Tagging the
        element and returning null leaves the raw media in place with
        the blend class on it; every caller treats null as "no upgrade"
-       and keeps the element, which is exactly the intent. */
-    if (el && g && window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[g.id] && (el.tagName === "VIDEO" || el.tagName === "IMG")) { el.classList.add("rp-screen337"); return null; }
-    /* [FREEZE-FIX] Off-live (post/reel) FILM heroes present screen-blended, never WebGL-keyed. The keyed show pipeline (RpKey.attach: full-frame texImage2D + shader + full-screen canvas composite for the whole show) saturates the main thread for the entire show — measured on the V7.375 rig sweep: rAF 60 -> 5/s and 5.5-7.7s of longtasks per gift send with keying, vs 54-517ms and 20-30 rAF/s with the same film screen-blended (the RP_SCREEN_FILMS337 presentation). Post/reel shows are full-screen over the dark stage (V7.372), where screen blend of a black-background film matches the keyed look; lives keep the keyer exactly as before (live-fs only). */
-    if (el && el.tagName === "VIDEO" && !(document.body && document.body.classList.contains("live-fs"))) { el.classList.add("rp-screen337"); return null; }
+       and keeps the element, which is exactly the intent.
+       [RP-V7.530] the VIDEO half of this exemption is RETIRED on the
+       rig's verdict: the legacy curve erased the dim masters, but
+       the solid profile keys RAW luma (full alpha from 0.165), and
+       the rig measured Honeybee — the dim-five film the exemption
+       was written for — under the solid key on a bright backdrop at
+       solidity 1.08 with visible fraction 1.00: the subject survives
+       whole. Dim-five FILMS therefore key solid like every other
+       film hero. The IMG half stands (animated art is never keyed,
+       V7.360), as do the stage filmMode 337 branch and every art
+       path — those stay blended, as does the no-WebGL fallback. */
+    if (el && g && window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[g.id] && el.tagName === "IMG") { el.classList.add("rp-screen337"); return null; }
+    /* [RP-V7.530] THE FREEZE-FIX IS RETIRED for film heroes (Branden,
+       Nov 26, 2026 — the see-through correction: "since I mentioned
+       the gifts should be see through I didn't mean literally"). The
+       V7.375 ban that stood here kept off-live film heroes
+       screen-blended on two legs: (a) the keyed pipeline saturated
+       the rig's main thread (rAF 60 -> 5/s, 5.5-7.7s of longtasks
+       per send), and (b) its premise — off-live shows play over the
+       dark V7.372 stage, where blend matches the keyed look. V7.526
+       removed the stage backdrop and dimmer: shows now composite
+       directly over posts and rooms, and on a bright photo the
+       blend washes the gift subject toward the background until it
+       all but disappears (Branden's recording: Coffee on a
+       waterfall post rendered as a faint gold shimmer). Leg (a) is
+       answered inside RpKey.attach: texture uploads are frame-gated
+       to the film's own frame rate (an unadvanced frame is never
+       re-uploaded), the solid profile's shader runs 5 taps against
+       the legacy 9 + grade, and the V7.492 backing cap already
+       bounds the canvas. So off-live FILM heroes now take the keyer
+       with the SOLID profile (threaded at the attach call below),
+       exactly like in-live heroes: only the film's black goes
+       transparent — the subject renders at full opacity, full
+       color, full strength, and the room/post stays visible around
+       it. The no-WebGL and failed-attach fallbacks below still land
+       on rp-screen337 (the blend), never an opaque box. One
+       deliberate consequence: the band-scene branch below, written
+       for lives, is now reachable off-live too — its two medium
+       films take the stage's own C1 unkeyed presentation on the
+       float/burst lanes instead of a scene blended into the post.
+       [The retired FREEZE-FIX text is preserved in the V7.530
+       build's AUDIT.md.] */
     /* [RP-V7.496] BAND-SCENE films on the float/burst lanes: the
        RP_BAND_SCENE492 registration (the stage's C1 unkeyed recipe)
        only ever ran inside rpStageMedia, but two of its films are
@@ -36499,7 +36646,9 @@ window.RpKeyUpgrade = function (el, g, opts327) {
        stretched; opts327.keepBox: fixAspect below must not shrink
        the canvas back to the film's 16:9 raster box. Default (no
        opts) is byte-for-byte the pre-327 behaviour. */
-    var h = RpKey.attach(el, (opts327 && opts327.cover) ? { cover: true } : {});
+    var att530 = (opts327 && opts327.cover) ? { cover: true } : {};
+    if (el.tagName === "VIDEO") att530.key530 = "solid"; /* [RP-V7.530] film heroes key with the solid profile on every surface (see the retired FREEZE-FIX note above) */
+    var h = RpKey.attach(el, att530);
     if (!h) { if (el.tagName === "VIDEO") el.classList.add("rp-screen337"); return null; } /* [RP-V7.496] a failed attach takes the same blend fallback as no-WebGL (see above) — never an opaque raw rectangle in a live */
     var cv = h.canvas;
     cv.className = (el.className || "") + " rp-key-canvas";
@@ -36564,6 +36713,34 @@ window.RpKeyUpgrade = function (el, g, opts327) {
        post/reel presentation is untouched. */
     try { if (window.rpMeltCanvas406) window.rpMeltCanvas406(cv); } catch (e) { }
     try { if (window.rpCenterSeatLive501 && ov) window.rpCenterSeatLive501(cv); } catch (e) { } // [RP-GSFIX] centre the keyed canvas on the live screen — the float/burst film seat leaves the bottom strip (see rpCenterSeatLive501)
+    /* [RP-V7.530] OFF-LIVE SEAT — the raw video's frame was centred
+       inside its full-viewport box by object-fit; the keyed canvas
+       has no object-fit (its box IS the film frame), so off-live the
+       box itself must be centred or the show plays in a strip at
+       the top of the screen. This is rpCenterSeatLive501's off-live
+       twin: the same change-guarded bottom anchor on the same
+       settle schedule. In a live the 501 helper above owns the seat
+       and this stands down; portrait films keep fixAspect's seat. */
+    try {
+      if (ov && el.tagName === "VIDEO" && !(document.body && document.body.classList.contains("live-fs"))) {
+        var aim530 = function () {
+          try {
+            if (cv.classList.contains("rp-portrait337b")) return;
+            var H530 = cv.clientHeight || 0;
+            if (!H530) return;
+            var bs530 = Math.max(0, Math.round(((window.innerHeight || 0) - H530) / 2)) + "px";
+            if (cv.style.bottom !== bs530) cv.style.bottom = bs530;
+            if (cv.style.top !== "auto") cv.style.top = "auto";
+          } catch (e) { }
+        };
+        el.addEventListener("loadedmetadata", aim530);
+        try { requestAnimationFrame(aim530); } catch (e) { }
+        setTimeout(aim530, 120); setTimeout(aim530, 350); setTimeout(aim530, 900);
+      }
+    } catch (e) { }
+    /* [RP-V7.530] ambient fill around the keyed film frame (see
+       RpKeyFill530) — solid film heroes, every surface. */
+    try { if (el.tagName === "VIDEO" && ov && window.RpKeyFill530) window.RpKeyFill530(el, cv, ov); } catch (e) { }
     return h;
   } catch (e) { return null; }
 };
@@ -36918,11 +37095,16 @@ function rpStageMedia(div, gid, icon) {
     }
     if (RP_BAND_SCENE492[aid] || RP_PORTRAIT_SCENE494[aid]) { bandScene492(false); return; } /* [RP-V7.492] C1 — registered full-bleed scenes never touch the keyer. [RP-V7.494] + the portrait-scene class: same unkeyed raw presentation (the C2 reseat hands the seat the film's own portrait aspect) */
     if (RpKey.supported()) {
-      var h = RpKey.attach(v, {}); // [RP-V7.337] identity window — the WHOLE film frame keys (the V7.218 cover window cropped any film whose raster differs from the band box: portrait films lost their top and bottom in live rooms — Branden, Nov 11, 2026: "you can see part of the sides not showing because it's boxed in"); the art box now matches the film's own aspect (see the .film.portrait rule), so identity = whole scene, nothing cut
+      var h = RpKey.attach(v, { key530: "solid" }); // [RP-V7.530] the stage keys with the solid profile too — the legacy curve's grade crush left mid-tone subjects at partial alpha (ghosts over bright rooms); the solid profile renders the subject at the film's own color and full alpha (see FSH530). // [RP-V7.337] identity window — the WHOLE film frame keys (the V7.218 cover window cropped any film whose raster differs from the band box: portrait films lost their top and bottom in live rooms — Branden, Nov 11, 2026: "you can see part of the sides not showing because it's boxed in"); the art box now matches the film's own aspect (see the .film.portrait rule), so identity = whole scene, nothing cut
       if (h) {
         ctl.h = h;
         h.canvas.style.width = "100%"; h.canvas.style.height = "100%";
         div.appendChild(h.canvas);
+        /* [RP-V7.530] ambient fill around the stage's film frame (see
+           RpKeyFill530): installed with the film but held invisible
+           until the gate releases, so the art hold is untouched. */
+        var fill530 = null;
+        try { var st530 = div.closest ? div.closest("#rpStage") : null; if (st530 && window.RpKeyFill530) { fill530 = window.RpKeyFill530(v, h.canvas, st530); if (fill530) { fill530.style.transition = "opacity 300ms ease-out"; fill530.style.opacity = "0"; } } } catch (e) { }
         rpMeltCanvas406(h.canvas); /* [RP-V7.406] border-accurate melt on the keyed canvas: its box IS the film frame, and the V7.337 element feather still leaked 3-9% of the film in the outer 1-3px — the hairline the audit measured on 10 stage gifts. The 406 profile takes the outer rows to exactly transparent. */
         v.classList.add("rp-key-src");
         div.appendChild(v);
@@ -36931,7 +37113,7 @@ function rpStageMedia(div, gid, icon) {
            blend so the gate's art hold dissolves into the room
            exactly like an art show does; the keyed (normal-
            composite) stage lands with the film itself. */
-        gate492.onRelease = function () { markKeyed(); };
+        gate492.onRelease = function () { markKeyed(); try { if (!fill530) { var stR530 = div.closest ? div.closest("#rpStage") : null; if (stR530 && window.RpKeyFill530) fill530 = window.RpKeyFill530(v, h.canvas, stR530); } if (fill530) fill530.style.opacity = "1"; } catch (e) { } }; /* [RP-V7.530] the ambient fill lands with the film, not during the gate's art hold — created here if the attach-time attempt found the stage box not yet inside #rpStage (pumpStage appends it after rpStageMedia returns) */
         armGate492(h.canvas);
         v.onerror = function () {
           if (ctl.dead) return;
