@@ -94302,7 +94302,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
   function closeSheet() { try { if (window.closeSheet) window.closeSheet(); } catch (e) { } }
   function fmtCd(ms) { var s = Math.max(0, Math.ceil(ms / 1000)); return "0:" + String(s).padStart(2, "0"); }
 
-  var T = { id: null, active: false, ended: null, format: "", parts: [], sides: [], endsAt: 0, stock: null, mission: null, lobby: null, lobbyView: false, pendingInvite: null, boundSock: null, callTimer: 0, rowEls: {}, rowsSig: "", createWait: 0 };
+  var T = { id: null, active: false, ended: null, format: "", parts: [], sides: [], endsAt: 0, stock: null, mission: null, lobby: null, lobbyView: false, pendingInvite: null, boundSock: null, callTimer: 0, rowEls: {}, rowsSig: "", createWait: 0, accepted527: false }; // [RP-V7.527] accepted527: my last Join was an explicit tap (distinguishes an auto-seat from an invite accept)
   window.__rpTeamBattleId336 = function () { return (T.id && T.active) ? T.id : null; };
 
   function myPart() { var me = myId(); for (var i = 0; i < T.parts.length; i++) if (T.parts[i].id === me) return T.parts[i]; return null; }
@@ -94754,13 +94754,22 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     if (L.full && L.format === "2v2" && L.teams) teamsHtml = '<div class="tb-teams"><p><b>Team A:</b> ' + esc((L.teams.a || []).join(" & ")) + '</p><p><b>Team B:</b> ' + esc((L.teams.b || []).join(" & ")) + "</p></div>";
     else if (L.full) teamsHtml = '<p class="age-note">Lobby full — free-for-all: every host for themselves.</p>';
     var mid = "";
-    if (iAmHost && !L.full) mid = '<div id="rpTeamWho336"><p class="age-note">Load the live hosts, then tap to invite. The lobby must fill before you can start.</p></div><button class="btn-mini" id="rpTeamLoad336" style="width:100%;padding:11px">Load live hosts</button>';
+    // [RP-V7.527] short-handed start copy: the count is stated
+    // plainly and the host is told they can start NOW — the old
+    // "must fill before you can start" line was the V7.336 rule.
+    if (iAmHost && !L.full) mid = '<div id="rpTeamWho336"><p class="age-note">' + L.members.length + " of " + L.need + " hosts are in. " + (L.members.length >= 2 ? "You can start the battle now with who's here — " + (L.members.length === 2 ? "two hosts go head-to-head" : "three hosts play free-for-all") + " — or load the live hosts and invite more." : "You need at least one more host to start — load the live hosts and invite, or wait for a co-host to join this live.") + "</p></div>" + '<button class="btn-mini" id="rpTeamLoad336" style="width:100%;padding:11px">Load live hosts</button>';
     else if (iAmHost) mid = '<p class="age-note">Lobby full and teams are set — start when ready.</p>';
-    else mid = '<p class="age-note">' + (L.full ? "Lobby full — waiting for " + esc(L.hostName || "the host") + " to start." : "Waiting for more hosts to accept… if anyone leaves, the lobby starts over.") + "</p>";
+    else mid = '<p class="age-note">' + (L.full ? "Lobby full — waiting for " + esc(L.hostName || "the host") + " to start." : L.members.length + " of " + L.need + " hosts are in — " + esc(L.hostName || "the host") + " can start now with who's here, or keep waiting for more.") + "</p>";
     var html = '<h3 style="margin:4px 0">👥 Team Battle — ' + fmtName(L.format) + "</h3>" + slots + teamsHtml + mid +
-      (iAmHost && L.full ? '<button class="btn-primary" id="rpTeamStart336" style="width:100%;padding:13px;margin-top:8px">⚔️ Start battle</button>' : "") +
+      (iAmHost && L.members.length >= 2 ? '<button class="btn-primary" id="rpTeamStart336" style="width:100%;padding:13px;margin-top:8px">⚔️ Start battle</button>' : "") +
       '<button class="btn-mini" id="rpTeamLeave336" style="width:100%;padding:11px;margin-top:8px">' + (iAmHost ? "Cancel lobby" : "Leave lobby") + "</button>";
-    if (sheet.__lobSig336 !== html) {
+    if (sheet.__lobSig336 !== html || !sheet.querySelector("#rpTeamLeave336")) {
+      // [RP-V7.527] the signature alone is not enough: the lobby
+      // card's Open button calls openSheet(""), which WIPES #sheet
+      // before this render runs — an unchanged lobby used to reopen
+      // as a BLANK sheet (and stay blank on every tick, the sig
+      // never changed). If the rendered lobby is not actually in
+      // the sheet, render it.
       sheet.__lobSig336 = html;
       sheet.innerHTML = html;
       var load = $("rpTeamLoad336");
@@ -94776,12 +94785,23 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     var ov = $("overlay");
     var sheetOpen = !!(ov && ov.classList.contains("open"));
     var show = !!(T.lobby && !sheetOpen);
+    // [RP-V7.527] the lobby card's slot: while a lobby is up, the
+    // live panel carries lv-lobby527 and the comment row rides one
+    // slot higher — the card never covers the 🚀 Boost chip or the
+    // comment input (V7.524 two-row bar pattern). Guarded writes only.
+    var panel527 = $("livePanel");
+    if (panel527) { var want527 = !!T.lobby; if (panel527.classList.contains("lv-lobby527") !== want527) panel527.classList.toggle("lv-lobby527", want527); }
     if (!show) { if (chip && chip.style.display !== "none") chip.style.display = "none"; return; }
     if (!chip) { chip = document.createElement("div"); chip.id = "rpTeamLobbyChip336"; document.body.appendChild(chip); }
     if (chip.style.display !== "flex") chip.style.display = "flex";
     var L = T.lobby, iAmHost = L.host === myId();
-    var html = "<span>👥 " + fmtName(L.format) + " lobby " + L.members.length + "/" + L.need + (L.full ? " — full!" : " — waiting…") + "</span>" +
-      (iAmHost && L.full ? '<button type="button" class="go" id="rpChipStart336">⚔️ Start</button>' : "") +
+    // [RP-V7.527] short-handed start (Branden's rule): the host can
+    // start with whoever is in the lobby — the card says the count
+    // plainly and offers Start at ≥2. (The shape they'll get —
+    // head-to-head / free-for-all — is stated in the lobby sheet;
+    // the card stays one short line so it never balloons.)
+    var html = "<span>👥 " + fmtName(L.format) + " lobby " + L.members.length + "/" + L.need + (L.full ? " — full!" : (iAmHost && L.members.length >= 2 ? " — you can start now" : " — waiting…")) + "</span>" +
+      (iAmHost && L.members.length >= 2 ? '<button type="button" class="go" id="rpChipStart336">⚔️ Start</button>' : "") +
       '<button type="button" id="rpChipOpen336">Open</button>' +
       '<button type="button" id="rpChipLeave336">' + (iAmHost ? "Cancel" : "Leave") + "</button>";
     if (chip.__sig !== html) {
@@ -94792,8 +94812,9 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     }
   }
   function clearLobby336() {
-    T.lobby = null; T.lobbyView = false;
+    T.lobby = null; T.lobbyView = false; T.accepted527 = false;
     var chip = $("rpTeamLobbyChip336"); if (chip && chip.style.display !== "none") chip.style.display = "none";
+    var panel = $("livePanel"); if (panel && panel.classList.contains("lv-lobby527")) panel.classList.remove("lv-lobby527"); // [RP-V7.527] drop the raised comment row with the lobby
   }
   function onBattle336(m) {
     if (!m || !m.t) return;
@@ -94811,7 +94832,10 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
         b.addEventListener("click", function () {
           var s = sock(); if (!s || !T.lobby) return;
           s.emit("battle", { t: "tinvite", lobby: T.lobby.lobbyId, to: b.getAttribute("data-tinv336") });
-          b.disabled = true; b.textContent = "Invite sent…";
+          // [RP-V7.527] "Invite sent…" is claimed ONLY on the
+          // server's tack — until then the button just says it's
+          // sending, and a trefuse restores it with the reason.
+          b.__label527 = b.innerHTML; b.disabled = true; b.textContent = "Sending…";
         });
       });
       return;
@@ -94829,7 +94853,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
       T.pendingInvite = m;
       try {
         window.openSheet('<h3 style="margin:4px 0">👥 Team Battle invite!</h3><p><b>' + esc(m.fromName || "A host") + "</b> is forming a <b>" + fmtName(m.format) + "</b> team battle — " + (m.mins || 5) + " minutes. In so far: " + esc((m.members || []).join(", ") || "just them") + '.</p><button class="btn-primary" id="rpTeamAccept336" style="width:100%;padding:13px">👥 Join the lobby</button><button class="btn-mini" id="rpTeamDecline336" style="width:100%;padding:11px;margin-top:8px">Not now</button>');
-        $("rpTeamAccept336").addEventListener("click", function () { var s = sock(); if (s && T.pendingInvite) { s.emit("battle", { t: "taccept", lobby: T.pendingInvite.lobby }); T.lobbyView = true; var sheet = $("sheet"); if (sheet) { sheet.__lobSig336 = ""; sheet.innerHTML = '<h3 style="margin:4px 0">👥 Team Battle</h3><p class="age-note">Joining the lobby…</p>'; } } });
+        $("rpTeamAccept336").addEventListener("click", function () { var s = sock(); if (s && T.pendingInvite) { s.emit("battle", { t: "taccept", lobby: T.pendingInvite.lobby }); T.accepted527 = true; T.lobbyView = true; var sheet = $("sheet"); if (sheet) { sheet.__lobSig336 = ""; sheet.innerHTML = '<h3 style="margin:4px 0">👥 Team Battle</h3><p class="age-note">Joining the lobby…</p>'; } } }); // [RP-V7.527] accepted527 marks the explicit Join tap
         $("rpTeamDecline336").addEventListener("click", function () { var s = sock(); if (s && T.pendingInvite) s.emit("battle", { t: "tdecline", lobby: T.pendingInvite.lobby }); closeSheet(); });
       } catch (e) { }
       return;
@@ -94837,9 +94861,37 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     if (m.t === "tdeclined") { toast2((m.fromName || "That host") + " declined the team battle.", 2600); return; }
     if (m.t === "tlobby") {
       var wasMine = !!T.lobby;
+      var wasAccepted527 = T.accepted527; // [RP-V7.527] true only when I tapped Join on an invite
       T.lobby = m;
-      if (!wasMine && !T.lobbyView) { /* adopted state (e.g. after accept) */ }
+      T.pendingInvite = null; // [RP-V7.527] an invite I was holding is settled once I'm in a lobby
+      T.accepted527 = false;
+      // [RP-V7.527] seated WITHOUT an invite round-trip = the
+      // co-host auto-seat ("whoever is in there") — say so plainly.
+      if (!wasMine && !wasAccepted527 && m.host !== myId()) toast2("You're in the team battle lobby — the host added the co-hosts from this live.", 3400);
       renderLobby336(); renderChip336();
+      return;
+    }
+    if (m.t === "tack") {
+      // [RP-V7.527] the invite actually landed — only NOW does the
+      // button get to say "Invite sent…".
+      if (m.op === "tinvite" && m.to) { var wb = document.querySelector('[data-tinv336="' + m.to + '"]'); if (wb) { wb.disabled = true; wb.textContent = "Invite sent…"; } }
+      return;
+    }
+    if (m.t === "trefuse") {
+      // [RP-V7.527] no silent failures: every refusal names itself.
+      var why527 = m.reason === "no-lobby" ? "that lobby is closed" : (m.reason === "not-host" ? "only the lobby host can do that" : (m.reason === "not-live" ? "that host isn't live right now" : (m.reason === "in-battle" ? "they're already in a battle" : (m.reason === "in-lobby" ? "they're already in a team lobby" : (m.reason === "already-in" ? "they're already in this lobby" : (m.reason === "full" ? "the lobby is full" : (m.reason === "not-invited" ? "that invite is no longer open" : (m.reason === "need-more" ? "you need at least one more host in the lobby to start" : "that didn't go through"))))))));
+      if (m.op === "tinvite") {
+        var rb = m.to ? document.querySelector('[data-tinv336="' + m.to + '"]') : null;
+        if (rb) { rb.disabled = false; if (rb.__label527) rb.innerHTML = rb.__label527; }
+        toast2("Invite didn't send — " + why527 + ".", 3400);
+      } else if (m.op === "taccept") {
+        T.pendingInvite = null; T.lobbyView = false; T.accepted527 = false;
+        var sheet527 = $("sheet");
+        if (sheet527) { sheet527.__lobSig336 = ""; sheet527.innerHTML = '<h3 style="margin:4px 0">👥 Team Battle</h3><p class="age-note">You couldn\'t join the lobby — ' + why527 + '.</p><button class="btn-mini" id="rpTeamRefuseClose527" style="width:100%;padding:11px;margin-top:8px">Close</button>'; var cb527 = $("rpTeamRefuseClose527"); if (cb527) cb527.addEventListener("click", function () { closeSheet(); }); }
+        else toast2("Couldn't join the lobby — " + why527 + ".", 3600);
+      } else if (m.op === "tstart") {
+        toast2("Couldn't start the battle — " + why527 + ".", 3600);
+      }
       return;
     }
     if (m.t === "tlobby-reset") {
@@ -94875,7 +94927,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
       $("rpTeamOpenLobby336").addEventListener("click", function () { T.lobbyView = true; renderLobby336(); });
       return;
     }
-    sec.innerHTML = '<h3 style="margin:4px 0">👥 Team Battle</h3><p class="age-note">2v2 is two teams of two hosts. 3-way and 4-way are free-for-all — every host for themselves. The lobby must fill before anyone can start.</p>' +
+    sec.innerHTML = '<h3 style="margin:4px 0">👥 Team Battle</h3><p class="age-note">2v2 is two teams of two hosts. 3-way and 4-way are free-for-all — every host for themselves. The host can start with whoever is in the lobby: two hosts go head-to-head, three play free-for-all.</p>' +
       '<button class="btn-primary" data-team336="2v2" style="width:100%;padding:12px;margin-top:6px">👥 2v2 — Team battle (4 hosts)</button>' +
       '<button class="btn-primary" data-team336="3way" style="width:100%;padding:12px;margin-top:6px">👥 3-way — Free-for-all (3 hosts)</button>' +
       '<button class="btn-primary" data-team336="4way" style="width:100%;padding:12px;margin-top:6px">👥 4-way — Free-for-all (4 hosts)</button>';
@@ -94907,6 +94959,17 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
     }
     var ov = $("overlay");
     if (T.lobbyView && ov && !ov.classList.contains("open")) T.lobbyView = false;
+    // [RP-V7.527] client belt for the server-side lobby/live tie:
+    // a lobby whose live is gone must never render into a later
+    // live. The host's lobby dies the moment their live is inactive;
+    // a member's lobby dies the moment they are no longer in its
+    // member list (the server dissolved or reset it). The server's
+    // tlobby-gone is the primary path; this covers any missed one.
+    if (T.lobby) {
+      var me527 = myId();
+      if (T.lobby.host === me527) { var lv527 = null; try { lv527 = live(); } catch (e) { } if (!lv527 || !lv527.active) clearLobby336(); }
+      else if (!(T.lobby.members || []).some(function (mm) { return mm.id === me527; })) clearLobby336();
+    }
     if (T.lobbyView) renderLobby336();
     renderChip336();
     if (T.id) { renderBar(); renderChips(); renderTray(); renderTiles(); }
@@ -103607,6 +103670,50 @@ body:not(.live-fs) #rpDrop520{ display:none; }
 @media (prefers-reduced-motion: reduce) { .pot-field-bad524 { animation: none; } }
 .sheet { max-height: 92dvh; }
 #potSheetBody > h3 { position: sticky; top: 0; z-index: 2; background: #11111a; padding: 8px 0 6px; }
+</style>
+<style>
+/* =====================================================================
+   [RP-V7.527] LIVE CHROME SEATS — Branden's circled screenshots
+   (Nov 25, 2026):
+   1) The far pane's identity cluster (.rp-idchip517: name + Follow +
+      💬 Message) sat at top:36px — inside the Dynamic Island band on
+      island phones (unsafe band ≈59px) — so its buttons were half
+      covered and taps died. The top row of tiles now seats the whole
+      cluster BELOW the live chrome stack: the battle bar (top:64,
+      ~60 tall), the team bar (top:64, ~95 tall) and the boost-chips
+      row (top:118) all end by ~165px, so 170px (or safe-area + 112px
+      on taller islands) clears them all. Side/bottom tiles keep the
+      original seat. Live chrome only — nothing outside a live moves.
+   2) The team lobby card (#rpTeamLobbyChip336) sat at bottom:118px,
+      ON TOP of the 🚀 Boost chip (bottom:120px in the live bar's own
+      slot) and over the comment feed's bottom seat (bottom:130px).
+      The card now rides at bottom:158px+safe — clear of the Boost
+      slot — and while a lobby is up the comment feed lifts to
+      bottom:262px+safe (lv-lobby527, set by renderChip336), above
+      the card's top edge, so card, Boost, feed and the comment
+      input bar each keep their own slot in the stack.
+   ===================================================================== */
+body.live-fs #liveGrid.rp-split .rp-idchip517,
+body.live-fs #liveGrid.rp-split2 .rp-idchip517,
+body.live-fs #liveGrid.rp-split3 > :nth-child(-n+2) .rp-idchip517,
+body.live-fs #liveGrid.rp-split4 > :nth-child(-n+2) .rp-idchip517 { top: max(170px, calc(env(safe-area-inset-top, 0px) + 112px)); }
+#rpTeamLobbyChip336 { bottom: calc(158px + env(safe-area-inset-bottom, 0px)); flex-wrap: wrap; justify-content: center; width: min(340px, calc(100vw - 32px)); }
+/* the second selector out-ranks the giveaway-chip :has() rule
+   (bottom:156px) that otherwise wins over this seat */
+#livePanel.live-fs.lv-lobby527 .lv-comments,
+#livePanel.live-fs.lv-lobby527:has(.lk-gwchip389:not([hidden])) .lv-comments { bottom: calc(262px + env(safe-area-inset-bottom, 0px)); }
+/* the identity chip's name span must be allowed to shrink — with a
+   rigid span, the Follow/Message buttons overflow the tile's right
+   edge on narrow splits and the Message button lands off-screen */
+.rp-idchip517 > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-idchip517 .follow-btn { flex: none; }
+/* the cluster carries name + Follow + 💬 Message + the fan-club
+   button two different syncs inject beside Follow — wider than a
+   split tile, so the last button was pushed off the tile entirely
+   (which one depended on injector order). Wrapping keeps every
+   button inside the tile and tappable; the cluster's seat (above)
+   already clears the chrome below it. */
+.rp-idchip517 { flex-wrap: wrap; justify-content: flex-end; }
 </style>
 
 </body>
