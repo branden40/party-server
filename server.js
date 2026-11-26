@@ -356,7 +356,7 @@ setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [k, e] of [...liveRegistry]) {
-    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); pollLiveEnded319(k); ticketLiveEnded299(k); gwLiveEnded389(k); bstLiveEnded394(k); liveGoal519Ended(("live-" + k).slice(0, 40)); } // [RP-V7.394] the boost pool dies with the live; the narrow refund runs // [RP-V7.519] goal + gallery die with the stale live too // [RP-V7.389] giveaway settles with the live // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
+    if (now - (e.lastBeat || 0) > LIVE_BEAT_STALE_MS) { liveRegistry.delete(k); changed = true; potLiveEnded(k); pollLiveEnded319(k); ticketLiveEnded299(k); gwLiveEnded389(k); bstLiveEnded394(k); liveGoal519Ended(("live-" + k).slice(0, 40)); lobby527LiveEnded(k); } // [RP-V7.527] a stale live is an ended live — its team lobby dies with it // [RP-V7.394] the boost pool dies with the live; the narrow refund runs // [RP-V7.519] goal + gallery die with the stale live too // [RP-V7.389] giveaway settles with the live // [RP-V7.41] a stale live is an ended live — settle its pot // [RP-V7.299] and run the ticket refund rule
   }
   for (const k of [...liveAccess138.keys()]) if (!liveRegistry.has(k) && changed) endLiveAccess138(k); // [RP-V7.138] access state dies with its live
   if (changed) broadcastLives();
@@ -22798,6 +22798,25 @@ function lobby336Destroy(l, reason) {
   for (const sid of l.invited) { try { io.to(sid).emit("battle", note); } catch (e) { } }
   lobby336Forget(l);
 }
+// [RP-V7.527] A lobby is born inside ONE live and dies with it
+// (Branden's Nov 25 screenshot: a fresh solo live still wore the old
+// "2v2 lobby 2/4 — waiting…" card — the lobby had no tie to its live
+// and outlived it). The record carries the host's live-registry key
+// (liveKey527) and that live's start stamp (liveAt527); every
+// live-end path — live-unregister, the walk-out room switch, the
+// staleness sweep, a disconnect (via battle336LobbyEvict) — dissolves
+// the lobby through here, and the tlobby-gone notice lobby336Destroy
+// already sends clears the card on every member's screen.
+function lobby527LiveEnded(key) {
+  if (!key) return;
+  for (const l of [...lobbies336.values()]) if (l.liveKey527 === key) lobby336Destroy(l, "live-ended");
+}
+// A brand-new live for the same key supersedes any lobby stamped
+// with an EARLIER live's start (its end was missed by every hook).
+function lobby527Superseded(key, startedAt) {
+  if (!key || !startedAt) return;
+  for (const l of [...lobbies336.values()]) if (l.liveKey527 === key && l.liveAt527 && l.liveAt527 !== startedAt) lobby336Destroy(l, "live-ended");
+}
 function lobby336Collapse(l, whoName) {
   const dropped = l.members.filter((m) => m.sock !== l.hostSock);
   const inv = [...l.invited];
@@ -34249,12 +34268,27 @@ function fanSeenDrop521(sockId) {
   fanSeen521.delete(sockId);
   for (const s of fanSeen521.values()) s.delete(sockId);
 }
+// [RP-V7.527] Co-host stage sightings: the server already observes
+// live-stage PX protos in this relay (chatSignal521 below) — keep each
+// host's latest stage roster so a team lobby created from a co-host
+// live can seat the hosts who are already on stage together, with no
+// invite/accept round-trip (Branden, Nov 25, 2026: "whoever is in
+// there"). Rosters are honored only while fresh (120s) and every
+// candidate is re-validated as a live, battle-free host at seat time.
+const stageSeen527 = new Map(); // host socket id -> { ids: [socketId], at }
+function stageSeen527Note(hostSock, ids) {
+  if (!hostSock || !Array.isArray(ids)) return;
+  const clean = [];
+  for (const x of ids) { const s = String(x || ""); if (s && clean.indexOf(s) < 0) clean.push(s); }
+  stageSeen527.set(hostSock, { ids: clean.slice(0, 12), at: Date.now() });
+}
 function chatSignal521(p, text) {
   if (!text || text.indexOf(PX521) !== 0) return;
   let o = null;
   try { o = JSON.parse(text.slice(PX521.length)); } catch (e) { return; }
   if (!o || !o.k) return;
   if (o.k === "live-share") { if (isLiveRoom(p.room)) shareNote521(p.room, Date.now()); }
+  else if (o.k === "live-stage") stageSeen527Note(p.id, o.ids); // [RP-V7.527] stage roster for lobby auto-seating
   else if (o.k === "fan-join") fanSeenNote521(String(o.h || ""), p.id);
   else if (o.k === "fan-count") fanSeenNote521(String(o.h || ""), String(o.m || ""));
 }
@@ -35361,7 +35395,7 @@ io.on("connection", (socket) => {
     const swKey = clientKeys.get(socket.id);
     if (swKey) {
       const reg = liveRegistry.get(swKey);
-      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); pollLiveEnded319(swKey); ticketLiveEnded299(swKey); gwLiveEnded389(swKey); bstLiveEnded394(swKey); } // [RP-V7.394] boost pool ends too // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
+      if (reg && reg.room !== room) { liveRegistry.delete(swKey); endLiveAccess138(swKey); broadcastLives(); potLiveEnded(swKey); pollLiveEnded319(swKey); ticketLiveEnded299(swKey); gwLiveEnded389(swKey); bstLiveEnded394(swKey); lobby527LiveEnded(swKey); } // [RP-V7.527] walking out ends the live — its team lobby dies with it // [RP-V7.394] boost pool ends too // [RP-V7.41] walking out ends the live — settle its pot; [RP-V7.138] its access state ends too // [RP-V7.299] ticket refunds run too
     }
     socket.to(room).emit("player-joined", Object.assign({}, p, { glv: p.acctId ? gifterLevelOf338(p.acctId) : 0, spark519: p.acctId ? sparkStock519(p.acctId) : 0 })); // [RP-V7.517] gifter level rides the seat // [RP-V7.519] Plaza Spark stock rides it too
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
@@ -35432,6 +35466,7 @@ io.on("connection", (socket) => {
       gaming: !!data.gaming, // [RP-GAMING] the host's Gaming toggle rides every register, exactly like priv
       ticketPrice: cfg299 ? cfg299.price : 0, // [RP-V7.299]
     });
+    if (!prev) lobby527Superseded(devKey, now); // [RP-V7.527] a NEW live supersedes any lobby stamped with an earlier live's start
     if (!prev) liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a NEW live invites the host's remembered viewers (public only — the helper refuses private)
     if (!prev) showOnLiveStart385(socket, liveRegistry.get(devKey)); // [RP-V7.385] flip a matching scheduled show live + notify its bookmarkers
     broadcastLives();
@@ -35466,6 +35501,7 @@ io.on("connection", (socket) => {
         priv: !!(liveAccess138.get(devKey) && liveAccess138.get(devKey).priv), // [RP-V7.138] beat-heal keeps the privacy flag
         ticketPrice: 0, // [RP-V7.299] a beat-healed live never had a setup pass — free at the door
       });
+      lobby527Superseded(devKey, now); // [RP-V7.527] a beat-healed NEW live supersedes an earlier live's lobby too
       liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a beat-healed creation is still a new live — invite past viewers (public only)
       showOnLiveStart385(socket, liveRegistry.get(devKey)); // [RP-V7.385] a beat-healed creation flips a matching scheduled show live too
       broadcastLives();
@@ -35480,7 +35516,7 @@ io.on("connection", (socket) => {
     if (!devKey) return;
     const unregEntry469 = liveRegistry.get(devKey); // [RP-V7.469] the invite ledger dies with the live
     if (unregEntry469) liveInvited469.delete(unregEntry469.room);
-    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); gwLiveEnded389(devKey); bstLiveEnded394(devKey); liveGoal519Ended(("live-" + devKey).slice(0, 40)); } // [RP-V7.394] boost pool ends too // [RP-V7.519] goal + gallery end too // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
+    if (liveRegistry.delete(devKey)) { endLiveAccess138(devKey); broadcastLives(); potLiveEnded(devKey); pollLiveEnded319(devKey); ticketLiveEnded299(devKey); gwLiveEnded389(devKey); bstLiveEnded394(devKey); liveGoal519Ended(("live-" + devKey).slice(0, 40)); lobby527LiveEnded(devKey); } // [RP-V7.527] the ended live's team lobby dies with it // [RP-V7.394] boost pool ends too // [RP-V7.519] goal + gallery end too // [RP-V7.41] settle the pot of the ended live; [RP-V7.138] access state ends with it // [RP-V7.299] ticket refunds run too
   });
 
   // [RP-V7.138] PRIVATE LIVE controls — invite / un-invite / link
@@ -35760,30 +35796,73 @@ io.on("connection", (socket) => {
         battle336LobbyEvict(socket.id); // clear any stale invite footprint
         const id = "lob" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         const l = { id, format, need, mins: Math.min(10, Math.max(1, parseInt(data.mins, 10) || 5)), hostSock: socket.id, hostName: p.name, members: [{ sock: socket.id, acct: p.acctId || null, name: p.name, room: p.room }], invited: new Set() };
+        // [RP-V7.527] the lobby is tied to THIS live (see lobby527LiveEnded).
+        l.liveKey527 = clientKeys.get(socket.id) || null;
+        const reg527 = l.liveKey527 ? liveRegistry.get(l.liveKey527) : null;
+        l.liveAt527 = reg527 ? (reg527.startedAt || 0) : 0;
         lobbies336.set(id, l);
         lobbyMember336.set(socket.id, id);
+        // [RP-V7.527] Auto-seat the co-hosts already on stage in this
+        // live ("whoever is in there"): candidates come from the
+        // stage rosters observed in the chat relay — the creator's
+        // own roster, plus any roster that includes the creator.
+        // Only registered live hosts can battle; anyone battling or
+        // seated in another lobby is left exactly as they were.
+        const stageCand527 = [];
+        const myStage527 = stageSeen527.get(socket.id);
+        if (myStage527 && Date.now() - myStage527.at < 120000) for (const sid of myStage527.ids) if (sid !== socket.id && stageCand527.indexOf(sid) < 0) stageCand527.push(sid);
+        for (const [hs527, rec527] of stageSeen527) { if (hs527 !== socket.id && rec527 && Date.now() - rec527.at < 120000 && rec527.ids.indexOf(socket.id) >= 0 && stageCand527.indexOf(hs527) < 0) stageCand527.push(hs527); }
+        for (const sid of stageCand527) {
+          if (l.members.length >= l.need) break;
+          if (lobbyMember336.has(sid) || battleBySocket306.has(sid)) continue;
+          const pl527 = players.get(sid);
+          if (!pl527 || !pl527.live) continue;
+          battle336LobbyEvict(sid); // drop a pending-invite footprint elsewhere — they are seated here now
+          l.members.push({ sock: sid, acct: pl527.acctId || null, name: pl527.name, room: pl527.room });
+          lobbyMember336.set(sid, l.id);
+        }
         lobby336Send(l);
         return;
       }
       const l = lobbies336.get(String(data.lobby || ""));
       if (t === "tinvite") {
-        if (!l || l.hostSock !== socket.id) return;
+        // [RP-V7.527] no silent failures in the team path: every
+        // refusal answers the host with its true reason, and a landed
+        // invite is acked — the client shows "Invite sent…" only on
+        // this tack, never on the tap itself.
+        const refuse527 = (reason) => socket.emit("battle", { t: "trefuse", op: "tinvite", reason, to: String(data.to || "") });
+        if (!l) { refuse527("no-lobby"); return; }
+        if (l.hostSock !== socket.id) { refuse527("not-host"); return; }
         const target = players.get(String(data.to || ""));
-        if (!target || !target.live || target.id === socket.id) return;
-        if (battleBySocket306.has(target.id) || lobbyMember336.has(target.id)) return;
-        if (l.members.some((m) => m.sock === target.id)) return;
-        if (!l.invited.has(target.id) && l.members.length + l.invited.size >= l.need) return; // never over-invite past a full house
+        if (!target || !target.live || target.id === socket.id) { refuse527("not-live"); return; }
+        if (battleBySocket306.has(target.id)) { refuse527("in-battle"); return; }
+        if (lobbyMember336.has(target.id)) { refuse527(l.members.some((m) => m.sock === target.id) ? "already-in" : "in-lobby"); return; }
+        if (l.members.some((m) => m.sock === target.id)) { refuse527("already-in"); return; }
+        if (!l.invited.has(target.id) && l.members.length + l.invited.size >= l.need) { refuse527("full"); return; } // never over-invite past a full house
         l.invited.add(target.id);
         lobbyInvited336.set(target.id, l.id);
         io.to(target.id).emit("battle", { t: "tinvite", lobby: l.id, from: socket.id, fromName: p.name, format: l.format, mins: l.mins, members: l.members.map((m) => m.name) });
         lobby336Send(l);
+        socket.emit("battle", { t: "tack", op: "tinvite", to: target.id, lobby: l.id });
         return;
       }
-      if (!l) return;
+      if (!l) {
+        // [RP-V7.527] a Join tap against a dead lobby gets a named
+        // answer too — the invitee's sheet must never hang on
+        // "Joining the lobby…" (decline/leave against a dead lobby
+        // stay silent: they are exits, and there is nothing to join).
+        if (t === "taccept") socket.emit("battle", { t: "trefuse", op: "taccept", reason: "no-lobby" });
+        return;
+      }
       if (t === "taccept") {
-        if (!l.invited.has(socket.id) || !p.live) return;
-        if (battleBySocket306.has(socket.id) || lobbyMember336.has(socket.id)) return;
-        if (l.members.length >= l.need) return;
+        // [RP-V7.527] every refusal names itself — the invitee's
+        // "Joining the lobby…" always resolves, one way or the other.
+        const refuse527 = (reason) => socket.emit("battle", { t: "trefuse", op: "taccept", reason, lobby: l.id });
+        if (!l.invited.has(socket.id)) { refuse527("not-invited"); return; }
+        if (!p.live) { refuse527("not-live"); return; }
+        if (battleBySocket306.has(socket.id)) { refuse527("in-battle"); return; }
+        if (lobbyMember336.has(socket.id)) { refuse527("in-lobby"); return; }
+        if (l.members.length >= l.need) { refuse527("full"); return; }
         l.invited.delete(socket.id); lobbyInvited336.delete(socket.id);
         l.members.push({ sock: socket.id, acct: p.acctId || null, name: p.name, room: p.room });
         lobbyMember336.set(socket.id, l.id);
@@ -35805,20 +35884,39 @@ io.on("connection", (socket) => {
         return;
       }
       if (t === "tstart") {
-        if (l.hostSock !== socket.id || l.members.length < l.need) return;
+        // [RP-V7.527] Branden's rule (Nov 25, 2026) SUPERSEDES the
+        // V7.336 full-lobby-only gate ("never short-handed"): the
+        // host starts with whoever is in the lobby. The mapping:
+        // a FULL lobby plays exactly as before (2v2 pairs / FFA
+        // sides); 2 members go head-to-head (two sides of one, in
+        // the 2v2 frame); 3 members — or a short 4-way — take the
+        // V7.521 free-for-all shape. Fewer than 2 hosts is not a
+        // battle, and every refusal names itself (no silent start).
+        const refuse527 = (reason) => socket.emit("battle", { t: "trefuse", op: "tstart", reason, lobby: l.id, members: l.members.length });
+        if (l.hostSock !== socket.id) { refuse527("not-host"); return; }
+        if (l.members.length < 2) { refuse527("need-more"); return; }
         // Every member must still be present and battle-free, or the
-        // lobby collapses back to invites — no short-handed starts.
+        // lobby collapses back to invites.
         for (const m of l.members) {
           const pl = players.get(m.sock);
           if (!pl || battleBySocket306.has(m.sock)) { lobby336Collapse(l, "A host"); return; }
           m.name = pl.name; m.room = pl.room; m.acct = pl.acctId || null;
         }
-        const parts = l.format === "2v2"
-          ? l.members.map((m, i) => ({ sock: m.sock, acct: m.acct, name: m.name, room: m.room, side: i < 2 ? "a" : "b" }))
-          : l.members.map((m, i) => ({ sock: m.sock, acct: m.acct, name: m.name, room: m.room, side: "s" + i }));
+        const n527 = l.members.length;
+        let bFormat527, parts;
+        if (l.format === "2v2" && n527 === l.need) {
+          bFormat527 = "2v2"; // full 2v2 — byte-identical to the V7.336 deal
+          parts = l.members.map((m, i) => ({ sock: m.sock, acct: m.acct, name: m.name, room: m.room, side: i < 2 ? "a" : "b" }));
+        } else if (n527 === 2) {
+          bFormat527 = "2v2"; // head-to-head: two sides of one
+          parts = l.members.map((m, i) => ({ sock: m.sock, acct: m.acct, name: m.name, room: m.room, side: i === 0 ? "a" : "b" }));
+        } else {
+          bFormat527 = n527 === 3 ? "3way" : "4way"; // free-for-all shape
+          parts = l.members.map((m, i) => ({ sock: m.sock, acct: m.acct, name: m.name, room: m.room, side: "s" + i }));
+        }
         const endsAt = Date.now() + l.mins * 60000;
-        const b336 = battleBuild336(l.format, parts, endsAt);
-        const note = { t: "tstart336", battleId: b336.id, format: l.format, endsAt, from: l.hostSock, fromName: l.hostName };
+        const b336 = battleBuild336(bFormat527, parts, endsAt);
+        const note = { t: "tstart336", battleId: b336.id, format: bFormat527, endsAt, from: l.hostSock, fromName: l.hostName };
         for (const m of l.members) { try { io.to(m.sock).emit("battle", note); } catch (e) { } }
         lobby336Forget(l);
         battle336Emit(b336, { kind: "start" });
@@ -36667,6 +36765,7 @@ io.on("connection", (socket) => {
       players.delete(socket.id);
       chatTimes.delete(socket.id);
       try { fanSeenDrop521(socket.id); } catch (e) { } // [RP-V7.521] fan-badge session state dies with the socket
+      try { stageSeen527.delete(socket.id); } catch (e) { } // [RP-V7.527] stage roster dies with the socket too
     }
     // [RP-V7.306] a host whose socket dies mid-battle ends the battle
     // on the spot at the current score (the other host + both rooms
