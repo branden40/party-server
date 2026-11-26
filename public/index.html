@@ -21097,7 +21097,7 @@
               '<div class="field"><label for="potBurstAmt">' + rpT("pot_burst_label") + '</label>' +
               '<input class="online-input-full" id="potBurstAmt" type="number" min="0" step="10" inputmode="numeric" placeholder="e.g. 400"/></div>' +
               '<p class="age-note">' + rpT("pot_burst_note") + '</p>' +
-              '<button type="button" class="btn-primary" id="potOpenBtn" style="width:100%; padding:13px;">' + rpT("pot_open_btn") + '</button>';
+              '<button type="button" class="btn-primary" id="potOpenBtn" style="width:100%; padding:13px;">' + rpT("pot_open_btn") + '</button>' + '<p class="pot-err" id="potErr"></p>'; // [RP-V7.524] the error line lives AT the Open button now (it used to sit at the sheet's very bottom, off-screen behind the keyboard — the "dead button" bug)
           }
           if (!st) {
             html += '<p class="pot-sub">' + rpT("pot_none_yet") + '</p>';
@@ -21156,11 +21156,13 @@
             if (host) html += signedIn ? potSeedForm : potSignInNote; // [RP-V7.49] a cancelled pot is settled history — the host can seed again right here
           }
           html += '<p class="age-note" style="margin-top:12px;">' + rpT("pot_rules") + "</p>" +
-            '<p class="pot-err" id="potErr"></p>' +
+            (html.indexOf('id="potErr"') >= 0 ? "" : '<p class="pot-err" id="potErr"></p>') + // [RP-V7.524] seed-form states carry #potErr inside the form (above); states without the form keep it here
             '<div class="btn-row" style="justify-content:center; margin-top:8px;"><button class="btn-mini" data-act="close2">' + rpT("gen_done") + '</button></div>';
           body.innerHTML = html;
           wireLiveSheetClose();
-          function err(msg) { var e2 = $("potErr"); if (e2) e2.textContent = msg || ""; }
+          function err(msg) { var e2 = $("potErr"); if (e2) { e2.textContent = msg || ""; if (msg && e2.scrollIntoView) { try { e2.scrollIntoView({ block: "nearest" }); } catch (e) { } } } } // [RP-V7.524] at tap time the reason scrolls itself into view — a tap never looks dead
+          function errTxt524(msg) { var e2 = $("potErr"); if (e2) e2.textContent = msg || ""; } // [RP-V7.524] text-only variant for live re-validation while typing (no scroll fights)
+          function flag524(id) { var f = $(id); if (f) f.classList.add("pot-field-bad524"); } // [RP-V7.524] red ring + shake on the offending field
           function busy(btn, on) { if (btn) { btn.disabled = !!on; btn.style.opacity = on ? ".55" : ""; } }
           body.querySelectorAll("[data-potpreset]").forEach(function (b) {
             b.addEventListener("click", function () {
@@ -21170,16 +21172,35 @@
               b.classList.add("on");
             });
           });
+          // [RP-V7.524] live re-validation: editing either amount clears
+          // its field flag at once and re-checks the burst rule as you
+          // type — a corrected value visibly clears the error, so Open
+          // never looks dead over a stale message.
+          var seedInp524 = $("potSeedAmt"), burstInp524 = $("potBurstAmt");
+          function potReval524() {
+            if (seedInp524) seedInp524.classList.remove("pot-field-bad524");
+            if (burstInp524) burstInp524.classList.remove("pot-field-bad524");
+            if (!burstInp524) { errTxt524(""); return; }
+            var sv = Math.floor(Number((seedInp524 || {}).value) || 0);
+            var raw = String(burstInp524.value || "").trim();
+            if (raw === "") { errTxt524(""); return; }
+            var bv2 = Math.floor(Number(raw) || 0);
+            if (!(bv2 > sv)) { errTxt524(rpTf("pot_err_burst_low", { n: sv })); return; }
+            if (bv2 > 2 * sv) { errTxt524(rpTf("pot_err_burst_high", { n: 2 * sv })); return; }
+            errTxt524("");
+          }
+          if (seedInp524) seedInp524.addEventListener("input", potReval524);
+          if (burstInp524) burstInp524.addEventListener("input", potReval524);
           var openBtn = $("potOpenBtn");
           if (openBtn) openBtn.addEventListener("click", function () {
             var amt = Math.floor(Number(($("potSeedAmt") || {}).value) || 0);
-            if (!(amt >= 100)) { err(rpT("pot_err_seed_min")); return; }
+            if (!(amt >= 100)) { err(rpT("pot_err_seed_min")); flag524("potSeedAmt"); return; }
             var payload = { live: key, seed: amt };
             var burstRaw = String((($("potBurstAmt") || {}).value) || "").trim();
             if (burstRaw !== "") {
               var bv = Math.floor(Number(burstRaw) || 0);
-              if (!(bv > amt)) { err(rpTf("pot_err_burst_low", { n: amt })); return; }
-              if (bv > 2 * amt) { err(rpTf("pot_err_burst_high", { n: 2 * amt })); return; }
+              if (!(bv > amt)) { err(rpTf("pot_err_burst_low", { n: amt })); flag524("potBurstAmt"); return; }
+              if (bv > 2 * amt) { err(rpTf("pot_err_burst_high", { n: 2 * amt })); flag524("potBurstAmt"); return; }
               payload.burstAt = bv;
             }
             busy(openBtn, true);
@@ -103504,6 +103525,51 @@ body:not(.live-fs) #rpDrop520{ display:none; }
   bind521();
 })();
 </script>
+
+<style>
+/* ============ [RP-V7.524] LIVE BOTTOM BAR FIT + POT SHEET FEEDBACK ============
+   From Branden's Nov 25 phone screenshot + screen recording (BUILD.md
+   has the rig measurements). (1) In the full-screen live the bottom
+   bar forced the comment bar, the rail and the ••• button into ONE
+   row: the comment bar (flex 1 1 auto, min-width 0) collapsed to
+   10–90px and its fixed-size children (the 😊 button and the Send
+   button) spilled right OVER the rail — the comment bar's "Send"
+   showed through the translucent heart button as a ghost label, and
+   the Boost chip (which flows into the bottom strip after the
+   100%-height grid, at x=0) was covered by the same spill. Fix: in
+   fs the comment bar takes its own full-width row (flex-wrap), the
+   rail + ••• share the second row, --lv-strip grows to match, the
+   comments / poll card / auction pin / tools tray lift with it, and
+   the chip row gets its own absolute slot above the bar (comments
+   lift once more when a chip is actually showing, via :has). The
+   heart button's emoji/count stack gets breathing room. Non-fs panel
+   layout and the reel pager rail are untouched.
+   (2) Pot sheet: the offending amount field is flagged in the app's
+   own error red (#ff7a7a, the .pot-err colour) with a short shake;
+   the sheet height follows the DYNAMIC viewport so an open keyboard
+   no longer leaves the sheet's top cut off, and the pot sheet's
+   title sticks to the top of the sheet while it scrolls. */
+#livePanel.live-fs { --lv-strip: calc(112px + env(safe-area-inset-bottom, 0px)); }
+#livePanel.live-fs .lv-bottombar { flex-wrap: wrap; row-gap: 6px; }
+#livePanel.live-fs .lv-commentbar { order: 1; flex: 1 1 100%; min-width: 0; }
+#livePanel.live-fs .lv-rail { order: 2; }
+#livePanel.live-fs .lv-morebtn { order: 3; margin-left: auto; }
+#livePanel.live-fs .lv-comments { bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
+#livePanel.live-fs.poll-on .lv-comments { bottom: calc(318px + env(safe-area-inset-bottom, 0px)); }
+#livePanel.live-fs.pin-on .lv-comments { bottom: calc(208px + env(safe-area-inset-bottom, 0px)); }
+#livePanel.live-fs .lv-pollcard { bottom: calc(114px + env(safe-area-inset-bottom, 0px)); }
+#livePanel.live-fs .lv-aucpin { bottom: calc(114px + env(safe-area-inset-bottom, 0px)); }
+#livePanel.live-fs #lvToolsTray { bottom: 118px; }
+#livePanel.live-fs .lk-gwrow389 { position: absolute; left: 10px; bottom: calc(120px + env(safe-area-inset-bottom, 0px)); z-index: 9; margin: 0; }
+#livePanel.live-fs:has(.lk-gwchip389:not([hidden])) .lv-comments { bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
+#livePanel.live-fs .lv-rail button { font-size: 20px; gap: 2px; }
+.lv-rail button span { line-height: 1.15; }
+.pot-field-bad524 { border-color: #ff7a7a !important; box-shadow: 0 0 0 2px rgba(255,122,122,.35) !important; animation: potShake524 .3s ease; }
+@keyframes potShake524 { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@media (prefers-reduced-motion: reduce) { .pot-field-bad524 { animation: none; } }
+.sheet { max-height: 92dvh; }
+#potSheetBody > h3 { position: sticky; top: 0; z-index: 2; background: #11111a; padding: 8px 0 6px; }
+</style>
 
 </body>
 </html>
