@@ -1680,6 +1680,8 @@
       .int-shared { color: var(--rose-deep); font-weight: 800; }
       /* ---------- Profiles ---------- */
       .profile-wrap { max-width: 660px; margin: 0 auto; }
+      /* [RP-V7.547] Profile top header row (holds the top back button) */
+      #screen-profile .pf-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
       .profile-hero {
         background: linear-gradient(140deg, var(--rose-deep), var(--coral));
         border-radius: 16px; padding: 20px 16px 16px; text-align: center; color: #fff;
@@ -4099,6 +4101,10 @@
       <section class="screen" id="screen-profile">
         <div class="profile-wrap">
           <div class="controls-card">
+            <!-- [RP-V7.547] Top back button (Branden, Nov 27: "There's no back button" at the top of Profile — the only one was #btnProfileBack at the end of the form). Mirrors the Auctions/Store header pattern; wired to the same action and hidden/shown together with #btnProfileBack. -->
+            <div class="pf-head">
+              <button class="btn-mini plaza-glow" id="btnProfileBackTop" type="button" data-i18n="scr_back_plaza"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5 8 12l6.5 7"/></svg> Plaza</button>
+            </div>
             <div class="profile-hero" id="pfHero">
               <div id="pfPortrait"></div>
               <h2 id="pfName" data-i18n="prof_your_profile">Your profile</h2>
@@ -8271,14 +8277,14 @@
         pfSetup = true;
         openProfile();
         var sv = $("btnSaveProfile"); if (sv) sv.textContent = rpT("prof_save_enter");
-        var bk = $("btnProfileBack"); if (bk) bk.hidden = true;
+        var bk = $("btnProfileBack"); if (bk) bk.hidden = true; var bkT = $("btnProfileBackTop"); if (bkT) bkT.hidden = true; // [RP-V7.547] top back mirrors bottom
         toast("Set up your profile — a name, a line about you, and you're in. 🎉", 3200);
       }
       function openProfile() {
         closeSheet();
         if (!pfSetup) {
           var sv0 = $("btnSaveProfile"); if (sv0) sv0.textContent = rpT("prof_save");
-          var bk0 = $("btnProfileBack"); if (bk0) bk0.hidden = false;
+          var bk0 = $("btnProfileBack"); if (bk0) bk0.hidden = false; var bk0T = $("btnProfileBackTop"); if (bk0T) bk0T.hidden = false; // [RP-V7.547] top back mirrors bottom
           // [RP-V7.118] first-run artifacts never outlive the pass.
           var frb0 = $("pfFirstRunBar"); if (frb0) frb0.remove();
           document.querySelectorAll(".pf-finish-later").forEach(function (b) { b.remove(); });
@@ -8324,7 +8330,7 @@
         document.querySelectorAll(".pf-finish-later").forEach(function (b) { b.remove(); });
         pfSetup = false;
         var sv = $("btnSaveProfile"); if (sv) sv.textContent = rpT("prof_save");
-        var bk = $("btnProfileBack"); if (bk) bk.hidden = false;
+        var bk = $("btnProfileBack"); if (bk) bk.hidden = false; var bkT = $("btnProfileBackTop"); if (bkT) bkT.hidden = false; // [RP-V7.547] top back mirrors bottom
       }
       function pfFirstRunFriendsStep() { // [RP-V7.147] the sign-up sync step: after the profile pass, new members sync contacts + socials and one-tap Add the friends already on the Plaza
         try { if (window.rpFindFriends) window.rpFindFriends.open({ onboarding: true }); } catch (e) { }
@@ -8359,6 +8365,7 @@
       $("pfStatFollowers").addEventListener("click", openFollowersSheet);
       $("pfStatLikes").addEventListener("click", openLikesSheet); // [RP-V7.142] who liked me
       $("btnProfileBack").addEventListener("click", function () { renderPlaza(); show("screen-plaza"); });
+      $("btnProfileBackTop").addEventListener("click", function () { var b = $("btnProfileBack"); if (b) b.click(); }); // [RP-V7.547] top back button triggers the exact same code path
       $("bioInput").addEventListener("input", function () { $("bioCount").textContent = $("bioInput").value.length; });
       $("nameInput").addEventListener("input", function () {
         me.name = $("nameInput").value.trim();
