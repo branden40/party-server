@@ -17480,6 +17480,97 @@ app.post("/api/social/find-friends", (req, res) => {
   res.json({ ok: true, people: people.slice(0, 60) });
 });
 
+// [RP-V7.546] FIND FRIENDS — CONTACT MATCH (Branden, Nov 27, 2026:
+// the TikTok contacts feature, completed). POST { contacts:
+// [{ name, tel, email }] } — a bare string entry is read as a phone
+// or an email by shape. Phones compare on the codebase's
+// normPhoneKey (digits only, leading 1 stripped — last-10 for US
+// numbers); emails on normEmailKey (case-insensitive). Contacts
+// are matched IN MEMORY and discarded — never stored, never
+// logged. The response carries ONLY public member cards
+// (ffPerson144, plus its `avatar` alias) and the index of the
+// submitted contact each card matched, so the client can offer an
+// Invite (a text from the member's own phone) for the rest.
+// Exclusions mirror the member directory (/api/members) exactly —
+// pending-deletion (deletionAt) and 18+ lockout (teen-disabled /
+// age-suspended, via accountLockedOut) accounts never surface —
+// plus self and DM-blocked pairs. Already-followed members DO
+// surface, flagged iFollow/added, so their button reads Following.
+app.post("/api/friends/match", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const meId = ctx.user.id;
+  const b = req.body || {};
+  const rawContacts = Array.isArray(b.contacts) ? b.contacts.slice(0, 500) : [];
+  const entries = []; // { idx, name, phoneKey, emailKey }
+  rawContacts.forEach((raw, idx) => {
+    let name = "", tel = "", email = "";
+    if (typeof raw === "string") {
+      if (raw.indexOf("@") >= 0) email = raw; else tel = raw;
+    } else if (raw && typeof raw === "object") {
+      name = String(raw.name || "").replace(/[<>&"']/g, "").trim().slice(0, 60);
+      tel = raw.tel || raw.phone || "";
+      email = raw.email || "";
+    }
+    const phoneKey = normPhoneKey(tel);
+    const emailKey = normEmailKey(email);
+    entries.push({
+      idx,
+      name,
+      phoneKey: phoneKey && phoneKey.length >= 7 ? phoneKey : "",
+      emailKey: emailKey && emailKey.indexOf("@") > 0 ? emailKey : "",
+    });
+  });
+  const byPhone = new Map(), byEmail = new Map();
+  for (const e of entries) {
+    if (e.phoneKey && !byPhone.has(e.phoneKey)) byPhone.set(e.phoneKey, e);
+    if (e.emailKey && !byEmail.has(e.emailKey)) byEmail.set(e.emailKey, e);
+  }
+  const sdb = readSocial();
+  const myFollowing = new Set(socialFollowingIds(sdb, meId)); // socialFollowingIds returns an array
+  const blocked = ffExcluded144(meId, new Set()); // self + DM-blocked pairs
+  const people = [];
+  const seen = new Set();
+  const matchedIdx = new Set();
+  const addMatch = (u, entry, by) => {
+    if (!u || u.id === meId || blocked.has(u.id) || u.deletionAt || accountLockedOut(u) || seen.has(u.id)) return;
+    seen.add(u.id);
+    matchedIdx.add(entry.idx);
+    const card = ffPerson144(u, "From your contacts");
+    card.avatar = card.photo; // the card's public avatar, under the name API callers expect
+    card.contactIndex = entry.idx;
+    card.matchedBy = by;
+    card.iFollow = myFollowing.has(u.id);
+    card.added = card.iFollow; // the Find-friends row idiom: a followed member renders as ✓ Added
+    if (entry.name) card.contactName = entry.name;
+    people.push(card);
+  };
+  if (byPhone.size || byEmail.size) {
+    for (const u of ctx.db.users) {
+      if (!u || u.id === meId) continue;
+      if (u.phone) { const e = byPhone.get(normPhoneKey(u.phone)); if (e) addMatch(u, e, "phone"); }
+      if (u.email) { const e = byEmail.get(normEmailKey(u.email)); if (e) addMatch(u, e, "email"); }
+    }
+  }
+  // [RP-V7.146 parity] a picked contact whose number/email matches
+  // nobody can still surface a member with the exact same full
+  // name, honestly labeled as a maybe (full names only, cap 10).
+  let fbCount = 0;
+  for (const e of entries) {
+    if (fbCount >= 10) break;
+    if (!e.name || matchedIdx.has(e.idx)) continue;
+    const nm = e.name.toLowerCase().replace(/\s+/g, " ");
+    if (nm.split(" ").length < 2) continue;
+    for (const u of ctx.db.users) {
+      if (String(u.name || "").trim().toLowerCase().replace(/\s+/g, " ") !== nm) continue;
+      const before = people.length;
+      addMatch(u, e, "name");
+      if (people.length > before) { people[people.length - 1].why = "Same name as your contact " + e.name; fbCount++; }
+    }
+  }
+  res.json({ ok: true, people: people.slice(0, 60) });
+});
+
 // [RP-V7.144] YOU MAY KNOW — Plaza-graph suggestions: people who
 // follow me that I don't follow back first, then friends-of-friends
 // by mutual count. Also returns my own linked handles so the Find
