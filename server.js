@@ -23065,6 +23065,33 @@ function battle336Emit(b, ev) {
 function battleEmit336(b, ev) {
   if (b.format === "1v1") battle306Emit(b, ev); else battle336Emit(b, ev);
 }
+// [RP-V7.539] BATTLE STATE SNAPSHOT for one socket: the battle306/336
+// emits are event-driven only, so a viewer who joins a room mid-battle
+// (or a client whose battle layer binds late) never sees the state and
+// gets the split tile with no HUD. This sends that socket the CURRENT
+// state of the live battle touching its room — the same room-tailored
+// payload the room copies carry (a host socket gets its own side's
+// copy, with stock). Freshness is enforced here AND on the client's
+// adoption: ended records are gone or flagged, and an endsAt already
+// in the past is never sent, so a snapshot can never resurrect a
+// finished battle. Idempotent — it only reads state.
+function battle539SnapshotFor(socket) {
+  const p = players.get(socket.id);
+  if (!p || !p.room) return;
+  const now = Date.now();
+  for (const b of battles306.values()) {
+    if (b.ended || !b.endsAt || b.endsAt <= now) continue;
+    let side = null, hostAcct = null;
+    for (const pt of b.parts) if (pt.sock === socket.id) { side = pt.side; hostAcct = pt.acct || null; }
+    if (!side) for (const pt of b.parts) if (pt.room === p.room) { side = pt.side; break; }
+    if (!side) continue;
+    try {
+      if (b.format === "1v1") socket.emit("battle306", battle306Payload(b, side, hostAcct, { kind: "snapshot539" }));
+      else socket.emit("battle336", battle336Payload(b, side, hostAcct, { kind: "snapshot539" }));
+    } catch (e) { }
+    return;
+  }
+}
 function battle306Award(acctId, why) {
   if (!acctId) return null;
   const item = boosterRandomItem306();
@@ -35853,6 +35880,7 @@ io.on("connection", (socket) => {
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
     battle519TryResume(socket, player, devKey); // [RP-V7.519] a battling host back inside grace rebinds to their battle here
     liveGoal519Join(socket, room); // [RP-V7.519] the room's current goal state, if one is set
+    battle539SnapshotFor(socket); // [RP-V7.539] a live battle in this room, if one is running
     spark519JoinEarn(socket, player); // [RP-V7.519] +1 Plaza Spark for joining a live (once per ET day)
   });
 
@@ -36051,6 +36079,7 @@ io.on("connection", (socket) => {
     recordLiveView274(socket, room); // [RP-V7.274] remember the view if this is a public live
     battle519TryResume(socket, p, swKey); // [RP-V7.519] the switch door resumes a grace battle too
     liveGoal519Join(socket, room); // [RP-V7.519] the room's current goal state, if one is set
+    battle539SnapshotFor(socket); // [RP-V7.539] a live battle in this room, if one is running
     spark519JoinEarn(socket, p); // [RP-V7.519] +1 Plaza Spark for entering a live (once per ET day)
   });
 
@@ -36441,6 +36470,7 @@ io.on("connection", (socket) => {
     if (!p) return;
     const t = String(data.t || "");
     if (t === "reg") { p.live = data.on ? { name: p.name, at: Date.now() } : null; return; }
+    if (t === "snap539") { battle539SnapshotFor(socket); return; } // [RP-V7.539] a battle layer (re)binding on this socket asks for its room's snapshot
     if ((t === "invite" || t === "accept" || t === "tcreate" || t === "tinvite" || t === "taccept" || t === "tstart") && ticketCfgForRoom299(p.room)) return; // [RP-V7.299] no battles on ticketed lives
     if (t === "who") {
       const list = [];
