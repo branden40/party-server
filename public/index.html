@@ -32750,6 +32750,7 @@
       function openReelComposer() {
         // [RP-V7.211] teen gate removed — teens post reels through the normal composer
         if (!Reels.pendingSound && Reels.pendingCamSound501) { Reels.pendingSound = Reels.pendingCamSound501; Reels.pendingCamSound501 = null; } // [RP-V7.501] adopt the camera-upload sound stash (consumed on first composer open after the pick)
+        if (Reels.pendingCamTpl550) { var ct550 = Reels.pendingCamTpl550; Reels.pendingCamTpl550 = null; Reels.ed549.look = ct550.look || "none"; if (ct550.tplId) { Reels.ed549.tplId = ct550.tplId; Reels.ed549.titleStyle = ct550.titleStyle || "bold"; } } // [RP-V7.550] adopt the camera-template stash the same way — an armed camera template's look + title style land in the editor meta for a camera upload pick
         reelDuetCleanup();
         var has = !!Reels.pendingBlob;
         var stage = Reels.stage || "pick";
@@ -32999,6 +33000,8 @@
         { id: "tpl-moonrise", name: "Moonrise", trackId: "popvocal28", look: "noir", titleStyle: "card" }
       ];
       var RP_STICKERS549 = ["🔥", "⭐", "❤️", "🎉", "👑", "🎵", "⚡", "💯", "🎁", "🙌", "😂", "🎤"]; // the V7.490 live sticker pack — the server whitelists the same glyphs
+      window.rpLooks549 = RP_LOOKS549; // [RP-V7.550] the camera's Enhance tray + live preview read the same look map (one source: preview CSS here, server bake by id)
+      window.rpTemplates549 = RP_TEMPLATES549; // [RP-V7.550] the camera's Templates sheet arms the same built-ins the Editor offers
       var ed549State = { panel: "edit", memberTpls: null, returnStage: "preview" };
       function ed549Css() {
         if (document.getElementById("rp549Css")) return;
@@ -33649,7 +33652,7 @@
       if (reelInput) reelInput.addEventListener("change", function () {
         var f = reelInput.files && reelInput.files[0];
         reelInput.value = "";
-        if (window.rpCamUpPick157) { window.rpCamUpPick157 = false; var at501 = window.rpSndAttached501 && window.rpSndAttached501(); if (at501 && !Reels.pendingSound) Reels.pendingCamSound501 = { trackId: at501.trackId, start: at501.start || 0, musicVol: at501.musicVol, origVol: at501.origVol }; /* [RP-V7.501] a sound attached on the camera rides the upload pick into the reel — before, only the recorded path (editorCommit) ever set Reels.pendingSound, so picked videos posted silent. It rides as a stash, not pendingSound itself: reelAcceptVideoFile's reelClearPending() wipes pendingSound, and openReelComposer adopts the stash on its next open (the accept path always opens it). */ try { if (window.rpCloseCamera) window.rpCloseCamera(); } catch (e) { } } // [RP-V7.191] was a bare Cam reference — Cam is local to the camera module, so this threw and killed every file pick since V7.157
+        if (window.rpCamUpPick157) { window.rpCamUpPick157 = false; var at501 = window.rpSndAttached501 && window.rpSndAttached501(); if (at501 && !Reels.pendingSound) Reels.pendingCamSound501 = { trackId: at501.trackId, start: at501.start || 0, musicVol: at501.musicVol, origVol: at501.origVol }; var ct550b = window.rpCamTpl550 ? window.rpCamTpl550() : null; if (ct550b) Reels.pendingCamTpl550 = ct550b; /* [RP-V7.550] an armed camera template rides the upload pick beside the sound (same stash pattern — reelClearPending can't wipe it, openReelComposer adopts it) */ /* [RP-V7.501] a sound attached on the camera rides the upload pick into the reel — before, only the recorded path (editorCommit) ever set Reels.pendingSound, so picked videos posted silent. It rides as a stash, not pendingSound itself: reelAcceptVideoFile's reelClearPending() wipes pendingSound, and openReelComposer adopts the stash on its next open (the accept path always opens it). */ try { if (window.rpCloseCamera) window.rpCloseCamera(); } catch (e) { } } // [RP-V7.191] was a bare Cam reference — Cam is local to the camera module, so this threw and killed every file pick since V7.157
         reelAcceptVideoFile(f);
       });
 
@@ -41689,6 +41692,8 @@ function stageStreakBump(key, add) {
     cam_flash: "Flash",
     cam_flip: "Flip",
     cam_lenses: "Lenses",
+    cam_effects550: "Effects",
+    cam_enhance550: "Enhance",
     cam_mode_photo: "PHOTO",
     cam_mode_text: "TEXT",
     cam_mode_video: "VIDEO",
@@ -41788,6 +41793,12 @@ function stageStreakBump(key, add) {
     snd_use: "✓ Use this sound",
     snd_video: "video",
     snd_videos: "videos",
+    snd_tab_discover550: "Discover",
+    snd_tab_library550: "Your Library",
+    snd_tab_orig550: "Original audio",
+    snd_own550: "🎤 Your sounds",
+    snd_orig_empty550: "No original sounds yet — sounds from members' videos land here.",
+    snd_lib_empty550: "Nothing here yet — star a track, use a sound, or post a video and it shows up.",
     sndgenre_afrobeat: "Afrobeat",
     sndgenre_ambient: "Ambient / Chillout",
     sndgenre_blues: "Blues",
@@ -44188,6 +44199,10 @@ function stageStreakBump(key, add) {
     ed_tpl_member549: "From members",
     ed_tpl_builtin549: "Plaza templates",
     ed_tpl_none549: "None",
+    cam_tpl_sub550: "Pick one and it sets the sound + look for your next video — before you record.",
+    cam_tpl_armed550: "🎞️ Template set: {name}",
+    cam_tpl_off550: "No template",
+    cam_look_note550: "A color look for your video — it previews on the camera and is baked in when the video posts.",
     ed_cover549: "Edit cover",
     ed_cover_hint549: "Slide to the frame you want — it becomes your cover.",
     ed_voice_hint549: "Changes your video's own audio when it posts — no preview here.",
@@ -88122,7 +88137,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     .cam-rbtn span { font-size: 9.5px; font-weight: 700; letter-spacing: .02em; }
     .cam-rbtn.on { background: rgba(254,44,44,.9); }
     #camTimerPop {
-      position: absolute; z-index: 4; right: 72px; top: 150px;
+      position: absolute; z-index: 4; right: 72px; top: 330px; /* [RP-V7.550] was top:150px when Timer was the rail's 2nd button; the V7.550 rail (Templates/Effects/Enhance/Flip/Timer/Flash) puts Timer 5th — the pop follows it */
       display: flex; gap: 6px; padding: 6px; border-radius: 999px;
       background: rgba(10,10,16,.78); border: 1px solid rgba(255,255,255,.18);
     }
@@ -88180,6 +88195,33 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       position: absolute; left: 50%; transform: translateX(-50%); bottom: 108px;
       color: #fff; font-weight: 800; font-size: 15px; text-shadow: 0 1px 8px rgba(0,0,0,.8); display: none;
     }
+    /* [RP-V7.550] CAMERA-SCREEN TikTok parity: the shutter row carries
+       TikTok's Templates seat (left of the record button; the row is
+       inset 76px each side so the absolute Upload button keeps its
+       bottom-left lane), the armed-template chip under the top bar,
+       the camera Templates + Enhance sheets, and the Add Sound tabs.
+       Black surfaces, true-red active states, glow only on .on. */
+    .cam-shutter-row550 { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 76px; }
+    .cam-shutter-sp550 { flex: 0 1 54px; }
+    #camTplBtn550 { flex: 0 0 auto; width: 54px; padding: 0; background: none; border: 0; cursor: pointer; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    #camTplBtn550 .cam-tpl-ic550 { width: 46px; height: 46px; border-radius: 12px; background: rgba(30,30,38,.85); border: 2px solid rgba(255,255,255,.75); display: flex; align-items: center; justify-content: center; font-size: 21px; box-sizing: border-box; }
+    #camTplBtn550 .cam-tpl-lb550 { font-size: 11px; font-weight: 800; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+    #camTplBtn550.on .cam-tpl-ic550 { border-color: #fe2c2c; box-shadow: 0 0 12px rgba(254,44,44,.55); }
+    #camTplChip550 { position: absolute; z-index: 3; top: calc(64px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); max-width: 78vw; border: 1px solid rgba(254,44,44,.75); background: rgba(10,10,16,.78); color: #fff; border-radius: 999px; padding: 7px 13px; font-size: 12.5px; font-weight: 800; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #camTplChip550[hidden] { display: none; }
+    #camScreen.cam-texting278 #camTplBtn550, #camScreen.cam-texting278 #camTplChip550 { display: none !important; }
+    .cam-tpls550 { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+    .cam-tpl550 { background: rgba(255,255,255,.08); border: 2px solid transparent; border-radius: 14px; padding: 10px 8px; color: #fff; text-align: left; cursor: pointer; }
+    .cam-tpl550.on { border-color: #fe2c2c; box-shadow: 0 0 12px rgba(254,44,44,.5); }
+    .cam-tpl550 b { display: block; font-size: 13px; }
+    .cam-tpl550 span { display: block; font-size: 11px; color: rgba(255,255,255,.72); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cam-tpl550 .sw { display: block; height: 8px; border-radius: 99px; margin-top: 7px; background: rgba(255,255,255,.25); }
+    .cam-looks550 { display: flex; flex-wrap: wrap; gap: 7px; }
+    .cam-look550 { background: rgba(255,255,255,.1); border: 1.5px solid transparent; color: #fff; border-radius: 999px; padding: 8px 13px; font-weight: 800; font-size: 13px; cursor: pointer; }
+    .cam-look550.on { border-color: #fe2c2c; box-shadow: 0 0 10px rgba(254,44,44,.5); }
+    #sndTabs550 { display: flex; gap: 6px; margin: 2px 0 4px; }
+    .snd-tab550 { flex: 1 1 0; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06); color: rgba(255,255,255,.75); border-radius: 999px; padding: 8px 4px; font-size: 12.5px; font-weight: 800; cursor: pointer; }
+    .snd-tab550.on { background: #fe2c2c; border-color: transparent; color: #fff; box-shadow: 0 0 12px rgba(254,44,44,.45); }
     /* [RP-V7.278] TEXT mode — the full-screen text editor (TikTok's
        text editor from Branden's recording, Plaza-built): canvas,
        font chips, color row, background row, alignment, the A box
@@ -88396,11 +88438,14 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       <button type="button" id="camSoundPill"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 18.3V6.2l10-2v11.3"/><circle cx="6.8" cy="18.3" r="2.7"/><circle cx="16.8" cy="15.5" r="2.7"/></svg> Add sound</button>
       <span class="cam-topsp"></span>
     </div>
+    <button type="button" id="camTplChip550" hidden></button> <!-- [RP-V7.550] the armed camera template: names it, tap clears it -->
     <div class="cam-rail">
+      <button type="button" class="cam-rbtn" id="camTplRailBtn550">🎞️<span data-i18n="ed_templates549">Templates</span></button> <!-- [RP-V7.550] TikTok's camera rail order: Templates, Effects, Enhance, Flip, Timer, Flash. No Settings gear — the Plaza camera has no settings surface, and dead UI doesn't ship. -->
+      <button type="button" class="cam-rbtn" id="camLensSheetBtn">✨<span data-i18n="cam_effects550">Effects</span></button> <!-- [RP-V7.550] Effects IS the lenses system (the "All lenses" sheet + the bottom circles are one LIVE_FILTERS rack) — the old "Lenses" rail button is replaced by this, same element, same sheet, new TikTok name. -->
+      <button type="button" class="cam-rbtn" id="camEnhBtn550">🪄<span data-i18n="cam_enhance550">Enhance</span></button> <!-- [RP-V7.550] Enhance = the V7.549 color looks tray (distinct from face Effects) -->
       <button type="button" class="cam-rbtn" id="camFlip">🔄<span data-i18n="cam_flip">Flip</span></button>
       <button type="button" class="cam-rbtn" id="camTimerBtn">⏱️<span id="camTimerLbl">Timer</span></button>
       <button type="button" class="cam-rbtn" id="camFlashBtn">⚡<span data-i18n="cam_flash">Flash</span></button>
-      <button type="button" class="cam-rbtn" id="camLensSheetBtn">✨<span data-i18n="cam_lenses">Lenses</span></button>
     </div>
     <div id="camTimerPop" hidden>
       <button type="button" data-timer="0" class="on" data-i18n="cam_off">Off</button>
@@ -88422,7 +88467,11 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         <button type="button" id="camModeText" data-i18n="cam_mode_text">TEXT</button> <!-- [RP-V7.278] TEXT is a mode in the create row, beside VIDEO/PHOTO (TikTok's create screen, per Branden's recording) -->
       </div>
       <div id="camLensRail" role="listbox" data-i18n-al="cam_face_lenses_al" aria-label="Face lenses"></div>
-      <button type="button" id="camShutter" data-i18n-al="cam_shutter_al" aria-label="Record or capture"></button>
+      <div class="cam-shutter-row550">
+        <button type="button" id="camTplBtn550" data-i18n-al="ed_templates549" aria-label="Templates"><span class="cam-tpl-ic550">🎞️</span><span class="cam-tpl-lb550" data-i18n="ed_templates549">Templates</span></button> <!-- [RP-V7.550] TikTok's seat: beside the record button -->
+        <button type="button" id="camShutter" data-i18n-al="cam_shutter_al" aria-label="Record or capture"></button>
+        <span class="cam-shutter-sp550" aria-hidden="true"></span>
+      </div>
       <div id="camTimer"></div>
     </div>
     <button type="button" id="camUploadBtn" data-i18n-al="cam_upload_al" aria-label="Upload from your phone"><span class="cam-up-ic"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14.5" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m5 17.8 4.3-4.3 3 3 3.5-3.5 3.2 3.2"/></svg></span><span class="cam-up-lb" data-i18n="cam_upload">Upload</span></button>
@@ -88461,6 +88510,11 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       <h3><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 18.3V6.2l10-2v11.3"/><circle cx="6.8" cy="18.3" r="2.7"/><circle cx="16.8" cy="15.5" r="2.7"/></svg> <span data-i18n="cam_add_sound">Add sound</span></h3>
       <p class="rp-sub" data-i18n="snd_sub">Plaza licensed instrumentals (Pixabay) — full quality, never re-encoded. Tap a track to preview it; tap ✓ to attach it.</p>
       <input id="sndSearch" type="search" data-i18n-ph="snd_search_ph" placeholder="Search sounds…" autocomplete="off"/>
+      <div id="sndTabs550" role="tablist" aria-label="Sound library"> <!-- [RP-V7.550] TikTok's Add Sound tabs: Discover / Your Library / Original audio — presentation only; the preview + attach plumbing below is unchanged, and Search still searches everything. -->
+        <button type="button" class="snd-tab550 on" data-sndtab550="discover" role="tab"><span data-i18n="snd_tab_discover550">Discover</span></button>
+        <button type="button" class="snd-tab550" data-sndtab550="library" role="tab"><span data-i18n="snd_tab_library550">Your Library</span></button>
+        <button type="button" class="snd-tab550" data-sndtab550="orig" role="tab"><span data-i18n="snd_tab_orig550">Original audio</span></button>
+      </div>
       <div id="sndList"></div>
       <div id="sndTrimBox" hidden>
         <label><span><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6.5" cy="7" r="2.5"/><circle cx="6.5" cy="17" r="2.5"/><path d="M8.6 8.7 20 19M8.6 15.3 20 5"/></svg> <span data-i18n="snd_trim">Trim — where the sound starts</span></span><span id="sndTrimVal">0:00</span></label>
@@ -88510,6 +88564,30 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       <h3 data-i18n="lens_title">✨ All lenses</h3>
       <p class="rp-sub" data-i18n="lens_sub">The Plaza's fun face effects — the same rack as the live setup. Fun effects only.</p>
       <div id="camLensSheetBody"></div>
+    </div>
+  </div>
+
+  <!-- [RP-V7.550] Camera Templates sheet: the V7.549 templates, armed
+       BEFORE the shot — picking one sets the camera session's sound,
+       look and title style for the next capture/upload. -->
+  <div class="rp-ovl" id="camTplSheet550" aria-hidden="true">
+    <div class="rp-panel">
+      <button type="button" class="rp-x" id="camTplSheetClose550" data-i18n-al="ed_templates549" aria-label="Close templates"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <h3>🎞️ <span data-i18n="ed_templates549">Templates</span></h3>
+      <p class="rp-sub" data-i18n="cam_tpl_sub550">Pick one and it sets the sound + look for your next video — before you record.</p>
+      <div id="camTplSheetBody550"></div>
+    </div>
+  </div>
+
+  <!-- [RP-V7.550] Camera Enhance sheet: the V7.549 color looks,
+       previewed live on the camera feed and baked when the video
+       posts (the same RP_LOOKS549 map the Editor's Filters use). -->
+  <div class="rp-ovl" id="camLookSheet550" aria-hidden="true">
+    <div class="rp-panel">
+      <button type="button" class="rp-x" id="camLookSheetClose550" data-i18n-al="cam_enhance550" aria-label="Close enhance"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <h3>🪄 <span data-i18n="cam_enhance550">Enhance</span></h3>
+      <p class="rp-sub" data-i18n="cam_look_note550">A color look for your video — it previews on the camera and is baked in when the video posts.</p>
+      <div class="cam-looks550" id="camLookSheetBody550"></div>
     </div>
   </div>
 
@@ -88732,6 +88810,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     }
     function renderPicker() {
       var list = el("sndList"); if (!list) return;
+      var tab550 = Snd.tab550 || "discover"; // [RP-V7.550] the Add Sound tabs — Discover is the default seat, as before
+      document.querySelectorAll("#sndTabs550 .snd-tab550").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-sndtab550") === tab550); });
       var q = (el("sndSearch").value || "").trim().toLowerCase();
       var html = "";
       function sect(name, label, ids) {
@@ -88743,27 +88823,49 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         var ohits335 = Snd.origList.filter(function (o) { return o.name.toLowerCase().indexOf(q) >= 0 || (o.ownerName || "").toLowerCase().indexOf(q) >= 0; }); // [RP-V7.335]
         html = '<div class="snd-sect" data-sect="results"><div class="snd-sec">' + rpT("snd_results") + '</div>' + ((hits.length || ohits335.length) ? hits.map(function (t) { return sndRowHtml(t.id); }).join("") + ohits335.map(function (o) { return sndOrigRowHtml335(o.id); }).join("") : '<p class="rp-sub">' + rpT("snd_no_match") + '</p>') + "</div>";
       } else {
-        // [RP-V7.548] Suggested sounds first (caption + real usage —
-        // see sndSuggested548), then the standing sections.
-        html += sect("suggested", rpT("snd_suggested548"), sndSuggested548());
+        // [RP-V7.550] The standing sections, re-homed under TikTok's
+        // three Add Sound tabs. Every list below is computed exactly
+        // as before (V7.548 math untouched) — the tabs only decide
+        // which sections paint:
+        //   Discover      = Suggested + Trending + the genre shelf
+        //   Your Library  = Favorites + Recent + your own sounds
+        //   Original audio = the member-made sounds list
+        var sugIds550 = sndSuggested548(); // [RP-V7.548] caption keywords + real usage
         // Trending: computed Plaza-wide from real usage, recency-
         // weighted on the server. Nobody hand-picks it (owner's rule).
         // [RP-V7.548] the server sends catalog ids only — original
         // sounds are no longer Trending-eligible.
-        html += sect("trending", rpT("snd_trending"), (Snd.trending || []).filter(function (id) { return !!trackById(id) || !!Snd.orig[id]; }));
+        var trendIds550 = (Snd.trending || []).filter(function (id) { return !!trackById(id) || !!Snd.orig[id]; });
         var favIds = Object.keys(Snd.favs).filter(function (id) { return !!trackById(id); });
-        html += sect("favs", rpT("snd_favs") + (Snd.signedIn ? "" : rpT("snd_favs_device")), favIds);
         var recIds = (Snd.recents || []).filter(function (id) { return !!trackById(id) || !!Snd.orig[id]; });
-        html += sect("recent", rpT("snd_recent"), recIds);
         // [RP-V7.335] Member-made sounds, most-used first. Only usable
         // ones are offered — the server enforces the same gate at post.
         var origIds335 = Snd.origList.filter(function (o) { return o.usable; }).sort(function (a, b) { return (b.uses - a.uses) || ((Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0)); }).map(function (o) { return o.id; });
-        // [RP-V7.227] The shelf browses by genre: trackOrder() (the
-        // member's style weights + Plaza usage — unchanged math)
-        // grouped under the 25 genre headers.
-        var byGenre = {};
-        trackOrder().forEach(function (id) { var g = SND_GENRE[id] || "misc"; (byGenre[g] || (byGenre[g] = [])).push(id); });
-        SND_GENRE_ORDER.forEach(function (g) { html += sect("genre-" + g, "🎶 " + (SND_GENRE_NAME[g] ? rpT("sndgenre_" + g) : g), byGenre[g] || []); });
+        // [RP-V7.550] the member's OWN sounds (their posts' originals),
+        // out of the same payload — ownerId vs the session account id.
+        var myId550 = ""; try { myId550 = (typeof rpMyId243 === "function") ? String(rpMyId243() || "") : ""; } catch (e) { }
+        var ownIds550 = myId550 ? origIds335.filter(function (id) { var o = Snd.orig[id]; return o && String(o.ownerId) === myId550; }) : [];
+        if (tab550 === "library") {
+          html += sect("favs", rpT("snd_favs") + (Snd.signedIn ? "" : rpT("snd_favs_device")), favIds);
+          html += sect("recent", rpT("snd_recent"), recIds);
+          html += sect("own", rpT("snd_own550"), ownIds550);
+          if (!html) html = '<p class="rp-sub">' + rpT("snd_lib_empty550") + "</p>";
+        } else if (tab550 === "orig") {
+          // [RP-V7.550] this list was computed on every render since
+          // V7.335 but never painted in browse (only search + Recents
+          // surfaced originals) — the Original audio tab is its seat.
+          html += sect("orig", rpT("snd_tab_orig550"), origIds335);
+          if (!html) html = '<p class="rp-sub">' + rpT("snd_orig_empty550") + "</p>";
+        } else {
+          html += sect("suggested", rpT("snd_suggested548"), sugIds550);
+          html += sect("trending", rpT("snd_trending"), trendIds550);
+          // [RP-V7.227] The shelf browses by genre: trackOrder() (the
+          // member's style weights + Plaza usage — unchanged math)
+          // grouped under the 25 genre headers.
+          var byGenre = {};
+          trackOrder().forEach(function (id) { var g = SND_GENRE[id] || "misc"; (byGenre[g] || (byGenre[g] = [])).push(id); });
+          SND_GENRE_ORDER.forEach(function (g) { html += sect("genre-" + g, "🎶 " + (SND_GENRE_NAME[g] ? rpT("sndgenre_" + g) : g), byGenre[g] || []); });
+        }
       }
       list.innerHTML = html;
       var tb = el("sndTrimBox");
@@ -88892,6 +88994,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       el("camTimerBtn").classList.toggle("on", !!Cam.timer);
       el("camFlashBtn").classList.toggle("on", !!Cam.flash);
       el("camTimerPop").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", Number(b.getAttribute("data-timer")) === Cam.timer); });
+      camPaint550(); // [RP-V7.550] the armed-template + look states ride the same repaint
     }
     function setMode(m) {
       Cam.mode = m;
@@ -88918,7 +89021,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       if (Cam.recording) stopRecording();
       if (Snd.owner === "record" || Snd.owner === "pick") sndStop();
       try { AudioFX.releaseMusic("sndrec"); } catch (e) { }
-      closePicker(); closeEditor(); closeLensSheet();
+      closePicker(); closeEditor(); closeLensSheet(); closeCamTplSheet550(); closeCamLookSheet550(); // [RP-V7.550] the camera's two new sheets close with it
       Cam.open = false; Cam.busy = false; Cam.photoHook = null;
       var scr = el("camScreen");
       if (scr) { scr.classList.remove("open"); scr.setAttribute("aria-hidden", "true"); }
@@ -89209,6 +89312,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         Reels.pendingSound = { trackId: Snd.attached.trackId, start: Snd.attached.start || 0, musicVol: Snd.attached.musicVol, origVol: Snd.attached.origVol };
       } else Reels.pendingSound = null;
       closeEditor();
+      camTplToEditor550(); // [RP-V7.550] an armed camera template (or a lone Enhance look) lands in the editor meta — after reelClearPending's reset in finishRecord, before the Editor paints
       if (window.rpEdOpen549) window.rpEdOpen549(); else openReelComposer(); // [RP-V7.549] a camera recording passes through the editor too — one flow for every video
     }
 
@@ -89420,6 +89524,124 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       if (photo) { e.preventDefault(); e.stopPropagation(); togglePhotoSound(photo); return; }
     }, true);
 
+    /* ---------- [RP-V7.550] camera templates + enhance ----------
+       TikTok carries the setup ON the camera: a template picked here
+       is ARMED for the next capture/upload — its song becomes the
+       camera session's sound (Snd.attached, the same seat the picker
+       fills, so the pill, the record prime and both composers' adopt
+       paths treat it identically), its look previews live on the
+       feed as a CSS filter (the Editor's RP_LOOKS549 mapping; the
+       posted video is baked server-side, exactly as when the same
+       template is picked inside the Editor), and the arm rides into
+       Reels.ed549 at commit: directly in editorCommit() for a
+       recording, through the pendingCamTpl550 stash for an upload
+       pick (the pendingCamSound501 pattern). Enhance is the same
+       look, chosen on its own: the current camera look is a single
+       value (Cam.look550) whatever set it, and the commit always
+       carries the current value — what you see is what bakes. */
+    Cam.tpl550 = null;   // { id, name, trackId, look, titleStyle }
+    Cam.look550 = "none";
+    var camTplMember550 = null; // member templates cache (GET /api/templates549), null = not fetched yet
+    function camPaint550() {
+      var rb = el("camTplRailBtn550"); if (rb) rb.classList.toggle("on", !!Cam.tpl550);
+      var bb = el("camTplBtn550"); if (bb) bb.classList.toggle("on", !!Cam.tpl550);
+      var eb = el("camEnhBtn550"); if (eb) eb.classList.toggle("on", !!Cam.look550 && Cam.look550 !== "none");
+      var chip = el("camTplChip550");
+      if (chip) {
+        chip.hidden = !Cam.tpl550;
+        if (Cam.tpl550) { var tx = "🎞️ " + (Cam.tpl550.name || rpT("ed_templates549")) + " ✕"; if (chip.textContent !== tx) chip.textContent = tx; }
+      }
+    }
+    function camLookSet550(look) {
+      Cam.look550 = look || "none";
+      var v = el("camVideo");
+      if (v) v.style.filter = (window.rpLooks549 && window.rpLooks549[Cam.look550]) || "";
+      camPaint550();
+    }
+    function camTplArm550(t) {
+      if (!t) return;
+      Cam.tpl550 = { id: t.id, name: t.name || "", trackId: t.trackId || null, look: t.look || "none", titleStyle: t.titleStyle || "bold" };
+      if (t.trackId) { Snd.attached = { trackId: t.trackId, start: 0, musicVol: 0.8, origVol: 1 }; updatePill(); }
+      camLookSet550(Cam.tpl550.look);
+      camPaint550();
+      camToast(rpTf("cam_tpl_armed550", { name: Cam.tpl550.name || rpT("ed_templates549") }));
+    }
+    function camTplClear550() {
+      var t = Cam.tpl550;
+      if (t) {
+        if (Snd.attached && Snd.attached.trackId === t.trackId) { Snd.attached = null; updatePill(); } // only the template's own sound leaves with it — a sound the member picked afterwards stays
+        if (Cam.look550 === t.look) camLookSet550("none");
+        Cam.tpl550 = null;
+      }
+      camPaint550();
+    }
+    function camTplSnapshot550() { // what an upload pick stashes / a recording applies: null when nothing is armed and no look is set (today's behaviour, untouched)
+      if (!Cam.tpl550 && (!Cam.look550 || Cam.look550 === "none")) return null;
+      return { tplId: Cam.tpl550 ? Cam.tpl550.id : null, titleStyle: Cam.tpl550 ? (Cam.tpl550.titleStyle || "bold") : "bold", look: Cam.look550 || "none" };
+    }
+    window.rpCamTpl550 = camTplSnapshot550;
+    function camTplToEditor550() { // the recording path: editorCommit() calls this just before the Editor opens
+      var s = camTplSnapshot550(); if (!s) return;
+      try {
+        Reels.ed549.look = s.look || "none";
+        if (s.tplId) { Reels.ed549.tplId = s.tplId; Reels.ed549.titleStyle = s.titleStyle || "bold"; }
+      } catch (e) { }
+    }
+    function camTplCard550(t, armedId, member) {
+      var looks = window.rpLooks549 || {};
+      return '<button type="button" class="cam-tpl550' + (armedId === t.id ? " on" : "") + '" data-' + (member ? "camtplm550" : "camtpl550") + '="' + escHtml(t.id) + '"><b>' + escHtml(t.name || "") + "</b><span>♪ " + escHtml((window.rpTrackName ? window.rpTrackName(t.trackId) : null) || t.trackId || "") + '</span><span class="sw" style="filter:' + (looks[t.look] || "none") + ';background:linear-gradient(90deg,#f7b733,#fe2c2c)"></span></button>';
+    }
+    function renderCamTplSheet550() {
+      var body = el("camTplSheetBody550"); if (!body) return;
+      var built = (window.rpTemplates549 || []).filter(function (t) { return !window.rpTrackName || !!window.rpTrackName(t.trackId); }); // a built-in whose track ever leaves the catalog drops out, same as the Editor
+      var armedId = Cam.tpl550 ? Cam.tpl550.id : null;
+      var h = '<div class="cam-tpls550">' +
+        '<button type="button" class="cam-tpl550' + (!Cam.tpl550 ? " on" : "") + '" data-camtpl550=""><b>🚫 ' + rpT("cam_tpl_off550") + "</b><span>" + rpT("ed_look_none549") + '</span><span class="sw"></span></button>' +
+        built.map(function (t) { return camTplCard550(t, armedId, false); }).join("") + "</div>" +
+        '<div class="snd-sec">' + rpT("ed_tpl_member549") + '</div><div class="cam-tpls550" id="camTplMember550"><p class="rp-sub">' + rpT("cmt_loading_members") + "</p></div>";
+      body.innerHTML = h;
+      body.querySelectorAll("[data-camtpl550]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var id = b.getAttribute("data-camtpl550");
+          closeCamTplSheet550();
+          if (!id) { camTplClear550(); return; }
+          var t = built.filter(function (x) { return x.id === id; })[0];
+          if (t) camTplArm550({ id: t.id, name: t.name, trackId: t.trackId, look: t.look || "none", titleStyle: t.titleStyle || "bold" });
+        });
+      });
+      var paintMember = function () {
+        var box = el("camTplMember550"); if (!box) return;
+        var rows = camTplMember550 || [];
+        if (!rows.length) { box.innerHTML = '<p class="rp-sub">' + rpT("ed_tpl_none549") + " — " + rpT("pd_tpl_share549") + "</p>"; return; }
+        box.innerHTML = rows.map(function (t) { return camTplCard550({ id: "m:" + t.id, name: t.author || "", trackId: t.trackId, look: t.look || "none" }, armedId, true); }).join("");
+        box.querySelectorAll("[data-camtplm550]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var mid = b.getAttribute("data-camtplm550");
+            var t = (camTplMember550 || []).filter(function (x) { return ("m:" + x.id) === mid; })[0];
+            closeCamTplSheet550();
+            if (t) camTplArm550({ id: "m:" + t.id, name: t.author || "", trackId: t.trackId, look: t.look || "none", titleStyle: t.titleStyle || "bold" });
+          });
+        });
+      };
+      if (camTplMember550) paintMember();
+      else {
+        var tk = sndToken();
+        fetch("/api/templates549", { headers: tk ? { "Authorization": "Bearer " + tk } : {} }).then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (j) { camTplMember550 = (j && j.ok && Array.isArray(j.templates)) ? j.templates : []; paintMember(); })
+          .catch(function () { camTplMember550 = []; paintMember(); });
+      }
+    }
+    function openCamTplSheet550() { renderCamTplSheet550(); var sh = el("camTplSheet550"); if (sh) { sh.classList.add("open"); sh.setAttribute("aria-hidden", "false"); } }
+    function closeCamTplSheet550() { var sh = el("camTplSheet550"); if (sh) { sh.classList.remove("open"); sh.setAttribute("aria-hidden", "true"); } }
+    function renderCamLookSheet550() {
+      var body = el("camLookSheetBody550"); if (!body) return;
+      var looks = window.rpLooks549 || {};
+      body.innerHTML = Object.keys(looks).map(function (lk) { return '<button type="button" class="cam-look550' + (Cam.look550 === lk ? " on" : "") + '" data-camlook550="' + lk + '">' + rpT("ed_look_" + lk + "549") + "</button>"; }).join("");
+      body.querySelectorAll("[data-camlook550]").forEach(function (b) { b.addEventListener("click", function () { camLookSet550(b.getAttribute("data-camlook550")); closeCamLookSheet550(); }); });
+    }
+    function openCamLookSheet550() { renderCamLookSheet550(); var sh = el("camLookSheet550"); if (sh) { sh.classList.add("open"); sh.setAttribute("aria-hidden", "false"); } }
+    function closeCamLookSheet550() { var sh = el("camLookSheet550"); if (sh) { sh.classList.remove("open"); sh.setAttribute("aria-hidden", "true"); } }
+
     /* ---------- init wiring ---------- */
     function init() {
       var plus = el("btnTabCreate");
@@ -89437,6 +89659,12 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       });
       el("camFlashBtn").addEventListener("click", function () { Cam.flash = !Cam.flash; paintRailBtns(); applyTorch(false); });
       el("camLensSheetBtn").addEventListener("click", openLensSheet);
+      el("camTplRailBtn550").addEventListener("click", openCamTplSheet550); // [RP-V7.550] rail Templates
+      el("camTplBtn550").addEventListener("click", openCamTplSheet550); // [RP-V7.550] bottom Templates (beside the shutter)
+      el("camTplSheetClose550").addEventListener("click", closeCamTplSheet550); // [RP-V7.550]
+      el("camEnhBtn550").addEventListener("click", openCamLookSheet550); // [RP-V7.550] Enhance
+      el("camLookSheetClose550").addEventListener("click", closeCamLookSheet550); // [RP-V7.550]
+      el("camTplChip550").addEventListener("click", function () { camTplClear550(); }); // [RP-V7.550] tap the armed chip to clear the template
       el("camLensSheetClose").addEventListener("click", closeLensSheet);
       el("camModeVideo").addEventListener("click", function () { setMode("video"); });
       el("camModePhoto").addEventListener("click", function () { setMode("photo"); });
@@ -89457,6 +89685,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       el("sndClose").addEventListener("click", closePicker);
       el("sndPageClose335").addEventListener("click", closeSoundPage335); // [RP-V7.335]
       el("sndSearch").addEventListener("input", renderPicker);
+      document.querySelectorAll("#sndTabs550 .snd-tab550").forEach(function (b) { b.addEventListener("click", function () { Snd.tab550 = b.getAttribute("data-sndtab550") || "discover"; renderPicker(); }); }); // [RP-V7.550] tab state is presentation only — preview/attach below is untouched
       el("sndList").addEventListener("click", function (e) {
         var fav = e.target.closest && e.target.closest(".snd-fav");
         if (fav) { e.stopPropagation(); sndToggleFav(fav.getAttribute("data-tid")); return; }
@@ -89540,7 +89769,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         lensCount: LIVE_FILTERS.length,
         videoSettings: (Cam.stream && Cam.stream.getVideoTracks()[0] && Cam.stream.getVideoTracks()[0].getSettings) ? Cam.stream.getVideoTracks()[0].getSettings() : null,
         recOpts: Cam.recOpts || null, lastRec: Cam.lastRec,
-        sound: Snd.attached
+        sound: Snd.attached,
+        tpl550: Cam.tpl550 ? Cam.tpl550.id : null, look550: Cam.look550 || "none" // [RP-V7.550] the armed camera template + current camera look
       };
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
