@@ -5595,7 +5595,7 @@ function rpPosterEnqueue482(entry) {
   if (!entry || !entry.file || entry.poster482 === 1) return;
   const id = entry.id, file = entry.file;
   if (rpPosterQ482.some((q) => q.id === id)) return;
-  rpPosterQ482.push({ id, file });
+  rpPosterQ482.push({ id, file, coverSec: typeof entry.coverSec === "number" ? entry.coverSec : null }); // [RP-V7.549] Edit cover rides the job
   rpPosterPump482();
 }
 
@@ -5645,7 +5645,7 @@ function rpFeedPosterPump484() {
     } catch (e) {}
     return done();
   }
-  rpPosterMint482(src, out, (ok, reason) => {
+  rpPosterMint482(src, out, null, (ok, reason) => {
     if (!ok) console.warn("[posters484] FAILED id=" + job.id + " file=" + job.file + " — " + (reason || "unknown")); // [RP-V7.486] per-item failure, named — see rpPosterMint482
     if (ok) {
       try {
@@ -5698,7 +5698,7 @@ function rpPosterPump482() {
     rpPosterStats482.have++;
     return done();
   }
-  rpPosterMint482(src, out, (ok, reason) => {
+  rpPosterMint482(src, out, job.coverSec, (ok, reason) => {
     if (!ok) console.warn("[posters482] FAILED id=" + job.id + " file=" + job.file + " — " + (reason || "unknown")); // [RP-V7.486] a failed poster names its reel and its reason — never an aggregate count alone again
     rpPosterFinish482(job, ok, done);
   });
@@ -5747,11 +5747,14 @@ function rpPosterExtractOnce486(src, tmp, ss, cb) {
     cb(null, size);
   });
 }
-function rpPosterMint482(src, out, cb) {
+function rpPosterMint482(src, out, firstSeek549, cb) {
   const tmp = out + ".tmp.jpg";
   const plain = out + ".plain.jpg";
   try { fs.unlinkSync(plain); } catch (e) {}
-  const seeks = [0.1, 0.5, 1.0, 2.0];
+  // [RP-V7.549] Edit cover: when the poster picked a frame, that second
+  // is tried FIRST (the ladder still runs behind it — a plain or
+  // unreadable picked frame falls back exactly as before).
+  const seeks = (typeof firstSeek549 === "number" && isFinite(firstSeek549) && firstSeek549 >= 0) ? [Math.round(firstSeek549 * 10) / 10, 0.1, 0.5, 1.0, 2.0] : [0.1, 0.5, 1.0, 2.0];
   let havePlain = false, lastErr = null, i = 0;
   const done = (ok, reason) => {
     try { fs.unlinkSync(tmp); } catch (e) {}
@@ -6265,6 +6268,11 @@ app.get("/api/reels", (req, res) => {
       trimEnd: typeof r.trimEnd === "number" ? r.trimEnd : null,
       allowRemix: r.allowRemix !== false,
       allowDownloads: r.allowDownloads !== false, // [RP-V7.316]
+      allowComments: r.allowComments !== false, // [RP-V7.549] the comments switch, readable by every comment surface
+      ...(r.aiLabel ? { aiLabel: true } : {}), // [RP-V7.549]
+      ...(r.titleText ? { titleText: r.titleText, titleStyle: r.titleStyle || "bold" } : {}), // [RP-V7.549] editor title card
+      ...(r.sticker && r.sticker.g ? { sticker: r.sticker } : {}), // [RP-V7.549] editor sticker
+      ...(r.look ? { look: r.look } : {}), // [RP-V7.549] the baked look's name (display only — the file already carries it)
       // [RP-V7.90] the reel's attached sound (reference + mix), if any.
       musicTrackId: r.musicTrackId || null,
       musicStart: typeof r.musicStart === "number" ? r.musicStart : null,
@@ -6788,6 +6796,11 @@ app.get("/api/tag/:tag", (req, res) => {
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
       myReposted: !!uid && ((Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === uid))), // [RP-V7.101] own reshare state
       commentCount: Array.isArray(r.comments) ? r.comments.length : 0,
+      allowComments: r.allowComments !== false, // [RP-V7.549]
+      ...(r.aiLabel ? { aiLabel: true } : {}), // [RP-V7.549]
+      ...(r.titleText ? { titleText: r.titleText, titleStyle: r.titleStyle || "bold" } : {}), // [RP-V7.549]
+      ...(r.sticker && r.sticker.g ? { sticker: r.sticker } : {}), // [RP-V7.549]
+      ...(r.look ? { look: r.look } : {}), // [RP-V7.549]
       };
     });
   const likesDb = readPhotoLikes();
@@ -7601,6 +7614,11 @@ app.get("/api/sounds/state", (req, res) => {
   let user = null;
   try { user = accountForToken(readAccounts(), req); } catch (e) { user = null; }
   const out = { ok: true, usage: d.usage || {} };
+  // [RP-V7.549] The composer's More options shows the sound-copyright
+  // auto-check as a status read from the REAL scanner state: the mode
+  // the server runs (COPYRIGHT_MODE) and whether the ACRCloud keys
+  // are live. Nothing here changes the scan — it only reports it.
+  out.cr549 = { mode: CR_MODE286(), active: !!CR_KEYS286() || CR_STUB286() };
   const tr = soundTrending(d);
   out.trending = tr.ids;
   out.trendScores = tr.scores;
@@ -7779,6 +7797,37 @@ app.get("/api/sounds/track/:id", (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// [RP-V7.549] MEMBER TEMPLATES ("Post as template"): a reel whose
+// author opted in at post time offers its combo — attached sound +
+// baked look + title style — in the editor's Templates sheet. Only
+// real, public (audience "everyone"), sound-carrying, opted-in reels
+// list; ranking is the BRAIN rule (real views first, then newest).
+// Nothing is fabricated: no template exists until a member shares one.
+// ---------------------------------------------------------------------------
+app.get("/api/templates549", (req, res) => {
+  try {
+    const vdb = readViews();
+    const adb = readAccounts();
+    const rows = listReels()
+      .filter((r) => r && r.tplShare && !r.subsOnly && !r.clubOnly && (r.audience || "everyone") === "everyone" && (r.musicTrackId || r.origSoundId))
+      .map((r) => ({
+        id: r.id,
+        author: origName335(adb, r.authorId, r.author),
+        trackId: r.musicTrackId || r.origSoundId,
+        look: r.look || null,
+        titleStyle: r.titleStyle || "bold",
+        views: mediaViewCount(vdb, "reel:" + r.id),
+        createdAt: r.createdAt || null,
+      }))
+      .sort((a, b) => (b.views - a.views) || ((Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0)))
+      .slice(0, 20);
+    res.json({ ok: true, templates: rows });
+  } catch (e) {
+    res.json({ ok: true, templates: [] });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // [RP-TRIM] Trim-to-fit (Branden, Nov 18, 2026): a picked video longer
 // than the 180s reel fit is no longer a dead end — the composer lets
 // the poster pick where the clip starts and sends cutStart with the
@@ -7801,6 +7850,49 @@ function rpTrimCutFileTrim(srcPath, startSec, lenSec, outPath) {
     const args = ["-y", "-v", "error", "-ss", String(startSec), "-i", srcPath, "-t", String(lenSec), "-threads", "2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", outPath];
     crExecFile286(crFfmpeg286, args, { timeout: 10 * 60 * 1000, maxBuffer: 8 * 1024 * 1024 }, (e) => {
       if (e) { console.log("[reels] [RP-TRIM] cut failed:", e.message); return resolve(false); }
+      try { resolve(fs.existsSync(outPath) && fs.statSync(outPath).size > 10240); } catch (e2) { resolve(false); }
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// [RP-V7.549] Editor LOOKS + VOICE effects (TikTok posting-setup
+// parity): the composer's editor offers a color look and a voice
+// effect for the video's own audio. Both bake in ONE ffmpeg pass over
+// the uploaded file — the SAME runner and resource bounds as the
+// trim cut above (threads 2, veryfast, crf 21, aac 160k, faststart) —
+// awaited before the record is built, so the stored file (and
+// everything downstream: duration probes, the original-sound mint,
+// the copyright scan, posters) is the treated file. No look and no
+// voice = the uploaded bytes are left untouched, exactly as before.
+// A pass that cannot be made is an honest error (the trim rule);
+// when only the voice half fails, the pass retries video-only and
+// the record keeps the look alone — the voice is never stamped on a
+// record it did not actually treat.
+// ---------------------------------------------------------------------------
+const RP_LOOKS549 = {
+  warm: "eq=saturation=1.25:gamma_r=1.05:gamma_b=0.95,colorbalance=rs=0.12:gs=0.03:bs=-0.12:rm=0.08:bm=-0.08",
+  cool: "eq=saturation=1.05,colorbalance=rs=-0.10:bs=0.14:rm=-0.06:bm=0.10",
+  bw: "hue=s=0",
+  vivid: "eq=saturation=1.55:contrast=1.08",
+  golden: "eq=saturation=1.30:gamma_r=1.06:gamma_b=0.92,colorbalance=rs=0.18:gs=0.06:bs=-0.18:rm=0.10:bm=-0.10",
+  noir: "hue=s=0,eq=contrast=1.25:brightness=-0.03",
+};
+const RP_VOICE549 = {
+  deep: "aresample=44100,asetrate=37485,atempo=1.1765,aresample=44100",
+  chipmunk: "aresample=44100,asetrate=55125,atempo=0.8,aresample=44100",
+  echo: "aecho=0.8:0.85:60:0.3",
+};
+function rpFxPass549(srcPath, outPath, vf, af) {
+  return new Promise((resolve) => {
+    const args = ["-y", "-v", "error", "-i", srcPath, "-threads", "2"];
+    if (vf) args.push("-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p");
+    else args.push("-c:v", "copy");
+    if (af) args.push("-af", af, "-c:a", "aac", "-b:a", "160k");
+    else args.push("-c:a", "copy");
+    args.push("-movflags", "+faststart", outPath);
+    crExecFile286(crFfmpeg286, args, { timeout: 10 * 60 * 1000, maxBuffer: 8 * 1024 * 1024 }, (e) => {
+      if (e) { console.log("[reels] [RP-V7.549] fx pass failed:", e.message); return resolve(false); }
       try { resolve(fs.existsSync(outPath) && fs.statSync(outPath).size > 10240); } catch (e2) { resolve(false); }
     });
   });
@@ -7865,6 +7957,42 @@ app.post("/api/reel", (req, res) => {
         console.log("[reels] [RP-TRIM] cut", durTrim.toFixed(1) + "s ->", lenTrim.toFixed(1) + "s @", startTrim.toFixed(1) + "s", finalNameTrim);
       }
     }
+    // [RP-V7.549] Editor look + voice bake — one ffmpeg pass over the
+    // (possibly just-cut) file, before the record is built. See
+    // rpFxPass549. look549/voice549 stay in scope for the entry below.
+    const rb549 = req.body || {};
+    const look549 = Object.prototype.hasOwnProperty.call(RP_LOOKS549, String(rb549.look || "")) ? String(rb549.look) : null;
+    let voice549 = Object.prototype.hasOwnProperty.call(RP_VOICE549, String(rb549.voiceFx || "")) ? String(rb549.voiceFx) : null;
+    if (look549 || voice549) {
+      const srcFx = req.file.path;
+      const tmpFx = srcFx + ".fx.mp4";
+      let okFx = await rpFxPass549(srcFx, tmpFx, look549 ? RP_LOOKS549[look549] : null, voice549 ? RP_VOICE549[voice549] : null);
+      if (!okFx && voice549) { // the voice half failed: retry video-only and let the record carry the look alone
+        voice549 = null;
+        try { fs.unlinkSync(tmpFx); } catch (e) { }
+        okFx = await rpFxPass549(srcFx, tmpFx, look549 ? RP_LOOKS549[look549] : null, null);
+      }
+      if (!okFx) {
+        try { fs.unlink(srcFx, () => {}); } catch (e) { }
+        try { fs.unlink(tmpFx, () => {}); } catch (e) { }
+        return res.status(400).json({ ok: false, error: "We couldn't apply that look — please try posting without it." });
+      }
+      const finalNameFx = path.basename(srcFx, path.extname(srcFx)) + ".mp4";
+      const finalPathFx = path.join(REELS_DIR, finalNameFx);
+      let movedFx = false;
+      try { fs.renameSync(tmpFx, finalPathFx); movedFx = true; } catch (e) { }
+      if (!movedFx) {
+        try { fs.unlink(srcFx, () => {}); } catch (e) { }
+        try { fs.unlink(tmpFx, () => {}); } catch (e) { }
+        return res.status(500).json({ ok: false, error: "We couldn't save that video — please try again." });
+      }
+      if (finalPathFx !== srcFx) { try { fs.unlinkSync(srcFx); } catch (e) { } }
+      req.file.path = finalPathFx;
+      req.file.filename = finalNameFx;
+      req.file.mimetype = "video/mp4";
+      try { req.file.size = fs.statSync(finalPathFx).size; } catch (e) { }
+      console.log("[reels] [RP-V7.549] fx baked:", finalNameFx, "look=" + (look549 || "none"), "voice=" + (voice549 || "none"));
+    }
     // Author: the signed-in account's name when a valid v7.0 token rides
     // along; otherwise the name the client sent (guest) — same trust level
     // as the photo upload / support endpoints.
@@ -7891,6 +8019,19 @@ app.post("/api/reel", (req, res) => {
     const loc156 = String(rb156.location || "").replace(/[<>&"']/g, "").trim().slice(0, 60);
     const link156 = /^https?:\/\//i.test(String(rb156.link || "").trim()) ? String(rb156.link || "").trim().slice(0, 300) : "";
     const aud156 = (rb156.audience === "followers" || rb156.audience === "onlyme") ? rb156.audience : "everyone";
+    // [RP-V7.549] TikTok posting-setup parity fields: comments switch,
+    // AI-content label, cover pick, editor title card + sticker,
+    // post-as-template opt-in. (Look/voice were parsed and baked
+    // above, beside the trim cut.) Sparse storage, like the rest:
+    // defaults (comments on, no label, no card) store nothing.
+    const allowComments549 = !(rb156.allowComments === "false" || rb156.allowComments === "0" || rb156.allowComments === false);
+    const aiLabel549 = rb156.aiLabel === "1" || rb156.aiLabel === "true" || rb156.aiLabel === true;
+    const coverSec549 = reelNum(rb156.coverSec, 0, 3600);
+    const titleText549 = String(rb156.titleText || "").replace(/[<>&"]/g, "").trim().slice(0, 60);
+    const titleStyle549 = ["bold", "outline", "card"].indexOf(rb156.titleStyle) >= 0 ? rb156.titleStyle : "bold";
+    const stickerGlyphs549 = ["🔥", "⭐", "❤️", "🎉", "👑", "🎵", "⚡", "💯", "🎁", "🙌", "😂", "🎤"]; // the V7.490 live sticker pack
+    const sticker549 = stickerGlyphs549.indexOf(rb156.stickerGlyph) >= 0 && ["tl", "tr", "bl", "br"].indexOf(rb156.stickerSlot) >= 0 ? { g: rb156.stickerGlyph, s: rb156.stickerSlot } : null;
+    const tplShare549 = rb156.tplShare === "1" || rb156.tplShare === "true" || rb156.tplShare === true;
     // RP-V7.9 Duet & Stitch: optional remix metadata. A duet/stitch entry
     // stores a REFERENCE to its source reel (never a copy) — the feed
     // plays both halves from their own files. stitchDur is hard-clamped
@@ -7984,6 +8125,14 @@ app.post("/api/reel", (req, res) => {
       ...(trimStart !== null ? { trimStart, trimEnd } : {}),
       allowRemix,
       allowDownloads, // [RP-V7.316]
+      ...(allowComments549 ? {} : { allowComments: false }), // [RP-V7.549] comments off — enforced in POST /api/reel/comment
+      ...(aiLabel549 ? { aiLabel: true } : {}), // [RP-V7.549] AI-generated content label
+      ...(coverSec549 !== null ? { coverSec: coverSec549 } : {}), // [RP-V7.549] Edit cover: the poster mint tries this frame first
+      ...(look549 ? { look: look549 } : {}), // [RP-V7.549] the baked color look
+      ...(voice549 ? { voiceFx: voice549 } : {}), // [RP-V7.549] the baked voice effect (nulled if its pass half failed)
+      ...(titleText549 ? { titleText: titleText549, titleStyle: titleStyle549 } : {}), // [RP-V7.549] editor title card (player-rendered)
+      ...(sticker549 ? { sticker: sticker549 } : {}), // [RP-V7.549] editor sticker (player-rendered)
+      ...(tplShare549 && authorUser ? { tplShare: true } : {}), // [RP-V7.549] post-as-template opt-in — account authors only
       ...(loc156 ? { location: loc156 } : {}),
       ...(link156 ? { link: link156 } : {}),
       ...(aud156 !== "everyone" && authorUser ? { audience: aud156 } : {}),
@@ -11442,6 +11591,9 @@ app.post("/api/reel/comment", photoUpload(async (req, res) => {
   // = posts top-level, never an error). One thread level: a reply to
   // a reply stores the top-level parent's cid.
   if (kind === "photo") {
+    // [RP-V7.549] a comments-off photo post refuses new comments here,
+    // server-side — the composer's switch is not just a display state.
+    try { const pp549 = readPhotoPosts().posts.find((x) => x && x.id === id); if (pp549 && pp549.allowComments === false) { unlinkPhotoFiles123(req); return res.status(403).json({ ok: false, error: "Comments are turned off for this post" }); } } catch (e) { }
     const db = readPhotoComments();
     const list = db.photos[id] || (db.photos[id] = []);
     const photoUrl498 = await commentPhotoUrl498(req, res); // [RP-V7.498]
@@ -11494,6 +11646,7 @@ app.post("/api/reel/comment", photoUpload(async (req, res) => {
   }
   const entry = listReels().find((r) => r.id === id);
   if (!entry) { unlinkPhotoFiles123(req); return res.status(404).json({ ok: false, error: "Reel not found" }); }
+  if (entry.allowComments === false) { unlinkPhotoFiles123(req); return res.status(403).json({ ok: false, error: "Comments are turned off for this reel" }); } // [RP-V7.549]
   if (!Array.isArray(entry.comments)) entry.comments = [];
   const photoUrl498 = await commentPhotoUrl498(req, res); // [RP-V7.498]
   if (photoUrl498 === "") return; // moderation already answered
@@ -11933,6 +12086,8 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     location: p.location || "",
     link: p.link || "",
     audience: p.audience || "everyone",
+    allowComments: p.allowComments !== false, // [RP-V7.549]
+    ...(p.aiLabel ? { aiLabel: true } : {}), // [RP-V7.549]
     createdAt: p.ts || null,
     mine: !!uid && uid === p.owner,
     likes: set.length,
@@ -12068,6 +12223,8 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       ...(loc156 ? { location: loc156 } : {}),
       ...(link156 ? { link: link156 } : {}),
       ...(aud156 !== "everyone" ? { audience: aud156 } : {}),
+      ...((b.allowComments === "false" || b.allowComments === "0" || b.allowComments === false) ? { allowComments: false } : {}), // [RP-V7.549] comments off — enforced in POST /api/reel/comment
+      ...((b.aiLabel === "1" || b.aiLabel === "true" || b.aiLabel === true) ? { aiLabel: true } : {}), // [RP-V7.549] AI-generated content label
       ...((b.subsOnly === "1" || b.subsOnly === "true" || b.subsOnly === true) ? { subsOnly: true } : {}), // [RP-V7.296] Subscribers-only toggle at creation
       ...((b.clubOnly === "1" || b.clubOnly === "true" || b.clubOnly === true) ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation
       clientKey: clientKey || null,
@@ -13223,6 +13380,11 @@ function mediaSearchReelItem(r, all, vdb, uid, adb, pg262, fanAccess296, clubAcc
     trimEnd: typeof r.trimEnd === "number" ? r.trimEnd : null,
     allowRemix: r.allowRemix !== false,
     allowDownloads: r.allowDownloads !== false, // [RP-V7.316]
+    allowComments: r.allowComments !== false, // [RP-V7.549]
+    ...(r.aiLabel ? { aiLabel: true } : {}), // [RP-V7.549]
+    ...(r.titleText ? { titleText: r.titleText, titleStyle: r.titleStyle || "bold" } : {}), // [RP-V7.549]
+    ...(r.sticker && r.sticker.g ? { sticker: r.sticker } : {}), // [RP-V7.549]
+    ...(r.look ? { look: r.look } : {}), // [RP-V7.549]
     views: mediaViewCount(vdb, "reel:" + r.id),
     // [RP-V7.241] Social state for the lightbox rail — counts are
     // public; the caller's own state rides only with a valid token
@@ -17051,6 +17213,11 @@ function profileTileForPost(kind, id, vdb, likesDb, commentsDb, repostsDb, uid) 
       ...collabPayload453(r, nameOf313t), // [RP-V7.453]
       heartLikes: hl241, giftCount: postGiftCountOf262(readMoney().postGifts || {}, "reel", r.id), // [RP-V7.262]
       myHeart: !!uid && Array.isArray(r.heartLikes) && r.heartLikes.includes(uid),
+      allowComments: r.allowComments !== false, // [RP-V7.549]
+      ...(r.aiLabel ? { aiLabel: true } : {}), // [RP-V7.549]
+      ...(r.titleText ? { titleText: r.titleText, titleStyle: r.titleStyle || "bold" } : {}), // [RP-V7.549]
+      ...(r.sticker && r.sticker.g ? { sticker: r.sticker } : {}), // [RP-V7.549]
+      ...(r.look ? { look: r.look } : {}), // [RP-V7.549]
       comments: reelPublicComments(r, nameOf313t, { viewerId: uid || null, authorId: adb313t ? reelAuthorKeyFor(adb313t, r) : (r.authorId || null), avatarOf: avatarResolver497(adb313t) }), commentCount: Array.isArray(r.comments) ? r.comments.length : 0, // [RP-V7.313] comment bylines resolve live too // [RP-V7.497]
       reposts: Array.isArray(r.reposts) ? r.reposts.length : 0,
       myReposted: !!uid && ((Array.isArray(r.reposts) && r.reposts.some((x) => x && x.u === uid)) || (Array.isArray(r.reshares) && r.reshares.some((x) => x && x.u === uid))) };
@@ -26324,6 +26491,11 @@ function saved349ResolveReel(r, c) {
     crMuted: r.crMuted || null,
     apprFlag: !!r.apprFlag505, // [RP-V7.505] boolean only, as on reels
     allowDownloads: r.allowDownloads !== false,
+    allowComments: r.allowComments !== false, // [RP-V7.549]
+    ...(r.aiLabel ? { aiLabel: true } : {}), // [RP-V7.549]
+    ...(r.titleText ? { titleText: r.titleText, titleStyle: r.titleStyle || "bold" } : {}), // [RP-V7.549]
+    ...(r.sticker && r.sticker.g ? { sticker: r.sticker } : {}), // [RP-V7.549]
+    ...(r.look ? { look: r.look } : {}), // [RP-V7.549]
   });
 }
 // Tile-shaped item for a saved PHOTO-POSTS-store post. The payload
