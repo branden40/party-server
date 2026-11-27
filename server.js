@@ -23630,6 +23630,8 @@ const MONEY_GIFT_TABLE = {
   lanternturtle: 15, discosnail: 88, tornadodancer: 370, crystaloctopus: 690, wingedlion: 1700,
   // [RP-V7.490] +2 gifts (Nov 23, 2026) — ids + prices mirror the client's GIFT_SHOP exactly; catalog now 124 gifts.
   shellsensei: 440, auraclash: 2200,
+  // [RP-V7.545] +1 gift (Branden, Nov 27, 2026) — id + price mirror the client's GIFT_SHOP exactly; catalog now 126 gifts.
+  mermaidkiss: 650,
   treasurechest: 1900, // [RP-V7.520] Treasure Chest $19 — free price in the premium band (nearest used: 1800 tidalwave / 2000 volcano); the 200-charm drop pool needs the headroom
   // [RP-V7.168] +1 gift (Branden, Oct 31, 2026): Titan Clash $50
   // — id + price mirror the client's GIFT_SHOP exactly (in the
@@ -23735,6 +23737,7 @@ const MONEY_GIFT_INFO = {
   wingedlion: { name: "Winged Lion", tier: "big" },
   shellsensei: { name: "Shell Sensei", tier: "medium" }, // [RP-V7.490] +2 gifts Nov 23, 2026
   auraclash: { name: "Aura Clash", tier: "big" },
+  mermaidkiss: { name: "Mermaid Kiss", tier: "medium" }, // [RP-V7.545] +1 gift Nov 27, 2026
   treasurechest: { name: "Treasure Chest", tier: "big" }, // [RP-V7.520]
   lion: { name: "Golden Lion", tier: "big" },
   plazaape: { name: "Plaza Ape", tier: "big" },
