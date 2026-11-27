@@ -28077,7 +28077,7 @@
       function momSrvPost(sp) {
         return {
           id: sp.id, srv: true, mine: !!sp.mine, name: sp.author || "Someone", locked: !!sp.locked, subsOnly: !!sp.subsOnly, clubOnly: !!sp.clubOnly, shoutoutFor: sp.shoutoutFor || null, authorId: sp.authorId || "", collabId: sp.collabId || null, collabName: sp.collabName || "", collabUsername: sp.collabUsername || "", collabStatus: sp.collabStatus || null, /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.300] */ /* [RP-V7.453] */
-          photo: sp.photo || "", photoThumb: sp.photoThumb || "", thumbUrls: (Array.isArray(sp.thumbUrls) ? sp.thumbUrls.slice() : []), /* [RP-V7.485] */ urls: (sp.urls && sp.urls.length ? sp.urls.slice() : (sp.photo ? [sp.photo] : [])), /* [RP-V7.123] */ caption: sp.caption || "", location: sp.location || "", link: sp.link || "", audience: sp.audience || "everyone", when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
+          photo: sp.photo || "", photoThumb: sp.photoThumb || "", thumbUrls: (Array.isArray(sp.thumbUrls) ? sp.thumbUrls.slice() : []), /* [RP-V7.485] */ urls: (sp.urls && sp.urls.length ? sp.urls.slice() : (sp.photo ? [sp.photo] : [])), /* [RP-V7.123] */ caption: sp.caption || "", location: sp.location || "", link: sp.link || "", audience: sp.audience || "everyone", allowComments: sp.allowComments !== false, aiLabel: !!sp.aiLabel, /* [RP-V7.549] */ when: momWhenLabel(sp.createdAt), createdAt: sp.createdAt || "",
           likeBase: 0, srvLikes: sp.likes || 0, liked: !!sp.myLiked, srvReposts: sp.reposts || 0, reposted: !!sp.myReposted, /* [RP-V7.89] */ gifts: 0, giftCount: sp.giftCount || 0, /* [RP-V7.262] gifts RECEIVED (units) — not the charms sum in gifts */
           comments: Array.isArray(sp.comments) ? sp.comments : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
@@ -28255,6 +28255,8 @@
           if (postMeta156.audience && postMeta156.audience !== "everyone") fd.append("audience", postMeta156.audience);
           if (postMeta156.subsOnly) fd.append("subsOnly", "1"); // [RP-V7.296]
           if (postMeta156.clubOnly) fd.append("clubOnly", "1"); // [RP-V7.298]
+          if (postMeta156.allowComments === false) fd.append("allowComments", "false"); // [RP-V7.549]
+          if (postMeta156.aiLabel) fd.append("aiLabel", "1"); // [RP-V7.549]
           if (postMeta156.shoutoutId) fd.append("shoutoutId", postMeta156.shoutoutId); // [RP-V7.300] an armed fulfill link rides creation; the server settles the escrow
           if (postMeta156.collabUser) fd.append("collabUser", postMeta156.collabUser); // [RP-V7.453] the optional collaborator invite rides creation
           if (snd) { fd.append(window.rpSndAttachField335 ? window.rpSndAttachField335(snd.trackId) : "musicTrackId", snd.trackId); /* [RP-V7.335] */ fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
@@ -28294,6 +28296,7 @@
         function onOk(j) {
           if (j && j.shoutout && window.rpShoutoutPosted300) window.rpShoutoutPosted300(j); // [RP-V7.300] settle result: clear the armed link + report (runs before the meta reset below so a settled link never re-arms)
           if (j && j.ok && j.post) {
+            rpLocPush549(postMeta156.location); // [RP-V7.549] the posted place joins the member's recent-places chips (before momAfterPublish156 resets the meta)
             Moments.posts.unshift(momSrvPost(j.post));
             Moments.pendingPhoto = null;
             Moments.pendingPhotos = []; /* [RP-V7.123] */
@@ -28315,7 +28318,7 @@
           fetch("/api/photo/post", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
-            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? (window.rpSndAttachField335 && window.rpSndAttachField335(snd.trackId) === "origSoundId" ? { origSoundId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) }) : {} /* [RP-V7.335] */, (postMeta156.location || postMeta156.link || postMeta156.subsOnly || postMeta156.clubOnly || postMeta156.shoutoutId || postMeta156.collabUser || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience, subsOnly: postMeta156.subsOnly ? true : undefined, clubOnly: postMeta156.clubOnly ? true : undefined, shoutoutId: postMeta156.shoutoutId || undefined, collabUser: postMeta156.collabUser || undefined } : {})) /* [RP-V7.296] subsOnly rides the same meta object */ /* [RP-V7.298] clubOnly too */ /* [RP-V7.300] shoutoutId too */ /* [RP-V7.453] collabUser too */
+            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? (window.rpSndAttachField335 && window.rpSndAttachField335(snd.trackId) === "origSoundId" ? { origSoundId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) }) : {} /* [RP-V7.335] */, (postMeta156.location || postMeta156.link || postMeta156.subsOnly || postMeta156.clubOnly || postMeta156.shoutoutId || postMeta156.collabUser || postMeta156.allowComments === false || postMeta156.aiLabel || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience, subsOnly: postMeta156.subsOnly ? true : undefined, clubOnly: postMeta156.clubOnly ? true : undefined, shoutoutId: postMeta156.shoutoutId || undefined, collabUser: postMeta156.collabUser || undefined, allowComments: postMeta156.allowComments === false ? false : undefined, aiLabel: postMeta156.aiLabel ? true : undefined } : {})) /* [RP-V7.296] subsOnly rides the same meta object */ /* [RP-V7.298] clubOnly too */ /* [RP-V7.300] shoutoutId too */ /* [RP-V7.453] collabUser too */ /* [RP-V7.549] allowComments + aiLabel ride it too */
           }).then(function (r) { return r.json().catch(function () { return null; }); })
             .then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
             .catch(function () { momPublishLocal(cap); });
@@ -28566,6 +28569,7 @@
         if (momToken()) {
           rpOpenComments497({
             linkMode: "photos",
+            commentsOff: p.allowComments === false, // [RP-V7.549]
             comments: p.comments,
             count: momCommentTotal(p),
             canInteract: true,
@@ -28630,7 +28634,7 @@
          location + link, and the audience is enforced server-side. Back
          rule (Branden): the X exit lives only on the FIRST page; every
          later page gets a back arrow. */
-      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, shoutoutId: "", shoutoutBuyer: "" };
+      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, shoutoutId: "", shoutoutBuyer: "", allowComments: true, aiLabel: false, tplShare: false }; // [RP-V7.549] allowComments/aiLabel/tplShare join the meta
       // [RP-V7.438] GAMING AUTO-ROUTE type-ahead: the SAME term list as the server's RP_GAMING_TERMS (server.js) — keep the two in sync; the server is authoritative (it re-checks every caption at creation and backfills existing reels), this copy only auto-checks the composer's Gaming toggle while the member types. Word-boundary aware, plus a hashtag pass (a hashtag token starting with a single-word term counts, e.g. #gta6). Bare "game"/"cod" are NOT terms on purpose ("game night" must not flag).
       var rpGamingTerms438 = ["gaming", "gameplay", "game clips", "game clip", "videogame", "video game", "gamer", "gta", "grand theft auto", "fortnite", "minecraft", "roblox", "warzone", "call of duty", "madden", "nba 2k", "fifa", "ea fc", "apex legends", "valorant", "league of legends", "overwatch", "rocket league", "elden ring", "zelda", "mario", "pokemon", "xbox", "ps5", "ps4", "playstation", "nintendo", "esports", "twitch", "gamingclips"];
       var rpGamingTagWords438 = ["gaming", "gameplay", "videogame", "gamer", "gta", "fortnite", "minecraft", "roblox", "warzone", "madden", "fifa", "valorant", "overwatch", "zelda", "mario", "pokemon", "xbox", "ps5", "ps4", "playstation", "nintendo", "esports", "twitch", "gamingclips"];
@@ -28638,13 +28642,22 @@
       function rpCaptionIsGaming438(text) { var t = String(text || ""); if (rpGamingRe438.test(t)) return true; var tags = t.match(/#[a-z0-9]+/gi) || []; for (var i438 = 0; i438 < tags.length; i438++) { var tok438 = tags[i438].slice(1).toLowerCase(); for (var j438 = 0; j438 < rpGamingTagWords438.length; j438++) { if (tok438 === rpGamingTagWords438[j438] || tok438.indexOf(rpGamingTagWords438[j438]) === 0) return true; } } return false; }
  // [RP-GAMING] gaming: the Gaming page toggle (rides reel creation as category "gaming") // [RP-V7.296] subsOnly: the Fan Subscriptions composer toggle // [RP-V7.298] clubOnly: the Fan Clubs composer toggle // [RP-V7.300] shoutoutId: an armed shoutout fulfill link (set from the Earn inbox; rides creation, settles the escrow server-side) // [RP-V7.316] downloads: the TikTok-style downloads switch, starting from the account default
       function postDlDefault156() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return !(a && a.settings && a.settings.dlDefault === false); } catch (e) { return true; } } // [RP-V7.316] the account default (Profile settings) pre-sets the composer toggle; absent = ON, TikTok's default
-      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, collabUser: "", shoutoutId: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().id || "") : ""), shoutoutBuyer: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().buyerName || "") : "") }; } // [RP-V7.298] // [RP-V7.300] a reset re-arms from the pending fulfill link, so opening any composer keeps the link until a post settles it or the creator unlinks it // [RP-V7.316] downloads re-arms from the account default
+      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, allowComments: true, aiLabel: false, tplShare: false, collabUser: "", shoutoutId: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().id || "") : ""), shoutoutBuyer: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().buyerName || "") : "") }; } // [RP-V7.298] // [RP-V7.300] a reset re-arms from the pending fulfill link, so opening any composer keeps the link until a post settles it or the creator unlinks it // [RP-V7.316] downloads re-arms from the account default // [RP-V7.549] the 549 switches reset with the rest
+      /* [RP-V7.549] Location suggestion chips: the member's OWN recent
+         places (this device, written when a post goes out with a
+         location) — real personal history, never a fabricated list. */
+      function rpLocs549() { try { return JSON.parse(localStorage.getItem("rpLocs549.v1") || "[]"); } catch (e) { return []; } }
+      function rpLocPush549(loc) { var v = String(loc || "").trim(); if (!v) return; try { var l = rpLocs549().filter(function (x) { return x !== v; }); l.unshift(v); localStorage.setItem("rpLocs549.v1", JSON.stringify(l.slice(0, 5))); } catch (e) { } }
       function postToken156() { try { var r = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (r && r.token) || ""; } catch (e) { return ""; } }
       function postAudText156() { return postMeta156.audience === "followers" ? rpT("pd_aud_followers_view") : postMeta156.audience === "onlyme" ? rpT("pd_aud_onlyme_view") : rpT("pd_aud_everyone_view"); }
       function postDetailsSync156(k) {
         var li = $(k + "LocInput"); if (li) postMeta156.location = (li.value || "").trim().slice(0, 60);
         var ki = $(k + "LinkInput"); if (ki) { var u = (ki.value || "").trim(); if (u && !/^https?:\/\//i.test(u)) u = "https://" + u; postMeta156.link = u.slice(0, 300); }
         var ci453 = $(k + "CollabInput"); if (ci453) postMeta156.collabUser = String(ci453.value || "").trim().replace(/^@+/, "").slice(0, 40); // [RP-V7.453] the optional collaborator invite, read with the rest of Post details
+      }
+      function crTxt549() { // [RP-V7.549] the copyright status line, from the REAL scanner state cached off /api/sounds/state
+        var c = window.__rpCr549; if (!c || !c.active) return rpT("pd_cr_default549");
+        return c.mode === "mute" ? rpT("pd_cr_on_mute549") : c.mode === "block" ? rpT("pd_cr_on_block549") : rpT("pd_cr_on_flag549");
       }
       function postDetailsHtml156(k, opts) {
         opts = opts || {};
@@ -28654,6 +28667,7 @@
           '<div class="pd-rows">' +
           '<button type="button" class="pd-row" id="' + k + 'LocRow"><span class="pd-ic"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 21s-6.5-5.3-6.5-10.3a6.5 6.5 0 0 1 13 0C18.5 15.7 12 21 12 21z\"/><circle cx=\"12\" cy=\"10.4\" r=\"2.3\"/></svg></span><span class="pd-lb">' + rpT("pd_location") + '</span><span class="pd-val" id="' + k + 'LocVal">' + (postMeta156.location ? escHtml(postMeta156.location) : rpT("pd_add")) + '</span><span class="pd-chv">›</span></button>' +
           '<div class="pd-sub" id="' + k + 'LocBox" hidden><input class="online-input-full" id="' + k + 'LocInput" type="text" maxlength="60" placeholder="' + rpT("pd_place_ph") + '" autocomplete="off" value="' + escHtml(postMeta156.location) + '" /></div>' +
+          '<div class="pd-sub pd-locchips549" id="' + k + 'LocChips549" hidden></div>' + /* [RP-V7.549] the member's own recent places — filled by the wire step, never a fabricated list */
           '<button type="button" class="pd-row" id="' + k + 'LinkRow"><span class="pd-ic"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg></span><span class="pd-lb">' + rpT("pd_add_link") + '</span><span class="pd-val" id="' + k + 'LinkVal">' + (postMeta156.link ? rpT("pd_added") : rpT("pd_add")) + '</span><span class="pd-chv">›</span></button>' +
           '<div class="pd-sub" id="' + k + 'LinkBox" hidden><input class="online-input-full" id="' + k + 'LinkInput" type="url" maxlength="300" placeholder="https://…" autocomplete="off" value="' + escHtml(postMeta156.link) + '" /></div>' +
           '<button type="button" class="pd-row" id="' + k + 'CollabRow"><span class="pd-ic">🤝</span><span class="pd-lb">' + rpT("pd_collab_label") + '</span><span class="pd-val" id="' + k + 'CollabVal">' + (postMeta156.collabUser ? "@" + escHtml(postMeta156.collabUser) : rpT("pd_add")) + '</span><span class="pd-chv">›</span></button>' +
@@ -28668,6 +28682,11 @@
           '<div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_subs_only") + '</span><button type="button" class="pd-aud' + (postMeta156.subsOnly ? " on" : "") + '" id="' + k + 'SubsBtn296">' + (postMeta156.subsOnly ? rpT("about_on") : rpT("pd_off")) + '</button></div>' + /* [RP-V7.296] the fan-subscriptions toggle: set at creation, the server gates every payload */
           '<div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_club_only") + '</span><button type="button" class="pd-aud' + (postMeta156.clubOnly ? " on" : "") + '" id="' + k + 'ClubBtn298">' + (postMeta156.clubOnly ? rpT("about_on") : rpT("pd_off")) + '</button></div>' + /* [RP-V7.298] the fan-clubs toggle: same pattern, the server gates every payload */
           (opts.gaming ? '<div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpT("pd_gaming") + '</span><button type="button" class="pd-aud' + (postMeta156.gaming ? " on" : "") + '" id="' + k + 'GamingBtn">' + (postMeta156.gaming ? rpT("about_on") : rpT("pd_off")) + '</button></div>' : "") + /* [RP-GAMING] the Gaming toggle: reel composer only (the photo composer never passes opts.gaming); set at creation, the server stores category "gaming" */
+          '<div class="pd-sub"><span style="flex:1; font-weight:700;">💬 ' + rpT("pd_allow_comments549") + '</span><button type="button" class="pd-aud' + (postMeta156.allowComments !== false ? " on" : "") + '" id="' + k + 'CmtBtn549">' + (postMeta156.allowComments !== false ? rpT("about_on") : rpT("pd_off")) + '</button></div>' + /* [RP-V7.549] Allow comments — enforced server-side in POST /api/reel/comment */
+          '<div class="pd-sub"><span style="flex:1; font-weight:700;">🤖 ' + rpT("pd_ai_label549") + '</span><button type="button" class="pd-aud' + (postMeta156.aiLabel ? " on" : "") + '" id="' + k + 'AiBtn549">' + (postMeta156.aiLabel ? rpT("about_on") : rpT("pd_off")) + '</button></div>' + /* [RP-V7.549] AI-generated content label — stored on the post, shown on it */
+          (opts.remix ? '<div class="pd-sub"><span style="flex:1; font-weight:700;">🎬 ' + rpT("pd_tpl_share549") + '</span><button type="button" class="pd-aud' + (postMeta156.tplShare ? " on" : "") + '" id="' + k + 'TplBtn549">' + (postMeta156.tplShare ? rpT("about_on") : rpT("pd_off")) + '</button></div>' : "") + /* [RP-V7.549] Post as template — reels only; the combo lists in GET /api/templates549 */
+          '<div class="pd-sub pd-status549"><span style="flex:1; font-weight:700;">' + rpT("pd_cr549") + '</span><span>' + escHtml(crTxt549()) + '</span></div>' + /* [RP-V7.549] honest STATUS row: the ACRCloud scan already runs on every post — this reports its real state, it is not a toggle */
+          '<div class="pd-sub pd-status549"><span style="flex:1; font-weight:700;">' + rpT("pd_hq549") + '</span><span>' + rpT("pd_hq_on549") + '</span></div>' + /* [RP-V7.549] honest STATUS row: uploads are stored exactly as shot (V7.256) — labelled truthfully, not a fake switch */
           '</div>' + /* [RP-V7.501] end MoreBox501 — the shoutout row below stays outside the collapsible, exactly as before */
           (postMeta156.shoutoutId ? '<div class="pd-sub"><span style="flex:1; font-weight:700;">' + rpTf("pd_shoutout_for", { name: escHtml("@" + (postMeta156.shoutoutBuyer || rpT("pd_a_member"))) }) + '</span><button type="button" class="pd-aud" id="' + k + 'ShoutUnlink300">' + rpT("pd_unlink") + '</button></div>' : "") + /* [RP-V7.300] the armed fulfill link, set from the Earn inbox */
           '<button type="button" class="pd-row" id="' + k + 'ShareRow"><span class="pd-ic">↗</span><span class="pd-lb">' + rpT("pd_share_to") + '</span><span class="pd-val">' + rpT("pd_invite_friends") + '</span><span class="pd-chv">›</span></button>' +
@@ -28693,6 +28712,13 @@
         var sb296 = $(k + "SubsBtn296"); if (sb296) sb296.addEventListener("click", function () { postMeta156.subsOnly = !postMeta156.subsOnly; sb296.textContent = postMeta156.subsOnly ? rpT("about_on") : rpT("pd_off"); sb296.classList.toggle("on", postMeta156.subsOnly); }); // [RP-V7.296]
         var cb298 = $(k + "ClubBtn298"); if (cb298) cb298.addEventListener("click", function () { postMeta156.clubOnly = !postMeta156.clubOnly; cb298.textContent = postMeta156.clubOnly ? rpT("about_on") : rpT("pd_off"); cb298.classList.toggle("on", postMeta156.clubOnly); }); // [RP-V7.298]
         var gbGam = $(k + "GamingBtn"); if (gbGam) gbGam.addEventListener("click", function () { postMeta156.gaming = !postMeta156.gaming; gbGam.textContent = postMeta156.gaming ? rpT("about_on") : rpT("pd_off"); gbGam.classList.toggle("on", postMeta156.gaming); }); // [RP-GAMING]
+        var cmt549 = $(k + "CmtBtn549"); if (cmt549) cmt549.addEventListener("click", function () { postMeta156.allowComments = !(postMeta156.allowComments !== false); cmt549.textContent = postMeta156.allowComments ? rpT("about_on") : rpT("pd_off"); cmt549.classList.toggle("on", postMeta156.allowComments); }); // [RP-V7.549]
+        var ai549 = $(k + "AiBtn549"); if (ai549) ai549.addEventListener("click", function () { postMeta156.aiLabel = !postMeta156.aiLabel; ai549.textContent = postMeta156.aiLabel ? rpT("about_on") : rpT("pd_off"); ai549.classList.toggle("on", postMeta156.aiLabel); }); // [RP-V7.549]
+        var tp549 = $(k + "TplBtn549"); if (tp549) tp549.addEventListener("click", function () { postMeta156.tplShare = !postMeta156.tplShare; tp549.textContent = postMeta156.tplShare ? rpT("about_on") : rpT("pd_off"); tp549.classList.toggle("on", postMeta156.tplShare); }); // [RP-V7.549]
+        var lc549 = $(k + "LocChips549"); // [RP-V7.549] recent-place chips: shown when the Location editor opens, if the member has posted from places before
+        if (lc549) {
+          var lr549 = $(k + "LocRow"); if (lr549) lr549.addEventListener("click", function () { var locs549 = rpLocs549(); if (locs549.length) { lc549.hidden = false; lc549.innerHTML = '<span class="pd-loclab549">' + rpT("pd_recent_places549") + '</span>' + locs549.map(function (x) { return '<button type="button" class="pd-chip" data-loc549="' + escHtml(x) + '">' + escHtml(x) + '</button>'; }).join(""); lc549.querySelectorAll("[data-loc549]").forEach(function (b) { b.addEventListener("click", function () { var v549 = b.getAttribute("data-loc549"); var li549 = $(k + "LocInput"); if (li549) li549.value = v549; postMeta156.location = v549; var lv549 = $(k + "LocVal"); if (lv549) lv549.textContent = v549; }); }); } });
+        }
         var capGam438 = $(capId); if (capGam438 && gbGam) capGam438.addEventListener("input", function () { if (!postMeta156.gaming && rpCaptionIsGaming438(capGam438.value)) { postMeta156.gaming = true; gbGam.textContent = rpT("about_on"); gbGam.classList.add("on"); } }); // [RP-V7.438] type-ahead auto-check: a gaming caption checks the Gaming toggle visibly as the member types — one-way only, it never unchecks a toggle the member set by hand (the server applies the same rule at creation)
         var ub300 = $(k + "ShoutUnlink300"); if (ub300) ub300.addEventListener("click", function () { postMeta156.shoutoutId = ""; postMeta156.shoutoutBuyer = ""; if (window.rpShoutoutClear300) window.rpShoutoutClear300(); var row300 = ub300.parentElement; if (row300) row300.hidden = true; toast("Shoutout unlinked — this post won't fulfill the request."); }); // [RP-V7.300]
         var sh = $(k + "ShareRow"); if (sh) sh.addEventListener("click", function () {
@@ -28723,6 +28749,7 @@
         if (!p) return "";
         var h = "";
         if (p.shoutoutFor && p.shoutoutFor.name) h += '<span class="rp-shout300">' + rpTf("card_shoutout_for", { name: escHtml(p.shoutoutFor.name) }) + "</span>"; // [RP-V7.300] the fulfilled-shoutout marker — rendered from the SERVER record (shoutoutFor), never from caption text
+        if (p.aiLabel) h += '<span class="rp-aichip549">' + rpT("pd_ai_chip549") + "</span>"; // [RP-V7.549] the AI-generated content label, shown on the post
         if (!p.location && !p.link && !h) return "";
         if (p.location) h += '<span><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 21s-6.5-5.3-6.5-10.3a6.5 6.5 0 0 1 13 0C18.5 15.7 12 21 12 21z\"/><circle cx=\"12\" cy=\"10.4\" r=\"2.3\"/></svg> ' + escHtml(p.location) + "</span>";
         if (p.link) h += '<a href="' + escHtml(p.link) + '" target="_blank" rel="noopener" style="color:#7ecbff; font-weight:800;"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg> ' + escHtml(String(p.link).replace(/^https?:\/\//, "")) + "</a>";
@@ -28738,7 +28765,7 @@
         var picks = (Moments.pendingPhotos || []).slice();
         if (!picks.length && !cap) { toast("Pick a photo or write something first — a draft needs a little something 📝"); return; }
         var list = momDraftsLoad156();
-        list.unshift({ id: "md" + Date.now().toString(36), ts: Date.now(), caption: cap, photos: picks, meta: { location: postMeta156.location, link: postMeta156.link, audience: postMeta156.audience } });
+        list.unshift({ id: "md" + Date.now().toString(36), ts: Date.now(), caption: cap, photos: picks, meta: { location: postMeta156.location, link: postMeta156.link, audience: postMeta156.audience, allowComments: postMeta156.allowComments !== false, aiLabel: !!postMeta156.aiLabel } }); // [RP-V7.549] the 549 switches ride the draft too
         if (!momDraftsSave156(list.slice(0, 10))) { toast("That draft is too big to store on this device — try fewer photos."); return; }
         Moments.pendingPhotos = []; momSyncPicks123(); momCapDraft123 = ""; postMetaReset156();
         closeSheet(); toast("🗂 Saved to Drafts — find it next time you post a photo.");
@@ -28755,7 +28782,7 @@
           var d = momDraftsLoad156().filter(function (x) { return x.id === b.getAttribute("data-mdresume"); })[0]; if (!d) return;
           Moments.pendingPhotos = (d.photos || []).slice(); momSyncPicks123(); momCapDraft123 = d.caption || "";
           Moments.resumedDraft156 = d.id;
-          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false }; // [RP-GAMING] // [RP-V7.298] // [RP-V7.316]
+          postMeta156 = { location: (d.meta && d.meta.location) || "", link: (d.meta && d.meta.link) || "", audience: (d.meta && d.meta.audience) || "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, allowComments: !(d.meta && d.meta.allowComments === false), aiLabel: !!(d.meta && d.meta.aiLabel), tplShare: false }; // [RP-GAMING] // [RP-V7.298] // [RP-V7.316] // [RP-V7.549]
           openMomComposer();
         }); });
         sheet.querySelectorAll("[data-mddel]").forEach(function (b) { b.addEventListener("click", function () {
@@ -29165,6 +29192,7 @@
         if (!Array.isArray(item.comments)) item.comments = [];
         rpOpenComments497({
           linkMode: "photos",
+          commentsOff: item.allowComments === false, // [RP-V7.549]
           comments: item.comments,
           count: item.commentCount || item.comments.length,
           canInteract: !!tok0,
@@ -29397,7 +29425,8 @@
         pendingBlob: null, pendingUrl: null, pendingSecs: 0, pendingCaption: "",
         maxSecs: 60, countdown: false, stage: "pick", editingDraftId: null, tagFilter: "",
         recStream: null, recorder: null, recChunks: [], recTimer: null, recStartedAt: 0,
-        remix: null, duetStream: null, duetRec: null, duetChunks: [], duetTimer: null, duetStartedAt: 0, duetBlob: null, duetUrl: null, duetCap: 60, duetSecs: 0
+        remix: null, duetStream: null, duetRec: null, duetChunks: [], duetTimer: null, duetStartedAt: 0, duetBlob: null, duetUrl: null, duetCap: 60, duetSecs: 0,
+        ed549: { look: "none", voiceFx: "none", titleText: "", titleStyle: "bold", sticker: null, coverSec: null, tplId: null } /* [RP-V7.549] the editor's working state for the pending video */
       };
       var REEL_META_KEY = "rpReelsMeta.v1";
       var REEL_LIKES_KEY = "rpReelLikes.v1";
@@ -29912,6 +29941,14 @@
           if (typeof meta.fitStart === "number") { fd.append("cutStart", String(meta.fitStart)); } // [RP-TRIM]
           fd.append("allowRemix", meta.allowRemix === false ? "false" : "true");
           fd.append("allowDownloads", meta.allowDownloads === false ? "false" : "true"); // [RP-V7.316]
+          fd.append("allowComments", meta.allowComments === false ? "false" : "true"); // [RP-V7.549]
+          if (meta.aiLabel) fd.append("aiLabel", "1"); // [RP-V7.549]
+          if (meta.tplShare) fd.append("tplShare", "1"); // [RP-V7.549]
+          if (meta.look) fd.append("look", meta.look); // [RP-V7.549] the editor look — baked server-side by rpFxPass549
+          if (meta.voiceFx) fd.append("voiceFx", meta.voiceFx); // [RP-V7.549]
+          if (typeof meta.coverSec === "number") fd.append("coverSec", String(meta.coverSec)); // [RP-V7.549] the Edit-cover frame pick
+          if (meta.titleText) { fd.append("titleText", meta.titleText); fd.append("titleStyle", meta.titleStyle || "bold"); } // [RP-V7.549]
+          if (meta.sticker && meta.sticker.g) { fd.append("stickerGlyph", meta.sticker.g); fd.append("stickerSlot", meta.sticker.s || "br"); } // [RP-V7.549]
           if (meta.location) fd.append("location", meta.location); // [RP-V7.156]
           if (meta.subsOnly) fd.append("subsOnly", "1"); // [RP-V7.296]
           if (meta.clubOnly) fd.append("clubOnly", "1"); // [RP-V7.298]
@@ -29953,12 +29990,12 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ /* [RP-V7.335] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.296] */ /* [RP-V7.451] */ /* [RP-V7.298] */ /* [RP-V7.300] */ /* [RP-GAMING] */ /* [RP-V7.453] */ });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "", /* [RP-V7.549] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ /* [RP-V7.335] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.296] */ /* [RP-V7.451] */ /* [RP-V7.298] */ /* [RP-V7.300] */ /* [RP-GAMING] */ /* [RP-V7.453] */ });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
           if (m.serverId && haveSrv[m.serverId]) return; // server copy wins
-          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, /* [RP-V7.198] own posted reel keeps its server link so the rail can repost it */ likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, /* [RP-V7.316] */ musicTrackId: m.musicTrackId || null, origSoundId: m.origSoundId || null, soundId: null, soundName: null, soundOwnerName: null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol, category: m.gaming ? "gaming" : null /* [RP-V7.90] */ /* [RP-V7.335] a local pending item resolves its credit from the server copy after posting */ /* [RP-GAMING] */ });
+          items.push({ key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || reelMyName(), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, /* [RP-V7.198] own posted reel keeps its server link so the rail can repost it */ likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, /* [RP-V7.169] */ allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, /* [RP-V7.316] */ allowComments: m.allowComments !== false, aiLabel: !!m.aiLabel, titleText: m.titleText || "", titleStyle: m.titleStyle || "bold", sticker: m.sticker || null, look: m.look || "", /* [RP-V7.549] */ musicTrackId: m.musicTrackId || null, origSoundId: m.origSoundId || null, soundId: null, soundName: null, soundOwnerName: null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol, category: m.gaming ? "gaming" : null /* [RP-V7.90] */ /* [RP-V7.335] a local pending item resolves its credit from the server copy after posting */ /* [RP-GAMING] */ });
         });
         if (Reels.ranked) {
           // [RP-V7.40] the server already ordered its reels For You —
@@ -31047,6 +31084,7 @@
           : window.rpRailPh462("dl");
         card.innerHTML =
           videoHtml +
+          (window.rpOverlay549 ? window.rpOverlay549(item) : "") + // [RP-V7.549] title card / sticker / AI chip over the video
           '<button class="reel-mute" type="button" aria-label="Mute or unmute" data-i18n-al="rail_mute_al"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.8v4.4h3.2L12 18.4V5.6L7.2 9.8z\"/><path d=\"m15.8 9.8 4.7 4.7M20.5 9.8l-4.7 4.7\"/></svg></button>' +
           '<div class="reel-shade"></div>' +
           '<div class="reel-play">▶</div>' +
@@ -31760,7 +31798,8 @@
           '<div class="cmt497-men" id="cmt497Men" hidden></div>' +
           '<div class="cmt497-replybar" id="cmt497ReplyBar" hidden><span>' + rpT("cmt_replying_to") + ' <b id="cmt497ReplyName"></b></span><button type="button" data-cmt497-cancelreply aria-label="' + rpT("cmt_cancel_reply_al") + '">×</button></div>' +
           '<div class="cmt497-photobar" id="cmt497PhotoBar" hidden><img id="cmt497PhotoThumb" alt=""/><span class="cmt497-photonote">' + rpT("cmt_photo_attached") + '</span><button type="button" data-cmt497-photorm aria-label="' + rpT("cmt_remove_photo_al") + '">×</button></div>' +
-          '<div class="cmt497-composer"><span class="cmt497-ava">' + personFace({ name: me.name, photo: me.photo }, "cmt497-face") + '</span>' +
+          (cfg.commentsOff ? '<div class="cmt497-off549">' + rpT("cmt_off549") + '</div>' : "") + /* [RP-V7.549] comments-off posts show the notice instead of a composer (the server refuses new comments regardless) */
+          '<div class="cmt497-composer"' + (cfg.commentsOff ? " hidden" : "") + '><span class="cmt497-ava">' + personFace({ name: me.name, photo: me.photo }, "cmt497-face") + '</span>' +
           '<div class="cmt497-pill"><input id="cmt497Input" type="text" maxlength="140" placeholder="' + rpT("cmt_add_ph") + '" autocomplete="off"/>' +
           (cfg.canPhoto ? '<button type="button" class="cmt497-icobtn" id="cmt497Photo" aria-label="' + rpT("cmt_add_photo_al") + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 18.5 10 13l3.5 3.5L17 13l2.5 2.8"/></svg></button>' : "") +
           '<button type="button" class="cmt497-icobtn" id="cmt497Emoji" aria-label="' + rpT("cmt_emoji_al") + '">😊</button>' +
@@ -31873,6 +31912,7 @@
           if (!Array.isArray(item.comments)) item.comments = [];
           rpOpenComments497({
             linkMode: "reels",
+            commentsOff: item.allowComments === false, // [RP-V7.549]
             comments: item.comments,
             count: item.commentCount || item.comments.length,
             canInteract: true,
@@ -32270,7 +32310,7 @@
          18+ door verifies once before the feed plays. */
       var HomeFeed = { tab: "foryou", friendsItems: null, friendsLoaded: false, sig: "", observer: null };
       function homeMapServer(r) {
-        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), crMuted: r.crMuted || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */, allowDownloads: r.allowDownloads !== false /* [RP-V7.512] the Home pager's download gate reads it */ }; // [RP-V7.286]
+        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), crMuted: r.crMuted || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */, allowDownloads: r.allowDownloads !== false /* [RP-V7.512] the Home pager's download gate reads it */, allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "" /* [RP-V7.549] */ }; // [RP-V7.286]
       }
       function homeFetchFriends() {
         var tok = reelToken();
@@ -32663,6 +32703,7 @@
         Reels.pendingSound = null; /* [RP-V7.90] */
         Reels.trimStart = null; Reels.trimEnd = null; Reels.mustTrim = false; Reels.trimOpen = false; /* [RP-V7.169] */
         Reels.pendingFitStart = null; Reels.fitTrim = null; /* [RP-TRIM] */
+        Reels.ed549 = { look: "none", voiceFx: "none", titleText: "", titleStyle: "bold", sticker: null, coverSec: null, tplId: null }; /* [RP-V7.549] a cleared pending video clears its editor state too */
         Reels._pubRetryId = null; /* [RP-POSTFIX] clearing the pending pick ends any failed-post retry — a new video never reuses the old post's record */
       }
       /* [RP-V7.169] Reel trimmer — the YouTube/TikTok cut: pick a start and
@@ -32677,6 +32718,10 @@
         return { s: Reels.trimStart, e: Reels.trimEnd };
       }
       function reelTrimMeta169(id) { var w = reelTrimWin169(); if (w) reelUpdateMeta(id, { trimStart: Math.round(w.s * 10) / 10, trimEnd: Math.round(w.e * 10) / 10 }); }
+      function reelEdPatch549(src) { /* [RP-V7.549] the editor state (or a draft's stored copy of it) as a reel-meta patch — publish, draft-save, draft-resume and draft-post all carry the same fields */
+        src = src || {};
+        return { look: src.look && src.look !== "none" ? src.look : "", voiceFx: src.voiceFx && src.voiceFx !== "none" ? src.voiceFx : "", coverSec: (typeof src.coverSec === "number") ? src.coverSec : null, titleText: src.titleText || "", titleStyle: src.titleStyle || "bold", sticker: src.sticker || null };
+      }
       function reelFitMetaTrim(id) { /* [RP-TRIM] the chosen fit-cut rides the meta as fitStart (the upload sends it as cutStart and the server cuts the file itself). The V7.169 metadata window never rides with it — the stored file IS the segment, so a window would double-cut playback. */
         if (typeof Reels.pendingFitStart === "number") reelUpdateMeta(id, { fitStart: Math.round(Reels.pendingFitStart * 10) / 10, trimStart: undefined, trimEnd: undefined });
       }
@@ -32767,7 +32812,7 @@
           mid =
             '<div class="pd-head">' +
               '<textarea class="pd-desc" id="reelCapInput" maxlength="140" rows="3" placeholder="' + rpT("composer_desc_ph") + '" autocomplete="off"></textarea>' +
-              '<span class="pd-thumb pd-thumb-empty">🎬</span>' +
+              '<button type="button" class="pd-thumb pd-cover549" id="reelCover549" aria-label="' + rpT("ed_cover549") + '"><span class="pd-coverimg549" id="reelCoverImg549">🎬</span><span class="pd-coverlab549">' + rpT("ed_cover549") + '</span></button>' + // [RP-V7.549] Edit cover: the thumb is the picked frame, tapped it reopens the editor's Edit panel
             '</div>' +
             '<button type="button" class="pd-row" id="reelSndRow501"><span class="pd-ic">🎵</span><span class="pd-lb">' + (Reels.pendingSound ? escHtml((window.rpTrackName ? window.rpTrackName(Reels.pendingSound.trackId) : null) || rpT("cam_sound_attached")) : rpT("cam_add_sound")) + '</span>' + (Reels.pendingSound ? '<span class="pd-val" id="reelSndX501" role="button" aria-label="' + rpT("cedit_remove") + '">\u2715</span>' : '<span class="pd-chv">\u203A</span>') + '</button>' + // [RP-V7.501] the reel composer never had a sound row at all
             postDetailsHtml156("reel", { remix: true, gaming: true }) /* [RP-GAMING] the reel composer carries the Gaming toggle */ +
@@ -32852,7 +32897,7 @@
           $("btnFitUse").addEventListener("click", function () {
             Reels.pendingFitStart = Reels.fitTrim ? Math.round(Reels.fitTrim.start * 10) / 10 : 0;
             Reels.fitTrim = null;
-            Reels.stage = "details"; openReelComposer();
+            rpEdOpen549(); // [RP-V7.549] the cut clip goes through the editor before details, like every other path
           });
           $("btnFitCancel").addEventListener("click", function () {
             Reels.fitTrim = null; Reels.pendingFitStart = null;
@@ -32886,7 +32931,7 @@
               return;
             }
             Reels.mustTrim = false;
-            Reels.stage = "details"; openReelComposer();
+            rpEdOpen549(); // [RP-V7.549] preview's "Use this video" now lands in the editor (TikTok's order: pick → edit → details); the editor's Next opens the details stage
           });
         } else {
           $("btnReelPublish").addEventListener("click", reelPublish);
@@ -32896,6 +32941,8 @@
             Reels.stage = "preview"; openReelComposer();
           });
           postDetailsWire156("reel", "reelCapInput", function () { openReelComposer(); }); // [RP-V7.156]
+          var cv549 = $("reelCover549"); if (cv549) cv549.addEventListener("click", function () { var c4 = $("reelCapInput"); if (c4) Reels.pendingCaption = (c4.value || "").trim(); rpEdOpen549("edit"); }); // [RP-V7.549]
+          if (window.rpCoverPaint549) window.rpCoverPaint549(); // [RP-V7.549]
           var rsr501 = $("reelSndRow501"); // [RP-V7.501]
           if (rsr501) rsr501.addEventListener("click", function (e) {
             if (e.target && e.target.id === "reelSndX501") return;
@@ -32909,6 +32956,316 @@
         $("sheet").querySelectorAll("[data-dpost]").forEach(function (b) { b.addEventListener("click", function () { reelPostDraft(b.getAttribute("data-dpost")); }); });
         $("sheet").querySelectorAll("[data-ddel]").forEach(function (b) { b.addEventListener("click", function () { reelDeleteDraft(b.getAttribute("data-ddel")); }); });
       }
+      /* ================= [RP-V7.549] THE EDITOR =================
+         Branden's TikTok walkthrough: after picking or recording a
+         video there is an EDIT step before the post-details page —
+         the video full-screen, the attached sound on a pill at the
+         top, and a right-side tool rail: Edit, Templates, Text,
+         Stickers, Filters, Voice, Save. Every control here is real:
+         - Edit: the V7.169 trim window (the same Reels.trimStart/
+           trimEnd the preview stage edits) + Edit cover (the picked
+           frame rides coverSec into the upload; the server mints the
+           poster from that second — rpPosterMint482's seek ladder).
+         - Templates: built-in combos (catalog song + look + title
+           style, every track id verified against the shipped TRACKS
+           catalog and filtered live through rpTrackName) + member
+           templates from GET /api/templates549 (real opted-in posts
+           only, BRAIN-ranked by views server-side).
+         - Text: a title card stored on the post (titleText/
+           titleStyle) and drawn over players by rpOverlay549.
+         - Stickers: the V7.490 glyph pack at a corner (sticker
+           {g, s}), drawn the same way.
+         - Filters: color looks. The PREVIEW is a CSS filter
+           approximation; the POSTED video is baked server-side by
+           rpFxPass549 (the look ids are the server's RP_LOOKS549
+           keys) — the bake is authoritative.
+         - Voice: deep/chipmunk/echo, baked server-side in the same
+           pass (RP_VOICE549). There is NO preview — the panel says
+           so plainly instead of faking one.
+         - Save: reelSaveDraft() — the draft carries every editor
+           field (reelEdPatch549) and resumes with them.
+         AutoCut (top bar): one tap attaches the suggestion ranker's
+         top pick (window.rpSndAuto549 — at this step there is no
+         caption yet, so the ranker falls back to the most-used
+         catalog tracks, its documented behaviour; the details-stage
+         Suggested row re-ranks once a caption exists). */
+      var RP_LOOKS549 = { none: "", warm: "sepia(.35) saturate(1.25)", cool: "hue-rotate(12deg) saturate(1.05) brightness(1.02)", bw: "grayscale(1)", vivid: "saturate(1.55) contrast(1.08)", golden: "sepia(.45) saturate(1.3) brightness(1.05)", noir: "grayscale(1) contrast(1.25) brightness(.94)" };
+      var RP_TEMPLATES549 = [
+        { id: "tpl-golden-hour", name: "Golden Hour", trackId: "country", look: "golden", titleStyle: "bold" },
+        { id: "tpl-praise", name: "Praise", trackId: "gospel", look: "warm", titleStyle: "card" },
+        { id: "tpl-night-drive", name: "Night Drive", trackId: "lofi", look: "cool", titleStyle: "outline" },
+        { id: "tpl-party", name: "Party Starter", trackId: "party", look: "vivid", titleStyle: "bold" },
+        { id: "tpl-island", name: "Island Vibes", trackId: "island", look: "warm", titleStyle: "bold" },
+        { id: "tpl-moonrise", name: "Moonrise", trackId: "popvocal28", look: "noir", titleStyle: "card" }
+      ];
+      var RP_STICKERS549 = ["🔥", "⭐", "❤️", "🎉", "👑", "🎵", "⚡", "💯", "🎁", "🙌", "😂", "🎤"]; // the V7.490 live sticker pack — the server whitelists the same glyphs
+      var ed549State = { panel: "edit", memberTpls: null, returnStage: "preview" };
+      function ed549Css() {
+        if (document.getElementById("rp549Css")) return;
+        var st = document.createElement("style"); st.id = "rp549Css";
+        st.textContent =
+          ".pd-status549{opacity:.85}.pd-status549 span:last-child{font-weight:700;text-align:right}" +
+          ".pd-locchips549{flex-wrap:wrap;gap:6px;align-items:center}.pd-loclab549{font-weight:700;color:var(--ink-soft);font-size:12px;margin-right:2px}" +
+          ".rp-aichip549{display:inline-block;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:800;margin-right:6px}" +
+          ".cmt497-off549{padding:14px 16px;text-align:center;font-weight:800;color:var(--ink-soft)}" +
+          ".pd-cover549{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;padding:0;cursor:pointer}" +
+          ".pd-coverimg549{width:52px;height:70px;border-radius:10px;background:#1c1c26;display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden}" +
+          ".pd-coverimg549 img{width:100%;height:100%;object-fit:cover}" +
+          ".pd-coverlab549{font-size:10.5px;font-weight:800;color:#fe2c2c}" +
+          ".rpov549{position:absolute;inset:0;pointer-events:none;z-index:5}" +
+          ".rpov549-title{position:absolute;left:8%;right:8%;top:16%;text-align:center;font-size:clamp(20px,6vw,34px);line-height:1.15;animation:rpov549fade 1s ease 3.5s forwards}" +
+          ".rpov549-bold{font-weight:900;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.75)}" +
+          ".rpov549-outline{font-weight:900;color:transparent;-webkit-text-stroke:1.5px #fff;text-shadow:0 2px 8px rgba(0,0,0,.35)}" +
+          ".rpov549-card{font-weight:900;color:#111;background:#fff;border-radius:12px;padding:8px 14px;left:12%;right:12%}" +
+          "@keyframes rpov549fade{to{opacity:0;visibility:hidden}}" +
+          ".rpov549-sticker{position:absolute;font-size:46px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.6))}" +
+          ".rpov549-s-tl{top:12px;left:12px}.rpov549-s-tr{top:12px;right:12px}.rpov549-s-bl{bottom:12px;left:12px}.rpov549-s-br{bottom:12px;right:12px}" +
+          ".rpov549-ai{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800}" +
+          ".ed549{position:fixed;inset:0;z-index:80;background:#000;color:#fff;display:flex;flex-direction:column}" +
+          ".ed549[hidden]{display:none}" +
+          ".ed549-top{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 8px}" +
+          ".ed549-x{background:rgba(255,255,255,.12);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:22px;cursor:pointer;flex:none}" +
+          ".ed549-snd{flex:1;min-width:0;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:999px;padding:10px 14px;font-weight:800;font-size:13.5px;display:flex;gap:7px;align-items:center;cursor:pointer}" +
+          ".ed549-snd span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+          ".ed549-auto{background:#fe2c2c;border:none;color:#fff;border-radius:999px;padding:10px 13px;font-weight:900;font-size:13px;cursor:pointer;flex:none}" +
+          ".ed549-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center}" +
+          ".ed549-stage video{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:#000}" +
+          ".ed549-ovl{position:absolute;inset:0;pointer-events:none}" +
+          ".ed549-ovl .rpov549{position:absolute}" +
+          ".ed549-rail{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:6}" +
+          ".ed549-tool{background:rgba(10,10,16,.66);border:1px solid rgba(255,255,255,.16);color:#fff;border-radius:14px;padding:7px 4px;width:58px;font-size:10.5px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}" +
+          ".ed549-tool i{font-style:normal;font-size:19px;line-height:1}" +
+          ".ed549-tool.on{border-color:#fe2c2c;box-shadow:0 0 0 1.5px #fe2c2c,0 0 14px rgba(254,44,44,.55)}" +
+          ".ed549-panel{max-height:38vh;overflow-y:auto;padding:10px 14px calc(8px + env(safe-area-inset-bottom));background:rgba(10,10,16,.92);border-top:1px solid rgba(255,255,255,.12)}" +
+          ".ed549-panel h4{margin:2px 0 8px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.75)}" +
+          ".ed549-chips{display:flex;flex-wrap:wrap;gap:7px}" +
+          ".ed549-chip{background:rgba(255,255,255,.1);border:1.5px solid transparent;color:#fff;border-radius:999px;padding:8px 13px;font-weight:800;font-size:13px;cursor:pointer}" +
+          ".ed549-chip.on{border-color:#fe2c2c;box-shadow:0 0 10px rgba(254,44,44,.5)}" +
+          ".ed549-tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}" +
+          ".ed549-tpl{background:rgba(255,255,255,.08);border:2px solid transparent;border-radius:14px;padding:10px 8px;color:#fff;text-align:left;cursor:pointer}" +
+          ".ed549-tpl.on{border-color:#fe2c2c;box-shadow:0 0 12px rgba(254,44,44,.5)}" +
+          ".ed549-tpl b{display:block;font-size:13px}" +
+          ".ed549-tpl span{display:block;font-size:11px;color:rgba(255,255,255,.72);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+          ".ed549-tpl .sw{display:block;height:8px;border-radius:99px;margin-top:7px;background:rgba(255,255,255,.25)}" +
+          ".ed549-stk{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}" +
+          ".ed549-stkb{background:rgba(255,255,255,.08);border:2px solid transparent;border-radius:12px;font-size:25px;padding:7px 0;cursor:pointer;color:#fff}" +
+          ".ed549-stkb.on{border-color:#fe2c2c;box-shadow:0 0 10px rgba(254,44,44,.5)}" +
+          ".ed549-lab{display:flex;justify-content:space-between;font-weight:800;font-size:12.5px;margin:10px 0 2px;color:rgba(255,255,255,.85)}" +
+          ".ed549 input[type=range]{width:100%;accent-color:#fe2c2c}" +
+          ".ed549-titlein{width:100%;box-sizing:border-box;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:12px;color:#fff;padding:11px 12px;font-size:15px;font-weight:700;font-family:inherit}" +
+          ".ed549-note{font-size:12px;color:rgba(255,255,255,.7);font-weight:600;margin:8px 0 0}" +
+          ".ed549-bar{display:flex;gap:10px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));background:rgba(10,10,16,.92)}" +
+          ".ed549-back{flex:1;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:999px;padding:13px;font-weight:900;font-size:15px;cursor:pointer}" +
+          ".ed549-next{flex:2;background:#fe2c2c;border:none;color:#fff;border-radius:999px;padding:13px;font-weight:900;font-size:15px;cursor:pointer}";
+        document.head.appendChild(st);
+      }
+      function rpOverlay549(item) { // [RP-V7.549] the posted overlays — title card (fades after ~3.5s), corner sticker, AI chip — drawn over the pager card and the profile player
+        if (!item) return "";
+        var h = "";
+        if (item.titleText) h += '<div class="rpov549-title rpov549-' + (item.titleStyle === "outline" || item.titleStyle === "card" ? item.titleStyle : "bold") + '">' + escHtml(item.titleText) + "</div>";
+        if (item.sticker && item.sticker.g) h += '<div class="rpov549-sticker rpov549-s-' + (["tl", "tr", "bl", "br"].indexOf(item.sticker.s) >= 0 ? item.sticker.s : "br") + '">' + escHtml(item.sticker.g) + "</div>";
+        if (item.aiLabel) h += '<div class="rpov549-ai">' + rpT("pd_ai_chip549") + "</div>";
+        return h ? '<div class="rpov549">' + h + "</div>" : "";
+      }
+      window.rpOverlay549 = rpOverlay549;
+      function ed549Build() {
+        ed549Css();
+        var root = document.createElement("div");
+        root.className = "ed549"; root.id = "rpEditor549"; root.hidden = true;
+        root.innerHTML =
+          '<div class="ed549-top"><button type="button" class="ed549-x" id="ed549X" aria-label="' + rpT("act_back") + '">‹</button>' +
+          '<button type="button" class="ed549-snd" id="ed549Snd"><span>🎵</span><span id="ed549SndName">' + rpT("cam_add_sound") + '</span></button>' +
+          '<button type="button" class="ed549-auto" id="ed549Auto">' + rpT("ed_autocut549") + '</button></div>' +
+          '<div class="ed549-stage"><video id="ed549Video" playsinline loop muted></video><div class="ed549-ovl" id="ed549Ovl"></div>' +
+          '<div class="ed549-rail">' +
+          [["edit", "✂️", "ed_edit549"], ["templates", "🎞️", "ed_templates549"], ["text", "T", "ed_text549"], ["stickers", "🔥", "ed_stickers549"], ["filters", "🎨", "ed_filters549"], ["voice", "🎤", "ed_voice549"]].map(function (t) { return '<button type="button" class="ed549-tool" data-ed549tool="' + t[0] + '"><i>' + t[1] + "</i>" + rpT(t[2]) + "</button>"; }).join("") +
+          '<button type="button" class="ed549-tool" id="ed549Save"><i>💾</i>' + rpT("ed_save549") + "</button>" +
+          "</div></div>" +
+          '<div class="ed549-panel" id="ed549Panel"></div>' +
+          '<div class="ed549-bar"><button type="button" class="ed549-back" id="ed549Back">' + rpT("act_back") + '</button><button type="button" class="ed549-next" id="ed549Next">' + rpT("ed_next549") + "</button></div>";
+        document.body.appendChild(root);
+        root.querySelectorAll("[data-ed549tool]").forEach(function (b) { b.addEventListener("click", function () { ed549State.panel = b.getAttribute("data-ed549tool"); ed549RenderPanel(); }); });
+        $("ed549X").addEventListener("click", function () { ed549Leave(ed549State.returnStage); });
+        $("ed549Back").addEventListener("click", function () { ed549Leave(ed549State.returnStage); });
+        $("ed549Next").addEventListener("click", function () { ed549Leave("details"); });
+        $("ed549Save").addEventListener("click", function () { ed549Hide(); reelSaveDraft(); }); // Save = the real draft (reelSaveDraft reopens the composer on the pick stage, drafts listed)
+        $("ed549Snd").addEventListener("click", function () {
+          window.rpSndOnUse501 = function (att) { if (att) { Reels.pendingSound = { trackId: att.trackId, start: att.start || 0, musicVol: att.musicVol, origVol: att.origVol }; ed549PaintSound(); } };
+          if (window.rpSndOpen) window.rpSndOpen();
+        });
+        $("ed549Auto").addEventListener("click", function () {
+          var att = window.rpSndAuto549 ? window.rpSndAuto549() : null;
+          if (!att) { toast("No sound to attach yet — pick one from Add sound 🎵"); return; }
+          Reels.pendingSound = { trackId: att.trackId, start: att.start || 0, musicVol: att.musicVol, origVol: att.origVol };
+          ed549PaintSound();
+          toast(rpTf("ed_autocut_done549", { name: (window.rpTrackName ? window.rpTrackName(att.trackId) : null) || att.trackId }));
+        });
+        var v = $("ed549Video");
+        v.addEventListener("loadedmetadata", function () {
+          if (!Reels.pendingSecs && isFinite(v.duration) && v.duration > 0) { Reels.pendingSecs = Math.round(v.duration); if (typeof Reels.trimEnd !== "number") Reels.trimEnd = Reels.pendingSecs; }
+          if (ed549State.panel === "edit") ed549RenderPanel();
+        });
+        v.addEventListener("timeupdate", function () { var w = reelTrimWin169(); if (w && v.currentTime >= w.e) { try { v.currentTime = w.s; } catch (e) { } } });
+        v.addEventListener("click", function () { if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () { }); } else v.pause(); });
+        return root;
+      }
+      function ed549PaintSound() {
+        var nm = $("ed549SndName"); if (!nm) return;
+        nm.textContent = Reels.pendingSound ? ((window.rpTrackName ? window.rpTrackName(Reels.pendingSound.trackId) : null) || rpT("cam_sound_attached")) : rpT("cam_add_sound");
+      }
+      function ed549PaintVideo() {
+        var v = $("ed549Video"); if (!v) return;
+        v.style.filter = RP_LOOKS549[Reels.ed549.look] || "";
+        var ovl = $("ed549Ovl");
+        if (ovl) ovl.innerHTML = rpOverlay549({ titleText: Reels.ed549.titleText, titleStyle: Reels.ed549.titleStyle, sticker: Reels.ed549.sticker, aiLabel: false });
+      }
+      function ed549ApplyTpl(t) {
+        if (!t) return;
+        if (t.trackId) Reels.pendingSound = { trackId: t.trackId, start: 0, musicVol: 0.8, origVol: 1 };
+        Reels.ed549.look = t.look || "none";
+        Reels.ed549.titleStyle = t.titleStyle || "bold";
+        Reels.ed549.tplId = t.id;
+        ed549PaintSound(); ed549PaintVideo(); ed549RenderPanel();
+      }
+      function ed549RenderPanel() {
+        var p = $("ed549Panel"); if (!p) return;
+        var root = $("rpEditor549");
+        if (root) root.querySelectorAll("[data-ed549tool]").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-ed549tool") === ed549State.panel); });
+        var e = Reels.ed549, dur = Reels.pendingSecs || 0, h = "";
+        if (ed549State.panel === "edit") {
+          if (typeof Reels.trimStart !== "number") Reels.trimStart = 0;
+          if (typeof Reels.trimEnd !== "number") Reels.trimEnd = dur;
+          h = "<h4>" + rpT("ed_edit549") + "</h4>" +
+            '<div class="ed549-lab"><span>' + rpT("rc_start") + ' <b id="ed549TsV">' + reelTrimClock169(Reels.trimStart) + '</b></span><span>' + rpT("rc_end") + ' <b id="ed549TeV">' + reelTrimClock169(Reels.trimEnd) + "</b></span></div>" +
+            '<input type="range" id="ed549TrimS" min="0" max="1000" value="' + (dur ? Math.round(Reels.trimStart / dur * 1000) : 0) + '">' +
+            '<input type="range" id="ed549TrimE" min="0" max="1000" value="' + (dur ? Math.round(Reels.trimEnd / dur * 1000) : 1000) + '">' +
+            '<div class="ed549-lab"><span>🖼 ' + rpT("ed_cover549") + ' <b id="ed549CvV">' + reelTrimClock169(e.coverSec || 0) + '</b></span></div>' +
+            '<input type="range" id="ed549Cover" min="0" max="1000" value="' + (dur && e.coverSec ? Math.round(e.coverSec / dur * 1000) : 0) + '">' +
+            '<p class="ed549-note">' + rpT("ed_cover_hint549") + "</p>";
+          p.innerHTML = h;
+          var v = $("ed549Video");
+          var sR = $("ed549TrimS"), eR = $("ed549TrimE"), cR = $("ed549Cover");
+          var fromSliders = function (which) {
+            var d2 = Reels.pendingSecs || 0; if (!d2 || !sR || !eR) return;
+            var sv = (Number(sR.value) || 0) / 1000 * d2, ev = (Number(eR.value) || 0) / 1000 * d2;
+            if (which === "s") { if (ev - sv < 1) sv = Math.max(0, ev - 1); Reels.trimStart = sv; if (v) { try { v.currentTime = sv; } catch (err) { } } }
+            else { if (ev - sv < 1) ev = Math.min(d2, sv + 1); Reels.trimEnd = ev; if (v) { try { v.currentTime = Math.max(Reels.trimStart || 0, ev - 1.5); } catch (err2) { } } }
+            var a = $("ed549TsV"), b = $("ed549TeV"); if (a) a.textContent = reelTrimClock169(Reels.trimStart); if (b) b.textContent = reelTrimClock169(Reels.trimEnd);
+          };
+          if (sR) sR.addEventListener("input", function () { fromSliders("s"); });
+          if (eR) eR.addEventListener("input", function () { fromSliders("e"); });
+          if (cR) cR.addEventListener("input", function () {
+            var d3 = Reels.pendingSecs || 0; if (!d3) return;
+            var t = (Number(cR.value) || 0) / 1000 * d3;
+            e.coverSec = Math.round(t * 10) / 10;
+            if (v) { try { v.currentTime = t; } catch (err) { } }
+            var cv = $("ed549CvV"); if (cv) cv.textContent = reelTrimClock169(e.coverSec);
+          });
+          return;
+        }
+        if (ed549State.panel === "templates") {
+          var built = RP_TEMPLATES549.filter(function (t) { return !window.rpTrackName || !!window.rpTrackName(t.trackId); }); // a built-in whose track ever leaves the catalog drops out instead of pointing at nothing
+          h = "<h4>" + rpT("ed_tpl_builtin549") + '</h4><div class="ed549-tpls">' + built.map(function (t) {
+            return '<button type="button" class="ed549-tpl' + (e.tplId === t.id ? " on" : "") + '" data-ed549tpl="' + t.id + '"><b>' + escHtml(t.name) + "</b><span>♪ " + escHtml((window.rpTrackName ? window.rpTrackName(t.trackId) : null) || t.trackId) + '</span><span class="sw" style="filter:' + (RP_LOOKS549[t.look] || "none") + ';background:linear-gradient(90deg,#f7b733,#fe2c2c)"></span></button>';
+          }).join("") + "</div>" +
+          "<h4 style=\"margin-top:12px;\">" + rpT("ed_tpl_member549") + '</h4><div class="ed549-tpls" id="ed549MemberTpls"><p class="ed549-note">' + rpT("cmt_loading_members") + "</p></div>";
+          p.innerHTML = h;
+          p.querySelectorAll("[data-ed549tpl]").forEach(function (b) { b.addEventListener("click", function () { var t = RP_TEMPLATES549.filter(function (x) { return x.id === b.getAttribute("data-ed549tpl"); })[0]; ed549ApplyTpl(t); }); });
+          var paintMember = function () {
+            var box = $("ed549MemberTpls"); if (!box) return;
+            var rows = ed549State.memberTpls || [];
+            if (!rows.length) { box.innerHTML = '<p class="ed549-note">' + rpT("ed_tpl_none549") + " — " + rpT("pd_tpl_share549") + "</p>"; return; }
+            box.innerHTML = rows.map(function (t) {
+              return '<button type="button" class="ed549-tpl' + (e.tplId === ("m:" + t.id) ? " on" : "") + '" data-ed549mtpl="' + escHtml(t.id) + '"><b>' + escHtml(t.author || rpT("name_someone")) + "</b><span>♪ " + escHtml((window.rpTrackName ? window.rpTrackName(t.trackId) : null) || t.trackId) + '</span><span class="sw" style="filter:' + (RP_LOOKS549[t.look] || "none") + ';background:linear-gradient(90deg,#f7b733,#fe2c2c)"></span></button>';
+            }).join("");
+            box.querySelectorAll("[data-ed549mtpl]").forEach(function (b) { b.addEventListener("click", function () { var t = (ed549State.memberTpls || []).filter(function (x) { return x.id === b.getAttribute("data-ed549mtpl"); })[0]; if (t) ed549ApplyTpl({ id: "m:" + t.id, trackId: t.trackId, look: t.look || "none", titleStyle: t.titleStyle || "bold" }); }); });
+          };
+          if (ed549State.memberTpls) paintMember();
+          else {
+            var tk = ""; try { tk = reelToken() || ""; } catch (err) { }
+            fetch("/api/templates549", { headers: tk ? { "Authorization": "Bearer " + tk } : {} }).then(function (r) { return r.json().catch(function () { return null; }); })
+              .then(function (j) { ed549State.memberTpls = (j && j.ok && Array.isArray(j.templates)) ? j.templates : []; paintMember(); })
+              .catch(function () { ed549State.memberTpls = []; paintMember(); });
+          }
+          return;
+        }
+        if (ed549State.panel === "text") {
+          h = "<h4>" + rpT("ed_title549") + '</h4><input class="ed549-titlein" id="ed549TitleIn" type="text" maxlength="60" placeholder="' + rpT("ed_title_ph549") + '" value="' + escHtml(e.titleText || "") + '">' +
+            '<div class="ed549-chips" style="margin-top:9px;">' + [["bold", "ed_style_bold549"], ["outline", "ed_style_outline549"], ["card", "ed_style_card549"]].map(function (s) { return '<button type="button" class="ed549-chip' + (e.titleStyle === s[0] ? " on" : "") + '" data-ed549style="' + s[0] + '">' + rpT(s[1]) + "</button>"; }).join("") + "</div>";
+          p.innerHTML = h;
+          var ti = $("ed549TitleIn");
+          if (ti) ti.addEventListener("input", function () { e.titleText = ti.value; ed549PaintVideo(); });
+          p.querySelectorAll("[data-ed549style]").forEach(function (b) { b.addEventListener("click", function () { e.titleStyle = b.getAttribute("data-ed549style"); ed549PaintVideo(); ed549RenderPanel(); var t2 = $("ed549TitleIn"); if (t2) t2.focus(); }); });
+          return;
+        }
+        if (ed549State.panel === "stickers") {
+          h = "<h4>" + rpT("ed_stickers549") + '</h4><div class="ed549-stk">' +
+            '<button type="button" class="ed549-stkb' + (!e.sticker ? " on" : "") + '" data-ed549stk="">🚫</button>' +
+            RP_STICKERS549.map(function (g) { return '<button type="button" class="ed549-stkb' + (e.sticker && e.sticker.g === g ? " on" : "") + '" data-ed549stk="' + g + '">' + g + "</button>"; }).join("") + "</div>" +
+            '<div class="ed549-lab"><span>' + rpT("ed_sticker_slot549") + '</span></div><div class="ed549-chips">' +
+            [["tl", "↖"], ["tr", "↗"], ["bl", "↙"], ["br", "↘"]].map(function (s) { return '<button type="button" class="ed549-chip' + ((e.sticker && e.sticker.s === s[0]) || (!e.sticker && s[0] === "br") ? " on" : "") + '" data-ed549slot="' + s[0] + '">' + s[1] + "</button>"; }).join("") + "</div>";
+          p.innerHTML = h;
+          p.querySelectorAll("[data-ed549stk]").forEach(function (b) { b.addEventListener("click", function () { var g = b.getAttribute("data-ed549stk"); e.sticker = g ? { g: g, s: (e.sticker && e.sticker.s) || "br" } : null; ed549PaintVideo(); ed549RenderPanel(); }); });
+          p.querySelectorAll("[data-ed549slot]").forEach(function (b) { b.addEventListener("click", function () { if (e.sticker) e.sticker.s = b.getAttribute("data-ed549slot"); ed549PaintVideo(); ed549RenderPanel(); }); });
+          return;
+        }
+        if (ed549State.panel === "filters") {
+          h = "<h4>" + rpT("ed_filters549") + '</h4><div class="ed549-chips">' + Object.keys(RP_LOOKS549).map(function (lk2) { return '<button type="button" class="ed549-chip' + (e.look === lk2 ? " on" : "") + '" data-ed549look="' + lk2 + '">' + rpT("ed_look_" + lk2 + "549") + "</button>"; }).join("") + "</div>" +
+            '<p class="ed549-note">' + rpT("pd_hq_on549") + "</p>";
+          p.innerHTML = h;
+          p.querySelectorAll("[data-ed549look]").forEach(function (b) { b.addEventListener("click", function () { e.look = b.getAttribute("data-ed549look"); e.tplId = null; ed549PaintVideo(); ed549RenderPanel(); }); });
+          return;
+        }
+        // voice
+        h = "<h4>" + rpT("ed_voice549") + '</h4><div class="ed549-chips">' + [["none", "ed_voice_none549"], ["deep", "ed_voice_deep549"], ["chipmunk", "ed_voice_chipmunk549"], ["echo", "ed_voice_echo549"]].map(function (s) { return '<button type="button" class="ed549-chip' + (e.voiceFx === s[0] ? " on" : "") + '" data-ed549voice="' + s[0] + '">' + rpT(s[1]) + "</button>"; }).join("") + "</div>" +
+          '<p class="ed549-note">' + rpT("ed_voice_hint549") + "</p>";
+        p.innerHTML = h;
+        p.querySelectorAll("[data-ed549voice]").forEach(function (b) { b.addEventListener("click", function () { e.voiceFx = b.getAttribute("data-ed549voice"); ed549RenderPanel(); }); });
+      }
+      function ed549Hide() {
+        var root = $("rpEditor549"); if (root) root.hidden = true;
+        var v = $("ed549Video"); if (v) { try { v.pause(); } catch (e) { } }
+      }
+      function ed549Leave(stage) {
+        ed549Hide();
+        Reels.stage = stage;
+        openReelComposer();
+      }
+      function rpEdOpen549(panel) {
+        if (!Reels.pendingUrl) { openReelComposer(); return; }
+        var root = $("rpEditor549") || ed549Build();
+        ed549State.returnStage = (Reels.stage === "details") ? "details" : "preview";
+        if (panel) ed549State.panel = panel;
+        var pv = $("reelPreview"); if (pv) { try { pv.pause(); } catch (e) { } } // the sheet's preview rests under the editor
+        root.hidden = false;
+        var v = $("ed549Video");
+        if (v) {
+          if (v.getAttribute("src") !== Reels.pendingUrl) v.src = Reels.pendingUrl;
+          ed549PaintVideo();
+          var pr = v.play(); if (pr && pr.catch) pr.catch(function () { });
+        }
+        ed549PaintSound();
+        ed549RenderPanel();
+      }
+      window.rpEdOpen549 = rpEdOpen549;
+      function rpCoverPaint549() { // [RP-V7.549] the details-stage cover thumb: the picked frame (or the first frame) grabbed off the pending video
+        var box = $("reelCoverImg549"); if (!box || !Reels.pendingUrl) return;
+        try {
+          var v = document.createElement("video");
+          v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = Reels.pendingUrl;
+          v.addEventListener("loadedmetadata", function () { try { v.currentTime = Math.min((Reels.ed549 && Reels.ed549.coverSec) || 0.1, Math.max(0.1, (v.duration || 1) - 0.1)); } catch (e) { } });
+          v.addEventListener("seeked", function () {
+            try {
+              var cv = document.createElement("canvas"); cv.width = 104; cv.height = 140;
+              cv.getContext("2d").drawImage(v, 0, 0, cv.width, cv.height);
+              box.innerHTML = '<img src="' + cv.toDataURL("image/jpeg", 0.72) + '" alt=""/>';
+            } catch (e) { }
+          });
+        } catch (e) { }
+      }
+      window.rpCoverPaint549 = rpCoverPaint549;
+      ed549Css(); // the overlay + status-row styles exist from first paint, not just after the editor's first open
+
       /* [RP-V7.256] HIGHEST DEFINITION capture (Branden, Nov 5:
          "The videos is not high definition highest pixels" — standing
          law Oct 27: highest pixels + HD at capture, storage and
@@ -33083,7 +33440,8 @@
         if (Reels._pubRetryId) { meta = reelMetaById(Reels._pubRetryId); if (!meta) Reels._pubRetryId = null; } // [RP-POSTFIX] a re-tap after a failed upload retries THIS post — it must never mint a second copy of it
         if (!meta) { meta = reelPublishBlob(blob, cap); Reels._pubRetryId = meta.id; }
         postDetailsSync156("reel"); // [RP-V7.156]
-        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, shoutoutId: postMeta156.shoutoutId || "", collabUser: postMeta156.collabUser || "" }); // [RP-GAMING] gaming rides the reel meta into the upload // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload // [RP-V7.316] allowDownloads rides too // [RP-V7.453] the optional collaborator invite rides too
+        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, shoutoutId: postMeta156.shoutoutId || "", collabUser: postMeta156.collabUser || "", allowComments: postMeta156.allowComments !== false, aiLabel: !!postMeta156.aiLabel, tplShare: !!postMeta156.tplShare }); // [RP-GAMING] gaming rides the reel meta into the upload // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload // [RP-V7.316] allowDownloads rides too // [RP-V7.453] the optional collaborator invite rides too // [RP-V7.549] the 549 switches ride too
+        reelUpdateMeta(meta.id, reelEdPatch549(Reels.ed549)); // [RP-V7.549] the editor's look/voice/cover/title/sticker ride the same meta
         reelTrimMeta169(meta.id); // [RP-V7.169]
         reelFitMetaTrim(meta.id); // [RP-TRIM]
         if (Reels.pendingSound && Reels.pendingSound.trackId) {
@@ -33117,6 +33475,7 @@
           Reels._publishingPostfix = false;
           if (resPostfix && resPostfix.ok) {
             Reels._pubRetryId = null;
+            rpLocPush549(postMeta156.location); // [RP-V7.549] the posted place joins the member's recent-places chips
             reelClearPending();
             Reels.pendingCaption = "";
             Reels.stage = "pick";
@@ -33139,7 +33498,8 @@
         var cap = capEl ? (capEl.value || "").trim() : (Reels.pendingCaption || "");
         postDetailsSync156("reel"); // [RP-V7.156]
         if (Reels.editingDraftId) {
-          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316] // [RP-GAMING]
+          reelUpdateMeta(Reels.editingDraftId, { caption: cap, location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, allowComments: postMeta156.allowComments !== false, aiLabel: !!postMeta156.aiLabel, tplShare: !!postMeta156.tplShare }); // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316] // [RP-GAMING] // [RP-V7.549]
+          reelUpdateMeta(Reels.editingDraftId, reelEdPatch549(Reels.ed549)); // [RP-V7.549]
           if (Reels.remix) { reelUpdateMeta(Reels.editingDraftId, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
           reelTrimMeta169(Reels.editingDraftId); // [RP-V7.169]
           reelFitMetaTrim(Reels.editingDraftId); // [RP-TRIM]
@@ -33149,9 +33509,10 @@
             id: "draft" + Date.now() + Math.floor(Math.random() * 100000),
             draft: true,
             author: reelMyName(), caption: cap,
-            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.316] */ /* [RP-GAMING] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone" 
+            createdAt: new Date().toISOString(), likes: 0, liked: false, serverId: null, url: "", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, /* [RP-V7.296] */ /* [RP-V7.298] */ /* [RP-V7.316] */ /* [RP-GAMING] */ allowComments: postMeta156.allowComments !== false, aiLabel: !!postMeta156.aiLabel, tplShare: !!postMeta156.tplShare, /* [RP-V7.549] */ location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone"
           };
           var list = reelLoadMeta(); list.push(meta); reelSaveMeta(list);
+          reelUpdateMeta(meta.id, reelEdPatch549(Reels.ed549)); // [RP-V7.549] the editor state saves into the draft too
           if (Reels.pendingSound && Reels.pendingSound.trackId) { reelUpdateMeta(meta.id, window.rpSndMeta335 ? window.rpSndMeta335(Reels.pendingSound) : { musicTrackId: Reels.pendingSound.trackId, musicStart: Reels.pendingSound.start || 0, musicVol: Reels.pendingSound.musicVol, origVol: Reels.pendingSound.origVol }) /* [RP-V7.335] */; }
           if (Reels.remix) { reelUpdateMeta(meta.id, { kind: Reels.remix.kind, sourceId: Reels.remix.sourceId, sourceAuthor: Reels.remix.sourceAuthor, sourceUrl: Reels.remix.sourceUrl || "", stitchStart: Reels.remix.stitchStart, stitchDur: Reels.remix.stitchDur }); Reels.remix = null; }
           reelTrimMeta169(meta.id); // [RP-V7.169]
@@ -33177,7 +33538,8 @@
           Reels.trimStart = (typeof m.trimStart === "number") ? m.trimStart : null; Reels.trimEnd = (typeof m.trimEnd === "number") ? m.trimEnd : null; Reels.trimOpen = Reels.trimStart != null; Reels.mustTrim = false; /* [RP-V7.169] */
           Reels.pendingFitStart = (typeof m.fitStart === "number") ? m.fitStart : null; /* [RP-TRIM] */
           Reels.pendingCaption = m.caption || "";
-          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, downloads: m.allowDownloads !== false, subsOnly: !!m.subsOnly, clubOnly: !!m.clubOnly, gaming: !!m.gaming }; // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316] // [RP-GAMING]
+          postMeta156 = { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", remix: m.allowRemix !== false, downloads: m.allowDownloads !== false, subsOnly: !!m.subsOnly, clubOnly: !!m.clubOnly, gaming: !!m.gaming, allowComments: m.allowComments !== false, aiLabel: !!m.aiLabel, tplShare: !!m.tplShare }; // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.316] // [RP-GAMING] // [RP-V7.549]
+          Reels.ed549 = { look: m.look || "none", voiceFx: m.voiceFx || "none", titleText: m.titleText || "", titleStyle: m.titleStyle || "bold", sticker: m.sticker || null, coverSec: (typeof m.coverSec === "number") ? m.coverSec : null, tplId: null }; // [RP-V7.549] the draft's editor state comes back with it
           Reels.remix = m.kind ? { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur } : null;
           Reels.editingDraftId = id;
           Reels.stage = "preview";
@@ -33197,7 +33559,8 @@
       function reelPostDraftGo156(id, m, blob) {
           if (Reels._draftPostingPostfix) return; // [RP-POSTFIX] one draft post at a time — extra taps change nothing
           var meta = reelPublishBlob(blob, m.caption || "");
-          reelUpdateMeta(meta.id, { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false }); // [RP-V7.156] // [RP-V7.316]
+          reelUpdateMeta(meta.id, { location: m.location || "", link: m.link || "", audience: m.audience || "everyone", allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, allowComments: m.allowComments !== false, aiLabel: !!m.aiLabel, tplShare: !!m.tplShare }); // [RP-V7.156] // [RP-V7.316] // [RP-V7.549]
+          reelUpdateMeta(meta.id, reelEdPatch549(m)); // [RP-V7.549] the draft's editor fields post with it
           if (m.kind) reelUpdateMeta(meta.id, { kind: m.kind, sourceId: m.sourceId, sourceAuthor: m.sourceAuthor, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur });
           if (typeof m.trimStart === "number" && typeof m.trimEnd === "number") reelUpdateMeta(meta.id, { trimStart: m.trimStart, trimEnd: m.trimEnd }); // [RP-V7.169]
           if (typeof m.fitStart === "number") reelUpdateMeta(meta.id, { fitStart: m.fitStart, trimStart: undefined, trimEnd: undefined }); // [RP-TRIM]
@@ -43796,6 +44159,53 @@ function stageStreakBump(key, add) {
     pd_shoutout_unlinked: "Shoutout unlinked — this post won't fulfill the request.",
     pd_subs_only: "🔒 Subscribers only — only your subscribers can watch this post",
     pd_unlink: "Unlink",
+    pd_allow_comments549: "Allow comments",
+    pd_ai_label549: "AI-generated content",
+    pd_ai_chip549: "🤖 AI-generated",
+    pd_tpl_share549: "Post as template — members can reuse your sound + look + title style",
+    pd_cr549: "Auto-check sound copyright",
+    pd_cr_on_mute549: "On — a copyrighted song's audio is muted",
+    pd_cr_on_block549: "On — posts with a copyrighted song are blocked",
+    pd_cr_on_flag549: "On — matches are flagged for review",
+    pd_cr_off549: "Off",
+    pd_cr_default549: "On — every post is scanned automatically",
+    pd_hq549: "High-quality uploads",
+    pd_hq_on549: "On — stored exactly as shot, never re-encoded",
+    pd_recent_places549: "Your recent places",
+    cmt_off549: "💬 Comments are turned off for this post.",
+    ed_title549: "Title",
+    ed_title_ph549: "Add a title card…",
+    ed_templates549: "Templates",
+    ed_text549: "Text",
+    ed_stickers549: "Stickers",
+    ed_filters549: "Filters",
+    ed_voice549: "Voice",
+    ed_edit549: "Edit",
+    ed_save549: "Save",
+    ed_next549: "Next",
+    ed_autocut549: "⚡ AutoCut",
+    ed_autocut_done549: "⚡ AutoCut attached {name}",
+    ed_tpl_member549: "From members",
+    ed_tpl_builtin549: "Plaza templates",
+    ed_tpl_none549: "None",
+    ed_cover549: "Edit cover",
+    ed_cover_hint549: "Slide to the frame you want — it becomes your cover.",
+    ed_voice_hint549: "Changes your video's own audio when it posts — no preview here.",
+    ed_voice_none549: "Original",
+    ed_voice_deep549: "Deep",
+    ed_voice_chipmunk549: "Chipmunk",
+    ed_voice_echo549: "Echo",
+    ed_look_none549: "Original",
+    ed_look_warm549: "Warm",
+    ed_look_cool549: "Cool",
+    ed_look_bw549: "B&W",
+    ed_look_vivid549: "Vivid",
+    ed_look_golden549: "Golden",
+    ed_look_noir549: "Noir",
+    ed_style_bold549: "Bold",
+    ed_style_outline549: "Outline",
+    ed_style_card549: "Card",
+    ed_sticker_slot549: "Corner",
     rail_about: "About",
     rail_collab: "Collab",
     rail_collaborator: "Collaborator",
@@ -80268,7 +80678,7 @@ button.rp72-chip{ cursor:pointer; }
       html += '<button class="reel-act cmt pp-cmt" type="button">' + lbIco241("comment") + '<span class="cc">' + ffi.commentCount + "</span></button>";
     }
     if (isPost) {
-      fi = { postId: it.id, author: ownerName, authorId: ownerId, caption: it.caption || "", likes: it.likes || 0, myLiked: !!it.myLiked, comments: Array.isArray(it.comments) ? it.comments : [], commentCount: it.commentCount || 0, reposts: it.reposts || 0, myReposted: !!it.myReposted, mine: mine };
+      fi = { postId: it.id, author: ownerName, authorId: ownerId, caption: it.caption || "", likes: it.likes || 0, myLiked: !!it.myLiked, comments: Array.isArray(it.comments) ? it.comments : [], commentCount: it.commentCount || 0, reposts: it.reposts || 0, myReposted: !!it.myReposted, mine: mine, allowComments: it.allowComments !== false /* [RP-V7.549] */ };
       html += '<button class="reel-act like pp-heart' + (fi.myLiked ? " liked" : "") + '" type="button">' + lbIco241("heart") + '<span class="lc">' + fi.likes + "</span></button>";
       html += '<button class="reel-act cmt pp-cmt" type="button">' + lbIco241("comment") + '<span class="cc">' + fi.commentCount + "</span></button>";
     }
@@ -80353,7 +80763,7 @@ button.rp72-chip{ cursor:pointer; }
       };
     }
     var acts = window.rpFeedActs241 || {};
-    var fi = { server: true, id: it.id, key: "lb241:" + it.id, author: ownerName, authorId: ownerId, collabId: it.collabId || null, collabName: it.collabName || "", collabUsername: it.collabUsername || "", collabStatus: it.collabStatus || null, /* [RP-V7.453] */ caption: it.caption || "", mine: mine, myHeart: !!it.myHeart, heartLikes: (typeof it.heartLikes === "number" ? it.heartLikes : (it.likes || 0)), comments: Array.isArray(it.comments) ? it.comments : [], commentCount: it.commentCount || 0, reposts: it.reposts || 0, myReposted: !!it.myReposted };
+    var fi = { server: true, id: it.id, key: "lb241:" + it.id, author: ownerName, authorId: ownerId, collabId: it.collabId || null, collabName: it.collabName || "", collabUsername: it.collabUsername || "", collabStatus: it.collabStatus || null, /* [RP-V7.453] */ caption: it.caption || "", mine: mine, myHeart: !!it.myHeart, heartLikes: (typeof it.heartLikes === "number" ? it.heartLikes : (it.likes || 0)), comments: Array.isArray(it.comments) ? it.comments : [], commentCount: it.commentCount || 0, reposts: it.reposts || 0, myReposted: !!it.myReposted, allowComments: it.allowComments !== false, aiLabel: !!it.aiLabel, titleText: it.titleText || "", titleStyle: it.titleStyle || "bold", sticker: it.sticker || null, look: it.look || "" /* [RP-V7.549] */ };
     var lk = acts.reelLikeState ? acts.reelLikeState(fi) : { liked: !!fi.myHeart, count: fi.heartLikes || 0 };
     var html = '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">' + lbIco241("heart") + '<span class="lc">' + lk.count + "</span></button>";
     html += '<button class="reel-act cmt" type="button">' + lbIco241("comment") + '<span class="cc">' + fi.commentCount + "</span></button>";
@@ -80612,7 +81022,7 @@ button.rp72-chip{ cursor:pointer; }
     var rail241 = railForReel241(it); // [RP-V7.241]
     window.openSheet(
       '<div class="rpmedia-wrap"><button class="rpmedia-x" data-act="close" aria-label="Close" data-i18n-al="act_close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
-      '<div class="rpmedia-player"><video src="' + esc(it.src || "") + '" controls autoplay playsinline></video>' +
+      '<div class="rpmedia-player"><video src="' + esc(it.src || "") + '" controls autoplay playsinline></video>' + (window.rpOverlay549 ? window.rpOverlay549(it) : "") + // [RP-V7.549] the post's title card / sticker / AI chip ride the profile player too
       '<span class="rpmedia-player-count" data-rpvcount>👁 ' + fmtViews(it.views || 0) + "</span>" + (it.crMuted ? '<span class="cr286-chip rpmedia-cr286">🔇 ' + rpT("card_audio_muted") + '</span>' : "") + rail241.html + "</div></div>" // [RP-V7.286]
     );
     wireSheetClose();
@@ -81035,7 +81445,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.reels || []).forEach(function (r) {
       items.push({ kind: "reel", id: r.id, owner: j.id, ownerName: j.name || "", src: r.url || "", poster: r.poster || "", locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, /* [RP-V7.296] */ /* [RP-V7.298] */ views: r.views || 0,
         // [RP-V7.241] rail state rides along for the lightbox
-        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ allowDownloads: r.allowDownloads !== false /* [RP-V7.316] */ });
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "" /* [RP-V7.549] */ });
     });
     return items;
   }
@@ -81265,7 +81675,7 @@ button.rp72-chip{ cursor:pointer; }
     (j.reels || []).forEach(function (r) {
       items.push({ kind: "reel", id: r.id, owner: r.authorId || null, ownerName: r.author || "", src: r.url || "", poster: r.poster || "", views: r.views || 0, createdAt: r.createdAt || "",
         // [RP-V7.241] rail state rides along for the lightbox
-        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ allowDownloads: r.allowDownloads !== false /* [RP-V7.316] */ });
+        caption: r.caption || "", heartLikes: r.heartLikes || 0, giftCount: r.giftCount || 0, /* [RP-V7.262] */ myHeart: !!r.myHeart, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: r.commentCount || 0, reposts: r.reposts || 0, myReposted: !!r.myReposted, crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "" /* [RP-V7.549] */ });
     });
     (j.photos || []).forEach(function (p) {
       items.push({ kind: "photo", id: p.url, owner: p.ownerId, ownerName: p.ownerName || "", src: p.url, views: p.views || 0, createdAt: "" });
@@ -88223,6 +88633,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
             Snd.origList.forEach(function (o) { if (o && o.id) Snd.orig[o.id] = o; });
             Snd.trending = Array.isArray(j.trending) ? j.trending : [];
             Snd.trendScores = j.trendScores || {};
+            window.__rpCr549 = j.cr549 || null; // [RP-V7.549] the real copyright-scan state, read by the composer's More options status row
             if (Array.isArray(j.favorites)) {
               Snd.signedIn = true; Snd.favs = {}; j.favorites.forEach(function (id) { Snd.favs[id] = true; });
               Snd.recents = Array.isArray(j.recents) ? j.recents : [];
@@ -88386,6 +88797,9 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       try { AudioFX.releaseMusic("sndpick"); } catch (e) { }
     }
     window.rpSndOpen = openPicker;
+    window.rpSndAuto549 = function () { // [RP-V7.549] AutoCut: the V7.548 suggestion ranker's top pick, as an attach object — the editor's one-tap sound. Null when the catalog has nothing to offer.
+      try { var ids = sndSuggested548(); if (!ids || !ids.length) return null; return { trackId: ids[0], start: 0, musicVol: 0.8, origVol: 1 }; } catch (e) { return null; }
+    };
     window.rpSndAttached501 = function () { return Snd.attached; }; // [RP-V7.501] the photo/reel composers read the camera's attached sound through here
     window.rpSndClear501 = function () { Snd.attached = null; updatePill(); }; // [RP-V7.501] a composer removing its sound clears the camera copy too, so it cannot be re-adopted
     function updatePill() {
@@ -88795,7 +89209,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         Reels.pendingSound = { trackId: Snd.attached.trackId, start: Snd.attached.start || 0, musicVol: Snd.attached.musicVol, origVol: Snd.attached.origVol };
       } else Reels.pendingSound = null;
       closeEditor();
-      openReelComposer();
+      if (window.rpEdOpen549) window.rpEdOpen549(); else openReelComposer(); // [RP-V7.549] a camera recording passes through the editor too — one flow for every video
     }
 
     /* ---------- lens sheet ("All effects") ---------- */
@@ -92222,7 +92636,7 @@ html, body { overflow-x: clip; }
        (the server branch and the on-device branch), so reelCard and
        every rail handler read exactly what they read on Reels. */
     function gameServerItem(r, myServerIds) {
-      return { key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, crMuted: r.crMuted || null, apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */ }; /* [RP-V7.451] */
+      return { key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "", /* [RP-V7.549] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, crMuted: r.crMuted || null, apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */ }; /* [RP-V7.451] */
     }
     function gameLocalItem(m) {
       return { key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || (typeof reelMyName === "function" ? reelMyName() : "You"), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, musicTrackId: m.musicTrackId || null, origSoundId: m.origSoundId || null, soundId: null, soundName: null, soundOwnerName: null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol, category: m.gaming ? "gaming" : null };
