@@ -24017,6 +24017,90 @@
         var sel = $("ffSocNet"), inp = $("ffSocHandle");
         if (sel && inp) inp.value = ffMySoc144[sel.value] || "";
       }
+      /* [RP-V7.546] CONTACTS → MEMBERS + INVITES (Branden, Nov 27,
+         2026 — the TikTok contacts feature, completed). One matcher
+         drives the Contact Picker and the paste box: the picked
+         contacts go to POST /api/friends/match (phones AND emails —
+         the V7.144 matcher was numbers-only), matched contacts
+         render as member rows (the existing ffRow144 + ffWire144,
+         whose Add button is the sheet's /api/social/follow call),
+         and every picked contact with NO match gets an Invite
+         button — a text from the member's own phone (sms:) whose
+         body names the member and carries their personal referral
+         link (V7.392), so a joining friend is credited to them.
+         Contacts are checked once and never stored — the privacy
+         note at the top of this sheet covers this section too. */
+      var ffRef546 = null; // { link } once /api/referrals/me answers
+      function ffRefLink546(cb) {
+        if (ffRef546) { cb(ffRef546.link); return; }
+        var tk = ffToken144(); if (!tk) { cb("https://rizzplaza.com"); return; }
+        fetch("/api/referrals/me", { headers: { "Authorization": "Bearer " + tk } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { ffRef546 = { link: (j && j.link) || "https://rizzplaza.com" }; cb(ffRef546.link); })
+          .catch(function () { cb("https://rizzplaza.com"); });
+      }
+      function ffInviteText546(link) {
+        var nm = ""; try { nm = (me && me.name) || ""; } catch (e) { }
+        return rpTf("ff546_invite_sms", { name: nm || "A friend of yours", link: link });
+      }
+      function ffOpenSms546(tel, text) {
+        var num = String(tel || "").replace(/[^\d+]/g, "");
+        window.location.href = "sms:" + num + "?&body=" + encodeURIComponent(text);
+      }
+      function ffInviteTap546(group) {
+        ffRefLink546(function (link) {
+          var text = ffInviteText546(link);
+          if (group && group.tel) { ffOpenSms546(group.tel, text); return; }
+          if (navigator.share) { navigator.share({ title: "Rizz Plaza", text: text }).catch(function () { }); }
+          else if (navigator.clipboard) { navigator.clipboard.writeText(text).then(function () { showToast(rpT("ff_invite_copied")); }).catch(function () { }); }
+        });
+      }
+      function ffRenderMatch546(resEl, j, submitted, groups, emptyText) {
+        if (!resEl) return;
+        var people = (j && j.people) || [];
+        var matchedGroups = {};
+        people.forEach(function (p) {
+          var e = (typeof p.contactIndex === "number") ? submitted[p.contactIndex] : null;
+          if (e && typeof e.g === "number") matchedGroups[e.g] = true;
+        });
+        var html = "";
+        if (people.length) {
+          html += '<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;"><span class="age-note" style="flex:1;">' + rpTf(people.length === 1 ? "ff_friends_on_plaza_one" : "ff_friends_on_plaza_many", { n: people.length }) + '</span></div>';
+          html += people.map(function (p) { return ffRow144(p); }).join("");
+        } else {
+          html += '<p class="empty-note">' + emptyText + '</p>';
+        }
+        var unmatched = [];
+        (groups || []).forEach(function (g, gi) { if (!matchedGroups[gi]) unmatched.push(gi); });
+        if (unmatched.length) {
+          html += '<h4 style="margin:12px 0 4px;">' + rpT("ff546_not_member") + '</h4>';
+          html += unmatched.map(function (gi) {
+            var g = groups[gi];
+            var label = g.name || g.tel || g.email || "";
+            return '<div class="fol-row"><span class="fol-av">' + personFace({ name: label }) + '</span>' +
+              '<span class="fol-meta"><b>' + escHtml(label) + '</b><i>' + rpT("ff546_not_member") + '</i></span>' +
+              '<button type="button" class="btn-mini" data-ffinv546="' + gi + '">' + rpT("ff_invite") + '</button></div>';
+          }).join("");
+        }
+        resEl.innerHTML = html;
+        ffWire144(resEl);
+        resEl.querySelectorAll("[data-ffinv546]").forEach(function (btn) {
+          btn.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            ffInviteTap546(groups[Number(btn.getAttribute("data-ffinv546"))]);
+          });
+        });
+      }
+      function ffMatchContacts546(submitted, groups, resEl, emptyText) {
+        if (!submitted.length) { showToast(rpT("ff_toast_phone_first")); return; }
+        if (!resEl) return;
+        resEl.innerHTML = '<p class="empty-note">' + rpT("ff_matching") + '</p>';
+        var tk = ffToken144(); if (!tk) { showToast(rpT("ff_signin_toast")); return; }
+        fetch("/api/friends/match", { method: "POST", headers: { "Authorization": "Bearer " + tk, "Content-Type": "application/json" }, body: JSON.stringify({ contacts: submitted.slice(0, 500) }) })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { ffRenderMatch546(resEl, j, submitted, groups, emptyText); })
+          .catch(function () { resEl.innerHTML = '<p class="empty-note">' + rpT("ff_match_fail") + '</p>'; });
+      }
       function openFindFriends(opts) {
         var onb147 = !!(opts && opts.onboarding); // [RP-V7.147] the sign-up step
         var tk = ffToken144();
@@ -24030,9 +24114,11 @@
           '<div style="display:flex;gap:8px;"><input class="rpdm-input" id="ffMemQ" type="text" placeholder="Name, @username, or their Facebook / Instagram / TikTok handle…" data-i18n-ph="ff_search_ph" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMemGo" data-i18n="ff_search">Search</button></div>' +
           '<div id="ffMemRes"></div>' +
           '<h4 style="margin:12px 0 4px;">' + rpT("ff_from_contacts") + '</h4>' +
+          '<p class="age-note" style="margin:0 0 6px;">' + rpT("ff546_email_note") + '</p>' +
           (canPick ? '<button type="button" class="btn-mini" id="ffPick" data-i18n="ff_pick_contacts">Pick contacts</button> ' : '') +
-          '<div style="display:flex;gap:8px;margin-top:6px;"><input class="rpdm-input" id="ffPhones" type="text" placeholder="Paste phone numbers…" data-i18n-ph="ff_phones_ph" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMatch" data-i18n="ff_match_btn">Match</button></div>' +
+          '<div style="display:flex;gap:8px;margin-top:6px;"><input class="rpdm-input" id="ffPhones" type="text" placeholder="Paste numbers or emails…" data-i18n-ph="ff546_paste_ph" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffMatch" data-i18n="ff_match_btn">Match</button></div>' +
           '<div id="ffContactsRes"></div>' +
+          '<div style="display:flex;gap:8px;margin-top:10px;"><button type="button" class="btn-mini" id="ffInvText546">' + rpT("ff546_invite_text_btn") + '</button>' + (navigator.share ? '<button type="button" class="btn-mini" id="ffInvShare546">' + rpT("ff546_share_btn") + '</button>' : '') + '</div>' +
           '<h4 style="margin:14px 0 4px;"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.2 13.8a4.5 4.5 0 0 0 6.4 0l2.8-2.8a4.54 4.54 0 1 0-6.4-6.4l-1.6 1.6\"/><path d=\"M13.8 10.2a4.5 4.5 0 0 0-6.4 0l-2.8 2.8a4.54 4.54 0 1 0 6.4 6.4l1.6-1.6\"/></svg> ' + rpT("ff_find_apps") + '</h4>' +
           '<div style="display:flex;gap:8px;"><select class="rpdm-input" id="ffNet" style="flex:none;width:118px;"><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="snapchat">Snapchat</option><option value="facebook">Facebook</option><option value="x">X</option><option value="youtube">YouTube</option><option value="twitch">Twitch</option><option value="threads">Threads</option></select>' +
           '<input class="rpdm-input" id="ffHandle" type="text" placeholder="@their-username" data-i18n-ph="ff_handle_ph" autocomplete="off" style="flex:1;"/><button type="button" class="btn-mini" id="ffFind" data-i18n="ff_find_btn">Find</button></div>' +
@@ -24050,22 +24136,54 @@
         var post = function (body) { return fetch("/api/social/find-friends", { method: "POST", headers: H, body: JSON.stringify(body) }).then(function (r) { return r.ok ? r.json() : null; }); };
         var matchBtn = $("ffMatch");
         if (matchBtn) matchBtn.addEventListener("click", function () {
-          var raw = ($("ffPhones").value || "").split(/[\n,; ]+/).filter(Boolean);
-          if (!raw.length) { showToast(rpT("ff_toast_phone_first")); return; }
-          $("ffContactsRes").innerHTML = '<p class="empty-note">' + rpT("ff_matching") + '</p>';
-          post({ phones: raw }).then(function (j) { ffRenderInto144($("ffContactsRes"), j && j.people, rpT("ff_no_match_numbers")); })
-            .catch(function () { ffRenderInto144($("ffContactsRes"), null, rpT("ff_match_fail")); });
+          // [RP-V7.546] the paste box checks numbers AND emails on
+          // the new matcher — one pasted line = one contact (an
+          // email, a number, or "Name number" all parse).
+          var lines = ($("ffPhones").value || "").split(/[\n;]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+          var submitted = [], groups = [];
+          lines.slice(0, 200).forEach(function (line) {
+            var emailM = line.match(/[^\s,]+@[^\s,]+\.[^\s,]+/);
+            var email = emailM ? emailM[0] : "";
+            var rest = email ? line.replace(email, " ") : line;
+            var tel = rest.replace(/\D/g, "").length >= 7 ? rest.trim() : "";
+            var nm = rest.replace(/[\d+().-]+/g, " ").replace(/\s+/g, " ").trim();
+            if (!tel && !email) return;
+            var gi = groups.length;
+            groups.push({ name: nm, tel: tel, email: email });
+            submitted.push({ name: nm, tel: tel, email: email, g: gi });
+          });
+          if (!submitted.length) { showToast(rpT("ff_toast_phone_first")); return; }
+          ffMatchContacts546(submitted, groups, $("ffContactsRes"), rpT("ff_no_match_numbers"));
         });
         var pickBtn = $("ffPick");
         if (pickBtn) pickBtn.addEventListener("click", function () {
-          navigator.contacts.select(["name", "tel"], { multiple: true }).then(function (cs) {
-            var pairs = [];
-            (cs || []).forEach(function (c) { var nm = (c.name && c.name[0]) || ""; (c.tel || []).forEach(function (t) { pairs.push({ name: nm, phone: t }); }); });
-            if (!pairs.length) return;
-            $("ffContactsRes").innerHTML = '<p class="empty-note">' + rpT("ff_matching") + '</p>';
-            post({ phones: pairs }).then(function (j) { ffRenderInto144($("ffContactsRes"), j && j.people, rpT("ff_no_match_contacts")); })
-              .catch(function () { ffRenderInto144($("ffContactsRes"), null, rpT("ff_match_fail")); });
+          // [RP-V7.546] the picker now asks for emails too; every
+          // number and every email of a picked contact is checked
+          // (one submitted entry each, all carrying the contact's
+          // group index so a match on any of them clears the whole
+          // contact from the invite list).
+          navigator.contacts.select(["name", "tel", "email"], { multiple: true }).then(function (cs) {
+            var submitted = [], groups = [];
+            (cs || []).slice(0, 200).forEach(function (c) {
+              var nm = (c.name && c.name[0]) || "";
+              var tels = (c.tel || []).filter(Boolean), emails = (c.email || []).filter(Boolean);
+              if (!tels.length && !emails.length) return;
+              var gi = groups.length;
+              groups.push({ name: nm, tel: tels[0] || "", email: emails[0] || "" });
+              tels.forEach(function (t) { submitted.push({ name: nm, tel: t, g: gi }); });
+              emails.forEach(function (em) { submitted.push({ name: nm, email: em, g: gi }); });
+            });
+            if (!submitted.length) return;
+            ffMatchContacts546(submitted, groups, $("ffContactsRes"), rpT("ff_no_match_contacts"));
           }).catch(function () { });
+        });
+        var invTextBtn546 = $("ffInvText546");
+        if (invTextBtn546) invTextBtn546.addEventListener("click", function () {
+          ffRefLink546(function (link) { ffOpenSms546("", ffInviteText546(link)); });
+        });
+        var invShareBtn546 = $("ffInvShare546");
+        if (invShareBtn546) invShareBtn546.addEventListener("click", function () {
+          ffRefLink546(function (link) { if (navigator.share) navigator.share({ title: "Rizz Plaza", text: ffInviteText546(link) }).catch(function () { }); });
         });
         var findBtn = $("ffFind");
         if (findBtn) findBtn.addEventListener("click", function () {
@@ -42885,6 +43003,12 @@ function stageStreakBump(key, add) {
     ff_open_on: "Open on {label} ↗",
     ff_phones_ph: "Paste phone numbers…",
     ff_pick_contacts: "Pick contacts",
+    ff546_paste_ph: "Paste numbers or emails…",
+    ff546_email_note: "Emails are checked the same way as numbers — once, and never stored.",
+    ff546_invite_sms: "Hi! It's {name} — I'm on Rizz Plaza (live rooms, real people, daily pots). Join free and come find me: {link}",
+    ff546_not_member: "Not on the Plaza yet",
+    ff546_invite_text_btn: "Invite a friend by text",
+    ff546_share_btn: "Share invite",
     ff_privacy_note: "Numbers and names are matched and forgotten — never stored, never shared. Only Plaza members ever show up.",
     ff_save_fail: "Couldn't save — try again.",
     ff_saved_toast: "Saved — friends can find you by it now. 🔗",
