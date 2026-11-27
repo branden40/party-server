@@ -7705,6 +7705,79 @@ app.post("/api/sounds/use-tap", (req, res) => {
   res.json({ ok: true });
 });
 
+// [RP-V7.551] EFFECTS (the LIVE_FILTERS lenses) — real usage counts, a
+// decayed trending score and per-member favourites, in their own store,
+// mirroring the sounds system's shapes and rules exactly: trending is
+// computed from REAL applies only (never hand-picked), guests write no
+// signals, and the lens definitions themselves stay in the client
+// (LIVE_FILTERS is the one source of truth — ids are pattern-checked
+// here, and the client only ever renders ids it defines).
+const FX551_FILE =
+  process.env.FX551_FILE || path.join(path.dirname(PHOTO_DIR), "fx551.json");
+function fxCleanId551(v) {
+  const s = String(v || "");
+  return /^[a-z0-9][a-z0-9-]{0,39}$/.test(s) && s !== "none" ? s : null;
+}
+function readFx551() {
+  try {
+    const d = JSON.parse(fs.readFileSync(FX551_FILE, "utf8"));
+    if (d && typeof d === "object" && d.users && typeof d.users === "object") {
+      if (!d.trend || typeof d.trend !== "object") d.trend = {};
+      if (!d.uses || typeof d.uses !== "object") d.uses = {};
+      return d;
+    }
+  } catch {}
+  return { users: {}, trend: {}, uses: {} };
+}
+function writeFx551(d) {
+  const tmp = FX551_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(d, null, 2));
+  fs.renameSync(tmp, FX551_FILE);
+}
+app.get("/api/fx551/state", (req, res) => {
+  const d = readFx551();
+  let user = null;
+  try { user = accountForToken(readAccounts(), req); } catch (e) { user = null; }
+  const now = Date.now();
+  const scores = {};
+  for (const id of Object.keys(d.trend || {})) scores[id] = Math.round(fyDecayed(d.trend[id], now) * 1000) / 1000;
+  const out = { ok: true, scores, uses: d.uses || {} };
+  if (user) {
+    const u = d.users[user.id] || { favs: [] };
+    out.favorites = Array.isArray(u.favs) ? u.favs : [];
+  }
+  res.json(out);
+});
+app.post("/api/fx551/use", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return; // guests write no signals — the standing rule
+  const id = fxCleanId551((req.body || {}).lensId);
+  if (!id) return res.status(400).json({ ok: false, error: "Unknown effect" });
+  const d = readFx551();
+  d.uses[id] = (Number(d.uses[id]) || 0) + 1;
+  const now = Date.now();
+  const v = Math.min(9999, fyDecayed(d.trend[id], now) + 3); // an apply carries the use-tap weight (+3, the sounds convention)
+  d.trend[id] = { s: Math.round(v * 1000) / 1000, at: now };
+  writeFx551(d);
+  res.json({ ok: true, uses: d.uses[id] });
+});
+app.post("/api/fx551/favorite", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return; // guests keep a device-local list (client-side)
+  const b = req.body || {};
+  const id = fxCleanId551(b.lensId);
+  if (!id) return res.status(400).json({ ok: false, error: "Unknown effect" });
+  const want = b.fav === true;
+  const d = readFx551();
+  const u = d.users[ctx.user.id] || (d.users[ctx.user.id] = { favs: [] });
+  if (!Array.isArray(u.favs)) u.favs = [];
+  const has = u.favs.includes(id);
+  if (want && !has) u.favs.push(id);
+  if (!want && has) u.favs = u.favs.filter((x) => x !== id);
+  writeFx551(d);
+  res.json({ ok: true, favorites: u.favs });
+});
+
 // [RP-V7.335] One original sound: name, owner, live use count, and
 // every post that used it (the source post first — it is use #1).
 app.get("/api/sounds/orig/:id", (req, res) => {
