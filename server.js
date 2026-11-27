@@ -7605,12 +7605,18 @@ app.get("/api/sounds/state", (req, res) => {
   out.trending = tr.ids;
   out.trendScores = tr.scores;
   // [RP-V7.335] Original sounds ride the same payload: the picker
-  // resolves their names/owners/stream URLs from `orig`, their use
-  // counts merge into `usage`, and USABLE ones join Trending on the
-  // catalog's exact terms (same decayed score store, same weights —
-  // soundTrendBump is keyed by id, not by catalog membership). Ties
-  // fall to real use counts, then catalog-before-original, then the
-  // existing order / mint order. Nobody hand-picks any of it.
+  // resolves their names/owners/stream URLs from `orig`, and their
+  // use counts merge into `usage` and their scores into
+  // `trendScores`. [RP-V7.548] Trending ELIGIBILITY changed
+  // (Branden, Nov 27, 2026): `trending` is the LICENSED CATALOG ONLY
+  // — original sounds no longer join the list. The V7.335 merge put
+  // every usable member sound on the catalog's terms, and with
+  // daily clip posting minting a fresh "original sound" per clip,
+  // one-video extractions buried the licensed tracks. This is an
+  // eligibility fix, not a handpick: catalog ranking is untouched
+  // (real usage, 7-day decay — soundTrending above), and original
+  // sounds keep everything else — their `orig` rows, merged usage
+  // counts, merged trend scores, their sound page, search, recents.
   try {
     const adb335 = readAccounts();
     const od335 = readOrigSounds335();
@@ -7625,19 +7631,10 @@ app.get("/api/sounds/state", (req, res) => {
     }
     out.usage = usage335;
     out.trendScores = scores335;
-    const ord335 = {};
-    tr.ids.forEach((id, i) => { ord335[id] = i; });
-    const merged335 = tr.ids.map((id) => ({ id, cat: 0, ord: ord335[id] }))
-      .concat(rows335.filter((r) => r.usable).map((r) => ({ id: r.id, cat: 1, ord: Date.parse(r.createdAt || "") || 0 })));
-    merged335.sort((a, b) => {
-      const sa = scores335[a.id] || 0, sb = scores335[b.id] || 0;
-      if (sb !== sa) return sb - sa;
-      const ua = usage335[a.id] || 0, ub = usage335[b.id] || 0;
-      if (ub !== ua) return ub - ua;
-      if (a.cat !== b.cat) return a.cat - b.cat;
-      return a.ord - b.ord;
-    });
-    out.trending = merged335.map((x) => x.id);
+    // [RP-V7.548] out.trending stays tr.ids — the catalog-only list
+    // set above. (The V7.335 merged sort that overwrote it with
+    // usable original sounds mixed in is removed; see the note at
+    // the top of this block.)
   } catch (e) { }
   // [RP-V7.90] No featured/hand-picked list exists — the owner
   // retracted handpicks: Trending is the algorithm's alone.
@@ -7733,6 +7730,52 @@ app.post("/api/sounds/orig/:id/rename", (req, res) => {
   snd.name = name;
   writeOrigSounds335(d);
   res.json({ ok: true, id: snd.id, name: snd.name });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.548] CATALOG SOUND PAGE — TikTok's sound page for a licensed
+// catalog track (Branden, Nov 27, 2026: "Use like TikTok uses it and
+// list it to people posts"). Original sounds have had their page
+// since V7.335 (GET /api/sounds/orig/:id, fed by the registry);
+// catalog tracks had none — tapping a post's ♫ catalog credit went
+// straight to the composer. This endpoint is the catalog twin: every
+// live post carrying the track, in the SAME tile shape the original
+// page consumes (origLivePosts335's), so the client renders both
+// pages through one renderer. The count is the LIVE post count (the
+// registry's truth rule from V7.335), never the sounds.json usage
+// counter, which keeps historical uses of since-deleted posts.
+// Ranking is the app BRAIN on real signals only: views first, then
+// newest. The track's name/artist/stream live in the client catalog
+// (the server's SOUND_TRACKS carries ids + families only), so the
+// response carries just the id, the live use count and the posts.
+// ---------------------------------------------------------------------------
+function trackPosts548(trackId, adb) {
+  const out = [];
+  try {
+    const vdb = readViews();
+    for (const r of listReels()) {
+      if (!r || r.musicTrackId !== trackId || !r.file) continue;
+      out.push({ kind: "reel", id: r.id, url: "/reel-files/" + r.file, poster: rpPosterUrl482(r), caption: r.caption || "", author: origName335(adb, r.authorId, r.author), authorId: r.authorId || null, views: mediaViewCount(vdb, "reel:" + r.id), createdAt: r.createdAt || null });
+    }
+    const feedPosts = readFeed().posts || {};
+    for (const pid of Object.keys(feedPosts)) {
+      const p = feedPosts[pid];
+      if (!p || p.musicTrackId !== trackId || !p.file) continue;
+      out.push({ kind: "feed", id: p.id, url: "/photos/feed/" + p.file, caption: p.text || "", author: origName335(adb, p.authorId, p.authorName), authorId: p.authorId || null, views: typeof p.views === "number" ? p.views : 0, createdAt: p.createdAt || null, allowDownloads: p.allowDownloads !== false });
+    }
+    for (const p of (readPhotoPosts().posts || [])) {
+      if (!p || p.musicTrackId !== trackId) continue;
+      out.push({ kind: "photo", id: p.id, url: p.photo || (Array.isArray(p.urls) ? p.urls[0] : null), caption: p.caption || "", author: origName335(adb, p.owner, p.name), authorId: p.owner || null, views: 0, createdAt: p.ts || null });
+    }
+  } catch (e) { }
+  out.sort((a, b) => (b.views - a.views) || ((Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0)));
+  return out;
+}
+app.get("/api/sounds/track/:id", (req, res) => {
+  const tid = soundCleanId(req.params.id);
+  if (!tid) return res.status(404).json({ ok: false, error: "Sound not found" });
+  const posts = trackPosts548(tid, readAccounts());
+  res.json({ ok: true, sound: { id: tid, uses: posts.length, usable: true }, posts });
 });
 
 // ---------------------------------------------------------------------------
