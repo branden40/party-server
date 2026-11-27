@@ -31052,7 +31052,7 @@
           '<div class="reel-play">▶</div>' +
           '<div class="reel-meta"><span class="reel-author"' + rpProfAttrs259(item) + '>' + escHtml(item.author) + (window.rpCollabByline453 ? window.rpCollabByline453(item) : "") + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" + /* [RP-V7.453] dual byline on accepted collabs */
           (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption, "reels") + "</p>" : "") + postMetaLineHtml156(item) + chip + provHtml + // [RP-V7.258] pager reel card: reels context
-          (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Use this sound" data-i18n-ti="rail_use_sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : rpT("about_plaza_sound")) + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound" data-i18n-al="rail_fav_sound_al">☆</button></div>' : (item.soundId ? '<div class="reel-sound rp-osnd" data-sid="' + escHtml(item.soundId) + '" role="button" title="Open sound page" data-i18n-ti="rail_open_sound"><span>♪ ' + escHtml(item.soundName || rpT("about_original_sound_name")) + ' · ' + escHtml(item.soundOwnerName || "") + '</span></div>' : '<div class="reel-sound"><span>' + rpTf("about_original_sound", { name: escHtml(item.author) }) + "</span></div>")) /* [RP-V7.335] a registered member sound gets its real credit + page */ + crChip286 + // [RP-V7.286]
+          (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Open sound page" data-i18n-ti="rail_open_sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : rpT("about_plaza_sound")) + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound" data-i18n-al="rail_fav_sound_al">☆</button></div>' : (item.soundId ? '<div class="reel-sound rp-osnd" data-sid="' + escHtml(item.soundId) + '" role="button" title="Open sound page" data-i18n-ti="rail_open_sound"><span>♪ ' + escHtml(item.soundName || rpT("about_original_sound_name")) + ' · ' + escHtml(item.soundOwnerName || "") + '</span></div>' : '<div class="reel-sound"><span>' + rpTf("about_original_sound", { name: escHtml(item.author) }) + "</span></div>")) /* [RP-V7.335] a registered member sound gets its real credit + page */ + crChip286 + // [RP-V7.286]
           "</div>" +
           '<div class="reel-rail">' + avHtml +
             '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + lk.count + "</span></button>" +
@@ -41414,6 +41414,8 @@ function stageStreakBump(key, add) {
     snd_favs_device: " (this device)",
     snd_no_match: "No Plaza sound matches that yet.",
     snd_orig_line: "Original sound · {owner} · {n} {unit}",
+    snd_track_line548: "Plaza licensed · {n} {unit}",
+    snd_suggested548: "Suggested sounds",
     snd_recent: "🕘 Recent",
     snd_results: "Results",
     snd_search_ph: "Search sounds…",
@@ -88301,6 +88303,22 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         '<span class="snd-nm"><b>' + escHtml(o.name) + '</b><span>' + rpTf("snd_orig_line", { owner: escHtml(o.ownerName || ""), n: (o.uses || 0), unit: rpT(o.uses === 1 ? "snd_video" : "snd_videos") }) + '</span></span>' +
         '<span class="snd-dur">' + (o.dur ? fmtDur(o.dur) : "") + '</span></div>';
     }
+    function sndSuggested548() { // [RP-V7.548] Suggested sounds: caption keywords matched against each catalog track's name/genre/blurb, then real Plaza usage (the same counts Trending reads). No caption or no hit -> the most-used catalog tracks. Read live at every render, so opening the sheet re-ranks on the caption as it stands.
+      var cap = "";
+      ["reelCapInput", "momCapInput"].forEach(function (cid) { var c = el(cid); if (!cap && c && c.value) cap = String(c.value); });
+      var words = cap.toLowerCase().split(/[^a-z0-9]+/).filter(function (w) { return w.length >= 3; });
+      var scored = TRACKS.map(function (t) {
+        var g = SND_GENRE[t.id] || "";
+        var hay = {};
+        (t.name + " " + (t.blurb || "") + " " + g + " " + (SND_GENRE_NAME[g] || "")).toLowerCase().split(/[^a-z0-9]+/).forEach(function (w) { if (w) hay[w] = 1; });
+        var hits = 0;
+        words.forEach(function (w) { if (hay[w]) hits++; });
+        return { id: t.id, hits: hits, usage: Snd.usage[t.id] || 0 };
+      });
+      var matched = scored.filter(function (x) { return x.hits > 0; }).sort(function (a, b) { return (b.hits - a.hits) || (b.usage - a.usage); });
+      var pool = matched.length ? matched : scored.slice().sort(function (a, b) { return b.usage - a.usage; });
+      return pool.slice(0, 6).map(function (x) { return x.id; });
+    }
     function renderPicker() {
       var list = el("sndList"); if (!list) return;
       var q = (el("sndSearch").value || "").trim().toLowerCase();
@@ -88314,9 +88332,14 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         var ohits335 = Snd.origList.filter(function (o) { return o.name.toLowerCase().indexOf(q) >= 0 || (o.ownerName || "").toLowerCase().indexOf(q) >= 0; }); // [RP-V7.335]
         html = '<div class="snd-sect" data-sect="results"><div class="snd-sec">' + rpT("snd_results") + '</div>' + ((hits.length || ohits335.length) ? hits.map(function (t) { return sndRowHtml(t.id); }).join("") + ohits335.map(function (o) { return sndOrigRowHtml335(o.id); }).join("") : '<p class="rp-sub">' + rpT("snd_no_match") + '</p>') + "</div>";
       } else {
+        // [RP-V7.548] Suggested sounds first (caption + real usage —
+        // see sndSuggested548), then the standing sections.
+        html += sect("suggested", rpT("snd_suggested548"), sndSuggested548());
         // Trending: computed Plaza-wide from real usage, recency-
         // weighted on the server. Nobody hand-picks it (owner's rule).
-        html += sect("trending", rpT("snd_trending"), (Snd.trending || []).filter(function (id) { return !!trackById(id) || !!Snd.orig[id]; })); // [RP-V7.335] member sounds trend on the same list, same scores
+        // [RP-V7.548] the server sends catalog ids only — original
+        // sounds are no longer Trending-eligible.
+        html += sect("trending", rpT("snd_trending"), (Snd.trending || []).filter(function (id) { return !!trackById(id) || !!Snd.orig[id]; }));
         var favIds = Object.keys(Snd.favs).filter(function (id) { return !!trackById(id); });
         html += sect("favs", rpT("snd_favs") + (Snd.signedIn ? "" : rpT("snd_favs_device")), favIds);
         var recIds = (Snd.recents || []).filter(function (id) { return !!trackById(id) || !!Snd.orig[id]; });
@@ -88868,13 +88891,19 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       body.innerHTML = '<p class="rp-sub">' + rpT("spg_loading") + '</p>';
       el("sndPage335").classList.add("open"); el("sndPage335").setAttribute("aria-hidden", "false");
       var h = { "Accept": "application/json" }; var t = sndToken(); if (t) h["Authorization"] = "Bearer " + t;
-      fetch("/api/sounds/orig/" + encodeURIComponent(id), { headers: h })
+      var isCat548 = !/^os_[a-z0-9]+$/.test(String(id)) && !!trackById(id); // [RP-V7.548] a catalog track opens its own sound page (the posts using it), the TikTok twin of the member-sound page below
+      fetch((isCat548 ? "/api/sounds/track/" : "/api/sounds/orig/") + encodeURIComponent(id), { headers: h })
         .then(function (r) { return r.json().catch(function () { return null; }); })
         .then(function (j) {
           if (SndPage.id !== id) return;
           if (!j || !j.ok) { body.innerHTML = '<p class="rp-sub">' + rpT("spg_gone") + '</p>'; return; }
+          if (isCat548 && j.sound) { // the server returns id + live uses + posts; name/stream/duration are the client catalog's
+            var trk548 = trackById(id);
+            j.sound.name = trk548.name; j.sound.url = trk548.src || ("/audio/" + trk548.file);
+            j.sound.dur = SND_DUR[id] || null; j.sound.mine = false; j.sound.usable = true; j.sound.catalog = true;
+          }
           SndPage.data = j;
-          if (j.sound) Snd.orig[j.sound.id] = { id: j.sound.id, name: j.sound.name, ownerId: j.sound.ownerId, ownerName: j.sound.ownerName, uses: j.sound.uses, usable: j.sound.usable, url: j.sound.url, dur: j.sound.dur, createdAt: j.sound.createdAt };
+          if (j.sound && !j.sound.catalog) Snd.orig[j.sound.id] = { id: j.sound.id, name: j.sound.name, ownerId: j.sound.ownerId, ownerName: j.sound.ownerName, uses: j.sound.uses, usable: j.sound.usable, url: j.sound.url, dur: j.sound.dur, createdAt: j.sound.createdAt };
           renderSoundPage335();
         })
         .catch(function () { if (SndPage.id === id) body.innerHTML = '<p class="rp-sub">' + rpT("spg_fail") + '</p>'; });
@@ -88895,7 +88924,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       }).join("");
       body.innerHTML =
         '<div class="spg-head"><button type="button" class="spg-play" id="spgPlay335" aria-label="' + rpT("spg_preview_al") + '">' + (SndPage.playing ? "⏸" : "▶") + '</button>' +
-        '<div class="spg-title"><h3>♪ ' + escHtml(s.name) + '</h3><div class="spg-by">' + rpTf("snd_orig_line", { owner: escHtml(s.ownerName), n: s.uses, unit: rpT(s.uses === 1 ? "snd_video" : "snd_videos") }) + '</div></div></div>' +
+        '<div class="spg-title"><h3>♪ ' + escHtml(s.name) + '</h3><div class="spg-by">' + (s.catalog ? rpTf("snd_track_line548", { n: s.uses, unit: rpT(s.uses === 1 ? "snd_video" : "snd_videos") }) : rpTf("snd_orig_line", { owner: escHtml(s.ownerName), n: s.uses, unit: rpT(s.uses === 1 ? "snd_video" : "snd_videos") })) + '</div></div></div>' +
         (s.mine ? '<div class="spg-rename"><input id="spgName335" type="text" maxlength="60" value="' + escHtml(s.name) + '" aria-label="' + rpT("spg_name_al") + '"/><button type="button" id="spgRename335">' + rpT("spg_rename") + '</button></div>' : "") +
         '<button type="button" class="spg-use" id="spgUse335"' + (s.usable ? "" : " hidden") + '>' + rpT("snd_use") + '</button>' +
         (s.usable ? "" : '<p class="rp-sub">' + rpT("spg_unavail") + '</p>') +
@@ -88971,8 +89000,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       if (osnd335) { e.preventDefault(); e.stopPropagation(); openSoundPage335(osnd335.getAttribute("data-sid")); return; }
       var fav = t.closest(".rp-sndfav");
       if (fav && !t.closest("#sndList")) { e.preventDefault(); e.stopPropagation(); sndToggleFav(fav.getAttribute("data-tid")); return; }
-      var credit = t.closest(".reel-sound.rp-snd");
-      if (credit) { e.preventDefault(); e.stopPropagation(); useThisSound(credit.getAttribute("data-tid")); return; }
+      var credit = t.closest(".reel-sound.rp-snd, .hp-snd.rp-snd"); // [RP-V7.548] a catalog credit opens its sound page (TikTok model) — the page lists the posts using it and carries Use this sound
+      if (credit) { e.preventDefault(); e.stopPropagation(); openSoundPage335(credit.getAttribute("data-tid")); return; }
       var photo = t.closest(".mom-snd.rp-snd");
       if (photo) { e.preventDefault(); e.stopPropagation(); togglePhotoSound(photo); return; }
     }, true);
