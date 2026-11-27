@@ -1630,6 +1630,19 @@
       .fx-chip.sel .fx-swatch { border-color: var(--rose); box-shadow: 0 0 0 2.5px rgba(254,44,44,.4), inset 0 0 0 2px rgba(255,255,255,.35); }
       .fx-chip .fx-name { font-size: 11px; font-weight: 800; line-height: 1.12; text-align: center; }
       .fx-chip.sel .fx-name { color: var(--rose-deep); }
+      /* [RP-V7.551] effects browser: tab bar, search, tile grid, save star */
+      .fxb-tabs551 { display: flex; gap: 7px; overflow-x: auto; padding: 2px 1px 9px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+      .fxb-tabs551::-webkit-scrollbar { display: none; }
+      .fxb-tab551 { flex: none; border: 1.5px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 999px; padding: 6px 13px; font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+      .fxb-tab551.on { background: #fe2c2c; border-color: #fe2c2c; color: #fff; box-shadow: 0 0 10px rgba(254,44,44,.45); }
+      .fxb-search551 { width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); font-family: inherit; font-size: 13.5px; font-weight: 500; margin: 0 0 9px; }
+      .fxb-grid551 { display: flex; flex-wrap: wrap; gap: 12px 10px; max-height: 46vh; overflow-y: auto; padding: 5px 2px 8px; }
+      .fxb-tile551 { position: relative; display: inline-flex; }
+      .fxb-star551 { position: absolute; top: -6px; right: -3px; z-index: 2; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--ink-soft); font-size: 13px; line-height: 1; cursor: pointer; padding: 0; }
+      .fxb-star551.on { color: #fe2c2c; border-color: #fe2c2c; box-shadow: 0 0 8px rgba(254,44,44,.5); }
+      .fxb-pair551 { position: absolute; top: -6px; left: -3px; z-index: 2; width: 20px; height: 20px; border-radius: 50%; background: #fe2c2c; color: #fff; font-size: 11px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+      .fxb-by551 { display: block; font-size: 9.5px; font-weight: 600; color: var(--ink-soft); max-width: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .fxb-empty551 { font-size: 13px; color: var(--ink-soft); font-weight: 600; padding: 10px 2px; margin: 0; }
       .lv-people-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
       .lv-people-row .who-av { flex: none; }
       .lv-people-row .grow { flex: 1; min-width: 0; }
@@ -13234,7 +13247,7 @@
         { id: "sunhat", name: "Sun Hat", group: "Fun", fun: true, icon: "👒" },
         { id: "kittyears", name: "Kitty Ears", group: "Fun", fun: true, icon: "🎀" },
         { id: "santahat", name: "Santa Hat", group: "Fun", fun: true, icon: "🎅" },
-        { id: "cowboy", name: "Cowboy", group: "Fun", fun: true, icon: "🤠" },
+        { id: "cowboy", name: "Cowboy", group: "Fun", fun: true, pairedSound: "country", icon: "🤠" },
         { id: "heromask2", name: "Hero Mask", group: "Fun", fun: true, icon: "🦸" },
         { id: "flowercrown", name: "Flower Crown", group: "Fun", fun: true, icon: "🌸" },
         { id: "bigsmile", name: "Big Mouth", group: "Warp", fun: true, warp: "bigsmile", icon: "😄" },
@@ -13260,7 +13273,7 @@
         { id: "butterfly", name: "Butterfly Paint", group: "Fun", fun: true, icon: "🦋" },
         { id: "deer", name: "Deer", group: "Fun", fun: true, icon: "🦌" },
         { id: "rainbowmouth", name: "Rainbow Mouth", group: "Fun", fun: true, icon: "🌈" },
-        { id: "partyhat", name: "Party Hat", group: "Fun", fun: true, icon: "🎩" },
+        { id: "partyhat", name: "Party Hat", group: "Fun", fun: true, pairedSound: "party", icon: "🎩" },
         { id: "reindeer", name: "Reindeer", group: "Fun", fun: true, icon: "🦌" },
         { id: "icecrown", name: "Ice Crown", group: "Fun", fun: true, icon: "❄️" },
         { id: "cakehat", name: "Birthday Cake Hat", group: "Fun", fun: true, icon: "🎂" },
@@ -13274,7 +13287,7 @@
         { id: "laurelwreath", name: "Laurel Wreath", group: "Fun", fun: true, icon: "🌿" },
         { id: "hotdoghat", name: "Hot Dog Hat", group: "Fun", fun: true, icon: "🌭" },
         { id: "starcrown", name: "Star Crown", group: "Fun", fun: true, icon: "🌟" },
-        { id: "moonstars", name: "Moon & Stars", group: "Fun", fun: true, icon: "🌙" },
+        { id: "moonstars", name: "Moon & Stars", group: "Fun", fun: true, pairedSound: "lofi", icon: "🌙" },
         { id: "racinghelmet", name: "Racing Helmet", group: "Fun", fun: true, icon: "🏎️" }
       ];
       function fxRecipe(id) {
@@ -18280,16 +18293,148 @@
           b.addEventListener("click", function () { setLiveFilter(b.getAttribute("data-fx")); });
         });
       }
+      /* ---------- [RP-V7.551] EFFECTS BROWSER — the lenses rack as a
+         tabbed browser (Trending / Favourites / the rack's own groups),
+         with search and per-member favourites. One rack, every surface:
+         the camera sheet, the live filter sheet and the live setup all
+         render this browser; picking a tile goes through the caller's
+         own apply path (the camera adds its fxSync/pairing, lives just
+         setLiveFilter — the same function a carousel tap runs).
+         Trending ranks by REAL applies only: the server counts an apply
+         when a member picks an effect (POST /api/fx551/use — a use
+         count plus a +3 score with the sounds system's 7-day decay),
+         never hand-picked; ties and zero-signal effects fall back to
+         use counts, then newest-first (later LIVE_FILTERS entries are
+         the newer weekly waves, so new lenses slot in on their own).
+         Favourites persist per member server-side (guests: this device
+         only — the sounds system's rule, mirrored). */
+      var Fx551 = { tab: "trending", q: "", scores: {}, uses: {}, favs: null, loaded: false };
+      function fxToken551() { try { return typeof reelToken === "function" ? reelToken() : null; } catch (e) { return null; } }
+      function fxGuestFavs551() {
+        try { var a = JSON.parse(localStorage.getItem("rpFxFavs551") || "[]"); return Array.isArray(a) ? a.filter(function (x) { return typeof x === "string" && x !== "none" && fxRecipe(x).id === x; }) : []; }
+        catch (e) { return []; }
+      }
+      function fxFavs551() { if (!Fx551.favs) Fx551.favs = fxGuestFavs551(); return Fx551.favs; }
+      function fxIsFav551(id) { return fxFavs551().indexOf(id) >= 0; }
+      function fxLoad551(cb) {
+        var tk = fxToken551();
+        fetch("/api/fx551/state", { headers: tk ? { "Authorization": "Bearer " + tk } : {} })
+          .then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (j) {
+            if (j && j.ok) {
+              Fx551.scores = j.scores || {}; Fx551.uses = j.uses || {};
+              if (Array.isArray(j.favorites)) Fx551.favs = j.favorites.filter(function (x) { return typeof x === "string" && x !== "none" && fxRecipe(x).id === x; });
+              Fx551.loaded = true;
+            }
+            if (cb) cb();
+          })
+          .catch(function () { if (cb) cb(); });
+      }
+      function fxRank551() { // every real effect (not "none"): decayed score desc, uses desc, newest first
+        var ids = LIVE_FILTERS.map(function (f) { return f.id; }).filter(function (id) { return id !== "none"; });
+        return ids.sort(function (a, b) {
+          var sa = Fx551.scores[a] || 0, sb = Fx551.scores[b] || 0;
+          if (sb !== sa) return sb - sa;
+          var ua = Fx551.uses[a] || 0, ub = Fx551.uses[b] || 0;
+          if (ub !== ua) return ub - ua;
+          return ids.indexOf(b) - ids.indexOf(a);
+        });
+      }
+      function fxCats551() { // category tabs derive from the rack's own groups — only groups that have lenses get a tab
+        var want = [["Beauty", "fx_appearance551"], ["Fun", "fx_funny551"], ["Warp", "fx_warps551"]];
+        return want.filter(function (w) { return LIVE_FILTERS.some(function (f) { return f.group === w[0] && f.id !== "none"; }); })
+          .map(function (w) { return { id: "g:" + w[0], group: w[0], label: rpT(w[1]) }; });
+      }
+      function fxUse551(id) {
+        if (!id || id === "none") return;
+        Fx551.uses[id] = (Fx551.uses[id] || 0) + 1; // optimistic local count; the server's count is the truth on next load
+        var tk = fxToken551(); if (!tk) return; // guests write no signals — the standing rule
+        try { fetch("/api/fx551/use", { method: "POST", headers: { "Authorization": "Bearer " + tk, "Content-Type": "application/json" }, body: JSON.stringify({ lensId: id }) }).catch(function () { }); } catch (e) { }
+      }
+      window.rpFxUse551 = fxUse551;
+      function fxToggleFav551(id) {
+        if (!id || id === "none") return;
+        var favs = fxFavs551();
+        var on = favs.indexOf(id) < 0;
+        Fx551.favs = on ? favs.concat([id]) : favs.filter(function (x) { return x !== id; });
+        var tk = fxToken551();
+        if (tk) {
+          fetch("/api/fx551/favorite", { method: "POST", headers: { "Authorization": "Bearer " + tk, "Content-Type": "application/json" }, body: JSON.stringify({ lensId: id, fav: on }) })
+            .then(function (r) { return r.json().catch(function () { return null; }); })
+            .then(function (j) { if (j && j.ok && Array.isArray(j.favorites)) { Fx551.favs = j.favorites; fxRepaintBrowsers551(); } })
+            .catch(function () { });
+        } else {
+          try { localStorage.setItem("rpFxFavs551", JSON.stringify(Fx551.favs)); } catch (e) { }
+        }
+        fxRepaintBrowsers551();
+        if (typeof window.rpCamRailRepaint551 === "function") window.rpCamRailRepaint551();
+      }
+      function fxTile551(f) {
+        var fav = fxIsFav551(f.id);
+        return '<span class="fxb-tile551">' +
+          '<button type="button" class="fx-chip' + (f.id === Live.filterId ? " sel" : "") + '" data-fx551="' + f.id + '"><span class="fx-swatch">' + fxSwatchInner(f) + '</span><span class="fx-name">' + escHtml(f.name) + "</span>" +
+          (f.author ? '<span class="fxb-by551">' + escHtml(rpT("fx_created551")) + " " + escHtml(f.author) + "</span>" : "") +
+          "</button>" +
+          (f.pairedSound ? '<span class="fxb-pair551" title="' + escHtml(rpT("fx_pair551")) + '">♪</span>' : "") +
+          (f.id !== "none" ? '<button type="button" class="fxb-star551' + (fav ? " on" : "") + '" data-fxfav551="' + f.id + '" aria-label="' + escHtml(rpT(fav ? "fx_fav_del551" : "fx_fav_add551")) + '">' + (fav ? "★" : "☆") + "</button>" : "") +
+          "</span>";
+      }
+      function fxGridIds551() {
+        var q = Fx551.q.trim().toLowerCase();
+        if (q) return LIVE_FILTERS.filter(function (f) { return f.id !== "none" && f.name.toLowerCase().indexOf(q) >= 0; }).map(function (f) { return f.id; });
+        if (Fx551.tab === "favs") return fxFavs551().slice();
+        if (Fx551.tab === "trending") return fxRank551().slice(0, 30);
+        var g = Fx551.tab.indexOf("g:") === 0 ? Fx551.tab.slice(2) : "";
+        return LIVE_FILTERS.filter(function (f) { return f.group === g && f.id !== "none"; }).map(function (f) { return f.id; });
+      }
+      function fxGridHTML551() {
+        var ids = fxGridIds551();
+        var h = "";
+        if (Fx551.tab !== "favs" && !Fx551.q.trim()) h += fxTile551(fxRecipe("none")); // the off switch rides the top of the grid, like the carousel's first circle
+        if (!ids.length) h += '<p class="fxb-empty551">' + escHtml(rpT(Fx551.tab === "favs" && !Fx551.q.trim() ? "fx_nofavs551" : "fx_none551")) + "</p>";
+        h += ids.map(function (id) { return fxTile551(fxRecipe(id)); }).join("");
+        return h;
+      }
+      function fxBrowserHTML551() {
+        var tabs = [{ id: "trending", label: "🔥 " + rpT("fx_trending551") }, { id: "favs", label: "★ " + rpT("fx_favs551") }].concat(fxCats551());
+        if (!tabs.some(function (t) { return t.id === Fx551.tab; })) Fx551.tab = "trending";
+        return '<div class="fx-wrap fxb-wrap551"><p class="fx-label">✨ ' + escHtml(rpT("cam_effects550")) + ' <span class="fx-cur" data-fxcur>' + escHtml(fxRecipe(Live.filterId).name) + "</span></p>" +
+          '<input class="fxb-search551" data-fxsearch551 type="search" placeholder="' + escHtml(rpT("fx_search_ph551")) + '" value="' + escHtml(Fx551.q) + '" autocomplete="off">' +
+          '<div class="fxb-tabs551">' + tabs.map(function (t) { return '<button type="button" class="fxb-tab551' + (Fx551.tab === t.id ? " on" : "") + '" data-fxtab551="' + t.id + '">' + escHtml(t.label) + "</button>"; }).join("") + "</div>" +
+          '<div class="fxb-grid551" data-fxgrid551>' + fxGridHTML551() + "</div></div>";
+      }
+      function fxPaintBrowser551(root) {
+        if (!root) return;
+        var grid = root.querySelector("[data-fxgrid551]"); if (grid) grid.innerHTML = fxGridHTML551();
+        root.querySelectorAll("[data-fxtab551]").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-fxtab551") === Fx551.tab); });
+      }
+      function fxRepaintBrowsers551() { document.querySelectorAll(".fxb-wrap551").forEach(function (w) { fxPaintBrowser551(w); }); }
+      function wireFxBrowser551(root, opts) {
+        var wrap = root ? root.querySelector(".fxb-wrap551") : null; if (!wrap) return;
+        var onApply = (opts && opts.onApply) || function (id) { setLiveFilter(id); };
+        var search = wrap.querySelector("[data-fxsearch551]");
+        if (search) search.addEventListener("input", function () { Fx551.q = search.value; fxPaintBrowser551(wrap); });
+        wrap.addEventListener("click", function (ev) {
+          var t = ev.target;
+          var star = t && t.closest ? t.closest("[data-fxfav551]") : null;
+          if (star) { ev.stopPropagation(); fxToggleFav551(star.getAttribute("data-fxfav551")); return; }
+          var tab = t && t.closest ? t.closest("[data-fxtab551]") : null;
+          if (tab) { Fx551.tab = tab.getAttribute("data-fxtab551"); fxPaintBrowser551(wrap); return; }
+          var tile = t && t.closest ? t.closest("[data-fx551]") : null;
+          if (tile) { var id = tile.getAttribute("data-fx551"); fxUse551(id); onApply(id); fxPaintBrowser551(wrap); }
+        });
+        fxLoad551(function () { fxPaintBrowser551(wrap); });
+      }
       function openLiveFilterSheet() {
         openSheet(
           '<button class="close-x" data-act="close" aria-label="Close" data-i18n-al="act_close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
           '<div class="game-box"><h3 style="text-align:center;">' + rpT("live_filters_title") + '</h3>' +
           '<p style="text-align:center; font-weight:600;" data-i18n-html="live_filters_body">The effect you pick is on <b>your camera for everyone watching</b> — it sticks to your face as you move. Switch any time, your live never restarts.</p>' +
-          filterRailHTML() +
+          fxBrowserHTML551() +
           '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:11px 24px;" data-act="close2">' + rpT("gen_done") + '</button></div></div>'
         );
         wireLiveSheetClose();
-        wireFilterRail($("sheet"));
+        wireFxBrowser551($("sheet"), null);
       }
       /* ---------- camera ---------- */
       function wireLiveSheetClose() {
@@ -18432,7 +18577,7 @@
           '<button class="close-x" data-act="close" aria-label="Close" data-i18n-al="act_close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
           '<div class="game-box"><h3 style="text-align:center;">' + rpT("setup_title") + '</h3>' +
           '<div class="lv-preview"><video id="lvPrevVideo" autoplay playsinline muted></video><div class="lv-preview-ph" id="lvPrevPh">' + myFace() + '<span data-i18n="setup_cam_preview">Camera preview</span></div><button class="btn-mini lv-flip" id="lvFlip" type="button">' + rpT("setup_flip") + '</button></div>' +
-          filterRailHTML() +
+          fxBrowserHTML551() +
           '<div class="field"><label for="lvTitle">' + rpT("setup_title_label") + '</label><input type="text" id="lvTitle" maxlength="60" placeholder="What\u2019s your live about?" data-i18n-ph="setup_title_ph" value="' + escHtml(Live.setupTitle || "") + '" /></div>' +
           '<div class="field"><label>' + rpT("setup_topic_label") + '</label><div class="lv-topics" id="lvTopics">' +
             LIVE_TOPICS.map(function (t) { return '<button type="button" class="lv-topic' + (t === Live.setupTopic ? " sel" : "") + '" data-topic="' + t + '">' + rpT("topic_" + t.toLowerCase()) + '</button>'; }).join("") +
@@ -18461,7 +18606,7 @@
           '<div class="btn-row" style="justify-content:center; margin-top:10px;"><button class="btn-mini" data-act="close2">' + rpT("gen_not_now") + '</button></div></div>'
         );
         wireLiveSheetClose();
-        wireFilterRail($("sheet"));
+        wireFxBrowser551($("sheet"), null);
         var sheet = $("sheet");
         sheet.querySelectorAll("[data-act=close],[data-act=close2]").forEach(function (b) {
           b.addEventListener("click", function () { stopLivePreview(); });
@@ -41693,6 +41838,18 @@ function stageStreakBump(key, add) {
     cam_flip: "Flip",
     cam_lenses: "Lenses",
     cam_effects550: "Effects",
+    fx_trending551: "Trending",
+    fx_favs551: "Favourites",
+    fx_appearance551: "Appearance",
+    fx_funny551: "Funny",
+    fx_warps551: "Warps",
+    fx_search_ph551: "Search effects…",
+    fx_fav_add551: "Save to favourites",
+    fx_fav_del551: "Remove from favourites",
+    fx_none551: "No effects match that search.",
+    fx_nofavs551: "No favourites yet — tap ☆ on any effect to save it here.",
+    fx_created551: "Created by",
+    fx_pair551: "Plays a song with this effect",
     cam_enhance550: "Enhance",
     cam_mode_photo: "PHOTO",
     cam_mode_text: "TEXT",
@@ -41772,7 +41929,7 @@ function stageStreakBump(key, add) {
     gen_off: "Off",
     gen_on: "On",
     lens_close_al: "Close lenses",
-    lens_sub: "The Plaza's fun face effects — the same rack as the live setup. Fun effects only.",
+    lens_sub: "The Plaza's face effects — the same rack as the live setup. Trending ranks by real member use; tap ☆ to save a favourite.",
     lens_title: "✨ All lenses",
     postkind_photo: "📸 Photo post",
     postkind_text: "✍️ Text post",
@@ -88976,18 +89133,34 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       n.textContent = f === "none" ? "" : nm;
       document.querySelectorAll(".cam-lens").forEach(function (c) { c.classList.toggle("sel", c.getAttribute("data-fx") === f); });
     }
-    function buildRail() {
-      var rail = el("camLensRail"); if (!rail || rail.children.length) return;
-      rail.innerHTML = LIVE_FILTERS.map(function (f) {
-        return '<button type="button" class="cam-lens' + (f.id === "none" ? " sel" : "") + '" data-fx="' + f.id + '" role="option" aria-label="' + escHtml(f.name) + '" title="' + escHtml(f.name) + '">' + fxSwatchInner(f) + "</button>";
+    function fxCarouselOrder551() { // [RP-V7.551] Original first (the off switch), then the member's favourites in saved order, then trending, then the rest of the rack in its own order
+      var seen = {}, out = [];
+      function push(id) { if (id && !seen[id] && fxRecipe(id).id === id) { seen[id] = 1; out.push(id); } }
+      push("none");
+      fxFavs551().forEach(push);
+      fxRank551().forEach(push);
+      LIVE_FILTERS.forEach(function (f) { push(f.id); });
+      return out;
+    }
+    function paintCamRail551() {
+      var rail = el("camLensRail"); if (!rail) return;
+      rail.innerHTML = fxCarouselOrder551().map(function (id) {
+        var f = fxRecipe(id);
+        return '<button type="button" class="cam-lens' + (id === "none" ? " sel" : "") + '" data-fx="' + id + '" role="option" aria-label="' + escHtml(f.name) + '" title="' + escHtml(f.name) + '">' + fxSwatchInner(f) + "</button>";
       }).join("");
       rail.querySelectorAll(".cam-lens").forEach(function (chip) {
         chip.addEventListener("click", function () {
-          setLiveFilter(chip.getAttribute("data-fx"));
-          fxSync(); paintLensName();
+          var id = chip.getAttribute("data-fx");
+          setLiveFilter(id);
+          fxSync(); paintLensName(); camFxPair551(id); fxUse551(id);
         });
       });
       paintLensName();
+    }
+    window.rpCamRailRepaint551 = paintCamRail551;
+    function buildRail() {
+      var rail = el("camLensRail"); if (!rail || rail.children.length) return;
+      paintCamRail551();
     }
     function paintRailBtns() {
       el("camTimerLbl").textContent = Cam.timer ? (rpT("cam_timer") + " " + Cam.timer + "s") : rpT("cam_timer");
@@ -89014,6 +89187,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       Cam.open = true;
       scr.classList.add("open"); scr.setAttribute("aria-hidden", "false");
       buildRail(); paintLensName(); paintRailBtns(); setMode(Cam.mode); updatePill();
+      fxLoad551(function () { paintCamRail551(); }); // [RP-V7.551] once the member's favourites + trending land, the carousel re-leads with them
       sndLoadState(function () { });
       acquire();
     }
@@ -89319,11 +89493,11 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     /* ---------- lens sheet ("All effects") ---------- */
     function openLensSheet() {
       var body = el("camLensSheetBody");
-      body.innerHTML = filterRailHTML();
-      wireFilterRail(body);
-      body.addEventListener("click", function () {
-        setTimeout(function () { fxSync(); paintLensName(); closeLensSheet(); }, 60);
-      });
+      body.innerHTML = fxBrowserHTML551(); // [RP-V7.551] the tabbed effects browser (Trending / Favourites / groups / search)
+      wireFxBrowser551(body, { onApply: function (id) {
+        setLiveFilter(id); // the same apply a carousel tap runs
+        setTimeout(function () { fxSync(); paintLensName(); camFxPair551(id); closeLensSheet(); }, 60);
+      } });
       el("camLensSheet").classList.add("open"); el("camLensSheet").setAttribute("aria-hidden", "false");
     }
     function closeLensSheet() {
@@ -89575,6 +89749,30 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       }
       camPaint550();
     }
+    /* ---------- [RP-V7.551] song-pairing effects: a lens may carry a
+       pairedSound — a catalog track that genuinely fits its theme
+       (cowboy → country, partyhat → party, moonstars → lofi). Picking
+       it ON THE CAMERA arms the song through the same seat a template
+       uses (Snd.attached), so the pill names it and it rides into the
+       post on both commit paths (recordings via editorCommit, uploads
+       via the V7.501 sound stash — the attached sound IS the stash
+       source, so nothing extra is carried). Switching to any other
+       lens clears the paired sound only if it is still the attached
+       one — a sound the member picked afterwards stays (the
+       camTplClear550 courtesy). Lives never arm sounds: this runs
+       only from camera applies (carousel + camera effects browser). */
+    Cam.fxPair551 = null; // { lensId, trackId }
+    function camFxPair551(id) {
+      var f = fxRecipe(id);
+      if (Cam.fxPair551 && (!f || f.id !== Cam.fxPair551.lensId)) {
+        if (Snd.attached && Snd.attached.trackId === Cam.fxPair551.trackId) { Snd.attached = null; updatePill(); }
+        Cam.fxPair551 = null;
+      }
+      if (f && f.pairedSound && (!window.rpTrackName || window.rpTrackName(f.pairedSound))) {
+        Snd.attached = { trackId: f.pairedSound, start: 0, musicVol: 0.8, origVol: 1 }; updatePill();
+        Cam.fxPair551 = { lensId: f.id, trackId: f.pairedSound };
+      }
+    }
     function camTplSnapshot550() { // what an upload pick stashes / a recording applies: null when nothing is armed and no look is set (today's behaviour, untouched)
       if (!Cam.tpl550 && (!Cam.look550 || Cam.look550 === "none")) return null;
       return { tplId: Cam.tpl550 ? Cam.tpl550.id : null, titleStyle: Cam.tpl550 ? (Cam.tpl550.titleStyle || "bold") : "bold", look: Cam.look550 || "none" };
@@ -89770,7 +89968,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
         videoSettings: (Cam.stream && Cam.stream.getVideoTracks()[0] && Cam.stream.getVideoTracks()[0].getSettings) ? Cam.stream.getVideoTracks()[0].getSettings() : null,
         recOpts: Cam.recOpts || null, lastRec: Cam.lastRec,
         sound: Snd.attached,
-        tpl550: Cam.tpl550 ? Cam.tpl550.id : null, look550: Cam.look550 || "none" // [RP-V7.550] the armed camera template + current camera look
+        tpl550: Cam.tpl550 ? Cam.tpl550.id : null, look550: Cam.look550 || "none", // [RP-V7.550] the armed camera template + current camera look
+        fxPair551: Cam.fxPair551 ? Cam.fxPair551.lensId : null // [RP-V7.551] the lens whose paired song is armed, if any
       };
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
