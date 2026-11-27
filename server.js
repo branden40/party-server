@@ -36616,7 +36616,7 @@ io.on("connection", (socket) => {
     // [RP-V7.174] split-screen battles: WebRTC signaling between the two
     // battlers (and viewers asking a battler for their stream) rides the
     // battle relay untouched — SDP/ICE payloads pass through as-is.
-    else if (t === "rtc") io.to(other.id).emit("battle", { t: "rtc", from: socket.id, kind: String(data.kind || ""), view: data.view ? 1 : 0, sdp: data.sdp || null, ice: data.ice || null });
+    else if (t === "rtc") io.to(other.id).emit("battle", { t: "rtc", from: socket.id, kind: String(data.kind || ""), view: data.view ? 1 : 0, sdp: data.sdp || null, ice: data.ice || null, cam: data.cam == null ? null : (data.cam ? 1 : 0) }); // [RP-V7.538] the cam field rides the relay: the V7.538 camera-state signal (kind:"cam") is rebuilt away unless the field is named here
     else if (t === "accept") {
       // [RP-V7.525] an accept is honored ONLY against a live pending
       // challenge this server recorded at invite time — declined,
