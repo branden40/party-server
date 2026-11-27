@@ -32903,6 +32903,23 @@
         if (!has && stage !== "pick") stage = "pick";
         if (stage === "pick") postMeta156.downloads = postDlDefault156(); // [RP-V7.316] a fresh post starts from the account default (the pick stage is a new post's first screen; drafts resume past it with their own saved value)
         Reels.stage = stage;
+        if (stage === "preview" && !Reels.fitTrim && Reels.pendingUrl) {
+          /* [RP-V7.552] THE GATE IS GONE: a video in hand goes STRAIGHT
+             into the editor (TikTok's order: pick → edit → details) —
+             the old "Post a Reel" preview sheet (Retake / Use this
+             video / Trim, "Your reel, looping") no longer renders; its
+             render + wiring branches are deleted below. Its jobs moved:
+             Retake/discard = the editor's back/X (ed549Leave's preview
+             arm runs the gate Retake's exact teardown), Trim = the
+             editor's Edit panel, and the Use button's over-cap
+             enforcement rides the editor's Next. fitTrim (the over-cap
+             start-point picker) still renders below — a cut decision,
+             not a gate. The camera stashes above are adopted first,
+             exactly as the gate path adopted them, so an armed camera
+             sound/template lands in the editor untouched. */
+          rpEdOpen549();
+          return;
+        }
         var drafts = reelLoadMeta().filter(function (m) { return m.draft; });
         var mid = "";
         if (stage === "pick") {
@@ -32936,23 +32953,6 @@
             '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:10px;">' +
               '<button class="btn-mini" id="btnFitCancel" type="button">' + rpT("act_cancel") + '</button>' +
               '<button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnFitUse" type="button">' + rpT("rc_use_clip") + '</button>' +
-            "</div>";
-        } else if (stage === "preview") {
-          mid =
-            '<p style="text-align:center; color:var(--ink-soft); font-weight:700;">' + rpT("rc_preview_note") + '</p>' +
-            '<div class="btn-row" style="justify-content:center; flex-wrap:wrap;">' +
-              '<button class="btn-mini" id="btnReelRetake" type="button">' + rpT("rc_retake") + '</button>' +
-              '<button class="btn-primary" style="width:auto; padding:11px 22px;" id="btnReelUse" type="button"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m4.5 12.5 5 5L19.5 7\"/></svg> ' + rpT("rc_use_video") + '</button>' +
-            "</div>" +
-            '<div class="btn-row" style="justify-content:center; flex-wrap:wrap; margin-top:8px;">' +
-              '<button class="btn-mini" id="btnReelTrim" type="button"><svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"6.5\" cy=\"7\" r=\"2.5\"/><circle cx=\"6.5\" cy=\"17\" r=\"2.5\"/><path d=\"M8.6 8.7 20 19M8.6 15.3 20 5\"/></svg> ' + rpT("rc_trim") + '</button>' +
-            "</div>" +
-            '<div id="reelTrimBox" style="display:none; margin-top:10px; padding:12px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.04);">' +
-              '<div style="display:flex; justify-content:space-between; font-weight:800; font-size:13px;"><span>▶ ' + rpT("rc_start") + ' <span id="trimStartVal">0:00</span></span><span>' + rpT("rc_length") + ' <span id="trimLenVal">0:00</span></span><span>' + rpT("rc_end") + ' <span id="trimEndVal">0:00</span> ⏸</span></div>' +
-              '<div class="rp-trimbar169"><div class="rp-trimwin169" id="trimWinBar"></div></div>' +
-              '<label class="rp-trimlab169"><span>' + rpT("rc_start") + '</span><input type="range" id="trimStartRg" min="0" max="1000" value="0"></label>' +
-              '<label class="rp-trimlab169"><span>' + rpT("rc_end") + '</span><input type="range" id="trimEndRg" min="0" max="1000" value="1000"></label>' +
-              '<p style="margin:6px 0 0; text-align:center; color:var(--ink-soft); font-weight:700; font-size:12px;">' + rpT("rc_trim_hint2") + '</p>' +
             "</div>";
         } else {
           mid =
@@ -33004,8 +33004,8 @@
         var rxb = $("btnReelRemixX"); if (rxb) rxb.addEventListener("click", function () { Reels.remix = null; openReelComposer(); });
         var cxr156 = $("sheet").querySelector("[data-act=close]"); if (cxr156) cxr156.addEventListener("click", function () { reelStopRecord(true); closeSheet(); });
           var tb156 = $("btnReelTopBack"); if (tb156) tb156.addEventListener("click", function () { // [RP-V7.156] back one step in the sequence
-            if (Reels.stage === "details") { var c9 = $("reelCapInput"); if (c9) Reels.pendingCaption = (c9.value || "").trim(); Reels.stage = "preview"; }
-            else Reels.stage = "pick";
+            if (Reels.stage === "details") { var c9 = $("reelCapInput"); if (c9) Reels.pendingCaption = (c9.value || "").trim(); rpEdOpen549(); return; } // [RP-V7.552] details' back step is the editor now — the gate it used to land on is gone; stage stays "details" so the editor's own back/X returns here
+            Reels.stage = "pick";
             openReelComposer();
           });
         if (stage === "pick") {
@@ -33050,41 +33050,12 @@
             reelClearPending(); Reels.editingDraftId = null; Reels.pendingCaption = "";
             Reels.stage = "pick"; closeSheet();
           });
-        } else if (stage === "preview") {
-          $("btnReelRetake").addEventListener("click", function () {
-            reelClearPending(); Reels.editingDraftId = null; Reels.pendingCaption = ""; Reels.stage = "pick";
-            openReelComposer();
-          });
-          var tgl169 = $("btnReelTrim"); if (tgl169) tgl169.addEventListener("click", function () { Reels.trimOpen = !Reels.trimOpen; reelTrimUi169(); });
-          var sRg169 = $("trimStartRg"), eRg169 = $("trimEndRg");
-          var trimFromSliders169 = function (which) {
-            var dur = Reels.pendingSecs || 0; if (!dur || !sRg169 || !eRg169) return;
-            var sv2 = (Number(sRg169.value) || 0) / 1000 * dur, ev2 = (Number(eRg169.value) || 0) / 1000 * dur;
-            var pvx = $("reelPreview");
-            if (which === "s") { if (ev2 - sv2 < 1) sv2 = Math.max(0, ev2 - 1); Reels.trimStart = sv2; if (pvx) { try { pvx.currentTime = sv2; } catch (err) { } } }
-            else { if (ev2 - sv2 < 1) ev2 = Math.min(dur, sv2 + 1); Reels.trimEnd = ev2; if (pvx) { try { pvx.currentTime = Math.max(Reels.trimStart || 0, ev2 - 1.5); } catch (err2) { } } }
-            reelTrimUi169();
-          };
-          if (sRg169) sRg169.addEventListener("input", function () { trimFromSliders169("s"); });
-          if (eRg169) eRg169.addEventListener("input", function () { trimFromSliders169("e"); });
-          reelTrimUi169();
-          $("btnReelUse").addEventListener("click", function () { /* [RP-V7.169] an over-cap cut cannot advance */
-            var w = reelTrimWin169();
-            var len = w ? (w.e - w.s) : (Reels.pendingSecs || 0);
-            if (len > REEL_MAX_SECS + 0.6) {
-              Reels.trimOpen = true; reelTrimUi169();
-              var stt = $("reelStatus"); if (stt) stt.textContent = rpTf("reel_cut", { len: reelTrimClock169(len) });
-              return;
-            }
-            Reels.mustTrim = false;
-            rpEdOpen549(); // [RP-V7.549] preview's "Use this video" now lands in the editor (TikTok's order: pick → edit → details); the editor's Next opens the details stage
-          });
         } else {
           $("btnReelPublish").addEventListener("click", reelPublish);
           $("btnReelDraft").addEventListener("click", reelSaveDraft);
           $("btnReelBackPrev").addEventListener("click", function () {
             var c2 = $("reelCapInput"); if (c2) Reels.pendingCaption = (c2.value || "").trim();
-            Reels.stage = "preview"; openReelComposer();
+            rpEdOpen549(); // [RP-V7.552] "← Preview" lands in the editor — the gate sheet it used to name no longer exists (stage stays "details"; the editor's back/X returns here)
           });
           postDetailsWire156("reel", "reelCapInput", function () { openReelComposer(); }); // [RP-V7.156]
           var cv549 = $("reelCover549"); if (cv549) cv549.addEventListener("click", function () { var c4 = $("reelCapInput"); if (c4) Reels.pendingCaption = (c4.value || "").trim(); rpEdOpen549("edit"); }); // [RP-V7.549]
@@ -33134,7 +33105,18 @@
          top pick (window.rpSndAuto549 — at this step there is no
          caption yet, so the ranker falls back to the most-used
          catalog tracks, its documented behaviour; the details-stage
-         Suggested row re-ranks once a caption exists). */
+         Suggested row re-ranks once a caption exists).
+         [RP-V7.552] The gate is gone and the editor is FULL-BLEED:
+         openReelComposer delegates a video in hand straight here
+         (no "Post a Reel" preview sheet in between), the video
+         covers the whole screen (object-fit:cover), the top bar,
+         rail and Back/Next bar overlay it, and the tool panels are
+         BOTTOM SHEETS (ed549State.open — a rail tap opens one,
+         tapping the open tool closes it) that slide over the video
+         without ever re-laying it out. The editor's back/X is the
+         Retake now (ed549Leave's preview arm discards to the pick
+         stage); the details stage's back controls reopen the
+         editor; Next carries the old gate's over-cap trim guard. */
       var RP_LOOKS549 = { none: "", warm: "sepia(.35) saturate(1.25)", cool: "hue-rotate(12deg) saturate(1.05) brightness(1.02)", bw: "grayscale(1)", vivid: "saturate(1.55) contrast(1.08)", golden: "sepia(.45) saturate(1.3) brightness(1.05)", noir: "grayscale(1) contrast(1.25) brightness(.94)" };
       var RP_TEMPLATES549 = [
         { id: "tpl-golden-hour", name: "Golden Hour", trackId: "country", look: "golden", titleStyle: "bold" },
@@ -33147,7 +33129,7 @@
       var RP_STICKERS549 = ["🔥", "⭐", "❤️", "🎉", "👑", "🎵", "⚡", "💯", "🎁", "🙌", "😂", "🎤"]; // the V7.490 live sticker pack — the server whitelists the same glyphs
       window.rpLooks549 = RP_LOOKS549; // [RP-V7.550] the camera's Enhance tray + live preview read the same look map (one source: preview CSS here, server bake by id)
       window.rpTemplates549 = RP_TEMPLATES549; // [RP-V7.550] the camera's Templates sheet arms the same built-ins the Editor offers
-      var ed549State = { panel: "edit", memberTpls: null, returnStage: "preview" };
+      var ed549State = { panel: "edit", open: false, memberTpls: null, returnStage: "preview" }; // [RP-V7.552] open: tool panels are bottom sheets over the full-bleed video — closed until a rail tool opens one; tapping the open tool again closes it
       function ed549Css() {
         if (document.getElementById("rp549Css")) return;
         var st = document.createElement("style"); st.id = "rp549Css";
@@ -33169,22 +33151,25 @@
           ".rpov549-sticker{position:absolute;font-size:46px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.6))}" +
           ".rpov549-s-tl{top:12px;left:12px}.rpov549-s-tr{top:12px;right:12px}.rpov549-s-bl{bottom:12px;left:12px}.rpov549-s-br{bottom:12px;right:12px}" +
           ".rpov549-ai{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800}" +
-          ".ed549{position:fixed;inset:0;z-index:80;background:#000;color:#fff;display:flex;flex-direction:column}" +
+          ".ed549{position:fixed;inset:0;z-index:80;background:#000;color:#fff}" +
           ".ed549[hidden]{display:none}" +
-          ".ed549-top{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 8px}" +
+          ".ed549-top{position:absolute;top:0;left:0;right:0;z-index:7;display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 14px;background:linear-gradient(180deg,rgba(0,0,0,.52),rgba(0,0,0,0))}" +
           ".ed549-x{background:rgba(255,255,255,.12);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:22px;cursor:pointer;flex:none}" +
           ".ed549-snd{flex:1;min-width:0;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:999px;padding:10px 14px;font-weight:800;font-size:13.5px;display:flex;gap:7px;align-items:center;cursor:pointer}" +
           ".ed549-snd span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
           ".ed549-auto{background:#fe2c2c;border:none;color:#fff;border-radius:999px;padding:10px 13px;font-weight:900;font-size:13px;cursor:pointer;flex:none}" +
-          ".ed549-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center}" +
-          ".ed549-stage video{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:#000}" +
-          ".ed549-ovl{position:absolute;inset:0;pointer-events:none}" +
+          ".ed549-stage{position:absolute;inset:0}" +
+          ".ed549-stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}" +
+          ".ed549-ovl{position:absolute;inset:0;pointer-events:none;z-index:2}" +
           ".ed549-ovl .rpov549{position:absolute}" +
           ".ed549-rail{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:6}" +
           ".ed549-tool{background:rgba(10,10,16,.66);border:1px solid rgba(255,255,255,.16);color:#fff;border-radius:14px;padding:7px 4px;width:58px;font-size:10.5px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}" +
           ".ed549-tool i{font-style:normal;font-size:19px;line-height:1}" +
           ".ed549-tool.on{border-color:#fe2c2c;box-shadow:0 0 0 1.5px #fe2c2c,0 0 14px rgba(254,44,44,.55)}" +
-          ".ed549-panel{max-height:38vh;overflow-y:auto;padding:10px 14px calc(8px + env(safe-area-inset-bottom));background:rgba(10,10,16,.92);border-top:1px solid rgba(255,255,255,.12)}" +
+          ".ed549-panel{position:absolute;left:0;right:0;bottom:0;z-index:5;max-height:55vh;overflow-y:auto;padding:8px 88px calc(88px + env(safe-area-inset-bottom)) 14px;background:rgba(10,10,16,.94);border-top:1px solid rgba(255,255,255,.12);border-radius:18px 18px 0 0;animation:ed549up552 .22s ease}" +
+          ".ed549-panel[hidden]{display:none}" +
+          ".ed549-panel::before{content:\"\";display:block;width:44px;height:4px;border-radius:99px;background:rgba(255,255,255,.35);margin:0 auto 8px}" +
+          "@keyframes ed549up552{from{transform:translateY(26px);opacity:.35}to{transform:none;opacity:1}}" +
           ".ed549-panel h4{margin:2px 0 8px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.75)}" +
           ".ed549-chips{display:flex;flex-wrap:wrap;gap:7px}" +
           ".ed549-chip{background:rgba(255,255,255,.1);border:1.5px solid transparent;color:#fff;border-radius:999px;padding:8px 13px;font-weight:800;font-size:13px;cursor:pointer}" +
@@ -33202,7 +33187,7 @@
           ".ed549 input[type=range]{width:100%;accent-color:#fe2c2c}" +
           ".ed549-titlein{width:100%;box-sizing:border-box;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:12px;color:#fff;padding:11px 12px;font-size:15px;font-weight:700;font-family:inherit}" +
           ".ed549-note{font-size:12px;color:rgba(255,255,255,.7);font-weight:600;margin:8px 0 0}" +
-          ".ed549-bar{display:flex;gap:10px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));background:rgba(10,10,16,.92)}" +
+          ".ed549-bar{position:absolute;left:0;right:0;bottom:0;z-index:7;display:flex;gap:10px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(0deg,rgba(0,0,0,.55),rgba(0,0,0,0))}" +
           ".ed549-back{flex:1;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:999px;padding:13px;font-weight:900;font-size:15px;cursor:pointer}" +
           ".ed549-next{flex:2;background:#fe2c2c;border:none;color:#fff;border-radius:999px;padding:13px;font-weight:900;font-size:15px;cursor:pointer}";
         document.head.appendChild(st);
@@ -33229,13 +33214,28 @@
           [["edit", "✂️", "ed_edit549"], ["templates", "🎞️", "ed_templates549"], ["text", "T", "ed_text549"], ["stickers", "🔥", "ed_stickers549"], ["filters", "🎨", "ed_filters549"], ["voice", "🎤", "ed_voice549"]].map(function (t) { return '<button type="button" class="ed549-tool" data-ed549tool="' + t[0] + '"><i>' + t[1] + "</i>" + rpT(t[2]) + "</button>"; }).join("") +
           '<button type="button" class="ed549-tool" id="ed549Save"><i>💾</i>' + rpT("ed_save549") + "</button>" +
           "</div></div>" +
-          '<div class="ed549-panel" id="ed549Panel"></div>' +
+          '<div class="ed549-panel" id="ed549Panel" hidden></div>' +
           '<div class="ed549-bar"><button type="button" class="ed549-back" id="ed549Back">' + rpT("act_back") + '</button><button type="button" class="ed549-next" id="ed549Next">' + rpT("ed_next549") + "</button></div>";
         document.body.appendChild(root);
-        root.querySelectorAll("[data-ed549tool]").forEach(function (b) { b.addEventListener("click", function () { ed549State.panel = b.getAttribute("data-ed549tool"); ed549RenderPanel(); }); });
+        root.querySelectorAll("[data-ed549tool]").forEach(function (b) { b.addEventListener("click", function () { var t552 = b.getAttribute("data-ed549tool"); if (ed549State.open && ed549State.panel === t552) ed549State.open = false; else { ed549State.panel = t552; ed549State.open = true; } ed549RenderPanel(); }); }); // [RP-V7.552] a rail tap opens its sheet; tapping the open tool again closes it
         $("ed549X").addEventListener("click", function () { ed549Leave(ed549State.returnStage); });
         $("ed549Back").addEventListener("click", function () { ed549Leave(ed549State.returnStage); });
-        $("ed549Next").addEventListener("click", function () { ed549Leave("details"); });
+        $("ed549Next").addEventListener("click", function () {
+          /* [RP-V7.552] The gate Use button's one enforcement moves
+             with its Trim job: an over-cap window cannot advance —
+             open the Edit panel and say so, with the gate's own
+             message. On a pass, mustTrim clears exactly as it did
+             when Use was tapped. */
+          var w552 = reelTrimWin169();
+          var len552 = w552 ? (w552.e - w552.s) : (Reels.pendingSecs || 0);
+          if (len552 > REEL_MAX_SECS + 0.6) {
+            ed549State.panel = "edit"; ed549State.open = true; ed549RenderPanel();
+            toast(rpTf("reel_cut", { len: reelTrimClock169(len552) }), 3600);
+            return;
+          }
+          Reels.mustTrim = false;
+          ed549Leave("details");
+        });
         $("ed549Save").addEventListener("click", function () { ed549Hide(); reelSaveDraft(); }); // Save = the real draft (reelSaveDraft reopens the composer on the pick stage, drafts listed)
         $("ed549Snd").addEventListener("click", function () {
           window.rpSndOnUse501 = function (att) { if (att) { Reels.pendingSound = { trackId: att.trackId, start: att.start || 0, musicVol: att.musicVol, origVol: att.origVol }; ed549PaintSound(); } };
@@ -33278,7 +33278,9 @@
       function ed549RenderPanel() {
         var p = $("ed549Panel"); if (!p) return;
         var root = $("rpEditor549");
-        if (root) root.querySelectorAll("[data-ed549tool]").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-ed549tool") === ed549State.panel); });
+        if (root) root.querySelectorAll("[data-ed549tool]").forEach(function (b) { b.classList.toggle("on", !!ed549State.open && b.getAttribute("data-ed549tool") === ed549State.panel); }); // [RP-V7.552] a tool glows only while its sheet is open
+        p.hidden = !ed549State.open; // [RP-V7.552] the sheet hides without touching the stage — the full-bleed preview never re-layouts
+        if (!ed549State.open) return;
         var e = Reels.ed549, dur = Reels.pendingSecs || 0, h = "";
         if (ed549State.panel === "edit") {
           if (typeof Reels.trimStart !== "number") Reels.trimStart = 0;
@@ -33376,14 +33378,28 @@
       }
       function ed549Leave(stage) {
         ed549Hide();
+        if (stage === "preview") {
+          /* [RP-V7.552] The gate is gone, so the editor's back/X IS the
+             Retake now: discard the pending video and land on the pick
+             stage — the gate Retake button's exact teardown
+             (reelClearPending also clears any fit-cut and the editor
+             state; a resumed draft itself stays in the drafts list,
+             untouched, exactly as a gate Retake left it). */
+          reelClearPending(); Reels.editingDraftId = null; Reels.pendingCaption = "";
+          Reels.stage = "pick";
+          openReelComposer();
+          return;
+        }
         Reels.stage = stage;
         openReelComposer();
       }
       function rpEdOpen549(panel) {
         if (!Reels.pendingUrl) { openReelComposer(); return; }
         var root = $("rpEditor549") || ed549Build();
+        var v0 = $("ed549Video");
+        if (v0 && v0.getAttribute("src") !== Reels.pendingUrl) ed549State.open = false; // [RP-V7.552] a new video starts from a clean full-bleed editor — no sheet carried over from the last clip
         ed549State.returnStage = (Reels.stage === "details") ? "details" : "preview";
-        if (panel) ed549State.panel = panel;
+        if (panel) { ed549State.panel = panel; ed549State.open = true; } // [RP-V7.552] a named entry (the details stage's Edit cover) opens its sheet; a plain entry keeps the sheet as it was
         var pv = $("reelPreview"); if (pv) { try { pv.pause(); } catch (e) { } } // the sheet's preview rests under the editor
         root.hidden = false;
         var v = $("ed549Video");
