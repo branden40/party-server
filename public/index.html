@@ -35381,7 +35381,8 @@ canvas.rp-key-canvas{ display:block; }
 @keyframes rpSpark{ from{ transform:translate(0,0) scale(1); opacity:1;} to{ transform:translate(var(--dx),var(--dy)) scale(.2); opacity:0;} }
 .rp-stage-plate{ position:absolute; left:50%; bottom:19%; transform:translateX(-50%); background:rgba(8,8,14,.78); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.18); color:#fff; border-radius:14px; padding:10px 18px; text-align:center; font-size:14px; animation:rpFade 3.5s forwards; max-width:88vw; }
 .rp-stage-plate .gp{ color:#f5b93f; font-weight:900; }
-#rpBatBar{ position:fixed; top:64px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; background:rgba(8,8,14,.82); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px 12px; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; color:#fff; }
+#rpBatBar{ position:fixed; top:64px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:49; /* [RP-V7.539] battle HUD band 49: above #livePanel.live-fs (45), below sheets (.overlay 50) */ background:rgba(8,8,14,.82); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px 12px; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; color:#fff; }
+#rpBatBar[hidden]{ display:none; } /* [RP-V7.539] the bar's own display:grid beat the UA [hidden] rule, so battle finalize set hidden yet the bar stayed painted; this makes hidden real */
 #rpBatBar .bb-side{ display:flex; align-items:center; gap:7px; min-width:0; }
 #rpBatBar .bb-side.r{ justify-content:flex-end; }
 .bb-av{ width:30px; height:30px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; background:linear-gradient(135deg,#fe2c2c,#ff7a45); border:2px solid rgba(255,255,255,.35); }
@@ -38976,7 +38977,7 @@ function stageStreakBump(key, add) {
 #rp65Series{ top:122px; }
 #rp65How{ top:152px; font-weight:600; color:#cfcfe0; }
 #rp65Series[hidden], #rp65How[hidden]{ display:none; }
-#rp65LapBtns{ position:fixed; top:152px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; display:flex; gap:8px; justify-content:center; }
+#rp65LapBtns{ position:fixed; top:152px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:49; /* [RP-V7.539] battle HUD band */ display:flex; gap:8px; justify-content:center; }
 #rp65LapBtns[hidden]{ display:none; }
 #rpBatBar.rp65-lap{ border-color:#ffd23c; box-shadow:0 0 0 1.5px #ffd23c, 0 8px 30px rgba(255,210,60,.28); }
 .rp65-win{ background:#ffd23c; color:#17171f; border-radius:6px; padding:1px 6px; font-size:10.5px; font-weight:900; }
@@ -94435,7 +94436,7 @@ html, body { overflow-x: clip; }
 /* ================= RP-V7.306: battle boosters =================
    Chips row + host tray + centre callouts for the server-run battle.
    Lives are always dark by design; accent is the app red (V7.295). */
-#rpBoostChips306{ position:fixed; top:118px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; display:flex; gap:6px; flex-wrap:wrap; justify-content:center; pointer-events:none; }
+#rpBoostChips306{ position:fixed; top:118px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:49; /* [RP-V7.539] battle HUD band */ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; pointer-events:none; }
 #rpBoostChips306 .bchip{ display:inline-flex; align-items:center; gap:5px; background:rgba(8,8,14,.85); border:1px solid rgba(255,255,255,.22); color:#fff; border-radius:99px; padding:3px 10px; font-size:11.5px; font-weight:800; backdrop-filter:blur(10px); }
 #rpBoostChips306 .bchip .cd{ color:#ffb3b3; font-variant-numeric:tabular-nums; }
 #rpBoostChips306 .bchip.mine{ border-color:#fe2c2c; box-shadow:0 0 10px rgba(254,44,44,.45); }
@@ -94443,7 +94444,7 @@ html, body { overflow-x: clip; }
 #rpBoostChips306 .bchip.winlg{ border-color:#ffd23c; color:#ffe9a8; } /* [RP-LEAGUE] WIN streak pill */
 #rpBoostChips306 .bchip.lgpill{ border-color:rgba(254,44,44,.65); color:#ffd9d9; } /* [RP-LEAGUE] league pill */
 #rpBoostChips306 .bchip.frozen{ border-color:#7ac2ff; color:#cfe8ff; }
-#rpBoostTray306{ position:fixed; left:50%; transform:translateX(-50%); bottom:118px; width:min(620px,96vw); z-index:44; background:rgba(8,8,14,.88); border:1px solid rgba(254,44,44,.55); border-radius:14px; padding:8px 10px; color:#fff; backdrop-filter:blur(12px); }
+#rpBoostTray306{ position:fixed; left:50%; transform:translateX(-50%); bottom:118px; width:min(620px,96vw); z-index:49; /* [RP-V7.539] battle HUD band */ background:rgba(8,8,14,.88); border:1px solid rgba(254,44,44,.55); border-radius:14px; padding:8px 10px; color:#fff; backdrop-filter:blur(12px); }
 #rpBoostTray306 .bt-head{ font-size:11px; font-weight:900; letter-spacing:.06em; color:#ffb3b3; margin:0 2px 6px; }
 #rpBoostTray306 .bt-row{ display:flex; gap:6px; flex-wrap:wrap; }
 #rpBoostTray306 .bt-btn{ flex:1 1 30%; min-width:86px; border:1.5px solid rgba(255,255,255,.25); background:rgba(255,255,255,.07); color:#fff; border-radius:11px; padding:7px 4px; font-family:inherit; font-weight:800; font-size:12px; cursor:pointer; }
@@ -94632,6 +94633,7 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
 
   function onState(p) {
     if (!p || !p.battleId) return;
+    if (!B.id && !p.ended && p.endsAt && p.endsAt <= Date.now()) return; // [RP-V7.539] endsAt freshness on adoption: a stale snapshot of an expired battle must never resurrect it on this screen
     if (B.id && p.battleId !== B.id && !B.ended) return;
     if (!B.id) { // a viewer (or a host whose begin we missed) adopts the battle
       B.id = p.battleId; B.active = true;
@@ -94705,6 +94707,7 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
     if (s && B.boundSock !== s) {
       B.boundSock = s;
       try { s.on("battle306", onState); } catch (e) { }
+      try { s.emit("battle", { t: "snap539" }); } catch (e) { } // [RP-V7.539] on (re)bind, ask the server for a snapshot of any live battle in this socket's room — heals viewers/late joiners the event-only emits missed
       try { s.on("battle-boost-ack", function (r) { if (r && !r.ok) toast2(r.error === "no-stock" ? "No boosters of that kind left — earn them in battles!" : (r.error === "already-active" ? "That boost is already running!" : (r.error === "timer-used" ? "Timer already used this battle." : (r.error === "too-late" ? "Too late — the battle is almost over!" : "That booster didn't play."))), 2600); }); } catch (e) { }
       try { s.on("battle-mute-ack", function (r) { if (r && !r.ok) toast2("That mute didn't go through — the battle may have ended.", 2600); }); } catch (e) { } // [RP-V7.458]
     }
@@ -94742,7 +94745,7 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
    chips + host booster tray (mirroring the V7.306 placement), and
    the extra live-grid tiles for 3-4 host battles. Black UI, red
    accents (V7.295/V7.310), same idiom as #rpBatBar. */
-#rpTeamBar336{ position:fixed; top:64px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; background:rgba(8,8,14,.82); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px 12px; color:#fff; }
+#rpTeamBar336{ position:fixed; top:64px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:49; /* [RP-V7.539] battle HUD band */ background:rgba(8,8,14,.82); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px 12px; color:#fff; }
 #rpTeamBar336 .tb-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:5px; }
 #rpTeamBar336 .tb-title{ font-weight:900; font-size:12.5px; letter-spacing:.04em; }
 #rpTeamBar336 .tb-time{ background:#17171f; border:1px solid rgba(255,255,255,.3); padding:2px 11px; border-radius:99px; font-size:11.5px; white-space:nowrap; font-weight:800; }
@@ -94763,13 +94766,13 @@ body:not(.live-fs) #rpBoostChips306, body:not(.live-fs) #rpBoostTray306{ display
 #rpTeamBar336 .tb-tug{ display:flex; height:7px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.12); margin:3px 0; }
 #rpTeamBar336 .tb-fill.a{ background:#fe2c2c; height:100%; transition:width .45s ease; }
 #rpTeamBar336 .tb-fill.b{ background:#f5b93f; height:100%; transition:width .45s ease; }
-#rpBoostChips336{ position:fixed; top:118px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:44; display:flex; gap:6px; flex-wrap:wrap; justify-content:center; pointer-events:none; }
+#rpBoostChips336{ position:fixed; top:118px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:49; /* [RP-V7.539] battle HUD band */ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; pointer-events:none; }
 #rpBoostChips336 .bchip{ display:inline-flex; align-items:center; gap:5px; background:rgba(8,8,14,.85); border:1px solid rgba(255,255,255,.22); color:#fff; border-radius:99px; padding:3px 10px; font-size:11.5px; font-weight:800; backdrop-filter:blur(10px); }
 #rpBoostChips336 .bchip .cd{ color:#ffb3b3; font-variant-numeric:tabular-nums; }
 #rpBoostChips336 .bchip.mine{ border-color:#fe2c2c; box-shadow:0 0 10px rgba(254,44,44,.45); }
 #rpBoostChips336 .bchip.mission{ border-color:#ffd23c; color:#ffe9a8; }
 #rpBoostChips336 .bchip.frozen{ border-color:#7ac2ff; color:#cfe8ff; }
-#rpBoostTray336{ position:fixed; left:50%; transform:translateX(-50%); bottom:118px; width:min(620px,96vw); z-index:44; background:rgba(8,8,14,.88); border:1px solid rgba(254,44,44,.55); border-radius:14px; padding:8px 10px; color:#fff; backdrop-filter:blur(12px); }
+#rpBoostTray336{ position:fixed; left:50%; transform:translateX(-50%); bottom:118px; width:min(620px,96vw); z-index:49; /* [RP-V7.539] battle HUD band */ background:rgba(8,8,14,.88); border:1px solid rgba(254,44,44,.55); border-radius:14px; padding:8px 10px; color:#fff; backdrop-filter:blur(12px); }
 #rpBoostTray336 .bt-head{ font-size:11px; font-weight:900; letter-spacing:.06em; color:#ffb3b3; margin:0 2px 6px; }
 #rpBoostTray336 .bt-row{ display:flex; gap:6px; flex-wrap:wrap; }
 #rpBoostTray336 .bt-btn{ flex:1 1 30%; min-width:86px; border:1.5px solid rgba(255,255,255,.25); background:rgba(255,255,255,.07); color:#fff; border-radius:11px; padding:7px 4px; font-family:inherit; font-weight:800; font-size:12px; cursor:pointer; }
@@ -95229,6 +95232,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
   /* ---------------- battle336 state ---------------- */
   function onState336(p) {
     if (!p || !p.battleId) return;
+    if (!T.id && !p.ended && p.endsAt && p.endsAt <= Date.now()) return; // [RP-V7.539] endsAt freshness on adoption (same rule as the 306 layer)
     if (T.id && p.battleId !== T.id && !T.ended) return;
     if (!T.id || (T.ended && p.battleId !== T.id)) { T.id = p.battleId; T.active = true; T.ended = null; T.stock = null; }
     T.format = p.format || T.format;
@@ -95485,6 +95489,7 @@ body:not(.live-fs) #rpTeamBar336, body:not(.live-fs) #rpBoostChips336, body:not(
       T.boundSock = s;
       try { s.on("battle", onBattle336); } catch (e) { }
       try { s.on("battle336", onState336); } catch (e) { }
+      try { s.emit("battle", { t: "snap539" }); } catch (e) { } // [RP-V7.539] same snapshot request as the 306 layer (the server answers on the channel matching the battle's format)
     }
     var ov = $("overlay");
     if (T.lobbyView && ov && !ov.classList.contains("open")) T.lobbyView = false;
@@ -103621,7 +103626,7 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
 .rp-away-t519{ color:#fff; font-size:15px; font-weight:900; }
 .rp-away-n519{ color:#ffb3b3; font-size:12px; font-weight:700; }
 .rp-away-c519{ color:#ffd23c; font-size:12px; font-weight:900; font-variant-numeric:tabular-nums; }
-.rp-mban519{ position:fixed; top:172px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:45; background:rgba(8,8,14,.9); border:1.5px solid #ffd23c; border-radius:14px; padding:8px 12px; color:#fff; backdrop-filter:blur(12px); box-shadow:0 10px 30px rgba(0,0,0,.5); }
+.rp-mban519{ position:fixed; top:172px; left:50%; transform:translateX(-50%); width:min(620px,96vw); z-index:45; /* [RP-V7.539] explicit: 45 + appended after #livePanel in DOM order keeps the banner above the fullscreen panel; the rest of the battle HUD band sits at 49 */ background:rgba(8,8,14,.9); border:1.5px solid #ffd23c; border-radius:14px; padding:8px 12px; color:#fff; backdrop-filter:blur(12px); box-shadow:0 10px 30px rgba(0,0,0,.5); }
 .rp-mban519.rush{ border-color:#fe2c2c; box-shadow:0 0 22px rgba(254,44,44,.5); }
 .rp-mban-top519{ display:flex; align-items:center; gap:8px; font-weight:900; font-size:13px; }
 .rp-mban-top519 .cd{ margin-left:auto; color:#ffb3b3; font-variant-numeric:tabular-nums; }
@@ -103634,7 +103639,7 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
 #rpCall519.on{ display:flex; }
 #rpCall519 .bc-card{ background:rgba(8,8,14,.88); border:2px solid #fe2c2c; color:#fff; border-radius:18px; padding:16px 26px; text-align:center; font-weight:900; font-size:19px; box-shadow:0 18px 50px rgba(0,0,0,.6), 0 0 24px rgba(254,44,44,.4); animation:bcPop306 .3s ease; max-width:86vw; }
 #rpCall519 .bc-card small{ display:block; font-size:12.5px; font-weight:700; color:#ffb3b3; margin-top:3px; }
-#rpLive519{ position:fixed; left:10px; top:118px; z-index:44; display:flex; flex-direction:column; gap:6px; max-width:210px; }
+#rpLive519{ position:fixed; left:10px; top:118px; z-index:49; /* [RP-V7.539] battle HUD band */ display:flex; flex-direction:column; gap:6px; max-width:210px; }
 .rp-goal519{ background:rgba(8,8,14,.88); border:1.5px solid rgba(254,44,44,.6); border-radius:14px; padding:8px 10px; color:#fff; backdrop-filter:blur(10px); }
 .rp-goal519.done{ border-color:#ffd23c; box-shadow:0 0 14px rgba(255,210,60,.45); }
 .rp-goal-top519{ display:flex; align-items:center; gap:9px; }
@@ -103652,7 +103657,7 @@ body:not(.live-fs) #rpCount516, body:not(.live-fs) #rpComeback516, body:not(.liv
 .rp-sparkbar519 button{ background:#ffd23c; color:#231a00; border:none; border-radius:99px; font-family:inherit; font-weight:900; font-size:11.5px; padding:4px 11px; cursor:pointer; }
 .rp-sparkbar519 button:disabled{ opacity:.4; cursor:default; }
 .rp-goalbtn519{ background:rgba(8,8,14,.88); border:1px solid rgba(254,44,44,.6); color:#fff; border-radius:99px; font-family:inherit; font-weight:900; font-size:11.5px; padding:5px 12px; cursor:pointer; backdrop-filter:blur(10px); }
-#rpGoalLadder519{ position:fixed; right:5px; top:50%; transform:translateY(-50%); z-index:44; display:flex; flex-direction:column; align-items:center; gap:5px; color:#fff; }
+#rpGoalLadder519{ position:fixed; right:5px; top:50%; transform:translateY(-50%); z-index:49; /* [RP-V7.539] battle HUD band */ display:flex; flex-direction:column; align-items:center; gap:5px; color:#fff; }
 .rp-lad-art519 img{ width:24px; height:24px; object-fit:cover; border-radius:6px; }
 .rp-lad-track519{ position:relative; width:14px; height:150px; border-radius:99px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); overflow:hidden; }
 .rp-lad-fill519{ position:absolute; left:0; right:0; bottom:0; background:linear-gradient(to top,#fe2c2c,#ffd23c); transition:height .5s ease; }
