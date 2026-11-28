@@ -7805,6 +7805,12 @@ const FXSHOP_PREMIUM_553 = ["halo", "firecrown", "pirate", "goldchain", "wizardh
 const FXSHOP_SINGLE_553 = 150; // charms per single lens
 const FXSHOP_PACK_553 = 500; // charms for the whole pack ($5)
 const FXSHOP_OWNER_USERNAMES_553 = ["jesusisking", "a1thrills", "plazareview"]; // Branden's other accounts (RP itself is the owner id)
+// [RP-V7.568] RETIRED (Branden, Nov 28, 2026: "Remove them for everyone
+// and refund buyers"): all six premium lenses are retired. The list is
+// kept here so ownership reads can filter them out (fxShopOwned553)
+// and the buy path can refuse them honestly; fx568RefundMigration
+// (below) refunds every buyer in full, once, on first boot.
+const FXSHOP_RETIRED_568 = ["halo", "firecrown", "pirate", "goldchain", "wizardhat", "afro"];
 function readFxShop553() {
   try {
     const d = JSON.parse(fs.readFileSync(FXSHOP553_FILE, "utf8"));
@@ -7829,10 +7835,13 @@ function fxShopTest553(user, adb) {
 }
 function fxShopOwned553(d, user, adb) {
   if (!user) return [];
-  if (rpOwnerUserId(adb) === user.id) return FXSHOP_PREMIUM_553.slice(); // owner bypass
+  // [RP-V7.568] retired lenses read as owned by NOBODY — not via the
+  // store (the migration also strips them there) and not via the owner
+  // bypass, so no surface anywhere can resurrect them.
+  if (rpOwnerUserId(adb) === user.id) return FXSHOP_PREMIUM_553.filter((x) => FXSHOP_RETIRED_568.indexOf(x) < 0); // owner bypass
   const u = d.users[user.id];
   const owned = u && Array.isArray(u.owned) ? u.owned : [];
-  return owned.filter((x) => FXSHOP_PREMIUM_553.indexOf(x) >= 0);
+  return owned.filter((x) => FXSHOP_PREMIUM_553.indexOf(x) >= 0 && FXSHOP_RETIRED_568.indexOf(x) < 0);
 }
 function rpFxShopBoard553() {
   const d = readFxShop553();
@@ -7844,7 +7853,24 @@ function rpFxShopBoard553() {
     salesCount++; grossCharms += s.charms;
     if (s.pack) packSales++; else singleSales++;
   }
-  return { salesCount, grossCharms, packSales, singleSales, testSalesCount, testGrossCharms };
+  // [RP-V7.568] The sales sums above stay the true historical record —
+  // refunds are recorded BESIDE the ledger (refunds568), never written
+  // into it, so nothing here is corrupted or double-counted. The
+  // refund totals ride along on the payload so the board discloses
+  // them next to the gross figure (the client note line renders them).
+  let refundedCharms = 0, refundedTestCharms = 0, refundBuyers = 0;
+  const r568 = d.refunds568;
+  if (r568 && r568.done && r568.buyers && typeof r568.buyers === "object") {
+    for (const uid of Object.keys(r568.buyers)) {
+      const b = r568.buyers[uid] || {};
+      const c = typeof b.charms === "number" ? b.charms : 0;
+      const t = typeof b.testCharms === "number" ? b.testCharms : 0;
+      refundBuyers++;
+      refundedCharms += c - t;
+      refundedTestCharms += t;
+    }
+  }
+  return { salesCount, grossCharms, packSales, singleSales, testSalesCount, testGrossCharms, refundedCharms, refundedTestCharms, refundBuyers };
 }
 app.get("/api/fxshop553/state", (req, res) => {
   const adb = readAccounts();
@@ -7869,6 +7895,10 @@ app.post("/api/fxshop553/buy", lockedHandler("fxshop553-buy", (req, res) => {
   const b = req.body || {};
   const wantPack = b.pack === true;
   const lensId = wantPack ? null : fxCleanId551(b.lensId);
+  // [RP-V7.568] the six premium lenses are retired — a buy of any one
+  // of them, or of the pack, refuses honestly and takes nothing.
+  if (wantPack || (lensId && FXSHOP_RETIRED_568.indexOf(lensId) >= 0))
+    return res.status(400).json({ ok: false, error: "no-longer-available" });
   if (!wantPack && (!lensId || FXSHOP_PREMIUM_553.indexOf(lensId) < 0))
     return res.status(400).json({ ok: false, error: "Unknown filter" });
   const adb = ctx.db;
@@ -7917,6 +7947,100 @@ app.post("/api/fxshop553/buy", lockedHandler("fxshop553-buy", (req, res) => {
   }
   res.json({ ok: true, owned: fxShopOwned553(d, ctx.user, adb), balance: mdb.balances[ctx.user.id], charged: charge });
 }));
+
+// ---------------------------------------------------------------------------
+// [RP-V7.568] PREMIUM CARTOON LENSES RETIRED — EVERY BUYER REFUNDED IN
+// FULL (Branden, Nov 28, 2026, options tap + confirmed in words:
+// "Remove them for everyone and refund buyers"). The six V7.553
+// premium lenses (halo, firecrown, pirate, goldchain, wizardhat, afro)
+// leave every surface — the client rack removal ships in this same
+// build — and every member who paid for them gets back exactly what
+// they were charged, in charms, to their charm balance.
+//
+// REFUND MATH: the fxshop553 sales ledger is the authority. Each sale
+// row records the charms ACTUALLY charged for that purchase — a single
+// at 150, a pack at max(0, 500 − 150 × singles already owned) — so
+// the pack-credit case is already exact in the row. A buyer's refund
+// is the plain sum of their rows: never more, never less. Test-account
+// sales are refunded too (those balances really were debited) and are
+// tracked separately in the marker, mirroring the board's test split.
+// The owner never appears in the ledger (the bypass never charged
+// him), so he is correctly refunded nothing.
+//
+// IDEMPOTENCY — this can never pay twice:
+//   1. Durable marker: the store gains refunds568 { done, buyers } in
+//      the same write that strips the entitlements; a boot that sees
+//      the marker returns immediately.
+//   2. Per-buyer ledger guard: before crediting a buyer, the money
+//      txlog is checked for this migration's own refund row (type
+//      "fx-filter-refund", ref "premium-retire-568", to = buyer). If
+//      a crash ever landed between the money write and the marker
+//      write, the next boot finds the row, skips the credit, and
+//      still finishes the strip + marker.
+// ORDER: snapshot the store file (.bak-568, first run only) → credit
+// every buyer in ONE money write (one tx row each) → strip the six
+// ids from every stored owned list → write the marker. Ownership also
+// READS as gone without the strip (fxShopOwned553 filters retired
+// ids), so there is no window where a refunded member still owns one.
+// Runs once at boot (call site with the other boot migrations).
+// ---------------------------------------------------------------------------
+function fx568RefundMigration() {
+  const d = readFxShop553();
+  if (d.refunds568 && d.refunds568.done) return; // marker: already ran
+  // What each buyer actually paid, from the sales ledger.
+  const buyers = {}; // uid -> { charms, testCharms, sales }
+  for (const s of d.sales || []) {
+    if (!s || !s.uid || typeof s.charms !== "number" || !isFinite(s.charms)) continue;
+    const bk = buyers[s.uid] || (buyers[s.uid] = { charms: 0, testCharms: 0, sales: 0 });
+    bk.charms += s.charms;
+    if (s.test) bk.testCharms += s.charms;
+    bk.sales++;
+  }
+  const uids = Object.keys(buyers);
+  // Snapshot the store before mutating anything.
+  try {
+    if (fs.existsSync(FXSHOP553_FILE) && !fs.existsSync(FXSHOP553_FILE + ".bak-568"))
+      fs.copyFileSync(FXSHOP553_FILE, FXSHOP553_FILE + ".bak-568");
+  } catch (e) {}
+  // Credit the refunds — one money write, one ledger row per buyer,
+  // skipping anyone a previous partial run already paid (txlog guard).
+  const mdb = readMoney();
+  const alreadyPaid = {};
+  for (const tx of mdb.txlog || []) {
+    if (tx && tx.type === "fx-filter-refund" && tx.ref === "premium-retire-568" && tx.to)
+      alreadyPaid[tx.to] = true;
+  }
+  let moneyDirty = false, paidNow = 0, paidCharms = 0;
+  for (const uid of uids) {
+    const amt = buyers[uid].charms;
+    if (!(amt > 0) || alreadyPaid[uid]) continue;
+    mdb.balances[uid] = (mdb.balances[uid] || 0) + amt;
+    moneyTx(mdb, { type: "fx-filter-refund", from: null, to: uid, charms: amt, cents: 0, cut: 0, ref: "premium-retire-568" });
+    moneyDirty = true; paidNow++; paidCharms += amt;
+  }
+  if (moneyDirty) writeMoney(mdb);
+  // Strip the entitlements from the store.
+  for (const uid of Object.keys(d.users || {})) {
+    const u = d.users[uid];
+    if (u && Array.isArray(u.owned))
+      u.owned = u.owned.filter((x) => FXSHOP_RETIRED_568.indexOf(x) < 0);
+  }
+  // The durable per-buyer record (usernames resolved best-effort for
+  // the owner's post-deploy check; the uid is the key that matters).
+  let adb = null;
+  try { adb = readAccounts(); } catch (e) {}
+  const byId = {};
+  if (adb && Array.isArray(adb.users)) for (const u of adb.users) if (u && u.id) byId[u.id] = u.username || null;
+  const record = {};
+  let totalCharms = 0;
+  for (const uid of uids) {
+    record[uid] = { charms: buyers[uid].charms, testCharms: buyers[uid].testCharms, sales: buyers[uid].sales, username: byId[uid] || null };
+    totalCharms += buyers[uid].charms;
+  }
+  d.refunds568 = { done: true, at: new Date().toISOString(), buyers: record, totalCharms: totalCharms, buyersCount: uids.length };
+  writeFxShop553(d);
+  console.log("[RP-V7.568] premium lens refunds: " + uids.length + " buyer(s), " + totalCharms + " charms refunded in full (" + paidNow + " credited this boot, " + paidCharms + " charms); the six premium cartoon lenses are retired for everyone.");
+}
 
 // [RP-V7.335] One original sound: name, owner, live use count, and
 // every post that used it (the source post first — it is use #1).
@@ -39353,6 +39477,11 @@ try { rpOwnerUsername408(); } catch (e) { console.log("[RP-V7.408] owner usernam
 // [RP-V7.321] Test-funds guardrail: seed the account flags (owner +
 // @Jesusisking) once at boot — see testFundsSeed321 above.
 try { testFundsSeed321(); } catch (e) {}
+
+// [RP-V7.568] Premium cartoon lenses retired: refund every buyer in
+// full, once, on the first boot of this build (idempotent — the
+// fxshop553 store carries the durable marker; see fx568RefundMigration).
+try { fx568RefundMigration(); } catch (e) { console.log("[RP-V7.568] premium lens refund migration failed:", e && e.message); }
 
 // [RP-V7.300] Paid shoutouts: the expiry sweep — once on boot,
 // then every 60s (the fan-sub / fan-club pattern). Escrow records
