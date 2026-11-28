@@ -28398,6 +28398,7 @@
           comments: Array.isArray(sp.comments) ? sp.comments : [],
           commentCount: (typeof sp.commentCount === "number" ? sp.commentCount : (Array.isArray(sp.comments) ? sp.comments.length : 0)),
           musicTrackId: sp.musicTrackId || null, origSoundId: sp.origSoundId || null, soundId: sp.soundId || null, soundName: sp.soundName || null, soundOwnerName: sp.soundOwnerName || null, musicStart: sp.musicStart, musicVol: sp.musicVol, /* [RP-V7.90] */ /* [RP-V7.335] */
+          eventId: sp.eventId || null, eventChip: sp.eventChip || null, /* [RP-V7.554] the attached LIVE Event chip rides the photo post */
           cmtBase: 0
         };
       }
@@ -28574,7 +28575,8 @@
           if (postMeta156.allowComments === false) fd.append("allowComments", "false"); // [RP-V7.549]
           if (postMeta156.aiLabel) fd.append("aiLabel", "1"); // [RP-V7.549]
           if (postMeta156.shoutoutId) fd.append("shoutoutId", postMeta156.shoutoutId); // [RP-V7.300] an armed fulfill link rides creation; the server settles the escrow
-          if (postMeta156.collabUser) fd.append("collabUser", postMeta156.collabUser); // [RP-V7.453] the optional collaborator invite rides creation
+          if (postMeta156.collabUser) fd.append("collabUser", postMeta156.collabUser); // [RP-V7.453]
+        if (postMeta156.eventId) fd.append("eventId", postMeta156.eventId); // [RP-V7.554] attached LIVE Event (server validates host/featured) the optional collaborator invite rides creation
           if (snd) { fd.append(window.rpSndAttachField335 ? window.rpSndAttachField335(snd.trackId) : "musicTrackId", snd.trackId); /* [RP-V7.335] */ fd.append("musicStart", String(snd.start || 0)); fd.append("musicVol", String(snd.musicVol != null ? snd.musicVol : 0.8)); } /* [RP-V7.90] */
           return fd;
         }).catch(function () { return null; });
@@ -28634,7 +28636,7 @@
           fetch("/api/photo/post", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
-            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? (window.rpSndAttachField335 && window.rpSndAttachField335(snd.trackId) === "origSoundId" ? { origSoundId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) }) : {} /* [RP-V7.335] */, (postMeta156.location || postMeta156.link || postMeta156.subsOnly || postMeta156.clubOnly || postMeta156.shoutoutId || postMeta156.collabUser || postMeta156.allowComments === false || postMeta156.aiLabel || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience, subsOnly: postMeta156.subsOnly ? true : undefined, clubOnly: postMeta156.clubOnly ? true : undefined, shoutoutId: postMeta156.shoutoutId || undefined, collabUser: postMeta156.collabUser || undefined, allowComments: postMeta156.allowComments === false ? false : undefined, aiLabel: postMeta156.aiLabel ? true : undefined } : {})) /* [RP-V7.296] subsOnly rides the same meta object */ /* [RP-V7.298] clubOnly too */ /* [RP-V7.300] shoutoutId too */ /* [RP-V7.453] collabUser too */ /* [RP-V7.549] allowComments + aiLabel ride it too */
+            body: JSON.stringify(Object.assign({ photoUrl: picks123[0], caption: cap || "", clientKey: clientKey }, snd ? (window.rpSndAttachField335 && window.rpSndAttachField335(snd.trackId) === "origSoundId" ? { origSoundId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) } : { musicTrackId: snd.trackId, musicStart: snd.start || 0, musicVol: (snd.musicVol != null ? snd.musicVol : 0.8) }) : {} /* [RP-V7.335] */, (postMeta156.location || postMeta156.link || postMeta156.subsOnly || postMeta156.clubOnly || postMeta156.shoutoutId || postMeta156.collabUser || postMeta156.eventId || postMeta156.allowComments === false || postMeta156.aiLabel || (postMeta156.audience && postMeta156.audience !== "everyone")) ? { location: postMeta156.location || undefined, link: postMeta156.link || undefined, audience: postMeta156.audience, subsOnly: postMeta156.subsOnly ? true : undefined, clubOnly: postMeta156.clubOnly ? true : undefined, shoutoutId: postMeta156.shoutoutId || undefined, collabUser: postMeta156.collabUser || undefined, eventId: postMeta156.eventId || undefined, allowComments: postMeta156.allowComments === false ? false : undefined, aiLabel: postMeta156.aiLabel ? true : undefined } : {})) /* [RP-V7.296] subsOnly rides the same meta object */ /* [RP-V7.298] clubOnly too */ /* [RP-V7.300] shoutoutId too */ /* [RP-V7.453] collabUser too */ /* [RP-V7.549] allowComments + aiLabel ride it too */ /* [RP-V7.554] eventId too */
           }).then(function (r) { return r.json().catch(function () { return null; }); })
             .then(function (j) { if (!onOk(j)) momPublishLocal(cap); })
             .catch(function () { momPublishLocal(cap); });
@@ -28709,6 +28711,7 @@
             '<div class="mom-photo">' + photo + '</div>' +
             '<p class="mom-cap"><b>' + escHtml(p.name) + '</b>' + (window.rpCollabByline453 ? window.rpCollabByline453(p) : "") + momCaptionHtml(p.caption || "") + '</p>' + postMetaLineHtml156(p) + /* [RP-V7.89] hashtags tappable */ /* [RP-V7.453] dual byline */
             ((p.musicTrackId || p.origSoundId) ? '<button type="button" class="mom-snd rp-snd" data-tid="' + escHtml(p.musicTrackId || p.origSoundId) + '">♪ ' + escHtml(p.soundName || (window.rpTrackName ? window.rpTrackName(p.musicTrackId || p.origSoundId) : rpT("about_plaza_sound"))) + rpT("card_tap_play") + '</button>' : "") + /* [RP-V7.90] */ /* [RP-V7.335] member sounds preview through the same chip; the name is the registry's */
+            ((p.eventChip) ? '<button type="button" class="mom-snd rp-evchip554" data-evchip554="' + escHtml(p.eventChip.id) + '">📅 LIVE Event · ' + escHtml(window.rpEventChipWhen554 ? window.rpEventChipWhen554(p.eventChip.startsAt) : "") + '</button>' : "") + /* [RP-V7.554] the attached event's chip, under the sound credit */
             '<div class="mom-acts">' +
               '<button class="mom-act like' + (p.liked ? " liked" : "") + '" type="button">' + RPICO.heart + ' <span class="lc">' + momLikeCount(p) + '</span></button>' +
               '<button class="mom-act cmt" type="button">' + RPICO.comment + ' <span class="cc">' + momCommentTotal(p) + '</span></button>' +
@@ -28950,7 +28953,7 @@
          location + link, and the audience is enforced server-side. Back
          rule (Branden): the X exit lives only on the FIRST page; every
          later page gets a back arrow. */
-      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, shoutoutId: "", shoutoutBuyer: "", allowComments: true, aiLabel: false, tplShare: false }; // [RP-V7.549] allowComments/aiLabel/tplShare join the meta
+      var postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, shoutoutId: "", shoutoutBuyer: "", allowComments: true, aiLabel: false, tplShare: false, eventId: "", eventLabel: "" }; // [RP-V7.549] allowComments/aiLabel/tplShare join the meta // [RP-V7.554] eventId/eventLabel = the attached LIVE Event
       // [RP-V7.438] GAMING AUTO-ROUTE type-ahead: the SAME term list as the server's RP_GAMING_TERMS (server.js) — keep the two in sync; the server is authoritative (it re-checks every caption at creation and backfills existing reels), this copy only auto-checks the composer's Gaming toggle while the member types. Word-boundary aware, plus a hashtag pass (a hashtag token starting with a single-word term counts, e.g. #gta6). Bare "game"/"cod" are NOT terms on purpose ("game night" must not flag).
       var rpGamingTerms438 = ["gaming", "gameplay", "game clips", "game clip", "videogame", "video game", "gamer", "gta", "grand theft auto", "fortnite", "minecraft", "roblox", "warzone", "call of duty", "madden", "nba 2k", "fifa", "ea fc", "apex legends", "valorant", "league of legends", "overwatch", "rocket league", "elden ring", "zelda", "mario", "pokemon", "xbox", "ps5", "ps4", "playstation", "nintendo", "esports", "twitch", "gamingclips"];
       var rpGamingTagWords438 = ["gaming", "gameplay", "videogame", "gamer", "gta", "fortnite", "minecraft", "roblox", "warzone", "madden", "fifa", "valorant", "overwatch", "zelda", "mario", "pokemon", "xbox", "ps5", "ps4", "playstation", "nintendo", "esports", "twitch", "gamingclips"];
@@ -28958,7 +28961,7 @@
       function rpCaptionIsGaming438(text) { var t = String(text || ""); if (rpGamingRe438.test(t)) return true; var tags = t.match(/#[a-z0-9]+/gi) || []; for (var i438 = 0; i438 < tags.length; i438++) { var tok438 = tags[i438].slice(1).toLowerCase(); for (var j438 = 0; j438 < rpGamingTagWords438.length; j438++) { if (tok438 === rpGamingTagWords438[j438] || tok438.indexOf(rpGamingTagWords438[j438]) === 0) return true; } } return false; }
  // [RP-GAMING] gaming: the Gaming page toggle (rides reel creation as category "gaming") // [RP-V7.296] subsOnly: the Fan Subscriptions composer toggle // [RP-V7.298] clubOnly: the Fan Clubs composer toggle // [RP-V7.300] shoutoutId: an armed shoutout fulfill link (set from the Earn inbox; rides creation, settles the escrow server-side) // [RP-V7.316] downloads: the TikTok-style downloads switch, starting from the account default
       function postDlDefault156() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return !(a && a.settings && a.settings.dlDefault === false); } catch (e) { return true; } } // [RP-V7.316] the account default (Profile settings) pre-sets the composer toggle; absent = ON, TikTok's default
-      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, allowComments: true, aiLabel: false, tplShare: false, collabUser: "", shoutoutId: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().id || "") : ""), shoutoutBuyer: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().buyerName || "") : "") }; } // [RP-V7.298] // [RP-V7.300] a reset re-arms from the pending fulfill link, so opening any composer keeps the link until a post settles it or the creator unlinks it // [RP-V7.316] downloads re-arms from the account default // [RP-V7.549] the 549 switches reset with the rest
+      function postMetaReset156() { postMeta156 = { location: "", link: "", audience: "everyone", remix: true, downloads: postDlDefault156(), subsOnly: false, clubOnly: false, gaming: false, allowComments: true, aiLabel: false, tplShare: false, collabUser: "", shoutoutId: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().id || "") : ""), shoutoutBuyer: (window.rpShoutoutPending300 ? (window.rpShoutoutPending300().buyerName || "") : ""), eventId: (window.rpEventPending554 ? (window.rpEventPending554().id || "") : ""), eventLabel: (window.rpEventPending554 ? (window.rpEventPending554().label || "") : "") }; } // [RP-V7.298] // [RP-V7.300] a reset re-arms from the pending fulfill link, so opening any composer keeps the link until a post settles it or the creator unlinks it // [RP-V7.316] downloads re-arms from the account default // [RP-V7.549] the 549 switches reset with the rest // [RP-V7.554] eventId re-arms from the pending attach, same idiom as the shoutout link
       /* [RP-V7.549] Location suggestion chips: the member's OWN recent
          places (this device, written when a post goes out with a
          location) — real personal history, never a fabricated list. */
@@ -28988,6 +28991,7 @@
           '<div class="pd-sub" id="' + k + 'LinkBox" hidden><input class="online-input-full" id="' + k + 'LinkInput" type="url" maxlength="300" placeholder="https://…" autocomplete="off" value="' + escHtml(postMeta156.link) + '" /></div>' +
           '<button type="button" class="pd-row" id="' + k + 'CollabRow"><span class="pd-ic">🤝</span><span class="pd-lb">' + rpT("pd_collab_label") + '</span><span class="pd-val" id="' + k + 'CollabVal">' + (postMeta156.collabUser ? "@" + escHtml(postMeta156.collabUser) : rpT("pd_add")) + '</span><span class="pd-chv">›</span></button>' +
           '<div class="pd-sub" id="' + k + 'CollabBox" hidden><input class="online-input-full" id="' + k + 'CollabInput" type="text" maxlength="40" placeholder="' + rpT("pd_collab_ph") + '" autocomplete="off" autocapitalize="none" value="' + escHtml(postMeta156.collabUser || "") + '" /></div>' + /* [RP-V7.453] one collaborator, invited at post time; they accept from their bell before anything changes publicly */
+          '<button type="button" class="pd-row" id="' + k + 'EventRow"><span class="pd-ic">📅</span><span class="pd-lb">LIVE Event</span><span class="pd-val" id="' + k + 'EventVal">' + (postMeta156.eventId ? escHtml(postMeta156.eventLabel || "Attached") : rpT("pd_add")) + '</span><span class="pd-chv">›</span></button>' + /* [RP-V7.554] attach one of your upcoming events — the post carries its 📅 chip */
           '<button type="button" class="pd-row" id="' + k + 'AudRow"><span class="pd-ic">🌐</span><span class="pd-lb" id="' + k + 'AudVal">' + postAudText156() + '</span><span class="pd-chv">›</span></button>' +
           '<div class="pd-sub" id="' + k + 'AudBox" hidden>' +
             [["everyone", rpT("pd_aud_everyone")], ["followers", rpT("pd_aud_followers")], ["onlyme", "<svg class=\"rpi\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"5\" y=\"10.5\" width=\"14\" height=\"9.5\" rx=\"2.5\"/><path d=\"M8 10.5V8a4 4 0 0 1 8 0v2.5\"/><circle cx=\"12\" cy=\"15.2\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg> " + rpT("pd_aud_onlyme")]].map(function (a) { return '<button type="button" class="pd-aud' + (postMeta156.audience === a[0] ? " on" : "") + '" data-pdaud="' + a[0] + '">' + a[1] + '</button>'; }).join("") +
@@ -29014,6 +29018,8 @@
         ["Loc", "Link", "Aud", "Collab"].forEach(function (p) { // [RP-V7.453] Collab rides the same row/box/input toggle idiom
           var row = $(k + p + "Row"); if (row) row.addEventListener("click", function () { var b = $(k + p + "Box"); if (b) { b.hidden = !b.hidden; var i = $(k + p + "Input"); if (i && !b.hidden) i.focus(); } });
         });
+        var ev554 = $(k + "EventRow"); // [RP-V7.554] LIVE Event attach: opens the picker of my upcoming events (host / featured)
+        if (ev554) ev554.addEventListener("click", function () { if (window.rpEventPick554) window.rpEventPick554(postMeta156.eventId || "", function (id, label) { postMeta156.eventId = id || ""; postMeta156.eventLabel = label || ""; var v = $(k + "EventVal"); if (v) v.textContent = id ? label : rpT("pd_add"); }); });
         var mb501 = $(k + "MoreBtn501"); // [RP-V7.501] expand/collapse only — writes happen on the tap itself, never on render
         if (mb501) mb501.addEventListener("click", function () {
           var bx501 = $(k + "MoreBox501"); if (!bx501) return;
@@ -30271,6 +30277,7 @@
           if (meta.gaming) fd.append("category", "gaming"); // [RP-GAMING]
           if (meta.shoutoutId) fd.append("shoutoutId", meta.shoutoutId); // [RP-V7.300]
           if (meta.collabUser) fd.append("collabUser", meta.collabUser); // [RP-V7.453]
+          if (meta.eventId) fd.append("eventId", meta.eventId); // [RP-V7.554] attached LIVE Event (server validates host/featured)
           if (meta.link) fd.append("link", meta.link);
           if (meta.audience && meta.audience !== "everyone") fd.append("audience", meta.audience);
           if (meta.musicTrackId) { fd.append("musicTrackId", meta.musicTrackId); fd.append("musicStart", String(meta.musicStart || 0)); fd.append("musicVol", String(meta.musicVol != null ? meta.musicVol : 0.8)); fd.append("origVol", String(meta.origVol != null ? meta.origVol : 1)); } /* [RP-V7.90] */
@@ -30306,7 +30313,7 @@
         Reels.server.forEach(function (r) { haveSrv[r.id] = true; });
         reelLoadMeta().forEach(function (m) { if (m.serverId) myServerIds[m.serverId] = true; });
         Reels.server.forEach(function (r) {
-          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "", /* [RP-V7.549] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ /* [RP-V7.335] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.296] */ /* [RP-V7.451] */ /* [RP-V7.298] */ /* [RP-V7.300] */ /* [RP-GAMING] */ /* [RP-V7.453] */ });
+          items.push({ key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, /* [RP-V7.104] real gift target */ caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, /* [RP-V7.169] */ allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, /* [RP-V7.316] */ allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "", /* [RP-V7.549] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, /* [RP-V7.89] */ musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, /* [RP-V7.90] */ /* [RP-V7.335] */ crMuted: r.crMuted || null, /* [RP-V7.286] */ apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, /* [RP-V7.262] */ locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null, eventId: r.eventId || null, eventChip: r.eventChip || null /* [RP-V7.554] */ /* [RP-V7.296] */ /* [RP-V7.451] */ /* [RP-V7.298] */ /* [RP-V7.300] */ /* [RP-GAMING] */ /* [RP-V7.453] */ });
         });
         reelLoadMeta().forEach(function (m) {
           if (m.draft) return; // drafts live in the composer, not the feed
@@ -31406,7 +31413,7 @@
           '<div class="reel-play">▶</div>' +
           '<div class="reel-meta"><span class="reel-author"' + rpProfAttrs259(item) + '>' + escHtml(item.author) + (window.rpCollabByline453 ? window.rpCollabByline453(item) : "") + '</span><span class="reel-when">' + reelWhen(item.createdAt) + "</span>" + /* [RP-V7.453] dual byline on accepted collabs */
           (item.caption ? '<p class="reel-cap">' + reelCaptionHtml(item.caption, "reels") + "</p>" : "") + postMetaLineHtml156(item) + chip + provHtml + // [RP-V7.258] pager reel card: reels context
-          (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Open sound page" data-i18n-ti="rail_open_sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : rpT("about_plaza_sound")) + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound" data-i18n-al="rail_fav_sound_al">☆</button></div>' : (item.soundId ? '<div class="reel-sound rp-osnd" data-sid="' + escHtml(item.soundId) + '" role="button" title="Open sound page" data-i18n-ti="rail_open_sound"><span>♪ ' + escHtml(item.soundName || rpT("about_original_sound_name")) + ' · ' + escHtml(item.soundOwnerName || "") + '</span></div>' : '<div class="reel-sound"><span>' + rpTf("about_original_sound", { name: escHtml(item.author) }) + "</span></div>")) /* [RP-V7.335] a registered member sound gets its real credit + page */ + crChip286 + // [RP-V7.286]
+          (item.musicTrackId ? '<div class="reel-sound rp-snd" data-tid="' + escHtml(item.musicTrackId) + '" role="button" title="Open sound page" data-i18n-ti="rail_open_sound"><span>♪ ' + escHtml(window.rpTrackName ? window.rpTrackName(item.musicTrackId) : rpT("about_plaza_sound")) + '</span><button type="button" class="rp-sndfav" data-tid="' + escHtml(item.musicTrackId) + '" aria-label="Favorite this sound" data-i18n-al="rail_fav_sound_al">☆</button></div>' : (item.soundId ? '<div class="reel-sound rp-osnd" data-sid="' + escHtml(item.soundId) + '" role="button" title="Open sound page" data-i18n-ti="rail_open_sound"><span>♪ ' + escHtml(item.soundName || rpT("about_original_sound_name")) + ' · ' + escHtml(item.soundOwnerName || "") + '</span></div>' : '<div class="reel-sound"><span>' + rpTf("about_original_sound", { name: escHtml(item.author) }) + "</span></div>")) /* [RP-V7.335] a registered member sound gets its real credit + page */ + crChip286 + (item.eventChip ? '<div class="reel-sound rp-evchip554" data-evchip554="' + escHtml(item.eventChip.id) + '" role="button" title="Open this LIVE Event"><span>📅 LIVE Event · ' + escHtml(window.rpEventChipWhen554 ? window.rpEventChipWhen554(item.eventChip.startsAt) : "") + '</span></div>' : "") /* [RP-V7.554] the attached event's chip, under the sound credit */ + // [RP-V7.286]
           "</div>" +
           '<div class="reel-rail">' + avHtml +
             '<button class="reel-act like' + (lk.liked ? " liked" : "") + '" type="button">' + RPICO.heart + '<span class="lc">' + lk.count + "</span></button>" +
@@ -32626,7 +32633,7 @@
          18+ door verifies once before the feed plays. */
       var HomeFeed = { tab: "foryou", friendsItems: null, friendsLoaded: false, sig: "", observer: null };
       function homeMapServer(r) {
-        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), crMuted: r.crMuted || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */, allowDownloads: r.allowDownloads !== false /* [RP-V7.512] the Home pager's download gate reads it */, allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "" /* [RP-V7.549] */ }; // [RP-V7.286]
+        return { key: "srv:" + r.id, id: r.id, server: true, mine: false, author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", views: r.views || 0, heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), crMuted: r.crMuted || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null, eventId: r.eventId || null, eventChip: r.eventChip || null /* [RP-V7.554] */ /* [RP-V7.453] */, allowDownloads: r.allowDownloads !== false /* [RP-V7.512] the Home pager's download gate reads it */, allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "" /* [RP-V7.549] */ }; // [RP-V7.286]
       }
       function homeFetchFriends() {
         var tok = reelToken();
@@ -33775,7 +33782,7 @@
         if (Reels._pubRetryId) { meta = reelMetaById(Reels._pubRetryId); if (!meta) Reels._pubRetryId = null; } // [RP-POSTFIX] a re-tap after a failed upload retries THIS post — it must never mint a second copy of it
         if (!meta) { meta = reelPublishBlob(blob, cap); Reels._pubRetryId = meta.id; }
         postDetailsSync156("reel"); // [RP-V7.156]
-        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, shoutoutId: postMeta156.shoutoutId || "", collabUser: postMeta156.collabUser || "", allowComments: postMeta156.allowComments !== false, aiLabel: !!postMeta156.aiLabel, tplShare: !!postMeta156.tplShare }); // [RP-GAMING] gaming rides the reel meta into the upload // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload // [RP-V7.316] allowDownloads rides too // [RP-V7.453] the optional collaborator invite rides too // [RP-V7.549] the 549 switches ride too
+        reelUpdateMeta(meta.id, { location: postMeta156.location || "", link: postMeta156.link || "", audience: postMeta156.audience || "everyone", allowRemix: postMeta156.remix !== false, allowDownloads: postMeta156.downloads !== false, subsOnly: !!postMeta156.subsOnly, clubOnly: !!postMeta156.clubOnly, gaming: !!postMeta156.gaming, shoutoutId: postMeta156.shoutoutId || "", collabUser: postMeta156.collabUser || "", eventId: postMeta156.eventId || "", allowComments: postMeta156.allowComments !== false, aiLabel: !!postMeta156.aiLabel, tplShare: !!postMeta156.tplShare }); // [RP-GAMING] gaming rides the reel meta into the upload // [RP-V7.156] // [RP-V7.296] // [RP-V7.298] // [RP-V7.300] the armed fulfill link rides the reel meta into the upload // [RP-V7.316] allowDownloads rides too // [RP-V7.453] the optional collaborator invite rides too // [RP-V7.549] the 549 switches ride too // [RP-V7.554] the attached LIVE Event rides too
         reelUpdateMeta(meta.id, reelEdPatch549(Reels.ed549)); // [RP-V7.549] the editor's look/voice/cover/title/sticker ride the same meta
         reelTrimMeta169(meta.id); // [RP-V7.169]
         reelFitMetaTrim(meta.id); // [RP-TRIM]
@@ -76339,6 +76346,8 @@ function stageStreakBump(key, add) {
           if (go.channelId) window.rpChannels455.openChannel(go.channelId);
           else window.rpChannels455.open();
         }
+      } else if (go.screen === "event") { // [RP-V7.554] an event alert (start / cancel) opens the event page
+        if (window.rpEventOpen554 && go.id) window.rpEventOpen554(go.id);
       } else if (go.screen === "live") { // [RP-V7.138] a private-live invite tap lands in the live
         if (typeof window.rpOpenLiveFromList138 === "function" && go.room) window.rpOpenLiveFromList138(go.room);
         else if (typeof show === "function") show("screen-online");
@@ -93268,7 +93277,7 @@ html, body { overflow-x: clip; }
        (the server branch and the on-device branch), so reelCard and
        every rail handler read exactly what they read on Reels. */
     function gameServerItem(r, myServerIds) {
-      return { key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "", /* [RP-V7.549] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, crMuted: r.crMuted || null, apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null /* [RP-V7.453] */ }; /* [RP-V7.451] */
+      return { key: "srv:" + r.id, id: r.id, server: true, mine: !!myServerIds[r.id], author: r.author || "Someone", authorId: r.authorId || null, caption: r.caption || "", location: r.location || "", link: r.link || "", audience: r.audience || "everyone", createdAt: r.createdAt || "", url: r.url || "", poster: r.poster || "", kind: r.kind || null, sourceId: r.sourceId || null, sourceAuthor: r.sourceAuthor || null, sourceUrl: r.sourceUrl || "", stitchStart: r.stitchStart, stitchDur: r.stitchDur, trimStart: r.trimStart, trimEnd: r.trimEnd, allowRemix: r.allowRemix !== false, allowDownloads: r.allowDownloads !== false, allowComments: r.allowComments !== false, aiLabel: !!r.aiLabel, titleText: r.titleText || "", titleStyle: r.titleStyle || "bold", sticker: r.sticker || null, look: r.look || "", /* [RP-V7.549] */ views: r.views || 0, reactions: r.reactions || {}, myReactions: r.myReactions || [], heartLikes: r.heartLikes || 0, myHeart: !!r.myHeart, reposts: r.reposts || 0, myReposted: !!r.myReposted, musicTrackId: r.musicTrackId || null, origSoundId: r.origSoundId || null, soundId: r.soundId || null, soundName: r.soundName || null, soundOwnerId: r.soundOwnerId || null, soundOwnerName: r.soundOwnerName || null, soundUses: r.soundUses || null, musicStart: r.musicStart, musicVol: r.musicVol, origVol: r.origVol, crMuted: r.crMuted || null, apprFlag: !!r.apprFlag, /* [RP-V7.505] */ comments: Array.isArray(r.comments) ? r.comments : [], commentCount: (typeof r.commentCount === "number" ? r.commentCount : (Array.isArray(r.comments) ? r.comments.length : 0)), giftCount: r.giftCount || 0, locked: !!r.locked, subsOnly: !!r.subsOnly, clubOnly: !!r.clubOnly, shoutoutFor: r.shoutoutFor || null, category: r.category || null, why: r.why || null, myInterest: r.myInterest || null, collabId: r.collabId || null, collabName: r.collabName || "", collabUsername: r.collabUsername || "", collabStatus: r.collabStatus || null, eventId: r.eventId || null, eventChip: r.eventChip || null /* [RP-V7.554] */ /* [RP-V7.453] */ }; /* [RP-V7.451] */
     }
     function gameLocalItem(m) {
       return { key: "loc:" + m.id, id: m.id, server: false, mine: true, author: m.author || (typeof reelMyName === "function" ? reelMyName() : "You"), caption: m.caption || "", location: m.location || "", link: m.link || "", audience: m.audience || "everyone", createdAt: m.createdAt || "", url: "", pending: true, serverId: m.serverId || null, reposts: 0, myReposted: false, likes: m.likes || 0, liked: !!m.liked, kind: m.kind || null, sourceId: m.sourceId || null, sourceAuthor: m.sourceAuthor || null, sourceUrl: m.sourceUrl || "", stitchStart: m.stitchStart, stitchDur: m.stitchDur, trimStart: m.trimStart, trimEnd: m.trimEnd, allowRemix: m.allowRemix !== false, allowDownloads: m.allowDownloads !== false, musicTrackId: m.musicTrackId || null, origSoundId: m.origSoundId || null, soundId: null, soundName: null, soundOwnerName: null, musicStart: m.musicStart, musicVol: m.musicVol, origVol: m.origVol, category: m.gaming ? "gaming" : null };
@@ -105549,6 +105558,479 @@ body.live-fs #liveGrid.rp-split4 > :nth-child(-n+2) .rp-idchip517 { top: max(170
   })();
   </script>
 
+  <!-- [RP-V7.554] LIVE EVENTS — TikTok-Premiere-style event pages with
+       free registration. Self-contained module (rp385/rp553 idiom):
+       discovery rail on the Plaza under the Scheduled Shows rail,
+       Create + Your Events card in the Live area, the event page as
+       its own screen, the composer attach picker (window hooks the
+       Post Details sheet calls), the 📅 chip on posts/reels, bell
+       routing target (window.rpEventOpen554) and the ?event= deep
+       link. Registration is FREE — there is no price and no
+       selling anywhere in this flow (church rule holds too). -->
+  <style>
+    .rp554-rail { margin: 12px 12px 4px; }
+    .rp554-rail-h { display: flex; align-items: center; gap: 8px; margin: 0 2px 8px; }
+    .rp554-rail-h b { font-size: 15px; color: #fff; }
+    .rp554-rail-h .rp554-mine-btn { margin-left: auto; }
+    .rp554-cards { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: none; }
+    .rp554-cards::-webkit-scrollbar { display: none; }
+    .rp554-card { flex: 0 0 218px; background: #101014; border: 1px solid #26262e; border-radius: 14px; overflow: hidden; text-align: left; padding: 0; cursor: pointer; color: #fff; }
+    .rp554-card:active { border-color: #e02424; box-shadow: 0 0 0 1px #e02424, 0 0 14px rgba(224,36,36,.45); }
+    .rp554-card-cov { height: 92px; background: #1a1a20 center/cover no-repeat; position: relative; }
+    .rp554-card-cov .rp554-livebadge { position: absolute; top: 6px; left: 6px; }
+    .rp554-card-bd { padding: 8px 10px 10px; }
+    .rp554-card-bd b { display: block; font-size: 13.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rp554-card-bd span { display: block; font-size: 11.5px; color: #b9b9c4; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rp554-card-ft { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .rp554-livebadge { background: #e02424; color: #fff; font-size: 10.5px; font-weight: 800; letter-spacing: .4px; padding: 3px 8px; border-radius: 999px; }
+    .rp554-regbtn { background: #e02424; color: #fff; border: 0; border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+    .rp554-regbtn.on { background: #1d1d24; color: #fff; border: 1px solid #e02424; box-shadow: 0 0 10px rgba(224,36,36,.5); }
+    .rp554-regbtn:disabled { opacity: .55; cursor: default; }
+    .rp554-ghostbtn { background: #17171d; color: #fff; border: 1px solid #33333d; border-radius: 999px; padding: 6px 13px; font-weight: 600; font-size: 12.5px; cursor: pointer; }
+    .rp554-ghostbtn.on { border-color: #e02424; box-shadow: 0 0 10px rgba(224,36,36,.5); }
+    .rp554-empty { color: #8d8d99; font-size: 13px; padding: 6px 2px 10px; }
+    .rp554-host-card { margin: 12px; background: #101014; border: 1px solid #26262e; border-radius: 14px; padding: 12px; }
+    .rp554-host-card h3 { margin: 0 0 4px; font-size: 15px; color: #fff; }
+    .rp554-host-card p { margin: 0 0 10px; font-size: 12.5px; color: #b9b9c4; }
+    .rp554-evrow { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #1e1e26; }
+    .rp554-evrow:first-of-type { border-top: 0; }
+    .rp554-evrow .rp554-evmeta { flex: 1; min-width: 0; }
+    .rp554-evrow b { display: block; font-size: 13.5px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rp554-evrow span { display: block; font-size: 11.5px; color: #b9b9c4; }
+    .rp554-pg { padding: 0 0 30px; }
+    .rp554-hero { height: 210px; background: #17171d center/cover no-repeat; position: relative; }
+    .rp554-hero .rp554-back { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,.65); color: #fff; border: 1px solid #33333d; border-radius: 999px; width: 34px; height: 34px; font-size: 17px; cursor: pointer; }
+    .rp554-hero .rp554-livebadge { position: absolute; top: 12px; right: 12px; font-size: 12px; padding: 5px 11px; }
+    .rp554-pg-bd { padding: 14px 16px 0; }
+    .rp554-pg-bd h2 { margin: 0 0 4px; font-size: 21px; color: #fff; line-height: 1.2; }
+    .rp554-watch { color: #ff5b5b; font-weight: 700; font-size: 13.5px; margin: 0 0 12px; }
+    .rp554-person { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+    .rp554-person img, .rp554-person .rp554-av { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; background: #23232c; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #fff; flex: 0 0 38px; }
+    .rp554-person .rp554-pmeta { flex: 1; min-width: 0; }
+    .rp554-person b { display: block; font-size: 14px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rp554-person span { display: block; font-size: 12px; color: #b9b9c4; }
+    .rp554-kv { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid #1e1e26; font-size: 13.5px; color: #fff; }
+    .rp554-kv b { color: #b9b9c4; font-weight: 600; min-width: 74px; }
+    .rp554-about { font-size: 14px; line-height: 1.5; color: #e8e8ee; white-space: pre-wrap; padding: 4px 0 2px; }
+    .rp554-bigreg { display: block; width: 100%; margin: 16px 0 6px; background: #e02424; color: #fff; border: 0; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 800; cursor: pointer; }
+    .rp554-bigreg.on { background: #141419; border: 1px solid #e02424; box-shadow: 0 0 14px rgba(224,36,36,.5); }
+    .rp554-bigreg.join { background: #e02424; }
+    .rp554-bigreg:disabled { opacity: .6; cursor: default; }
+    .rp554-regnote { text-align: center; color: #b9b9c4; font-size: 12.5px; margin: 4px 0 10px; }
+    .rp554-rel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin-top: 8px; }
+    .rp554-rel button { padding: 0; border: 0; background: #17171d; aspect-ratio: 3/4; overflow: hidden; cursor: pointer; }
+    .rp554-rel img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .rp554-rel .rp554-relcap { display: flex; align-items: center; justify-content: center; height: 100%; color: #b9b9c4; font-size: 11px; padding: 6px; text-align: center; }
+    .rp554-form label { display: block; font-size: 12.5px; color: #b9b9c4; margin: 12px 0 5px; font-weight: 600; }
+    .rp554-form input[type="text"], .rp554-form input[type="datetime-local"], .rp554-form select, .rp554-form textarea { width: 100%; box-sizing: border-box; background: #141419; border: 1px solid #2c2c36; border-radius: 10px; color: #fff; padding: 10px; font-size: 14px; }
+    .rp554-form textarea { min-height: 74px; resize: vertical; }
+    .rp554-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .rp554-chip { background: #1d1d24; border: 1px solid #e02424; color: #fff; border-radius: 999px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
+    .rp554-sug { background: #141419; border: 1px solid #2c2c36; border-radius: 10px; margin-top: 6px; overflow: hidden; }
+    .rp554-sug button { display: flex; width: 100%; gap: 8px; align-items: center; background: none; border: 0; border-top: 1px solid #22222b; color: #fff; padding: 9px 10px; font-size: 13.5px; cursor: pointer; text-align: left; }
+    .rp554-sug button:first-child { border-top: 0; }
+    .rp554-sug img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+    .rp554-sug span { color: #b9b9c4; font-size: 12px; }
+    .rp554-pick { display: flex; align-items: center; gap: 8px; width: 100%; background: #141419; border: 1px solid #2c2c36; border-radius: 10px; color: #fff; padding: 10px; margin-top: 8px; cursor: pointer; text-align: left; }
+    .rp554-pick.on { border-color: #e02424; box-shadow: 0 0 10px rgba(224,36,36,.45); }
+    .rp554-pick b { flex: 1; font-size: 13.5px; }
+    .rp554-pick span { font-size: 11.5px; color: #b9b9c4; }
+  </style>
+  <script>
+  (function () {
+    "use strict";
+    var TAG = "[RP-V7.554]";
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+    function $(id) { return document.getElementById(id); }
+    function token() { try { var a = JSON.parse(localStorage.getItem("rpAcct.v1") || "null"); return (a && a.token) || ""; } catch (e) { return ""; } }
+    function say(m) { try { if (typeof toast === "function") toast(m); } catch (e) { } }
+    function api(method, path, body) {
+      var h = { "Content-Type": "application/json" };
+      var tk = token(); if (tk) h["Authorization"] = "Bearer " + tk;
+      return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined }).then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { status: r.status, j: j }; }); });
+    }
+    window.rpEventChipWhen554 = function (ms) {
+      try { return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; }
+    };
+    function fmtWhen(ms) { try { return new Date(ms).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } }
+    function fmtET(ms) { try { return new Date(ms).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " ET"; } catch (e) { return ""; } }
+    function avatarHtml(p, cls) {
+      if (p && p.photo) return '<img class="' + (cls || "") + '" src="' + esc(p.photo) + '" alt="" />';
+      return '<span class="rp554-av ' + (cls || "") + '">' + esc(String((p && p.name) || "?").slice(0, 1).toUpperCase()) + '</span>';
+    }
+    function kindLabel(ev) { return ev.roomKind === "church" ? "⛪ Church room" : (ev.roomKind === "auction" ? "🔨 Auction room" : "🔴 Regular live"); }
+
+    var S = { events: [], eventsAt: 0, mine: null, mineAt: 0, page: null, attach: null };
+    try { S.attach = JSON.parse(localStorage.getItem("rpEventAttach554") || "null"); } catch (e) { S.attach = null; }
+    if (!S.attach || !S.attach.id) S.attach = { id: "", label: "" };
+    window.rpEventPending554 = function () { return { id: S.attach.id || "", label: S.attach.label || "" }; };
+    function setAttach(id, label) {
+      S.attach = { id: id || "", label: label || "" };
+      try { localStorage.setItem("rpEventAttach554", JSON.stringify(S.attach)); } catch (e) { }
+    }
+
+    /* ---------- discovery rail (Plaza, under the shows rail) ---------- */
+    function seatRail() {
+      var plaza = $("screen-plaza"); if (!plaza) return null;
+      var rail = $("rp554Rail");
+      if (!rail) {
+        rail = document.createElement("div");
+        rail.className = "rp554-rail"; rail.id = "rp554Rail";
+      }
+      var anchor = $("rp385Upcoming") || $("liveNowBox");
+      if (anchor && rail.previousElementSibling !== anchor) anchor.after(rail);
+      else if (!anchor && !rail.parentNode) plaza.appendChild(rail);
+      return rail;
+    }
+    function regBtnHtml(ev) {
+      if (ev.mine) return '<span style="font-size:12px;color:#b9b9c4;">Your event</span>';
+      if (ev.status === "live") return '<button type="button" class="rp554-regbtn" data-rp554-join="' + esc(ev.liveRoom || "") + '">🔴 Join live</button>';
+      return '<button type="button" class="rp554-regbtn' + (ev.registeredByMe ? " on" : "") + '" data-rp554-reg="' + esc(ev.id) + '">' + (ev.registeredByMe ? "✓ Registered" : "Register") + '</button>';
+    }
+    function renderRail() {
+      var rail = seatRail(); if (!rail) return;
+      var h = '<div class="rp554-rail-h"><b>📅 LIVE Events</b><button type="button" class="btn-mini rp554-mine-btn" data-rp554-mine="1">Your Events</button></div>';
+      if (!S.events.length) {
+        rail.innerHTML = h + '<div class="rp554-empty">No upcoming events yet — hosts announce their lives here. Tap ＋ Live to plan one.</div>';
+        return;
+      }
+      rail.innerHTML = h + '<div class="rp554-cards">' + S.events.map(function (ev) {
+        return '<div class="rp554-card" data-rp554-open="' + esc(ev.id) + '" role="button">' +
+          '<div class="rp554-card-cov" style="' + (ev.cover ? "background-image:url('" + esc(ev.cover) + "')" : "") + '">' + (ev.status === "live" ? '<span class="rp554-livebadge">🔴 LIVE</span>' : "") + '</div>' +
+          '<div class="rp554-card-bd"><b>' + esc(ev.title) + '</b>' +
+          '<span>📅 ' + esc(fmtWhen(ev.startsAt)) + '</span>' +
+          '<span>with ' + esc(ev.hostName || "") + ' · 👥 ' + (ev.regCount || 0) + ' registered</span>' +
+          '<div class="rp554-card-ft">' + regBtnHtml(ev) + '</div></div></div>';
+      }).join("") + '</div>';
+    }
+    function loadEvents(force) {
+      if (!force && Date.now() - S.eventsAt < 20000) return Promise.resolve();
+      return api("GET", "/api/events554").then(function (r) {
+        if (r.j && r.j.ok) { S.events = r.j.events || []; S.eventsAt = Date.now(); renderRail(); }
+      }).catch(function () { });
+    }
+
+    /* ---------- Your Events + Create (Live area card) ---------- */
+    function seatHost() {
+      var scr = $("screen-online"); if (!scr) return null;
+      var card = $("rp554Host");
+      if (!card) {
+        card = document.createElement("div");
+        card.className = "rp554-host-card"; card.id = "rp554Host";
+      }
+      var panel = $("livePanel");
+      if (panel && card.previousElementSibling !== panel) panel.after(card);
+      else if (!panel && !card.parentNode) scr.appendChild(card);
+      return card;
+    }
+    function evRowHtml(ev, hosting) {
+      return '<div class="rp554-evrow"><div class="rp554-evmeta"><b>' + esc(ev.title) + '</b><span>' + (ev.status === "live" ? "🔴 Live now" : ev.status === "cancelled" ? "Cancelled" : ev.status === "ended" ? "Ended" : "📅 " + esc(fmtWhen(ev.startsAt))) + ' · 👥 ' + (ev.regCount || 0) + '</span></div>' +
+        '<button type="button" class="rp554-ghostbtn" data-rp554-open="' + esc(ev.id) + '">View</button>' +
+        (hosting && ev.status === "scheduled" ? '<button type="button" class="rp554-ghostbtn" data-rp554-cancel="' + esc(ev.id) + '">Cancel</button>' : "") +
+        (!hosting && ev.status === "scheduled" ? '<button type="button" class="rp554-ghostbtn" data-rp554-reg="' + esc(ev.id) + '">' + (ev.registeredByMe ? "Unregister" : "Register") + '</button>' : "") +
+        '</div>';
+    }
+    function renderHost() {
+      var card = seatHost(); if (!card) return;
+      var h = '<h3>📅 LIVE Events</h3><p>Plan a premiere-style event page for your next live — members register free and get notified the moment you go live.</p>' +
+        '<button type="button" class="rp554-regbtn" data-rp554-create="1">＋ Create event</button>';
+      if (S.mine) {
+        if (S.mine.hosting && S.mine.hosting.length) h += '<div style="margin-top:10px;">' + S.mine.hosting.map(function (ev) { return evRowHtml(ev, true); }).join("") + '</div>';
+        if (S.mine.registered && S.mine.registered.length) h += '<div style="margin-top:6px;">' + S.mine.registered.map(function (ev) { return evRowHtml(ev, false); }).join("") + '</div>';
+        if (!S.mine.hosting.length && !S.mine.registered.length) h += '<div class="rp554-empty">Your events — the ones you host and the ones you registered for — live here.</div>';
+      }
+      card.innerHTML = h;
+    }
+    function loadMine(force) {
+      if (!token()) { S.mine = null; renderHost(); return Promise.resolve(); }
+      if (!force && Date.now() - S.mineAt < 20000) { renderHost(); return Promise.resolve(); }
+      return api("GET", "/api/events554/mine").then(function (r) {
+        if (r.j && r.j.ok) { S.mine = { hosting: r.j.hosting || [], registered: r.j.registered || [] }; S.mineAt = Date.now(); }
+        renderHost();
+      }).catch(function () { renderHost(); });
+    }
+
+    /* ---------- event page ---------- */
+    function pageSection() {
+      var sec = $("screen-event554");
+      if (!sec) {
+        sec = document.createElement("section");
+        sec.className = "screen"; sec.id = "screen-event554";
+        var plaza = $("screen-plaza");
+        if (plaza && plaza.parentNode) plaza.parentNode.insertBefore(sec, plaza.nextSibling);
+        else document.body.appendChild(sec);
+      }
+      return sec;
+    }
+    function followBtnHtml(person, following) {
+      if (!person || !person.id || person.me) return "";
+      return '<button type="button" class="rp554-ghostbtn' + (following ? " on" : "") + '" data-rp554-follow="' + esc(person.id) + '" data-fol="' + (following ? "1" : "0") + '">' + (following ? "Following" : "Follow") + '</button>';
+    }
+    function personRowHtml(person, following, sub) {
+      return '<div class="rp554-person">' + avatarHtml(person) + '<div class="rp554-pmeta"><b>' + esc(person.name || "") + '</b><span>@' + esc(person.username || "") + (sub ? " · " + esc(sub) : "") + '</span></div>' + followBtnHtml(person, following) + '</div>';
+    }
+    function renderPage() {
+      var sec = pageSection(); var ev = S.page; if (!ev) return;
+      var stateBtn = "";
+      if (ev.status === "cancelled") stateBtn = '<button type="button" class="rp554-bigreg" disabled>Cancelled</button>';
+      else if (ev.status === "ended") stateBtn = '<button type="button" class="rp554-bigreg" disabled>Ended</button>';
+      else if (ev.status === "live") stateBtn = '<button type="button" class="rp554-bigreg join" data-rp554-join="' + esc(ev.liveRoom || "") + '">🔴 Live now — Join</button>';
+      else if (ev.mine) stateBtn = '<button type="button" class="rp554-bigreg" disabled>Your event</button><div class="rp554-regnote">You\'re hosting — your promo posts can carry this event\'s 📅 chip.</div><button type="button" class="rp554-ghostbtn" data-rp554-cancel="' + esc(ev.id) + '" style="display:block;margin:0 auto;">Cancel event</button>';
+      else stateBtn = '<button type="button" class="rp554-bigreg' + (ev.registeredByMe ? " on" : "") + '" data-rp554-reg="' + esc(ev.id) + '">' + (ev.registeredByMe ? "✓ Registered" : "Register") + '</button>' +
+        (ev.registeredByMe ? '<div class="rp554-regnote">You\'ll be notified when the event starts</div>' : "") +
+        '<button type="button" class="rp554-ghostbtn" data-rp554-cal="' + esc(ev.id) + '" style="display:block;margin:8px auto 0;">📅 Add to calendar</button>';
+      var rel = "";
+      if (ev.related && ev.related.length) {
+        rel = '<div class="rp554-kv" style="border-top:1px solid #1e1e26;margin-top:10px;"><b>Related posts</b></div><div class="rp554-rel">' + ev.related.map(function (p) {
+          return '<button type="button" data-rp554-rel="' + esc(p.kind) + ":" + esc(p.id) + '">' + (p.thumb ? '<img src="' + esc(p.thumb) + '" alt="" />' : '<span class="rp554-relcap">' + esc(p.caption || (p.kind === "reel" ? "🎬 Reel" : "📸 Post")) + '</span>') + '</button>';
+        }).join("") + '</div>';
+      }
+      sec.innerHTML = '<div class="rp554-pg">' +
+        '<div class="rp554-hero" style="' + (ev.cover ? "background-image:url('" + esc(ev.cover) + "')" : "") + '"><button type="button" class="rp554-back" data-rp554-back="1" aria-label="Back">‹</button>' + (ev.status === "live" ? '<span class="rp554-livebadge">🔴 LIVE Event</span>' : '<span class="rp554-livebadge">LIVE Event</span>') + '</div>' +
+        '<div class="rp554-pg-bd"><h2>' + esc(ev.title) + '</h2>' +
+        '<p class="rp554-watch">Watch on Rizz Plaza LIVE</p>' +
+        personRowHtml({ id: ev.hostId, name: ev.hostName, username: ev.hostUsername, photo: ev.hostPhoto, me: ev.mine }, ev.hostFollowing, "Host") +
+        '<div class="rp554-kv"><b>Date</b><span>' + esc(fmtWhen(ev.startsAt)) + '<br /><span style="color:#b9b9c4;">' + esc(fmtET(ev.startsAt)) + '</span></span></div>' +
+        '<div class="rp554-kv"><b>Price</b><span>Free</span></div>' +
+        '<div class="rp554-kv"><b>Where</b><span>' + esc(kindLabel(ev)) + '</span></div>' +
+        '<div class="rp554-kv"><b>Registered</b><span>👥 ' + (ev.regCount || 0) + '</span></div>' +
+        (ev.description ? '<div class="rp554-kv"><b>About</b></div><div class="rp554-about">' + esc(ev.description) + '</div>' : "") +
+        ((ev.featuring && ev.featuring.length) ? '<div class="rp554-kv"><b>Featuring</b></div>' + ev.featuring.map(function (f) { return personRowHtml({ id: f.id, name: f.name, username: f.username, photo: f.photo, me: f.me }, f.following, ""); }).join("") : "") +
+        stateBtn + rel +
+        '</div></div>';
+    }
+    window.rpEventOpen554 = function (id) {
+      if (!id) return;
+      api("GET", "/api/events554/" + encodeURIComponent(id)).then(function (r) {
+        if (!r.j || !r.j.ok || !r.j.event) { say("That event isn't available anymore."); return; }
+        S.page = r.j.event;
+        renderPage();
+        try { show("screen-event554"); } catch (e) { }
+        var sec = pageSection(); if (sec) sec.scrollTop = 0;
+      }).catch(function () { say("Couldn't load that event — check your connection."); });
+    };
+
+    /* ---------- calendar (.ics, generated client-side) ---------- */
+    function icsEscape(s) { return String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n"); }
+    function icsDate(ms) { return new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); }
+    function downloadIcs(ev) {
+      var end = ev.startsAt + (ev.durationMin || 60) * 60000;
+      var lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Rizz Plaza//LIVE Events//EN", "BEGIN:VEVENT",
+        "UID:" + ev.id + "@rizzplaza.com", "DTSTAMP:" + icsDate(Date.now()), "DTSTART:" + icsDate(ev.startsAt), "DTEND:" + icsDate(end),
+        "SUMMARY:" + icsEscape(ev.title),
+        "DESCRIPTION:" + icsEscape("Watch on Rizz Plaza LIVE with " + (ev.hostName || "the host") + ". Open the event: https://rizzplaza.com/?event=" + ev.id),
+        "END:VEVENT", "END:VCALENDAR"];
+      var blob = new Blob([lines.join("\r\n")], { type: "text/calendar" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "rizz-plaza-event.ics";
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { try { URL.revokeObjectURL(a.href); } catch (e) { } a.remove(); }, 400);
+    }
+
+    /* ---------- create form ---------- */
+    var ROOMS554 = [["main-stage", "Main Stage"], ["neon", "Neon Nights"], ["roof", "The Roof"], ["dugout", "The Dugout"], ["velvet", "Velvet Room"], ["warehouse", "The Warehouse"], ["faith", "Christian Fellowship"], ["prayer", "Prayer Room"], ["bodega", "La Bodega"], ["porch", "The Porch"], ["studio", "Studio B"], ["arcade", "The Arcade"], ["garden", "The Garden"], ["chapel", "The Chapel"], ["arena", "The Arena"], ["lounge", "Cloud Lounge"], ["market", "Night Market"], ["ballroom", "The Ballroom"], ["cafe", "Corner Café"], ["garage", "The Garage"], ["harbor", "The Harbor"]];
+    function openCreate554() {
+      if (!token()) { say("Sign in to create an event."); return; }
+      if (typeof openSheet !== "function") return;
+      var dt = new Date(Date.now() + 3600e3); dt.setSeconds(0, 0);
+      var pad = function (n) { return String(n).padStart(2, "0"); };
+      var local = dt.getFullYear() + "-" + pad(dt.getMonth() + 1) + "-" + pad(dt.getDate()) + "T" + pad(dt.getHours()) + ":" + pad(dt.getMinutes());
+      openSheet('<div class="game-box rp554-form" style="text-align:left;"><h3 style="text-align:center;">📅 Create LIVE Event</h3>' +
+        '<p class="age-note" style="text-align:center;">Free for everyone to register — members get notified the moment you go live.</p>' +
+        '<label>Title</label><input type="text" id="evTitle554" maxlength="80" placeholder="e.g. Sunday Praise Live" />' +
+        '<label>Cover image (optional)</label><input type="file" id="evCover554" accept="image/*" /><div id="evCoverPrev554" style="margin-top:6px;"></div>' +
+        '<label>Starts</label><input type="datetime-local" id="evWhen554" value="' + local + '" />' +
+        '<label>Estimated length</label><select id="evDur554"><option value="">Not sure</option><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select>' +
+        '<label>Where will the live happen?</label><select id="evKind554"><option value="live">🔴 Regular live</option><option value="auction">🔨 Auction room</option><option value="church">⛪ Church room</option></select>' +
+        '<label>Room</label><select id="evRoom554">' + ROOMS554.map(function (r) { return '<option value="' + r[0] + '">' + r[1] + '</option>'; }).join("") + '</select>' +
+        '<label>About (optional)</label><textarea id="evDesc554" maxlength="500" placeholder="What is this live about?"></textarea>' +
+        '<label>Featuring (up to 3 members)</label><input type="text" id="evFeat554" placeholder="Search by name or @username" autocomplete="off" /><div class="rp554-chips" id="evFeatChips554"></div><div class="rp554-sug" id="evFeatSug554" hidden></div>' +
+        '<div class="btn-row" style="justify-content:center; margin-top:16px;"><button type="button" class="btn-main" id="evCreateGo554">Create event</button></div>' +
+        '<p class="age-note" id="evErr554" style="text-align:center;color:#ff8080;"></p></div>');
+      var feat = []; var coverUrl = "";
+      var chipsBox = $("evFeatChips554"), sugBox = $("evFeatSug554"), featIn = $("evFeat554");
+      function drawChips() { chipsBox.innerHTML = feat.map(function (u, i) { return '<button type="button" class="rp554-chip" data-featx="' + i + '">@' + esc(u) + ' ✕</button>'; }).join(""); }
+      chipsBox.addEventListener("click", function (e) { var b = e.target.closest("[data-featx]"); if (!b) return; feat.splice(+b.getAttribute("data-featx"), 1); drawChips(); });
+      var featTimer = null;
+      featIn.addEventListener("input", function () {
+        clearTimeout(featTimer);
+        var q = featIn.value.trim().replace(/^@/, "");
+        if (q.length < 2) { sugBox.hidden = true; sugBox.innerHTML = ""; return; }
+        featTimer = setTimeout(function () {
+          fetch("/api/members?q=" + encodeURIComponent(q), { headers: { "Authorization": "Bearer " + token() } }).then(function (r) { return r.json(); }).then(function (j) {
+            var ms = ((j && j.members) || []).filter(function (m) { return feat.indexOf(m.username) < 0; }).slice(0, 6);
+            if (!ms.length) { sugBox.hidden = true; return; }
+            sugBox.hidden = false;
+            sugBox.innerHTML = ms.map(function (m) { return '<button type="button" data-featpick="' + esc(m.username) + '">' + (m.photo ? '<img src="' + esc(m.photo) + '" alt="" />' : "") + '<b>' + esc(m.name || "") + '</b><span>@' + esc(m.username) + '</span></button>'; }).join("");
+          }).catch(function () { });
+        }, 250);
+      });
+      sugBox.addEventListener("click", function (e) {
+        var b = e.target.closest("[data-featpick]"); if (!b) return;
+        if (feat.length >= 3) { say("Up to 3 featuring members."); return; }
+        feat.push(b.getAttribute("data-featpick")); drawChips();
+        featIn.value = ""; sugBox.hidden = true; sugBox.innerHTML = "";
+      });
+      var kindSel = $("evKind554"), roomSel = $("evRoom554");
+      kindSel.addEventListener("change", function () {
+        if (kindSel.value === "church") { roomSel.value = "faith"; roomSel.disabled = true; }
+        else roomSel.disabled = false;
+      });
+      $("evCover554").addEventListener("change", function () {
+        var f = this.files && this.files[0]; if (!f) return;
+        var fd = new FormData(); fd.append("photo", f);
+        fetch("/api/account/photos", { method: "POST", headers: { "Authorization": "Bearer " + token() }, body: fd }).then(function (r) { return r.json(); }).then(function (j) {
+          if (j && j.ok && j.photoUrl) { coverUrl = j.photoUrl; $("evCoverPrev554").innerHTML = '<img src="' + esc(coverUrl) + '" alt="" style="width:100%;height:110px;object-fit:cover;border-radius:10px;" />'; }
+          else say("That cover didn't upload — the event can still be created without one.");
+        }).catch(function () { say("That cover didn't upload — the event can still be created without one."); });
+      });
+      $("evCreateGo554").addEventListener("click", function () {
+        var err = $("evErr554");
+        var title = $("evTitle554").value.trim();
+        var when = $("evWhen554").value;
+        if (!title) { err.textContent = "Give your event a title."; return; }
+        if (!when) { err.textContent = "Pick a start date and time."; return; }
+        var startsAt = new Date(when).getTime();
+        if (!(startsAt > Date.now())) { err.textContent = "The start time has to be in the future."; return; }
+        var body = { title: title, startsAt: startsAt, roomKind: kindSel.value, room: roomSel.value, description: $("evDesc554").value.trim(), featuring: feat.slice() };
+        var dur = $("evDur554").value; if (dur) body.durationMin = +dur;
+        if (coverUrl) body.cover = coverUrl;
+        var btn = this; btn.disabled = true;
+        api("POST", "/api/events554", body).then(function (r) {
+          btn.disabled = false;
+          if (r.j && r.j.ok && r.j.event) {
+            if (typeof closeSheet === "function") closeSheet();
+            S.eventsAt = 0; S.mineAt = 0; loadEvents(true); loadMine(true);
+            say("Event created 📅");
+            window.rpEventOpen554(r.j.event.id);
+          } else {
+            err.textContent = (r.j && r.j.error) ? ("Couldn't create it: " + r.j.error) : "Couldn't create the event — try again.";
+          }
+        }).catch(function () { btn.disabled = false; err.textContent = "Couldn't create the event — check your connection."; });
+      });
+    }
+
+    /* ---------- Your Events sheet (from the rail) ---------- */
+    function openMine554() {
+      if (typeof openSheet !== "function") return;
+      if (!token()) { say("Sign in to see your events."); return; }
+      openSheet('<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📅 Your Events</h3><div id="rp554MineBox"><p class="age-note" style="text-align:center;">Loading…</p></div><div class="btn-row" style="justify-content:center; margin-top:12px;"><button type="button" class="btn-main" data-rp554-create="1">＋ Create event</button></div></div>');
+      loadMine(true).then(function () {
+        var box = $("rp554MineBox"); if (!box || !S.mine) return;
+        var h = "";
+        if (S.mine.hosting.length) h += '<b style="color:#fff;">Hosting</b>' + S.mine.hosting.map(function (ev) { return evRowHtml(ev, true); }).join("");
+        if (S.mine.registered.length) h += '<b style="color:#fff;display:block;margin-top:10px;">Registered</b>' + S.mine.registered.map(function (ev) { return evRowHtml(ev, false); }).join("");
+        box.innerHTML = h || '<p class="empty-note">No events yet — create one or register from the Plaza rail.</p>';
+      });
+    }
+
+    /* ---------- composer attach picker ---------- */
+    window.rpEventPick554 = function (currentId, cb) {
+      if (typeof openSheet !== "function") return;
+      if (!token()) { say("Sign in to attach an event."); return; }
+      openSheet('<div class="game-box" style="text-align:left;"><h3 style="text-align:center;">📅 Attach a LIVE Event</h3><p class="age-note" style="text-align:center;">Your post carries the event\'s chip — tapping it opens the event page.</p><div id="rp554PickBox"><p class="age-note" style="text-align:center;">Loading…</p></div></div>');
+      api("GET", "/api/events554").then(function (r) {
+        var box = $("rp554PickBox"); if (!box) return;
+        var mine = ((r.j && r.j.events) || []).filter(function (ev) { return (ev.mine || ev.featuredMe) && ev.status === "scheduled"; });
+        var h = '<button type="button" class="rp554-pick' + (!currentId ? " on" : "") + '" data-rp554-pick=""><b>No event</b><span>post without a chip</span></button>';
+        h += mine.map(function (ev) { return '<button type="button" class="rp554-pick' + (ev.id === currentId ? " on" : "") + '" data-rp554-pick="' + esc(ev.id) + '" data-rp554-picklabel="' + esc(ev.title + " · " + window.rpEventChipWhen554(ev.startsAt)) + '"><b>' + esc(ev.title) + '</b><span>📅 ' + esc(window.rpEventChipWhen554(ev.startsAt)) + '</span></button>'; }).join("");
+        if (!mine.length) h += '<p class="empty-note">You have no upcoming events to attach yet — create one from the Live area first.</p>';
+        box.innerHTML = h;
+        box.querySelectorAll("[data-rp554-pick]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var id = b.getAttribute("data-rp554-pick") || "";
+            var label = b.getAttribute("data-rp554-picklabel") || "";
+            setAttach(id, label);
+            if (typeof closeSheet === "function") closeSheet();
+            if (cb) cb(id, label);
+          });
+        });
+      }).catch(function () { var box = $("rp554PickBox"); if (box) box.innerHTML = '<p class="empty-note">Couldn\'t load your events — try again.</p>'; });
+    };
+
+    /* ---------- shared actions (one delegated listener) ---------- */
+    function refreshAll() { S.eventsAt = 0; S.mineAt = 0; loadEvents(true); loadMine(true); if (S.page) window.rpEventOpen554(S.page.id); }
+    document.addEventListener("click", function (e) {
+      var chip = e.target.closest ? e.target.closest("[data-evchip554]") : null;
+      if (chip) { window.rpEventOpen554(chip.getAttribute("data-evchip554")); return; }
+      var back = e.target.closest ? e.target.closest("[data-rp554-back]") : null;
+      if (back) { try { show("screen-plaza"); } catch (err) { } return; }
+      var reg = e.target.closest ? e.target.closest("[data-rp554-reg]") : null;
+      if (reg) {
+        e.preventDefault(); e.stopPropagation();
+        var id = reg.getAttribute("data-rp554-reg");
+        if (!token()) { say("Sign in to register."); return; }
+        if (reg.disabled) return; reg.disabled = true;
+        api("POST", "/api/events554/" + encodeURIComponent(id) + "/register", {}).then(function (r) {
+          reg.disabled = false;
+          if (r.j && r.j.ok) { say(r.j.registered ? "You're registered ✓ — you'll be notified when it starts." : "Registration removed."); refreshAll(); }
+          else say((r.j && r.j.error) || "That didn't go through — try again.");
+        }).catch(function () { reg.disabled = false; say("That didn't go through — check your connection."); });
+        return;
+      }
+      var join = e.target.closest ? e.target.closest("[data-rp554-join]") : null;
+      if (join) { var room = join.getAttribute("data-rp554-join"); if (room && typeof window.rpJoinLive === "function") window.rpJoinLive(room); else say("That live isn't running right now."); return; }
+      var open = e.target.closest ? e.target.closest("[data-rp554-open]") : null;
+      if (open) { if (typeof closeSheet === "function") closeSheet(); window.rpEventOpen554(open.getAttribute("data-rp554-open")); return; }
+      var fol = e.target.closest ? e.target.closest("[data-rp554-follow]") : null;
+      if (fol) {
+        var fid = fol.getAttribute("data-rp554-follow"); var on = fol.getAttribute("data-fol") === "1";
+        if (!token()) { say("Sign in to follow."); return; }
+        api("POST", on ? "/api/social/unfollow" : "/api/social/follow", { accountId: fid }).then(function (r) {
+          if (r.j && r.j.ok) { var nowOn = !!r.j.following; fol.setAttribute("data-fol", nowOn ? "1" : "0"); fol.textContent = nowOn ? "Following" : "Follow"; fol.classList.toggle("on", nowOn); }
+        }).catch(function () { });
+        return;
+      }
+      var cal = e.target.closest ? e.target.closest("[data-rp554-cal]") : null;
+      if (cal) { if (S.page && S.page.id === cal.getAttribute("data-rp554-cal")) downloadIcs(S.page); return; }
+      var cx = e.target.closest ? e.target.closest("[data-rp554-cancel]") : null;
+      if (cx) {
+        var cid = cx.getAttribute("data-rp554-cancel");
+        if (!window.confirm("Cancel this event? Registered members will see it marked Cancelled.")) return;
+        api("POST", "/api/events554/" + encodeURIComponent(cid) + "/cancel", {}).then(function (r) {
+          if (r.j && r.j.ok) { say("Event cancelled."); refreshAll(); }
+          else say((r.j && r.j.error) || "Couldn't cancel it — try again.");
+        }).catch(function () { say("Couldn't cancel it — check your connection."); });
+        return;
+      }
+      var cr = e.target.closest ? e.target.closest("[data-rp554-create]") : null;
+      if (cr) { if (typeof closeSheet === "function") closeSheet(); openCreate554(); return; }
+      var mn = e.target.closest ? e.target.closest("[data-rp554-mine]") : null;
+      if (mn) { openMine554(); return; }
+      var rel = e.target.closest ? e.target.closest("[data-rp554-rel]") : null;
+      if (rel) {
+        var parts = String(rel.getAttribute("data-rp554-rel") || "").split(":"); var kind = parts[0], pid = parts[1];
+        if (!pid) return;
+        if (kind === "reel") {
+          try { show("screen-reels"); } catch (err) { }
+          if (typeof window.rpReelsOpen === "function") window.rpReelsOpen();
+          var tries = 0; var iv = setInterval(function () { tries++; if (typeof window.rpReelsOpenOne481 === "function") { window.rpReelsOpenOne481(pid); clearInterval(iv); } if (tries > 20) clearInterval(iv); }, 300);
+        } else {
+          try { show("screen-moments"); } catch (err) { }
+          setTimeout(function () { var el = document.querySelector('[data-mid="' + pid + '"]'); if (el) el.scrollIntoView({ block: "center" }); }, 500);
+        }
+        return;
+      }
+    }, false);
+
+    /* ---------- boot + tick ---------- */
+    function boot554() { loadEvents(true); loadMine(true); }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot554); else boot554();
+    setTimeout(boot554, 1200);
+    setInterval(function () {
+      seatRail(); seatHost();
+      loadEvents(false);
+      var onl = $("screen-online");
+      if (onl && onl.classList.contains("active")) loadMine(false);
+    }, 4000);
+    try {
+      var deep = new URLSearchParams(location.search).get("event");
+      if (deep) setTimeout(function () { window.rpEventOpen554(deep); }, 1500);
+    } catch (e) { }
+    console.log(TAG, "LIVE Events module ready");
+  })();
+  </script>
+
 </body>
 </html>
-
