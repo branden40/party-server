@@ -24140,7 +24140,7 @@ const MONEY_GIFT_TABLE = {
   cometkite: 40, jellybloom: 90, rainbowfalls: 240, clockworkowl: 640, prismleviathan: 3400,
   // [RP-V7.434] +9 gifts (Nov 18, 2026) — ids + prices mirror the client's GIFT_SHOP exactly; catalog now 95 gifts.
   swagmouse: 45, showdog: 115, monkeycrew: 260, scarecrowpirate: 550, shuriken: 900,
-  tidalwave: 1800, meteorrun: 2400, royalcrest: 3300, theruler: 4400,
+  meteorrun: 2400, royalcrest: 3300, theruler: 4400,
   // [RP-V7.446] +6 gifts (Nov 19, 2026) — batch 1 of the Boosie-video slate; ids + prices mirror the client's GIFT_SHOP exactly; catalog now 101 gifts.
   loveyousomuch: 35, poppal: 125, dolphinleap: 140, heartpuff: 150, redglovepunch: 160, welcomemarquee: 170,
   // [RP-V7.447] +6 gifts (Nov 19, 2026) — batch 2 of the Boosie-video slate; ids + prices mirror the client's GIFT_SHOP exactly; catalog now 107 gifts.
@@ -24227,7 +24227,6 @@ const MONEY_GIFT_INFO = {
   monkeycrew: { name: "Monkey Crew", tier: "medium" },
   scarecrowpirate: { name: "Scarecrow Pirate", tier: "medium" },
   shuriken: { name: "Shuriken Strike", tier: "medium" },
-  tidalwave: { name: "Tidal Wave", tier: "big" },
   meteorrun: { name: "Meteor Run", tier: "big" },
   royalcrest: { name: "Royal Crest", tier: "big" },
   theruler: { name: "The Ruler", tier: "big" },
