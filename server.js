@@ -12656,6 +12656,44 @@ const AI_STYLES245 = [
   { id: "runway", name: "Runway Model", tier: "premium", group: "template", prompt: "Place the exact same person in this photo walking a high-fashion runway as the model: preserve their face and identity precisely, wearing an elegant designer outfit, runway lights and photographers' flashes, the audience in the dark on both sides — photorealistic, like a real fashion-week photograph." },
   { id: "race-driver", name: "Race Driver", tier: "standard", group: "template", prompt: "Place the exact same person in this photo in the cockpit of a race car as the driver: preserve their face and identity precisely, wearing a racing suit and gloves, hands on the wheel, track lights and the motion blur of speed all around — photorealistic, like a real motorsport photograph." },
   { id: "pirate", name: "Pirate Captain", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as the captain of a tall pirate ship at golden hour: preserve their face and identity precisely, wearing a classic captain's coat and hat, standing at the helm with sails, ropes and the open sea behind — photorealistic, like a real film frame." },
+  // [RP-V7.564] 22 more AI Templates (group:"template") — templates 8 -> 30.
+  { id: "wizard", name: "Wizard World", tier: "premium", group: "template", prompt: "Place the exact same person in this photo in a grand wizard school hall as a wizard: preserve their face and identity precisely, wearing elegant wizard robes, holding a glowing wand, floating candles and towering stone arches all around — photorealistic, like a real film frame." },
+  { id: "knight", name: "Knight in Armor", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as a medieval knight in shining polished armor: preserve their face and identity precisely, visor raised, standing before a great stone castle with banners in the wind — photorealistic, like a real film frame." },
+  { id: "viking", name: "Viking Warrior", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as a Viking warrior: preserve their face and identity precisely, wearing fur and leather warrior gear, standing on a rocky fjord shore with a longship and cold northern light behind — photorealistic, like a real film frame." },
+  { id: "pharaoh", name: "Egyptian Pharaoh", tier: "premium", group: "template", prompt: "Place the exact same person in this photo as an ancient Egyptian pharaoh: preserve their face and identity precisely, wearing a golden striped headdress and royal regalia, in a grand temple hall with hieroglyphs and the pyramids beyond — photorealistic, like a real film frame." },
+  { id: "samurai", name: "Samurai", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as a samurai warrior: preserve their face and identity precisely, wearing detailed lacquered armor with a katana at the hip, cherry blossoms drifting past a castle town behind — photorealistic, like a real film frame." },
+  { id: "gatsby", name: "1920s Gatsby Party", tier: "standard", group: "template", prompt: "Place the exact same person in this photo at a glamorous 1920s Gatsby party: preserve their face and identity precisely, wearing elegant period evening attire, in an art deco ballroom with gold light, jazz-age sparkle and celebration all around — photorealistic, like a real period photograph." },
+  { id: "firefighter", name: "Firefighter Hero", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as a heroic firefighter in full turnout gear: preserve their face and identity precisely, helmet under one arm, standing proudly before a fire truck with warm heroic light — photorealistic, like a real portrait photograph." },
+  { id: "pilot", name: "Pilot", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as an airline pilot in a crisp uniform with captain's stripes: preserve their face and identity precisely, seated in a modern cockpit with the sky and clouds beyond the windows — photorealistic, like a real portrait photograph." },
+  { id: "music-video", name: "Music Video Star", tier: "premium", group: "template", prompt: "Place the exact same person in this photo as the star of a glossy music video: preserve their face and identity precisely, performing center-frame on a slick video set with backup dancers, neon stage light and cinematic haze — photorealistic, like a real music video frame." },
+  { id: "yacht", name: "Yacht Life", tier: "premium", group: "template", prompt: "Place the exact same person in this photo on the deck of a luxury yacht: preserve their face and identity precisely, wearing elegant resort attire, turquoise open ocean and golden sunlight all around — photorealistic, like a real lifestyle photograph." },
+  { id: "beach", name: "Beach Paradise", tier: "standard", group: "template", prompt: "Place the exact same person in this photo in a tropical beach paradise: preserve their face and identity precisely, wearing relaxed beach attire, palm trees, white sand and turquoise water behind under a bright sky — photorealistic, like a real vacation photograph." },
+  { id: "jungle", name: "Jungle Explorer", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as a jungle explorer before ancient overgrown ruins: preserve their face and identity precisely, wearing explorer gear, lush green jungle and shafts of sunlight all around — photorealistic, like a real adventure photograph." },
+  { id: "safari", name: "Safari Adventure", tier: "standard", group: "template", prompt: "Place the exact same person in this photo on an African safari at golden hour: preserve their face and identity precisely, wearing classic safari attire, the wide savanna stretching behind with acacia trees and wildlife in the far distance — photorealistic, like a real travel photograph." },
+  { id: "chef", name: "Master Chef", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as a master chef in a professional kitchen: preserve their face and identity precisely, wearing chef's whites, arms crossed proudly with gleaming counters, pans and warm kitchen light behind — photorealistic, like a real portrait photograph." },
+  { id: "graduation", name: "Graduation Day", tier: "standard", group: "template", prompt: "Place the exact same person in this photo at their graduation: preserve their face and identity precisely, wearing a cap and gown and holding a diploma, smiling on a sunny campus with fellow graduates celebrating behind — photorealistic, like a real graduation photograph." },
+  { id: "birthday", name: "Birthday Star", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as the star of a joyful birthday celebration: preserve their face and identity precisely, a beautiful birthday cake with glowing candles before them, balloons, confetti and warm party light all around — photorealistic, like a real party photograph." },
+  { id: "christmas", name: "Christmas Magic", tier: "standard", group: "template", prompt: "Place the exact same person in this photo in a cozy Christmas scene: preserve their face and identity precisely, wearing a warm festive sweater beside a glowing decorated tree, soft snowfall at the window and golden holiday light — photorealistic, like a real holiday photograph." },
+  { id: "vampire", name: "Vampire Night", tier: "premium", group: "template", prompt: "Place the exact same person in this photo as an elegant gothic vampire in a moonlit castle hall: preserve their face and identity precisely, wearing a dark Victorian evening outfit with a high collar, candles, stone arches and a full moon beyond the window — photorealistic, like a real film frame." },
+  { id: "fairy", name: "Fairy Tale", tier: "premium", group: "template", prompt: "Place the exact same person in this photo in an enchanted fairy-tale forest: preserve their face and identity precisely, wearing an elegant storybook outfit, glowing fireflies, giant flowers and soft magical light all around — photorealistic, like a real film frame." },
+  { id: "future-city", name: "Future City 2099", tier: "premium", group: "template", prompt: "Place the exact same person in this photo in a gleaming future city in the year 2099: preserve their face and identity precisely, wearing sleek futuristic fashion, flying vehicles and towering neon-lit skyscrapers behind — photorealistic, like a real film frame." },
+  { id: "deep-sea", name: "Deep Sea Diver", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as a deep sea diver on the ocean floor: preserve their face and identity precisely, visible through the glass of a classic brass diving helmet, coral, sunken treasure and rays of light from the surface above — photorealistic, like a real underwater photograph." },
+  { id: "ski", name: "Ski Chalet", tier: "standard", group: "template", prompt: "Place the exact same person in this photo at a cozy ski chalet in snowy mountains: preserve their face and identity precisely, wearing stylish winter ski attire with skis over one shoulder, falling snow and warm chalet light behind — photorealistic, like a real winter photograph." },
+  // [RP-V7.564] RP AI FUN (group:"snap") — playful transformation looks
+  // in the spirit of the famous playful AI lenses: age changes and
+  // elemental looks. Real generative restyles on the same engines —
+  // photorealistic, never cartoon. (UI label: "RP AI Fun"; the house
+  // label is RP AI.)
+  { id: "younger", name: "Look Younger", tier: "premium", group: "snap", prompt: "Make the exact same person in this photo look about 15 years younger: preserve their face and identity so they are unmistakably the same person, with smoother youthful skin and fresher features — a realistic age regression. Keep the same pose, the same outfit and the same scene — photorealistic." },
+  { id: "older", name: "Look Older", tier: "standard", group: "snap", prompt: "Make the exact same person in this photo look about 25 years older: preserve their face and identity so they are unmistakably the same person, with distinguished silver hair and natural, graceful age lines — a realistic age progression. Keep the same pose, the same outfit and the same scene — photorealistic." },
+  { id: "mermaid-f", name: "Mermaid", tier: "premium", group: "snap", prompt: "Transform the exact same person in this photo into a mermaid underwater: preserve their face and identity precisely, long flowing hair drifting in clear blue water, a shimmering scaled tail, soft seashell light and gentle bubbles — tasteful and elegant, photorealistic, like a real underwater photograph." },
+  { id: "angel", name: "Angel Glow", tier: "standard", group: "snap", prompt: "Transform this photo into a heavenly angel-glow portrait of the exact same person: preserve their face and identity precisely, keep the same pose and outfit, bathed in soft white and gold heavenly light with a serene radiance and subtle wings of light behind — photorealistic." },
+  { id: "disco", name: "Disco Star", tier: "standard", group: "snap", prompt: "Transform this photo into a 1970s disco star portrait of the exact same person: preserve their face and identity precisely, keep the same pose, now in a sparkling disco outfit under a glittering mirror ball with colorful club light — photorealistic, like a real club photograph." },
+  { id: "neon-glow", name: "Neon Glow", tier: "standard", group: "snap", prompt: "Transform this photo into a neon-glow night portrait of the exact same person: preserve their face and identity precisely, keep the same pose and outfit, vivid magenta and cyan neon light washing over them against a dark city-night backdrop — photorealistic." },
+  { id: "gold-statue", name: "Gold Statue", tier: "standard", group: "snap", prompt: "Transform the exact same person in this photo into a living gold statue: preserve their face, identity, pose, outfit shapes and the scene exactly, but render the person entirely in polished gleaming gold, like a real golden statue come to life — photorealistic." },
+  { id: "ice-royalty", name: "Ice Royalty", tier: "premium", group: "snap", prompt: "Transform this photo into an ice royalty portrait of the exact same person: preserve their face and identity precisely, keep the same pose, wearing crystalline icy-blue royal attire with a delicate frost crown, in a glittering ice palace — photorealistic." },
+  { id: "fire-element", name: "Fire Element", tier: "premium", group: "snap", prompt: "Transform this photo into a heroic fire-element portrait of the exact same person: preserve their face and identity precisely, keep the same pose and outfit, dramatic warm flame light playing across them with drifting embers and a dark smoky backdrop — photorealistic, like a real film frame." },
+  { id: "zombie", name: "Zombie Night", tier: "premium", group: "snap", prompt: "Transform this photo into a realistic Halloween zombie portrait of the exact same person: preserve their face and identity so they are still clearly recognizable, with movie-grade zombie special-effects makeup — pale ghoulish skin, dark hollow eyes, tattered outfit — a spooky night backdrop. Photorealistic, like real film makeup, not a cartoon." },
 ];
 function aiStyle245(id) {
   return AI_STYLES245.find((s) => s.id === String(id || "")) || null;
@@ -12762,6 +12800,40 @@ const AI_STUB_FILTERS245 = {
   runway: "eq=brightness=0.04:contrast=1.15:saturation=1.18",
   "race-driver": "eq=contrast=1.22:saturation=1.2",
   pirate: "colorbalance=rs=.25:gs=.05:bs=-.22,eq=saturation=1.12:contrast=1.08",
+  // [RP-V7.564] stub grades for the 22 new AI Templates (rig-only).
+  wizard: "eq=saturation=1.2:contrast=1.15,colorbalance=bs=.15,vignette=PI/5",
+  knight: "eq=contrast=1.25:saturation=0.95",
+  viking: "eq=saturation=0.9:contrast=1.2,colorbalance=bs=.2:rs=-.08",
+  pharaoh: "colorbalance=rs=.3:gs=.1:bs=-.25,eq=saturation=1.2:contrast=1.1",
+  samurai: "eq=saturation=1.1:contrast=1.18",
+  gatsby: "eq=saturation=1.05:contrast=1.1,colorbalance=rs=.15:bs=-.1,vignette=PI/6",
+  firefighter: "eq=contrast=1.22:saturation=1.15,colorbalance=rs=.15",
+  pilot: "eq=brightness=0.03:contrast=1.12:saturation=1.05",
+  "music-video": "eq=saturation=1.4:contrast=1.2",
+  yacht: "eq=brightness=0.05:saturation=1.25:contrast=1.05",
+  beach: "eq=saturation=1.3:brightness=0.04:contrast=1.02",
+  jungle: "eq=saturation=1.3:contrast=1.12,colorbalance=gs=.15",
+  safari: "colorbalance=rs=.28:gs=.08:bs=-.2,eq=saturation=1.15:contrast=1.08",
+  chef: "eq=brightness=0.04:contrast=1.08:saturation=1.05",
+  graduation: "eq=brightness=0.03:saturation=1.1:contrast=1.08",
+  birthday: "eq=saturation=1.35:brightness=0.03:contrast=1.05",
+  christmas: "eq=saturation=1.2:contrast=1.1,colorbalance=bs=.1",
+  vampire: "eq=saturation=0.7:contrast=1.3,vignette=PI/4",
+  fairy: "gblur=sigma=0.7,eq=saturation=1.3:brightness=0.05",
+  "future-city": "hue=h=200:s=1.2,eq=saturation=1.25:contrast=1.18",
+  "deep-sea": "colorbalance=bs=.5:gs=.15:rs=-.35,eq=saturation=1.1:contrast=1.1",
+  ski: "eq=brightness=0.08:saturation=0.95:contrast=1.1,colorbalance=bs=.15",
+  // [RP-V7.564] stub grades for the 10 Fun AI looks (rig-only).
+  younger: "gblur=sigma=0.8,eq=brightness=0.05:saturation=1.12:contrast=1.02",
+  older: "eq=saturation=0.55:contrast=1.15:brightness=0.02",
+  "mermaid-f": "colorbalance=bs=.4:gs=.25:rs=-.25,eq=saturation=1.25:contrast=1.05",
+  angel: "gblur=sigma=1,eq=brightness=0.12:saturation=0.95",
+  disco: "eq=saturation=1.5:contrast=1.15:brightness=0.03",
+  "neon-glow": "hue=h=300:s=1.3,eq=saturation=1.5:contrast=1.1",
+  "gold-statue": "colorbalance=rs=.45:gs=.25:bs=-.4,eq=saturation=1.2:contrast=1.2",
+  "ice-royalty": "colorbalance=bs=.4:rs=-.15:gs=.05,eq=brightness=0.06:saturation=1.05:contrast=1.1",
+  "fire-element": "colorbalance=rs=.5:gs=.1:bs=-.45,eq=saturation=1.3:contrast=1.2",
+  zombie: "eq=saturation=0.45:contrast=1.3,colorbalance=gs=.2:rs=-.1",
 };
 function aiCallStub245(style, srcPath, outPath) {
   return new Promise((resolve, reject) => {
@@ -12799,7 +12871,7 @@ app.get("/api/ai/styles", (req, res) => {
     videoCap: AI_VIDEO_CAP562,
     videoRemaining,
     videoMaxSec: AI_VIDEO_MAX_SEC562,
-    styles: AI_STYLES245.map((s) => ({ id: s.id, name: s.name, tier: s.tier, group: s.group || "style" })), // [RP-V7.563] group rides along (style | template)
+    styles: AI_STYLES245.map((s) => ({ id: s.id, name: s.name, tier: s.tier, group: s.group || "style" })), // [RP-V7.563] group rides along (style | template) // [RP-V7.564] + snap (Fun AI)
   });
 });
 app.post("/api/ai/restyle", photoUpload(async (req, res) => {
