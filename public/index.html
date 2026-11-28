@@ -1645,7 +1645,7 @@
       .fxb-lock553 { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 2; background: rgba(0,0,0,.78); color: #ffd23c; border: 1px solid #ffd23c; border-radius: 999px; font-size: 10px; font-weight: 800; line-height: 1; padding: 3px 7px; white-space: nowrap; }
       .fx-chip.locked553 .fx-swatch { opacity: .55; }
       /* [RP-V7.563] AI effect cards (AI tiles only — lens tiles untouched) */
-      .fxb-tile551.ai563 .fx-chip { width: 70px; }
+      .fxb-tile551.ai563 .fx-chip { width: 76px; } /* [RP-V7.565] widened so the name under the swatch fits fully */
       .fxb-tile551.ai563 .fx-swatch { width: 62px; height: 62px; position: relative; overflow: hidden; transition: transform .15s ease; }
       .fxb-tile551.ai563 .fx-chip.sel .fx-swatch { transform: scale(1.07); }
       .fxb-tile551.ai563 .band562 { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 3px 3px; background: linear-gradient(transparent, rgba(0,0,0,.84)); color: #fff; font-size: 8.5px; font-weight: 900; line-height: 1.05; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -18561,13 +18561,14 @@
           .then(function (j) { FxAi562.loading = false; if (j && j.ok) { FxAi562.styles = j.styles || []; FxAi562.enabled = !!j.enabled; } else FxAi562.styles = []; fxRepaintBrowsers551(); })
           .catch(function () { FxAi562.loading = false; FxAi562.styles = []; fxRepaintBrowsers551(); });
       }
-      function fxAiTile562(st) { // [RP-V7.563] effect-card look: preview fills the swatch, name on a gradient band, ⭐ chip on the corner
+      function fxAiTile562(st) { // [RP-V7.565] name UNDER the swatch via .fx-name (the lens-tile pattern) — the V7.563 in-swatch band truncated; ⭐ chip stays on the swatch corner
         var armed = !!(window.rpCamAiArmed562 && window.rpCamAiArmed562() === st.id);
         var face = window.rpAiFace562 ? window.rpAiFace562(st.id) : "";
         var inner = window.rpAiHasThumb562 && window.rpAiHasThumb562(st.id) ? '<span class="fxai-face562" style="' + face + '"></span>' : (window.rpAiGlyph562 ? escHtml(window.rpAiGlyph562(st.id)) : "✨");
         return '<span class="fxb-tile551 ai563"><button type="button" class="fx-chip' + (armed ? " sel" : "") + '" data-fxai562="' + st.id + '"><span class="fx-swatch">' + inner +
           (st.tier === "premium" ? '<span class="prem563">⭐</span>' : "") +
-          '<span class="band562">' + escHtml(st.name) + "</span></span></button></span>";
+          "</span>" +
+          '<span class="fx-name">' + escHtml(st.name) + "</span></button></span>";
       }
       function fxAiTiles562(q) {
         if (!FxAi562.styles) { fxAiLoad562(); return ""; }
@@ -33393,11 +33394,11 @@
           ".ed549-tool.on{border-color:#fe2c2c;box-shadow:0 0 0 1.5px #fe2c2c,0 0 14px rgba(254,44,44,.55)}" +
           ".ed549-airow{display:flex;gap:12px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}" +
           ".ed549-airow::-webkit-scrollbar{display:none}" +
-          ".ed549-aichip{flex:0 0 auto;width:66px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;color:#fff;padding:0;font-family:inherit}" +
+          ".ed549-aichip{flex:0 0 auto;width:76px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;color:#fff;padding:0;font-family:inherit}" +
           ".ed549-aichip .c562{width:62px;height:62px;border-radius:50%;border:3px solid rgba(255,255,255,.35);background-size:cover;background-position:center;background-color:#1c1c26;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;box-sizing:border-box;font-size:22px}" +
           ".ed549-aichip.sel .c562{border-color:#fe2c2c;box-shadow:0 0 0 3px rgba(254,44,44,.4);transform:scale(1.07)}" +
           ".ed549-aichip:disabled{opacity:.55;cursor:default}" +
-          ".ed549-aichip .n562{font-size:9.5px;font-weight:800;line-height:1.1;text-align:center}" +
+          ".ed549-aichip .n562{display:block;width:100%;font-size:11px;font-weight:800;line-height:1.18;min-height:26px;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,.85)}" +
           ".ed549-aichip .prem562{position:absolute;top:2px;right:2px;font-size:9px;background:rgba(0,0,0,.65);border-radius:99px;padding:1px 4px;z-index:2}" + ".ed549-aichip .c562{transition:transform .15s ease,box-shadow .15s ease}" + ".ed549-aisect{font-size:13px;font-weight:900;margin:10px 0 2px}" +
           ".ed549-ainote{font-size:12.5px;font-weight:700;color:rgba(255,255,255,.85);margin:2px 0 6px}" +
           ".ed549-ainote.err{color:#ff9c9c}" +
@@ -33648,10 +33649,10 @@
           p.innerHTML = h + '<p class="ed549-ainote">AI filters are being set up — check back soon ✨</p>';
           return;
         }
-        var edAiChip562 = function (st) { // [RP-V7.563] effect-card look, same language as the tray
+        var edAiChip562 = function (st) { // [RP-V7.565] name UNDER the circle, same as the tray — the V7.563 in-circle band truncated; ⭐ chip stays on the circle
           var face = window.rpAiFace562 ? window.rpAiFace562(st.id) : "";
           var inner = window.rpAiHasThumb562 && window.rpAiHasThumb562(st.id) ? "" : (window.rpAiGlyph562 ? escHtml(window.rpAiGlyph562(st.id)) : "✨");
-          return '<button type="button" class="ed549-aichip' + (edAi562.sel === st.id ? " sel" : "") + '" data-edai562="' + st.id + '"' + (edAi562.busy ? " disabled" : "") + '><span class="c562" style="' + face + '">' + inner + (st.tier === "premium" ? '<span class="prem562">⭐</span>' : "") + '<span class="band562">' + escHtml(st.name) + "</span></span></button>";
+          return '<button type="button" class="ed549-aichip' + (edAi562.sel === st.id ? " sel" : "") + '" data-edai562="' + st.id + '"' + (edAi562.busy ? " disabled" : "") + '><span class="c562" style="' + face + '">' + inner + (st.tier === "premium" ? '<span class="prem562">⭐</span>' : "") + "</span>" + '<span class="n562">' + escHtml(st.name) + "</span></button>";
         };
         var edStyles562 = edAi562.styles.filter(function (s) { return s.group !== "template" && s.group !== "snap"; });
         var edTpls562 = edAi562.styles.filter(function (s) { return s.group === "template"; });
@@ -88791,14 +88792,16 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     #camAiRow562 { display: none; gap: 12px; overflow-x: auto; padding: 2px 18px 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
     #camAiRow562.on { display: flex; }
     #camAiRow562::-webkit-scrollbar { display: none; }
-    .cam-ai562 { flex: 0 0 auto; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; cursor: pointer; color: #fff; padding: 0; font-family: inherit; }
+    .cam-ai562 { flex: 0 0 auto; width: 76px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; cursor: pointer; color: #fff; padding: 0; font-family: inherit; }
     .cam-ai562 .c562 { width: 64px; height: 64px; border-radius: 50%; border: 3px solid rgba(255,255,255,.35); background-size: cover; background-position: center; background-color: #1c1c26; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; box-sizing: border-box; font-size: 23px; transition: transform .15s ease, box-shadow .15s ease; }
     .cam-ai562.sel .c562 { border-color: #fe2c2c; box-shadow: 0 0 0 3px rgba(254,44,44,.4); transform: scale(1.07); }
-    .cam-ai562 .n562 { font-size: 9.5px; font-weight: 800; line-height: 1.1; text-align: center; text-shadow: 0 1px 5px rgba(0,0,0,.9); }
+    .cam-ai562 .n562 { display: block; width: 100%; font-size: 11.5px; font-weight: 800; line-height: 1.18; min-height: 28px; text-align: center; text-shadow: 0 1px 5px rgba(0,0,0,.95), 0 0 3px rgba(0,0,0,.9); }
     .cam-ai562 .tag562 { position: absolute; top: 2px; left: 2px; background: rgba(0,0,0,.75); color: #ffd76a; font-size: 8px; font-weight: 900; letter-spacing: .02em; border-radius: 99px; padding: 1px 5px; white-space: nowrap; z-index: 2; }
     .cam-ai562 .prem562 { position: absolute; top: 2px; right: 2px; font-size: 9px; background: rgba(0,0,0,.65); border-radius: 99px; padding: 1px 4px; z-index: 2; }
     .cam-ai562 .band562, .ed549-aichip .band562 { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 3px 3px; background: linear-gradient(transparent, rgba(0,0,0,.84)); color: #fff; font-size: 8.5px; font-weight: 900; line-height: 1.05; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ai563-sect { flex: 0 0 auto; align-self: center; width: 54px; text-align: center; font-size: 8.5px; font-weight: 900; letter-spacing: .05em; color: #fff; opacity: .85; line-height: 1.3; text-transform: uppercase; text-shadow: 0 1px 5px rgba(0,0,0,.9); }
+    .ai563-sect { flex: 0 0 auto; align-self: stretch; width: 112px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 10px 8px; border-radius: 16px; background: linear-gradient(160deg, #fe2c2c, #8f1030); border: 1.5px solid rgba(255,255,255,.55); color: #fff; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+    .ai563-sect b { font-size: 16px; font-weight: 900; line-height: 1.1; }
+    .ai563-sect i { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .92; }
     #camAiChip562 { display: none; margin: 0 auto 4px; background: rgba(254,44,44,.94); color: #fff; border: 0; border-radius: 99px; padding: 5px 13px; font-family: inherit; font-weight: 900; font-size: 12px; cursor: pointer; box-shadow: 0 3px 12px rgba(0,0,0,.45); }
     #camAiChip562.on { display: block; }
     .fxai-face562 { width: 100%; height: 100%; border-radius: 50%; background-size: cover; background-position: center; display: block; }
@@ -90032,19 +90035,20 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       if (!CamAi562.open) return;
       if (!CamAi562.styles) { row.innerHTML = '<span style="align-self:center;font-weight:800;font-size:12.5px;text-shadow:0 1px 5px rgba(0,0,0,.9);">✨ Loading the AI styles…</span>'; return; }
       if (!CamAi562.enabled) { row.innerHTML = '<span style="align-self:center;font-weight:800;font-size:12.5px;text-shadow:0 1px 5px rgba(0,0,0,.9);">AI filters are being set up — check back soon ✨</span>'; return; }
-      var ai562Btn = function (st) { // [RP-V7.563] TikTok effect-card language: preview fills the circle, name on a gradient band, ⭐ chip, red ring + scale when armed
+      var ai562Btn = function (st) { // [RP-V7.565] TikTok tray language: preview circle with the name UNDER it in readable type (the V7.563 in-circle band truncated — owner: "Can't read any of these"); ⭐ chip + after-rec tag stay on the circle, red ring + scale when armed
         return '<button type="button" class="cam-ai562' + (CamAi562.armed === st.id ? " sel" : "") + '" data-ai562="' + st.id + '" role="option" aria-label="' + escHtml(st.name) + '">' +
           '<span class="c562" style="' + ai562FaceStyle(st) + '">' + (AI562_THUMB[st.id] ? "" : (AI562_GLYPH[st.id] || "✨")) +
           (st.tier === "premium" ? '<span class="prem562">⭐</span>' : "") +
           (Cam.mode === "video" ? '<span class="tag562">after rec</span>' : "") +
-          '<span class="band562">' + escHtml(st.name) + "</span></span></button>";
+          "</span>" +
+          '<span class="n562">' + escHtml(st.name) + "</span></button>";
       };
       var aiStyles562 = CamAi562.styles.filter(function (s) { return s.group !== "template" && s.group !== "snap"; });
       var aiTpls562 = CamAi562.styles.filter(function (s) { return s.group === "template"; });
       var aiSnap562 = CamAi562.styles.filter(function (s) { return s.group === "snap"; }); // [RP-V7.564] RP AI Fun
       row.innerHTML = aiStyles562.map(ai562Btn).join("") +
-        (aiTpls562.length ? '<span class="ai563-sect">RP AI<br/>Templates</span>' + aiTpls562.map(ai562Btn).join("") : "") +
-        (aiSnap562.length ? '<span class="ai563-sect">RP AI<br/>Fun</span>' + aiSnap562.map(ai562Btn).join("") : "");
+        (aiTpls562.length ? '<span class="ai563-sect"><b>Templates</b><i>RP AI · ' + aiTpls562.length + ' scenes</i></span>' + aiTpls562.map(ai562Btn).join("") : "") + // [RP-V7.565] wide labeled segment-break tiles — impossible to scroll past without knowing the section changed
+        (aiSnap562.length ? '<span class="ai563-sect"><b>Fun</b><i>RP AI · ' + aiSnap562.length + ' looks</i></span>' + aiSnap562.map(ai562Btn).join("") : "");
       row.querySelectorAll("[data-ai562]").forEach(function (b) {
         b.addEventListener("click", function () { camAiArm562(b.getAttribute("data-ai562")); });
       });
