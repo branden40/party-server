@@ -37068,7 +37068,11 @@ var RP_PORTRAIT_FILMS = { titanclash: 1, plazaape: 1, foxshot: 1, ufobeam: 1, au
    rpStageMedia extends the same treatment to any UNREGISTERED stage
    film whose corners measure as a full-bleed scene, so the hand-kept
    list stops being the failure mode for future scene films. */
-var RP_BAND_SCENE492 = { plazadiamond: 1, crownjewel: 1, rainbowfalls: 1, crystaloctopus: 1 }; // [RP-V7.494] +rainbowfalls +crystaloctopus: landscape full-bleed SCENE films the catalog audit found sitting on the keyed path — same unkeyed band-scene treatment as the V7.492 pair.
+var RP_BAND_SCENE492 = {};
+/* [RP-V7.556] THE BAND LIST IS EMPTIED on measurement (Branden, Nov 27, 2026 — "These are boxed in do not blend in with the screen and don't show all corners of the video"): every film the V7.492/494 audits registered here (plazadiamond, crownjewel, rainbowfalls, crystaloctopus) was re-measured frame-by-frame from the files the live site actually serves today, and ALL FOUR are subject-on-true-black — their subjects glow out to the corners late in the film, which the old corner test mistook for a scene. Routed raw, their black ground printed as the opaque rectangle band in Branden's recording. They now take the luma keyer like every other black-ground film, on the stage and on the lanes. The registry stays (empty) so the routing references keep their shape; the C1 detector + RP_SCENE_BAKED556 below are the scene safety net now. */
+/* [RP-V7.556] SCENE-BAKED films — measured from the served files: an ENVIRONMENT is painted around the subject (ship/sky, carousel interior, night desert, aurora field, storm sea, cosmic / nebula wall-to-wall), so no keyer or blend can float the subject free — keying prints a melted-edge island of scenery (the rounded-corner box Branden filmed for Scarecrow Pirate). These present WHOLE and RAW (sceneWhole556 on the stage, the rp-scenewhole556 branch on the lanes: contain, normal compositing, no melt, no crop) on every surface until the assets are re-made on true black; when a re-made film lands, delete its id here and it keys automatically. Dedicated full-scene stages (skystepper, goldengoal, whale, trex) are by design and are NOT in this list. */
+var RP_SCENE_BAKED556 = { scarecrowpirate: 1, carousel: 1, ufobeam: 1, celestialstag: 1, tidalwave: 1, ascension: 1, supernova: 1 };
+window.RP_SCENE_BAKED556 = RP_SCENE_BAKED556; // [RP-V7.494] +rainbowfalls +crystaloctopus: landscape full-bleed SCENE films the catalog audit found sitting on the keyed path — same unkeyed band-scene treatment as the V7.492 pair.
 /* [RP-V7.494] PORTRAIT-SCENE routing (catalog audit): full-bleed
    SCENE films in PORTRAIT aspect — wall-to-wall colour, no black
    ground to key (skystepper: a full animated scene; rizzuniverse:
@@ -37461,6 +37465,17 @@ window.RpKeyUpgrade = function (el, g, opts327) {
       if (ovB496) ovB496.classList.add("rp-keyed");
       try { rpMeltHairline492(el); } catch (e) { }
       try { if (window.rpCenterSeatLive501) window.rpCenterSeatLive501(el); } catch (e) { } // [RP-GSFIX] the band-scene film takes the centred live seat too (the helper self-gates to .gfx overlays in lives — the stage's own band seats are untouched)
+      return null;
+    }
+    /* [RP-V7.556] SCENE-BAKED films on the float/burst lanes (RP_SCENE_BAKED556 — measured: an environment is painted around the subject, so the luma keyer can only print a melted-edge island of scenery — the rounded-corner box Branden filmed Nov 27, 2026). They present RAW and WHOLE: normal compositing (the overlay is marked rp-keyed exactly like the band branch — the raw scene must not screen-blend into the room/post), object-fit:contain in the lane's full-screen film seat so every corner of the frame shows, and NO melt — the melts are what ate the corners. Interim until the assets are re-made on true black (see the registry note at RP_BAND_SCENE492). */
+    if (el && el.tagName === "VIDEO" && g && window.RP_SCENE_BAKED556 && window.RP_SCENE_BAKED556[g.id]) {
+      el.classList.add("rp-scenewhole556");
+      el.style.mixBlendMode = "normal";
+      el.style.objectFit = "contain";
+      try { el.style.setProperty("mask-image", "none", "important"); el.style.setProperty("-webkit-mask-image", "none", "important"); } catch (e) { } /* [RP-V7.556] no melt, inline included — the fallback art img inherits these inline styles if the film errors, so the corners survive that path too */
+      var ovS556 = el.closest ? el.closest(".gfx") : null;
+      if (ovS556) ovS556.classList.add("rp-keyed");
+      try { if (window.rpCenterSeatLive501) window.rpCenterSeatLive501(el); } catch (e) { } // the centred live seat, same as the band branch (self-gates to .gfx overlays in lives)
       return null;
     }
     /* [RP-V7.360] an animated IMG is NEVER keyed: texImage2D from an animated image hands the keyer its FIRST frame forever on WebKit (rig-proven in Chrome too), so a keyed art hero is a frozen still — Branden's "some of them don't work at all it's still" (Nov 12, 2026: Lowrider, UFO Beam). Art heroes stay the raw animated image (natively animated on every engine, screen blend per the .gfx-artimg rules); the keyer remains for VIDEO sources only. */
@@ -37888,6 +37903,20 @@ function rpStageMedia(div, gid, icon) {
       if (gate492.released) { try { v.style.opacity = "1"; } catch (e) { } }
       if (!fromDetect492) v.src = window.rpGiftFilmUrl(aid); /* a detector rebuild keeps the element's existing fetch — re-assigning src would restart the film */
     }
+    /* [RP-V7.556] scene-baked presentation: the RAW film, WHOLE frame (object-fit:contain — every corner shows), normal compositing, NO melt, NO cover-crop. For the measured scene-baked films in RP_SCENE_BAKED556 an environment is painted around the subject, so no keyer or blend can float the subject free; until those assets are re-made on true black, the honest show is the whole film frame, uncut — never a keyed scenery island with melted edges (the rounded-corner box in Branden's Nov 27, 2026 recording) and never the old band seat's cover crop. */
+    function sceneWhole556(fromDetect492) {
+      v.classList.add("rp-scenewhole556");
+      v.style.cssText = "width:100%;height:100%;object-fit:contain;mix-blend-mode:normal;opacity:0;";
+      try { v.style.setProperty("mask-image", "none", "important"); v.style.setProperty("-webkit-mask-image", "none", "important"); } catch (e) { } /* [RP-V7.556] whole frame — no melt */
+      v.onerror = function () { if (window.rpGiftVidErr) window.rpGiftVidErr(v); };
+      if (!v.parentNode) div.appendChild(v);
+      markKeyed();
+      gate492.onRelease = null;
+      armGate492(v);
+      v.addEventListener("loadedmetadata", aspect492);
+      if (gate492.released) { try { v.style.opacity = "1"; } catch (e) { } }
+      if (!fromDetect492) v.src = window.rpGiftFilmUrl(aid); /* a detector rebuild keeps the element's existing fetch — re-assigning src would restart the film */
+    }
     /* [RP-V7.492] C1 detector — at loadeddata, sample an UNREGISTERED
        stage film's four corners on a 2D canvas; a mean corner luma
        over 60 marks full-bleed scene content, so the show rebuilds
@@ -37898,7 +37927,7 @@ function rpStageMedia(div, gid, icon) {
        scene films nobody registered. */
     function detectScene492() {
       if (gate492.detected) return; gate492.detected = true;
-      if (RP_SCENE_FILMS[aid] || RP_PORTRAIT_FILMS[aid] || RP_BAND_SCENE492[aid] || RP_PORTRAIT_SCENE494[aid]) return; /* [RP-V7.494] portrait-scene registrations keep their routing too (they never reach this branch — the guard list stays complete) */
+      if (RP_SCENE_FILMS[aid] || RP_PORTRAIT_FILMS[aid] || RP_BAND_SCENE492[aid] || RP_PORTRAIT_SCENE494[aid] || (window.RP_SCENE_BAKED556 && window.RP_SCENE_BAKED556[aid])) return; /* [RP-V7.556] scene-baked registrations keep their routing too */ /* [RP-V7.494] portrait-scene registrations keep their routing too (they never reach this branch — the guard list stays complete) */
       if (window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[aid]) return;
       try {
         var cw492 = 48, ch492 = Math.max(8, Math.min(64, Math.round(48 * (v.videoHeight || 9) / (v.videoWidth || 16))));
@@ -37919,7 +37948,7 @@ function rpStageMedia(div, gid, icon) {
         div.innerHTML = "";
         gate492.artImg = null; gate492.visEl = null;
         v.classList.remove("rp-key-src");
-        bandScene492(true);
+        sceneWhole556(true); /* [RP-V7.556] a detected scene rebuilds to the whole-frame presentation (contain, no melt) — the old band seat cover-cropped it and melted its corners */
       } catch (e) { }
     }
     if (window.RP_SCREEN_FILMS337 && window.RP_SCREEN_FILMS337[aid]) {
@@ -37935,6 +37964,7 @@ function rpStageMedia(div, gid, icon) {
       v.src = window.rpGiftFilmUrl(aid);
       return;
     }
+    if (window.RP_SCENE_BAKED556 && window.RP_SCENE_BAKED556[aid]) { sceneWhole556(false); return; } /* [RP-V7.556] measured scene-baked films present whole and raw — never keyed into a scenery island, never cover-cropped (see RP_SCENE_BAKED556) */
     if (RP_BAND_SCENE492[aid] || RP_PORTRAIT_SCENE494[aid]) { bandScene492(false); return; } /* [RP-V7.492] C1 — registered full-bleed scenes never touch the keyer. [RP-V7.494] + the portrait-scene class: same unkeyed raw presentation (the C2 reseat hands the seat the film's own portrait aspect) */
     if (RpKey.supported()) {
       var h = RpKey.attach(v, { key530: "solid" }); // [RP-V7.530] the stage keys with the solid profile too — the legacy curve's grade crush left mid-tone subjects at partial alpha (ghosts over bright rooms); the solid profile renders the subject at the film's own color and full alpha (see FSH530). // [RP-V7.337] identity window — the WHOLE film frame keys (the V7.218 cover window cropped any film whose raster differs from the band box: portrait films lost their top and bottom in live rooms — Branden, Nov 11, 2026: "you can see part of the sides not showing because it's boxed in"); the art box now matches the film's own aspect (see the .film.portrait rule), so identity = whole scene, nothing cut
@@ -106207,6 +106237,15 @@ body .ed549-tpl, body .ed549-stkb { background: var(--r55-glass); border-radius:
 body .ed549-titlein { background: var(--r55-glass); border-color: var(--r55-hair2); border-radius: 14px; }
 body .ed549-back { background: var(--r55-glass2); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 
+</style>
+<style id="rp7556Css">
+/* ================= [RP-V7.556] SCENE-BAKED GIFT FILMS PRESENT WHOLE =================
+   The legacy stylesheet feather (11%/13% mask) and any mask are stripped
+   from .rp-scenewhole556 heroes on the lanes and the stage, so all four
+   corners of a scene-baked film show — the feather is part of what cut
+   the corners in Branden's Nov 27, 2026 recording. Keyed and blended
+   heroes keep the feather exactly as before. */
+.gfx .rp-scenewhole556, #rpStage .rp-scenewhole556{ -webkit-mask-image:none !important; mask-image:none !important; }
 </style>
 </body>
 </html>
