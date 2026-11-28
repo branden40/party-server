@@ -7778,6 +7778,145 @@ app.post("/api/fx551/favorite", (req, res) => {
   res.json({ ok: true, favorites: u.favs });
 });
 
+// [RP-V7.553] PAID FILTER PACKS (Branden, Nov 27, 2026: "get the user
+// to buy the filter themselves if they want to use it" — approved at
+// 500 charms for the pack, 150 per single). The 81 built-in lenses
+// stay FREE forever; the premium shelf is six NEW lenses (ids below)
+// whose painters already live in the client (FUN_DRAW keys halo,
+// firecrown, pirate, goldchain, wizardhat, afro — unreachable until
+// this build). Prices are authoritative HERE, never on the wire.
+// Ownership is recorded server-side per member in fxshop553.json
+// (mirroring the fx551 store patterns), so it persists across
+// devices. The debit runs through the money ledger inside
+// lockedHandler — the same serialized check-and-debit the gift
+// handler uses — and lands a moneyTx row (type "fx-filter-buy").
+// HONESTY: the lenses render client-side, so gating is enforced at
+// every pick surface in the client plus this ownership record; this
+// is a store, not DRM. The owner (rpOwnerUserId) owns every premium
+// lens by default (owner bypass) and is never charged. Sales from
+// test-funds accounts (testFunds321) and from Branden's own three
+// accounts are ledgered with test:true and EXCLUDED from the
+// owner-board revenue figure (rpFxShopBoard553 below) — the
+// Oct 27 every-stream rule, with the V7.321 test-funds rule on top.
+const FXSHOP553_FILE =
+  process.env.FXSHOP553_FILE || path.join(path.dirname(PHOTO_DIR), "fxshop553.json");
+const FXSHOP_PREMIUM_553 = ["halo", "firecrown", "pirate", "goldchain", "wizardhat", "afro"];
+const FXSHOP_SINGLE_553 = 150; // charms per single lens
+const FXSHOP_PACK_553 = 500; // charms for the whole pack ($5)
+const FXSHOP_OWNER_USERNAMES_553 = ["jesusisking", "a1thrills", "plazareview"]; // Branden's other accounts (RP itself is the owner id)
+function readFxShop553() {
+  try {
+    const d = JSON.parse(fs.readFileSync(FXSHOP553_FILE, "utf8"));
+    if (d && typeof d === "object" && d.users && typeof d.users === "object") {
+      if (!Array.isArray(d.sales)) d.sales = [];
+      return d;
+    }
+  } catch {}
+  return { users: {}, sales: [] };
+}
+function writeFxShop553(d) {
+  const tmp = FXSHOP553_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(d, null, 2));
+  fs.renameSync(tmp, FXSHOP553_FILE);
+}
+function fxShopTest553(user, adb) {
+  if (!user) return false;
+  if (testFunds321(user)) return true;
+  const ownerId = rpOwnerUserId(adb);
+  if (ownerId && user.id === ownerId) return true;
+  return FXSHOP_OWNER_USERNAMES_553.indexOf(usernameKey(user.username)) >= 0;
+}
+function fxShopOwned553(d, user, adb) {
+  if (!user) return [];
+  if (rpOwnerUserId(adb) === user.id) return FXSHOP_PREMIUM_553.slice(); // owner bypass
+  const u = d.users[user.id];
+  const owned = u && Array.isArray(u.owned) ? u.owned : [];
+  return owned.filter((x) => FXSHOP_PREMIUM_553.indexOf(x) >= 0);
+}
+function rpFxShopBoard553() {
+  const d = readFxShop553();
+  let salesCount = 0, grossCharms = 0, packSales = 0, singleSales = 0;
+  let testSalesCount = 0, testGrossCharms = 0;
+  for (const s of d.sales || []) {
+    if (!s || typeof s.charms !== "number") continue;
+    if (s.test) { testSalesCount++; testGrossCharms += s.charms; continue; }
+    salesCount++; grossCharms += s.charms;
+    if (s.pack) packSales++; else singleSales++;
+  }
+  return { salesCount, grossCharms, packSales, singleSales, testSalesCount, testGrossCharms };
+}
+app.get("/api/fxshop553/state", (req, res) => {
+  const adb = readAccounts();
+  let user = null;
+  try { user = accountForToken(adb, req); } catch (e) { user = null; }
+  const out = {
+    ok: true,
+    premium: FXSHOP_PREMIUM_553.slice(),
+    prices: { single: FXSHOP_SINGLE_553, pack: FXSHOP_PACK_553 },
+  };
+  if (user) {
+    const d = readFxShop553();
+    out.owned = fxShopOwned553(d, user, adb);
+    out.owner = rpOwnerUserId(adb) === user.id;
+    out.balance = readMoney().balances[user.id] || 0;
+  }
+  res.json(out);
+});
+app.post("/api/fxshop553/buy", lockedHandler("fxshop553-buy", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const b = req.body || {};
+  const wantPack = b.pack === true;
+  const lensId = wantPack ? null : fxCleanId551(b.lensId);
+  if (!wantPack && (!lensId || FXSHOP_PREMIUM_553.indexOf(lensId) < 0))
+    return res.status(400).json({ ok: false, error: "Unknown filter" });
+  const adb = ctx.db;
+  const d = readFxShop553();
+  const owned = fxShopOwned553(d, ctx.user, adb);
+  let charge = 0, grant = [];
+  if (wantPack) {
+    grant = FXSHOP_PREMIUM_553.filter((x) => owned.indexOf(x) < 0);
+    if (!grant.length)
+      return res.status(400).json({ ok: false, error: "already-owned", owned });
+    // Pack credit: singles already bought count toward the pack price.
+    charge = Math.max(0, FXSHOP_PACK_553 - FXSHOP_SINGLE_553 * (FXSHOP_PREMIUM_553.length - grant.length));
+  } else {
+    if (owned.indexOf(lensId) >= 0)
+      return res.status(400).json({ ok: false, error: "already-owned", owned });
+    charge = FXSHOP_SINGLE_553;
+    grant = [lensId];
+  }
+  const mdb = readMoney();
+  const bal = mdb.balances[ctx.user.id] || 0;
+  if (bal < charge)
+    return res.status(400).json({ ok: false, error: "insufficient-charms", balance: bal, needed: charge });
+  mdb.balances[ctx.user.id] = bal - charge;
+  moneyTx(mdb, {
+    type: "fx-filter-buy", from: ctx.user.id, to: null,
+    charms: charge, cents: 0, cut: 0, ref: wantPack ? "pack" : lensId,
+  });
+  writeMoney(mdb);
+  const u = d.users[ctx.user.id] || (d.users[ctx.user.id] = { owned: [] });
+  if (!Array.isArray(u.owned)) u.owned = [];
+  for (const g of grant) if (u.owned.indexOf(g) < 0) u.owned.push(g);
+  d.sales.push({
+    uid: ctx.user.id, lensId: wantPack ? null : lensId, pack: wantPack,
+    charms: charge, test: fxShopTest553(ctx.user, adb), at: new Date().toISOString(),
+  });
+  try {
+    writeFxShop553(d);
+  } catch (e) {
+    // The debit landed but the ownership write failed: refund in the
+    // same lock so a member never pays for a filter they don't own.
+    const m2 = readMoney();
+    m2.balances[ctx.user.id] = (m2.balances[ctx.user.id] || 0) + charge;
+    moneyTx(m2, { type: "fx-filter-refund", from: null, to: ctx.user.id, charms: charge, cents: 0, cut: 0, ref: wantPack ? "pack" : lensId });
+    writeMoney(m2);
+    throw e;
+  }
+  res.json({ ok: true, owned: fxShopOwned553(d, ctx.user, adb), balance: mdb.balances[ctx.user.id], charged: charge });
+}));
+
 // [RP-V7.335] One original sound: name, owner, live use count, and
 // every post that used it (the source post first — it is use #1).
 app.get("/api/sounds/orig/:id", (req, res) => {
@@ -33168,6 +33307,7 @@ app.get("/api/owner/sales", (req, res) => {
     rewardsClub393: rpRewardsBoard393(),
     boost394: bstBoard394(), // [RP-V7.394] Community Boost summary (Branden's every-stream-reports rule) // [RP-V7.393] rewards-club summary (Branden's every-stream-reports rule) // [RP-V7.392] referrals + points + coupons summary (Branden's every-stream-reports rule) // [OWNER-DELETE] owner-scheduled deletions in their 30-day recovery window
     ladder531: rpLadderBoard531(), // [RP-V7.531] Star Ladder: earners, SP issued, heads per tier (the ladder moves no money; its issuance still reports here per the every-stream rule)
+    fxshop553: rpFxShopBoard553(), // [RP-V7.553] Premium filter sales: gross charms + count, test-account sales excluded (counted separately on the payload)
   });
 });
 // ---------------------------------------------------------------------------
