@@ -12576,15 +12576,22 @@ app.post("/api/photo/text-post", (req, res) => {
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // [RP-V7.245] ✨ AI FILTERS — photo restyle for the Plaza (Branden, Nov 5:
-// "Just build it into the platform"). The style rail mirrors TikTok's AI
-// filter lineup by name and look — AI Anime, AI Manga, AI Painting,
-// AI Portrait, 3D Cartoon, Watercolor, Cyberpunk, Vintage Film,
-// Pencil Sketch, Pop Art, Cinematic — but every restyle is produced by
-// the Plaza's OWN engine integration (fal.ai), never ByteDance's, and
-// the recipes below are the Plaza's own prompts. ONE provider fronts
-// every model: fal.ai. Face-critical styles (AI Portrait, AI Painting,
-// 3D Cartoon) ride the premium editor (Nano Banana 2); the rest ride
-// the standard editor (FLUX.2 [dev]).
+// "Just build it into the platform"). [RP-V7.563] The catalog was
+// overhauled at Branden's order (Nov 28): the cartoon styles (AI Anime,
+// AI Manga, 3D Cartoon) are OUT, and the set is stocked with realistic,
+// deep-look transformations of the kind TikTok's AI effects do —
+// glamour, eras, outfits, star portraits. 22 styles: AI Painting,
+// AI Portrait, Watercolor, Cyberpunk, Vintage Film, Pencil Sketch,
+// Pop Art, Cinematic, Glamour, Golden Hour, Old Hollywood, 90s
+// Yearbook, Royal Portrait, Superhero, Pro Headshot, Wedding Day,
+// Sports Star, Movie Poster, New Hairstyle, Red Carpet, 70s Film,
+// Western — plus 8 AI TEMPLATES (group:"template", full-scene drops:
+// Stage Star, Dragon Rider, Space Explorer, Underwater World, Boxing
+// Champion, Runway Model, Race Driver, Pirate Captain). 30 entries. Every restyle is produced by the Plaza's OWN engine
+// integration (fal.ai), never ByteDance's, and the recipes below are
+// the Plaza's own prompts. ONE provider fronts every model: fal.ai.
+// Face-critical styles ride the premium editor (Nano Banana 2); the
+// rest ride the standard editor (FLUX.2 [dev]).
 //   FAL_KEY lives ONLY in the server environment. The client never
 //   sees the key, the prompts, or the provider. With no key (and no
 //   rig stub) the routes answer honestly that AI filters are being
@@ -12615,17 +12622,40 @@ const AI_USAGE_FILE245 =
 const AI_MODEL_STD245 = "fal-ai/flux-2/edit"; // FLUX.2 [dev] image edit, ~$0.012/restyle
 const AI_MODEL_PRO245 = "fal-ai/nano-banana-2/edit"; // Nano Banana 2, ~$0.08/restyle
 const AI_STYLES245 = [
-  { id: "ai-anime", name: "AI Anime", tier: "standard", prompt: "Transform this photo into polished, high-quality anime style artwork. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same background layout — only the art style changes." },
-  { id: "ai-manga", name: "AI Manga", tier: "standard", prompt: "Transform this photo into black-and-white Japanese manga ink artwork with clean line art and screentone shading. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same composition — only the art style changes." },
   { id: "ai-painting", name: "AI Painting", tier: "premium", prompt: "Transform this photo into a rich classical oil painting with visible brushstrokes and warm gallery lighting. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same background — only the medium changes into oil paint." },
   { id: "ai-portrait", name: "AI Portrait", tier: "premium", prompt: "Turn this photo into a stunning professional studio portrait of the exact same person: preserve their face and identity precisely, keep the same pose and outfit, with soft studio lighting, a clean elegant backdrop and a high-end retouched finish." },
-  { id: "3d-cartoon", name: "3D Cartoon", tier: "premium", prompt: "Transform this photo into a charming 3D animated-film style render, like a modern Pixar character. Keep the exact same person with the same recognizable features, the same pose, the same outfit and the same scene — only the rendering style changes." },
   { id: "watercolor", name: "Watercolor", tier: "standard", prompt: "Transform this photo into a soft watercolor painting with gentle pigment blooms and subtle paper texture. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same composition — only the medium changes into watercolor." },
   { id: "cyberpunk", name: "Cyberpunk", tier: "standard", prompt: "Transform this photo into neon cyberpunk style: glowing magenta and cyan city light, futuristic mood, rain-slick reflections. Keep the exact same person with the same recognizable face, the same pose and the same outfit — only the style and lighting change." },
   { id: "vintage-film", name: "Vintage Film", tier: "standard", prompt: "Transform this photo into a warm vintage film photograph: soft grain, faded golden tones, a gentle vignette, a 1970s snapshot feel. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same scene — only the photographic treatment changes." },
   { id: "pencil-sketch", name: "Pencil Sketch", tier: "standard", prompt: "Transform this photo into a detailed hand-drawn pencil sketch on white paper with careful shading and line work. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same composition — only the medium changes into pencil." },
   { id: "pop-art", name: "Pop Art", tier: "standard", prompt: "Transform this photo into bold pop art: flat saturated colors, thick outlines, halftone dots, comic poster energy. Keep the exact same person with the same recognizable face, the same pose and the same outfit — only the art style changes." },
   { id: "cinematic", name: "Cinematic", tier: "standard", prompt: "Transform this photo into a dramatic cinematic film still: teal-and-orange blockbuster color grade, anamorphic glow, shallow depth of field. Keep the exact same person with the same recognizable face, the same pose, the same outfit and the same scene — only the film treatment changes." },
+  // [RP-V7.563] 14 realistic TikTok-style looks added (cartoon styles removed above).
+  { id: "glamour", name: "Glamour", tier: "premium", prompt: "Transform this photo into a red-carpet glamour portrait of the exact same person: preserve their face and identity precisely, keep the same pose, with flawless glamorous makeup and polished styling, elegant evening attire, soft studio beauty lighting and a high-end celebrity magazine finish — photorealistic." },
+  { id: "golden-hour", name: "Golden Hour", tier: "standard", prompt: "Transform this photo into a warm golden-hour portrait: the exact same person with the same recognizable face, the same pose, the same outfit and the same scene, bathed in warm sunset light with a soft golden glow on the skin and gentle cinematic warmth — photorealistic." },
+  { id: "old-hollywood", name: "Old Hollywood", tier: "standard", prompt: "Transform this photo into a 1950s Old Hollywood black-and-white film-star portrait: the exact same person with the same recognizable face and the same pose, glamorous studio lighting, classic silver-screen contrast and a timeless movie-star finish — photorealistic." },
+  { id: "yearbook-90s", name: "90s Yearbook", tier: "standard", prompt: "Transform this photo into a 1990s school yearbook portrait: the exact same person with the same recognizable face, posed against a classic blue-grey studio backdrop with soft yearbook lighting and a nostalgic 90s photo finish — photorealistic." },
+  { id: "royal", name: "Royal Portrait", tier: "premium", prompt: "Transform this photo into a regal royal portrait of the exact same person: preserve their face and identity precisely, keep the same pose, dressed in elegant royal attire with fine detailing, in a grand palace setting with dignified, painterly light — photorealistic." },
+  { id: "superhero", name: "Superhero", tier: "premium", prompt: "Transform this photo into a realistic cinematic superhero movie still starring the exact same person: preserve their face and identity precisely, keep the same pose, now wearing a heroic modern superhero suit, with a dramatic city backdrop and blockbuster lighting — photorealistic, like a real film frame." },
+  { id: "headshot", name: "Pro Headshot", tier: "standard", prompt: "Transform this photo into a polished professional headshot of the exact same person: preserve their face and identity precisely, keep the same pose, wearing smart business attire against a clean neutral backdrop with soft corporate lighting — photorealistic." },
+  { id: "wedding", name: "Wedding Day", tier: "premium", prompt: "Transform this photo into an elegant wedding-day portrait of the exact same person: preserve their face and identity precisely, keep the same pose, dressed in beautiful formal wedding attire, with soft romantic light and a joyful celebration setting — photorealistic." },
+  { id: "sports-star", name: "Sports Star", tier: "standard", prompt: "Transform this photo into a professional athlete stadium portrait of the exact same person: preserve their face and identity precisely, keep the same pose, wearing a pro sports uniform under bright stadium lights with a cheering crowd softly blurred behind — photorealistic." },
+  { id: "movie-poster", name: "Movie Poster", tier: "premium", prompt: "Transform this photo into a cinematic action movie poster starring the exact same person: preserve their face and identity precisely, heroic poster composition, dramatic lighting, an epic backdrop and a blockbuster color grade — photorealistic, like a real theatrical poster." },
+  { id: "hairstyle", name: "New Hairstyle", tier: "premium", prompt: "Give the exact same person in this photo a fresh, salon-quality new hairstyle: preserve their face, identity, pose, outfit and the background exactly — only the hairstyle changes, styled professionally and photorealistic." },
+  { id: "red-carpet", name: "Red Carpet", tier: "premium", prompt: "Transform this photo into a celebrity red-carpet moment starring the exact same person: preserve their face and identity precisely, keep the same pose, wearing a glamorous red-carpet outfit, with camera flashes and a premiere-night backdrop behind — photorealistic." },
+  { id: "seventies", name: "70s Film", tier: "standard", prompt: "Transform this photo into a 1970s film photograph: the exact same person with the same recognizable face and the same pose, period hairstyle and wardrobe tones, warm faded film colors and soft grain — photorealistic, like a real 70s snapshot." },
+  { id: "western", name: "Western", tier: "standard", prompt: "Transform this photo into a classic western movie still starring the exact same person: preserve their face and identity precisely, keep the same pose, dressed in frontier western wardrobe with a dusty old-west town backdrop and warm cinematic light — photorealistic, like a real film frame." },
+  // [RP-V7.563] AI TEMPLATES — full-scene drops (group:"template"): the
+  // person is placed INTO a scene, identity preserved. Same engines,
+  // same routes — photo and video restyle both read this table.
+  { id: "stage-star", name: "Stage Star", tier: "premium", group: "template", prompt: "Place the exact same person in this photo on a concert stage as the star performer: preserve their face and identity precisely, performing live with a microphone, dramatic stage lights, light haze and a cheering crowd in the dark beyond the lights — photorealistic, like a real concert photograph." },
+  { id: "dragon-rider", name: "Dragon Rider", tier: "premium", group: "template", prompt: "Place the exact same person in this photo riding a majestic dragon high over a fantasy kingdom: preserve their face and identity precisely, wind in their hair, castles and mountains far below, epic cinematic light — photorealistic, like a real film frame." },
+  { id: "space-explorer", name: "Space Explorer", tier: "premium", group: "template", prompt: "Place the exact same person in this photo on an alien planet as an astronaut explorer: preserve their face and identity precisely, visible through the helmet visor, wearing a realistic space suit, a strange glowing landscape and two moons in the sky — photorealistic, like a real mission photograph." },
+  { id: "underwater", name: "Underwater World", tier: "standard", group: "template", prompt: "Place the exact same person in this photo swimming in a glowing underwater world: preserve their face and identity precisely, sunlight rays through clear blue water, coral and fish around them, a magical bioluminescent glow — photorealistic, like a real underwater photograph." },
+  { id: "boxing-champ", name: "Boxing Champion", tier: "premium", group: "template", prompt: "Place the exact same person in this photo making a boxing champion's ring entrance: preserve their face and identity precisely, a championship belt over their shoulder, robe and gloves, arena lights and a roaring crowd behind — photorealistic, like a real sports photograph." },
+  { id: "runway", name: "Runway Model", tier: "premium", group: "template", prompt: "Place the exact same person in this photo walking a high-fashion runway as the model: preserve their face and identity precisely, wearing an elegant designer outfit, runway lights and photographers' flashes, the audience in the dark on both sides — photorealistic, like a real fashion-week photograph." },
+  { id: "race-driver", name: "Race Driver", tier: "standard", group: "template", prompt: "Place the exact same person in this photo in the cockpit of a race car as the driver: preserve their face and identity precisely, wearing a racing suit and gloves, hands on the wheel, track lights and the motion blur of speed all around — photorealistic, like a real motorsport photograph." },
+  { id: "pirate", name: "Pirate Captain", tier: "standard", group: "template", prompt: "Place the exact same person in this photo as the captain of a tall pirate ship at golden hour: preserve their face and identity precisely, wearing a classic captain's coat and hat, standing at the helm with sails, ropes and the open sea behind — photorealistic, like a real film frame." },
 ];
 function aiStyle245(id) {
   return AI_STYLES245.find((s) => s.id === String(id || "")) || null;
@@ -12700,17 +12730,38 @@ async function aiCallFal245(style, dataUri) {
 // RP_AI_RESTYLE_STUB=1, which is never set in production;
 // RP_AI_RESTYLE_STUB_FAIL=1 forces the provider-failure path.
 const AI_STUB_FILTERS245 = {
-  "ai-anime": "lutrgb=r='bitand(val,224)':g='bitand(val,224)':b='bitand(val,224)',eq=saturation=1.5:contrast=1.08",
-  "ai-manga": "format=gray,eq=contrast=1.35:brightness=0.04",
   "ai-painting": "gblur=sigma=1.2,eq=saturation=1.25:contrast=1.05",
   "ai-portrait": "eq=brightness=0.03:contrast=1.08:saturation=1.12",
-  "3d-cartoon": "gblur=sigma=1,lutrgb=r='bitand(val,224)':g='bitand(val,224)':b='bitand(val,224)',eq=saturation=1.45",
   watercolor: "gblur=sigma=2,eq=saturation=0.9:brightness=0.03",
   cyberpunk: "hue=h=280:s=1.4,eq=saturation=1.5",
   "vintage-film": "colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131:0,eq=contrast=1.02",
   "pencil-sketch": "edgedetect=low=0.08:high=0.28,negate,format=gray",
   "pop-art": "lutrgb=r='bitand(val,192)':g='bitand(val,192)':b='bitand(val,192)',eq=saturation=1.9:contrast=1.15",
   cinematic: "eq=contrast=1.18:saturation=0.88",
+  // [RP-V7.563] stub grades for the 14 new realistic styles (rig-only).
+  glamour: "gblur=sigma=0.6,eq=brightness=0.04:contrast=1.1:saturation=1.18",
+  "golden-hour": "colorbalance=rs=.25:gs=.08:bs=-.2:rm=.15:bm=-.12,eq=saturation=1.25:contrast=1.05",
+  "old-hollywood": "format=gray,eq=contrast=1.3:brightness=0.05,vignette=PI/5",
+  "yearbook-90s": "eq=saturation=0.92:contrast=1.04:brightness=0.03,gblur=sigma=0.4",
+  royal: "eq=saturation=1.15:contrast=1.12,vignette=PI/6",
+  superhero: "eq=contrast=1.25:saturation=1.3",
+  headshot: "eq=brightness=0.05:contrast=1.06:saturation=1.05",
+  wedding: "gblur=sigma=0.8,eq=brightness=0.06:saturation=1.1",
+  "sports-star": "eq=contrast=1.2:saturation=1.22:brightness=0.02",
+  "movie-poster": "eq=contrast=1.3:saturation=1.15,vignette=PI/4",
+  hairstyle: "eq=saturation=1.12:contrast=1.05:brightness=0.02",
+  "red-carpet": "eq=brightness=0.05:contrast=1.14:saturation=1.2",
+  seventies: "eq=saturation=0.88:contrast=1.05,colorbalance=rs=.18:bs=-.15",
+  western: "eq=saturation=0.95:contrast=1.12,colorbalance=rs=.2:gs=.02:bs=-.22",
+  // [RP-V7.563] stub grades for the 8 AI Templates (rig-only).
+  "stage-star": "eq=contrast=1.22:saturation=1.25,vignette=PI/4",
+  "dragon-rider": "eq=saturation=1.3:contrast=1.15",
+  "space-explorer": "eq=saturation=0.85:contrast=1.2,colorbalance=bs=.25:rs=-.1",
+  underwater: "colorbalance=bs=.45:gs=.2:rs=-.3,eq=saturation=1.2:contrast=1.05",
+  "boxing-champ": "eq=contrast=1.28:saturation=1.15,vignette=PI/5",
+  runway: "eq=brightness=0.04:contrast=1.15:saturation=1.18",
+  "race-driver": "eq=contrast=1.22:saturation=1.2",
+  pirate: "colorbalance=rs=.25:gs=.05:bs=-.22,eq=saturation=1.12:contrast=1.08",
 };
 function aiCallStub245(style, srcPath, outPath) {
   return new Promise((resolve, reject) => {
@@ -12748,7 +12799,7 @@ app.get("/api/ai/styles", (req, res) => {
     videoCap: AI_VIDEO_CAP562,
     videoRemaining,
     videoMaxSec: AI_VIDEO_MAX_SEC562,
-    styles: AI_STYLES245.map((s) => ({ id: s.id, name: s.name, tier: s.tier })),
+    styles: AI_STYLES245.map((s) => ({ id: s.id, name: s.name, tier: s.tier, group: s.group || "style" })), // [RP-V7.563] group rides along (style | template)
   });
 });
 app.post("/api/ai/restyle", photoUpload(async (req, res) => {
