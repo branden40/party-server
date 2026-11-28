@@ -3974,7 +3974,7 @@
             <button class="btn-primary" style="width:auto; padding:10px 18px;" id="btnMomPost" type="button" data-i18n="moments_post_photo">＋ Post a photo</button>
             <input type="file" id="momPhotoInput" accept="image/*" multiple hidden /> <!-- [RP-V7.123] multi-pick -->
             <button class="btn-primary" style="width:auto; padding:10px 18px; display:none;" id="btnReelPost" type="button" data-i18n="moments_post_reel">＋ Reel</button>
-            <input type="file" id="reelVideoInput" accept="video/*" hidden />
+            <input type="file" id="reelVideoInput" accept="image/*,video/*" hidden /> <!-- [RP-V7.561] image/* added: a photo picked here branches into the photo composer (see the reelInput change handler) -->
             <!-- [RP-GAMEICON] the V7.428 Reels-head Gaming door (#btnGamingMom) is REMOVED — gaming icon in the Home header only -->
           </div>
           <!-- [RP-V7.70] Plaza Stories tray (same tray as Home). -->
@@ -33990,6 +33990,11 @@
       if (reelInput) reelInput.addEventListener("change", function () {
         var f = reelInput.files && reelInput.files[0];
         reelInput.value = "";
+        if (f && /^image\//.test(f.type || "")) { /* [RP-V7.561] a PHOTO picked from the camera Upload (or the reel pick) goes to the photo composer, not the reel path: hand the file to the V7.247 share-in bridge, which runs the momPhotoInput accept path (downscale → pendingPhotos → openMomComposer, ✨ AI Filter button included). A camera pick is marked camUpload156 first, so the photo path treats it exactly like the PHOTO-mode Upload (fromCam156: the camera closes, a camera-attached sound is adopted). Videos fall through to the untouched reel path below. */
+          if (window.rpCamUpPick157) { window.rpCamUpPick157 = false; Moments.camUpload156 = true; }
+          if (window.rpPhotoShareIn247) window.rpPhotoShareIn247(f, "");
+          return;
+        }
         if (window.rpCamUpPick157) { window.rpCamUpPick157 = false; var at501 = window.rpSndAttached501 && window.rpSndAttached501(); if (at501 && !Reels.pendingSound) Reels.pendingCamSound501 = { trackId: at501.trackId, start: at501.start || 0, musicVol: at501.musicVol, origVol: at501.origVol }; var ct550b = window.rpCamTpl550 ? window.rpCamTpl550() : null; if (ct550b) Reels.pendingCamTpl550 = ct550b; /* [RP-V7.550] an armed camera template rides the upload pick beside the sound (same stash pattern — reelClearPending can't wipe it, openReelComposer adopts it) */ /* [RP-V7.501] a sound attached on the camera rides the upload pick into the reel — before, only the recorded path (editorCommit) ever set Reels.pendingSound, so picked videos posted silent. It rides as a stash, not pendingSound itself: reelAcceptVideoFile's reelClearPending() wipes pendingSound, and openReelComposer adopts the stash on its next open (the accept path always opens it). */ try { if (window.rpCloseCamera) window.rpCloseCamera(); } catch (e) { } } // [RP-V7.191] was a bare Cam reference — Cam is local to the camera module, so this threw and killed every file pick since V7.157
         reelAcceptVideoFile(f);
       });
