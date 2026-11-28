@@ -6273,6 +6273,7 @@ app.get("/api/reels", (req, res) => {
       ...(r.titleText ? { titleText: r.titleText, titleStyle: r.titleStyle || "bold" } : {}), // [RP-V7.549] editor title card
       ...(r.sticker && r.sticker.g ? { sticker: r.sticker } : {}), // [RP-V7.549] editor sticker
       ...(r.look ? { look: r.look } : {}), // [RP-V7.549] the baked look's name (display only — the file already carries it)
+      ...(r.eventId ? { eventId: r.eventId, eventChip: eventChip554(r.eventId) } : {}), // [RP-V7.554] attached LIVE Event chip (null chip when the event was cancelled)
       // [RP-V7.90] the reel's attached sound (reference + mix), if any.
       musicTrackId: r.musicTrackId || null,
       musicStart: typeof r.musicStart === "number" ? r.musicStart : null,
@@ -8315,6 +8316,9 @@ app.post("/api/reel", (req, res) => {
       }
     }
     const anySnd335 = !!(musicTrackId || origSoundId335);
+    // [RP-V7.554] Optional LIVE Event attach: host/featured only,
+    // validated by eventAttach554; a bad id silently doesn't attach.
+    const eventId554 = eventAttach554(rb.eventId, authorUser);
     const musicStart = anySnd335 ? (reelNum(rb.musicStart, 0, 3600) || 0) : null;
     const musicVol = anySnd335 ? (reelNum(rb.musicVol, 0, 1) ?? 0.8) : null;
     const origVol = anySnd335 ? (reelNum(rb.origVol, 0, 1) ?? 1) : null;
@@ -8352,6 +8356,7 @@ app.post("/api/reel", (req, res) => {
       ...((rb156.clubOnly === "1" || rb156.clubOnly === "true" || rb156.clubOnly === true) && authorUser ? { clubOnly: true } : {}), // [RP-V7.298] Fan-club toggle at creation — same rule
       ...((rb.category === "gaming" || rpCaptionIsGaming438(caption)) ? { category: "gaming" } : {}), // [RP-V7.438] auto-route: a caption matching RP_GAMING_TERMS stores the category too, toggle or not — and a match never removes a category the toggle set // [RP-GAMING] the composer's Gaming toggle at creation — only the value "gaming" is a category; anything else stores nothing (the default list ignores the field, the Gaming feed filters on it)
       ...(musicTrackId ? { musicTrackId, musicStart, musicVol, origVol } : {}),
+      ...(eventId554 ? { eventId: eventId554 } : {}), // [RP-V7.554]
       ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart, musicVol, origVol } : {}), // [RP-V7.335]
     });
     // [RP-V7.453] Composer collab invite (optional; account authors
@@ -12300,6 +12305,7 @@ function photoPublicPost(p, uid, likesDb, commentsDb, repostsDb, gifts262, fanAc
     audience: p.audience || "everyone",
     allowComments: p.allowComments !== false, // [RP-V7.549]
     ...(p.aiLabel ? { aiLabel: true } : {}), // [RP-V7.549]
+    ...(p.eventId ? { eventId: p.eventId, eventChip: eventChip554(p.eventId) } : {}), // [RP-V7.554] attached LIVE Event chip
     createdAt: p.ts || null,
     mine: !!uid && uid === p.owner,
     likes: set.length,
@@ -12415,7 +12421,9 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       } else urls.push(it.url);
     }
     const musicTrackId = soundCleanId(b.musicTrackId);
-    // [RP-V7.335] A member sound may ride a photo post instead of a
+    // [RP-V7.554] Optional LIVE Event attach (host/featured only;
+    // a bad id silently doesn't attach — the post never fails).
+    const eventId554p = eventAttach554(b.eventId, ctx.user);
     // catalog track — same registry gate as reels.
     let origSoundId335 = musicTrackId ? null : origCleanId335(b.origSoundId);
     if (origSoundId335) {
@@ -12444,6 +12452,7 @@ app.post("/api/photo/post", photoUploadSet(async (req, res) => {
       ts: new Date().toISOString(),
       ...(musicTrackId ? { musicTrackId, musicStart: reelNum(b.musicStart, 0, 3600) || 0, musicVol: reelNum(b.musicVol, 0, 1) ?? 0.8 } : {}),
       ...(origSoundId335 ? { origSoundId: origSoundId335, musicStart: reelNum(b.musicStart, 0, 3600) || 0, musicVol: reelNum(b.musicVol, 0, 1) ?? 0.8 } : {}), // [RP-V7.335]
+      ...(eventId554p ? { eventId: eventId554p } : {}), // [RP-V7.554]
     };
     if (musicTrackId) soundTouchUse(ctx.user.id, musicTrackId);
     if (origSoundId335) origRecordUse335(origSoundId335, { kind: "photo", id: post.id, by: ctx.user.id }); // [RP-V7.335]
@@ -21158,6 +21167,7 @@ function pushUrl405(o, adb) {
   if (go.screen === "dm" && idOk(go.id)) return "/?dm=" + go.id;
   if (go.screen === "live" && typeof go.room === "string" && go.room)
     return "/?live=" + encodeURIComponent(go.room.slice(0, 120));
+  if (go.screen === "event" && idOk(go.id)) return "/?event=" + go.id; // [RP-V7.554]
   if (go.screen === "profile" && o.actorId) {
     try {
       const au = (adb.users || []).find((x) => x && x.id === o.actorId);
@@ -31006,6 +31016,443 @@ function showSweep385() {
   if (changed) writeShows385(db);
 }
 // ---------------------------------------------------------------------------
+// [RP-V7.554] LIVE EVENTS + REGISTRATION (Branden, Nov 27, 2026: "We
+// need something like this" — TikTok LIVE Premiere pages). A host
+// creates an EVENT for an upcoming live: cover image, title, start
+// time, description, up to 3 featuring members, and the kind of live
+// it points at (regular / auction room / church room). The event has
+// its own page (hero cover, host + featuring rows with follow state,
+// Date in the viewer's zone + ET, "Price: Free", About, related
+// posts) and a Register button. Registration is FREE — there is no
+// price field and no money anywhere in this build. Registrations
+// persist per member in events554.json.
+//
+// NOTIFICATION PLUMBING (audit): every alert rides the EXISTING
+// funnel — notifyActivity with kind "liveinvite", exactly like the
+// V7.274 live invites and the V7.385 show alerts — so the member's
+// own "Live invites" switch governs them and they land as bell +
+// phone push (pushToUser328 via pushUrl405, which maps the event go
+// to /?event=<id>) + email per channel switches, never SMS. Two
+// sends exist: the START notification (below) and a cancellation
+// notice. Registering itself sends nothing (no spam).
+//
+// THE DUE WINDOW (the claim rule): when a host's NEW public live
+// enters the registry, eventOnLiveStart554 runs beside
+// showOnLiveStart385 at BOTH creation doors (live-register and
+// beat-heal). The live CLAIMS the host's soonest due event: one
+// whose startsAt sits in [liveStart − 3h, liveStart + 30min] —
+// i.e. the host went live no earlier than 30 minutes before the
+// scheduled start and no later than 3 hours after it. A candidate
+// whose roomKind matches the live's nature (an auction live for an
+// auction event, a Fellowship-origin live for a church event) wins
+// over a non-matching one; otherwise the soonest startsAt wins. The
+// claim flips the event to "live" in the same write that records
+// the claim, so exactly ONE live can ever claim an event and every
+// registrant gets exactly ONE start notification. A sweep closes
+// events: a scheduled event 3h past its start with no claim becomes
+// "ended" (missed), a live event whose host has left the registry
+// becomes "ended", and terminal events older than 14 days are
+// pruned. Church events are registration-only pages — free, with no
+// commerce anywhere in the flow (the standing church rule).
+//
+// POST CHIP: a post/reel created with eventId stores it ONLY when
+// the poster is the event's host or a featured member and the event
+// is upcoming/live (eventAttach554 — a bad id silently doesn't
+// attach, the V7.453 collab rule: an attach never fails a post).
+// The feed serializers carry a compact eventChip {id,title,startsAt,
+// status} the client renders as "📅 LIVE Event · <date>".
+// ---------------------------------------------------------------------------
+const EVENTS554_FILE =
+  process.env.EVENTS554_FILE ||
+  path.join(path.dirname(PHOTO_DIR), "events554.json");
+const EVENT_KINDS554 = ["live", "auction", "church"];
+const EVENT_MAX_AHEAD_MS554 = 30 * 24 * 60 * 60 * 1000; // <= 30 days out (the shows rule)
+const EVENT_MAX_PER_HOST554 = 10; // upcoming events at a time (the shows rule)
+const EVENT_EARLY_MS554 = 30 * 60 * 1000; // a live may claim from 30 min before the start
+const EVENT_LATE_MS554 = 3 * 60 * 60 * 1000; // ... until 3h after it
+const EVENT_LIST_GRACE_MS554 = 15 * 60 * 1000; // discovery keeps just-started events
+const EVENT_SWEEP_MS554 = Math.max(1000, Number(process.env.EVENTS554_SWEEP_MS) || 60 * 1000);
+function readEvents554() {
+  return storeReadJson(
+    EVENTS554_FILE,
+    (d) => !!(d && Array.isArray(d.events)),
+    { events: [] },
+    "events554"
+  );
+}
+function writeEvents554(db) {
+  storeWriteJson(EVENTS554_FILE, db);
+}
+function eventCleanId554(v) {
+  const s = String(v || "");
+  return /^ev-[a-z0-9]{8,24}$/.test(s) ? s : null;
+}
+function eventById554(db, id) {
+  return (db.events || []).find((x) => x && x.id === id) || null;
+}
+// The compact chip the post serializers carry (null when the event
+// is gone or cancelled — a cancelled event's chip leaves the post).
+function eventChip554(id) {
+  const cid = eventCleanId554(id);
+  if (!cid) return null;
+  try {
+    const ev = eventById554(readEvents554(), cid);
+    if (!ev || ev.status === "cancelled") return null;
+    return { id: ev.id, title: ev.title, startsAt: ev.startsAt, status: ev.status };
+  } catch (e) { return null; }
+}
+// Attach gate for post creation (see the banner): host or featured
+// member only, event upcoming or live and not stale. Returns the id
+// to store, or null — never an error.
+function eventAttach554(rawId, user) {
+  try {
+    if (!user || !user.id) return null;
+    const cid = eventCleanId554(rawId);
+    if (!cid) return null;
+    const ev = eventById554(readEvents554(), cid);
+    if (!ev) return null;
+    if (ev.status !== "scheduled" && ev.status !== "live") return null;
+    if (ev.startsAt < Date.now() - EVENT_LATE_MS554) return null;
+    if (ev.hostId === user.id) return cid;
+    if (Array.isArray(ev.featuring) && ev.featuring.indexOf(user.id) >= 0) return cid;
+    return null;
+  } catch (e) { return null; }
+}
+function eventNotify554(toId, ev, text, emailSubject) {
+  notifyActivity({
+    toId,
+    kind: "liveinvite",
+    actorId: ev.hostId,
+    actorName: ev.hostName,
+    text,
+    emailSubject,
+    emailText:
+      text +
+      "\n\nOpen Rizz Plaza: https://rizzplaza.com/?event=" + ev.id +
+      "\n\n— The Rizz Plaza team",
+    go: { screen: "event", id: ev.id },
+  });
+}
+function eventPublic554(ev, adb, meId, following) {
+  const host = ((adb && adb.users) || []).find((x) => x && x.id === ev.hostId) || null;
+  const regs = Array.isArray(ev.registrations) ? ev.registrations : [];
+  const feat = (Array.isArray(ev.featuring) ? ev.featuring : []).map((fid) => {
+    const fu = ((adb && adb.users) || []).find((x) => x && x.id === fid) || null;
+    return {
+      id: fid,
+      name: fu ? fu.name || fu.username || "Member" : "Member",
+      username: fu ? fu.username || "" : "",
+      photo: fu && fu.photo ? String(fu.photo).slice(0, 500) : null,
+      following: !!(meId && following && following.indexOf(fid) >= 0),
+      mine: !!(meId && fid === meId),
+    };
+  });
+  return {
+    id: ev.id,
+    hostId: ev.hostId,
+    hostName: ev.hostName,
+    hostUsername: host ? host.username || "" : "",
+    hostPhoto: host && host.photo ? String(host.photo).slice(0, 500) : null,
+    hostFollowing: !!(meId && following && following.indexOf(ev.hostId) >= 0),
+    title: ev.title,
+    cover: ev.cover || null,
+    startsAt: ev.startsAt,
+    durationMin: ev.durationMin || null,
+    description: ev.description || "",
+    featuring: feat,
+    roomKind: ev.roomKind,
+    room: ev.room,
+    status: ev.status,
+    regCount: regs.length,
+    registeredByMe: !!(meId && regs.indexOf(meId) >= 0),
+    mine: !!(meId && ev.hostId === meId),
+    featuredMe: !!(meId && Array.isArray(ev.featuring) && ev.featuring.indexOf(meId) >= 0),
+    liveRoom: ev.status === "live" ? showLiveRoom385(ev.hostId) || ev.liveRoom || null : null,
+    liveAt: ev.liveAt || null,
+    createdAt: ev.createdAt,
+  };
+}
+function eventFollowing554(adb, meId) {
+  if (!meId) return [];
+  try { return socialFollowingIds(readSocial(), meId); } catch (e) { return []; }
+}
+// The host's posts carrying this event's chip (real query over both
+// post stores, newest first, cap 6).
+function eventRelated554(evId) {
+  const out = [];
+  try {
+    for (const r of listReels()) {
+      if (r && r.eventId === evId && r.file)
+        out.push({ kind: "reel", id: r.id, caption: r.caption || "", authorName: r.author || "", thumb: rpPosterUrl482(r), at: r.createdAt || "" });
+    }
+  } catch (e) { }
+  try {
+    const pp = readPhotoPosts();
+    for (const p of (pp && pp.posts) || []) {
+      if (p && p.eventId === evId && p.photo)
+        out.push({ kind: "photo", id: p.id, caption: p.caption || "", authorName: p.name || "", thumb: rpThumbUrl485(p.photo) || p.photo, at: p.ts || "" });
+    }
+  } catch (e) { }
+  out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  return out.slice(0, 6);
+}
+app.post("/api/events554", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  if (ageFromDob(ctx.user.dob) < 18)
+    return res.status(403).json({ ok: false, error: "adults-only" });
+  const b = req.body || {};
+  const title = String(b.title || "").replace(/[<>&"']/g, "").trim();
+  if (!title) return res.status(400).json({ ok: false, error: "title-required" });
+  if (title.length > 80)
+    return res.status(400).json({ ok: false, error: "title-too-long" });
+  const roomKind = EVENT_KINDS554.indexOf(String(b.roomKind || "live")) >= 0 ? String(b.roomKind || "live") : null;
+  if (!roomKind) return res.status(400).json({ ok: false, error: "bad-room-kind" });
+  let room = String(b.room || "").trim();
+  if (roomKind === "church") room = "faith"; // the church room (Christian Fellowship)
+  if (SHOW_ROOMS385.indexOf(room) < 0) room = roomKind === "church" ? "faith" : "neon";
+  const startsAt = Math.floor(Number(b.startsAt) || 0);
+  const now = Date.now();
+  if (!startsAt || startsAt <= now)
+    return res.status(400).json({ ok: false, error: "starts-in-past" });
+  if (startsAt - now > EVENT_MAX_AHEAD_MS554)
+    return res.status(400).json({ ok: false, error: "too-far-ahead" });
+  let durationMin = Math.floor(Number(b.durationMin) || 0);
+  if (!(durationMin >= 15 && durationMin <= 720)) durationMin = null;
+  // Cover: an image the host already uploaded through the existing
+  // photo path (their account gallery) — no new storage, and a URL
+  // that isn't theirs is refused, exactly like a photo post's URLs.
+  let cover = null;
+  if (b.cover) {
+    const cu = String(b.cover).slice(0, 600);
+    const fi = cu.indexOf("/photos/");
+    const file = fi >= 0 ? cu.slice(fi + "/photos/".length) : null;
+    const owned = !!file && accountPhotos(ctx.user).some((x) => {
+      const xi = String(x || "").indexOf("/photos/");
+      return xi >= 0 && String(x).slice(xi + "/photos/".length) === file;
+    });
+    if (!owned) return res.status(400).json({ ok: false, error: "cover-not-yours" });
+    cover = cu;
+  }
+  // Featuring: up to 3 real members by @username (never the host,
+  // never a deleted/locked account, duplicates collapse).
+  const featuring = [];
+  if (Array.isArray(b.featuring)) {
+    for (const rawName of b.featuring.slice(0, 6)) {
+      const key = usernameKey(String(rawName || "").replace(/^@+/, ""));
+      if (!key) continue;
+      const fu = (ctx.db.users || []).find((x) => x && !x.deletionAt && usernameKey(x.username) === key);
+      if (!fu) return res.status(400).json({ ok: false, error: "featuring-unknown", username: String(rawName || "").slice(0, 40) });
+      if (fu.id === ctx.user.id) continue;
+      if (featuring.indexOf(fu.id) < 0) featuring.push(fu.id);
+      if (featuring.length >= 3) break;
+    }
+  }
+  const db = readEvents554();
+  const mine = db.events.filter((x) => x.hostId === ctx.user.id && x.status === "scheduled");
+  if (mine.length >= EVENT_MAX_PER_HOST554)
+    return res.status(409).json({ ok: false, error: "too-many-events", limit: EVENT_MAX_PER_HOST554 });
+  const ev = {
+    id: "ev-" + crypto.randomBytes(8).toString("hex"),
+    hostId: ctx.user.id,
+    hostName: ctx.user.name || ctx.user.username || "Host",
+    title,
+    cover,
+    startsAt,
+    durationMin,
+    description: String(b.description || "").replace(/[<>&"']/g, "").trim().slice(0, 600),
+    featuring,
+    roomKind,
+    room,
+    status: "scheduled",
+    registrations: [],
+    liveAt: null,
+    liveRoom: null,
+    createdAt: new Date().toISOString(),
+  };
+  db.events.push(ev);
+  writeEvents554(db);
+  res.json({ ok: true, event: eventPublic554(ev, ctx.db, ctx.user.id, eventFollowing554(ctx.db, ctx.user.id)) });
+});
+app.get("/api/events554", (req, res) => {
+  const adb = readAccounts();
+  const me = accountForToken(adb, req);
+  const meId = me ? me.id : null;
+  const following = eventFollowing554(adb, meId);
+  const now = Date.now();
+  const db = readEvents554();
+  const list = db.events
+    .filter(
+      (ev) =>
+        ev.status === "live" ||
+        (ev.status === "scheduled" && ev.startsAt > now - EVENT_LIST_GRACE_MS554)
+    )
+    .sort((a, b) => (a.startsAt - b.startsAt) || ((b.registrations || []).length - (a.registrations || []).length))
+    .slice(0, 50)
+    .map((ev) => eventPublic554(ev, adb, meId, following));
+  res.json({ ok: true, events: list });
+});
+app.get("/api/events554/mine", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const following = eventFollowing554(ctx.db, ctx.user.id);
+  const now = Date.now();
+  const db = readEvents554();
+  const pub = (ev) => eventPublic554(ev, ctx.db, ctx.user.id, following);
+  const hosting = db.events
+    .filter((ev) => ev.hostId === ctx.user.id && (ev.status === "scheduled" || ev.status === "live" || ev.startsAt > now - 7 * 24 * 60 * 60 * 1000))
+    .sort((a, b) => a.startsAt - b.startsAt)
+    .slice(0, 100)
+    .map(pub);
+  const registered = db.events
+    .filter((ev) => ev.hostId !== ctx.user.id && Array.isArray(ev.registrations) && ev.registrations.indexOf(ctx.user.id) >= 0 && (ev.status === "scheduled" || ev.status === "live" || ev.startsAt > now - 7 * 24 * 60 * 60 * 1000))
+    .sort((a, b) => a.startsAt - b.startsAt)
+    .slice(0, 100)
+    .map(pub);
+  res.json({ ok: true, hosting, registered });
+});
+app.get("/api/events554/:id", (req, res) => {
+  const adb = readAccounts();
+  const me = accountForToken(adb, req);
+  const meId = me ? me.id : null;
+  const db = readEvents554();
+  const ev = eventById554(db, String(req.params.id || ""));
+  if (!ev) return res.status(404).json({ ok: false, error: "event-not-found" });
+  const out = eventPublic554(ev, adb, meId, eventFollowing554(adb, meId));
+  out.related = eventRelated554(ev.id);
+  res.json({ ok: true, event: out });
+});
+app.post("/api/events554/:id/register", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const db = readEvents554();
+  const ev = eventById554(db, String(req.params.id || ""));
+  if (!ev) return res.status(404).json({ ok: false, error: "event-not-found" });
+  if (ev.hostId === ctx.user.id)
+    return res.status(403).json({ ok: false, error: "own-event" });
+  if (!Array.isArray(ev.registrations)) ev.registrations = [];
+  const i = ev.registrations.indexOf(ctx.user.id);
+  let registered;
+  if (i >= 0) {
+    ev.registrations.splice(i, 1); // tap again = unregister (any live/scheduled state)
+    registered = false;
+  } else {
+    if (ev.status !== "scheduled")
+      return res.status(409).json({ ok: false, error: "not-registerable" });
+    ev.registrations.push(ctx.user.id);
+    registered = true;
+  }
+  writeEvents554(db);
+  res.json({ ok: true, registered, regCount: ev.registrations.length });
+});
+app.post("/api/events554/:id/cancel", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  if (isPendingDeletion(ctx.user))
+    return res.status(403).json({ ok: false, error: "account-pending-deletion" });
+  const db = readEvents554();
+  const ev = eventById554(db, String(req.params.id || ""));
+  if (!ev) return res.status(404).json({ ok: false, error: "event-not-found" });
+  if (ev.hostId !== ctx.user.id)
+    return res.status(403).json({ ok: false, error: "not-the-host" });
+  if (ev.status !== "scheduled")
+    return res.status(409).json({ ok: false, error: "not-scheduled" });
+  ev.status = "cancelled";
+  ev.cancelledAt = new Date().toISOString();
+  writeEvents554(db);
+  for (const rid of ev.registrations || []) {
+    if (rid === ev.hostId) continue;
+    eventNotify554(
+      rid,
+      ev,
+      "🚫 " + ev.hostName + " cancelled their LIVE Event “" + ev.title + "”",
+      ev.hostName + " cancelled a LIVE Event on Rizz Plaza"
+    );
+  }
+  res.json({ ok: true, event: eventPublic554(ev, ctx.db, ctx.user.id, eventFollowing554(ctx.db, ctx.user.id)) });
+});
+// A host's NEW public live just entered the registry (called beside
+// showOnLiveStart385 at both creation doors): claim their due event
+// (the window + preference rule in the banner) and tell every
+// registrant exactly once. Private lives never claim — an event is
+// a public promise. Fully guarded, like every live-start hook.
+function eventOnLiveStart554(socket, entry) {
+  try {
+    if (!entry || entry.priv) return; // public lives only
+    const hostId = socket && socket.data && socket.data.accountId;
+    if (!hostId) return; // guest host: no account, no events
+    const now = Date.now();
+    const db = readEvents554();
+    const cands = db.events
+      .filter(
+        (ev) =>
+          ev.hostId === hostId &&
+          ev.status === "scheduled" &&
+          ev.startsAt >= now - EVENT_LATE_MS554 &&
+          ev.startsAt <= now + EVENT_EARLY_MS554
+      )
+      .sort((a, b) => a.startsAt - b.startsAt);
+    if (!cands.length) return;
+    let org = "";
+    try {
+      const cfg = liveTicketCfg299.get(entry.key);
+      if (cfg && cfg.org) org = String(cfg.org);
+    } catch (e) { }
+    const liveKind = auctions.has(entry.room) ? "auction" : org === "faith" ? "church" : "live";
+    const pick = cands.find((ev) => ev.roomKind === liveKind) || cands[0];
+    pick.status = "live";
+    pick.liveAt = now;
+    pick.liveRoom = entry.room;
+    writeEvents554(db);
+    const hostName = String(entry.name || pick.hostName || "Someone").slice(0, 60);
+    for (const rid of pick.registrations || []) {
+      if (rid === hostId) continue;
+      eventNotify554(
+        rid,
+        pick,
+        "🔴 " + hostName + " is LIVE — " + pick.title + " (the LIVE Event you registered for)",
+        hostName + " is live on Rizz Plaza"
+      );
+    }
+  } catch (e) {
+    /* an event claim must never break a live start */
+  }
+}
+// The events sweep: missed flips (start + 3h, never claimed), live
+// closure when the host's live has left the registry, and pruning
+// of terminal events 14 days past their start. Fully guarded.
+function eventSweep554() {
+  const now = Date.now();
+  const db = readEvents554();
+  let changed = false;
+  const liveHosts = new Set();
+  for (const e of liveRegistry.values()) {
+    const hid = liveHostAccount274(e);
+    if (hid) liveHosts.add(hid);
+  }
+  const keep = [];
+  for (const ev of db.events) {
+    if ((ev.status === "ended" || ev.status === "cancelled") && now - ev.startsAt > 14 * 24 * 60 * 60 * 1000) { changed = true; continue; }
+    if (ev.status === "scheduled" && now - ev.startsAt > EVENT_LATE_MS554) {
+      ev.status = "ended";
+      ev.endedAt = new Date().toISOString();
+      changed = true;
+    } else if (ev.status === "live" && !liveHosts.has(ev.hostId)) {
+      ev.status = "ended";
+      ev.endedAt = new Date().toISOString();
+      changed = true;
+    }
+    keep.push(ev);
+  }
+  if (keep.length !== db.events.length) changed = true;
+  db.events = keep;
+  if (changed) writeEvents554(db);
+}
+// ---------------------------------------------------------------------------
 // [RP-V7.386] SELLER ORDERS BOARD + WEEKLY BUNDLING (Whatnot parity
 // build 4; Branden, Nov 15, 2026: "everything whatnot has to offer
 // build it"). Until this build a settled auction simply ended:
@@ -36670,6 +37117,7 @@ io.on("connection", (socket) => {
     if (!prev) lobby527Superseded(devKey, now); // [RP-V7.527] a NEW live supersedes any lobby stamped with an earlier live's start
     if (!prev) liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a NEW live invites the host's remembered viewers (public only — the helper refuses private)
     if (!prev) showOnLiveStart385(socket, liveRegistry.get(devKey)); // [RP-V7.385] flip a matching scheduled show live + notify its bookmarkers
+    if (!prev) eventOnLiveStart554(socket, liveRegistry.get(devKey)); // [RP-V7.554] claim a due LIVE Event + notify its registrants exactly once
     broadcastLives();
     emitLiveAccess138(socket, devKey);
     // [RP-V7.537] battle discovery rides the directory's proof of
@@ -36720,6 +37168,7 @@ io.on("connection", (socket) => {
       lobby527Superseded(devKey, now); // [RP-V7.527] a beat-healed NEW live supersedes an earlier live's lobby too
       liveStartedReinvite274(socket, liveRegistry.get(devKey)); // [RP-V7.274] a beat-healed creation is still a new live — invite past viewers (public only)
       showOnLiveStart385(socket, liveRegistry.get(devKey)); // [RP-V7.385] a beat-healed creation flips a matching scheduled show live too
+      eventOnLiveStart554(socket, liveRegistry.get(devKey)); // [RP-V7.554] a beat-healed creation claims a due LIVE Event too
       broadcastLives();
       return;
     }
@@ -38305,6 +38754,19 @@ const showSweepTimer385 = setInterval(() => {
   } catch (e) {}
 }, SHOW_SWEEP_MS385);
 if (showSweepTimer385.unref) showSweepTimer385.unref();
+
+// [RP-V7.554] LIVE Events sweep: once on boot, then on the
+// EVENTS554_SWEEP_MS cadence (60s default): missed flips, live-event
+// closure when the host's live leaves the registry, terminal prune.
+try {
+  eventSweep554();
+} catch (e) {}
+const eventSweepTimer554 = setInterval(() => {
+  try {
+    eventSweep554();
+  } catch (e) {}
+}, EVENT_SWEEP_MS554);
+if (eventSweepTimer554.unref) eventSweepTimer554.unref();
 
 // [RP-V7.386] Orders sweep: once on boot, then on the ORDER_SWEEP_MS
 // cadence (60s default): settle backfill + refund flips + the
