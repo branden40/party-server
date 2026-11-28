@@ -13238,26 +13238,24 @@
            face paints, animal faces, emoji faces, drawn props) and the
            mesh face warps (Long Face, Big Eyes, Tiny Face, Wobble…).
            What stays free: Original + the Beauty group (Glam, 4K HD,
-           HDR, Makeup, B&W — photographic grades). The six PREMIUM
-           lenses below are the same cartoon family BUT members can own
-           them (150 charms single / 500 pack, RP-V7.553) — they stay
-           in the rack untouched, FLAGGED for the owner's call. The
-           removed lenses' painters and warp kinds stay in the code
-           below, unreachable, so any single lens can come back with
-           one line here. */
-        /* [RP-V7.553] PREMIUM PACK — six NEW lenses whose FUN_DRAW
-           painters already lived in the code, unreachable (the old
-           rack never listed them). premium:true marks them as the
-           paid shelf: the server (fxshop553) owns the prices and the
-           per-member ownership; locked ones render with a lock +
-           price in the browser and stay OUT of the camera carousel
-           until bought. Every built-in lens above stays free. */
-        { id: "halo", name: "Angel Halo", group: "Fun", fun: true, premium: true, icon: "😇" },
-        { id: "firecrown", name: "Fire Crown", group: "Fun", fun: true, premium: true, icon: "🔥" },
-        { id: "pirate", name: "Pirate", group: "Fun", fun: true, premium: true, icon: "🏴‍☠️" },
-        { id: "goldchain", name: "Gold Chain", group: "Fun", fun: true, premium: true, icon: "⛓️" },
-        { id: "wizardhat", name: "Wizard Hat", group: "Fun", fun: true, premium: true, icon: "🧙" },
-        { id: "afro", name: "Afro", group: "Fun", fun: true, premium: true, icon: "🦱" }
+           HDR, Makeup, B&W — photographic grades). The removed lenses'
+           painters and warp kinds stay in the code below, unreachable,
+           so any single lens can come back with one line here. */
+        /* [RP-V7.568] THE SIX PREMIUM CARTOON LENSES ARE OUT TOO —
+           the owner's call on the V7.566 flag landed (Branden, Nov 28,
+           2026: "Remove them for everyone and refund buyers"). The
+           V7.553 premium pack (halo, firecrown, pirate, goldchain,
+           wizardhat, afro — 150 charms single / 500 pack) is retired:
+           the rack entries are gone, so every surface that derives
+           from this rack (camera carousel, Effects browser tabs and
+           search, Trending, Favourites) loses them at once; the
+           server retires the offering, strips the entitlements and
+           refunds every buyer in full (fx568RefundMigration). The
+           Premium shelf tab and the pack offer are removed in the
+           browser code below; the FUN_DRAW painters stay in the code,
+           unreachable, per the house pattern. NOTE: the lens id
+           "pirate" here was a LENS — the RP AI template "Pirate
+           Captain" is a different thing and is untouched. */
       ];
       function fxRecipe(id) {
         for (var i = 0; i < LIVE_FILTERS.length; i++) if (LIVE_FILTERS[i].id === id) return LIVE_FILTERS[i];
@@ -18358,7 +18356,13 @@
          account owns all premium by default (server-side bypass,
          surfaced here as Fx553.owner). Gating honesty: lenses
          render client-side, so the lock lives at the pick surfaces
-         + the server ownership record — a store, not DRM. */
+         + the server ownership record — a store, not DRM.
+         [RP-V7.568] RETIRED: the pack is gone — the six lenses left
+         the rack, the Premium tab + pack banner are removed, and the
+         server refuses buys and refunded every buyer in full. This
+         block's sheets/helpers stay in the file unreachable (house
+         pattern); fxLoad553 still runs and now always lands owned []
+         from the server, which nothing renders any more. */
       var Fx553 = { prices: { single: 150, pack: 500 }, premium: [], owned: null, owner: false, balance: null, loaded: false };
       function fxIsPremium553(f) { return !!(f && f.premium); }
       function fxOwned553(id) {
@@ -18537,7 +18541,6 @@
         var q = Fx551.q.trim().toLowerCase();
         if (q) return LIVE_FILTERS.filter(function (f) { return f.id !== "none" && f.name.toLowerCase().indexOf(q) >= 0; }).map(function (f) { return f.id; });
         if (Fx551.tab === "favs") return fxFavs551().slice();
-        if (Fx551.tab === "premium") return LIVE_FILTERS.filter(fxIsPremium553).map(function (f) { return f.id; }); // [RP-V7.553] the storefront shelf
         if (Fx551.tab === "trending") return fxRank551().slice(0, 30);
         var g = Fx551.tab.indexOf("g:") === 0 ? Fx551.tab.slice(2) : "";
         return LIVE_FILTERS.filter(function (f) { return f.group === g && f.id !== "none"; }).map(function (f) { return f.id; });
@@ -18546,20 +18549,16 @@
         if (Fx551.tab === "ai562" && !Fx551.q.trim()) return fxAiGrid562(); // [RP-V7.562]
         var ids = fxGridIds551();
         var h = "";
-        if (Fx551.tab === "premium" && !Fx551.q.trim()) { // [RP-V7.553] the pack offer rides the top of the Premium shelf
-          var due = fxPackDue553();
-          var allOwned = LIVE_FILTERS.filter(fxIsPremium553).every(function (f) { return fxOwned553(f.id); });
-          if (allOwned) h += '<p class="fxb-empty551">' + escHtml(rpT("fx_allowned553")) + "</p>";
-          else h += '<button type="button" class="fxb-pack553" data-fxpack553>★ ' + escHtml(rpT("fx_packname553")) + " — " + escHtml(fxMoney553(due)) + "<small>" + escHtml(rpT("fx_pack_line553")) + "</small></button>";
-        }
-        if (Fx551.tab !== "favs" && Fx551.tab !== "premium" && !Fx551.q.trim()) h += fxTile551(fxRecipe("none")); // the off switch rides the top of the grid, like the carousel's first circle
+        // [RP-V7.568] the pack banner that rode the Premium shelf is
+        // gone with the shelf — nothing is for sale here any more.
+        if (Fx551.tab !== "favs" && !Fx551.q.trim()) h += fxTile551(fxRecipe("none")); // the off switch rides the top of the grid, like the carousel's first circle
         if (!ids.length) h += '<p class="fxb-empty551">' + escHtml(rpT(Fx551.tab === "favs" && !Fx551.q.trim() ? "fx_nofavs551" : "fx_none551")) + "</p>";
         h += ids.map(function (id) { return fxTile551(fxRecipe(id)); }).join("");
         if (Fx551.q.trim()) h += fxAiTiles562(Fx551.q.trim().toLowerCase()); // [RP-V7.562] AI styles join search results
         return h;
       }
       function fxBrowserHTML551() {
-        var tabs = [{ id: "trending", label: "🔥 " + rpT("fx_trending551") }, { id: "favs", label: "★ " + rpT("fx_favs551") }, { id: "premium", label: "★ " + rpT("fx_premium553") }, { id: "ai562", label: "✨ RP AI" }].concat(fxCats551()); // [RP-V7.553] Premium shelf between Favourites and the group tabs // [RP-V7.562] ✨ AI tab: the generative styles, armed for the camera // [RP-V7.564] tab branded RP AI
+        var tabs = [{ id: "trending", label: "🔥 " + rpT("fx_trending551") }, { id: "favs", label: "★ " + rpT("fx_favs551") }, { id: "ai562", label: "✨ RP AI" }].concat(fxCats551()); // [RP-V7.568] the Premium shelf tab is GONE (the pack is retired + refunded; a stale saved "premium" tab self-heals to Trending via the guard below) // [RP-V7.562] ✨ AI tab: the generative styles, armed for the camera // [RP-V7.564] tab branded RP AI
         if (!tabs.some(function (t) { return t.id === Fx551.tab; })) Fx551.tab = "trending";
         return '<div class="fx-wrap fxb-wrap551"><p class="fx-label">✨ ' + escHtml(rpT("cam_effects550")) + ' <span class="fx-cur" data-fxcur>' + escHtml(fxRecipe(Live.filterId).name) + "</span></p>" +
           '<input class="fxb-search551" data-fxsearch551 type="search" placeholder="' + escHtml(rpT("fx_search_ph551")) + '" value="' + escHtml(Fx551.q) + '" autocomplete="off">' +
@@ -87843,7 +87842,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       row(rpT("own_premium_subs"), st.premiumSubsCents) +
       row(rpT("own_gifts_volume"), st.giftsVolumeCents) +
       ((d.fxshop553) ? row("⭐ Premium filter sales", Number(d.fxshop553.grossCharms || 0),
-        '<div class="rp-os-note" style="margin-top:2px">' + Number(d.fxshop553.salesCount || 0).toLocaleString("en-US") + " sale" + (Number(d.fxshop553.salesCount || 0) === 1 ? "" : "s") + " · " + Number(d.fxshop553.grossCharms || 0).toLocaleString("en-US") + " charms (" + Number(d.fxshop553.packSales || 0).toLocaleString("en-US") + " pack, " + Number(d.fxshop553.singleSales || 0).toLocaleString("en-US") + " single)" + (Number(d.fxshop553.testSalesCount || 0) > 0 ? " · test-account sales excluded: " + Number(d.fxshop553.testSalesCount).toLocaleString("en-US") + " (" + Number(d.fxshop553.testGrossCharms || 0).toLocaleString("en-US") + " charms)" : "") + "</div>") : "") + /* [RP-V7.553] gross charms; 1 charm = 1¢ so money() renders the $ equivalent */
+        '<div class="rp-os-note" style="margin-top:2px">' + Number(d.fxshop553.salesCount || 0).toLocaleString("en-US") + " sale" + (Number(d.fxshop553.salesCount || 0) === 1 ? "" : "s") + " · " + Number(d.fxshop553.grossCharms || 0).toLocaleString("en-US") + " charms (" + Number(d.fxshop553.packSales || 0).toLocaleString("en-US") + " pack, " + Number(d.fxshop553.singleSales || 0).toLocaleString("en-US") + " single)" + (Number(d.fxshop553.testSalesCount || 0) > 0 ? " · test-account sales excluded: " + Number(d.fxshop553.testSalesCount).toLocaleString("en-US") + " (" + Number(d.fxshop553.testGrossCharms || 0).toLocaleString("en-US") + " charms)" : "") + (Number(d.fxshop553.refundedCharms || 0) + Number(d.fxshop553.refundedTestCharms || 0) > 0 ? " · lenses retired — refunded in full: " + (Number(d.fxshop553.refundedCharms || 0) + Number(d.fxshop553.refundedTestCharms || 0)).toLocaleString("en-US") + " charms back to " + Number(d.fxshop553.refundBuyers || 0).toLocaleString("en-US") + " buyer" + (Number(d.fxshop553.refundBuyers || 0) === 1 ? "" : "s") : "") + "</div>") : "") + /* [RP-V7.553] gross charms; 1 charm = 1¢ so money() renders the $ equivalent */ /* [RP-V7.568] the refund disclosure rides the same note when the payload carries it */
       row(rpT("own_tips_volume"), st.profileTipsVolumeCents == null ? null : st.profileTipsVolumeCents,
         '<div class="rp-os-note" style="margin-top:2px">' + rpTf("own_tips_note", { n: Number(st.profileTipsCharms || 0).toLocaleString("en-US"), earned: money(st.profileTipsCreatorCents || 0), kept: money(st.profileTipsCutCents || 0) }) + "</div>") + /* [RP-V7.294] */
       row(rpT("own_fan_subs"), st.fanSubsVolumeCents == null ? null : st.fanSubsVolumeCents,
