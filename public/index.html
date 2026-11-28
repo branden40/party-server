@@ -1642,6 +1642,15 @@
       .fxb-star551.on { color: #fe2c2c; border-color: #fe2c2c; box-shadow: 0 0 8px rgba(254,44,44,.5); }
       .fxb-pair551 { position: absolute; top: -6px; left: -3px; z-index: 2; width: 20px; height: 20px; border-radius: 50%; background: #fe2c2c; color: #fff; font-size: 11px; line-height: 1; display: flex; align-items: center; justify-content: center; }
       .fxb-by551 { display: block; font-size: 9.5px; font-weight: 600; color: var(--ink-soft); max-width: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .fxb-lock553 { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 2; background: rgba(0,0,0,.78); color: #ffd23c; border: 1px solid #ffd23c; border-radius: 999px; font-size: 10px; font-weight: 800; line-height: 1; padding: 3px 7px; white-space: nowrap; }
+      .fx-chip.locked553 .fx-swatch { opacity: .55; }
+      .fxb-price553 { display: block; font-size: 9.5px; font-weight: 800; color: #ffd23c; }
+      .fxb-prem553 { position: absolute; bottom: -6px; right: -3px; z-index: 2; width: 20px; height: 20px; border-radius: 50%; background: #ffd23c; color: #000; font-size: 11px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+      .fxb-pack553 { display: block; width: 100%; box-sizing: border-box; margin: 0 0 10px; padding: 11px 13px; border-radius: 14px; border: 1.5px solid #ffd23c; background: linear-gradient(135deg, rgba(254,44,44,.20), rgba(255,210,60,.14)); color: var(--ink); font-family: inherit; font-size: 13.5px; font-weight: 800; text-align: left; cursor: pointer; }
+      .fxb-pack553 small { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-top: 2px; }
+      .fxbuy553-swatch { display: flex; justify-content: center; margin: 6px 0 2px; }
+      .fxbuy553-swatch .fx-swatch { width: 84px; height: 84px; font-size: 40px; }
+      .fxbuy553-swatch .fx-swatch img.fx-thumb { width: 76px; height: 76px; }
       .fxb-empty551 { font-size: 13px; color: var(--ink-soft); font-weight: 600; padding: 10px 2px; margin: 0; }
       .lv-people-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
       .lv-people-row .who-av { flex: none; }
@@ -13289,6 +13298,19 @@
         { id: "starcrown", name: "Star Crown", group: "Fun", fun: true, icon: "🌟" },
         { id: "moonstars", name: "Moon & Stars", group: "Fun", fun: true, pairedSound: "lofi", icon: "🌙" },
         { id: "racinghelmet", name: "Racing Helmet", group: "Fun", fun: true, icon: "🏎️" }
+        /* [RP-V7.553] PREMIUM PACK — six NEW lenses whose FUN_DRAW
+           painters already lived in the code, unreachable (the old
+           rack never listed them). premium:true marks them as the
+           paid shelf: the server (fxshop553) owns the prices and the
+           per-member ownership; locked ones render with a lock +
+           price in the browser and stay OUT of the camera carousel
+           until bought. Every built-in lens above stays free. */
+        ,{ id: "halo", name: "Angel Halo", group: "Fun", fun: true, premium: true, icon: "😇" },
+        { id: "firecrown", name: "Fire Crown", group: "Fun", fun: true, premium: true, icon: "🔥" },
+        { id: "pirate", name: "Pirate", group: "Fun", fun: true, premium: true, icon: "🏴‍☠️" },
+        { id: "goldchain", name: "Gold Chain", group: "Fun", fun: true, premium: true, icon: "⛓️" },
+        { id: "wizardhat", name: "Wizard Hat", group: "Fun", fun: true, premium: true, icon: "🧙" },
+        { id: "afro", name: "Afro", group: "Fun", fun: true, premium: true, icon: "🦱" }
       ];
       function fxRecipe(id) {
         for (var i = 0; i < LIVE_FILTERS.length; i++) if (LIVE_FILTERS[i].id === id) return LIVE_FILTERS[i];
@@ -18369,12 +18391,151 @@
         fxRepaintBrowsers551();
         if (typeof window.rpCamRailRepaint551 === "function") window.rpCamRailRepaint551();
       }
+      /* ---------- [RP-V7.553] PAID FILTER PACKS — the premium shelf
+         in the effects browser. The six premium lenses (premium:true
+         in LIVE_FILTERS) are NEW lenses; every built-in lens stays
+         free. Prices + ownership are the SERVER's (fxshop553):
+         this block only renders what the server says — a locked
+         premium tile shows its lock + price and opens the buy sheet
+         instead of applying; an owned one behaves exactly like a
+         free lens (apply, favourite, trending counts). Locked
+         premium lenses never enter the camera carousel. The owner
+         account owns all premium by default (server-side bypass,
+         surfaced here as Fx553.owner). Gating honesty: lenses
+         render client-side, so the lock lives at the pick surfaces
+         + the server ownership record — a store, not DRM. */
+      var Fx553 = { prices: { single: 150, pack: 500 }, premium: [], owned: null, owner: false, balance: null, loaded: false };
+      function fxIsPremium553(f) { return !!(f && f.premium); }
+      function fxOwned553(id) {
+        if (Fx553.owner) return true;
+        return Array.isArray(Fx553.owned) && Fx553.owned.indexOf(id) >= 0;
+      }
+      function fxLocked553(f) { return fxIsPremium553(f) && !fxOwned553(f.id); }
+      function fxPackDue553() { // mirrors the server's pack credit: singles already owned count toward the pack price
+        var ownedN = LIVE_FILTERS.filter(function (f) { return fxIsPremium553(f) && fxOwned553(f.id); }).length;
+        return Math.max(0, Fx553.prices.pack - Fx553.prices.single * ownedN);
+      }
+      function fxMoney553(charms) { return Number(charms || 0).toLocaleString("en-US") + " charms ($" + (Number(charms || 0) / 100).toFixed(2) + ")"; }
+      function fxLoad553(cb) {
+        var tk = fxToken551();
+        fetch("/api/fxshop553/state", { headers: tk ? { "Authorization": "Bearer " + tk } : {} })
+          .then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (j) {
+            if (j && j.ok) {
+              if (j.prices) Fx553.prices = j.prices;
+              if (Array.isArray(j.premium)) Fx553.premium = j.premium;
+              if (Array.isArray(j.owned)) Fx553.owned = j.owned;
+              Fx553.owner = j.owner === true;
+              if (typeof j.balance === "number") Fx553.balance = j.balance;
+              Fx553.loaded = true;
+            }
+            if (cb) cb();
+          })
+          .catch(function () { if (cb) cb(); });
+      }
+      function fxBuy553(body, done) {
+        var tk = fxToken551();
+        if (!tk) { toast(rpT("fx_signin_buy553")); return; }
+        fetch("/api/fxshop553/buy", { method: "POST", headers: { "Authorization": "Bearer " + tk, "Content-Type": "application/json" }, body: JSON.stringify(body || {}) })
+          .then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { status: r.status, j: j }; }); })
+          .then(function (out) {
+            var j = out.j;
+            if (j && j.ok) {
+              Fx553.owned = Array.isArray(j.owned) ? j.owned : Fx553.owned;
+              if (typeof j.balance === "number") { Fx553.balance = j.balance; try { window.charms = j.balance; if (typeof window.updateHUD === "function") window.updateHUD(); } catch (e) { } }
+              fxRepaintBrowsers551();
+              if (typeof window.rpCamRailRepaint551 === "function") window.rpCamRailRepaint551();
+              if (done) done(true, j);
+            } else {
+              if (j && typeof j.balance === "number") Fx553.balance = j.balance;
+              if (done) done(false, j || {});
+            }
+          })
+          .catch(function () { if (done) done(false, {}); });
+      }
+      function fxBuySheet553(html) {
+        openSheet(
+          '<button class="close-x" data-act="close" aria-label="Close"><svg class="rpi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
+          '<div class="game-box" style="text-align:center;">' + html + "</div>"
+        );
+        wireLiveSheetClose();
+      }
+      function fxOpenBuy553(id) {
+        var f = fxRecipe(id); if (!fxIsPremium553(f)) return;
+        var bal = Fx553.balance != null ? Fx553.balance : (typeof window.charms === "number" ? window.charms : 0);
+        var price = Fx553.prices.single;
+        var short = bal < price;
+        var due = fxPackDue553();
+        var h = "<h3>★ " + escHtml(f.name) + "</h3>" +
+          '<div class="fxbuy553-swatch"><span class="fx-swatch">' + fxSwatchInner(f) + "</span></div>" +
+          '<p style="font-weight:600;">' + escHtml(rpT("fx_premtag553")) + " · " + escHtml(rpT("fx_single_line553")) + "</p>" +
+          '<p style="font-weight:800; font-size:16px;">' + escHtml(fxMoney553(price)) + "</p>" +
+          '<p>' + escHtml(rpTf("fx_balance553", { bal: Number(bal).toLocaleString("en-US") })) + "</p>";
+        if (short) {
+          h += '<p style="color:#fe2c2c; font-weight:700;">' + escHtml(rpTf("fx_short553", { need: price.toLocaleString("en-US"), bal: Number(bal).toLocaleString("en-US") })) + "</p>" +
+            '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:11px 24px;" data-fxget553>' + escHtml(rpT("fx_getcharms553")) + "</button></div>";
+        } else {
+          h += '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:11px 24px;" data-fxbuy553="' + f.id + '">' + escHtml(rpT("fx_buy553")) + " · " + price.toLocaleString("en-US") + "</button></div>";
+        }
+        if (due > 0) h += '<p style="margin-top:10px;"><button type="button" class="btn-mini" data-fxpackopen553>' + escHtml(rpT("fx_packname553")) + " — " + escHtml(fxMoney553(due)) + "</button></p>";
+        fxBuySheet553(h);
+        fxWireBuySheet553();
+      }
+      function fxOpenPack553() {
+        var prem = LIVE_FILTERS.filter(fxIsPremium553);
+        var bal = Fx553.balance != null ? Fx553.balance : (typeof window.charms === "number" ? window.charms : 0);
+        var due = fxPackDue553();
+        var allOwned = prem.every(function (f) { return fxOwned553(f.id); });
+        var h = "<h3>★ " + escHtml(rpT("fx_packname553")) + "</h3>" +
+          '<p style="font-weight:600;">' + escHtml(rpT("fx_pack_line553")) + "</p>" +
+          '<div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:8px 0;">' + prem.map(function (f) {
+            return '<span style="display:inline-flex; flex-direction:column; align-items:center; gap:4px; width:64px;"><span class="fx-swatch">' + fxSwatchInner(f) + '</span><span style="font-size:11px; font-weight:800;">' + escHtml(f.name) + "</span>" + (fxOwned553(f.id) ? '<span style="font-size:10px; color:#2fbf71; font-weight:800;">' + escHtml(rpT("fx_owned553")) + "</span>" : "") + "</span>";
+          }).join("") + "</div>" +
+          '<p>' + escHtml(rpTf("fx_balance553", { bal: Number(bal).toLocaleString("en-US") })) + "</p>";
+        if (allOwned) {
+          h += '<p style="font-weight:800;">' + escHtml(rpT("fx_allowned553")) + "</p>";
+        } else if (bal < due) {
+          h += '<p style="font-weight:800; font-size:16px;">' + escHtml(fxMoney553(due)) + '</p><p style="color:#fe2c2c; font-weight:700;">' + escHtml(rpTf("fx_short553", { need: due.toLocaleString("en-US"), bal: Number(bal).toLocaleString("en-US") })) + "</p>" +
+            '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:11px 24px;" data-fxget553>' + escHtml(rpT("fx_getcharms553")) + "</button></div>";
+        } else {
+          h += '<div class="btn-row" style="justify-content:center;"><button class="btn-primary" style="width:auto; padding:11px 24px;" data-fxbuypack553>' + escHtml(rpT("fx_buy553")) + " · " + escHtml(fxMoney553(due)) + "</button></div>";
+        }
+        fxBuySheet553(h);
+        fxWireBuySheet553();
+      }
+      function fxWireBuySheet553() {
+        var sh = $("sheet"); if (!sh) return;
+        var get = sh.querySelector("[data-fxget553]");
+        if (get) get.addEventListener("click", function () { closeSheet(); if (typeof window.openCharmShop === "function") window.openCharmShop(); });
+        var one = sh.querySelector("[data-fxbuy553]");
+        if (one) one.addEventListener("click", function () {
+          var id = one.getAttribute("data-fxbuy553"); one.disabled = true;
+          fxBuy553({ lensId: id }, function (okBuy, j) {
+            if (okBuy) { toast(rpTf("fx_unlock_toast553", { name: fxRecipe(id).name })); closeSheet(); }
+            else { toast(j && j.error === "insufficient-charms" ? rpTf("fx_short553", { need: (j.needed || 0).toLocaleString("en-US"), bal: (j.balance || 0).toLocaleString("en-US") }) : "Could not complete the purchase — no charms were taken."); one.disabled = false; }
+          });
+        });
+        var pk = sh.querySelector("[data-fxpackopen553]");
+        if (pk) pk.addEventListener("click", function () { fxOpenPack553(); });
+        var pb = sh.querySelector("[data-fxbuypack553]");
+        if (pb) pb.addEventListener("click", function () {
+          pb.disabled = true;
+          fxBuy553({ pack: true }, function (okBuy, j) {
+            if (okBuy) { toast("★ " + rpT("fx_packname553") + " unlocked!"); closeSheet(); }
+            else { toast(j && j.error === "insufficient-charms" ? rpTf("fx_short553", { need: (j.needed || 0).toLocaleString("en-US"), bal: (j.balance || 0).toLocaleString("en-US") }) : "Could not complete the purchase — no charms were taken."); pb.disabled = false; }
+          });
+        });
+      }
       function fxTile551(f) {
         var fav = fxIsFav551(f.id);
+        var locked = fxLocked553(f); // [RP-V7.553] a locked premium tile shows its lock + price and opens the buy sheet, never applies
         return '<span class="fxb-tile551">' +
-          '<button type="button" class="fx-chip' + (f.id === Live.filterId ? " sel" : "") + '" data-fx551="' + f.id + '"><span class="fx-swatch">' + fxSwatchInner(f) + '</span><span class="fx-name">' + escHtml(f.name) + "</span>" +
+          '<button type="button" class="fx-chip' + (f.id === Live.filterId ? " sel" : "") + (locked ? " locked553" : "") + '" data-fx551="' + f.id + '"><span class="fx-swatch">' + fxSwatchInner(f) + '</span><span class="fx-name">' + escHtml(f.name) + "</span>" +
+          (locked ? '<span class="fxb-price553">🔒 ' + Fx553.prices.single.toLocaleString("en-US") + "</span>" : "") +
           (f.author ? '<span class="fxb-by551">' + escHtml(rpT("fx_created551")) + " " + escHtml(f.author) + "</span>" : "") +
           "</button>" +
+          (locked ? '<span class="fxb-lock553">🔒</span>' : "") +
+          (fxIsPremium553(f) && !locked ? '<span class="fxb-prem553" title="' + escHtml(rpT("fx_premtag553")) + '">★</span>' : "") +
           (f.pairedSound ? '<span class="fxb-pair551" title="' + escHtml(rpT("fx_pair551")) + '">♪</span>' : "") +
           (f.id !== "none" ? '<button type="button" class="fxb-star551' + (fav ? " on" : "") + '" data-fxfav551="' + f.id + '" aria-label="' + escHtml(rpT(fav ? "fx_fav_del551" : "fx_fav_add551")) + '">' + (fav ? "★" : "☆") + "</button>" : "") +
           "</span>";
@@ -18383,6 +18544,7 @@
         var q = Fx551.q.trim().toLowerCase();
         if (q) return LIVE_FILTERS.filter(function (f) { return f.id !== "none" && f.name.toLowerCase().indexOf(q) >= 0; }).map(function (f) { return f.id; });
         if (Fx551.tab === "favs") return fxFavs551().slice();
+        if (Fx551.tab === "premium") return LIVE_FILTERS.filter(fxIsPremium553).map(function (f) { return f.id; }); // [RP-V7.553] the storefront shelf
         if (Fx551.tab === "trending") return fxRank551().slice(0, 30);
         var g = Fx551.tab.indexOf("g:") === 0 ? Fx551.tab.slice(2) : "";
         return LIVE_FILTERS.filter(function (f) { return f.group === g && f.id !== "none"; }).map(function (f) { return f.id; });
@@ -18390,13 +18552,19 @@
       function fxGridHTML551() {
         var ids = fxGridIds551();
         var h = "";
-        if (Fx551.tab !== "favs" && !Fx551.q.trim()) h += fxTile551(fxRecipe("none")); // the off switch rides the top of the grid, like the carousel's first circle
+        if (Fx551.tab === "premium" && !Fx551.q.trim()) { // [RP-V7.553] the pack offer rides the top of the Premium shelf
+          var due = fxPackDue553();
+          var allOwned = LIVE_FILTERS.filter(fxIsPremium553).every(function (f) { return fxOwned553(f.id); });
+          if (allOwned) h += '<p class="fxb-empty551">' + escHtml(rpT("fx_allowned553")) + "</p>";
+          else h += '<button type="button" class="fxb-pack553" data-fxpack553>★ ' + escHtml(rpT("fx_packname553")) + " — " + escHtml(fxMoney553(due)) + "<small>" + escHtml(rpT("fx_pack_line553")) + "</small></button>";
+        }
+        if (Fx551.tab !== "favs" && Fx551.tab !== "premium" && !Fx551.q.trim()) h += fxTile551(fxRecipe("none")); // the off switch rides the top of the grid, like the carousel's first circle
         if (!ids.length) h += '<p class="fxb-empty551">' + escHtml(rpT(Fx551.tab === "favs" && !Fx551.q.trim() ? "fx_nofavs551" : "fx_none551")) + "</p>";
         h += ids.map(function (id) { return fxTile551(fxRecipe(id)); }).join("");
         return h;
       }
       function fxBrowserHTML551() {
-        var tabs = [{ id: "trending", label: "🔥 " + rpT("fx_trending551") }, { id: "favs", label: "★ " + rpT("fx_favs551") }].concat(fxCats551());
+        var tabs = [{ id: "trending", label: "🔥 " + rpT("fx_trending551") }, { id: "favs", label: "★ " + rpT("fx_favs551") }, { id: "premium", label: "★ " + rpT("fx_premium553") }].concat(fxCats551()); // [RP-V7.553] Premium shelf between Favourites and the group tabs
         if (!tabs.some(function (t) { return t.id === Fx551.tab; })) Fx551.tab = "trending";
         return '<div class="fx-wrap fxb-wrap551"><p class="fx-label">✨ ' + escHtml(rpT("cam_effects550")) + ' <span class="fx-cur" data-fxcur>' + escHtml(fxRecipe(Live.filterId).name) + "</span></p>" +
           '<input class="fxb-search551" data-fxsearch551 type="search" placeholder="' + escHtml(rpT("fx_search_ph551")) + '" value="' + escHtml(Fx551.q) + '" autocomplete="off">' +
@@ -18420,10 +18588,13 @@
           if (star) { ev.stopPropagation(); fxToggleFav551(star.getAttribute("data-fxfav551")); return; }
           var tab = t && t.closest ? t.closest("[data-fxtab551]") : null;
           if (tab) { Fx551.tab = tab.getAttribute("data-fxtab551"); fxPaintBrowser551(wrap); return; }
+          var pack = t && t.closest ? t.closest("[data-fxpack553]") : null;
+          if (pack) { fxOpenPack553(); return; } // [RP-V7.553]
           var tile = t && t.closest ? t.closest("[data-fx551]") : null;
-          if (tile) { var id = tile.getAttribute("data-fx551"); fxUse551(id); onApply(id); fxPaintBrowser551(wrap); }
+          if (tile) { var id = tile.getAttribute("data-fx551"); if (fxLocked553(fxRecipe(id))) { fxOpenBuy553(id); return; } fxUse551(id); onApply(id); fxPaintBrowser551(wrap); } // [RP-V7.553] locked premium opens the buy sheet — it never applies and never counts a use
         });
         fxLoad551(function () { fxPaintBrowser551(wrap); });
+        fxLoad553(function () { fxPaintBrowser551(wrap); }); // [RP-V7.553] prices + ownership land, then locks render true
       }
       function openLiveFilterSheet() {
         openSheet(
@@ -41866,6 +42037,19 @@ function stageStreakBump(key, add) {
     fx_nofavs551: "No favourites yet — tap ☆ on any effect to save it here.",
     fx_created551: "Created by",
     fx_pair551: "Plays a song with this effect",
+    fx_premium553: "Premium",
+    fx_packname553: "Premium Pack",
+    fx_buy553: "Buy",
+    fx_owned553: "Owned ✓",
+    fx_getcharms553: "⭐ Get charms",
+    fx_short553: "Not enough charms — this costs {need} and you have {bal}.",
+    fx_unlock_toast553: "Unlocked: {name} ★",
+    fx_signin_buy553: "Sign in to buy filters",
+    fx_pack_line553: "All 6 premium filters, yours forever",
+    fx_single_line553: "Yours forever — every camera, every live",
+    fx_balance553: "Your balance: {bal} charms",
+    fx_premtag553: "Premium filter",
+    fx_allowned553: "You own the full Premium pack ★",
     cam_enhance550: "Enhance",
     cam_mode_photo: "PHOTO",
     cam_mode_text: "TEXT",
@@ -87468,6 +87652,8 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       row(rpT("own_charm_packs"), st.charmPacksCents) +
       row(rpT("own_premium_subs"), st.premiumSubsCents) +
       row(rpT("own_gifts_volume"), st.giftsVolumeCents) +
+      ((d.fxshop553) ? row("⭐ Premium filter sales", Number(d.fxshop553.grossCharms || 0),
+        '<div class="rp-os-note" style="margin-top:2px">' + Number(d.fxshop553.salesCount || 0).toLocaleString("en-US") + " sale" + (Number(d.fxshop553.salesCount || 0) === 1 ? "" : "s") + " · " + Number(d.fxshop553.grossCharms || 0).toLocaleString("en-US") + " charms (" + Number(d.fxshop553.packSales || 0).toLocaleString("en-US") + " pack, " + Number(d.fxshop553.singleSales || 0).toLocaleString("en-US") + " single)" + (Number(d.fxshop553.testSalesCount || 0) > 0 ? " · test-account sales excluded: " + Number(d.fxshop553.testSalesCount).toLocaleString("en-US") + " (" + Number(d.fxshop553.testGrossCharms || 0).toLocaleString("en-US") + " charms)" : "") + "</div>") : "") + /* [RP-V7.553] gross charms; 1 charm = 1¢ so money() renders the $ equivalent */
       row(rpT("own_tips_volume"), st.profileTipsVolumeCents == null ? null : st.profileTipsVolumeCents,
         '<div class="rp-os-note" style="margin-top:2px">' + rpTf("own_tips_note", { n: Number(st.profileTipsCharms || 0).toLocaleString("en-US"), earned: money(st.profileTipsCreatorCents || 0), kept: money(st.profileTipsCutCents || 0) }) + "</div>") + /* [RP-V7.294] */
       row(rpT("own_fan_subs"), st.fanSubsVolumeCents == null ? null : st.fanSubsVolumeCents,
@@ -89151,7 +89337,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
     }
     function fxCarouselOrder551() { // [RP-V7.551] Original first (the off switch), then the member's favourites in saved order, then trending, then the rest of the rack in its own order
       var seen = {}, out = [];
-      function push(id) { if (id && !seen[id] && fxRecipe(id).id === id) { seen[id] = 1; out.push(id); } }
+      function push(id) { if (id && !seen[id] && fxRecipe(id).id === id) { if (id !== "none" && fxLocked553(fxRecipe(id))) return; seen[id] = 1; out.push(id); } } // [RP-V7.553] locked premium stays out of the carousel — browser-only until bought; owned premium joins the normal order
       push("none");
       fxFavs551().forEach(push);
       fxRank551().forEach(push);
@@ -89204,6 +89390,7 @@ body[data-sales="cybermonday"] .ap-head::after { content: "🏷️ CYBER MONDAY"
       scr.classList.add("open"); scr.setAttribute("aria-hidden", "false");
       buildRail(); paintLensName(); paintRailBtns(); setMode(Cam.mode); updatePill();
       fxLoad551(function () { paintCamRail551(); }); // [RP-V7.551] once the member's favourites + trending land, the carousel re-leads with them
+      fxLoad553(function () { paintCamRail551(); }); // [RP-V7.553] owned premium lenses join the carousel once ownership lands
       sndLoadState(function () { });
       acquire();
     }
