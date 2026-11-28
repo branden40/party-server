@@ -12726,20 +12726,28 @@ function aiCallStub245(style, srcPath, outPath) {
 }
 app.get("/api/ai/styles", (req, res) => {
   let remaining = null;
+  let videoRemaining = null; // [RP-V7.562] the video sub-cap rides the same response
   try {
     const adb = readAccounts();
     const u = accountForToken(adb, req);
-    if (u)
-      remaining =
-        rpOwnerUserId(adb) === u.id
-          ? null
-          : Math.max(0, AI_DAILY_CAP245 - aiUsedToday245(aiUsageRead245(), u.id));
+    if (u) {
+      const isOwnerStyles = rpOwnerUserId(adb) === u.id;
+      remaining = isOwnerStyles
+        ? null
+        : Math.max(0, AI_DAILY_CAP245 - aiUsedToday245(aiUsageRead245(), u.id));
+      videoRemaining = isOwnerStyles
+        ? null
+        : Math.max(0, AI_VIDEO_CAP562 - aiVideoUsedToday562(aiUsageRead245(), u.id));
+    }
   } catch (e) {}
   return res.json({
     ok: true,
     enabled: AI_ENABLED245(),
     cap: AI_DAILY_CAP245,
     remaining,
+    videoCap: AI_VIDEO_CAP562,
+    videoRemaining,
+    videoMaxSec: AI_VIDEO_MAX_SEC562,
     styles: AI_STYLES245.map((s) => ({ id: s.id, name: s.name, tier: s.tier })),
   });
 });
@@ -12927,6 +12935,218 @@ app.post("/api/ai/discard", (req, res) => {
   }
   if (!stillUsed) fs.unlink(path.join(PHOTO_DIR, path.basename(f)), () => {});
   return res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// [RP-V7.562] AI VIDEO RESTYLE — the after-recording half of the AI
+// filters (Branden, Nov 28: "Build both — tray + video AI after
+// recording"). Same 11 styles, same fal account, same usage ledger as
+// the photo restyle (V7.245) — but video is ASYNC: the clip uploads,
+// the server submits it to fal's queue, polls, downloads the result
+// into REELS_DIR, and the client polls the job until it can preview
+// the restyled clip in the Editor and post it through the normal
+// /api/reel path (so moderation + the copyright scan ride along).
+//   Model (verified Nov 28, 2026 on fal's own model page,
+//   https://fal.ai/models/decart/lucy-restyle/llms.txt):
+//   decart/lucy-restyle — purpose-built video-to-video restyle
+//   (Decart Lucy), inputs { prompt, video_url } (+ optional
+//   resolution, default 720p), output { video: { url } }, priced
+//   $0.01 per second of source video — a 10s clip costs $0.10.
+//   Clips are capped at AI_VIDEO_MAX_SEC562 seconds and video
+//   restyles carry a AI_VIDEO_CAP562/day sub-cap inside the shared
+//   AI_DAILY_CAP245 ledger (the usage record gains a vcount field;
+//   photo counting is untouched). The source clip reaches fal via
+//   fal storage (initiate -> signed PUT -> file_url), streamed from
+//   disk; the result is streamed back to disk — nothing whole-video
+//   is ever buffered in memory (512 MB production ceiling).
+//   POST /api/ai/restyle-video — multipart field "video" + styleId.
+//   GET  /api/ai/restyle-video/:jobId — { status: working|done|failed }.
+//   Rig-only stub: RP_AI_RESTYLE_STUB=1 (the photo stub switch) makes
+//   the provider call a REAL local ffmpeg grade of the whole clip
+//   (AI_STUB_FILTERS245), and RP_AI_RESTYLE_STUB_FAIL=1 forces the
+//   provider-failure path — mirroring the photo stub exactly.
+// ---------------------------------------------------------------------------
+const AI_VIDEO_MODEL562 = "decart/lucy-restyle"; // verified fal video-to-video restyle, $0.01/sec of source video
+const AI_VIDEO_CAP562 = 3; // video restyles per member per day (inside the shared AI ledger)
+const AI_VIDEO_MAX_SEC562 = 10; // AI video clips cap, seconds
+const AI_VIDEO_JOBS562 = new Map(); // jobId -> { uid, status, url, file, error, ts }
+function aiVideoUsedToday562(db, uid) {
+  const r = db.users[uid];
+  return r && r.day === aiDayKey245() ? r.vcount | 0 : 0;
+}
+function aiVideoPrompt562(style) {
+  return (
+    String(style.prompt || "").replace(/this photo/gi, "this video") +
+    " Apply the style consistently to every frame of the video. Keep the exact same people with the same recognizable faces, the same motion, actions, outfits and scene — only the visual style changes."
+  );
+}
+function aiCallStubVideo562(style, srcPath, outPath) {
+  return new Promise((resolve, reject) => {
+    if (process.env.RP_AI_RESTYLE_STUB_FAIL === "1")
+      return reject(new Error("stub provider failure (rig)"));
+    const vf = AI_STUB_FILTERS245[style.id] || "eq=saturation=1.3";
+    aiExecFile245(
+      "ffmpeg",
+      ["-y", "-v", "error", "-i", srcPath, "-vf", vf, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", outPath],
+      (e) => (e ? reject(new Error("stub video transform failed: " + e.message)) : resolve())
+    );
+  });
+}
+// fal storage: initiate -> signed PUT (streamed from disk) -> file_url.
+async function aiFalUpload562(filePath, fileName, mime) {
+  const ir = await fetch("https://rest.alpha.fal.ai/storage/upload/initiate?storage_type=fal-cdn-v3", {
+    method: "POST",
+    headers: { Authorization: "Key " + AI_FAL_KEY245(), "Content-Type": "application/json" },
+    body: JSON.stringify({ file_name: fileName, content_type: mime }),
+  });
+  const ij = await ir.json().catch(() => null);
+  if (!ir.ok || !ij || !ij.upload_url || !ij.file_url)
+    throw new Error("fal storage initiate " + ir.status + ": " + String((ij && (ij.detail || ij.error)) || "").slice(0, 160));
+  const size = fs.statSync(filePath).size;
+  const pr = await fetch(ij.upload_url, {
+    method: "PUT",
+    headers: { "Content-Type": mime, "Content-Length": String(size) },
+    body: fs.createReadStream(filePath),
+    duplex: "half",
+  });
+  if (!pr.ok) throw new Error("fal storage upload " + pr.status);
+  return ij.file_url;
+}
+// Stream a URL to disk without buffering it in memory.
+async function aiDownloadToFile562(url, outPath) {
+  const r = await fetch(url);
+  if (!r.ok || !r.body) throw new Error("result download " + r.status);
+  const { pipeline } = require("stream/promises");
+  await pipeline(r.body, fs.createWriteStream(outPath));
+}
+async function aiVideoRun562(job, style, srcPath, srcMime) {
+  try {
+    if (AI_STUB245()) {
+      await aiCallStubVideo562(style, srcPath, job.outPath);
+    } else {
+      const videoUrl = await aiFalUpload562(srcPath, path.basename(srcPath), srcMime || "video/mp4");
+      try { fs.unlink(srcPath, () => {}); } catch (e) {} // fal has the clip now — the local source is done
+      const sr = await fetch("https://queue.fal.run/" + AI_VIDEO_MODEL562, {
+        method: "POST",
+        headers: { Authorization: "Key " + AI_FAL_KEY245(), "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: aiVideoPrompt562(style), video_url: videoUrl, resolution: "720p" }),
+      });
+      const sj = await sr.json().catch(() => null);
+      if (!sr.ok || !sj || !sj.status_url || !sj.response_url)
+        throw new Error("fal " + sr.status + ": " + String((sj && (sj.detail || sj.error || sj.msg)) || "").slice(0, 160));
+      let result = null;
+      const deadline = Date.now() + 12 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((res2) => setTimeout(res2, 5000));
+        const pr = await fetch(sj.status_url, { headers: { Authorization: "Key " + AI_FAL_KEY245() } });
+        const pj = await pr.json().catch(() => null);
+        if (pj && pj.status === "COMPLETED") {
+          const rr = await fetch(sj.response_url, { headers: { Authorization: "Key " + AI_FAL_KEY245() } });
+          result = await rr.json().catch(() => null);
+          break;
+        }
+        if (pj && (pj.status === "FAILED" || pj.status === "ERROR" || pj.status === "CANCELED"))
+          throw new Error("fal job " + pj.status.toLowerCase());
+      }
+      const outUrl = result && result.video && result.video.url;
+      if (!outUrl) throw new Error("fal returned no video");
+      await aiDownloadToFile562(outUrl, job.outPath);
+    }
+    const st = fs.statSync(job.outPath);
+    if (!st.size) throw new Error("empty result video");
+    job.status = "done";
+    job.url = job.baseUrl + "/reel-files/" + job.file;
+  } catch (e) {
+    console.log("AI VIDEO RESTYLE ERROR:", job.uid, job.styleId, e.message);
+    try { fs.unlink(job.outPath, () => {}); } catch (e2) {}
+    job.status = "failed";
+    job.error = "The AI couldn't restyle that one — try again in a moment, or pick a different clip.";
+  } finally {
+    try { fs.unlink(srcPath, () => {}); } catch (e) {}
+  }
+}
+app.post("/api/ai/restyle-video", (req, res) => {
+  reelUpload.single("video")(req, res, async (err) => {
+    if (err) {
+      const tooBig = err.code === "LIMIT_FILE_SIZE";
+      return res.status(tooBig ? 413 : 400).json({ ok: false, error: tooBig ? "That video is too large" : err.message });
+    }
+    const ctx = requireAccount(req, res);
+    if (!ctx) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return;
+    }
+    const dropUpload562 = () => { if (req.file) fs.unlink(req.file.path, () => {}); };
+    if (!req.file) return res.status(400).json({ ok: false, error: "Record or pick a video first" });
+    if (isPendingDeletion(ctx.user)) {
+      dropUpload562();
+      return res.status(403).json({ ok: false, error: "This account is scheduled for deletion" });
+    }
+    if (!AI_ENABLED245()) {
+      dropUpload562();
+      return res.status(503).json({ ok: false, setup: true, error: "AI filters are being set up — check back soon ✨" });
+    }
+    const style = aiStyle245((req.body || {}).styleId);
+    if (!style) {
+      dropUpload562();
+      return res.status(400).json({ ok: false, error: "Pick a style first" });
+    }
+    let dur = null;
+    try { dur = await crDuration286(req.file.path); } catch (e) {}
+    if (dur === null) {
+      dropUpload562();
+      return res.status(400).json({ ok: false, error: "That video couldn't be read — please try a different clip." });
+    }
+    if (dur > AI_VIDEO_MAX_SEC562 + 0.6) {
+      dropUpload562();
+      return res.status(400).json({
+        ok: false,
+        tooLong: true,
+        error: "AI video works on clips up to " + AI_VIDEO_MAX_SEC562 + " seconds — trim this one down first ✂️",
+      });
+    }
+    // Caps — counted on attempt, owner exempt: the shared daily AI
+    // ledger plus the video sub-cap.
+    const isOwner562 = rpOwnerUserId(ctx.db) === ctx.user.id;
+    if (!isOwner562) {
+      const udb = aiUsageRead245();
+      if (aiUsedToday245(udb, ctx.user.id) >= AI_DAILY_CAP245) {
+        dropUpload562();
+        return res.status(429).json({ ok: false, remaining: 0, error: "You've used today's " + AI_DAILY_CAP245 + " AI filters — they reset tomorrow ✨" });
+      }
+      if (aiVideoUsedToday562(udb, ctx.user.id) >= AI_VIDEO_CAP562) {
+        dropUpload562();
+        return res.status(429).json({ ok: false, videoRemaining: 0, error: "You've used today's " + AI_VIDEO_CAP562 + " AI video restyles — they reset tomorrow ✨" });
+      }
+      const rec = udb.users[ctx.user.id];
+      if (rec && rec.day === aiDayKey245()) { rec.count = (rec.count | 0) + 1; rec.vcount = (rec.vcount | 0) + 1; }
+      else udb.users[ctx.user.id] = { day: aiDayKey245(), count: 1, vcount: 1 };
+      storeWriteJson(AI_USAGE_FILE245, udb);
+    }
+    // Prune stale jobs so the map stays small.
+    const now562 = Date.now();
+    for (const [k, v] of AI_VIDEO_JOBS562) if (now562 - v.ts > 2 * 60 * 60 * 1000) AI_VIDEO_JOBS562.delete(k);
+    const jobId = "aiv" + Date.now().toString(36) + crypto.randomBytes(5).toString("hex");
+    const outFile = jobId + ".mp4";
+    const job = {
+      uid: ctx.user.id, styleId: style.id, status: "working", url: null, error: null,
+      file: outFile, outPath: path.join(REELS_DIR, outFile),
+      baseUrl: "https://" + req.get("host"), ts: now562,
+    };
+    AI_VIDEO_JOBS562.set(jobId, job);
+    aiVideoRun562(job, style, req.file.path, req.file.mimetype); // async — the client polls
+    const remaining = isOwner562 ? null : Math.max(0, AI_DAILY_CAP245 - aiUsedToday245(aiUsageRead245(), ctx.user.id));
+    const videoRemaining = isOwner562 ? null : Math.max(0, AI_VIDEO_CAP562 - aiVideoUsedToday562(aiUsageRead245(), ctx.user.id));
+    return res.json({ ok: true, jobId, styleId: style.id, styleName: style.name, remaining, videoRemaining });
+  });
+});
+app.get("/api/ai/restyle-video/:jobId", (req, res) => {
+  const ctx = requireAccount(req, res);
+  if (!ctx) return;
+  const job = AI_VIDEO_JOBS562.get(String(req.params.jobId || ""));
+  if (!job || job.uid !== ctx.user.id)
+    return res.status(404).json({ ok: false, error: "That AI job is gone" });
+  return res.json({ ok: true, status: job.status, url: job.url || null, error: job.error || null, styleId: job.styleId });
 });
 
 app.get("/api/photo/posts", (req, res) => {
